@@ -68,7 +68,7 @@ scripts/dev/harness.sh up            # start + seed; blocks until healthy
 scripts/dev/harness.sh up --bulk     # also seed dozens of extra varied messages (fuller mailbox)
 scripts/dev/harness.sh status        # health + host ports + accounts
 scripts/dev/harness.sh reset         # wipe and re-bootstrap from empty, clients included
-scripts/dev/harness.sh test          # gated JMAP live test: a fast smoke check
+scripts/dev/harness.sh test          # every gated live suite, as CI runs them
 scripts/dev/harness.sh deliver       # SMTP-inject a fresh message (bob->alice): new inbound mail
 scripts/dev/harness.sh down          # stop
 ```
@@ -694,6 +694,12 @@ MAILCAL_FAKE_SYNC_HINT=eva.jansen@example.com:2022 scripts/dev/boot.sh macos
 # change, so the refusal is what Allow shows.
 MAILCAL_SHOWCASE_SERVER_CHANGE=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
+# macOS, iOS, Windows and Linux, showcase only: the first account asked to sign in again for mail
+# and for its calendar (docs/provider-oauth.md rule 11), so both reauth notices, the account's row
+# and its page can be driven and photographed. Reads in the CORE; debug builds only. Signing in
+# again opens the account's page, since a showcase account has no browser sign-in.
+MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
+
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the
 # machine's own setting back on). It pins how the run STARTS; a pick in Settings still wins for
 # the rest of the session, and nothing is persisted. Android has no env vars, so build-and-run.sh
@@ -935,8 +941,10 @@ CLI-drivable trigger: an lldb `_simulateLaunchForTaskWithIdentifier` won't conne
 CoreDevice tunnel from the CLI, and the Darwin `notifyutil` trigger is simulator-only). It prints the
 per-account **mark before/after** as the deterministic SEEDED-vs-DETECTED signal.
 
-Gotchas the tooling handles for you: the signing **team** is derived from the cert OU (not the cert
-id); **Developer Mode** must be enabled on the device (manual, `doctor` flags it); the device must be
+Gotchas the tooling handles for you: the signing **team** is `DEVELOPMENT_TEAM`, else the one
+`clients/apple/signing.local.xcconfig` names, else the OU (not the cert id) of the keychain's Apple
+Development certificates when they share one team, and certificates of several teams are refused
+rather than picked by keychain order; **Developer Mode** must be enabled on the device (manual, `doctor` flags it); the device must be
 **unlocked** to launch; and it **terminates before launch** so a fresh `onAppear` fires the hook.
 
 The local Stalwart harness is **loopback-only**. Android physical devices and emulators use

@@ -203,7 +203,7 @@ impl AppModel {
                     jmap::complete(&app, pending, callback_url)
                 }
                 CallbackOutcome::Cancelled => JmapOutcome::Cancelled,
-                CallbackOutcome::Failed(_) => JmapOutcome::Failed,
+                CallbackOutcome::TimedOut(_) | CallbackOutcome::Failed(_) => JmapOutcome::Failed,
             };
             sender.emit(AppInput::JmapFinished(attempt, outcome));
         });
@@ -301,7 +301,7 @@ impl AppModel {
         jmap::launch_browser(&authorization_url, move || {
             failed.emit(AppInput::JmapReauthFinished(
                 attempt,
-                JmapReauthOutcome::Failed(crate::l10n::signin_expired_failed().to_owned()),
+                JmapReauthOutcome::Failed,
             ));
         });
         let (Some(app), Some(cancel)) =
@@ -315,10 +315,12 @@ impl AppModel {
                 CallbackOutcome::Received(callback_url) => {
                     jmap::complete_reauth(&app, account_id, pending, callback_url)
                 }
-                CallbackOutcome::Cancelled => JmapReauthOutcome::Cancelled,
-                CallbackOutcome::Failed(_) => {
-                    JmapReauthOutcome::Failed(crate::l10n::signin_expired_failed().to_owned())
+                // A browser left until the wait ran out is not a failure (`docs/notices.md` rule
+                // 10).
+                CallbackOutcome::Cancelled | CallbackOutcome::TimedOut(_) => {
+                    JmapReauthOutcome::Cancelled
                 }
+                CallbackOutcome::Failed(_) => JmapReauthOutcome::Failed,
             };
             sender.emit(AppInput::JmapReauthFinished(attempt, outcome));
         });
@@ -328,25 +330,22 @@ impl AppModel {
         if !self.host_tasks.jmap.finish(attempt) {
             return;
         }
-        match outcome {
-            JmapReauthOutcome::Reauthenticated => {
-                self.notice = None;
-                if let Some(app) = &self.app {
-                    self.snapshot.replace(app.mailbox_list());
-                    self.connectivity =
-                        super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
-                }
-            }
-            JmapReauthOutcome::Cancelled => {}
-            JmapReauthOutcome::Failed(said) => {
-                log::warn!("jmap re-authentication failed");
-                self.notice = Some(said);
-            }
+        let failed = outcome == JmapReauthOutcome::Failed;
+        if outcome == JmapReauthOutcome::Reauthenticated
+            && let Some(app) = &self.app
+        {
+            self.snapshot.replace(app.mailbox_list());
+            self.pull_notices();
         }
+        if failed {
+            log::warn!("jmap re-authentication failed");
+        }
+        self.notice_remedy_ended(super::notices::Remedy::Jmap, failed);
     }
 
     fn jmap_reauth_failed(&mut self, attempt: u64) {
-        self.host_tasks.jmap.finish(attempt);
-        self.notice = Some(crate::l10n::signin_expired_failed().to_owned());
+        if self.host_tasks.jmap.finish(attempt) {
+            self.notice_remedy_ended(super::notices::Remedy::Jmap, true);
+        }
     }
 }

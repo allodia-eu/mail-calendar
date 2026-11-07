@@ -10,6 +10,10 @@ use crate::{AccountCapability, ConnectionSecurity};
 pub struct AccountsSnapshot {
     /// Every account, mail or not.
     pub accounts: Vec<AccountEntry>,
+    /// The accounts that can make video meetings, in the same order, as Settings →
+    /// Videoconferencing lists them (`docs/settings.md` category 4).
+    #[uniffi(default = [])]
+    pub meeting_accounts: Vec<crate::MeetingAccount>,
 }
 
 /// One account as Settings → Accounts lists it.
@@ -50,6 +54,12 @@ pub struct AccountEntry {
     /// every other account.
     #[uniffi(default = None)]
     pub mail_sync: Option<MailSyncTechnology>,
+    /// Whether a Nextcloud sign-in made it: a calendar and contacts account whose password the
+    /// server issued, which signs in again through Nextcloud
+    /// ([`MailcalApp::begin_account_nextcloud_sign_in`](crate::MailcalApp::begin_account_nextcloud_sign_in))
+    /// and never with a typed password.
+    #[uniffi(default = false)]
+    pub nextcloud: bool,
 }
 
 /// Which way a Google account's mail syncs in this launch: what Settings calls its sync

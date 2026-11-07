@@ -70,6 +70,7 @@ impl From<AppConnectivity> for ConnectivitySnapshot {
             signin_expired_accounts: snapshot.signin_expired_accounts,
             calendar_outages: Vec::new(),
             contacts_outages: Vec::new(),
+            allodia_sign_in_ended: None,
         }
     }
 }

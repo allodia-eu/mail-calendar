@@ -18,6 +18,9 @@ pub enum AccountCapability {
     Contacts,
     /// The organisation's directory, beside the account's own contacts, on Microsoft and Google.
     Colleagues,
+    /// Video meetings the account's provider makes for an event on any calendar: Teams on a
+    /// Microsoft work account, Talk on an account a Nextcloud sign-in made.
+    Meetings,
 }
 
 impl From<AccountCapability> for Capability {
@@ -28,6 +31,7 @@ impl From<AccountCapability> for Capability {
             AccountCapability::Contacts => Self::Contacts,
             AccountCapability::Colleagues => Self::Colleagues,
             AccountCapability::SharedMailboxes => Self::SharedMailboxes,
+            AccountCapability::Meetings => Self::Meetings,
         }
     }
 }
@@ -40,6 +44,7 @@ impl From<Capability> for AccountCapability {
             Capability::Contacts => Self::Contacts,
             Capability::Colleagues => Self::Colleagues,
             Capability::SharedMailboxes => Self::SharedMailboxes,
+            Capability::Meetings => Self::Meetings,
         }
     }
 }

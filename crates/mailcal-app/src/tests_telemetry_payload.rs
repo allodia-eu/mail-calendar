@@ -46,6 +46,7 @@ async fn no_content_reaches_the_wire() {
         location: Some("Courtroom 4B".to_owned()),
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
     app.dispatch(Intent::SubmitMail {

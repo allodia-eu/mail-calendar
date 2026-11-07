@@ -12,7 +12,8 @@
 import MailcalBindings
 import SwiftUI
 
-/// Signed out → sign in or create; signing in → a spinner; signed in → who, and what to do next.
+/// Signed out → sign in or create; signing in → a spinner; signed in → who, and what to do next;
+/// a sign-in the service refused → whose sign-in ended, and signing in again.
 struct AllodiaAccountSettings: View {
     var model: MailboxModel
 
@@ -29,7 +30,7 @@ struct AllodiaAccountSettings: View {
             // A subscription belongs to an account, so there is nothing to say about one before
             // somebody has signed in. Keyed on the account so signing in or out rebuilds it and
             // its read runs again for whoever is signed in now.
-            if let account {
+            if let account, !ended {
                 AllodiaSubscriptionSettings(model: model).id(account.email)
             }
         }
@@ -64,6 +65,8 @@ struct AllodiaAccountSettings: View {
                 ProgressView().controlSize(.small)
                 Text(L10n.settings_allodia_signing_in()).foregroundStyle(.secondary)
             }
+        } else if let account, ended {
+            ended(account)
         } else if let account {
             // The name is what the person recognises, but the address is what identifies the
             // account, so it is the address that is always shown, and the name only when the
@@ -96,6 +99,29 @@ struct AllodiaAccountSettings: View {
             }
         }
     }
+
+    /// The service refused the stored sign-in. Its address stays on screen so the person knows
+    /// which account to sign in to again; nothing else here can work until they do.
+    private func ended(_ account: AllodiaAccount) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L10n.settings_allodia_session_ended(email: account.email))
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Text(L10n.settings_allodia_session_ended_hint())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 12) {
+                Button(L10n.settings_allodia_reauth_action()) { signIn() }
+                    .buttonStyle(.borderedProminent)
+                Button(L10n.settings_allodia_sign_out()) { signOut() }
+            }
+        }
+    }
+
+    /// Whether the service refused the sign-in: the same field the mailbox banner reads, so the two
+    /// cannot disagree, and redrawn on the same connectivity signal.
+    private var ended: Bool { model.connectivity?.allodiaSignInEnded != nil }
 
     private func signIn() { begin(create: false) }
 

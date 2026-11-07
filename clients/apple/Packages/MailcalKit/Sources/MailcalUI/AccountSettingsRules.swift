@@ -1,49 +1,8 @@
-// What Settings → Accounts says about an account, decided from its snapshot entry alone
-// (docs/accounts.md rules 11 to 13), so each rule is tested without a view. The words are the
-// catalog's; the decisions are here.
+// What Settings → Accounts' list says about an account, decided from its snapshot entry alone
+// (docs/accounts.md rules 11 to 13), so each rule is tested without a view, and the catalog's words
+// for what the core decides on an account's page (`account_page`), which carries no rule here.
 
 import MailcalBindings
-
-/// Which line, if any, sits under a use's switch.
-enum UseNote: Equatable {
-    case none
-    /// The last of mail, calendar and contacts: the account is removed instead.
-    case last
-    /// Colleagues, while contacts are off.
-    case needsContacts
-    /// Shared mailboxes, while mail is off.
-    case needsMail
-    /// Chosen, and the provider has not granted it.
-    case withheld
-    /// The server offers none, so nothing can switch it on.
-    case notOffered
-    /// On, and it did not connect although the account did: a calendar or an address book, since
-    /// mail decides whether the account connected at all.
-    case problem(UseProblem, AccountCapability)
-}
-
-/// How one use's switch is drawn.
-struct UseSwitch: Equatable {
-    /// On. A use waiting on a permission is drawn off: it is not working, and switching it on is
-    /// what asks the provider again.
-    let active: Bool
-    /// Whether switching it on asks the provider rather than the core.
-    let asks: Bool
-    /// Whether the person can flip it.
-    let enabled: Bool
-    let note: UseNote
-}
-
-/// One link slot's picker: "none" first, then `options`.
-struct LinkPicker: Equatable {
-    let slot: LinkSlot
-    let options: [LinkedAccount]
-    /// The index into `options` of the account linked now; `nil` for "none".
-    let selected: Int?
-    /// The index of the account to suggest while nothing is linked: one whose calendar server
-    /// schedules as the mail account's address.
-    let suggested: Int?
-}
 
 enum AccountSettingsRules {
     private static let primary: [AccountCapability] = [.mail, .calendar, .contacts]
@@ -85,75 +44,6 @@ enum AccountSettingsRules {
     /// Whether the account signs in at its provider's own page, which "Sign in again" opens.
     static func signsInAtProvider(_ kind: AccountKind) -> Bool {
         kind == .microsoft || kind == .google
-    }
-
-    /// The switch for `capability`. The last of mail, calendar and contacts cannot be switched
-    /// off, and colleagues cannot be switched on without contacts, nor shared mailboxes without
-    /// mail: the core refuses each, so the switch says why rather than letting the person find out.
-    static func useSwitch(_ entry: AccountEntry, _ capability: AccountCapability) -> UseSwitch {
-        func used(_ wanted: AccountCapability) -> Bool {
-            entry.uses.contains { $0.capability == wanted && works($0.state) }
-        }
-        let state = entry.uses.first { $0.capability == capability }?.state ?? .off
-        // A use waiting on a permission is drawn off, so it is never the one held on: switching
-        // it on asks the provider, which the core does not refuse.
-        let last = state == .on && primary.contains(capability)
-            && primary.filter(used).count == 1
-        let withoutContacts = capability == .colleagues && state == .off && !used(.contacts)
-        let withoutMail = capability == .sharedMailboxes && state == .off && !used(.mail)
-        let notOffered = state == .notOffered
-        let problem = entry.uses.first { $0.capability == capability }?.problem
-        let note: UseNote
-        if notOffered {
-            note = .notOffered
-        } else if let problem {
-            note = .problem(problem, capability)
-        } else if last {
-            note = .last
-        } else if withoutContacts {
-            note = .needsContacts
-        } else if withoutMail {
-            note = .needsMail
-        } else if state == .needsPermission {
-            note = .withheld
-        } else {
-            note = .none
-        }
-        return UseSwitch(
-            active: state == .on,
-            asks: state == .needsPermission,
-            enabled: !last && !withoutContacts && !withoutMail && !notOffered,
-            note: note
-        )
-    }
-
-    /// Whether the line under a use's switch offers "Review": the use is paused for a server on
-    /// another site, which only the person can allow.
-    static func reviewsServerChange(_ note: UseNote) -> Bool {
-        if case .problem(.serverChanged, _) = note { true } else { false }
-    }
-
-    /// The pickers an account's page offers: one per slot it can hold, which is a slot with
-    /// candidates or one already linked. A link the candidates no longer offer is kept as the
-    /// first option, so the picker shows what is stored rather than "none".
-    static func linkPickers(_ entry: AccountEntry) -> [LinkPicker] {
-        let slots: [(LinkSlot, [LinkedAccount], LinkedAccount?)] = [
-            (.calendar, entry.linkCandidates.calendar, entry.links.calendar),
-            (.contacts, entry.linkCandidates.contacts, entry.links.contacts),
-            (.mail, entry.linkCandidates.mail, entry.links.mail),
-        ]
-        return slots.compactMap { slot, candidates, current in
-            guard !candidates.isEmpty || current != nil else { return nil }
-            var options = candidates
-            if let current, !options.contains(where: { $0.id == current.id }) {
-                options.insert(current, at: 0)
-            }
-            let selected = current.flatMap { current in options.firstIndex { $0.id == current.id } }
-            let suggested = selected == nil
-                ? options.firstIndex { entry.linkCandidates.suggested.contains($0.id) }
-                : nil
-            return LinkPicker(slot: slot, options: options, selected: selected, suggested: suggested)
-        }
     }
 
     /// The accounts that lose their link when this one is removed, joined for the confirmation;
@@ -227,6 +117,7 @@ enum AccountSettingsLabels {
         case .contacts: L10n.nav_contacts()
         case .colleagues: L10n.account_use_colleagues()
         case .sharedMailboxes: L10n.account_use_shared_mailboxes()
+        case .meetings: L10n.account_use_meetings()
         }
     }
 
@@ -244,16 +135,33 @@ enum AccountSettingsLabels {
         return lines
     }
 
-    /// The line under a use's switch.
-    static func note(_ note: UseNote) -> String? {
-        switch note {
-        case .none: nil
-        case .last: L10n.settings_account_use_last()
+    /// The line under a use's switch: what is wrong with the use, then why it cannot be pressed,
+    /// so neither hides the other. `nil` when there is nothing to say.
+    static func note(_ toggle: AccountUseSwitch) -> String? {
+        let status: String? = switch toggle.status {
+        case let .problem(problem): problemNote(problem, calendar: toggle.capability == .calendar)
+        case .withheld: L10n.settings_account_use_withheld()
+        case nil: nil
+        }
+        let blocked: String? = switch toggle.blocked {
+        case .lastUse: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
         case .needsMail: L10n.settings_account_shared_needs_mail()
-        case .withheld: L10n.settings_account_use_withheld()
         case .notOffered: L10n.settings_account_use_not_offered()
-        case let .problem(problem, capability): problemNote(problem, calendar: capability == .calendar)
+        case .needsServer: L10n.settings_account_use_needs_endpoint()
+        case nil: nil
+        }
+        let lines = [status, blocked].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// What a change on an account's page came to, when the core says it needs saying.
+    static func changeFailed(_ notice: AccountChangeNotice) -> AccountPageAlert {
+        switch notice {
+        case let .useFailed(_, _, detail), let .linkFailed(_, detail):
+            AccountPageAlert(title: L10n.settings_account_change_failed_title(), detail: detail)
+        case let .removeFailed(detail):
+            AccountPageAlert(title: L10n.remove_account_failed(error: detail), detail: "")
         }
     }
 

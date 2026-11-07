@@ -86,6 +86,9 @@ pub struct AccountConfig {
     /// grant, and none of them stores a password.
     #[serde(default)]
     pub oauth: Option<OAuthGrant>,
+    /// Where the DAV password came from, when a Nextcloud sign-in issued it.
+    #[serde(default)]
+    pub nextcloud: Option<crate::NextcloudLogin>,
     /// Server certificates this account's owner accepted although they did not verify
     /// (`docs/certificate-exceptions.md`). Empty for every account that never met one,
     /// which is nearly all of them.
@@ -180,6 +183,8 @@ impl AccountConfig {
         if updated.is_oauth() {
             return updated;
         }
+        // A typed password is not one a Nextcloud sign-in issued.
+        updated.nextcloud = None;
         let password = Secret::new(password.to_owned());
         if let Some(imap) = &mut updated.imap {
             imap.password = Some(password.clone());
@@ -270,6 +275,9 @@ impl AccountConfig {
         if let Some(grant) = &self.oauth {
             root.insert("oauth".into(), grant.to_table().into());
         }
+        if let Some(login) = &self.nextcloud {
+            root.insert("nextcloud".into(), login.to_table().into());
+        }
         if !self.certificate_exceptions.is_empty() {
             let exceptions: Vec<toml::Value> = self
                 .certificate_exceptions
@@ -357,7 +365,8 @@ impl AccountConfig {
     }
 
     /// What this account is used for: its stored choice, or what its endpoints have always
-    /// meant (its mailbox, plus its calendar and the address book beside it when it has them).
+    /// meant (its mailbox, plus its calendar and the address book beside it when it has them),
+    /// with Talk meetings for an account a Nextcloud sign-in made.
     #[must_use]
     pub fn capabilities(&self) -> crate::Capabilities {
         let with_calendar = self.caldav.is_some();
@@ -367,6 +376,8 @@ impl AccountConfig {
                 self.imap.is_some().then_some(crate::Capability::Mail),
                 with_calendar.then_some(crate::Capability::Calendar),
                 with_contacts.then_some(crate::Capability::Contacts),
+                // A Nextcloud sign-in's account makes Talk meetings unless switched off.
+                self.nextcloud.as_ref().map(|_| crate::Capability::Meetings),
             ]
             .into_iter()
             .flatten(),

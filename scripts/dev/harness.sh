@@ -11,7 +11,7 @@
 #   scripts/dev/harness.sh status        # health + host port table
 #   scripts/dev/harness.sh certs         # re-extract the served certificates for MAILCAL_EXTRA_CA
 #   scripts/dev/harness.sh logs [-f]     # the server's own logs (seeding, requests)
-#   scripts/dev/harness.sh test          # run the gated live tests against it (JMAP, IMAP sign-in)
+#   scripts/dev/harness.sh test          # run every gated live suite against it, as CI does
 #   scripts/dev/harness.sh deliver [--from B] [--subject S]
 #                                        # drop a fresh message into alice@test.local's INBOX (via
 #                                        # IMAP APPEND) so a background-sync 'detect' pass has new
@@ -148,6 +148,9 @@ case "$cmd" in
     ;;
   test)
     require_harness
+    # Read afresh before the first suite that trusts it: a bundle from an earlier harness fails
+    # every TLS dial with `BadSignature`.
+    extract_harness_ca || die "the live tests need the harness certificates"
     info "running the gated live tests against the harness"
     cd "$REPO_ROOT"
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
@@ -167,7 +170,6 @@ case "$cmd" in
       MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
-    extract_harness_ca || die "the IMAP sign-in tests need the harness certificates"
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \

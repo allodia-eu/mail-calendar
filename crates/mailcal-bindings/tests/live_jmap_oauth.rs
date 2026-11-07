@@ -64,7 +64,14 @@ fn a_jmap_account_signs_in_through_discovery_and_registration() {
     assert_eq!(param(&authorization, "redirect_uri"), REDIRECT_URI);
     assert_eq!(param(&authorization, "code_challenge_method"), "S256");
     // The resource the server published, so the token is bound to this JMAP server (RFC 8707).
-    assert_eq!(param(&authorization, "resource"), server);
+    // Stalwart names the path its metadata was asked for, under `https` whatever the scheme it
+    // was reached over, so the server is identified by its authority.
+    let resource = url::Url::parse(&param(&authorization, "resource")).expect("an absolute URI");
+    assert_eq!(
+        resource.authority(),
+        addr,
+        "the resource names this server: {resource}"
+    );
     assert!(
         !param(&authorization, "client_id").is_empty(),
         "registration issued a client id",

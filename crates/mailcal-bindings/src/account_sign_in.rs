@@ -24,6 +24,12 @@ pub struct AccountSignInOptions {
     pub provider_label: Option<String>,
     /// Whether the account can sign in with a password: kept, or switched to from signing in.
     pub password: bool,
+    /// Whether the account can sign in with Nextcloud: a calendar and contacts account a
+    /// Nextcloud sign-in made, signed in again that way, or one with a typed password whose server
+    /// answers as Nextcloud, switched over (`docs/nextcloud-sign-in.md`). Started with
+    /// [`MailcalApp::begin_account_nextcloud_sign_in`].
+    #[uniffi(default = false)]
+    pub nextcloud: bool,
 }
 
 /// The browser half of signing an existing account in: the URL to open in the platform auth
@@ -69,6 +75,9 @@ impl MailcalApp {
     /// question offers nothing.
     pub fn account_sign_in_options(&self, account_id: String) -> AccountSignInOptions {
         match self.registry.sign_in_config(&account_id) {
+            Some(SignInConfig::Imap(config)) if config.imap.is_none() => {
+                self.calendar_sign_in_options(&config)
+            }
             Some(SignInConfig::Imap(config)) => self.imap_sign_in_options(&account_id, &config),
             Some(SignInConfig::Jmap(config)) => AccountSignInOptions {
                 sign_in: config.is_oauth()
@@ -76,6 +85,7 @@ impl MailcalApp {
                         .jmap_oauth_available(config.email.clone(), Some(config.base_url.clone())),
                 provider_label: None,
                 password: true,
+                nextcloud: false,
             },
             None => no_options(),
         }
@@ -169,15 +179,22 @@ impl MailcalApp {
         let replacement = match (pending, self.switchable(&account_id)?) {
             (PendingSignIn::Imap(pending), SignInConfig::Imap(config)) => {
                 let signed_in = self.exchange_imap_login(pending, callback_url)?;
-                named_as(signed_in.username.as_deref(), config.username())?;
-                let signed = config.with_grant(signed_in.grant);
+                named_as(
+                    signed_in.username.as_deref(),
+                    config.oauth.as_ref(),
+                    config.username(),
+                )?;
+                let grant = signed_in.grant.replacing(config.oauth.as_ref());
+                let signed = config.with_grant(grant);
                 return self.install_signed_in(&account_id, &config, signed, unreached);
             }
             (PendingSignIn::Jmap(pending), SignInConfig::Jmap(config)) => {
                 let (fresh, named) = self.exchange_jmap_login(pending, callback_url)?;
-                named_as(named.as_deref(), &config.email)?;
+                named_as(named.as_deref(), config.oauth.as_ref(), &config.email)?;
                 Replacement::Jmap(JmapAccountConfig {
-                    oauth: fresh.oauth,
+                    oauth: fresh
+                        .oauth
+                        .map(|grant| grant.replacing(config.oauth.as_ref())),
                     password: None,
                     token: None,
                     ..*config
@@ -324,6 +341,7 @@ impl MailcalApp {
                 sign_in: true,
                 provider_label,
                 password,
+                nextcloud: false,
             };
         }
         query.autoconfig_issuer =
@@ -339,6 +357,7 @@ impl MailcalApp {
             sign_in,
             provider_label,
             password: true,
+            nextcloud: false,
         }
     }
 
@@ -402,15 +421,26 @@ impl MailcalApp {
     }
 }
 
-/// Refuses a sign-in whose server named another account than `address` in its token response
-/// (`username`, draft-ietf-mailmaint-oauth-public §3.5). Nothing to check when it named none.
+/// Refuses a sign-in whose server named another account in its token response (`username`,
+/// draft-ietf-mailmaint-oauth-public §3.5) than the one `stored` was issued for, or, where no
+/// earlier sign-in was named, than `address`. Nothing to check when it named none.
+///
+/// The earlier name decides because the profile makes it the account's identity: a person who
+/// typed an alias of their login name is named by the login name every time.
 ///
 /// # Errors
 ///
-/// Returns [`MailcalError::Config`] when the named account is another one.
-pub(crate) fn named_as(named: Option<&str>, address: &str) -> Result<(), MailcalError> {
+/// Returns [`MailcalError::DifferentAccount`] when the named account is another one.
+pub(crate) fn named_as(
+    named: Option<&str>,
+    stored: Option<&mailcal_account::OAuthGrant>,
+    address: &str,
+) -> Result<(), MailcalError> {
+    let expected = stored
+        .and_then(|grant| grant.signed_in_as.as_deref())
+        .unwrap_or(address);
     match named {
-        Some(named) if !addresses_match(named, address) => {
+        Some(named) if !addresses_match(named, expected) => {
             log::warn!("sign-in: the server issued the grant for another account; discarding it");
             Err(MailcalError::DifferentAccount)
         }
@@ -431,11 +461,12 @@ fn same_mailbox<E: std::fmt::Display>(
     }
 }
 
-const fn no_options() -> AccountSignInOptions {
+pub(crate) const fn no_options() -> AccountSignInOptions {
     AccountSignInOptions {
         sign_in: false,
         provider_label: None,
         password: false,
+        nextcloud: false,
     }
 }
 

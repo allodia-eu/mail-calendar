@@ -15,22 +15,44 @@ fn the_sign_in_is_offered_only_after_the_server_says_so_for_the_forms_uses() {
     assert!(!form.offers_sign_in, "nothing is offered before the answer");
     assert!(!form.begin_sign_in(1), "and nothing starts");
 
-    form.offer_answered(&[AccountCapability::Contacts], true);
+    form.offer_answered(&[AccountCapability::Contacts], true, false);
     assert!(
         !form.offers_sign_in,
         "an answer for other uses is not this form's"
     );
-    form.offer_answered(&[AccountCapability::Calendar], false);
+    form.offer_answered(&[AccountCapability::Calendar], false, false);
     assert!(!form.offers_sign_in);
-    form.offer_answered(&[AccountCapability::Calendar], true);
+    form.offer_answered(&[AccountCapability::Calendar], true, false);
     assert!(form.offers_sign_in);
     assert!(form.begin_sign_in(1));
 }
 
 #[test]
+fn a_nextcloud_server_offers_its_own_sign_in_unless_a_provider_answered() {
+    let mut form = form(vec![AccountCapability::Calendar]);
+    form.offer_answered(&[AccountCapability::Calendar], false, true);
+    assert!(form.nextcloud && !form.offers_sign_in);
+    assert!(form.offers());
+    assert!(form.begin_sign_in(1), "the same stages carry it");
+
+    let mut form = super::super::separate_sign_in::tests::form(vec![AccountCapability::Calendar]);
+    form.offer_answered(&[AccountCapability::Calendar], true, true);
+    assert!(
+        form.offers_sign_in && !form.nextcloud,
+        "one sign-in is offered, never two"
+    );
+
+    form.offer_answered(&[AccountCapability::Contacts], false, true);
+    assert!(
+        !form.nextcloud,
+        "an answer for other uses is not this form's"
+    );
+}
+
+#[test]
 fn only_the_blocking_core_calls_hold_the_form() {
     let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true);
+    form.offer_answered(&[AccountCapability::Calendar], true, false);
     assert!(form.begin_sign_in(1));
     assert!(form.held(), "held while the core finds the provider");
     assert!(form.sign_in_prepared(1, Ok(())));
@@ -50,7 +72,7 @@ fn only_the_blocking_core_calls_hold_the_form() {
 #[test]
 fn a_fresh_press_supersedes_the_attempt_in_the_browser() {
     let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true);
+    form.offer_answered(&[AccountCapability::Calendar], true, false);
     assert!(form.begin_sign_in(1));
     assert!(form.sign_in_prepared(1, Ok(())));
     assert!(form.begin_sign_in(2), "the wait does not refuse a press");
@@ -67,7 +89,7 @@ fn a_fresh_press_supersedes_the_attempt_in_the_browser() {
 #[test]
 fn a_retired_attempt_opens_no_browser_and_adds_no_account() {
     let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true);
+    form.offer_answered(&[AccountCapability::Calendar], true, false);
     assert!(form.begin_sign_in(1));
     assert!(form.retire_sign_in(), "a begin still running is retired");
     assert!(
@@ -90,7 +112,7 @@ fn a_retired_attempt_opens_no_browser_and_adds_no_account() {
 #[test]
 fn a_provider_that_cannot_be_reached_says_so_and_offers_the_sign_in_again() {
     let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true);
+    form.offer_answered(&[AccountCapability::Calendar], true, false);
     assert!(form.begin_sign_in(1));
     let failed = l10n::setup_imap_signin_failed().to_owned();
     assert!(!form.sign_in_prepared(1, Err(failed.clone())));

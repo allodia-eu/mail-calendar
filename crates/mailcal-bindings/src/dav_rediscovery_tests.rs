@@ -28,6 +28,7 @@ fn found(caldav: &str, carddav: &str) -> DetectedDav {
     DetectedDav {
         caldav_url: Some(caldav.to_owned()),
         carddav_url: Some(carddav.to_owned()),
+        nextcloud: false,
     }
 }
 
@@ -60,6 +61,7 @@ fn the_same_servers_or_another_providers_move_nothing() {
         moved(&DetectedDav {
             caldav_url: None,
             carddav_url: None,
+            nextcloud: false,
         })
         .is_none(),
         "finding nothing is no reason to drop what is stored"

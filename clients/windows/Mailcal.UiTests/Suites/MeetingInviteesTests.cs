@@ -12,7 +12,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(TwoAccountHarnessCollection.Name)]
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 [Trait("Dataset", "harness")]
 public sealed class MeetingInviteesTests(TwoAccountHarnessApp harness)
 {

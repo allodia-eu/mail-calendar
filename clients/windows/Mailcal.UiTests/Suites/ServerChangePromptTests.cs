@@ -1,13 +1,13 @@
 // The question a calendar paused for a server on another site asks (docs/account-autodetect.md
-// rule 14), on both of the surfaces that ask it: the calendar's own line, whose Review opens a
-// dialog, and the account's page in Settings, which asks inline because Settings is itself a dialog.
+// rule 14), on both of the surfaces that ask it: the calendar's notice, whose Review opens a dialog,
+// and the account's page in Settings, which asks inline because Settings is itself a dialog.
 //
 // WHY THE SHOWCASE. MAILCAL_SHOWCASE_SERVER_CHANGE (debug builds, read in the core) pauses the first
 // account's calendar for a move from example.com to example.net, so everything from the
 // connectivity snapshot to the question is real, and CI runs it. A showcase account has no servers
 // to change, so the core refuses the allow, and that refusal being said is what proves Allow
 // reached it. ServerChangeTests drives the allow that moves an account on the harness; the
-// calendar's line is out of its reach, and this is where it is asserted.
+// calendar's notice is out of its reach, and this is where it is asserted.
 //
 // Neither key a person might press to get past the dialog allows anything: Escape is its close
 // response and Enter its default, and both are "Not now". The twins are
@@ -30,7 +30,8 @@ public sealed class ServerChangeShowcaseApp : ShowcaseApp
 public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : IClassFixture<ServerChangeShowcaseApp>
 {
     private static readonly string Paused = Catalog.English("settings_account_use_server_changed_calendar");
-    private static readonly string ReviewLabel = Catalog.English("server_changed_review");
+    private static readonly string PausedNotice = Catalog.English("notice_detail_server_changed_calendar");
+    private static readonly string ReviewLabel = Catalog.English("notice_action_review");
     private static readonly string BeforeLine = Catalog.English("server_changed_before").Replace("{site}", "example.com");
     private static readonly string NowLine = Catalog.English("server_changed_now").Replace("{site}", "example.net");
 
@@ -45,19 +46,19 @@ public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : 
     private static string NameOf(App app, Element root, string id) =>
         app.Agent.Find(new Filter { Id = id, Under = root })?.Name ?? throw new InvalidOperationException($"no #{id}");
 
-    /// <summary>The calendar's line for the paused calendar, with the calendar on screen.</summary>
+    /// <summary>The calendar's notice for the paused calendar, with the calendar on screen.</summary>
     private static Element Line(App app)
     {
         app.Agent.Invoke(app.Agent.Find(Filter.ById("NavCalendar", "ListItem")) ?? throw new InvalidOperationException("no Calendar entry in the navigation pane"));
-        return app.Agent.Wait(Filter.ById("CalendarOutageBanner") with { OnScreen = true }, TimeSpan.FromSeconds(30))
-            ?? throw new InvalidOperationException("the calendar draws no line for its paused use. Is this a DEBUG build? MAILCAL_SHOWCASE_SERVER_CHANGE is compiled out of Release");
+        return app.WaitNotice(PausedNotice, TimeSpan.FromSeconds(30))
+            ?? throw new InvalidOperationException("the calendar draws no notice for its paused use. Is this a DEBUG build? MAILCAL_SHOWCASE_SERVER_CHANGE is compiled out of Release");
     }
 
     private static Element ReviewOn(App app, Element line) =>
-        app.Agent.Find(new Filter { Id = "CalendarOutageAction", Under = line })
-            ?? throw new InvalidOperationException("the paused line has no action button (#CalendarOutageAction)");
+        app.NoticeAction(line)
+            ?? throw new InvalidOperationException("the paused calendar's notice has no action button (#NoticeAction)");
 
-    /// <summary>Presses Review on the calendar's line and returns the dialog it opens, checked for
+    /// <summary>Presses Review on the calendar's notice and returns the dialog it opens, checked for
     /// both sites.</summary>
     private static Element OpenPrompt(App app)
     {
@@ -81,14 +82,14 @@ public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : 
         Input.Press(key);
         Assert.True(app.Agent.WaitGone(Filter.ById("ServerChangePrompt"), TimeSpan.FromSeconds(20)), $"{name} answers the question");
         var line = Line(app);
-        Assert.True(Says(app, line, Paused, within: true), $"and after {name} the calendar is still paused: {name} is Not now, never Allow");
+        Assert.True(app.Says(line, PausedNotice), $"and after {name} the calendar is still paused: {name} is Not now, never Allow");
         Assert.Equal(ReviewLabel, ReviewOn(app, line).Name);
     }
 
     [OfflineFact]
     public void TheCalendarSaysItIsPausedAndReviewAsksNamingBothSites() => Case(nameof(TheCalendarSaysItIsPausedAndReviewAsksNamingBothSites), (app, _) =>
     {
-        Assert.True(Says(app, Line(app), Paused, within: true), "the calendar line says the calendar is paused for a new server");
+        Assert.True(app.Says(Line(app), PausedNotice), "the calendar's notice says the calendar is paused for a new server");
         OpenPrompt(app);
         AssertKeyLeavesItPaused(app, Input.Escape, "Escape");
     });

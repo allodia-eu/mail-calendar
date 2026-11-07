@@ -26,6 +26,7 @@ fn pushing_account() -> Account<Box<dyn Provider>> {
         id: AccountId::try_from("pushing").expect("valid account id"),
         providers: vec![Box::new(DemoProvider::with_idle()) as Box<dyn Provider>].into(),
         calendar_provider: None,
+        meetings: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("push@allodia.local"),
         dialled: true,

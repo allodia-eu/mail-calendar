@@ -465,7 +465,7 @@ def main(argv=None):
 
     print(
         "\nBoth assembled files are DRAFTS. Edit {} until every section fits, and replace the "
-        "announcement's lead paragraph in {}. Which two or three changes a release is about is a "
+        "announcement's lead in {}. Which two or three changes a release is about is a "
         "judgement no generator makes from a fragment list. Then:\n"
         "    git add -A && git commit -m 'Release {v}' && git tag v{v}".format(
             note_path.relative_to(REPO_ROOT).as_posix(),

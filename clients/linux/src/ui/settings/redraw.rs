@@ -4,7 +4,6 @@
 use std::{cell::Cell, rc::Rc};
 
 use adw::prelude::*;
-use mailcal_bindings::AccountsSnapshot;
 
 /// What to do with the core's settings signal while Accounts is on screen.
 #[derive(Debug, PartialEq, Eq)]
@@ -16,11 +15,27 @@ pub(super) enum Signalled {
     Wait,
 }
 
-/// The snapshot is read only when the answer depends on it.
-pub(super) fn signalled(
+/// What Accounts is drawn from: every account, the open account's page, whose controls a
+/// running change holds without changing any account, and the notices at that page's top.
+pub(super) type Drawn = (
+    mailcal_bindings::AccountsSnapshot,
+    Option<mailcal_bindings::AccountPage>,
+    Vec<mailcal_bindings::Notice>,
+);
+
+pub(super) fn drawn(app: &mailcal_bindings::MailcalApp, account: Option<&str>) -> Drawn {
+    (
+        app.accounts_snapshot(),
+        account.and_then(|id| app.account_page(id.to_owned())),
+        account.map_or_else(Vec::new, |id| super::account_notices::of(app, id)),
+    )
+}
+
+/// What was drawn is read again only when the answer depends on it.
+pub(super) fn signalled<T: PartialEq>(
     typing: bool,
-    drawn: Option<&AccountsSnapshot>,
-    now: impl FnOnce() -> AccountsSnapshot,
+    drawn: Option<&T>,
+    now: impl FnOnce() -> T,
 ) -> Signalled {
     if typing {
         Signalled::Wait

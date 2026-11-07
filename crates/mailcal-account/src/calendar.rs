@@ -237,6 +237,10 @@ pub struct EventEdit {
     /// lands on the occurrence its clocks already describe. Setting it requires **both** edges:
     /// a shift is not a shift with one end of it missing.
     pub times_from_occurrence: Option<LocalDateTime>,
+    /// What happens to the event's video meeting: `None` leaves it alone. A meeting belongs
+    /// to the series, so an edit of one [`occurrence`](Self::occurrence) may not carry one
+    /// (`docs/conferencing.md`, rule 11).
+    pub meeting: Option<crate::MeetingChange>,
 }
 
 /// Builds a calendar event **patch** from `edit` against the stored `event`.
@@ -295,14 +299,31 @@ pub fn build_event_patch(
     if let Some(end) = end {
         patch = patch.end(in_event_form(&event.start, end)?);
     }
-    if let Some(notes) = &edit.notes {
+    // A field sent back exactly as stored is no edit. An editor hands back every field it
+    // showed, and taking a value it did not touch as the person's own would keep what a
+    // meeting's removal takes away: the link it left as the location, or Exchange's stand-in.
+    let stored_notes = event.description.as_deref().unwrap_or_default();
+    let stored_location = event
+        .locations
+        .iter()
+        .find_map(|location| location.name.as_deref())
+        .unwrap_or_default();
+    if let Some(notes) = edit
+        .notes
+        .as_ref()
+        .filter(|notes| notes.as_str() != stored_notes)
+    {
         patch = if notes.is_empty() {
             patch.clear_description()
         } else {
             patch.description(notes)
         };
     }
-    if let Some(location) = &edit.location {
+    if let Some(location) = edit
+        .location
+        .as_ref()
+        .filter(|location| location.as_str() != stored_location)
+    {
         patch = if location.is_empty() {
             patch.clear_location()
         } else {

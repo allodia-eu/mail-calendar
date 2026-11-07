@@ -6,8 +6,8 @@
 //! `protected_resources`, or the endpoint's own RFC 9728 metadata naming this issuer. A server
 //! that supports resource indicators refuses an unknown one with `invalid_target`, so naming
 //! by guess breaks the sign-in (Fastmail accepts its JMAP session URL and nothing else).
-//! **Sending** a token is decided per host, re-checked after every redirect: a host the
-//! issuer lists, or, with no list, a host on the issuer's own registrable domain.
+//! **Sending** a token is decided per request, re-checked after every redirect: an endpoint an
+//! entry the issuer lists matches, or, with no list, a host on the issuer's own registrable domain.
 //!
 //! Neither decision trusts a resource's own claim to belong to an issuer. RFC 9728 metadata is
 //! self-asserted: a hostile server can name any issuer. It is read only to find out where to
@@ -46,21 +46,56 @@ pub fn covering_entry(entries: &[String], endpoint: &str) -> Option<String> {
         .cloned()
 }
 
-/// Whether a token from `issuer` may be sent to `host` (§3.6): a host one of
-/// `protected_resources` names, or, when the issuer lists none, a host with the issuer host's
-/// registrable domain. A loopback issuer (a local test server) has no registrable domain, and
-/// reaches its own host only.
+/// Whether a token from `issuer` may be sent to `endpoint` (§3.6): a request URL, or the bare host
+/// name of a non-HTTP endpoint (IMAP, SMTP). With `protected_resources`, an entry must match it
+/// by [`resource_covers`], so a URL is matched on scheme, host, port and path, and a bare entry
+/// admits only a bare host. Without, its host must have the issuer host's registrable domain. A
+/// loopback issuer (a local test server) has no registrable domain, and reaches its own host only.
 #[must_use]
-pub fn token_may_reach(issuer: &str, protected_resources: &[String], host: &str) -> bool {
-    let host = host.trim_end_matches('.').to_ascii_lowercase();
+pub fn token_may_reach(issuer: &str, protected_resources: &[String], endpoint: &str) -> bool {
+    if !protected_resources.is_empty() {
+        // A bare host's trailing root label is not part of its name; a URL's last character is
+        // its path's, and stays.
+        let endpoint = if http_url(endpoint).is_some() {
+            endpoint
+        } else {
+            endpoint.trim_end_matches('.')
+        };
+        return protected_resources
+            .iter()
+            .any(|entry| resource_covers(entry, endpoint));
+    }
+    let host = http_url(endpoint)
+        .and_then(|url| url.host_str().map(str::to_owned))
+        .unwrap_or_else(|| endpoint.to_owned());
+    on_issuer_domain(issuer, &host)
+}
+
+/// [`token_may_reach`] for a caller that knows only the host of an HTTPS request: the DAV
+/// transport, on each redirect discovery follows. With `protected_resources`, an HTTPS entry must
+/// name the host; a bare entry names an IMAP or SMTP host and admits no HTTP request.
+///
+/// Looser than [`token_may_reach`] on a URL, since the port and path cannot be compared; the
+/// configured URL is held to that before the first request, so this guards only the hops after it.
+#[must_use]
+pub fn token_may_reach_host(issuer: &str, protected_resources: &[String], host: &str) -> bool {
+    let host = host.trim_end_matches('.');
     if !protected_resources.is_empty() {
         return protected_resources.iter().any(|entry| {
-            let listed = http_url(entry)
-                .and_then(|url| url.host_str().map(str::to_ascii_lowercase))
-                .unwrap_or_else(|| entry.to_ascii_lowercase());
-            listed == host
+            http_url(entry).is_some_and(|url| {
+                url.scheme() == "https"
+                    && url
+                        .host_str()
+                        .is_some_and(|listed| listed.eq_ignore_ascii_case(host))
+            })
         });
     }
+    on_issuer_domain(issuer, host)
+}
+
+/// Whether `host` has the registrable domain of `issuer`'s host, or is that host where it has none.
+fn on_issuer_domain(issuer: &str, host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
     let Some(issuer_host) = http_url(issuer).and_then(|url| url.host_str().map(str::to_owned))
     else {
         return false;

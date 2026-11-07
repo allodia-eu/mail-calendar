@@ -54,6 +54,7 @@ mailcal-autodetect = { workspace = true }
 url = { workspace = true }
 # The OAuth flow that drives Microsoft sign-in (begin URL + code→token exchange).
 mailcal-oauth = { workspace = true }
+mailcal-nextcloud = { workspace = true }
 # The JMAP OAuth discovery chain (RFC 9728/8414/7591) drives its own HTTP client.
 reqwest = { workspace = true }
 # The local MCP (AI assistant access) server. Kept out of `mailcal-app` so a build without it
@@ -129,6 +130,8 @@ tokio = { workspace = true, features = ["macros", "test-util"] }
 # "sign in again" prompt is decided from the engine's typed error, so a test that asserts it
 # must present the typed error rather than a stand-in.
 provider-imap = { workspace = true }
+# The live Nextcloud suite reads the login page's initial state, which the server base64-encodes.
+base64 = { workspace = true }
 
 # UniFFI's generated scaffolding uses `unsafe` extern "C" fns, so this crate overrides
 # the workspace `unsafe_code = "forbid"`, and it can't inherit the

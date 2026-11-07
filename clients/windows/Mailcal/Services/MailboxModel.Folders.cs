@@ -1,5 +1,5 @@
 // Changing the folder tree (docs/folder-pane.md, "Changing the tree"): the outbound intents, the
-// name check a dialog asks as the user types, and the standing notice a refused change leaves.
+// name check a dialog asks as the user types. A refused change is a notice (MailboxModel.Notices.cs).
 //
 // Its own partial, like MailboxModel.Outbox.cs. The decisions (which rows offer what, which drops
 // are taken, the words) are FolderActions, pure and gated by Mailcal.Tests; this half is only the
@@ -12,29 +12,6 @@ namespace Allodia.Mailcal.Services;
 
 public sealed partial class MailboxModel
 {
-    private FolderNotice? _folderNotice;
-
-    /// <summary>The folder change the server refused, until dismissed or superseded (rule 28).</summary>
-    internal FolderNotice? FolderNotice
-    {
-        get => _folderNotice;
-        private set
-        {
-            if (Set(ref _folderNotice, value))
-            {
-                Raise(nameof(HasFolderNotice));
-                Raise(nameof(FolderNoticeText));
-            }
-        }
-    }
-
-    /// <summary>Whether the notice bar is up.</summary>
-    public bool HasFolderNotice => _folderNotice is not null;
-
-    /// <summary>The notice's sentence, naming the folder as the user last saw it.</summary>
-    public string FolderNoticeText =>
-        FolderActions.NoticeText(_folderNotice, L10n.FolderNoticeChanged, L10n.FolderNoticeRefused);
-
     /// <summary>One account's folders as the pane has them, for Move to… and a drop's checks.</summary>
     internal IReadOnlyList<FolderItem> FoldersOf(string account) =>
         Accounts.FirstOrDefault(a => a.Id == account)?.Folders ?? [];
@@ -76,14 +53,6 @@ public sealed partial class MailboxModel
         {
             CloseReading();
         }
-    }
-
-    /// <summary>Takes the notice off the pane. Cleared locally at once, so the bar goes when it is
-    /// closed rather than a snapshot later.</summary>
-    internal void DismissFolderNotice()
-    {
-        FolderNotice = null;
-        DispatchFolders(new FolderIntent.DismissNotice());
     }
 
     private void DispatchFolders(FolderIntent intent) => _app?.Dispatch(new Intent.Folders(intent));

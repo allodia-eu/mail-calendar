@@ -56,6 +56,10 @@ pub struct CalendarRow {
     /// Whether a meeting may be organised here: the calendar can be written **and** its server
     /// sends the invitations a meeting write implies. A client offers invitees only then.
     pub can_invite: bool,
+    /// The video meetings the editor may put on an event here, in order: the services the
+    /// calendar's own server makes, then Jitsi once a Jitsi server is set; empty for a calendar
+    /// that cannot be written (`docs/conferencing.md`, rule 9).
+    pub meeting_choices: Vec<MeetingOption>,
     /// Whether a new event lands here unless the user picks another calendar.
     ///
     /// The **effective** default, already resolved against what exists: the user's stored choice
@@ -63,4 +67,16 @@ pub struct CalendarRow {
     /// Exactly one row carries it whenever any calendar can be written to, and none when none
     /// can: so a client reads it rather than keeping a fallback rule of its own.
     pub is_default: bool,
+}
+
+/// One video meeting a calendar's editor offers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeetingOption {
+    /// What a write sends back to choose it.
+    pub id: String,
+    /// The service's name, a brand name the same in every language.
+    pub name: String,
+    /// The address of the account that makes it, for a meeting made through an account the
+    /// person connected; `None` for the calendar's own server's and for Jitsi.
+    pub through: Option<String>,
 }

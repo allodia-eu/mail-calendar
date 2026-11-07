@@ -21,10 +21,12 @@ use mailcal_app::{Account, App};
 
 mod about;
 mod account_capability;
+mod account_page;
 mod account_registry;
 mod account_repair;
 mod account_sign_in;
 mod account_split;
+mod account_work;
 mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
@@ -40,6 +42,7 @@ mod allodia_tokens;
 #[cfg(feature = "allodia-license")]
 mod allodia_transport;
 mod analytics;
+mod app_account_page;
 mod app_accounts;
 mod app_accounts_consent;
 mod app_accounts_endpoints;
@@ -56,6 +59,7 @@ mod app_contacts;
 mod app_display;
 mod app_folders;
 mod app_month;
+mod app_notices;
 mod app_sender_name;
 mod app_server_change;
 mod app_settings;
@@ -104,12 +108,21 @@ mod native_fault;
 mod native_fault_record;
 #[cfg(windows)]
 mod native_fault_windows;
+mod nextcloud;
+mod nextcloud_account_sign_in;
+mod nextcloud_accounts;
+#[cfg(test)]
+mod nextcloud_mock;
+mod nextcloud_wipe;
+mod notice_words;
+mod notices;
 mod oauth_routes;
 mod observer;
 mod protocol;
 mod protocol_surface;
 mod reconnect;
 mod records;
+mod records_account_page;
 mod records_accounts;
 mod records_avatar;
 mod records_calendar;
@@ -118,9 +131,12 @@ mod records_connectivity;
 mod records_contacts;
 mod records_event_detail;
 mod records_folders;
+mod records_notices;
 mod records_outbox;
+mod records_video_meeting;
 mod retry;
 pub mod sync_state;
+mod talk_offer;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
 mod meeting_editor;
 mod records_invitation;
@@ -146,6 +162,7 @@ mod use_outages;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
+pub use account_page::setup_link_pickers;
 pub use account_sign_in::{AccountSignInOptions, AccountSignInStart};
 pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};
@@ -207,10 +224,11 @@ pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
 pub use native_fault::watch_for_native_faults;
+pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
-    BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse, OutboxIntent, SearchScope,
-    SelectedRow,
+    AccountPageIntent, BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse,
+    NoticeIntent, OutboxIntent, SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -223,6 +241,10 @@ pub use records::{
         SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
+};
+pub use records_account_page::{
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountLinkPicker, AccountPage,
+    AccountUseBlock, AccountUseStatus, AccountUseSwitch, ControlState,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
@@ -252,12 +274,18 @@ pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
 };
 pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
+pub use records_notices::{
+    Notice, NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, NoticeText, NoticesSnapshot,
+};
 pub use records_outbox::{QueuedRow, QueuedState, SendStatus};
 pub use records_recurrence::{
     EventRecurrence, ProposedEdit, RecurrenceChange, RecurrenceDay, RecurrenceEnd,
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
+pub use records_video_meeting::{
+    EditorMeeting, MeetingAccount, MeetingChange, MeetingOption, MeetingWords,
+};
 pub use rendering::{
     LinkedText, MessageCanvas, MessageScheme, PrintHeaderLine, linked_text, message_canvas,
     render_message_html, render_message_print_html, should_open_external_link,
@@ -311,6 +339,9 @@ pub struct MailcalApp {
     /// missing by choice). Account-prefixed. Runtime additions (`add_account`) append here, so
     /// it is behind a `Mutex`. Empty when every configured calendar connected.
     calendar_connect_errors: Mutex<Vec<String>>,
+    /// When each notice was first raised, and which were dismissed or reported as failed; see
+    /// [`notices`].
+    notice_book: Mutex<notices::NoticeBook>,
     /// Each connected account's config, keyed by account id; shared with the on-demand
     /// [`HostConnector`] and re-read when a sync-depth change reconnects an account's providers.
     registry: SharedRegistry,
@@ -373,14 +404,20 @@ pub struct MailcalApp {
     /// here: it waits for a replaced credential, which dials it directly.
     disconnected: Arc<Mutex<HashSet<String>>>,
     /// Ids being dialled again right now, so a second Refresh or a return to online while one
-    /// is still under way does not start another dial of the same account.
-    redialling: Arc<Mutex<HashSet<String>>>,
+    /// is still under way does not start another dial of the same account; each carries whether
+    /// a dial was asked for it meanwhile ([`MailcalApp::retry_connections`]).
+    redialling: retry::Redialling,
+    /// What each account's page has running, and what its last change came to.
+    account_work: Arc<account_work::AccountWork>,
     /// The device's display zone (resolved at construction), used as the `Prefer:
     /// outlook.timezone` a reconnecting Microsoft account rebinds its Graph calendar provider
     /// with: so a recurring series expands DST-correctly. Fixed for the app's lifetime; the
     /// user's *chosen* display zone re-projects the agenda in the view-model, this only anchors
     /// the Graph read (one display zone per provider, per the engine's documented limitation).
     device_zone: engine_api::TimeZoneId,
+    /// The platform the host reported at construction, which names the app password a Nextcloud
+    /// sign-in obtains. `None` for a build that reported none: the in-memory and showcase boots.
+    platform: Option<Platform>,
     /// What looking again for a calendar or address-book server that stopped answering needs.
     rediscovery: dav_rediscovery::Rediscovery,
     /// Whether this app was built by [`MailcalApp::new_showcase`]: the seeded, offline

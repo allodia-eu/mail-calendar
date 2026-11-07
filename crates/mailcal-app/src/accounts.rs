@@ -8,7 +8,7 @@
 
 use std::{sync::Arc, time::Instant};
 
-use engine_api::{AccountId, ContactsProvider, EmailAddress, Provider};
+use engine_api::{AccountId, ContactsProvider, EmailAddress, MeetingService, Provider};
 use mailcal_viewmodel::AccountRow;
 
 use crate::{App, Surface, form_factor::FormFactor, scope::Scope};
@@ -46,6 +46,9 @@ pub struct Account<P> {
     /// that would ripple through every call site for no gain, nothing here needs the
     /// contacts adapter to be the same concrete type as the mail one.
     pub contact_providers: Vec<Box<dyn ContactsProvider>>,
+    /// The service the account makes video meetings through for an event on any calendar, while
+    /// it is used for them and its provider makes them (`docs/conferencing.md` rule 14).
+    pub meetings: Option<Arc<dyn MeetingService>>,
     /// The from-address this account sends as.
     pub identity: EmailAddress,
     /// Whether the account is used for mail. An account used for its calendar or contacts alone
@@ -96,6 +99,7 @@ impl<P: Provider> App<P> {
     pub async fn add_account(&self, account: Account<P>) {
         let id = account.id.clone();
         let replaced = self.install_account(account).await;
+        self.refresh_calendar_accounts().await;
         if !replaced {
             self.set_account_sync_depth(id.as_str(), new_account_sync_depth_months())
                 .await;
@@ -120,6 +124,7 @@ impl<P: Provider> App<P> {
     /// creation isn't blocked on downloading everything.
     pub async fn add_account_deferred(&self, account: Account<P>) {
         self.install_account(account).await;
+        self.refresh_calendar_accounts().await;
         self.rebuild_snapshot().await;
         self.observer.surface_changed(Surface::Settings);
     }
@@ -182,6 +187,7 @@ impl<P: Provider> App<P> {
             ..account
         });
         drop(accounts);
+        self.refresh_calendar_accounts().await;
         self.observer.surface_changed(Surface::Settings);
         UsesReplaced::Replaced
     }
@@ -211,6 +217,7 @@ impl<P: Provider> App<P> {
             let mut accounts = self.accounts.write().await;
             accounts.retain(|existing| existing.id != *id);
         }
+        self.refresh_calendar_accounts().await;
         {
             let mut scope = self.scope.lock().expect("scope mutex poisoned");
             if scope.names(id) {
@@ -362,6 +369,22 @@ impl<P: Provider> App<P> {
     /// ; iterate and do network I/O over these with the read guard already released.
     pub(crate) async fn account_handles(&self) -> Vec<Arc<Account<P>>> {
         self.accounts.read().await.iter().map(Arc::clone).collect()
+    }
+
+    /// Every account's address by id, whatever it is used for: what a notice names an account by
+    /// (`docs/notices.md`), since a person reads an address and never an id.
+    pub async fn account_addresses(&self) -> std::collections::HashMap<String, String> {
+        self.accounts
+            .read()
+            .await
+            .iter()
+            .map(|account| {
+                (
+                    account.id.as_str().to_owned(),
+                    account.identity.email.clone(),
+                )
+            })
+            .collect()
     }
 
     /// The sidebar switcher rows (id + email) for every account used for mail, in the order the

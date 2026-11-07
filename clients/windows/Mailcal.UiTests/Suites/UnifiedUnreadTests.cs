@@ -47,6 +47,8 @@ public sealed class UnifiedUnreadTests(ImapHarnessApp harness)
         var oneUnread = Catalog.English("a11y_unread_count_one").Replace("{count}", "1");
         harness.Case(nameof(TheUnifiedInboxCountFollowsTheAccountInboxBothWays), app =>
         {
+            // The Inbox, whatever folder the case before this one left open.
+            app.OpenFolder(Inbox);
             app.Agent.Invoke(app.RowTitled($"*{Subject}*"));
             Assert.Equal("", UnifiedInbox(app));
 

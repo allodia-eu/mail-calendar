@@ -89,6 +89,7 @@ async fn a_new_event_in_the_second_calendar_is_written_and_reread_there() {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     }))
     .await;
 
@@ -114,6 +115,7 @@ fn create_unnamed() -> Intent {
         location: None,
         recurrence: None,
         invitees: None,
+        meeting: None,
     })
 }
 

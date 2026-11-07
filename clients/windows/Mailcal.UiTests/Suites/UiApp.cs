@@ -7,7 +7,11 @@ using System.Windows.Forms;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
+[assembly: Xunit.v3.Parallelization(Mode = Xunit.Sdk.ParallelMode.None)]
+// The same order on every machine (RunOrder.cs).
+[assembly: TestCollectionOrderer<Allodia.Mailcal.UiTests.Suites.NameOrderer>]
+[assembly: TestClassOrderer<Allodia.Mailcal.UiTests.Suites.NameOrderer>]
+[assembly: TestMethodOrderer<Allodia.Mailcal.UiTests.Suites.DeclarationOrderer>]
 
 namespace Allodia.Mailcal.UiTests.Suites;
 

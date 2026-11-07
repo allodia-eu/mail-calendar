@@ -154,18 +154,6 @@ public class CoreErrorTests
             CoreError.Describe(new MailcalException.UseNotConnected(AccountCapability.Calendar, UseProblem.ServerChanged)));
     }
 
-    [Fact]
-    public void A_banner_says_its_own_line_unless_the_remedy_differs()
-    {
-        Assert.Equal("sign in again", CoreError.SaidOnBanner(new MailcalException.StaleSignIn(), Words, "again failed"));
-        Assert.Equal("another account", CoreError.SaidOnBanner(new MailcalException.DifferentAccount(), Words, "again failed"));
-        // A refused grant or anything else stays the banner's own line; the cause is in the log.
-        Assert.Equal("again failed", CoreError.SaidOnBanner(new MailcalException.SignInRefused("invalid_grant"), Words, "again failed"));
-        Assert.Equal("again failed", CoreError.SaidOnBanner(new MailcalException.Connect("token exchange"), Words, "again failed"));
-        // A failure the core did not raise, such as a browser that did not open.
-        Assert.Equal("again failed", CoreError.SaidOnBanner(null, Words, "again failed"));
-    }
-
     // Named rather than typed: the generated enums are internal, and a public test cannot take them.
     private static MailcalException.UseNotConnected NotConnected(string capability, string problem) =>
         new(Enum.Parse<AccountCapability>(capability), Enum.Parse<UseProblem>(problem));

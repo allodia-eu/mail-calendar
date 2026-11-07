@@ -8,6 +8,7 @@
 //! so it stays out of logs (see [`Secret`]) and out of version control: a real host
 //! uses the OS keychain; the `probe` binary reads a gitignored file outside the repo.
 
+mod account_meetings;
 mod account_shape;
 mod affiliation;
 mod autodetect;
@@ -31,6 +32,7 @@ mod dev_tls;
 mod error;
 mod event_conference;
 mod event_detail;
+mod event_meeting;
 mod google;
 mod graph;
 mod imap;
@@ -39,6 +41,7 @@ mod imap_credentials;
 mod jmap;
 mod log_handle;
 mod microsoft;
+mod nextcloud_login;
 mod oauth_grant;
 mod pass_folders;
 mod preferences;
@@ -55,6 +58,7 @@ mod stream_redial;
 mod throttle;
 mod tls;
 
+pub use account_meetings::{TalkAtConnect, talk_at_connect, teams_meetings};
 pub use account_shape::{AccountLinks, AccountShape, Capabilities, Capability};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
 pub use calendar::{
@@ -79,6 +83,9 @@ use engine_provider::Provider;
 pub use error::AccountError;
 pub use event_conference::{ConferenceState, DialIn, EventConference, event_conferences};
 pub use event_detail::{DetailOccurrence, EventDetail, InviteeEditability, project_event_detail};
+pub use event_meeting::{
+    EditorMeeting, MeetingChange, MeetingChoice, current_meeting, editor_meeting,
+};
 pub use google::{
     GmailMailRoute, GoogleConfig, connect_google_calendar_provider,
     connect_google_contact_providers, connect_google_folder, connect_google_mail_providers,
@@ -104,6 +111,7 @@ pub use jmap::{
 };
 pub use log_handle::account_log_handle;
 pub use microsoft::{MicrosoftConfig, fetch_primary_address, load_microsoft_str};
+pub use nextcloud_login::NextcloudLogin;
 pub use oauth_grant::{OAuthGrant, oauth_token_source};
 pub use pass_folders::pass_syncs;
 pub use preferences::{

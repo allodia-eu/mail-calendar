@@ -1,4 +1,4 @@
-// Settings → About (docs/settings.md slot 11): the release this build is, where to ask for help, and
+// Settings → About (docs/settings.md slot 13): the release this build is, where to ask for help, and
 // the toolkit this client links. about_info is covered in Rust; what this suite is for is the client
 // side, the category missing from the list, the panel never reached, or AboutPlatform.Windows copied
 // from a sibling client as another platform's. Each hides About or attributes software the app does

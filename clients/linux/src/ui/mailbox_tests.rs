@@ -10,11 +10,10 @@ pub(crate) use super::test_tree::{
 };
 use super::{MailboxRendering, display_row, flat_row};
 use crate::ui::{
-    AppInput, composer_header::tests as composer_header, connectivity::tests as connectivity,
-    contacts::pane::tests as contacts, destinations::tests as destinations,
-    folder_pane::tests as folder_pane, invitation::widget_tests as invitation,
-    recipients::field::tests as recipients, search::bar::tests as search,
-    settings::signatures::tests as signatures, timestamps::MailClock,
+    AppInput, composer_header::tests as composer_header, contacts::pane::tests as contacts,
+    destinations::tests as destinations, folder_pane::tests as folder_pane,
+    invitation::widget_tests as invitation, recipients::field::tests as recipients,
+    search::bar::tests as search, settings::signatures::tests as signatures, timestamps::MailClock,
 };
 
 fn fixture(subject: &str) -> FlatRow {
@@ -166,6 +165,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         the_detail_offers_each_meeting_and_shows_the_notes_without_its_block();
     crate::ui::calendar::invitees_editor::tests::
         the_invitee_list_takes_what_is_typed_and_follows_the_calendar();
+    crate::ui::calendar::meeting_row::tests::
+        the_meeting_row_follows_the_calendar_and_holds_the_pick();
     crate::ui::reading::attachment_tests::the_reading_header_formats_its_timestamp();
     crate::ui::reading::attachment_tests::an_attachment_name_is_never_parsed_as_markup();
     crate::ui::reading::attachment_tests::an_attachment_button_still_reads_as_its_verb();
@@ -209,6 +210,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia::tests::each_state_offers_exactly_one_action();
     crate::ui::settings::allodia::tests::signed_out_offers_creating_as_well_as_signing_in();
     crate::ui::settings::allodia::tests::a_signed_in_account_can_be_managed_deleted_and_left();
+    crate::ui::settings::allodia::tests::a_refused_sign_in_says_it_ended_and_offers_both_ways();
     crate::ui::settings::allodia::tests::neither_the_address_nor_the_failure_is_parsed_as_markup();
     crate::ui::settings::allodia::tests::every_card_row_is_reachable_from_the_keyboard();
     crate::ui::settings::subscription::tests::a_paid_account_names_its_biller_and_says_when();
@@ -236,6 +238,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::sender_name::tests::
         the_field_shows_the_stored_name_and_return_asks_for_the_typed_one();
     crate::ui::settings::sender_name::tests::re_asserting_the_stored_name_asks_for_nothing();
+    crate::ui::settings::videoconferencing::tests::
+        the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_it_refuses();
+    crate::ui::settings::videoconferencing::tests::
+        a_meeting_account_row_names_the_service_and_account_and_opens_its_page();
     crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
     crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
     crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(
@@ -258,7 +264,12 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::account_mail::tests::
         an_expired_password_is_replaced_without_removing_the_account();
     crate::ui::settings::accounts::tests::an_account_row_opens_its_page();
+    crate::ui::controls::tests::
+        a_control_spins_while_its_work_runs_and_tells_only_what_the_person_did();
+    crate::ui::controls::tests::a_confirmation_closed_without_its_action_answers_no();
     crate::ui::settings::sign_in_section::tests::the_section_draws_the_switch_its_server_takes();
+    crate::ui::settings::sign_in_section::tests::
+        a_calendar_account_switches_to_signing_in_with_nextcloud();
     crate::ui::settings::sign_in_section::tests::
         a_password_is_typed_into_an_empty_field_and_cleared_once_sent();
     crate::ui::settings::sign_in_section::tests::a_running_change_holds_every_control();
@@ -269,7 +280,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::separate_sign_in_view::tests::the_page_form_opens_over_settings_and_updates_in_place(
     );
     crate::ui::separate_sign_in_view::tests::the_page_form_offers_the_sign_in_in_place();
-    connectivity::the_banners_render_the_snapshot_and_keep_the_remedy_actionable();
+    crate::ui::notice_bar::tests::one_banner_per_screen_and_the_rest_behind_issues();
     crate::ui::unfiled_copy::tests::
         the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();
     // The ampersand has to sit in **both** halves. A property builder applies `use-markup` in
@@ -339,7 +350,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
 
     folder_pane::the_pane_draws_every_account_its_folders_and_its_counts();
     folder_pane::a_server_named_row_is_never_parsed_as_markup();
-    folder_pane::only_an_unreachable_account_gets_the_warning();
+    folder_pane::only_the_account_a_notice_is_about_carries_its_mark();
     folder_pane::the_unified_scope_is_an_expandable_group_with_an_inbox_child();
     folder_pane::the_pane_marks_where_the_core_says_we_are();
     folder_pane::moving_the_selection_reuses_the_pane();

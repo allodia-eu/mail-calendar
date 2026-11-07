@@ -52,7 +52,7 @@ pub(crate) use contacts::{
     connect_caldav_contacts, connect_google_contacts, connect_graph_contacts, connect_jmap_contacts,
 };
 #[cfg(all(test, debug_assertions))]
-pub(crate) use inmemory::pause_for_a_server_change;
+pub(crate) use inmemory::{ask_for_reconsent, pause_for_a_server_change};
 // The in-memory demo/showcase builders (no real account, no network) live in their own module.
 pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 // Only `record_dial_outcome`'s own tests name the shape of a failure.
@@ -111,6 +111,7 @@ pub(crate) fn build_accounts(
         timezone: device_timezone,
         info: device_info,
     } = device;
+    let platform = Some(device_info.platform);
     // Resolve the device's display zone once: it seeds the app's active zone, is the `Prefer:
     // outlook.timezone` a Graph calendar provider reads with, and is carried on `MailcalApp` so a
     // later reconnect rebinds Graph calendars with the same zone.
@@ -236,6 +237,8 @@ pub(crate) fn build_accounts(
     // Analytics. Consent is recorded in the same preferences file; the sink spawns its delivery
     // worker, so build it inside the runtime. A build with no relay baked in (every local build;
     // see `analytics::relay_config`) gets a telemetry that records consent and sends nothing.
+    // A Nextcloud server's refusal may be a remote wipe, which is asked once the app exists.
+    let (refusals, refused) = std::sync::mpsc::channel();
     let telemetry = {
         let _guard = runtime.enter();
         analytics::build_telemetry(prefs_path.clone(), device_info)
@@ -248,7 +251,12 @@ pub(crate) fn build_accounts(
             prefs_path: Some(prefs_path),
         },
         Some(Box::new(connector)),
-        std::sync::Arc::new(DebouncedObserver::new(ObserverBridge { foreign: observer })),
+        std::sync::Arc::new(crate::nextcloud_wipe::RefusalRelay {
+            inner: std::sync::Arc::new(DebouncedObserver::new(ObserverBridge {
+                foreign: observer,
+            })),
+            refused: refusals,
+        }),
         telemetry,
     );
     // Render the persisted store's mail before returning, so the host paints cached rows
@@ -322,6 +330,7 @@ pub(crate) fn build_accounts(
         app,
         account_connect_errors: Mutex::new(account_errors),
         calendar_connect_errors: Mutex::new(calendar_errors),
+        notice_book: Mutex::default(),
         registry,
         background,
         mcp,
@@ -338,15 +347,29 @@ pub(crate) fn build_accounts(
         credential_store,
         disconnected,
         redialling: Arc::default(),
+        account_work: Arc::default(),
         device_zone: device_tz,
+        platform,
         // The real account path: detection reaches the network, as it must.
         showcase: false,
         rediscovery: crate::dav_rediscovery::Rediscovery::default(),
     });
+    crate::nextcloud_wipe::answer_refusals(Arc::downgrade(&mailcal), refused);
     // Seed the analytics account mix from the registry we just populated. A no-op unless the user
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
+    // A refresh that widens a grant opens a use the dial before it was planned without; dial it
+    // again now. Off the runtime, whose thread must not drop the last handle on the app.
+    let widened = Arc::downgrade(&mailcal);
+    mailcal.registry.on_grant_widened(Box::new(move || {
+        let widened = widened.clone();
+        std::thread::spawn(move || {
+            if let Some(app) = widened.upgrade() {
+                app.retry_connections();
+            }
+        });
+    }));
     // Settings names which way each Gmail account syncs, which settles on the account's first
     // read, and an account whose mail cannot be reached is badged like any unreachable one.
     let settled = Arc::downgrade(&mailcal.app);

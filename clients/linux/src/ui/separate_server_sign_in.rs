@@ -12,22 +12,9 @@ use super::{
     account_settings::AccountsInput,
     imap_signin::{self, CallbackOutcome},
     oauth_loopback::OAuthLoopback,
-    separate_sign_in::{SeparateForm, SeparateFrom, SeparateInput},
+    separate_sign_in::{SeparateFrom, SeparateInput},
 };
 use crate::l10n;
-
-/// Where a sign-in at the server's own provider stands, by the attempt it is for.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) enum SignInStage {
-    #[default]
-    Idle,
-    /// The core is finding the provider and registering with it.
-    Starting(u64),
-    /// The browser holds the sign-in.
-    Waiting(u64),
-    /// The browser came back; the core is exchanging the code and adding the account.
-    Finishing(u64),
-}
 
 /// How an attempt ended on its worker.
 #[derive(Debug)]
@@ -69,11 +56,13 @@ impl std::fmt::Debug for Redirect {
 /// The sign-in's traffic, for the form it was asked from.
 #[derive(Debug)]
 pub(crate) enum ProviderInput {
-    /// Whether the server signs in at its own provider, for the uses it was asked about.
+    /// Whether the server signs in at its own provider, or with Nextcloud, for the uses it was
+    /// asked about.
     Offered {
         account: String,
         uses: Vec<AccountCapability>,
         offered: bool,
+        nextcloud: bool,
     },
     /// Sign in at the server's own provider.
     Start,
@@ -92,6 +81,18 @@ pub(crate) enum ProviderInput {
     },
     /// Give up on the sign-in the browser holds.
     Cancel,
+    /// How a sign-in with Nextcloud is getting on.
+    Nextcloud {
+        attempt: u64,
+        account: String,
+        flight: super::nextcloud_flight::Flight,
+    },
+    /// The core made an account of a Nextcloud grant, or did not.
+    NextcloudAdded {
+        attempt: u64,
+        account: String,
+        result: Result<(), String>,
+    },
 }
 
 fn provider(from: SeparateFrom, input: ProviderInput) -> AppInput {
@@ -120,93 +121,7 @@ pub(super) fn as_connected(end: SignInEnd) -> Option<Result<(), String>> {
     }
 }
 
-impl SeparateForm {
-    /// Whether every control is held: a connect, a skip or one of the sign-in's blocking core
-    /// calls is running. The browser's wait holds nothing.
-    pub(super) const fn held(&self) -> bool {
-        self.busy
-            || matches!(
-                self.stage,
-                SignInStage::Starting(_) | SignInStage::Finishing(_)
-            )
-    }
-
-    /// The server answered whether it signs in at its own provider, for `uses`. Only an answer
-    /// for the uses this form moves is its answer.
-    pub(super) fn offer_answered(&mut self, uses: &[AccountCapability], offered: bool) {
-        if uses == self.server.uses.as_slice() {
-            self.offers_sign_in = offered;
-        }
-    }
-
-    /// Starts `attempt`, superseding the one in the browser. `false` while there is nothing to
-    /// start: no offer, or a core call running.
-    pub(super) fn begin_sign_in(&mut self, attempt: u64) -> bool {
-        if !self.offers_sign_in || self.held() {
-            return false;
-        }
-        self.stage = SignInStage::Starting(attempt);
-        self.error = None;
-        true
-    }
-
-    /// The core prepared `attempt`. `true` when the browser should open for it: it is still
-    /// the form's attempt and the core found the provider.
-    pub(super) fn sign_in_prepared(&mut self, attempt: u64, result: Result<(), String>) -> bool {
-        if self.stage != SignInStage::Starting(attempt) {
-            return false;
-        }
-        match result {
-            Ok(()) => {
-                self.stage = SignInStage::Waiting(attempt);
-                true
-            }
-            Err(error) => {
-                self.stage = SignInStage::Idle;
-                self.failed(error);
-                false
-            }
-        }
-    }
-
-    /// The browser came back for `attempt`. `true` when it is still the form's attempt, so the
-    /// exchange may add the account.
-    pub(super) fn sign_in_redirected(&mut self, attempt: u64) -> bool {
-        if self.stage != SignInStage::Waiting(attempt) {
-            return false;
-        }
-        self.stage = SignInStage::Finishing(attempt);
-        true
-    }
-
-    /// `attempt` ended: back to the offer. `false` when the form has moved on from it.
-    pub(super) fn sign_in_ended(&mut self, attempt: u64) -> bool {
-        let ours = matches!(
-            self.stage,
-            SignInStage::Starting(id) | SignInStage::Waiting(id) | SignInStage::Finishing(id)
-                if id == attempt
-        );
-        if ours {
-            self.stage = SignInStage::Idle;
-        }
-        ours
-    }
-
-    /// Takes the form off an attempt not yet exchanging. `true` when there was one, whose slot
-    /// the caller releases. An exchange already running is a core call, and finishes.
-    pub(super) fn retire_sign_in(&mut self) -> bool {
-        let retired = matches!(
-            self.stage,
-            SignInStage::Starting(_) | SignInStage::Waiting(_)
-        );
-        if retired {
-            self.stage = SignInStage::Idle;
-        }
-        retired
-    }
-}
-
-const fn other(from: SeparateFrom) -> SeparateFrom {
+pub(super) const fn other(from: SeparateFrom) -> SeparateFrom {
     match from {
         SeparateFrom::Setup => SeparateFrom::Page,
         SeparateFrom::Page => SeparateFrom::Setup,
@@ -251,12 +166,15 @@ impl AppModel {
         let (account, uses) = (form.account.clone(), form.server.uses.clone());
         std::thread::spawn(move || {
             let offered = app.separate_server_offers_sign_in(account.clone(), uses.clone());
+            let nextcloud = !offered
+                && app.separate_server_offers_nextcloud_sign_in(account.clone(), uses.clone());
             sender.emit(provider(
                 from,
                 ProviderInput::Offered {
                     account,
                     uses,
                     offered,
+                    nextcloud,
                 },
             ));
         });
@@ -273,12 +191,13 @@ impl AppModel {
                 account,
                 uses,
                 offered,
+                nextcloud,
             } => {
                 if let Some(form) = self
                     .separate_form(from)
                     .filter(|form| form.account == account)
                 {
-                    form.offer_answered(&uses, offered);
+                    form.offer_answered(&uses, offered, nextcloud);
                     self.redraw_separate(from);
                 }
             }
@@ -298,16 +217,16 @@ impl AppModel {
                 self.retire_provider_sign_in(from);
                 self.redraw_separate(from);
             }
-        }
-    }
-
-    /// Takes the form `from` names off its sign-in, when one is out, and releases the slot.
-    pub(super) fn retire_provider_sign_in(&mut self, from: SeparateFrom) {
-        if self
-            .separate_form(from)
-            .is_some_and(SeparateForm::retire_sign_in)
-        {
-            self.host_tasks.separate.cancel();
+            ProviderInput::Nextcloud {
+                attempt,
+                account,
+                flight,
+            } => self.separate_nextcloud_flight(from, attempt, account, flight, sender),
+            ProviderInput::NextcloudAdded {
+                attempt,
+                account,
+                result,
+            } => self.separate_nextcloud_added(from, attempt, &account, result, sender),
         }
     }
 
@@ -315,6 +234,9 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
+        if self.separate_form(from).is_some_and(|form| form.nextcloud) {
+            return self.start_separate_nextcloud(from, sender);
+        }
         if !self
             .separate_form(from)
             .is_some_and(|form| form.offers_sign_in && !form.held())
@@ -406,7 +328,9 @@ impl AppModel {
                     }),
                 },
                 CallbackOutcome::Cancelled => ended(SignInEnd::Cancelled),
-                CallbackOutcome::Failed(_) => ended(SignInEnd::Failed),
+                CallbackOutcome::TimedOut(_) | CallbackOutcome::Failed(_) => {
+                    ended(SignInEnd::Failed)
+                }
             };
             sender.emit(provider(from, input));
         });
@@ -456,7 +380,7 @@ impl AppModel {
         });
     }
 
-    fn provider_ended(
+    pub(super) fn provider_ended(
         &mut self,
         from: SeparateFrom,
         attempt: u64,
@@ -485,6 +409,12 @@ impl AppModel {
         }
     }
 }
+
+#[path = "separate_nextcloud_sign_in.rs"]
+mod nextcloud;
+#[path = "separate_sign_in_stage.rs"]
+mod stage;
+pub(crate) use stage::SignInStage;
 
 #[cfg(test)]
 #[path = "separate_server_sign_in_tests.rs"]

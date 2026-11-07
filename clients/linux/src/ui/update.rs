@@ -60,15 +60,7 @@ impl AppModel {
             AppInput::DismissDeviceTimeZone => {
                 self.dispatch(Intent::DismissTimeZoneChange);
             }
-            AppInput::ResolveExpiredSignIn => {
-                self.resolve_expired_signin(sender.input_sender().clone());
-            }
-            AppInput::ResolveMailReauth => {
-                self.resolve_permission_reauth(false, sender.input_sender().clone());
-            }
-            AppInput::ResolveCalendarReauth => {
-                self.resolve_permission_reauth(true, sender.input_sender().clone());
-            }
+            AppInput::Notice(input) => self.notice_input(input, sender.input_sender().clone()),
             AppInput::ShowMail => self.primary = PrimaryView::Mail,
             AppInput::ShowCalendar => self.show_calendar(),
             AppInput::ShowContacts => self.show_contacts(sender.input_sender().clone()),
@@ -122,11 +114,11 @@ impl AppModel {
                     self.calendar.open_event(app, event);
                 }
             }
-            AppInput::BeginNewEvent => self.calendar.begin_create(&self.snapshot),
+            AppInput::BeginNewEvent => self.calendar.begin_create(),
             AppInput::BeginNewEventAt(slot) => {
-                self.calendar.begin_create_at(&self.snapshot, slot);
+                self.calendar.begin_create_at(slot);
             }
-            AppInput::BeginEditEvent => self.calendar.begin_edit(&self.snapshot),
+            AppInput::BeginEditEvent => self.calendar.begin_edit(),
             AppInput::SubmitEventForm(form, this_occurrence_only) => {
                 self.submit_event(&form, this_occurrence_only);
             }
@@ -324,6 +316,7 @@ impl AppModel {
                 self.refresh_onboarding_card();
             }
             AppInput::AccountSetupBack => {
+                self.abandon_setup_nextcloud_grant();
                 self.setup.back_to_address(self.has_no_accounts());
                 self.refresh_onboarding_card();
             }
@@ -394,6 +387,7 @@ impl AppModel {
             | AppInput::ImapAuthAnswered { .. }
             | AppInput::StartImapLogin(_)
             | AppInput::CancelImapLogin
+            | AppInput::SetupNextcloud(_)
             | AppInput::ImapPrepared(..)
             | AppInput::ImapCallbackReceived(_)
             | AppInput::ImapFinished(..)
@@ -407,6 +401,9 @@ impl AppModel {
             AppInput::ManageAllodiaAccount => self.manage_allodia_account(),
             AppInput::CancelAllodiaSignIn => self.cancel_allodia_sign_in(),
             AppInput::AllodiaSignInSlow(attempt) => self.allodia_sign_in_slow(attempt),
+            AppInput::AllodiaPrepared(attempt, prepared) => {
+                self.allodia_prepared(attempt, prepared, sender.input_sender().clone());
+            }
             AppInput::AllodiaSignInFinished(attempt, outcome) => {
                 self.allodia_sign_in_finished(attempt, outcome, sender.input_sender().clone());
             }
@@ -454,15 +451,6 @@ impl AppModel {
             AppInput::Accounts(input) => {
                 self.accounts_input(input, sender.input_sender().clone());
             }
-            AppInput::RemoveAccount(id) => {
-                self.remove_account(id, sender.input_sender().clone());
-            }
-            AppInput::AccountRemoved(result) => match result {
-                Ok(()) => self.account_removed(),
-                // The account is still connected when the keyring write fails, so say what
-                // happened in the app's own voice rather than surfacing a bare D-Bus string.
-                Err(error) => self.notice = Some(l10n::remove_account_failed(&error)),
-            },
             AppInput::AnalyticsDecided(enabled) => {
                 if let Some(app) = &self.app {
                     app.set_analytics_consent(enabled);

@@ -27,6 +27,17 @@ struct SettingsCategoryDetail: View {
         switch category {
         case .general: generalDetail
         case .calendar: calendarDetail
+        case .videoconferencing:
+            VStack(alignment: .leading, spacing: 20) {
+                if !model.accountsSnapshot.meetingAccounts.isEmpty {
+                    settingsGroup(L10n.settings_meeting_accounts(), L10n.settings_meeting_accounts_hint()) {
+                        MeetingAccountsList(model: model)
+                    }
+                }
+                settingsGroup(L10n.settings_jitsi_server(), L10n.settings_jitsi_server_hint()) {
+                    JitsiServerField(model: model)
+                }
+            }
         case .reading: readingDetail
         case .composing: composingDetail
         case .signatures: signaturesDetail

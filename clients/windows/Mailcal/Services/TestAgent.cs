@@ -141,7 +141,11 @@ internal static partial class TestAgent
                 _ => throw new AgentException($"an unknown op '{op}'"),
             };
         }
-        catch (Exception e) when (e is AgentException or System.Text.Json.JsonException)
+        catch (AgentException e)
+        {
+            return e.Reply();
+        }
+        catch (System.Text.Json.JsonException e)
         {
             return new JsonObject { ["error"] = e.Message };
         }
@@ -160,7 +164,7 @@ internal static partial class TestAgent
             }
             catch (AgentException e)
             {
-                done.SetResult(new JsonObject { ["error"] = e.Message });
+                done.SetResult(e.Reply());
             }
             catch (Exception e)
             {
@@ -188,7 +192,14 @@ internal static partial class TestAgent
         return new JsonObject { ["ok"] = true };
     }
 
-    /// <summary>A request the agent cannot answer, said to the suite rather than thrown at the app.</summary>
-    private sealed class AgentException(string message) : Exception(message);
+    /// <summary>A request the agent cannot answer, said to the suite rather than thrown at the app.
+    /// A <paramref name="code"/> names a refusal a suite acts on, so the suite reads the code and
+    /// never the words (Mailcal.UiTests/Driver/Agent.cs).</summary>
+    private sealed class AgentException(string message, string? code = null) : Exception(message)
+    {
+        internal JsonObject Reply() => code is null
+            ? new JsonObject { ["error"] = Message }
+            : new JsonObject { ["error"] = Message, ["code"] = code };
+    }
 #endif
 }

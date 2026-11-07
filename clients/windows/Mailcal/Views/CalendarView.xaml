@@ -24,51 +24,6 @@
              the user is looking at one column, and naming the month of a Sunday they cannot see is a
              small lie that reads as a bug. The month grid writes it too, from its anchor month. -->
         <StackPanel Grid.Row="0">
-            <!-- A Microsoft account connected before calendar support (or with revoked consent)
-                 syncs no calendar until it re-authenticates, prompt here, where its absence is felt.
-                 Mail is unaffected, so it is a Warning info bar, not an error; "Reconnect" re-runs the
-                 account's sign-in, upgrading its token in place with the calendar scope. -->
-            <!-- Visibility as well as IsOpen: a closed InfoBar stays visible at zero size, so its
-                 top margin would still push the toolbar down (MainWindow.xaml carries the note). -->
-            <InfoBar Margin="12,12,12,0"
-                     IsOpen="{x:Bind Model.HasCalendarReauth, Mode=OneWay}"
-                     Visibility="{x:Bind Model.HasCalendarReauth, Mode=OneWay, Converter={StaticResource BoolToVisibility}}"
-                     IsClosable="False"
-                     Severity="Warning"
-                     AutomationProperties.AutomationId="CalendarReauthBanner"
-                     Message="{x:Bind Model.CalendarReauthText, Mode=OneWay}">
-                <InfoBar.Content>
-                    <Button Content="{x:Bind l10n:L10n.CalendarReauthAction(), Mode=OneTime}"
-                            Margin="0,8,0,12"
-                            AutomationProperties.AutomationId="CalendarReauthAction"
-                            Click="OnCalendarReauth" />
-                </InfoBar.Content>
-            </InfoBar>
-            <!-- A calendar that did not connect on an account that did, one bar per account: the
-                 week below is what was last synced (docs/calendar.md §4). "Account settings" opens
-                 that account's page, where the remedy is, and "Review" a paused server change's
-                 question. With no outage the list is empty and takes no space. -->
-            <ItemsControl ItemsSource="{x:Bind Model.CalendarOutageLines, Mode=OneWay}"
-                          AutomationProperties.AutomationId="CalendarOutages">
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:UseOutageLine">
-                        <InfoBar Margin="12,12,12,0"
-                                 IsOpen="True"
-                                 IsClosable="False"
-                                 Severity="Warning"
-                                 AutomationProperties.AutomationId="CalendarOutageBanner"
-                                 Message="{x:Bind Text, Mode=OneTime}">
-                            <InfoBar.Content>
-                                <Button Content="{x:Bind Action, Mode=OneTime}"
-                                        Margin="0,8,0,12"
-                                        Tag="{x:Bind Mode=OneTime}"
-                                        AutomationProperties.AutomationId="CalendarOutageAction"
-                                        Click="OnUseOutageAccount" />
-                            </InfoBar.Content>
-                        </InfoBar>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
         <Grid Padding="16,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />

@@ -1,6 +1,7 @@
 // What the account is used for, chosen on the setup screen: mail, calendar and contacts on the found
 // card and the calendar-and-contacts card, colleagues too before a Microsoft or Google sign-in and
-// shared mailboxes before a Microsoft one (docs/shared-mailboxes.md rule 2), and
+// shared mailboxes and, for a work address, Teams meetings before a Microsoft one
+// (docs/shared-mailboxes.md rule 2, docs/accounts.md rule 19), and
 // the uses a JMAP server offers after one (docs/account-autodetect.md rule 8, docs/accounts.md rule
 // 10). Which uses are offered and how each starts is the core's; what the toggles make of the
 // account is SetupUses, which the JVM suite drives. This file holds the toggles and draws them.
@@ -33,6 +34,7 @@ internal class UseToggles(val offer: UseOffer) {
     var contacts by mutableStateOf(starts(AccountCapability.CONTACTS))
     var colleagues by mutableStateOf(starts(AccountCapability.COLLEAGUES))
     var sharedMailboxes by mutableStateOf(starts(AccountCapability.SHARED_MAILBOXES))
+    var meetings by mutableStateOf(starts(AccountCapability.MEETINGS))
     var calendarTyped by mutableStateOf("")
     var contactsTyped by mutableStateOf("")
 
@@ -58,6 +60,7 @@ internal class UseToggles(val offer: UseOffer) {
         picked(AccountCapability.CONTACTS, contacts, contactsTyped),
         colleagues.takeIf { offered(AccountCapability.COLLEAGUES) },
         sharedMailboxes.takeIf { offered(AccountCapability.SHARED_MAILBOXES) },
+        meetings.takeIf { offered(AccountCapability.MEETINGS) },
     )
 
     /**
@@ -81,8 +84,17 @@ internal class UseToggles(val offer: UseOffer) {
             AccountCapability.CONTACTS to contacts,
         ).count { (capability, on) -> offered(capability) && on }
 
-    /** Whether the toggle for a use that is [on] may be flipped. */
+    /**
+     * Whether the toggle for one of mail, calendar and contacts that is [on] may be flipped. Teams
+     * meetings are never the last use, so their toggle always may.
+     */
     fun canFlip(on: Boolean): Boolean = !on || primaryOn > 1
+
+    /** Whether the card offers Teams meetings, which the calendar's section draws. */
+    val offersMeetings: Boolean get() = offered(AccountCapability.MEETINGS)
+
+    /** Whether the card draws a calendar section for Teams meetings to sit in. */
+    val offersCalendar: Boolean get() = offered(AccountCapability.CALENDAR)
 }
 
 /**
@@ -122,6 +134,9 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     },
                     flagged = toggles.flagged == MissingServer.CALENDAR,
                 )
+                // Teams meetings are made for an event on any calendar, so they do not wait for
+                // this one.
+                if (toggles.offersMeetings) MeetingsBox(toggles)
             }
             AccountCapability.CONTACTS -> {
                 SectionHeader("👤", L10n.setup_detect_section_contacts(ctx))
@@ -163,8 +178,16 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     "SHARED_MAILBOXES",
                 ) { toggles.sharedMailboxes = it }
             }
+            // Drawn in the calendar's section, which a card offering them always has.
+            AccountCapability.MEETINGS -> if (!toggles.offersCalendar) MeetingsBox(toggles)
         }
     }
+}
+
+@Composable
+private fun MeetingsBox(toggles: UseToggles) {
+    val ctx = LocalContext.current
+    UseBox(L10n.setup_detect_teams_enable(ctx), toggles.meetings, true, "MEETINGS") { toggles.meetings = it }
 }
 
 @Composable

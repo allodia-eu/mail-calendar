@@ -46,6 +46,9 @@ pub(in crate::ui) struct SettingsState {
     /// it: the Settings card offers its way out from the first frame.
     pub(in crate::ui) allodia_sign_in_slow: bool,
     pub(in crate::ui) allodia_failure: Option<String>,
+    /// The outstanding hop was started from the Allodia notice, which then says a failure itself:
+    /// Settings, where `allodia_failure` is drawn, may not be open.
+    pub(in crate::ui) allodia_sign_in_from_notice: bool,
     /// What the person's other devices have to say about their mail accounts. Here for the same
     /// reason as the two above: a pass outlives several window rebuilds.
     pub(in crate::ui) allodia_sync: crate::ui::allodia_sync::AllodiaSyncState,
@@ -68,6 +71,8 @@ pub(in crate::ui) struct SettingsState {
     /// How many notices have been raised, so a notice raised after one was dropped never reuses
     /// a number the window has already shown.
     notices_raised: u64,
+    /// The last of the core's account change notices said, so each is said once.
+    pub(in crate::ui) core_notice: u64,
 }
 
 impl Default for SettingsState {
@@ -80,6 +85,7 @@ impl Default for SettingsState {
             allodia_signing_in: false,
             allodia_sign_in_slow: false,
             allodia_failure: None,
+            allodia_sign_in_from_notice: false,
             allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
@@ -89,6 +95,7 @@ impl Default for SettingsState {
             separate_forms: 0,
             notice: None,
             notices_raised: 0,
+            core_notice: 0,
         }
     }
 }

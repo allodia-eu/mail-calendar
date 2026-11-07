@@ -54,6 +54,9 @@ const HORIZON_DAYS_AHEAD: i64 = 400;
 /// One calendar as the **server** describes it. What the *user* decided about it; shown/hidden, a
 /// colour override, is applied at read time from [`crate::calendar_prefs`], not baked in here, so
 /// toggling a calendar off redraws the grid with no re-sync.
+// Four independent answers, the server's and three its account's connection gives, each read on
+// its own; no two of them form a state an enum would name.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CachedCalendar {
     /// The owning account's id.
@@ -64,6 +67,9 @@ pub(crate) struct CachedCalendar {
     pub(crate) id: String,
     /// The display name.
     pub(crate) name: String,
+    /// Whether the server lets the account write this calendar, whatever the account's
+    /// connection allows.
+    pub(crate) may_write: bool,
     /// The colour the server sent, if any; snapped to the nearest palette entry on the way out.
     /// When absent, `resolved_calendars` assigns a palette hue no other calendar is already using,
     /// so two colourless calendars never come out the same.
@@ -73,6 +79,13 @@ pub(crate) struct CachedCalendar {
     pub(crate) can_write: bool,
     /// Whether a meeting may be organised here (`App::account_can_invite`).
     pub(crate) can_invite: bool,
+    /// Whether a video meeting can be put on its events: the calendar may be written, and its
+    /// account's provider writes meetings.
+    pub(crate) writes_meetings: bool,
+    /// The services whose video meetings this calendar's server makes itself.
+    pub(crate) server_meetings: Vec<engine_api::ConferenceService>,
+    /// The accounts used for video meetings, which make one for an event on any calendar.
+    pub(crate) account_meetings: Vec<crate::calendar_ops::video_meeting::AccountMeetings>,
 }
 
 /// The occurrences and calendars a grid renders from, and the window they cover.
@@ -201,7 +214,8 @@ impl<P: Provider> App<P> {
         // a calendar from one nobody has connected to, so the account says which it is.
         let mut expects_calendars = false;
         let mut every_account_connected = true;
-        for account in self.account_handles().await {
+        let accounts = self.account_handles().await;
+        for account in accounts {
             let account_id = account.id.as_str().to_owned();
             expects_calendars |= account.calendar_provider.is_some();
             // A calendar that could not be reached beside a working mailbox has not reported "no
@@ -211,7 +225,6 @@ impl<P: Provider> App<P> {
             every_account_connected &= account.dialled
                 && self.use_problems(&account.id).calendar != Some(crate::UseProblem::Unreachable);
             let can_write = Self::account_can_write(&account);
-            let can_invite = Self::account_can_invite(&account);
             let mut listed = self.engine.calendars(&account.id).await.unwrap_or_default();
             // The server's default first, so the first writable row `mark_default` falls back to
             // is the calendar `calendar_for_new_events` picks.
@@ -224,8 +237,13 @@ impl<P: Provider> App<P> {
                     id: calendar.id.key().as_str().to_owned(),
                     name: calendar.name,
                     server_color: calendar.color,
-                    can_write: can_write && calendar.access.may_write,
-                    can_invite,
+                    may_write: calendar.access.may_write,
+                    // Filled from the accounts as they are when the cache is written, below.
+                    can_write: false,
+                    can_invite: false,
+                    writes_meetings: false,
+                    server_meetings: calendar.native_conferences,
+                    account_meetings: Vec::new(),
                 });
             }
             // The account's own addresses; primary plus configured aliases. The *persisted* set
@@ -340,6 +358,11 @@ impl<P: Provider> App<P> {
             }
         }
 
+        // From the account list as it is now, read under its lock while the cache is written: an
+        // account can connect or go while the store is read above, and its calendars follow that
+        // at once (`refresh_calendar_accounts`), so a list read before the store would undo it.
+        let live = self.accounts.read().await;
+        Self::apply_accounts(&mut calendars, &live);
         let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
         // Did anything actually change? In the steady state, no: a refresh syncs calendars the
         // provider reports no changes to, and rebuilds a cache identical to the one it replaces.

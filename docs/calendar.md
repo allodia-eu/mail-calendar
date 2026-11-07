@@ -315,23 +315,25 @@ store has a calendar":
 
 Both are decided in `rebuild_calendar_cache`, once, so no surface can hold a different opinion.
 
-### A calendar that is not connected says so above the week
+### A calendar that is not connected says so
 
 A calendar the account is used for can fail while the account connects: its server needs a sign-in
 of its own, refused the account's, or could not be reached ([`accounts.md`](accounts.md) rule 16).
 What the store holds of it stays on the grid, so the week is not emptied by a sign-in change, and
 the calendar screen says what that week is:
 
-- **One line per account, above the week**, from `ConnectivitySnapshot.calendar_outages`: "The
-  calendar for {address} isn't connected." followed by the reason the account's page gives for the
-  same problem and "You're seeing what was last synced." Its one action, **Account settings**, opens
-  that account's page in Settings → Accounts, where the remedy is. The address is the account's,
-  read from the accounts snapshot by its id.
+- **One notice per account** ([`notices.md`](notices.md)), raised from
+  `ConnectivitySnapshot.calendar_outages` and drawn wherever the client draws the calendar's
+  notices: "The calendar for {address} isn't connected.", with the reason the account's page gives
+  for the same problem and "You're seeing what was last synced." beneath it. Its one action is
+  **Try again** for a server that could not be reached, **Review** for one paused on a new server,
+  and **Account settings** otherwise, which opens that account's page in Settings → Accounts, where
+  the remedy is.
 - **Nothing on it can be changed or answered.** The core writes only through a bound adapter, so a
   calendar that is not connected is not writable (`can_write` is `false` on its rows and events, and
   "New event" is off when no other calendar can take one), its events offer no answer
   (`my_answer` is `None`), and a write that arrives anyway settles `NotSaved` with nothing sent.
-- **Offline, an unreachable calendar is left to the offline banner**, which already says why; a
+- **Offline, an unreachable calendar is left to the offline notice**, which already says why; a
   calendar that needs its own sign-in or refused the account's still says so, since waiting will
   not change it. An account whose sign-in expired has its own prompt instead.
 
@@ -1572,7 +1574,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Unanswered holds drawn as holds: grid, all-day banner, month, agenda ⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | "Awaiting your response" in the spoken label ⁸ | ✅ (string) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Declined events hidden from grid / month / agenda ⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| A calendar that is not connected says so above the week, and nothing on it can be changed or answered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar that is not connected says so, and nothing on it can be changed or answered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A change that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar manager: visibility + colour override (persisted) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: week start, 12/24h, horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

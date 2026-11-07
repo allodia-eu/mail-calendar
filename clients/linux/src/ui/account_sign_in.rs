@@ -4,7 +4,7 @@
 //! The account keeps its id, uses, links, settings and mail; the core replaces it in place and
 //! signals Settings, so the page redraws from the next snapshot.
 
-use mailcal_bindings::{AccountSignInOptions, AccountSignInStart, UnreachedUses};
+use mailcal_bindings::{AccountSignInOptions, AccountSignInStart, MailcalApp, UnreachedUses};
 
 use super::{
     AppInput, AppModel,
@@ -17,6 +17,8 @@ use super::{
 };
 use crate::l10n;
 
+#[path = "account_nextcloud_sign_in.rs"]
+mod nextcloud;
 #[path = "account_sign_in_state.rs"]
 mod state;
 pub(crate) use state::{SignInSwitchState, Stage};
@@ -82,6 +84,20 @@ pub(crate) enum SignInInput {
     Answered { attempt: u64, answer: Answer },
     /// A change ended.
     Finished { attempt: Attempt, outcome: Outcome },
+    /// How a sign-in with Nextcloud is getting on.
+    Nextcloud {
+        attempt: Attempt,
+        flight: super::nextcloud_flight::Flight,
+    },
+    /// Settings closed, taking any page a Nextcloud grant was kept for with it.
+    Closed,
+    /// The core put a Nextcloud grant on the account, or did not. `spent` when the grant can
+    /// never be put on it, so it is not kept for another try.
+    NextcloudCompleted {
+        attempt: Attempt,
+        outcome: Outcome,
+        spent: bool,
+    },
 }
 
 fn input(input: SignInInput) -> AppInput {
@@ -137,7 +153,7 @@ impl AppModel {
     pub(super) fn sign_in_input(&mut self, message: SignInInput, sender: relm4::Sender<AppInput>) {
         match message {
             SignInInput::Options { account, options } => {
-                let offers = options.sign_in || options.password;
+                let offers = options.sign_in || options.password || options.nextcloud;
                 self.settings.sign_in.answer(account.clone(), options);
                 if offers && self.settings.account.as_deref() == Some(account.as_str()) {
                     self.settings.refresh_in_place();
@@ -165,10 +181,19 @@ impl AppModel {
             SignInInput::Finished { attempt, outcome } => {
                 self.account_sign_in_finished(&attempt, &outcome, sender);
             }
+            SignInInput::Nextcloud { attempt, flight } => {
+                self.account_nextcloud_flight(attempt, flight, sender);
+            }
+            SignInInput::Closed => self.abandon_held_nextcloud_grant(),
+            SignInInput::NextcloudCompleted {
+                attempt,
+                outcome,
+                spent,
+            } => self.account_nextcloud_completed(&attempt, &outcome, spent, sender),
         }
     }
 
-    /// Starts signing `account` in through its provider: from its page, or from the banner of
+    /// Starts signing `account` in through its provider: from its page, or from the notice of
     /// an expired sign-in. A second request replaces the first.
     pub(super) fn start_account_sign_in(
         &mut self,
@@ -180,6 +205,9 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
+        if self.signs_in_with_nextcloud(&app, &account) {
+            return self.start_account_nextcloud_sign_in(account, switch, from, sender);
+        }
         let (id, _) = self.host_tasks.account_sign_in.start();
         let attempt = Attempt {
             id,
@@ -200,24 +228,7 @@ impl AppModel {
             return;
         };
         self.settings.sign_in.begin(&account);
-        match from {
-            ConsentFrom::Settings => {
-                let address = app
-                    .accounts_snapshot()
-                    .accounts
-                    .into_iter()
-                    .find(|entry| entry.id == account)
-                    .map_or_else(
-                        || account.clone(),
-                        |entry| super::settings::entry_name(&entry),
-                    );
-                self.settings
-                    .notify(Notice::Toast(l10n::settings_account_signin_waiting(
-                        &address,
-                    )));
-            }
-            ConsentFrom::MainWindow => self.notice = None,
-        }
+        self.say_waiting(&app, &account, from);
         let redirect_uri = loopback.redirect_uri();
         std::thread::spawn(move || {
             let start = app
@@ -226,6 +237,29 @@ impl AppModel {
                 .map_err(|error| super::core_error::said(&error));
             sender.emit(input(SignInInput::Prepared { attempt, start }));
         });
+    }
+
+    /// Says where a sign-in asked for `from` waits: on the account's page, in the browser. From
+    /// a notice, its button says it.
+    fn say_waiting(&mut self, app: &MailcalApp, account: &str, from: ConsentFrom) {
+        match from {
+            ConsentFrom::Settings => {
+                let address = app
+                    .accounts_snapshot()
+                    .accounts
+                    .into_iter()
+                    .find(|entry| entry.id == account)
+                    .map_or_else(
+                        || account.to_owned(),
+                        |entry| super::settings::entry_name(&entry),
+                    );
+                self.settings
+                    .notify(Notice::Toast(l10n::settings_account_signin_waiting(
+                        &address,
+                    )));
+            }
+            ConsentFrom::Notice => {}
+        }
     }
 
     fn account_sign_in_prepared(
@@ -326,7 +360,12 @@ impl AppModel {
                     }
                 }
                 CallbackOutcome::Cancelled => Outcome::Cancelled,
-                CallbackOutcome::Failed(error) => Outcome::Failed(error),
+                CallbackOutcome::TimedOut(_) if attempt.from == ConsentFrom::Notice => {
+                    Outcome::Cancelled
+                }
+                CallbackOutcome::TimedOut(error) | CallbackOutcome::Failed(error) => {
+                    Outcome::Failed(error)
+                }
             };
             sender.emit(finished(attempt, outcome));
         });
@@ -386,9 +425,8 @@ impl AppModel {
             self.settings.sign_in.forget(&attempt.account);
             if let Some(app) = &self.app {
                 self.snapshot.replace(app.mailbox_list());
-                self.connectivity =
-                    super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
             }
+            self.pull_notices();
             if self.settings.account.as_deref() == Some(attempt.account.as_str()) {
                 self.ask_sign_in_options(&attempt.account, sender);
             }
@@ -398,11 +436,9 @@ impl AppModel {
                 Some(notice) => self.settings.notify(notice),
                 None => self.settings.refresh_in_place(),
             },
-            ConsentFrom::MainWindow => {
-                self.notice = match outcome {
-                    Outcome::Failed(said) => Some(super::core_error::signing_in_again_failed(said)),
-                    Outcome::Switched | Outcome::Cancelled => None,
-                };
+            ConsentFrom::Notice => {
+                let failed = matches!(outcome, Outcome::Failed(_));
+                self.notice_remedy_ended(super::notices::Remedy::AccountSignIn, failed);
                 self.settings.refresh_in_place();
             }
         }

@@ -17,7 +17,6 @@ namespace Allodia.Mailcal.UiTests.Suites;
 
 [Collection(ShowcaseCollection.Name)]
 [Trait("Dataset", "showcase")]
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 public sealed partial class SearchTests(ShowcaseApp showcase)
 {
     private const string WholeThread = "no-go";

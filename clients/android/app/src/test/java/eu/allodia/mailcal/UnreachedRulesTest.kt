@@ -157,7 +157,7 @@ class UnreachedRulesTest {
             linkCandidates = LinkCandidates(listOf(linked("bob@dav")), emptyList(), emptyList(), emptyList()),
         )
         val snapshot = AccountsSnapshot(listOf(entry))
-        val stepFor: (String) -> SetupLinkStep? = { SetupLinkStep.of(snapshot, it, { true }) }
+        val stepFor: (String) -> SetupLinkStep? = { SetupLinkStep.of(snapshot, it, { true }, ::setupPickers) }
         val flow = SetupFlow()
 
         assertTrue(flow.accountAdded("alice@imap", false, emptyList(), stepFor, UnreachedRules.form(entry)))

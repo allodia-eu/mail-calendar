@@ -53,7 +53,7 @@ impl MailcalApp {
         let sink = crate::token_sink::token_sink(&self.registry, &self.credential_store);
         let prepared =
             boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
-        let forget: Vec<_> = moved.iter().map(domain_of).collect();
+        let forget: Vec<_> = moved.iter().filter_map(domain_of).collect();
         let shared_before = self.registry.shared_mailboxes(&account_id);
         // The principals the old servers named would start the new config's connects at the
         // old servers, so they go first; a failed replacement only costs the next connect its

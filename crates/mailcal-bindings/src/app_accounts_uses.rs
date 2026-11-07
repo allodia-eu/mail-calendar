@@ -1,9 +1,9 @@
 //! Switching what an account is used for, from Settings → Accounts.
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use engine_api::{AccountId, SearchDomain};
-use mailcal_account::Capability;
+use mailcal_account::{Capabilities, Capability};
 
 use crate::{
     AccountCapability, CapabilityChange, MailcalApp, MailcalError, account_registry::UseChange,
@@ -36,15 +36,20 @@ impl MailcalApp {
         on: bool,
     ) -> Result<CapabilityChange, MailcalError> {
         let capability = Capability::from(capability);
-        let (config_toml, previous) = match self.registry.set_use(&account_id, capability, on)? {
-            UseChange::Unchanged => return Ok(CapabilityChange::Applied),
-            UseChange::NeedsConsent => return Ok(CapabilityChange::NeedsConsent),
-            UseChange::NeedsEndpoint => return Ok(CapabilityChange::NeedsEndpoint),
-            UseChange::Changed {
-                config_toml,
-                previous,
-            } => (config_toml, previous),
-        };
+        let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
+        let (config_toml, previous) =
+            match self
+                .registry
+                .set_use(&account_id, capability, on, &refused)?
+            {
+                UseChange::Unchanged => return Ok(CapabilityChange::Applied),
+                UseChange::NeedsConsent => return Ok(CapabilityChange::NeedsConsent),
+                UseChange::NeedsEndpoint => return Ok(CapabilityChange::NeedsEndpoint),
+                UseChange::Changed {
+                    config_toml,
+                    previous,
+                } => (config_toml, previous),
+            };
         if let Err(err) = self.persist_config(&account_id, config_toml) {
             self.registry.restore_uses(&account_id, previous);
             return Err(err);
@@ -78,12 +83,14 @@ impl MailcalApp {
         } else {
             Ok(())
         };
-        if !on && capability != Capability::SharedMailboxes {
+        if !on
+            && capability != Capability::SharedMailboxes
+            && let Some(domain) = domain_of(capability)
+        {
             let app = Arc::clone(&self.app);
             let forgotten = id.clone();
             self.runtime.block_on(|| async move {
-                app.forget_account_domain(&forgotten, domain_of(capability))
-                    .await;
+                app.forget_account_domain(&forgotten, domain).await;
             });
         }
         if redial {
@@ -100,6 +107,18 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// The uses each account's provider refused when they were opened, although its stored
+    /// grant allows them, by account id: drawn as waiting on the provider, and switching one on
+    /// asks the provider again.
+    pub(crate) fn refused_uses(&self) -> BTreeMap<String, Capabilities> {
+        self.app
+            .connectivity()
+            .calendar_reauth_accounts
+            .into_iter()
+            .map(|id| (id, [Capability::Calendar].into_iter().collect()))
+            .collect()
+    }
+
     /// Lists `id` again without providers and stops its background sync, so nothing it no longer
     /// opens keeps syncing until its next dial.
     pub(crate) fn list_without_providers(&self, id: &AccountId) {
@@ -113,18 +132,24 @@ impl MailcalApp {
     }
 }
 
-/// What the store forgets when an account stops being used for `capability`. Colleagues are
-/// stored as cards beside the account's own with no line between them, so both go, and the
-/// account's own come back with its next contacts sync. Shared mailboxes are accounts of their
-/// own and are forgotten as such (`MailcalApp::drop_shared_mailboxes`).
-pub(crate) const fn domain_of(capability: Capability) -> SearchDomain {
+/// What the store forgets when an account stops being used for `capability`, `None` for video
+/// meetings, of which the device holds nothing. Colleagues are stored as cards beside the
+/// account's own with no line between them, so both go, and the account's own come back with
+/// its next contacts sync. Shared mailboxes are accounts of their own and are forgotten as such
+/// (`MailcalApp::drop_shared_mailboxes`).
+pub(crate) const fn domain_of(capability: Capability) -> Option<SearchDomain> {
     match capability {
-        Capability::Mail | Capability::SharedMailboxes => SearchDomain::Mail,
-        Capability::Calendar => SearchDomain::Calendar,
-        Capability::Contacts | Capability::Colleagues => SearchDomain::Contacts,
+        Capability::Mail | Capability::SharedMailboxes => Some(SearchDomain::Mail),
+        Capability::Calendar => Some(SearchDomain::Calendar),
+        Capability::Contacts | Capability::Colleagues => Some(SearchDomain::Contacts),
+        Capability::Meetings => None,
     }
 }
 
 #[cfg(test)]
 #[path = "app_accounts_uses_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "app_accounts_meetings_tests.rs"]
+mod meetings_tests;

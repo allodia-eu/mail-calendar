@@ -304,6 +304,10 @@ impl MailcalApp {
         // authenticated requests for as long as the token lasts.
         #[cfg(feature = "allodia-license")]
         self.forget_allodia_access_token();
+        // Nothing is known about a grant that is not there, so a refusal of the one leaving is not
+        // carried over to the next sign-in.
+        #[cfg(feature = "allodia-license")]
+        self.note_allodia_health(crate::AllodiaGrantHealth::Ok);
         // And what this device remembers having said to the service. Those record ids belong to
         // the account that is leaving; carried into the next sign-in they match nothing, so
         // nothing is claimed and the person is offered back the mail accounts they already have.

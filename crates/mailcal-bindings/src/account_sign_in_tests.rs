@@ -28,6 +28,7 @@ fn grant() -> mailcal_account::OAuthGrant {
         issuer: None,
         authorization_server: None,
         protected_resources: Vec::new(),
+        signed_in_as: None,
     }
 }
 
@@ -49,6 +50,7 @@ fn imap_account(who: &str, signed_in: bool) -> (String, String) {
         certificate_exceptions: Vec::new(),
         shape: mailcal_account::AccountShape::default(),
         dav_starts: mailcal_account::DavStarts::default(),
+        nextcloud: None,
     };
     let id = config.account_id().expect("a valid account id");
     (
@@ -154,6 +156,7 @@ fn calendar_account(who: &str, password: &str) -> (String, String) {
         certificate_exceptions: Vec::new(),
         shape: mailcal_account::AccountShape::default(),
         dav_starts: mailcal_account::DavStarts::default(),
+        nextcloud: None,
     };
     let id = config.account_id().expect("a valid account id");
     (
@@ -215,10 +218,32 @@ fn signing_in_again_asks_the_stored_issuer_for_the_accounts_own_address() {
 
 #[test]
 fn a_sign_in_the_server_issued_for_another_account_is_refused() {
-    assert!(named_as(None, "alice@example.org").is_ok());
-    assert!(named_as(Some("Alice@Example.org"), "alice@example.org").is_ok());
+    assert!(named_as(None, None, "alice@example.org").is_ok());
+    assert!(named_as(Some("Alice@Example.org"), None, "alice@example.org").is_ok());
     assert!(matches!(
-        named_as(Some("bob@example.org"), "alice@example.org"),
+        named_as(Some("bob@example.org"), None, "alice@example.org"),
+        Err(MailcalError::DifferentAccount)
+    ));
+}
+
+/// An account set up under an alias of its login name: the server names the login name at every
+/// sign-in (draft-ietf-mailmaint-oauth-public §3.5), so the first one's name is what a later one
+/// must match, never the alias.
+#[test]
+fn a_sign_in_again_is_held_to_the_account_the_first_one_named() {
+    let named = mailcal_account::OAuthGrant {
+        signed_in_as: Some("alice@example.org".to_owned()),
+        ..grant()
+    };
+    let alias = "a.smith@example.org";
+    assert!(named_as(Some("alice@example.org"), Some(&named), alias).is_ok());
+    assert!(matches!(
+        named_as(Some("bob@example.org"), Some(&named), alias),
+        Err(MailcalError::DifferentAccount)
+    ));
+    // A grant stored without a name is held to the address, as before.
+    assert!(matches!(
+        named_as(Some("alice@example.org"), Some(&grant()), alias),
         Err(MailcalError::DifferentAccount)
     ));
 }

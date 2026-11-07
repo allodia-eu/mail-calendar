@@ -7,6 +7,7 @@ use super::{Signalled, keep_offset, offset, signalled, typing, watch_edits};
 
 fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
     AccountsSnapshot {
+        meeting_accounts: Vec::new(),
         accounts: addresses
             .iter()
             .map(|address| AccountEntry {
@@ -22,6 +23,7 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 separate_server: None,
                 distinction: None,
                 mail_sync: None,
+                nextcloud: false,
             })
             .collect(),
     }

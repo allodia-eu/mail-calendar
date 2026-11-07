@@ -1,38 +1,47 @@
-// The words of what Settings → Accounts says beneath a use's switch, and of the line the calendar and
-// contacts screens draw over a use that is not connected, which gives the same reason
-// (docs/accounts.md rule 16). The decisions are AccountSettingsRules and UseOutageLines.
+// The words of what Settings → Accounts says beneath a use's switch (docs/accounts.md rule 16). The
+// decision is the core's (`account_page`); this only names it.
+
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
 internal static class AccountUseText
 {
-    /// <summary>The line beneath a use's switch, or null where it has none.</summary>
-    internal static string? Note(UseNote note) => note switch
+    /// <summary>The line beneath a use's switch: what is wrong with the use, then why it cannot be
+    /// pressed, so neither hides the other. Null where there is nothing to say.</summary>
+    internal static string? Note(AccountUseSwitch use)
     {
-        UseNote.Last => L10n.SettingsAccountUseLast(),
-        UseNote.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
-        UseNote.NeedsMail => L10n.SettingsAccountSharedNeedsMail(),
-        UseNote.Withheld => L10n.SettingsAccountUseWithheld(),
-        UseNote.NotOffered => L10n.SettingsAccountUseNotOffered(),
-        UseNote.UnreachableCalendar => L10n.SettingsAccountUseUnreachableCalendar(),
-        UseNote.UnreachableContacts => L10n.SettingsAccountUseUnreachableContacts(),
-        UseNote.RefusedCalendar => L10n.SettingsAccountUseRefusedCalendar(),
-        UseNote.RefusedContacts => L10n.SettingsAccountUseRefusedContacts(),
-        UseNote.OwnSignInCalendar => L10n.SettingsAccountUseOwnSignInCalendar(),
-        UseNote.OwnSignInContacts => L10n.SettingsAccountUseOwnSignInContacts(),
-        UseNote.ServerChangedCalendar => L10n.SettingsAccountUseServerChangedCalendar(),
-        UseNote.ServerChangedContacts => L10n.SettingsAccountUseServerChangedContacts(),
-        UseNote.NoneOnServerCalendar => L10n.SettingsAccountUseNoneOnServerCalendar(),
-        UseNote.NoneOnServerContacts => L10n.SettingsAccountUseNoneOnServerContacts(),
-        _ => null,
-    };
+        var status = use.Status switch
+        {
+            AccountUseStatus.Problem problem => Problem(use.Capability == AccountCapability.Calendar, problem.ProblemValue),
+            AccountUseStatus.Withheld => L10n.SettingsAccountUseWithheld(),
+            _ => null,
+        };
+        var blocked = use.Blocked switch
+        {
+            AccountUseBlock.LastUse => L10n.SettingsAccountUseLast(),
+            AccountUseBlock.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
+            AccountUseBlock.NeedsMail => L10n.SettingsAccountSharedNeedsMail(),
+            AccountUseBlock.NotOffered => L10n.SettingsAccountUseNotOffered(),
+            AccountUseBlock.NeedsServer => L10n.SettingsAccountUseNeedsEndpoint(),
+            _ => null,
+        };
+        string[] lines = [.. new[] { status, blocked }.OfType<string>()];
+        return lines.Length == 0 ? null : string.Join("\n", lines);
+    }
 
-    /// <summary>The words <see cref="UseOutageLines"/> composes a line from.</summary>
-    internal static UseOutageWords OutageWords() => new(
-        L10n.CalendarOutageTitle,
-        L10n.ContactsOutageTitle,
-        Note,
-        L10n.UseOutageLastSynced(),
-        L10n.UseOutageOpenAccount(),
-        L10n.ServerChangedReview());
+    /// <summary>What a calendar or an address book that did not connect says. Only these fail on
+    /// their own; mail decides whether the account connected at all.</summary>
+    private static string Problem(bool calendar, UseProblem problem) => problem switch
+    {
+        UseProblem.Unreachable => calendar
+            ? L10n.SettingsAccountUseUnreachableCalendar() : L10n.SettingsAccountUseUnreachableContacts(),
+        UseProblem.SignInRefused => calendar
+            ? L10n.SettingsAccountUseRefusedCalendar() : L10n.SettingsAccountUseRefusedContacts(),
+        UseProblem.ServerChanged => calendar
+            ? L10n.SettingsAccountUseServerChangedCalendar() : L10n.SettingsAccountUseServerChangedContacts(),
+        UseProblem.NoneOnServer => calendar
+            ? L10n.SettingsAccountUseNoneOnServerCalendar() : L10n.SettingsAccountUseNoneOnServerContacts(),
+        _ => calendar ? L10n.SettingsAccountUseOwnSignInCalendar() : L10n.SettingsAccountUseOwnSignInContacts(),
+    };
 }

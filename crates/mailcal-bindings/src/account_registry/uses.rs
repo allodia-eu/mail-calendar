@@ -3,7 +3,7 @@
 use mailcal_account::{AccountShape, Capabilities, Capability};
 
 use super::AccountRegistry;
-use crate::{BoxedAccount, ConnectedAccount, MailcalError};
+use crate::{AccountUseBlock, BoxedAccount, ConnectedAccount, MailcalError};
 
 /// What [`AccountRegistry::set_use`] did.
 pub(crate) enum UseChange {
@@ -17,70 +17,128 @@ pub(crate) enum UseChange {
         /// refuses the new config.
         previous: AccountShape,
     },
-    /// The provider's grant does not allow it; nothing changed.
+    /// The provider has not granted it; nothing changed.
     NeedsConsent,
     /// The account has no server for it; nothing changed.
     NeedsEndpoint,
 }
 
+/// What switching a use on or off comes to, decided once: [`AccountRegistry::set_use`] acts on
+/// it, and an account's page reads it before the switch is pressed (`docs/waiting.md` rule 6), so
+/// the check that refuses a change and the page that predicts it cannot disagree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Toggle {
+    /// Already so: nothing to do.
+    Unchanged,
+    /// The core makes the change; `next` is what the account is used for after it.
+    Applies { next: Capabilities },
+    /// The provider has not granted it: switching it on asks the provider for it.
+    AsksProvider,
+    /// It cannot be made, for this reason.
+    Refused(AccountUseBlock),
+}
+
+/// What switching `capability` on or off comes to for `entry`, whose provider refused the uses
+/// in `refused` when they were opened although its stored grant allows them. Switching contacts
+/// off takes colleagues with it, since they are only read beside contacts, and switching mail off
+/// takes shared mailboxes with it.
+pub(crate) fn toggle(
+    entry: &ConnectedAccount,
+    capability: Capability,
+    on: bool,
+    refused: &Capabilities,
+) -> Toggle {
+    let lacks = entry.lacks();
+    if on && lacks.contains(capability) {
+        return Toggle::Refused(AccountUseBlock::NotOffered);
+    }
+    let chosen = entry.capabilities();
+    if chosen.contains(capability) == on {
+        // A use chosen and not granted is not working, so switching it on asks again.
+        let withheld = on
+            && (refused.contains(capability)
+                || matches!(opens(entry, &chosen, capability), Opens::NeedsConsent));
+        return if withheld {
+            Toggle::AsksProvider
+        } else {
+            Toggle::Unchanged
+        };
+    }
+    let next: Capabilities = chosen
+        .iter()
+        .filter(|&kept| on || (kept != capability && !depends_on(kept, capability)))
+        .chain(on.then_some(capability))
+        .collect();
+    // An account used for none of these is not one: it is removed, never emptied.
+    if [Capability::Mail, Capability::Calendar, Capability::Contacts]
+        .into_iter()
+        .all(|usable| !next.contains(usable) || lacks.contains(usable))
+    {
+        return Toggle::Refused(AccountUseBlock::LastUse);
+    }
+    if on && capability == Capability::Colleagues && !next.contains(Capability::Contacts) {
+        return Toggle::Refused(AccountUseBlock::NeedsContacts);
+    }
+    if on && capability == Capability::SharedMailboxes && !next.contains(Capability::Mail) {
+        return Toggle::Refused(AccountUseBlock::NeedsMail);
+    }
+    if on {
+        match opens(entry, &next, capability) {
+            Opens::Yes => {}
+            Opens::NotOffered => return Toggle::Refused(AccountUseBlock::NotOffered),
+            Opens::NeedsConsent => return Toggle::AsksProvider,
+            Opens::NeedsEndpoint => return Toggle::Refused(AccountUseBlock::NeedsServer),
+        }
+    }
+    Toggle::Applies { next }
+}
+
 impl AccountRegistry {
-    /// Switches `capability` on or off for `id`. Switching contacts off switches colleagues off
-    /// with it, since they are only read beside contacts, and switching mail off switches shared
-    /// mailboxes off with it.
+    /// What switching `capability` on or off for `id` comes to, changing nothing; `None` for an
+    /// account that is not registered. `refused` is as [`toggle`] takes it.
+    pub(crate) fn toggle(
+        &self,
+        id: &str,
+        capability: Capability,
+        on: bool,
+        refused: &Capabilities,
+    ) -> Option<Toggle> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .map(|entry| toggle(entry, capability, on, refused))
+    }
+
+    /// Switches `capability` on or off for `id`, as [`toggle`] decides with `refused`.
     ///
     /// # Errors
     ///
-    /// Returns [`MailcalError::Config`] for an unknown account, a use its kind or its server
-    /// cannot offer, colleagues without contacts, shared mailboxes without mail, or a change that
-    /// would leave it used for none of mail, calendar and contacts that its server offers: such
-    /// an account is removed, never emptied.
+    /// Returns [`MailcalError::Config`] for an unknown account and for every refusal but a missing
+    /// server, which is [`UseChange::NeedsEndpoint`]: a use its server does not offer, colleagues
+    /// without contacts, shared mailboxes without mail, or a change that would leave the account
+    /// used for none of mail, calendar and contacts its server offers.
     pub(crate) fn set_use(
         &self,
         id: &str,
         capability: Capability,
         on: bool,
+        refused: &Capabilities,
     ) -> Result<UseChange, MailcalError> {
-        let refused = |reason: &str| Err(MailcalError::Config(reason.to_owned()));
         let mut entries = self
             .entries
             .lock()
             .expect("account registry mutex poisoned");
         let Some(entry) = entries.get_mut(id) else {
-            return refused("no such account");
+            return Err(MailcalError::Config("no such account".to_owned()));
         };
-        let lacks = entry.lacks();
-        if on && lacks.contains(capability) {
-            return refused("this account's server does not offer that");
-        }
-        let chosen = entry.capabilities();
-        if chosen.contains(capability) == on {
-            return Ok(UseChange::Unchanged);
-        }
-        let next: Capabilities = chosen
-            .iter()
-            .filter(|&kept| on || (kept != capability && !depends_on(kept, capability)))
-            .chain(on.then_some(capability))
-            .collect();
-        if [Capability::Mail, Capability::Calendar, Capability::Contacts]
-            .into_iter()
-            .all(|usable| !next.contains(usable) || lacks.contains(usable))
-        {
-            return refused("an account is used for at least one of mail, calendar and contacts");
-        }
-        if capability == Capability::Colleagues && on && !next.contains(Capability::Contacts) {
-            return refused("colleagues are only read beside contacts");
-        }
-        if capability == Capability::SharedMailboxes && on && !next.contains(Capability::Mail) {
-            return refused("shared mailboxes are only opened beside mail");
-        }
-        if on {
-            match opens(entry, &next, capability) {
-                Opens::Yes => {}
-                Opens::NotOffered => return refused("this account does not offer that"),
-                Opens::NeedsConsent => return Ok(UseChange::NeedsConsent),
-                Opens::NeedsEndpoint => return Ok(UseChange::NeedsEndpoint),
-            }
-        }
+        let next = match toggle(entry, capability, on, refused) {
+            Toggle::Unchanged => return Ok(UseChange::Unchanged),
+            Toggle::AsksProvider => return Ok(UseChange::NeedsConsent),
+            Toggle::Refused(AccountUseBlock::NeedsServer) => return Ok(UseChange::NeedsEndpoint),
+            Toggle::Refused(block) => return Err(MailcalError::Config(block.reason().to_owned())),
+            Toggle::Applies { next } => next,
+        };
         let account_id = entry.account_id();
         let shape = entry.shape_mut();
         let previous = shape.clone();
@@ -166,9 +224,16 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
             next,
             config.granted_scopes.as_deref(),
         )),
+        // Talk meetings use the account's own app password, so a Nextcloud account needs no
+        // more than its server's Talk, which the account's lacks have already answered.
+        ConnectedAccount::Imap { config, .. }
+            if capability == Capability::Meetings && config.nextcloud.is_some() =>
+        {
+            Opens::Yes
+        }
         _ if matches!(
             capability,
-            Capability::Colleagues | Capability::SharedMailboxes
+            Capability::Colleagues | Capability::SharedMailboxes | Capability::Meetings
         ) =>
         {
             Opens::NotOffered
@@ -178,7 +243,9 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
                 Capability::Mail => config.imap.is_some(),
                 Capability::Calendar => config.caldav.is_some(),
                 Capability::Contacts => config.carddav.is_some() || config.caldav.is_some(),
-                Capability::Colleagues | Capability::SharedMailboxes => false,
+                Capability::Colleagues | Capability::SharedMailboxes | Capability::Meetings => {
+                    false
+                }
             };
             if has_server {
                 Opens::Yes
@@ -193,6 +260,19 @@ fn opens(entry: &ConnectedAccount, next: &Capabilities, capability: Capability) 
 
 #[cfg(test)]
 impl AccountRegistry {
+    /// Where `id`'s dials record whether its Nextcloud server offers Talk.
+    pub(crate) fn talk_offer(&self, id: &str) -> Option<crate::talk_offer::TalkOffer> {
+        match self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+        {
+            Some(ConnectedAccount::Imap { talk, .. }) => Some(talk.clone()),
+            _ => None,
+        }
+    }
+
     /// Where `id`'s dials record its JMAP session, for a test that has no server to read one from.
     pub(crate) fn jmap_session(&self, id: &str) -> Option<crate::jmap_session::JmapSession> {
         match self
@@ -206,3 +286,7 @@ impl AccountRegistry {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "toggle_tests.rs"]
+mod toggle_tests;

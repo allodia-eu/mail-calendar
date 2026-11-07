@@ -149,11 +149,22 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
         "redrawn in place"
     );
     assert!(!password.is_sensitive(), "held while the connect runs");
+    let busy = crate::ui::setup_widget_tests::descendants::<gtk::Spinner>(
+        child.upcast_ref::<gtk::Widget>(),
+    )
+    .into_iter()
+    .find(gtk::Spinner::is_spinning)
+    .expect("a spinner turns while the connect runs");
+    assert!(self::shown(&busy), "and is on screen");
 
     shown.busy = false;
     shown.error = Some(l10n::signin_refused().to_owned());
     prompts.sync(None, Some(&shown), &parent, &sender);
     assert!(password.is_sensitive());
+    assert!(
+        !self::shown(&busy) && !busy.is_spinning(),
+        "and is gone once it has answered"
+    );
     assert_eq!(password.text(), "typed", "what was typed stands");
     assert!(
         rendered_labels(&child)
@@ -235,7 +246,7 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
     password.set_text("half typed");
 
     let step = state.separate.as_mut().expect("the step");
-    step.offer_answered(&[AccountCapability::Calendar], true);
+    step.offer_answered(&[AccountCapability::Calendar], true, false);
     state.report();
     setup.render(&state, window, &sender);
     assert_eq!(
@@ -310,7 +321,7 @@ pub(crate) fn the_page_form_offers_the_sign_in_in_place() {
     let sign_in = descendant_button(&child, l10n::setup_imap_signin_button());
     assert!(!shown(&sign_in));
 
-    shown_form.offer_answered(&[AccountCapability::Calendar], true);
+    shown_form.offer_answered(&[AccountCapability::Calendar], true, false);
     prompts.sync(None, Some(&shown_form), &parent, &sender);
     assert_eq!(prompts.form_window().as_ref(), Some(&window));
     assert!(shown(&sign_in));
@@ -336,4 +347,54 @@ pub(crate) fn the_page_form_offers_the_sign_in_in_place() {
             SeparateInput::Close
         )))
     ));
+}
+
+/// At a Nextcloud server the same place offers Nextcloud's own sign-in, in place, and says where
+/// it waits while the browser holds it.
+pub(crate) fn the_setup_step_offers_nextcloud_in_place(window: &adw::ApplicationWindow) {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    let account = "alice@example.test@imap.example.test";
+    state.hold_separate(account, server(vec![AccountCapability::Calendar]));
+    assert!(state.show_separate(account, account));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the step");
+    let password = entry_for(&visible_entries(&child), l10n::setup_field_password()).clone();
+    password.set_text("half typed");
+
+    let step = state.separate.as_mut().expect("the step");
+    step.offer_answered(&[AccountCapability::Calendar], false, true);
+    state.report();
+    setup.render(&state, window, &sender);
+    assert_eq!(password.text(), "half typed", "what was typed stands");
+    let sign_in = descendant_button(&child, l10n::nextcloud_sign_in_button());
+    assert!(shown(&sign_in) && sign_in.has_css_class("suggested-action"));
+    let labels = rendered_labels(&child);
+    assert!(
+        labels
+            .iter()
+            .any(|text| text == l10n::nextcloud_sign_in_note())
+    );
+    sign_in.emit_clicked();
+    assert!(matches!(
+        provider_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, ProviderInput::Start))
+    ));
+
+    let step = state.separate.as_mut().expect("the step");
+    assert!(step.begin_sign_in(1) && step.sign_in_prepared(1, Ok(())));
+    state.report();
+    setup.render(&state, window, &sender);
+    let labels = rendered_labels(&child);
+    assert!(
+        labels
+            .iter()
+            .any(|text| text == l10n::nextcloud_sign_in_waiting())
+    );
+    assert!(shown(&descendant_button(&child, l10n::action_cancel())));
 }

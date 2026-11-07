@@ -61,6 +61,11 @@ struct SettingsView: View {
             }
         }
         .frame(width: 720, height: 520)
+        // An account's page asked for from another category, a row naming the account, is shown
+        // where it lives.
+        .onChange(of: model.accountPage) { _, page in
+            if page != nil { selection = .accounts }
+        }
     }
 }
 

@@ -31,6 +31,16 @@ public sealed partial class MainWindow : Window
         // Window.Title is still what the taskbar, Alt-Tab and UI Automation read; the TitleBar
         // control only draws the strip. Both come from the same catalog key, so they can't disagree.
         this.Title = L10n.AppTitle();
+        // Somebody back from the browser may have granted a Nextcloud sign-in just now: a flight
+        // waiting on it asks at once rather than at its next interval (docs/nextcloud-sign-in.md
+        // rule 5).
+        Activated += (_, e) =>
+        {
+            if (e.WindowActivationState != WindowActivationState.Deactivated)
+            {
+                MailboxModel.NextcloudWake.Returned();
+            }
+        };
         // Before the caption is wired, so its buttons are themed from the appearance the app is
         // actually coming up in rather than from the desktop's (MainWindow.Theme.cs).
         ApplyAppearance(AppearanceChoice.AtLaunch);
@@ -70,12 +80,20 @@ public sealed partial class MainWindow : Window
                 : null);
         CalendarDetail.Init(Model);
         ContactsDetail.Init(Model);
-        // A calendar or address book that is not connected names its account's page.
-        CalendarDetail.AccountSettingsRequested += (_, account) => _ = OpenSettingsAsync("accounts", account);
-        ContactsDetail.AccountSettingsRequested += (_, account) => _ = OpenSettingsAsync("accounts", account);
-        // One paused for a server on another site asks whether to allow it.
-        CalendarDetail.ServerChangeRequested += (_, account) => _ = ServerChangeDialog.AskAsync(Content.XamlRoot, Model, account);
-        ContactsDetail.ServerChangeRequested += (_, account) => _ = ServerChangeDialog.AskAsync(Content.XamlRoot, Model, account);
+        NoticeStrip.Init(Model);
+        // A notice names its account's page, or, for a use paused for a server on another site,
+        // asks whether to allow it. Both need this window's XamlRoot.
+        Model.AccountSettingsRequested += account => _ = OpenSettingsAsync("accounts", account);
+        Model.ServerChangeRequested += account => _ = ServerChangeDialog.AskAsync(Content.XamlRoot, Model, account);
+        // A removal from the sidebar whose stored sign-in could not be erased; Settings, when it is
+        // the dialog open, says it on its own list.
+        Model.RemovalFailed += message =>
+        {
+            if (!DialogHelper.IsShowing)
+            {
+                _ = DialogHelper.TellAsync(Content.XamlRoot, message);
+            }
+        };
         ReadingPanel.Init(Model);
 
         // The sidebar depends on the account set, the selected account's folders, and the
@@ -106,9 +124,9 @@ public sealed partial class MainWindow : Window
             OfferDefaultMailAppIfDue();
         };
         Model.Folders.CollectionChanged += (_, _) => SyncNavItems();
-        // Connectivity changes re-badge accounts (an unreachable warning). Raised on the UI thread
-        // already; the badge is a bound bool, so this only flips a property.
-        Model.ConnectivityChanged += SyncNavItems;
+        // A notice about an account marks its row. Raised on the UI thread already; the mark is a
+        // bound property, so this only sets it.
+        Model.NoticesChanged += SyncNavItems;
         Model.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(MailboxModel.SelectedAccount)
@@ -213,8 +231,4 @@ public sealed partial class MainWindow : Window
 
     // "Not now": the user has read it and accepts the missing copy. The message stays sent.
     private void OnDismissUnfiledCopy(object sender, RoutedEventArgs e) => Model.DismissUnfiledCopy();
-
-    // "Try again" on the connection banner: a refresh re-dials any disconnected account (the
-    // bindings retry the outaged accounts on a RefreshMail) and catches up whatever arrived.
-    private void OnRetryConnections(object sender, RoutedEventArgs e) => Model.Refresh();
 }

@@ -33,6 +33,7 @@ fn app_with_prefs(
             id: AccountId::try_from("acct-1").unwrap(),
             providers: vec![provider].into(),
             calendar_provider: None,
+            meetings: None,
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
             dialled: true,
@@ -84,6 +85,23 @@ async fn a_sent_message_carries_the_name_the_user_set() {
         draft.from.email, "me@allodia.local",
         "a name is added to the address, never instead of it"
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_name_stored_before_its_provider_push_is_the_one_sent() {
+    // A host stores the name where it cannot wait, and the push to the provider runs after: a
+    // send in between already carries the name.
+    let (app, outbox) = app_with_prefs(Some(scratch_prefs("stored")));
+    assert!(app.store_sender_name("acct-1", "Ada Lovelace"));
+    assert!(
+        !app.store_sender_name("acct-1", "Ada Lovelace"),
+        "an unchanged name is not stored, nor pushed, again"
+    );
+
+    let _task = dispatch_until(&app, new_mail(None), SendStatus::Sent).await;
+
+    let draft = outbox.lock().unwrap()[0].clone();
+    assert_eq!(draft.from.name.as_deref(), Some("Ada Lovelace"));
 }
 
 #[tokio::test(start_paused = true)]
@@ -225,6 +243,7 @@ fn app_using_identity(
             }]
             .into(),
             calendar_provider: None,
+            meetings: None,
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
             dialled: true,

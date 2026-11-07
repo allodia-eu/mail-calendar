@@ -374,6 +374,7 @@ impl ProposedEdit {
             occurrence: None,
             // The question is about the edit's shape, never about where its clocks were read.
             times_from_occurrence: None,
+            meeting: None,
         })
     }
 }

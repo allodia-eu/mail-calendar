@@ -39,10 +39,14 @@ pub(crate) enum AllodiaOutcome {
     Failed(String),
 }
 
-fn begin(
-    app: &Arc<MailcalApp>,
-    create: bool,
-) -> Result<(OAuthLoopback, AllodiaSignInStart), String> {
+/// What the browser half needs, once the core has read the service's metadata. Blocking (two
+/// discovery round trips), so it is reached off the main thread.
+pub(crate) struct AllodiaPrepared {
+    loopback: OAuthLoopback,
+    start: AllodiaSignInStart,
+}
+
+fn begin(app: &Arc<MailcalApp>, create: bool) -> Result<AllodiaPrepared, String> {
     let loopback =
         OAuthLoopback::bind().map_err(|_| l10n::settings_allodia_browser_failed().to_owned())?;
     let redirect = loopback.redirect_uri();
@@ -52,7 +56,7 @@ fn begin(
         app.begin_allodia_sign_in(redirect)
     }
     .map_err(|error| l10n::settings_allodia_failed(&error.to_string()))?;
-    Ok((loopback, start))
+    Ok(AllodiaPrepared { loopback, start })
 }
 
 /// Waits for the redirect on the port this attempt bound.
@@ -83,6 +87,18 @@ impl AppModel {
         self.start_allodia(sender, false);
     }
 
+    /// The Allodia notice's Sign in again: the ordinary sign-in, started from where the person
+    /// is. Whether the hop began; one that could not is a sign-in that did not complete.
+    pub(super) fn resolve_allodia_sign_in_ended(
+        &mut self,
+        sender: relm4::Sender<AppInput>,
+    ) -> bool {
+        self.settings.allodia_failure = None;
+        self.start_allodia(sender, false);
+        self.settings.allodia_sign_in_from_notice = self.settings.allodia_signing_in;
+        self.settings.allodia_signing_in
+    }
+
     /// Both entry points. `create` asks the service for its sign-up page instead of its sign-in
     /// one; the redirect, the exchange and the store are identical, so nothing downstream needs to
     /// know which started it.
@@ -93,16 +109,7 @@ impl AppModel {
         if self.settings.allodia_signing_in {
             return;
         }
-        let (attempt, cancel) = self.host_tasks.allodia.start();
-        let (loopback, start) = match begin(&app, create) {
-            Ok(started) => started,
-            Err(error) => {
-                self.host_tasks.allodia.finish(attempt);
-                self.settings.allodia_failure = Some(error);
-                self.refresh_account_settings();
-                return;
-            }
-        };
+        let (attempt, _) = self.host_tasks.allodia.start();
         self.settings.allodia_failure = None;
         self.settings.allodia_signing_in = true;
         self.settings.allodia_sign_in_slow = false;
@@ -115,8 +122,40 @@ impl AppModel {
                 slow.emit(AppInput::AllodiaSignInSlow(attempt));
             },
         );
+        self.refresh_account_settings();
+        // The card spins from the press: the metadata read is the slow half of the begin, and the
+        // main loop must not wait on it.
+        std::thread::spawn(move || {
+            let prepared = begin(&app, create).map(Box::new);
+            sender.emit(AppInput::AllodiaPrepared(attempt, prepared));
+        });
+    }
+
+    /// The core has the authorization URL: the browser opens and the redirect is waited for.
+    pub(super) fn allodia_prepared(
+        &mut self,
+        attempt: u64,
+        prepared: Result<Box<AllodiaPrepared>, String>,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        if !self.host_tasks.allodia.holds(attempt) {
+            return;
+        }
+        let (Some(app), Some(cancel)) = (
+            self.app.clone(),
+            self.host_tasks.allodia.cancel_token(attempt),
+        ) else {
+            return;
+        };
+        let AllodiaPrepared { loopback, start } = match prepared {
+            Ok(prepared) => *prepared,
+            Err(error) => {
+                self.allodia_sign_in_finished(attempt, AllodiaOutcome::Failed(error), sender);
+                return;
+            }
+        };
         // The launch reports failure through the portal, later and on the main context, so the
-        // card goes to its pending state now and is put back by the same input the wait thread
+        // card stays in its pending state and is put back by the same input the wait thread
         // would have used. The attempt slot keeps the two from both landing.
         let failed = sender.clone();
         oauth_loopback::launch_browser(&start.authorization_url, move || {
@@ -125,14 +164,19 @@ impl AppModel {
                 AllodiaOutcome::Failed(l10n::settings_allodia_browser_failed().to_owned()),
             ));
         });
-        self.refresh_account_settings();
+        // A browser left until the wait ran out is not a failure of the notice's remedy
+        // (`docs/notices.md` rule 10); the Settings card says why it stopped.
+        let from_notice = self.settings.allodia_sign_in_from_notice;
         std::thread::spawn(move || {
             let outcome = match wait(loopback, &cancel) {
                 CallbackOutcome::Received(callback_url) => {
                     complete(&app, start.pending, callback_url)
                 }
                 CallbackOutcome::Cancelled => AllodiaOutcome::Cancelled,
-                CallbackOutcome::Failed(error) => AllodiaOutcome::Failed(error),
+                CallbackOutcome::TimedOut(_) if from_notice => AllodiaOutcome::Cancelled,
+                CallbackOutcome::TimedOut(error) | CallbackOutcome::Failed(error) => {
+                    AllodiaOutcome::Failed(error)
+                }
             };
             sender.emit(AppInput::AllodiaSignInFinished(attempt, outcome));
         });
@@ -155,9 +199,16 @@ impl AppModel {
         }
         self.settings.allodia_signing_in = false;
         self.settings.allodia_sign_in_slow = false;
+        if std::mem::take(&mut self.settings.allodia_sign_in_from_notice) {
+            let failed = matches!(outcome, AllodiaOutcome::Failed(_));
+            self.notice_remedy_ended(super::notices::Remedy::Allodia, failed);
+        }
         match outcome {
             AllodiaOutcome::SignedIn => {
                 self.settings.allodia_failure = None;
+                // What the last read said was about the grant this one replaces, which may have
+                // been refused or may belong to another account, so the section asks again.
+                self.forget_allodia_subscription();
                 // The first thing a new sign-in is for: this device's accounts go up, and whatever
                 // the person's other devices hold comes back.
                 self.sync_allodia_accounts(sender);
@@ -173,6 +224,9 @@ impl AppModel {
         if self.host_tasks.allodia.cancel() {
             self.settings.allodia_signing_in = false;
             self.settings.allodia_sign_in_slow = false;
+            if std::mem::take(&mut self.settings.allodia_sign_in_from_notice) {
+                self.notice_remedy_ended(super::notices::Remedy::Allodia, false);
+            }
             self.refresh_account_settings();
         }
     }

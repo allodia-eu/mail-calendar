@@ -8,7 +8,8 @@ use serde::Serialize;
 use super::AppInput;
 
 pub(super) const CONFIGURATION_KEY: &str = crate::l10n::MCP_SERVER_NAME;
-/// The command a package installs the relay as: the Flatpak command and the snap's app.
+/// The command a package installs the relay as: the Flatpak command, the snap's app and the file
+/// a native package puts beside the app in `/usr/bin`.
 const RELAY_NAME: &str = crate::l10n::MCP_RELAY_NAME;
 /// The relay as cargo builds it, which is what sits beside a development build.
 const BUILT_RELAY_FILE_NAME: &str = "mailcal-mcp";
@@ -51,12 +52,7 @@ fn relay_invocation() -> RelayInvocation {
     if let Some(app_id) = std::env::var_os("FLATPAK_ID") {
         return unqualified_flatpak_invocation(&app_id.to_string_lossy());
     }
-    let beside = executable.and_then(|executable| {
-        executable
-            .parent()
-            .map(|parent| parent.join(BUILT_RELAY_FILE_NAME))
-    });
-    unpackaged_invocation(beside.as_deref())
+    unpackaged_invocation(executable.as_deref().and_then(Path::parent))
 }
 
 /// snapd exposes each command of a snap as `<instance>.<app>` in `/snap/bin`, which is not on the
@@ -155,11 +151,17 @@ impl FlatpakContext {
     }
 }
 
-fn unpackaged_invocation(beside: Option<&Path>) -> RelayInvocation {
-    let command = beside.filter(|path| path.is_file()).map_or_else(
-        || RELAY_NAME.to_owned(),
-        |path| path.to_string_lossy().into_owned(),
-    );
+/// The relay beside the app outside any sandbox: under the name a native package installs it as,
+/// else the name cargo builds it under, else the bare command for the `PATH` to find.
+fn unpackaged_invocation(directory: Option<&Path>) -> RelayInvocation {
+    let command = directory
+        .into_iter()
+        .flat_map(|directory| [RELAY_NAME, BUILT_RELAY_FILE_NAME].map(|name| directory.join(name)))
+        .find(|path| path.is_file())
+        .map_or_else(
+            || RELAY_NAME.to_owned(),
+            |path| path.to_string_lossy().into_owned(),
+        );
     RelayInvocation {
         command,
         args: Vec::new(),
@@ -352,24 +354,35 @@ mod tests {
         );
     }
 
-    #[test]
-    fn unpackaged_relay_uses_the_binary_beside_the_app_when_present() {
-        let directory =
-            std::env::temp_dir().join(format!("mailcal-mcp-endpoint-{}", std::process::id()));
+    fn relay_beside(test: &str, file_name: &str) -> (std::path::PathBuf, String) {
+        let directory = std::env::temp_dir().join(format!(
+            "mailcal-mcp-endpoint-{test}-{}",
+            std::process::id()
+        ));
         fs::create_dir_all(&directory).expect("create temp directory");
-        let relay = directory.join(BUILT_RELAY_FILE_NAME);
+        let relay = directory.join(file_name);
         fs::write(&relay, []).expect("create relay marker");
-        assert_eq!(
-            unpackaged_invocation(Some(&relay)).command,
-            relay.to_string_lossy()
-        );
-        fs::remove_dir_all(directory).expect("remove temp directory");
+        let command = unpackaged_invocation(Some(&directory)).command;
+        fs::remove_dir_all(&directory).expect("remove temp directory");
+        (relay, command)
+    }
+
+    #[test]
+    fn unpackaged_relay_uses_the_binary_cargo_built_beside_the_app() {
+        let (relay, command) = relay_beside("built", BUILT_RELAY_FILE_NAME);
+        assert_eq!(command, relay.to_string_lossy());
+    }
+
+    #[test]
+    fn a_native_package_relay_is_found_under_its_installed_name() {
+        let (relay, command) = relay_beside("installed", RELAY_NAME);
+        assert_eq!(command, relay.to_string_lossy());
     }
 
     #[test]
     fn missing_unpackaged_relay_falls_back_to_path() {
         assert_eq!(
-            unpackaged_invocation(Some(Path::new("/not/present/mailcal-mcp"))).command,
+            unpackaged_invocation(Some(Path::new("/not/present"))).command,
             RELAY_NAME
         );
     }

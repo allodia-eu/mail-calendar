@@ -20,8 +20,9 @@ use mailcal_bindings::{
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
 
-/// The sign-in server's own origin, which is its issuer's too.
-const SIGN_IN_SERVER: &str = "https://127.0.0.1";
+/// Where the front serves the sign-in server's calendars and contacts: its own host name, which
+/// its issuer lists among the origins its tokens are for.
+const SIGN_IN_SERVER: &str = "https://localhost";
 
 fn entry(app: &MailcalApp, id: &str) -> AccountEntry {
     app.accounts_snapshot()

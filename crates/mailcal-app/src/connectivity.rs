@@ -92,6 +92,18 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Tells the host to read the connectivity snapshot again, for a layer above this crate that
+    /// adds a prompt of its own to the one it reads.
+    pub fn signal_connectivity(&self) {
+        self.observer.surface_changed(Surface::Connectivity);
+    }
+
+    /// Tells the host to read the notices again, for a layer above this crate that keeps state
+    /// of its own about them (`docs/notices.md`).
+    pub fn signal_notices(&self) {
+        self.observer.surface_changed(Surface::Notices);
+    }
+
     /// Marks `account` as needing calendar re-authentication (its OAuth grant lacks the calendar
     /// scope), signalling [`Surface::Connectivity`] only when the set actually changes. Mail is
     /// unaffected: a host shows a "reconnect to enable calendar" prompt, not an outage badge.
@@ -129,7 +141,7 @@ impl<P: Provider> App<P> {
     /// actually changes and, on that first raise, logs the cause **privacy-safely**: the count
     /// and reason, never the account address: so a support log shows why the prompt appeared.
     /// Sibling of [`note_calendar_reauth_required`](Self::note_calendar_reauth_required).
-    pub(crate) fn note_mail_reauth_required(&self, account: &AccountId) {
+    pub fn note_mail_reauth_required(&self, account: &AccountId) {
         let raised = {
             let mut set = self
                 .mail_reauth_accounts
@@ -219,6 +231,7 @@ impl<P: Provider> App<P> {
                  awaiting a fresh sign-in",
             );
             self.observer.surface_changed(Surface::Connectivity);
+            self.observer.signin_refused(account);
         }
     }
 

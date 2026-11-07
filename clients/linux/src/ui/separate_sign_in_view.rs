@@ -31,6 +31,8 @@ fn input(input: SeparateInput) -> AppInput {
 pub(super) struct Fields {
     sign_in_area: gtk::Box,
     sign_in: gtk::Button,
+    /// The line under the sign-in, which says whose it is.
+    note: gtk::Label,
     /// The spinner while a sign-in is out, with the Cancel that retires it while the browser
     /// holds it.
     waiting: gtk::Box,
@@ -39,6 +41,9 @@ pub(super) struct Fields {
     username: gtk::Entry,
     password: gtk::Entry,
     error: gtk::Label,
+    /// Beside the buttons while a connect or a skip runs. A connect can take a while: the
+    /// mailbox's calendar and contacts move to the new account and the mailbox is dialled again.
+    busy: gtk::Spinner,
     connect: gtk::Button,
     other: gtk::Button,
 }
@@ -52,7 +57,8 @@ impl Fields {
         let sign_in = gtk::Button::with_label(l10n::setup_imap_signin_button());
         sign_in.set_halign(gtk::Align::Start);
         sign_in_area.append(&sign_in);
-        sign_in_area.append(&body(l10n::setup_imap_signin_note()));
+        let note = body(l10n::setup_imap_signin_note());
+        sign_in_area.append(&note);
         let waiting = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let spinner = gtk::Spinner::new();
         waiting.append(&spinner);
@@ -71,6 +77,8 @@ impl Fields {
         content.append(&error);
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         actions.set_halign(gtk::Align::End);
+        let busy = gtk::Spinner::new();
+        actions.append(&busy);
         let other = gtk::Button::with_label(other);
         actions.append(&other);
         let connect = primary(l10n::action_connect(), window);
@@ -79,12 +87,14 @@ impl Fields {
         let fields = Self {
             sign_in_area,
             sign_in,
+            note,
             waiting,
             spinner,
             cancel,
             username,
             password,
             error,
+            busy,
             connect,
             other,
         };
@@ -105,9 +115,25 @@ impl Fields {
         ] {
             control.set_sensitive(!form.held());
         }
-        self.sign_in_area.set_visible(form.offers_sign_in);
+        self.sign_in_area.set_visible(form.offers());
+        let waiting = matches!(form.stage, SignInStage::Waiting(_));
+        let (button, note) = if form.nextcloud {
+            let note = if waiting {
+                l10n::nextcloud_sign_in_waiting()
+            } else {
+                l10n::nextcloud_sign_in_note()
+            };
+            (l10n::nextcloud_sign_in_button(), note)
+        } else {
+            (
+                l10n::setup_imap_signin_button(),
+                l10n::setup_imap_signin_note(),
+            )
+        };
+        self.sign_in.set_label(button);
+        self.note.set_text(note);
         // The sign-in leads where it is offered; Enter in the password field still connects.
-        let (lead, follow) = if form.offers_sign_in {
+        let (lead, follow) = if form.offers() {
             (&self.sign_in, &self.connect)
         } else {
             (&self.connect, &self.sign_in)
@@ -117,11 +143,12 @@ impl Fields {
         let out = form.stage != SignInStage::Idle;
         self.waiting.set_visible(out);
         self.spinner.set_spinning(out);
-        self.cancel
-            .set_visible(matches!(form.stage, SignInStage::Waiting(_)));
+        self.cancel.set_visible(waiting);
         self.error
             .set_text(form.error.as_deref().unwrap_or_default());
         self.error.set_visible(form.error.is_some());
+        self.busy.set_visible(form.busy);
+        self.busy.set_spinning(form.busy);
     }
 
     /// Connect sends what was typed, once there is a password to send; the sign-in and its

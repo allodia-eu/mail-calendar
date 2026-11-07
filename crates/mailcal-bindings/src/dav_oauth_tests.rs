@@ -168,11 +168,11 @@ const DAV_SCOPES: [&str; 3] = [
 
 #[test]
 fn an_issuer_on_the_calendar_servers_site_signs_it_in() {
-    let hosts = ["dav.example.com".to_owned()];
+    let endpoints = ["https://dav.example.com/dav/".to_owned()];
 
     let scopes = super::usable(
         &issuer("https://auth.example.com", &[], &DAV_SCOPES),
-        &hosts,
+        &endpoints,
         &BOTH,
     );
 
@@ -186,12 +186,12 @@ fn an_issuer_on_the_calendar_servers_site_signs_it_in() {
 /// on another site naming a provider's sign-in gets no token from it.
 #[test]
 fn an_issuer_whose_tokens_are_not_for_the_server_is_refused() {
-    let hosts = ["dav.example.com".to_owned()];
+    let endpoints = ["https://dav.example.com/dav/".to_owned()];
 
     assert!(
         super::usable(
             &issuer("https://accounts.elsewhere.net", &[], &DAV_SCOPES),
-            &hosts,
+            &endpoints,
             &BOTH
         )
         .is_err()
@@ -203,7 +203,7 @@ fn an_issuer_whose_tokens_are_not_for_the_server_is_refused() {
                 &["https://mail.example.com"],
                 &DAV_SCOPES
             ),
-            &hosts,
+            &endpoints,
             &BOTH
         )
         .is_err(),
@@ -216,21 +216,34 @@ fn an_issuer_whose_tokens_are_not_for_the_server_is_refused() {
                 &["https://dav.example.com/dav"],
                 &DAV_SCOPES
             ),
-            &hosts,
+            &endpoints,
             &BOTH
         )
         .is_ok(),
         "an issuer elsewhere that lists the server reaches it"
     );
+    assert!(
+        super::usable(
+            &issuer(
+                "https://auth.example.com",
+                &["https://dav.example.com:8443", "dav.example.com"],
+                &DAV_SCOPES
+            ),
+            &endpoints,
+            &BOTH
+        )
+        .is_err(),
+        "the server's host on another port, or named bare for IMAP, is not the server"
+    );
 }
 
 #[test]
 fn an_issuer_must_register_apps_and_offer_what_moves() {
-    let hosts = ["dav.example.com".to_owned()];
+    let endpoints = ["https://dav.example.com/dav/".to_owned()];
     let mut closed = issuer("https://auth.example.com", &[], &DAV_SCOPES);
     closed.registration_endpoint = None;
 
-    assert!(super::usable(&closed, &hosts, &BOTH).is_err());
+    assert!(super::usable(&closed, &endpoints, &BOTH).is_err());
     assert!(
         super::usable(
             &issuer(
@@ -238,7 +251,7 @@ fn an_issuer_must_register_apps_and_offer_what_moves() {
                 &[],
                 &["offline_access", "caldav"]
             ),
-            &hosts,
+            &endpoints,
             &BOTH
         )
         .is_err()

@@ -6,27 +6,18 @@
 // (docs/settings.md).
 package eu.allodia.mailcal
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,21 +27,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountLinkPicker
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountUseSwitch
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.LinkSlot
+import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
- * One account's page. [syncMode] is how it is shared with the other devices, null in a build with
- * no Allodia sign-in; [mail] draws its mail settings, and nothing while it has no mailbox listed.
+ * One account's page: its uses, links and removal as the core decided them ([page]), the rest from
+ * [entry]. [syncMode] is how it is shared with the other devices, null in a build with no Allodia
+ * sign-in; [mail] draws its mail settings, and nothing while it has no mailbox listed.
  */
 @Composable
 internal fun AccountPage(
     entry: AccountEntry,
+    page: CoreAccountPage,
     ui: AccountsSettingsUi,
     syncMode: AllodiaAccountSyncMode?,
     onSetSyncMode: (AllodiaAccountSyncMode) -> Unit,
@@ -63,6 +58,7 @@ internal fun AccountPage(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Spacer(modifier = Modifier.height(8.dp))
+    AccountNoticesGroup(NoticeRules.about(ui.notices, entry.id), ui.noticeHandlers)
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (docs/settings.md).
     if (syncMode != null) {
@@ -73,7 +69,7 @@ internal fun AccountPage(
         L10n.settings_account_uses_heading(ctx),
         L10n.settings_account_uses_description(ctx),
     ) {
-        entry.uses.forEach { use -> UseRow(entry, use.capability, ui) }
+        page.uses.forEach { switch -> UseRow(entry, switch, ui) }
     }
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(
@@ -87,14 +83,13 @@ internal fun AccountPage(
             onLeave = { ui.state.separate.left() },
         )
     }
-    val pickers = AccountSettingsRules.linkPickers(entry)
-    if (pickers.isNotEmpty()) {
+    if (page.links.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
         SettingsGroupCard(
             L10n.settings_account_links_heading(ctx),
             L10n.settings_account_links_description(ctx),
         ) {
-            pickers.forEach { picker -> LinkRow(entry, picker, ui) }
+            page.links.forEach { picker -> LinkRow(entry, picker, ui) }
         }
     }
     SharedMailboxesGroup(entry, ui)
@@ -108,6 +103,14 @@ internal fun AccountPage(
     if (AccountSignInRules.switchable(entry.kind)) {
         Spacer(modifier = Modifier.height(8.dp))
         AccountSignInGroup(entry, ui)
+    } else if (AccountSignInRules.asksOptions(entry.kind)) {
+        // A calendar and contacts account has one only at a Nextcloud server, which its server is
+        // asked about as the page opens (docs/nextcloud-sign-in.md rule 7).
+        LaunchedEffect(entry.id) { ui.onAskSignInOptions(entry.id) }
+        if (AccountSignInRules.hasSection(entry, ui.state.signIn.options[entry.id])) {
+            Spacer(modifier = Modifier.height(8.dp))
+            AccountSignInGroup(entry, ui)
+        }
     }
     entry.mailSync?.let { technology ->
         Spacer(modifier = Modifier.height(8.dp))
@@ -119,110 +122,64 @@ internal fun AccountPage(
     }
     mail()
     Spacer(modifier = Modifier.height(16.dp))
-    RemoveAccount(entry, ui)
+    RemoveAccount(entry, page.remove, ui)
 }
 
-/** One use's switch, with the line that says why it cannot be flipped, when it cannot. */
+/**
+ * One use's switch, with what is wrong with it and why it cannot be pressed beneath. A use the
+ * provider withholds goes to its sign-in when switched on; one that deletes something when switched
+ * off asks first.
+ */
 @Composable
-private fun UseRow(entry: AccountEntry, capability: AccountCapability, ui: AccountsSettingsUi) {
+private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
-    val rule = AccountSettingsRules.switch(entry, capability)
-    val pending = ui.state.pendingUse?.takeIf {
-        it.accountId == entry.id && it.capability == capability
-    }
-    val waiting = ui.state.pendingUse != null || ui.state.signingIn == entry.id
-    // Switching off deletes what the device holds of the use, so it is asked first.
+    val capability = switch.capability
+    // A sign-in at the provider for this account holds its switches until it answers.
+    val held = ui.state.signingIn == entry.id
+    val control = if (held) switch.control.copy(enabled = false) else switch.control
     var confirmingOff by remember(entry.id, capability) { mutableStateOf(false) }
-    val checked = pending?.on ?: rule.active
-    // The whole row is the switch, so it is one target and one announcement.
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .toggleable(
-                value = checked,
-                enabled = rule.enabled && !waiting,
-                role = Role.Switch,
-                onValueChange = { on ->
-                    when {
-                        !on -> confirmingOff = true
-                        // Chosen, and waiting on the provider: switching it on asks again.
-                        rule.asks -> ui.onSignInAgain(entry.id, listOf(capability))
-                        else -> ui.onSetUse(entry.id, capability, true)
-                    }
-                },
-            )
-            .padding(vertical = 4.dp)
-            .testTag("account-use-${capability.name}"),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(useName(ctx, capability), style = MaterialTheme.typography.bodyLarge)
-            useNoteText(ctx, rule.note)?.let {
-                Text(
-                    it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+    val set = { on: Boolean -> ui.onChange(AccountPageIntent.SetUse(entry.id, capability, on)) }
+    ControlSwitchRow(
+        title = useName(ctx, capability),
+        note = switchNote(ctx, switch),
+        on = switch.on,
+        control = control,
+        tag = "account-use-${capability.name}",
+    ) { on ->
+        when {
+            on && switch.asksProvider -> ui.onSignInAgain(entry.id, listOf(capability))
+            !on && switch.confirmsOff -> confirmingOff = true
+            else -> set(on)
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Switch(checked = checked, onCheckedChange = null, enabled = rule.enabled && !waiting)
     }
     // A calendar or address book the account's sign-in does not reach: one of its own (rule 18).
     if (UnreachedRules.offersSeparate(entry, capability)) {
         TextButton(
             onClick = { ui.onSeparateSignIn(entry.id) },
-            enabled = !waiting,
+            enabled = control.enabled,
             modifier = Modifier.testTag("account-use-separate-${capability.name}"),
         ) { Text(L10n.settings_account_use_separate_sign_in(ctx)) }
     }
     // Its server was found on another site: the question that allows it
     // (docs/account-autodetect.md rule 14).
-    if (reviewsServerChange(rule.note)) {
+    if (switch.reviewsServerChange) {
         TextButton(
             onClick = { ui.onReviewServerChange(entry.id) },
-            enabled = !waiting,
+            enabled = control.enabled,
             modifier = Modifier.testTag("account-use-review-${capability.name}"),
         ) { Text(L10n.server_changed_review(ctx)) }
     }
     if (confirmingOff) {
-        AlertDialog(
-            onDismissRequest = { confirmingOff = false },
-            title = { Text(L10n.account_use_off_title(ctx, useName(ctx, capability))) },
-            text = { Text(L10n.account_use_off_message(ctx)) },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        confirmingOff = false
-                        ui.onSetUse(entry.id, capability, false)
-                    },
-                    modifier = Modifier.testTag("account-use-off-confirm"),
-                ) { Text(L10n.action_switch_off(ctx)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmingOff = false }) { Text(L10n.action_cancel(ctx)) }
-            },
-        )
+        ConfirmDialog(
+            title = L10n.account_use_off_title(ctx, useName(ctx, capability)),
+            message = L10n.account_use_off_message(ctx),
+            action = L10n.action_switch_off(ctx),
+            tag = "account-use-off",
+        ) { yes ->
+            confirmingOff = false
+            if (yes) set(false)
+        }
     }
-}
-
-internal fun useNoteText(ctx: android.content.Context, note: UseNote): String? = when (note) {
-    UseNote.LAST -> L10n.settings_account_use_last(ctx)
-    UseNote.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
-    UseNote.NEEDS_MAIL -> L10n.settings_account_shared_needs_mail(ctx)
-    UseNote.WITHHELD -> L10n.settings_account_use_withheld(ctx)
-    UseNote.NOT_OFFERED -> L10n.settings_account_use_not_offered(ctx)
-    UseNote.UNREACHABLE_CALENDAR -> L10n.settings_account_use_unreachable_calendar(ctx)
-    UseNote.UNREACHABLE_CONTACTS -> L10n.settings_account_use_unreachable_contacts(ctx)
-    UseNote.REFUSED_CALENDAR -> L10n.settings_account_use_refused_calendar(ctx)
-    UseNote.REFUSED_CONTACTS -> L10n.settings_account_use_refused_contacts(ctx)
-    UseNote.OWN_SIGN_IN_CALENDAR -> L10n.settings_account_use_own_sign_in_calendar(ctx)
-    UseNote.OWN_SIGN_IN_CONTACTS -> L10n.settings_account_use_own_sign_in_contacts(ctx)
-    UseNote.SERVER_CHANGED_CALENDAR -> L10n.settings_account_use_server_changed_calendar(ctx)
-    UseNote.SERVER_CHANGED_CONTACTS -> L10n.settings_account_use_server_changed_contacts(ctx)
-    UseNote.NONE_ON_SERVER_CALENDAR -> L10n.settings_account_use_none_on_server_calendar(ctx)
-    UseNote.NONE_ON_SERVER_CONTACTS -> L10n.settings_account_use_none_on_server_contacts(ctx)
-    UseNote.NONE -> null
 }
 
 /** The title of a link slot's picker. */
@@ -238,44 +195,17 @@ internal fun linkTitle(ctx: android.content.Context, slot: LinkSlot): String = w
  * still reads None until they do (docs/accounts.md rule 12).
  */
 @Composable
-private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSettingsUi) {
+private fun LinkRow(entry: AccountEntry, picker: AccountLinkPicker, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
-    val current = picker.selected?.let { accountName(ctx, picker.options[it]) }
-        ?: L10n.settings_account_link_none(ctx)
-    Text(linkTitle(ctx, picker.slot), style = MaterialTheme.typography.labelLarge)
-    Box {
-        TextButton(
-            onClick = { expanded = true },
-            modifier = Modifier.testTag("account-link-${picker.slot.name}"),
-        ) {
-            Text(current, maxLines = 1)
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_drop_down),
-                contentDescription = linkTitle(ctx, picker.slot),
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DropdownMenuItem(
-                text = { Text(L10n.settings_account_link_none(ctx)) },
-                onClick = {
-                    expanded = false
-                    if (picker.selected != null) ui.onSetLink(entry.id, picker.slot, null)
-                },
-            )
-            picker.options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = { Text(accountName(ctx, option)) },
-                    onClick = {
-                        expanded = false
-                        if (picker.selected != index) ui.onSetLink(entry.id, picker.slot, option.id)
-                    },
-                )
-            }
-        }
-    }
-    picker.suggested?.let { index ->
-        val suggestion = picker.options[index]
+    val link = { target: String? -> ui.onChange(AccountPageIntent.SetLink(entry.id, picker.slot, target)) }
+    ControlDropdown(
+        title = linkTitle(ctx, picker.slot),
+        labels = listOf(L10n.settings_account_link_none(ctx)) + picker.options.map { accountName(ctx, it) },
+        selected = picker.selected?.let { it.toInt() + 1 } ?: 0,
+        control = picker.control,
+        tag = "account-link-${picker.slot.name}",
+    ) { at -> link(picker.options.getOrNull(at - 1)?.id) }
+    picker.suggested?.let { picker.options.getOrNull(it.toInt()) }?.let { suggestion ->
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 L10n.settings_account_link_suggested(ctx, accountName(ctx, suggestion)),
@@ -284,7 +214,8 @@ private fun LinkRow(entry: AccountEntry, picker: LinkPicker, ui: AccountsSetting
                 modifier = Modifier.weight(1f),
             )
             TextButton(
-                onClick = { ui.onSetLink(entry.id, picker.slot, suggestion.id) },
+                onClick = { link(suggestion.id) },
+                enabled = picker.control.enabled,
                 modifier = Modifier.testTag("account-link-suggested-${picker.slot.name}"),
             ) { Text(L10n.action_link(ctx)) }
         }
@@ -329,26 +260,21 @@ private fun SignInGroup(entry: AccountEntry, expired: Boolean, ui: AccountsSetti
 
 /** Removing the account, confirmed and naming the accounts that lose their link to it. Last. */
 @Composable
-private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
+private fun RemoveAccount(entry: AccountEntry, control: ControlState, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     var confirming by remember(entry.id) { mutableStateOf(false) }
-    Button(
-        onClick = { confirming = true },
-        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.error,
-            contentColor = MaterialTheme.colorScheme.onError,
-        ),
-        modifier = Modifier.fillMaxWidth().testTag("account-remove"),
-    ) { Text(L10n.action_remove_account(ctx)) }
+    ControlButton(
+        label = L10n.action_remove_account(ctx),
+        control = control,
+        tag = "account-remove",
+        modifier = Modifier.fillMaxWidth(),
+        destructive = true,
+    ) { confirming = true }
     if (confirming) {
-        RemoveAccountDialog(
-            removal = accountRemoval(ctx, entry),
-            onConfirm = {
-                confirming = false
-                ui.onRemove(entry.id)
-            },
-            onDismiss = { confirming = false },
-        )
+        RemoveAccountDialog(accountRemoval(ctx, entry)) { yes ->
+            confirming = false
+            if (yes) ui.onChange(AccountPageIntent.Remove(entry.id))
+        }
     }
 }
 
@@ -357,26 +283,14 @@ private fun RemoveAccount(entry: AccountEntry, ui: AccountsSettingsUi) {
  * Shared with the account switcher's own removal, so the two routes say the same thing.
  */
 @Composable
-internal fun RemoveAccountDialog(
-    removal: AccountRemoval,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
+internal fun RemoveAccountDialog(removal: AccountRemoval, onAnswer: (Boolean) -> Unit) {
     val ctx = LocalContext.current
-    val message = L10n.remove_account_message(ctx, removal.name) +
-        (removal.unlinked?.let { " " + L10n.remove_account_unlinks(ctx, it) } ?: "")
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(L10n.remove_account_title(ctx)) },
-        text = { Text(message, modifier = Modifier.testTag("account-remove-message")) },
-        confirmButton = {
-            TextButton(
-                onClick = onConfirm,
-                modifier = Modifier.testTag("account-remove-confirm"),
-            ) { Text(L10n.action_remove(ctx)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(L10n.action_cancel(ctx)) }
-        },
+    ConfirmDialog(
+        title = L10n.remove_account_title(ctx),
+        message = L10n.remove_account_message(ctx, removal.name) +
+            (removal.unlinked?.let { " " + L10n.remove_account_unlinks(ctx, it) } ?: ""),
+        action = L10n.action_remove(ctx),
+        tag = "account-remove",
+        onAnswer = onAnswer,
     )
 }

@@ -220,7 +220,4 @@ public sealed partial class MainWindow
             _ => false,
         };
     }
-
-    /// <summary>The notice bar's close: the core forgets the refusal (rule 28).</summary>
-    private void OnDismissFolderNotice(InfoBar sender, object args) => Model.DismissFolderNotice();
 }

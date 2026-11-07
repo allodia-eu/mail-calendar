@@ -24,17 +24,6 @@ pub(super) fn said(error: &MailcalError) -> String {
     }
 }
 
-/// What the main window's banner says when signing in again failed, given what [`said`] said.
-/// The banner names no detail, so only the two failures a person settles by signing in again
-/// keep their own words.
-pub(super) fn signing_in_again_failed(said: &str) -> String {
-    if said == l10n::signin_stale() || said == l10n::signin_different_account() {
-        said.to_owned()
-    } else {
-        l10n::signin_expired_failed().to_owned()
-    }
-}
-
 /// Which use of a server of its own did not connect, and why. Only the calendar and the address
 /// book move to one, so anything else is said as the calendar.
 fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'static str {
@@ -60,28 +49,8 @@ fn use_not_connected(capability: AccountCapability, problem: UseProblem) -> &'st
 mod tests {
     use mailcal_bindings::{AccountCapability, MailcalError, UseProblem};
 
-    use super::{said, signing_in_again_failed};
+    use super::said;
     use crate::l10n;
-
-    #[test]
-    fn the_banner_names_only_what_signing_in_again_settles() {
-        for settled in [MailcalError::StaleSignIn, MailcalError::DifferentAccount] {
-            assert_eq!(signing_in_again_failed(&said(&settled)), said(&settled));
-        }
-        let refused = MailcalError::SignInRefused {
-            reason: "invalid_grant".to_owned(),
-        };
-        for other in [
-            said(&refused),
-            said(&MailcalError::Connect("no route to host".to_owned())),
-            l10n::account_signin_browser_failed().to_owned(),
-        ] {
-            assert_eq!(
-                signing_in_again_failed(&other),
-                l10n::signin_expired_failed()
-            );
-        }
-    }
 
     #[test]
     fn a_refused_sign_in_is_said_in_words_and_anything_else_as_the_core_put_it() {

@@ -51,6 +51,9 @@ pub enum EventIntent {
         /// The people to invite. `None` creates an appointment; the organiser is derived from the
         /// selected account. `Some` must contain at least one invitee.
         invitees: Option<Vec<Invitee>>,
+        /// The video meeting to put on it, one of the chosen calendar's `meeting_choices`, or
+        /// `None` for none (`docs/conferencing.md`, rules 9 to 12).
+        meeting: Option<mailcal_account::MeetingChange>,
     },
     /// Edit a stored calendar event; retitle, move, resize, change its notes, location or roster;
     /// then refresh the agenda.

@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ContactDetail
 import uniffi.mailcal_bindings.EventIntent
 import uniffi.mailcal_bindings.Intent
@@ -34,7 +35,13 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
     // which the switcher rows leave out (docs/accounts.md rule 8).
     val accountLabels = accounts.associate { it.id to it.email } +
         accountSettings.snapshot.accounts.associate { it.id to it.address }
+    // The card each screen draws at its top: the first notice that belongs there (docs/notices.md).
+    val noticeHandlers = noticeHandlers()
+    val noticeCard: @Composable () -> Unit = {
+        NoticeArea(notices.notices, NoticeRules.screenOf(destination), noticeHandlers)
+    }
     Column(modifier = Modifier.fillMaxSize()) {
+                          NoticeAnnouncer(notices.announcement)
                           // A launch outage no longer shows a raw error dump here (it overflowed the
                           // status bar): accounts that can't connect are kept, badged unreachable,
                           // and surfaced by the friendly in-scaffold connection banner instead.
@@ -101,9 +108,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 // user actually recognises.
                                 accountLabels = accountLabels,
                                 writeLine = contactWrites.line(LocalContext.current),
-                                outages = outageLines(OutageUse.CONTACTS, LocalContext.current),
-                                onOpenAccount = { id -> openAccountPage(id) },
-                                onReviewServerChange = { id -> reviewServerChange(id) },
+                                notice = noticeCard,
                                 canCreate = contactWrites.targets.isNotEmpty(),
                                 onCreate = {
                                     contactWrites.editor =
@@ -174,6 +179,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.location,
                                             args.recurrence,
                                             args.invitees,
+                                            args.meeting?.change(meetingWords(this@MailboxTabContent)),
                                         )),
                                     )
                                 },
@@ -191,6 +197,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                             args.recurrence,
                                             args.timesFromOccurrence,
                                             args.invitees,
+                                            args.meeting?.change(meetingWords(this@MailboxTabContent)),
                                         )),
                                     )
                                 },
@@ -264,13 +271,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                     settingsCategory = SettingsCategory.CALENDAR
                                     showingSettings = true
                                 },
-                                // A Microsoft account missing the calendar scope prompts here; the
-                                // action signs it in again in place to grant it.
-                                calendarReauth = calendarReauth,
-                                onReconnectCalendar = { id -> signInAgain(id, emptyList()) },
-                                outages = outageLines(OutageUse.CALENDAR, LocalContext.current),
-                                onOpenAccount = { id -> openAccountPage(id) },
-                                onReviewServerChange = { id -> reviewServerChange(id) },
+                                notice = noticeCard,
                                 initialEvent = ShowcaseMode.openingEvent(this@MailboxTabContent),
                                 onInitialEventShown = { didDriveShowcaseOpen = true },
                             )
@@ -307,7 +308,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                     instance.dispatch(Intent.Outbox(OutboxIntent.Show))
                                 },
                                 folderEditing = FolderEditing.of(instance),
-                                folderNotice = folderNotice,
+                                marks = notices.marks,
                             ) {
                             if (showingOutbox) {
                                 // The Outbox replaces the mailbox list rather than covering it:
@@ -325,7 +326,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             accounts = accounts,
                             selectedAccount = selectedAccount,
                             onSelectAccount = { instance.dispatch(Intent.SelectAccount(it)) },
-                            onRemoveAccount = { removeAccount(it) },
+                            onRemoveAccount = { changeAccount(AccountPageIntent.Remove(it)) },
                             removalOf = { id ->
                                 accountSettings.entry(id)
                                     ?.let { accountRemoval(this@MailboxTabContent, it) }
@@ -388,36 +389,10 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // Background-download progress bar.
                             syncProgress = syncProgress,
                             emptyReason = emptyReason,
-                            // Connectivity: the offline banner + per-account outage badges + the
-                            // friendly connection-issues banner (names affected accounts, with a
-                            // Details action and Try again). Retry re-dials via a refresh.
-                            offline = connectivity?.offline ?: false,
-                            unreachableAccounts = connectivity?.unreachableAccounts ?: emptyList(),
-                            connectionIssues = connectionIssues,
-                            // A Microsoft account whose grant lacks the mail write/send scopes: a
-                            // "reconnect to send and manage mail" banner whose action signs it in
-                            // again in place (same flow as the calendar prompt).
-                            mailReauth = mailReauth,
-                            onReconnectMail = { id -> signInAgain(id, emptyList()) },
-                            signInExpired = signInExpired,
-                            onOpenAccountPage = { id -> openAccountPage(id) },
-                            onSignInExpired = { account ->
-                                when (AccountSignInRules.expiredRemedy(account.provider)) {
-                                    // In place: the account keeps its id, settings and mail, where
-                                    // a first sign-in would add it again (provider-oauth.md rule 11).
-                                    ExpiredRemedy.PROVIDER_CONSENT ->
-                                        signInAgain(account.id, emptyList())
-                                    // Addressed to the account id, not the address: the core
-                                    // re-authorises this account's own stored grant.
-                                    ExpiredRemedy.JMAP_REAUTH ->
-                                        reconnectJmap(accountId = account.id)
-                                    // From the grant it holds, as its page signs it in again.
-                                    ExpiredRemedy.ACCOUNT_SIGN_IN ->
-                                        startAccountSignIn(account.id, switching = false)
-                                    // The banner offers Settings instead of this button.
-                                    ExpiredRemedy.SETTINGS -> openAccountPage(account.id)
-                                }
-                            },
+                            // Each account's notice mark in the switcher, and the notice card
+                            // over the list (docs/notices.md).
+                            marks = notices.marks,
+                            notice = noticeCard,
                             // Open the unified Settings screen (grouping, language, time zone,
                             // fetch depth, sync behaviour, quote style, reset).
                             onOpenSettings = {

@@ -156,3 +156,21 @@ fn a_grant_without_the_shared_mail_scope_withholds_shared_mailboxes_alone() {
         set(&[Capability::SharedMailboxes])
     );
 }
+
+#[test]
+fn video_meetings_ask_for_online_meetings_at_microsoft_alone_and_only_when_chosen() {
+    const ONLINE_MEETINGS: &str = "https://graph.microsoft.com/OnlineMeetings.ReadWrite";
+    let legacy: Capabilities = Capability::LEGACY.into_iter().collect();
+    assert!(!requested_scopes(&MICROSOFT, &legacy).contains(&ONLINE_MEETINGS.to_owned()));
+    let with = set(&[Capability::Calendar, Capability::Meetings]);
+    assert!(requested_scopes(&MICROSOFT, &with).contains(&ONLINE_MEETINGS.to_owned()));
+    assert_eq!(
+        as_set(&requested_scopes(&GOOGLE, &with)),
+        as_set(&requested_scopes(&GOOGLE, &set(&[Capability::Calendar])))
+    );
+    let granted = vec!["https://graph.microsoft.com/Calendars.ReadWrite".to_owned()];
+    assert_eq!(
+        withheld(&MICROSOFT, &with, Some(&granted)),
+        set(&[Capability::Meetings])
+    );
+}

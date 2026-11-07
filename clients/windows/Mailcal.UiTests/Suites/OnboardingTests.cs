@@ -18,7 +18,6 @@ using Xunit;
 namespace Allodia.Mailcal.UiTests.Suites;
 
 [Trait("Dataset", "first-run")]
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstRunApp>
 {
     private static readonly bool Registered = App.AllodiaRegistered();
@@ -39,8 +38,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
     /// <summary>A case about the card, skipped where the build has none to draw.</summary>
     private void CardCase(string name, Action<App> body)
     {
-        Skip.IfNot(App.HasBuild(), "no Debug build to launch (clients/windows/build-and-run.ps1 -NoRun)");
-        Skip.IfNot(Registered, "this build carries no Allodia registration, so there is nothing above the address field; the case before this one asserts that");
+        Assert.SkipUnless(Registered, "this build carries no Allodia registration, so there is nothing above the address field; the case before this one asserts that");
         Case(name, body);
     }
 
@@ -75,7 +73,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
                 : $"this build carries no Allodia registration, so items 1 to 3 are absent together; still drawn: {string.Join(", ", found)}");
     });
 
-    [SkippableFact]
+    [OfflineFact]
     public void TheScreenIsInTheOrderTheContractFixesCardSignInLineDividerAddress() => CardCase(nameof(TheScreenIsInTheOrderTheContractFixesCardSignInLineDividerAddress), app =>
     {
         var card = Drawn(app, CardTitle, "Group")!.Y;
@@ -87,7 +85,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
         Assert.True(divider < address, $"the direct route is item 4 and is not promoted above the card (divider at {divider}, address at {address})");
     });
 
-    [SkippableFact]
+    [OfflineFact]
     public void TheCardIsOneControlLabelledWithItsActionAndDescribedByItsSubtitle() => CardCase(nameof(TheCardIsOneControlLabelledWithItsActionAndDescribedByItsSubtitle), app =>
     {
         // One control, so a screen reader announces the offer and its action together; named by the
@@ -97,7 +95,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
         Assert.Equal(CardSubtitle, app.Agent.Read(card).Help);
     });
 
-    [SkippableFact]
+    [OfflineFact]
     public void TheCardClaimsTheAccountListOnPhoneAndComputerAndNeverTheWeb() => CardCase(nameof(TheCardClaimsTheAccountListOnPhoneAndComputerAndNeverTheWeb), app =>
     {
         // Read off the screen, never the catalog: a rule checked against a string this file already

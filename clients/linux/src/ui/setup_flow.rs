@@ -108,6 +108,7 @@ impl AppModel {
             beside.email.clone(),
             beside.caldav_url,
             beside.carddav_url,
+            beside.nextcloud,
         ) {
             self.account_detected(beside.email, setup, sender);
         }
@@ -119,9 +120,8 @@ impl AppModel {
     pub(super) fn existing_account_updated(&mut self, sender: relm4::Sender<AppInput>) {
         if let Some(app) = &self.app {
             self.snapshot.replace(app.mailbox_list());
-            self.connectivity =
-                super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
         }
+        self.pull_notices();
         match self.setup.returning_to.take() {
             Some(account) => self.onward(&account, &account, sender),
             None => self.finish_setup(sender),
@@ -175,6 +175,7 @@ impl AppModel {
     /// the end of the flow. A flow that already added an account ends as a skipped link step
     /// does, so each account added is still asked its name.
     pub(super) fn cancel_account_setup(&mut self, sender: relm4::Sender<AppInput>) {
+        self.abandon_setup_nextcloud_grant();
         // The account is added already: closing its uses step keeps what it offers and goes on,
         // and one being stored goes on when it is.
         if self.setup.choosing_uses() {
@@ -223,15 +224,12 @@ impl AppModel {
             AppInput::SetupAddLinkedAccount => self.setup.add_linked(),
             AppInput::SetupLinksDone(link) => {
                 if link && let Some(step) = &self.setup.links {
-                    for (slot, target) in step.links() {
-                        input.emit(AppInput::Accounts(
-                            super::account_settings::AccountsInput::SetLink {
-                                account: step.account.clone(),
-                                slot,
-                                target: Some(target),
-                            },
-                        ));
-                    }
+                    input.emit(AppInput::Accounts(
+                        super::account_settings::AccountsInput::LinkFromSetup {
+                            account: step.account.clone(),
+                            links: step.links(),
+                        },
+                    ));
                 }
                 self.finish_setup(input);
             }

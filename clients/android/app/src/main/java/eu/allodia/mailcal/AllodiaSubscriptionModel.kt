@@ -46,9 +46,23 @@ internal sealed interface AllodiaSubscriptionState {
     // the remedies differ: waiting fixes an outage and never fixes this.
     data object NeedsReauth : AllodiaSubscriptionState
 
+    // The service refused this device's grant. Never drawn by the subscription card: the account
+    // card draws "your sign-in has ended" in place of the signed-in state, and waiting never brings
+    // a refused grant back, so the outage sentence would be a false promise.
+    data object SignedOut : AllodiaSubscriptionState
+
     // The service answered.
     data class Loaded(val view: AllodiaSubscriptionView) : AllodiaSubscriptionState
 }
+
+// What a subscription read that did not answer leaves the card in, decided by the core's typed
+// error and never by its text. Only a read that could not be made at all is an outage.
+internal fun allodiaSubscriptionReadFailed(error: Throwable): AllodiaSubscriptionState =
+    when (error) {
+        is AllodiaPurchaseException.NeedsReauth -> AllodiaSubscriptionState.NeedsReauth
+        is AllodiaPurchaseException.SignedOut -> AllodiaSubscriptionState.SignedOut
+        else -> AllodiaSubscriptionState.Unavailable
+    }
 
 // The answer, with the parts a screen needs alongside it.
 internal data class AllodiaSubscriptionView(

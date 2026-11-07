@@ -38,10 +38,12 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ConnectionSecurity
-import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.MailServerKind
+import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.SharedMailboxEntry
+import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
  * What Settings → Accounts draws beyond each account's mail settings: the snapshot and the page
@@ -53,11 +55,15 @@ internal class AccountsSettingsUi(
     val expired: Set<String> = emptySet(),
     // A JMAP account holding a pasted password or API token, which a new one replaces.
     val pastedSecret: Set<String> = emptySet(),
+    // Every notice in force, of which the page draws its account's at its top (docs/notices.md).
+    val notices: List<Notice> = emptyList(),
+    val noticeHandlers: NoticeHandlers = NoticeHandlers(),
     val standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
     val onAddAccount: () -> Unit = {},
     val onOpenPage: (String?) -> Unit = { state.page = it },
-    val onSetUse: (accountId: String, AccountCapability, on: Boolean) -> Unit = { _, _, _ -> },
-    val onSetLink: (accountId: String, LinkSlot, target: String?) -> Unit = { _, _, _ -> },
+    // A use, a link or the removal, for the core to run: it answers at once, and the page says
+    // it runs (docs/waiting.md).
+    val onChange: (AccountPageIntent) -> Unit = {},
     val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
     val onSaveServers: (accountId: String, AccountEndpoints) -> Unit = { _, _ -> },
     val onReplaceSecret: (accountId: String, secret: String) -> Unit = { _, _ -> },
@@ -84,7 +90,6 @@ internal class AccountsSettingsUi(
     val onAskSharedMailboxes: (accountId: String) -> Unit = {},
     val onSetSharedMailbox: (accountId: String, SharedMailboxEntry, on: Boolean) -> Unit = { _, _, _ -> },
     val onAddSharedMailbox: (accountId: String, address: String) -> Unit = { _, _ -> },
-    val onRemove: (accountId: String) -> Unit = {},
     val onDismissNotice: () -> Unit = { state.notice = null },
 )
 
@@ -96,13 +101,14 @@ internal fun AccountsSettingsUi.openEntry(): AccountEntry? = state.page?.let(sta
 internal fun AccountsSettings(
     ui: AccountsSettingsUi,
     allodiaSyncCard: @Composable () -> Unit,
-    page: @Composable (AccountEntry) -> Unit,
+    page: @Composable (AccountEntry, CoreAccountPage) -> Unit,
 ) {
     val ctx = LocalContext.current
     AccountNoticeView(ui.state.notice, ui.onDismissNotice)
     val entry = ui.openEntry()
-    if (entry != null) {
-        page(entry)
+    val record = ui.state.accountPage?.takeIf { it.account == entry?.id }
+    if (entry != null && record != null) {
+        page(entry, record)
         return
     }
     Button(
@@ -180,6 +186,7 @@ internal fun useName(ctx: Context, capability: AccountCapability): String = when
     AccountCapability.CONTACTS -> L10n.nav_contacts(ctx)
     AccountCapability.COLLEAGUES -> L10n.account_use_colleagues(ctx)
     AccountCapability.SHARED_MAILBOXES -> L10n.account_use_shared_mailboxes(ctx)
+    AccountCapability.MEETINGS -> L10n.account_use_meetings(ctx)
 }
 
 /**

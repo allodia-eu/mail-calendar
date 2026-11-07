@@ -7,7 +7,7 @@
 use adw::prelude::*;
 use mailcal_bindings::{AccountKind, AccountSignInOptions, SignInMethod};
 
-use super::{SignInControl, draw, label, section};
+use super::{SignInControl, calendar_section, draw, label, section};
 use crate::{
     l10n,
     ui::{
@@ -26,6 +26,7 @@ const fn options(sign_in: bool, password: bool) -> AccountSignInOptions {
         sign_in,
         provider_label: None,
         password,
+        nextcloud: false,
     }
 }
 
@@ -110,6 +111,37 @@ fn a_password_account_switches_to_signing_in_where_its_server_offers_it() {
     assert_eq!(password_only.controls, []);
 }
 
+fn nextcloud_answered() -> AccountSignInOptions {
+    AccountSignInOptions {
+        nextcloud: true,
+        ..options(false, false)
+    }
+}
+
+#[test]
+fn a_calendar_account_has_a_section_only_at_a_nextcloud_server() {
+    assert_eq!(calendar_section(false, None), None);
+    assert_eq!(calendar_section(false, Some(&options(true, true))), None);
+
+    // One a Nextcloud sign-in made says so before anything is asked, and signs in again.
+    let made = calendar_section(true, None).expect("a section");
+    assert_eq!(made.status, l10n::settings_account_signs_in_nextcloud());
+    assert_eq!(made.controls, []);
+    let again = calendar_section(true, Some(&nextcloud_answered())).expect("a section");
+    assert_eq!(again.controls, [SignInControl::SignInAgain]);
+
+    // A typed password at a server that answered as Nextcloud switches to it, and never the
+    // other way: there is no switch to a typed password, and no line about what one keeps.
+    let typed = calendar_section(false, Some(&nextcloud_answered())).expect("a section");
+    assert_eq!(typed.status, l10n::settings_account_signs_in_password());
+    assert_eq!(typed.controls, [SignInControl::ToNextcloud]);
+    assert!(!typed.switches());
+    assert_eq!(
+        label(&SignInControl::ToNextcloud),
+        l10n::settings_account_switch_to_provider_named("Nextcloud")
+    );
+}
+
 fn rendered(group: &adw::PreferencesGroup) -> Vec<String> {
     rendered_labels(group.upcast_ref())
 }
@@ -136,6 +168,34 @@ pub(crate) fn the_section_draws_the_switch_its_server_takes() {
     );
     assert!(labels.contains(&l10n::settings_account_switch_description().to_owned()));
 
+    let row = descendants::<adw::ButtonRow>(group.upcast_ref())
+        .into_iter()
+        .next()
+        .expect("the switch's row");
+    row.emit_by_name::<()>("activated", &[]);
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Browser {
+            account,
+            switch: Switch::ToProvider,
+        }))) if account == ACCOUNT
+    ));
+}
+
+/// A calendar account at a Nextcloud server draws the switch to signing in with Nextcloud, which
+/// sends the browser sign-in for it.
+pub(crate) fn a_calendar_account_switches_to_signing_in_with_nextcloud() {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let typed = calendar_section(false, Some(&nextcloud_answered())).expect("a section");
+    let group = draw(&typed, ACCOUNT, ACCOUNT, None, &sender);
+    every_row_belongs_to_a_list(group.upcast_ref());
+    let labels = rendered(&group);
+    assert!(
+        labels.contains(&l10n::settings_account_switch_to_provider_named(
+            "Nextcloud"
+        ))
+    );
+    assert!(!labels.contains(&l10n::settings_account_switch_description().to_owned()));
     let row = descendants::<adw::ButtonRow>(group.upcast_ref())
         .into_iter()
         .next()

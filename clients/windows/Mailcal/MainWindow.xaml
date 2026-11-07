@@ -269,6 +269,7 @@
                  error that names them all and not the line that caused it. -->
             <NavigationView.Resources>
                 <views:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+                <views:MarkToneBrushConverter x:Key="MarkToneBrush" />
             </NavigationView.Resources>
 
             <!-- The accordion is BOUND, not hand-built. It used to be reconstructed from scratch,
@@ -381,10 +382,17 @@
                             <!-- A folder dropped on its account's row moves to the top of the tree
                                  (docs/folder-pane.md, rule 24); the row handles the drop itself, as
                                  a folder row does. -->
+                            <!-- A notice about the account marks the row with one line beneath
+                                 the address, a glyph and the notice's short mark, readable rather
+                                 than a tooltip (docs/notices.md rule 6). One line, never wrapped:
+                                 the sentences are the bar's. A screen reader hears every one of
+                                 the account's notices as the row's status; the name stays the
+                                 address, which is what the row is. -->
                             <NavigationViewItem
-                                Content="{Binding Content}"
                                 Tag="{Binding Tag}"
                                 ToolTipService.ToolTip="{Binding Content}"
+                                AutomationProperties.Name="{Binding Content}"
+                                AutomationProperties.ItemStatus="{Binding MarkDetail}"
                                 IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
                                 AllowDrop="True"
                                 DragOver="OnSidebarDragOver"
@@ -393,17 +401,29 @@
                                 <NavigationViewItem.Icon>
                                     <FontIcon Glyph="{Binding Glyph}" />
                                 </NavigationViewItem.Icon>
-                                <!-- A warning badge when this account's server couldn't be reached
-                                     on its last sync (while online), a per-account outage, distinct
-                                     from the offline banner. Always in the template and collapsed
-                                     when there is no outage, so an outage costs no container work. -->
-                                <NavigationViewItem.InfoBadge>
-                                    <InfoBadge Visibility="{Binding ShowBadge, Converter={StaticResource BoolToVisibility}}">
-                                        <InfoBadge.IconSource>
-                                            <SymbolIconSource Symbol="Important" />
-                                        </InfoBadge.IconSource>
-                                    </InfoBadge>
-                                </NavigationViewItem.InfoBadge>
+                                <StackPanel Padding="0,4">
+                                    <TextBlock Text="{Binding Content}" TextTrimming="CharacterEllipsis" />
+                                    <Grid ColumnSpacing="6"
+                                          Visibility="{Binding HasMark, Converter={StaticResource BoolToVisibility}}">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <FontIcon Grid.Column="0"
+                                                  Glyph="{Binding MarkGlyph}"
+                                                  FontSize="12"
+                                                  VerticalAlignment="Center"
+                                                  AutomationProperties.AccessibilityView="Raw"
+                                                  Foreground="{Binding MarkTone, Converter={StaticResource MarkToneBrush}}" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding MarkLabel}"
+                                                   Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   AutomationProperties.AutomationId="AccountNoticeLabel" />
+                                    </Grid>
+                                </StackPanel>
                                 <!-- No ContextFlyout here: a NavigationViewItem declared in an item
                                      template never receives the right-click, so one set here opens
                                      for nobody. The row's menu (New folder, Remove account) is
@@ -444,66 +464,18 @@
                 <!-- The shell's banner strip. Every bar here carries BOTH IsOpen and Visibility
                      off the same flag, and the pair is load-bearing: a closed InfoBar does not
                      collapse itself, it stays visible at zero size, so its 12px top margin is
-                     still reserved, and five silent bars cost 60px across the top of every detail
+                     still reserved, and three silent bars cost 36px across the top of every detail
                      surface. IsOpen alone leaves that hole; Visibility alone would announce all
-                     five to a screen reader at launch and never again.
+                     three to a screen reader at launch and never again.
 
                      Shown() rather than the BoolToVisibility converter below: an x:Bind converter
                      needs a FrameworkElement to resolve the resource against, and this file's root
                      is a Window, the generated code fails to compile, naming a line in
                      MainWindow.g.cs. An x:Bind FUNCTION has no such constraint. -->
                 <StackPanel Grid.Row="0" x:Name="ContentBanners">
-                    <!-- A folder change the server refused (docs/folder-pane.md, rule 28). Closable,
-                         unlike the bars below: the user dismissing it is the core's other edge, and
-                         the close tells the core. A later change replaces it. -->
-                    <InfoBar
-                        Margin="12,12,12,0"
-                        AutomationProperties.AutomationId="FolderNotice"
-                        IsOpen="{x:Bind Model.HasFolderNotice, Mode=OneWay}"
-                        Visibility="{x:Bind Shown(Model.HasFolderNotice), Mode=OneWay}"
-                        IsClosable="True"
-                        CloseButtonClick="OnDismissFolderNotice"
-                        Severity="Warning"
-                        Message="{x:Bind Model.FolderNoticeText, Mode=OneWay}" />
-
-                    <!-- The device has no network: the mail on screen is the last-synced copy.
-                         Non-closable, it clears itself when connectivity returns and the core
-                         auto-refreshes. -->
-                    <InfoBar
-                        Margin="12,12,12,0"
-                        IsOpen="{x:Bind Model.IsOffline, Mode=OneWay}"
-                        Visibility="{x:Bind Shown(Model.IsOffline), Mode=OneWay}"
-                        IsClosable="False"
-                        Severity="Warning"
-                        Message="{x:Bind l10n:L10n.ConnectivityOfflineBanner(), Mode=OneTime}" />
-
-                    <!-- One or more accounts can't reach their server (a provider outage, a stale
-                         password): a friendly, self-healing banner naming the affected accounts,
-                         with a "Details" flyout for the raw error and a "Try again" that re-dials.
-                         Non-closable, it clears itself the moment the accounts reconnect. -->
-                    <InfoBar
-                        Margin="12,12,12,0"
-                        IsOpen="{x:Bind Model.HasConnectionIssues, Mode=OneWay}"
-                        Visibility="{x:Bind Shown(Model.HasConnectionIssues), Mode=OneWay}"
-                        IsClosable="False"
-                        Severity="Warning"
-                        Message="{x:Bind Model.ConnectionIssuesText, Mode=OneWay}">
-                        <InfoBar.Content>
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,12">
-                                <Button Content="{x:Bind l10n:L10n.ConnectivityDetails(), Mode=OneTime}">
-                                    <Button.Flyout>
-                                        <Flyout>
-                                            <TextBlock Text="{x:Bind Model.ConnectionIssuesDetail, Mode=OneWay}"
-                                                       IsTextSelectionEnabled="True" TextWrapping="Wrap"
-                                                       MaxWidth="520"
-                                                       Style="{StaticResource CaptionTextBlockStyle}" />
-                                        </Flyout>
-                                    </Button.Flyout>
-                                </Button>
-                                <Button Content="{x:Bind l10n:L10n.ActionRetry(), Mode=OneTime}" Click="OnRetryConnections" />
-                            </StackPanel>
-                        </InfoBar.Content>
-                    </InfoBar>
+                    <!-- The core's notices (docs/notices.md): one bar, the first notice that belongs to
+                         the screen on show, and the rest behind its "more" button, never stacked. -->
+                    <views:NoticeBar x:Name="NoticeStrip" />
 
                     <!-- The device moved to a different zone than the active one: offer to switch. -->
                     <InfoBar

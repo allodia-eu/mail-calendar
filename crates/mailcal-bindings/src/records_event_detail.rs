@@ -87,6 +87,10 @@ pub struct EventDetail {
     /// most events. The detail shows each with its Join button first (`docs/conferencing.md`).
     #[uniffi(default = [])]
     pub conferences: Vec<crate::EventConference>,
+    /// The meeting the editor's Video meeting row opens showing, or `None` for an event with
+    /// none (`docs/conferencing.md`, rule 11).
+    #[uniffi(default = None)]
+    pub editor_meeting: Option<crate::EditorMeeting>,
 }
 
 /// One person on an event, for the detail view's attendee list.

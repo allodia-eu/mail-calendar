@@ -53,6 +53,10 @@ internal fun CategoryDetail(
     // resolved by the core against what exists, so there is no fallback rule on this side.
     calendars: List<CalendarRow>,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
+    // Videoconferencing, the person's Jitsi server: read when the row opens, and stored by the
+    // core, which answers `false` for an address it will not keep.
+    jitsiServer: () -> String?,
+    onSetJitsiServer: (String) -> Boolean,
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
     onSetDarkMessages: (Boolean) -> Unit,
@@ -104,6 +108,8 @@ internal fun CategoryDetail(
     onSetSenderName: (account: String, name: String) -> Unit,
     onRequestReset: () -> Unit,
     accountsUi: AccountsSettingsUi,
+    // Videoconferencing's account rows open that account's page under Accounts.
+    onOpenAccount: (String) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     when (category) {
@@ -156,6 +162,18 @@ internal fun CategoryDetail(
                     calendars = calendars,
                     onSetDefaultCalendar = onSetDefaultCalendar,
                 )
+            }
+        }
+
+        // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md
+        // category 4), then the person's Jitsi server (docs/conferencing.md, rule 13).
+        SettingsCategory.VIDEOCONFERENCING -> {
+            MeetingAccountsCard(accountsUi.state.snapshot.meetingAccounts, onOpenAccount)
+            SettingsGroupCard(
+                L10n.settings_jitsi_server(ctx),
+                L10n.settings_jitsi_server_hint(ctx),
+            ) {
+                JitsiServerRow(jitsiServer = jitsiServer, onSetJitsiServer = onSetJitsiServer)
             }
         }
 
@@ -260,8 +278,12 @@ internal fun CategoryDetail(
                 onAllodiaSignOut,
             )
             // The subscription belongs to the account above it, so it is drawn under that card
-            // and only once there is one to draw it for.
-            if (allodia.account != null) {
+            // and only once there is one to draw it for. A sign-in that has ended has none, and the
+            // read can say so a moment before the snapshot the card above reads does.
+            if (allodia.account != null &&
+                !allodia.sessionEnded &&
+                allodiaSubscription.state != AllodiaSubscriptionState.SignedOut
+            ) {
                 Spacer(modifier = Modifier.height(8.dp))
                 AllodiaSubscriptionCard(
                     ui = allodiaSubscription,
@@ -286,9 +308,10 @@ internal fun CategoryDetail(
             allodiaSyncCard = {
                 AllodiaSyncCard(allodiaSync, onAllodiaSetUp, onAllodiaKeepLocal, onAllodiaSignIn)
             },
-        ) { entry ->
+        ) { entry, page ->
             AccountPage(
                 entry = entry,
+                page = page,
                 ui = accountsUi,
                 syncMode = accountsSyncMode[entry.id],
                 onSetSyncMode = { mode -> onSetAccountSyncMode(entry.id, mode) },

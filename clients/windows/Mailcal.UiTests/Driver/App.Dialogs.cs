@@ -32,7 +32,7 @@ internal sealed partial class App
         var closed = false;
         for (var i = 0; i < 6; i++)
         {
-            var open = Agent.FindAll(close);
+            var open = Dialogs(close);
             if (open.Count == 0)
             {
                 if (!closed)
@@ -44,7 +44,7 @@ internal sealed partial class App
                 continue;
             }
             Agent.Invoke(open[0]);
-            Eventually(() => Agent.FindAll(close).Count < open.Count, TimeSpan.FromSeconds(5));
+            Eventually(() => Dialogs(close).Count < open.Count, TimeSpan.FromSeconds(5));
             closed = true;
         }
         // A popup with no size draws nothing and catches no press, whatever it holds: a closed
@@ -57,4 +57,18 @@ internal sealed partial class App
             throw new InvalidOperationException($"a dialog was still closing 5 s after it was closed: {string.Join(" | ", held)}");
         }
     }
+
+    /// <summary>The dialogs' close buttons. A closable InfoBar's close button carries the same
+    /// AutomationId, and pressing it is dismissing a notice, which no reset may do: a case about
+    /// the notice would find it gone (docs/notices.md rule 9).</summary>
+    private List<Element> Dialogs(Filter close)
+    {
+        var notices = Agent.FindAll(Filter.ById("NoticeBar")).Concat(Agent.FindAll(Filter.ById("AccountNotice")))
+            .SelectMany(bar => Agent.FindAll(close with { Under = bar }))
+            .Select(Spot)
+            .ToHashSet();
+        return Agent.FindAll(close).Where(button => !notices.Contains(Spot(button))).ToList();
+    }
+
+    private static (long, double, double, double, double) Spot(Element e) => (e.Window, e.X, e.Y, e.Width, e.Height);
 }

@@ -173,6 +173,7 @@ pub(crate) fn placeholder(id: AccountId, connected: &ConnectedAccount) -> BoxedA
         id,
         providers: Vec::new().into(),
         calendar_provider: None,
+        meetings: None,
         contact_providers: Vec::new(),
         identity: connected.identity(),
         // Listed before its dial lands: what its calendar holds is not known yet.

@@ -145,6 +145,13 @@ extension AccountSetupView {
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             SetupCard(title: L10n.setup_section_account(), systemImage: "key") {
+                // Above the fields, which stay as typed (docs/nextcloud-sign-in.md rule 2).
+                if let server = nextcloudAsk.offer(caldavURL, carddavURL) {
+                    NextcloudSignInControl(signIn: model.setupNextcloud, leads: false) {
+                        signInWithNextcloud(server)
+                    }
+                    .disabled(model.isConnecting || model.updatingExistingAccount)
+                }
                 TextField(L10n.setup_field_username(), text: $username)
                     .setupField(.email)
                 SecureField(L10n.setup_field_password(), text: $password)
@@ -160,8 +167,26 @@ extension AccountSetupView {
             }
             SetupCard(title: L10n.setup_detect_section_contacts(), systemImage: "person.2") {
                 davServerField(L10n.setup_field_carddav_optional(), text: $carddavURL)
+                    .focused($contactsServerFocused)
             }
         }
+        .onChange(of: calendarServerFocused) { _, focused in if !focused { askNextcloud() } }
+        .onChange(of: contactsServerFocused) { _, focused in if !focused { askNextcloud() } }
+    }
+
+    /// Asks, off the main actor, whether the server the form names is Nextcloud. Until it answers
+    /// the form stands as it is.
+    private func askNextcloud() {
+        guard let server = nextcloudAsk.question(caldavURL, carddavURL) else { return }
+        Task {
+            let offers = await model.offersNextcloudSignIn(server)
+            nextcloudAsk.answered(server, offers: offers)
+        }
+    }
+
+    private func signInWithNextcloud(_ server: String) {
+        let uses = SetupUses.davUses(caldavURL, carddavURL) ?? [.calendar, .contacts]
+        model.signInWithNextcloud(server: server, uses: uses)
     }
 
     /// One of the calendar-and-contacts servers, marked while Connect found neither filled.

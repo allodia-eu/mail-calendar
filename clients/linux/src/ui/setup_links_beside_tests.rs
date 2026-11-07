@@ -19,6 +19,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
         problem: None,
     };
     AccountsSnapshot {
+        meeting_accounts: Vec::new(),
         accounts: vec![AccountEntry {
             id: JMAP.to_owned(),
             address: "alice@example.org".to_owned(),
@@ -39,6 +40,7 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
             separate_server: None,
             distinction: None,
             mail_sync: None,
+            nextcloud: false,
         }],
     }
 }
@@ -49,6 +51,7 @@ fn beside() -> Beside {
         email: "alice@example.org".to_owned(),
         caldav_url: Some("https://dav.example.org/.well-known/caldav".to_owned()),
         carddav_url: None,
+        nextcloud: false,
     }
 }
 
@@ -143,6 +146,7 @@ fn detected_jmap(email: &str) -> crate::ui::setup_model::SetupForm {
         sign_in: JmapSignIn::Offered,
         caldav_url: Some("https://dav.example.org/.well-known/caldav".to_owned()),
         carddav_url: None,
+        nextcloud_sign_in: false,
     }))
 }
 

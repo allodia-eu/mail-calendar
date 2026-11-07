@@ -282,29 +282,16 @@ public struct ContentView: View {
         .overlay(alignment: .top) { sendStatusBanner }
         .overlay(alignment: .bottom) { swipeUndoToast }
         .task(id: swipeUndo.pending?.id) { await runUndoWindow() }
-        // An `alert`, NOT a `confirmationDialog`: on iPad SwiftUI presents a confirmation dialog as
-        // a popover, and a popover DROPS the `.cancel`-role button, the reasoning being that
-        // tapping outside dismisses it. So this read as a single "Remove" button with no way out,
-        // which is how App Review found it. An alert shows every button on every platform and size
-        // class, and it is what Android (`AlertDialog` + `dismissButton`) and Windows
-        // (`ContentDialog` + `CloseButtonText`) already do, so this is the odd one out being
-        // brought into line, not a new pattern.
-        .alert(
-            L10n.remove_account_title(),
-            isPresented: Binding(
-                get: { accountToRemove != nil },
-                set: { if !$0 { accountToRemove = nil } }
-            ),
-            presenting: accountToRemove
-        ) { account in
-            Button(L10n.action_remove(), role: .destructive) { removeAccount(account.id) }
-            Button(L10n.action_cancel(), role: .cancel) {}
-        } message: { account in
-            // Naming the accounts that lose their link to it (`docs/accounts.md` rule 12).
-            Text(
+        // Naming the accounts that lose their link to it (`docs/accounts.md` rule 12), as the
+        // account's own page does.
+        .confirmAlert(
+            $accountToRemove, action: L10n.action_remove(),
+            title: { _ in L10n.remove_account_title() },
+            message: { account in
                 model.accountEntry(account.id).map { AccountSettingsLabels.removal($0) }
-                    ?? AccountSettingsLabels.removal(address: account.email, unlinked: nil))
-        }
+                    ?? AccountSettingsLabels.removal(address: account.email, unlinked: nil)
+            },
+            confirm: { removeAccount($0.id) })
         // The composer is a page sheet on iPad and the whole screen on iPhone (`taskPresentation`).
         // macOS no longer presents it at all: it renders INSIDE the detail column, in place of the
         // reading pane (macOSLayout), so the sidebar and the message list stay live while you

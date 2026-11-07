@@ -285,7 +285,27 @@ impl MailcalApp {
                  the account was removed elsewhere"
             ),
         }
+        let banner_moved =
+            (*held == AllodiaGrantHealth::SignedOut) != (health == AllodiaGrantHealth::SignedOut);
         *held = health;
+        drop(held);
+        // The connectivity snapshot carries the refusal as a banner, so the host is told to read
+        // it again whenever it is raised or taken down.
+        if banner_moved {
+            self.app.signal_connectivity();
+        }
+    }
+
+    /// Whose sign-in the service refused, for the banner, or `None`.
+    pub(crate) fn allodia_refused_address(&self) -> Option<String> {
+        if self.allodia_health() != AllodiaGrantHealth::SignedOut {
+            return None;
+        }
+        self.allodia
+            .lock()
+            .expect("allodia account lock")
+            .as_ref()
+            .map(|stored| stored.email.clone())
     }
 
     /// What this device knows about its Allodia sign-in.

@@ -247,8 +247,11 @@ fn an_edit_sets_and_clears_notes_and_location() {
     ));
 
     // `Some("")` clears, rather than setting an empty value.
+    let mut written = stored_event();
+    written.description = Some("bring the roadmap".to_owned());
+    written.locations = vec![engine_core::calendar::Location::named("Room 2")];
     let (_, cleared) = build_event_patch(
-        &stored_event(),
+        &written,
         &EventEdit {
             notes: Some(String::new()),
             location: Some(String::new()),
@@ -272,6 +275,43 @@ fn an_edit_sets_and_clears_notes_and_location() {
     .unwrap();
     assert!(untouched.description_edit().is_none());
     assert!(untouched.location_edit().is_none());
+}
+
+#[test]
+fn notes_and_a_location_sent_back_as_stored_are_no_edit() {
+    // An editor sends back every field it showed. Taken as the person's own, the link a video
+    // meeting left as the location would outlive the meeting's removal, and the meeting with it.
+    let mut stored = stored_event();
+    stored.description = Some("Agenda".to_owned());
+    stored.locations = vec![engine_core::calendar::Location::named(
+        "https://meet.example.org/k5x2q7m4n9b3v8c1z6l0p2w4r7",
+    )];
+    let (_, patch) = build_event_patch(
+        &stored,
+        &EventEdit {
+            notes: Some("Agenda".to_owned()),
+            location: Some("https://meet.example.org/k5x2q7m4n9b3v8c1z6l0p2w4r7".to_owned()),
+            ..EventEdit::default()
+        },
+        now(),
+    )
+    .unwrap();
+    assert!(patch.description_edit().is_none());
+    assert!(patch.location_edit().is_none());
+
+    // Nothing to clear is nothing to do either.
+    let (_, empty) = build_event_patch(
+        &stored_event(),
+        &EventEdit {
+            notes: Some(String::new()),
+            location: Some(String::new()),
+            ..EventEdit::default()
+        },
+        now(),
+    )
+    .unwrap();
+    assert!(empty.description_edit().is_none());
+    assert!(empty.location_edit().is_none());
 }
 
 #[test]

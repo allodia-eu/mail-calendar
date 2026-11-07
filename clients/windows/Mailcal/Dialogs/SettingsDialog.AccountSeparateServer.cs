@@ -122,7 +122,7 @@ public sealed partial class SettingsDialog
     {
         if (_separateSignIn.Asks(step))
         {
-            _separateSignIn.Answered(step, await _model.SeparateServerOffersSignInAsync(step));
+            _separateSignIn.Answered(step, await _model.SeparateServerSignInOfferAsync(step));
         }
         _separateDrawn?.Draw(_separateSignIn, cancelOwn: false);
     }
@@ -155,12 +155,14 @@ public sealed partial class SettingsDialog
         _separateDrawn?.Say(next.Error);
     }
 
-    // The way back from the form's sign-in: the attempt out opens no browser and adds no account.
+    // The way back from the form's sign-in: the attempt out opens no browser and adds no account,
+    // and a Nextcloud grant the form held for another try is withdrawn.
     private void RetireSeparateSignIn()
     {
         if (_separateSignIn.Retire())
         {
             _model.CancelSeparateServerSignIn();
         }
+        _model.ReleaseSeparateNextcloudGrant(_separateSignIn);
     }
 }

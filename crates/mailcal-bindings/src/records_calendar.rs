@@ -304,6 +304,11 @@ pub struct CalendarRow {
     /// Whether a meeting may be organised here: the calendar can be written and its server sends
     /// the invitations. The editor offers invitees only on such a calendar.
     pub can_invite: bool,
+    /// The video meetings the editor's Video meeting row offers here, in order; empty for a
+    /// calendar that cannot be written. The row is drawn only while this has one
+    /// (`docs/conferencing.md`, rule 9).
+    #[uniffi(default = [])]
+    pub meeting_choices: Vec<crate::MeetingOption>,
     /// Whether a new event lands here unless the user picks another calendar.
     ///
     /// Already resolved against what exists: the stored choice while it is present and writable,

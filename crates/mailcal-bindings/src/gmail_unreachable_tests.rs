@@ -18,6 +18,7 @@ fn snapshot(offline: bool, expired: &[&str]) -> ConnectivitySnapshot {
         signin_expired_accounts: expired.iter().map(|id| (*id).to_owned()).collect(),
         calendar_outages: Vec::new(),
         contacts_outages: Vec::new(),
+        allodia_sign_in_ended: None,
     }
 }
 

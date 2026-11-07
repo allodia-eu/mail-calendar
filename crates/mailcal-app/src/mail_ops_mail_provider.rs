@@ -321,6 +321,7 @@ pub(super) fn app_and_logs(provider: ThreadProvider) -> (Arc<App<ThreadProvider>
             id: AccountId::try_from("acct-1").unwrap(),
             providers: vec![provider].into(),
             calendar_provider: None,
+            meetings: None,
             contact_providers: Vec::new(),
             identity: EmailAddress::new("me@allodia.local"),
             dialled: true,

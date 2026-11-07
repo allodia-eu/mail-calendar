@@ -15,6 +15,7 @@
 // sentence somebody reads about being charged twice, and whether a cancel button exists at all,
 // are both invisible to a screenshot and expensive to get wrong.
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using uniffi.mailcal_bindings;
@@ -42,12 +43,19 @@ internal enum AllodiaSubscriptionStatus
     /// </summary>
     NeedsReauth,
 
+    /// <summary>
+    /// The service refused the stored sign-in outright. Drawn by the account card above, as a
+    /// sign-in that has ended, and never as the outage sentence: waiting does not bring a refused
+    /// grant back.
+    /// </summary>
+    SignedOut,
+
     /// <summary>The service answered.</summary>
     Loaded,
 }
 
 /// <summary>
-/// The card's whole state: which of the four above, and the answer when it is
+/// The card's whole state: which of the five above, and the answer when it is
 /// <see cref="AllodiaSubscriptionStatus.Loaded"/>.
 /// </summary>
 /// <remarks>
@@ -75,14 +83,16 @@ internal static class AllodiaSubscriptionCard
     /// </summary>
     /// <remarks>
     /// ⚠️ <b>The core's typed answer decides, never the failure's text.</b> A sign-in that predates
-    /// the permission this read needs is an offer with a remedy, and drawing it as an outage tells
-    /// somebody to wait for something that will never arrive. The account-list card next door
-    /// reads the same answer for the same reason.
+    /// the permission this read needs is an offer with a remedy, and a grant the service refused is
+    /// a sign-in that has ended; drawing either as an outage tells somebody to wait for something
+    /// that will never arrive. Only a service that could not be asked is the outage.
     /// </remarks>
-    internal static AllodiaSubscriptionStatus ReadFailure(AllodiaGrantHealth health) =>
-        health == AllodiaGrantHealth.NeedsReauth
-            ? AllodiaSubscriptionStatus.NeedsReauth
-            : AllodiaSubscriptionStatus.Unavailable;
+    internal static AllodiaSubscriptionStatus ReadFailure(Exception error) => error switch
+    {
+        AllodiaPurchaseException.NeedsReauth => AllodiaSubscriptionStatus.NeedsReauth,
+        AllodiaPurchaseException.SignedOut => AllodiaSubscriptionStatus.SignedOut,
+        _ => AllodiaSubscriptionStatus.Unavailable,
+    };
 
     /// <summary>
     /// What a biller is called on screen.

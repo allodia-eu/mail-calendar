@@ -1,8 +1,8 @@
 //! Pure calendar navigation and dialog state owned by the Relm4 model.
 
 use mailcal_bindings::{
-    CalendarLayout, CalendarPage, CalendarSnapshot, CalendarWriteStatus, MailboxListSnapshot,
-    MailcalApp, MonthPage, TimeFormat,
+    CalendarLayout, CalendarPage, CalendarSnapshot, CalendarWriteStatus, MailcalApp, MonthPage,
+    TimeFormat,
 };
 use time::Date;
 
@@ -333,8 +333,8 @@ impl CalendarModel {
                 .any(|calendar| calendar.can_write)
     }
 
-    pub(crate) fn begin_create(&mut self, mailbox: &MailboxListSnapshot) {
-        let choices = self.calendar_choices(mailbox, true);
+    pub(crate) fn begin_create(&mut self) {
+        let choices = self.calendar_choices(true);
         if choices.is_empty() {
             return;
         }
@@ -344,8 +344,8 @@ impl CalendarModel {
         )));
     }
 
-    pub(crate) fn begin_create_at(&mut self, mailbox: &MailboxListSnapshot, slot: CreateSlot) {
-        let choices = self.calendar_choices(mailbox, true);
+    pub(crate) fn begin_create_at(&mut self, slot: CreateSlot) {
+        let choices = self.calendar_choices(true);
         if choices.is_empty() {
             return;
         }
@@ -354,11 +354,6 @@ impl CalendarModel {
             self.zone.clone(),
             slot,
         )));
-    }
-
-    /// Whether an event's detail is open.
-    pub(crate) const fn shows_detail(&self) -> bool {
-        matches!(self.dialog, Some(CalendarDialog::Detail(_)))
     }
 
     pub(crate) fn open_event(&mut self, app: &MailcalApp, event: EventIdentity) {
@@ -376,11 +371,11 @@ impl CalendarModel {
         )));
     }
 
-    pub(crate) fn begin_edit(&mut self, mailbox: &MailboxListSnapshot) {
+    pub(crate) fn begin_edit(&mut self) {
         let Some(CalendarDialog::Detail(detail)) = self.dialog.clone() else {
             return;
         };
-        let choices = self.calendar_choices(mailbox, false);
+        let choices = self.calendar_choices(false);
         self.open_dialog(CalendarDialog::Editor(EventEditor::edit(detail, choices)));
     }
 
@@ -448,11 +443,9 @@ impl CalendarModel {
             .map_or_else(|| calendar.to_owned(), |row| row.name.clone())
     }
 
-    fn calendar_choices(
-        &self,
-        mailbox: &MailboxListSnapshot,
-        writable_only: bool,
-    ) -> Vec<CalendarChoice> {
+    /// The calendars an event can be put on, each named by its account's address as the core
+    /// gives it: an account used only for its calendar is in no mail list to look it up in.
+    fn calendar_choices(&self, writable_only: bool) -> Vec<CalendarChoice> {
         self.page
             .calendars
             .iter()
@@ -464,18 +457,14 @@ impl CalendarModel {
                 }) {
                     return choices;
                 }
-                let account = mailbox
-                    .accounts
-                    .iter()
-                    .find(|row| row.id == calendar.account)
-                    .map_or(calendar.account.as_str(), |row| row.email.as_str());
                 choices.push(CalendarChoice {
                     account: calendar.account.clone(),
                     id: calendar.id.clone(),
-                    label: format!("{account} · {}", calendar.name),
+                    label: format!("{} · {}", calendar.account_address, calendar.name),
                     is_default: calendar.is_default,
                     address: calendar.account_address.clone(),
                     can_invite: calendar.can_invite,
+                    meeting_choices: calendar.meeting_choices.clone(),
                 });
                 choices
             })

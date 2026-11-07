@@ -64,6 +64,14 @@ that same file.
   ([`sidebarRowHighlight`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/Mailcal.Sidebar.swift)),
   and check a nested row on screen rather than a flat one: no suite sees this, `swift build` and
   the XCUITest classes included.
+- **A SwiftUI `.clipped()` crops the drawing, not the hit testing.** A view slid out of its frame
+  with `.offset` and clipped is invisible there and still takes every press, and the accessibility
+  tree goes on reporting whatever is drawn underneath, so a dump, `isHittable` and a screenshot all
+  agree that the control below works. The invitation card's day preview slides a whole day up
+  behind a clip, and an event earlier in the day lay over Accept, Maybe and Decline. A clipped
+  view that is only a picture takes `.allowsHitTesting(false)`. For one that must stay
+  interactive, press what lies beside it with a real pointer, off the label
+  ([`InvitationAnswerTests`](../clients/apple/UITests/InvitationAnswerTests.swift) does).
 - **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
   button style *centres* its content rather than stretching it. So the one icon-only control in a
   row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.
@@ -150,6 +158,15 @@ that same file.
   `clients/windows/Generated/mailcal_bindings.cs` rather than from the sibling client, and grep a
   new file for a lowercase member access, which in this codebase is always either a namespace or a
   mistake.
+- **An enum variant may not share its name with a field of another variant, in C#.**
+  `mailcal-bindgen-cs` turns each variant into a record nested in the enum's class and each field
+  into a property, so a variant `Account` beside variants that carry an `account` field is two
+  members called `Account`, and the generated bindings stop compiling (CS8866). Swift and Kotlin
+  accept it, so `--clients` on a Linux host shows it only through `Mailcal.Tests`. Name a nested
+  family for what it is (`AccountPage`), not for the field its siblings already use.
+  The same goes for a new record or enum named like a type a client declares itself (`UseNote`,
+  `UseSwitch`): C# sees both through its `using`, and Swift through its module import, and either
+  one stops compiling. Grep `clients/` for a name before the core takes it.
 - **A `MailboxModel` partial that disagrees about accessibility is reported as a broken
   `MainWindow.xaml`.** C# rejects the class (`CS0262`), so every type in it disappears, and the
   XAML compiler then lists a dozen `WMC0001: Unknown type` lines naming views nobody touched. The

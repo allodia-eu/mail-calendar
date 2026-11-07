@@ -1,8 +1,8 @@
-// A banner sits under the navigation bar it shares the screen with, never over it.
+// The notice row sits under the navigation bar it shares the screen with, never over it.
 //
 // On iPhone an inset outside a tab's navigation stack does not move that stack's bar down, so a
-// banner on the app's root draws over the bar and its buttons (`Mailcal.Banners.swift`). The
-// offline banner stands for all of them, being the one a launch hook can raise.
+// row on the app's root draws over the bar and its buttons (`Mailcal.Banners.swift`). The offline
+// notice stands for every notice, being the one a launch hook can raise (docs/notices.md).
 //
 // It also leaves the mailbox's large title drawn (`bannerBackground`).
 //
@@ -16,11 +16,12 @@ final class BannerPlacementTests: XCTestCase {
     func testTheBannerSitsBelowTheBarsButtons() {
         let app = ShowcaseApp.launch(["MAILCAL_OFFLINE": "1"])
         ShowcaseApp.showMailbox(app)
-        let banner = app.staticTexts["You're offline, showing saved mail."]
+        let banner = app.buttons["notice"]
         XCTAssertTrue(
             banner.waitForExistence(timeout: ShowcaseApp.timeout),
-            "the offline banner did not come up"
+            "the offline notice did not come up"
         )
+        XCTAssertTrue(banner.label.contains("offline"), "the notice is not the offline one: \(banner.label)")
         assertBelow(banner, ["Folders", "New Mail"], in: app)
         // The large title stays drawn. Read off the screen, because the accessibility tree reports
         // the title present and hittable whether it is drawn or not.

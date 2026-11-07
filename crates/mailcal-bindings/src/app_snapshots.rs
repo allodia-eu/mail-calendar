@@ -61,6 +61,15 @@ impl MailcalApp {
             }
             return;
         }
+        if let Intent::Notices { intent } = intent {
+            self.dispatch_notice(intent);
+            return;
+        }
+        // The account page's changes are the binding's own: the registry they change lives here.
+        if let Intent::AccountPage { intent } = intent {
+            self.dispatch_account(intent);
+            return;
+        }
         // A key-routed intent carries its row's owning-account id; an unparseable id (in
         // practice impossible; it is a real row's account) is dropped rather than risk
         // routing the action to the wrong account. A calendar write is still settled, because
@@ -183,11 +192,13 @@ impl MailcalApp {
             self.app.connectivity().into(),
             &self.app.every_use_problem(),
         );
-        crate::gmail_unreachable::with_unreachable_gmail(
+        let mut snapshot = crate::gmail_unreachable::with_unreachable_gmail(
             snapshot,
             &self.registry.facts(),
             mailcal_account::gmail_mail_route,
-        )
+        );
+        snapshot.allodia_sign_in_ended = self.allodia_sign_in_ended();
+        snapshot
     }
 
     /// The non-fatal account-connect diagnostics (account-prefixed, newline-joined), or
@@ -298,5 +309,19 @@ impl MailcalApp {
         self.runtime.spawn(async move {
             app.reset().await;
         });
+    }
+}
+
+impl MailcalApp {
+    /// The banner's address: see `ConnectivitySnapshot::allodia_sign_in_ended`.
+    fn allodia_sign_in_ended(&self) -> Option<String> {
+        #[cfg(not(feature = "allodia-license"))]
+        {
+            None
+        }
+        #[cfg(feature = "allodia-license")]
+        {
+            self.allodia_refused_address()
+        }
     }
 }

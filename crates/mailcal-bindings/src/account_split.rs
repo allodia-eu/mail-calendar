@@ -189,8 +189,10 @@ impl MailcalApp {
             .next()
     }
 
+    /// Removes the account a failed move added, on this device only: its credential is the one
+    /// the caller still holds, and a Nextcloud grant kept for a retry must still work.
     fn undo_split(&self, moved_to: &str) {
-        if let Err(error) = self.remove_account(moved_to.to_owned()) {
+        if let Err(error) = self.remove_account_here(moved_to) {
             log::warn!(
                 "accounts: [{}] could not be removed after the move failed: {error}",
                 mailcal_account::account_log_handle(moved_to),
@@ -201,11 +203,11 @@ impl MailcalApp {
 
 fn domains(uses: &[Capability]) -> Vec<engine_api::SearchDomain> {
     uses.iter()
-        .map(|&capability| domain_of(capability))
+        .filter_map(|&capability| domain_of(capability))
         .collect()
 }
 
-fn nothing_to_move() -> MailcalError {
+pub(crate) fn nothing_to_move() -> MailcalError {
     MailcalError::Config("the account has no calendar or contacts server to move".to_owned())
 }
 

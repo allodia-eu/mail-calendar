@@ -31,6 +31,10 @@ const EMAIL: &str = "alice@localhost";
 /// The issuer that autoconfig names, and the name the front republishes the metadata under.
 const ISSUER: &str = "https://127.0.0.1";
 
+/// Where the front serves the sign-in server's calendars and contacts: its own host name, which
+/// the issuer's `protected_resources` lists.
+const DAV: &str = "https://localhost";
+
 /// A custom-scheme redirect of the shape every client registers (`<app id>://imap-oauth`).
 const REDIRECT_URI: &str = "mailcal.test://imap-oauth";
 
@@ -70,13 +74,13 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
         email: EMAIL.to_owned(),
         imap_host,
         smtp_host,
-        // The sign-in server's calendars and contacts, under the issuer's own host name: the one
-        // host its tokens may reach (docs/mail-oauth.md rule 10).
-        caldav_base_url: Some(ISSUER.to_owned()),
+        // The sign-in server's calendars and contacts, at an origin its issuer lists, so its
+        // tokens may reach them (docs/mail-oauth.md rule 10).
+        caldav_base_url: Some(DAV.to_owned()),
         imap_security: Some(imap_security),
         smtp_security: Some(smtp_security),
         oauth_issuer,
-        carddav_base_url: Some(ISSUER.to_owned()),
+        carddav_base_url: Some(DAV.to_owned()),
         uses: None,
     };
     assert_eq!(
@@ -105,16 +109,19 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
     assert_eq!(param(&authorization, "response_type"), "code");
     assert_eq!(param(&authorization, "redirect_uri"), REDIRECT_URI);
     assert_eq!(param(&authorization, "code_challenge_method"), "S256");
-    // §3.4: nothing is named. The issuer lists no `protected_resources`, so IMAP and SMTP go
-    // unnamed (the profile's bare host name is what this server refuses), and the DAV server's
-    // own metadata gives a `resource` that does not cover the URL the account uses (the front
-    // serves it under a name the server does not know). The token still reaches DAV below, by
-    // the host rule alone.
-    assert!(
-        !authorization
-            .query_pairs()
-            .any(|(key, _)| key == "resource"),
-        "an endpoint nothing vouches for is not named"
+    // §3.4: each endpoint is named by the `protected_resources` entry covering it. IMAP and SMTP
+    // are both `localhost`, which the list names bare, and the calendar and address book share
+    // `https://localhost`.
+    let mut resources: Vec<String> = authorization
+        .query_pairs()
+        .filter(|(key, _)| key == "resource")
+        .map(|(_, value)| value.into_owned())
+        .collect();
+    resources.sort();
+    assert_eq!(
+        resources,
+        ["https://localhost", "localhost"],
+        "every endpoint, each named once"
     );
     let scopes = param(&authorization, "scope");
     let scopes: Vec<&str> = scopes.split(' ').collect();

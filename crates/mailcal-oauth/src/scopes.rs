@@ -1,10 +1,9 @@
 //! Which scopes each use of an account asks for, at the two integrated providers.
 //!
-//! An account is used for some of mail, shared mailboxes, calendar, contacts and colleagues, and a
-//! sign-in asks for
-//! the scopes of those uses only, so a person who wants a calendar is not asked for their mail and
-//! an organisation that approved only the mail scopes can still admit the app. The per-scope
-//! justification an administrator reads is the table in
+//! An account is used for some of mail, shared mailboxes, calendar, contacts, colleagues and video
+//! meetings, and a sign-in asks for the scopes of those uses only, so a person who wants a calendar
+//! is not asked for their mail and an organisation that approved only the mail scopes can still
+//! admit the app. The per-scope justification an administrator reads is the table in
 //! [`docs/provider-oauth.md`](../../../docs/provider-oauth.md); [`MICROSOFT_GRAPH_SCOPES`] and
 //! [`GOOGLE_SCOPES`] carry the reasoning for each scope, and are the union of the groups here.
 //!
@@ -38,6 +37,9 @@ pub struct ProviderScopes {
     /// Other mailboxes the person has been given access to, requested only beside mail; `None`
     /// where the provider gives a user's own sign-in no way to open one.
     pub shared_mailboxes: Option<ScopeGroup>,
+    /// Video meetings made through the account; `None` where this app makes none through the
+    /// provider.
+    pub meetings: Option<ScopeGroup>,
     /// The resource a scope may be granted under without being named, and which a token response
     /// may name it without: Microsoft answers `Mail.ReadWrite` for a request of
     /// `https://graph.microsoft.com/Mail.ReadWrite`, in whatever case it chooses.
@@ -73,6 +75,10 @@ pub const MICROSOFT: ProviderScopes = ProviderScopes {
         ],
         needed: "https://graph.microsoft.com/Mail.ReadWrite.Shared",
     }),
+    meetings: Some(ScopeGroup {
+        requested: &["https://graph.microsoft.com/OnlineMeetings.ReadWrite"],
+        needed: "https://graph.microsoft.com/OnlineMeetings.ReadWrite",
+    }),
     implied_resource: Some("https://graph.microsoft.com/"),
 };
 
@@ -105,6 +111,8 @@ pub const GOOGLE: ProviderScopes = ProviderScopes {
     // A Gmail account opens another mailbox only through a service account holding
     // domain-wide delegation, never through a user's own grant.
     shared_mailboxes: None,
+    // Meet on a calendar that is not Google's is not made through a Google account.
+    meetings: None,
     implied_resource: None,
 };
 

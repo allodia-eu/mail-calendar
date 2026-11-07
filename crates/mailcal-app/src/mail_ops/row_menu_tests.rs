@@ -51,8 +51,9 @@ async fn conversation_app(
     let edits = provider.edits();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(vec![account("acct-1", provider)], &surfaces);
-    app.dispatch(Intent::RefreshMail).await;
-    app.dispatch(Intent::SetViewMode(ViewMode::Threaded)).await;
+    // Boxed, so the futures of the tests awaiting this one stay within the lint's size.
+    Box::pin(app.dispatch(Intent::RefreshMail)).await;
+    Box::pin(app.dispatch(Intent::SetViewMode(ViewMode::Threaded))).await;
     (app, edits)
 }
 

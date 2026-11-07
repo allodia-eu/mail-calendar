@@ -1,15 +1,13 @@
 //! What the accounts list and an account's page say, from a snapshot entry.
 
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountUse, CapabilityState,
-    LinkCandidates, LinkSlot, LinkedAccount,
+    AccountCapability, AccountChangeNotice, AccountEntry, AccountKind, AccountLinksView,
+    AccountUse, AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
+    LinkCandidates, LinkedAccount, UseProblem,
 };
 
-use super::{
-    UseSwitch, link_pickers, needs_permission, outage_line, review_after, signin_description,
-    signs_in_at_provider, summary, use_switch,
-};
-use crate::l10n;
+use super::{change_notice, signin_description, signs_in_at_provider, summary, switch_note};
+use crate::{l10n, ui::settings::notice::Notice};
 
 fn linked(id: &str) -> LinkedAccount {
     LinkedAccount {
@@ -40,6 +38,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         separate_server: None,
         distinction: None,
         mail_sync: None,
+        nextcloud: false,
     }
 }
 
@@ -52,124 +51,6 @@ fn mailbox_only() -> AccountEntry {
             (AccountCapability::Contacts, CapabilityState::Off),
         ],
     )
-}
-
-#[test]
-fn the_last_use_cannot_be_switched_off() {
-    let entry = mailbox_only();
-    assert_eq!(
-        use_switch(&entry, AccountCapability::Mail),
-        UseSwitch {
-            active: true,
-            asks: false,
-            sensitive: false,
-            note: Some(l10n::settings_account_use_last()),
-        }
-    );
-    assert_eq!(
-        use_switch(&entry, AccountCapability::Calendar),
-        UseSwitch {
-            active: false,
-            asks: false,
-            sensitive: true,
-            note: None,
-        }
-    );
-}
-
-#[test]
-fn colleagues_wait_for_contacts() {
-    let mut entry = entry(
-        AccountKind::Microsoft,
-        &[
-            (AccountCapability::Mail, CapabilityState::On),
-            (AccountCapability::Calendar, CapabilityState::On),
-            (AccountCapability::Contacts, CapabilityState::Off),
-            (AccountCapability::Colleagues, CapabilityState::Off),
-        ],
-    );
-    let colleagues = use_switch(&entry, AccountCapability::Colleagues);
-    assert!(!colleagues.sensitive);
-    assert_eq!(
-        colleagues.note,
-        Some(l10n::settings_account_colleagues_needs_contacts())
-    );
-
-    entry.uses[2].state = CapabilityState::On;
-    assert!(use_switch(&entry, AccountCapability::Colleagues).sensitive);
-}
-
-#[test]
-fn a_use_waiting_on_permission_is_drawn_off_and_switching_it_on_asks() {
-    let entry = entry(
-        AccountKind::Google,
-        &[
-            (AccountCapability::Mail, CapabilityState::On),
-            (
-                AccountCapability::Calendar,
-                CapabilityState::NeedsPermission,
-            ),
-            (AccountCapability::Contacts, CapabilityState::Off),
-            (AccountCapability::Colleagues, CapabilityState::Off),
-        ],
-    );
-    let calendar = use_switch(&entry, AccountCapability::Calendar);
-    assert!(!calendar.active, "it is not working, so it is not drawn on");
-    assert!(calendar.asks && calendar.sensitive);
-    assert_eq!(calendar.note, Some(l10n::settings_account_use_withheld()));
-    assert!(needs_permission(&entry));
-    assert!(summary(&entry).contains(l10n::settings_account_needs_permission()));
-}
-
-#[test]
-fn an_only_use_waiting_on_permission_can_still_be_asked_for() {
-    let entry = entry(
-        AccountKind::Google,
-        &[
-            (AccountCapability::Mail, CapabilityState::Off),
-            (
-                AccountCapability::Calendar,
-                CapabilityState::NeedsPermission,
-            ),
-            (AccountCapability::Contacts, CapabilityState::Off),
-        ],
-    );
-    assert_eq!(
-        use_switch(&entry, AccountCapability::Calendar),
-        UseSwitch {
-            active: false,
-            asks: true,
-            sensitive: true,
-            note: Some(l10n::settings_account_use_withheld()),
-        }
-    );
-}
-
-#[test]
-fn a_use_the_server_does_not_offer_cannot_be_switched_and_holds_nothing_on() {
-    let entry = entry(
-        AccountKind::Jmap,
-        &[
-            (AccountCapability::Mail, CapabilityState::On),
-            (AccountCapability::Calendar, CapabilityState::NotOffered),
-            (AccountCapability::Contacts, CapabilityState::Off),
-        ],
-    );
-    assert_eq!(
-        use_switch(&entry, AccountCapability::Calendar),
-        UseSwitch {
-            active: false,
-            asks: false,
-            sensitive: false,
-            note: Some(l10n::settings_account_use_not_offered()),
-        }
-    );
-    // Mail is the one use that works, so it is the last.
-    assert_eq!(
-        use_switch(&entry, AccountCapability::Mail).note,
-        Some(l10n::settings_account_use_last())
-    );
-    assert!(!summary(&entry).contains(l10n::nav_calendar()));
 }
 
 #[test]
@@ -230,167 +111,81 @@ fn the_summary_names_the_kind_the_uses_and_the_links() {
         lines[1],
         l10n::settings_account_linked_line(l10n::nav_calendar(), "alice@cloud.example")
     );
-}
 
-#[test]
-fn a_picker_is_offered_only_for_a_slot_the_account_can_hold() {
-    let mut entry = mailbox_only();
-    assert_eq!(link_pickers(&entry), []);
-
-    entry.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
-    entry.links.calendar = Some(linked("b@cloud.example"));
-    let pickers = link_pickers(&entry);
-    assert_eq!(pickers.len(), 1);
-    assert_eq!(pickers[0].slot, LinkSlot::Calendar);
-    assert_eq!(pickers[0].options.len(), 2);
-    assert_eq!(pickers[0].selected, Some(1));
-}
-
-#[test]
-fn a_linked_account_missing_from_the_candidates_is_still_shown() {
-    let mut entry = mailbox_only();
-    entry.links.contacts = Some(linked("book@cloud.example"));
-    let pickers = link_pickers(&entry);
-    assert_eq!(pickers[0].slot, LinkSlot::Contacts);
-    assert_eq!(pickers[0].options, [linked("book@cloud.example")]);
-    assert_eq!(pickers[0].selected, Some(0));
-}
-
-#[test]
-fn a_suggestion_is_offered_only_where_nothing_is_linked() {
-    let mut entry = mailbox_only();
-    entry.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
-    entry.link_candidates.suggested = vec!["b@cloud.example".to_owned()];
-    assert_eq!(link_pickers(&entry)[0].suggested, Some(1));
-
-    entry.links.calendar = Some(linked("a@cloud.example"));
-    assert_eq!(
-        link_pickers(&entry)[0].suggested,
-        None,
-        "a link already made is not second-guessed"
-    );
-}
-
-#[test]
-fn a_use_that_did_not_connect_says_why_beneath_its_switch() {
-    let mut entry = entry(
-        AccountKind::Imap,
-        &[
-            (AccountCapability::Mail, CapabilityState::On),
-            (AccountCapability::Calendar, CapabilityState::On),
-            (AccountCapability::Contacts, CapabilityState::On),
-        ],
-    );
-    entry.uses[1].problem = Some(mailcal_bindings::UseProblem::NeedsOwnSignIn);
-    entry.uses[2].problem = Some(mailcal_bindings::UseProblem::Unreachable);
-
-    let calendar = use_switch(&entry, AccountCapability::Calendar);
-    assert_eq!(
-        calendar.note,
-        Some(l10n::settings_account_use_own_sign_in_calendar())
-    );
-    assert!(calendar.active, "the account is still used for it");
-    assert_eq!(
-        use_switch(&entry, AccountCapability::Contacts).note,
-        Some(l10n::settings_account_use_unreachable_contacts())
-    );
-    assert_eq!(use_switch(&entry, AccountCapability::Mail).note, None);
-}
-
-#[test]
-fn an_outage_line_names_the_account_then_the_reason_its_page_gives_then_the_last_sync() {
-    use mailcal_bindings::UseProblem;
-    let address = "alice@example.org";
-    for (capability, problem, title, reason) in [
-        (
-            AccountCapability::Calendar,
-            UseProblem::NeedsOwnSignIn,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_own_sign_in_calendar(),
-        ),
-        (
-            AccountCapability::Calendar,
-            UseProblem::SignInRefused,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_refused_calendar(),
-        ),
-        (
-            AccountCapability::Calendar,
-            UseProblem::Unreachable,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_unreachable_calendar(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::NeedsOwnSignIn,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_own_sign_in_contacts(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::SignInRefused,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_refused_contacts(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::Unreachable,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_unreachable_contacts(),
-        ),
-        (
-            AccountCapability::Calendar,
-            UseProblem::ServerChanged,
-            l10n::calendar_outage_title(address),
-            l10n::settings_account_use_server_changed_calendar(),
-        ),
-        (
-            AccountCapability::Contacts,
-            UseProblem::ServerChanged,
-            l10n::contacts_outage_title(address),
-            l10n::settings_account_use_server_changed_contacts(),
-        ),
-    ] {
-        assert!(title.contains(address));
-        assert_eq!(
-            outage_line(capability, problem, address),
-            format!("{title} {reason} {}", l10n::use_outage_last_synced()),
-            "{capability:?} {problem:?}"
-        );
-    }
-}
-
-#[test]
-fn a_use_paused_for_a_new_server_says_so_and_the_last_of_them_carries_the_review() {
-    use mailcal_bindings::UseProblem;
-    let mut entry = entry(
-        AccountKind::Dav,
-        &[
-            (AccountCapability::Calendar, CapabilityState::On),
-            (AccountCapability::Contacts, CapabilityState::On),
-        ],
-    );
-    assert_eq!(review_after(&entry), None);
-
-    entry.uses[0].problem = Some(UseProblem::ServerChanged);
-    let calendar = use_switch(&entry, AccountCapability::Calendar);
-    assert_eq!(
-        calendar.note,
-        Some(l10n::settings_account_use_server_changed_calendar())
-    );
+    let mut waiting = mailbox_only();
+    waiting.uses[1].state = CapabilityState::NeedsPermission;
+    waiting.uses[2].state = CapabilityState::NotOffered;
+    let summary = super::summary(&waiting);
+    assert!(summary.starts_with(&format!(
+        "{} · {}, {}",
+        l10n::setup_account_type_password(),
+        l10n::nav_mail(),
+        l10n::nav_calendar()
+    )));
     assert!(
-        calendar.active,
-        "a paused use is still one the account is used for"
+        !summary.contains(l10n::nav_contacts()),
+        "a use the server lacks is not one"
     );
-    assert_eq!(review_after(&entry), Some(AccountCapability::Calendar));
+    assert!(summary.ends_with(l10n::settings_account_needs_permission()));
+}
 
-    entry.uses[1].problem = Some(UseProblem::ServerChanged);
+#[test]
+fn a_switch_says_what_is_wrong_with_the_use_then_why_it_cannot_be_pressed() {
+    let switch = |status, blocked: Option<AccountUseBlock>| AccountUseSwitch {
+        capability: AccountCapability::Calendar,
+        on: true,
+        control: ControlState {
+            enabled: blocked.is_none(),
+            running: false,
+        },
+        blocked,
+        status,
+        asks_provider: false,
+        confirms_off: true,
+        reviews_server_change: false,
+    };
+    assert_eq!(switch_note(&switch(None, None)), None);
     assert_eq!(
-        use_switch(&entry, AccountCapability::Contacts).note,
-        Some(l10n::settings_account_use_server_changed_contacts())
+        switch_note(&switch(None, Some(AccountUseBlock::LastUse))).as_deref(),
+        Some(l10n::settings_account_use_last())
     );
-    assert_eq!(review_after(&entry), Some(AccountCapability::Contacts));
+    assert_eq!(
+        switch_note(&switch(Some(AccountUseStatus::Withheld), None)).as_deref(),
+        Some(l10n::settings_account_use_withheld())
+    );
+    let unreachable = AccountUseStatus::Problem {
+        problem: UseProblem::Unreachable,
+    };
+    assert_eq!(
+        switch_note(&switch(Some(unreachable), Some(AccountUseBlock::LastUse))),
+        Some(format!(
+            "{}\n{}",
+            l10n::settings_account_use_unreachable_calendar(),
+            l10n::settings_account_use_last()
+        )),
+        "neither hides the other"
+    );
+}
 
-    entry.uses[1].problem = Some(UseProblem::Unreachable);
-    assert_eq!(review_after(&entry), Some(AccountCapability::Calendar));
+#[test]
+fn a_change_that_did_not_take_is_said_with_the_cores_reason() {
+    let failed = change_notice(&AccountChangeNotice::UseFailed {
+        capability: AccountCapability::Mail,
+        on: false,
+        detail: "the last use".to_owned(),
+    });
+    assert_eq!(
+        failed,
+        Notice::Error {
+            title: l10n::settings_account_change_failed_title().to_owned(),
+            detail: "the last use".to_owned(),
+        }
+    );
+    let kept = change_notice(&AccountChangeNotice::RemoveFailed {
+        detail: "locked".to_owned(),
+    });
+    assert!(matches!(
+        kept,
+        Notice::Error { detail, .. } if detail == l10n::remove_account_failed("locked")
+    ));
 }

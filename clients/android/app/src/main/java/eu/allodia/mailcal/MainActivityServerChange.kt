@@ -12,7 +12,7 @@ internal fun MainActivity.reviewServerChange(accountId: String) {
     val change = instance.pendingServerChange(accountId)
     if (change == null) {
         refreshAccountsSnapshot()
-        refreshConnectivity()
+        pullNotices()
         return
     }
     val address = accountSettings.addressOf(accountId, accounts.firstOrNull { it.id == accountId }?.email)
@@ -36,7 +36,7 @@ internal fun MainActivity.allowServerChange() {
                     is ServerChangeAnswer.Settled -> {
                         logUiInfo("accounts: the server change is settled")
                         refreshAccountsSnapshot()
-                        refreshConnectivity()
+                        pullNotices()
                     }
                     is ServerChangeAnswer.Replaced ->
                         logUiInfo("accounts: the server change was replaced while it was shown")

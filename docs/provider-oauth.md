@@ -304,10 +304,11 @@ capturing the redirect), because that is inherently platform-specific.
     | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts; never on a personal account, which has no directory |
     | `Mail.ReadWrite.Shared` | the `Mail.ReadWrite` calls under `/users/{address}` rather than `/me`, and `GET /users/{address}/mailFolders/inbox` to check an address the person typed | a mailbox the person was given access to, read and written like their own ([`shared-mailboxes.md`](shared-mailboxes.md)) | shared mailboxes, beside mail; never on a personal account |
     | `Mail.Send.Shared` | `POST /users/{address}/sendMail` | sending from that mailbox's address; `Mail.ReadWrite.Shared` does not grant it | shared mailboxes, beside mail |
+    | `OnlineMeetings.ReadWrite` | `POST /onlineMeetings/createOrGet`, `GET /onlineMeetings?$filter=JoinWebUrl eq '…'`, `DELETE /onlineMeetings/{id}` | a Teams meeting for an event on a calendar that is not Microsoft's, and deleting it again when the event could not be saved ([`conferencing.md`](conferencing.md) rules 14 to 16) | video meetings; never on a personal account, for which Microsoft makes no online meeting |
 
     **A use the grant withholds is not opened.** Each use has one scope it cannot open without
     (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`,
-    `Mail.ReadWrite.Shared`), and a
+    `Mail.ReadWrite.Shared`, `OnlineMeetings.ReadWrite`), and a
     stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
     scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
     is no exception: an account whose grant withholds it opens as an account without mail
@@ -377,7 +378,13 @@ capturing the redirect), because that is inherently platform-specific.
     path a JMAP re-sign-in and a replaced password take. The account keeps its id, sync depth,
     sender name, signatures, links and downloaded mail, catches up rather than downloading again,
     and has its expired-sign-in, mail and calendar prompts reconciled against what the new grant
-    opened. Adding a capability is the same call with `adding` set: Microsoft does not re-prompt
+    opened. It starts on the access token the sign-in minted, as adding an account does: a refresh
+    straight after consent can still answer the old, narrower grant while Microsoft propagates the
+    consent, and the dial would then find the calendar withheld and save that grant over the new
+    one. A refresh that names a wider grant than the account was dialled with, so opening a use the
+    old one withheld, dials its calendar and contacts again at once, which retracts the prompt: a
+    grant an administrator widens, or a consent still propagating, takes effect in the session.
+    Adding a capability is the same call with `adding` set: Microsoft does not re-prompt
     scopes already consented, and Google, which has no incremental consent for installed apps, is
     asked for the whole set.
 
@@ -788,6 +795,15 @@ dispatch (which models may run), **not** which mail accounts a user may connect:
 connect any provider wherever it is hosted. (This is the product decision of record; it narrows
 the doctrine's "provider sync" language for *account connection* specifically.)
 
+**A video meeting made through a connected account is part of that account**, and is not gated
+either: a Teams meeting asked of the Microsoft account's own Graph, under its own grant, and a
+Talk meeting asked of the Nextcloud account's own server, with its own app password
+([`conferencing.md`](conferencing.md) rules 14 to 16). What leaves is the event's title and times,
+to a provider the person signed in to. The carve-out ends where a meeting would
+be made anywhere else: through a relay, at a service the person has no account with, or under a
+credential that is not the account's. Such a service goes through the jurisdiction check, which
+sits in `App::make_meeting`, the one place every meeting service is called from.
+
 ## Known gaps
 
 - **Graph mail: read/sync + mail actions + sending.** The engine's Graph adapter does mail folders
@@ -830,6 +846,9 @@ the doctrine's "provider sync" language for *account connection* specifically.)
   fails (surfaced as a `Failed` hint and logged), and *then* the reconnect banner appears. A
   reconnect for any reason (including the calendar prompt) re-requests the whole scope set and
   clears it ahead of a first failure.
+  Both notices and the in-place sign-in that clears them were driven on Windows against a real
+  work account on 2026-11-07, its grant narrowed to mail read-only and no calendar with
+  [`ms-grant.sh`](../scripts/dev/ms-grant.sh), which is how to reproduce it.
 - **Both ends of rule 12 are verified on a device, except the mixed *sync* pass.** The three legs that
   matter were driven on real hardware (Android, 2026-08-10) with
   `scripts/dev/imap-fault-proxy.py` refusing a login the harness would have accepted: `--refuse-all`

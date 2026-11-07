@@ -3,6 +3,8 @@
 
 use std::sync::{Arc, mpsc};
 
+use mailcal_account::Capabilities;
+
 use crate::{
     AccountCapability, AccountCredentialStore, CapabilityChange, CapabilityState,
     CredentialStoreError, LogLevel, MailcalApp, MailcalError,
@@ -191,9 +193,19 @@ fn a_use_the_grant_does_not_hold_needs_consent_and_one_it_holds_does_not() {
         )
         .commit();
 
-    let calendar = registry.set_use(id.as_str(), mailcal_account::Capability::Calendar, true);
+    let calendar = registry.set_use(
+        id.as_str(),
+        mailcal_account::Capability::Calendar,
+        true,
+        &Capabilities::default(),
+    );
     assert!(matches!(calendar, Ok(UseChange::NeedsConsent)));
-    let contacts = registry.set_use(id.as_str(), mailcal_account::Capability::Contacts, true);
+    let contacts = registry.set_use(
+        id.as_str(),
+        mailcal_account::Capability::Contacts,
+        true,
+        &Capabilities::default(),
+    );
     assert!(matches!(contacts, Ok(UseChange::Changed { .. })));
 }
 
@@ -228,6 +240,11 @@ fn a_personal_microsoft_account_offers_no_colleagues_to_switch_on() {
         .commit();
 
     // Refused, not "needs consent": no sign-in would ever grant it.
-    let colleagues = registry.set_use(id.as_str(), mailcal_account::Capability::Colleagues, true);
+    let colleagues = registry.set_use(
+        id.as_str(),
+        mailcal_account::Capability::Colleagues,
+        true,
+        &Capabilities::default(),
+    );
     assert!(matches!(colleagues, Err(MailcalError::Config(_))));
 }

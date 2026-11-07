@@ -1,4 +1,4 @@
-// Settings → Notifications (docs/settings.md slot 7): whether new mail raises a desktop notification.
+// Settings → Notifications (docs/settings.md slot 8): whether new mail raises a desktop notification.
 // What a pass says is pinned in Mailcal.Tests (NewMailNoticesTests); what this is for is the client
 // wiring, the category missing from the list, a panel never reached, or a switch that opens on a
 // default rather than on the stored choice. The toast itself is the shell's; NotificationClickTests
@@ -20,7 +20,7 @@ public sealed class SettingsNotificationsTests(ShowcaseApp showcase)
     /// heading above it reads the same.</summary>
     private static Element Toggle(App app, SetupFlow settings) =>
         app.Agent.Find(new Filter { Id = "NotificationsToggle", Under = settings.OpenCategory("notifications") })
-        ?? throw new InvalidOperationException("the Notifications category draws no new-mail switch (docs/settings.md slot 7)");
+        ?? throw new InvalidOperationException("the Notifications category draws no new-mail switch (docs/settings.md slot 8)");
 
     [OfflineFact]
     public void SettingsOffersNotificationsBetweenSignaturesAndPrivacy() => Case(nameof(SettingsOffersNotificationsBetweenSignaturesAndPrivacy), (_, settings) =>

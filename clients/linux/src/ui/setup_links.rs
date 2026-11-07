@@ -1,14 +1,16 @@
 //! The last setup step, and a skippable one: an account that lacks a calendar or contacts can use
 //! another account's, and a calendar without mail can name the account that sends its
-//! invitations (`docs/onboarding.md`). The pickers are Settings' own, from the same snapshot, so
-//! the step offers exactly what the account's page would.
+//! invitations (`docs/onboarding.md`). The pickers are the core's (`setup_link_pickers`), the ones
+//! the account's page offers that nothing fills yet.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountCapability, AccountsSnapshot, CapabilityState, LinkSlot};
+use mailcal_bindings::{
+    AccountCapability, AccountLinkPicker, AccountsSnapshot, CapabilityState, LinkSlot,
+};
 
 use super::{
     AppInput,
-    settings::{LinkPicker, link_pickers},
+    settings::{link_labels, link_title, suggested_name},
     setup_widgets::{body, caption, heading, page, primary, section},
 };
 use crate::l10n;
@@ -21,6 +23,8 @@ pub(crate) struct Beside {
     pub(super) email: String,
     pub(super) caldav_url: Option<String>,
     pub(super) carddav_url: Option<String>,
+    /// They are Nextcloud, which signs in through the browser.
+    pub(super) nextcloud: bool,
 }
 
 /// The servers detection found beside a JMAP server, for the address it was found for.
@@ -29,6 +33,7 @@ pub(crate) struct Found {
     pub(super) email: String,
     caldav_url: Option<String>,
     carddav_url: Option<String>,
+    nextcloud: bool,
 }
 
 impl Found {
@@ -41,6 +46,7 @@ impl Found {
             email: form.email.clone(),
             caldav_url: form.caldav_url.clone(),
             carddav_url: form.carddav_url.clone(),
+            nextcloud: form.nextcloud_sign_in,
         })
     }
 
@@ -51,6 +57,7 @@ impl Found {
             email: self.email.clone(),
             caldav_url: self.caldav_url.clone(),
             carddav_url: self.carddav_url.clone(),
+            nextcloud: self.nextcloud,
         }
     }
 }
@@ -109,7 +116,7 @@ impl Beside {
 #[derive(Debug)]
 pub(crate) struct LinkStep {
     pub(super) account: String,
-    pub(super) pickers: Vec<LinkPicker>,
+    pub(super) pickers: Vec<AccountLinkPicker>,
     /// The servers found beside the account's own, offered as an account of their own while its
     /// server offers no calendar or contacts.
     pub(super) beside: Option<(Beside, Fills)>,
@@ -135,10 +142,7 @@ impl LinkStep {
             .iter()
             .find(|entry| entry.id == account)
             .filter(|entry| mailcal_bindings::offers_setup_links(entry.kind))?;
-        let pickers: Vec<LinkPicker> = link_pickers(entry)
-            .into_iter()
-            .filter(|picker| picker.selected.is_none())
-            .collect();
+        let pickers = mailcal_bindings::setup_link_pickers(entry);
         let lacks = |capability| {
             entry.uses.iter().any(|use_| {
                 use_.capability == capability && use_.state == CapabilityState::NotOffered
@@ -154,7 +158,10 @@ impl LinkStep {
         });
         (!pickers.is_empty() || lacks).then(|| Self {
             account: account.to_owned(),
-            picked: pickers.iter().map(|picker| picker.suggested).collect(),
+            picked: pickers
+                .iter()
+                .map(|picker| picker.suggested.and_then(|at| usize::try_from(at).ok()))
+                .collect(),
             pickers,
             beside,
             touched: false,
@@ -236,8 +243,8 @@ pub(super) fn step(
     content.append(&heading(l10n::setup_links_title()));
     content.append(&body(l10n::settings_account_links_description()));
     for (index, picker) in step.pickers.iter().enumerate() {
-        content.append(&section(picker.title));
-        let names = picker.labels();
+        content.append(&section(link_title(picker.slot)));
+        let names = link_labels(picker);
         let labels: Vec<&str> = names.iter().map(String::as_str).collect();
         let dropdown = gtk::DropDown::from_strings(&labels);
         let picked = step.picked.get(index).copied().flatten();
@@ -247,7 +254,7 @@ pub(super) fn step(
                 .unwrap_or(0),
         );
         content.append(&dropdown);
-        if let Some(suggested) = picker.suggested_name() {
+        if let Some(suggested) = suggested_name(picker) {
             content.append(&caption(&l10n::settings_account_link_suggested(&suggested)));
         }
         let input = sender.clone();

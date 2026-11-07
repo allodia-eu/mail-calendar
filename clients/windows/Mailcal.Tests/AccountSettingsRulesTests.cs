@@ -1,5 +1,6 @@
-// What Settings → Accounts says about an account, from a snapshot entry (docs/accounts.md rules
-// 11 to 13), and what an edit of its servers sends back (rule 14).
+// What Settings → Accounts' list says about an account, from a snapshot entry (docs/accounts.md
+// rules 11 to 13), and when its page is drawn again. The page's uses, links and removal are the
+// core's (`account_page`), tested there.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -29,155 +30,16 @@ public class AccountSettingsRulesTests
         (AccountCapability.Contacts, CapabilityState.Off));
 
     [Fact]
-    public void TheLastUseCannotBeSwitchedOff()
-    {
-        var entry = MailboxOnly();
-        Assert.Equal(
-            new UseSwitch(Active: true, Asks: false, Enabled: false, Note: UseNote.Last),
-            AccountSettingsRules.Switch(entry, AccountCapability.Mail));
-        Assert.Equal(
-            new UseSwitch(Active: false, Asks: false, Enabled: true, Note: UseNote.None),
-            AccountSettingsRules.Switch(entry, AccountCapability.Calendar));
-    }
-
-    [Fact]
-    public void ColleaguesWaitForContacts()
-    {
-        var entry = Entry(
-            AccountKind.Microsoft,
-            (AccountCapability.Mail, CapabilityState.On),
-            (AccountCapability.Calendar, CapabilityState.On),
-            (AccountCapability.Contacts, CapabilityState.Off),
-            (AccountCapability.Colleagues, CapabilityState.Off));
-        var colleagues = AccountSettingsRules.Switch(entry, AccountCapability.Colleagues);
-        Assert.False(colleagues.Enabled);
-        Assert.Equal(UseNote.NeedsContacts, colleagues.Note);
-
-        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, null);
-        Assert.True(AccountSettingsRules.Switch(entry, AccountCapability.Colleagues).Enabled);
-    }
-
-    [Fact]
-    public void SharedMailboxesWaitForMail()
-    {
-        var entry = Entry(
-            AccountKind.Microsoft,
-            (AccountCapability.Mail, CapabilityState.Off),
-            (AccountCapability.SharedMailboxes, CapabilityState.Off),
-            (AccountCapability.Calendar, CapabilityState.On),
-            (AccountCapability.Contacts, CapabilityState.Off),
-            (AccountCapability.Colleagues, CapabilityState.Off));
-        var shared = AccountSettingsRules.Switch(entry, AccountCapability.SharedMailboxes);
-        Assert.False(shared.Enabled);
-        Assert.Equal(UseNote.NeedsMail, shared.Note);
-
-        entry.Uses[0] = new AccountUse(AccountCapability.Mail, CapabilityState.On, null);
-        Assert.Equal(
-            new UseSwitch(Active: false, Asks: false, Enabled: true, Note: UseNote.None),
-            AccountSettingsRules.Switch(entry, AccountCapability.SharedMailboxes));
-        // Never the last use held on: it is no use of its own without mail.
-        entry.Uses[1] = new AccountUse(AccountCapability.SharedMailboxes, CapabilityState.On, null);
-        entry.Uses[2] = new AccountUse(AccountCapability.Calendar, CapabilityState.Off, null);
-        Assert.True(AccountSettingsRules.Switch(entry, AccountCapability.SharedMailboxes).Enabled);
-        Assert.Equal(UseNote.Last, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
-    }
-
-    [Fact]
-    public void AUseThatDidNotConnectSaysWhyBeneathItsSwitch()
-    {
-        var entry = Entry(
-            AccountKind.Imap,
-            (AccountCapability.Mail, CapabilityState.On),
-            (AccountCapability.Calendar, CapabilityState.On),
-            (AccountCapability.Contacts, CapabilityState.On));
-        entry.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.NeedsOwnSignIn);
-        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, UseProblem.Unreachable);
-
-        var calendar = AccountSettingsRules.Switch(entry, AccountCapability.Calendar);
-        Assert.Equal(UseNote.OwnSignInCalendar, calendar.Note);
-        Assert.True(calendar.Active);
-        Assert.Equal(UseNote.UnreachableContacts, AccountSettingsRules.Switch(entry, AccountCapability.Contacts).Note);
-        Assert.Equal(UseNote.None, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
-    }
-
-    [Fact]
-    public void AUsePausedForAServerChangeSaysSoAndOffersItsReview()
-    {
-        var entry = Entry(
-            AccountKind.Imap,
-            (AccountCapability.Mail, CapabilityState.On),
-            (AccountCapability.Calendar, CapabilityState.On),
-            (AccountCapability.Contacts, CapabilityState.On));
-        entry.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.ServerChanged);
-        entry.Uses[2] = new AccountUse(AccountCapability.Contacts, CapabilityState.On, UseProblem.ServerChanged);
-
-        var calendar = AccountSettingsRules.Switch(entry, AccountCapability.Calendar);
-        var contacts = AccountSettingsRules.Switch(entry, AccountCapability.Contacts);
-        // Still on: the person chose it, and only the server is in question.
-        Assert.True(calendar.Active && calendar.Enabled);
-        Assert.Equal(UseNote.ServerChangedCalendar, calendar.Note);
-        Assert.Equal(UseNote.ServerChangedContacts, contacts.Note);
-        Assert.True(AccountSettingsRules.ReviewsServerChange(calendar.Note));
-        Assert.True(AccountSettingsRules.ReviewsServerChange(contacts.Note));
-    }
-
-    [Fact]
-    public void OnlyAServerChangeOffersAReview()
-    {
-        foreach (var note in Enum.GetValues<UseNote>())
-        {
-            Assert.Equal(
-                note is UseNote.ServerChangedCalendar or UseNote.ServerChangedContacts,
-                AccountSettingsRules.ReviewsServerChange(note));
-        }
-    }
-
-    [Fact]
-    public void AUseWaitingOnPermissionIsDrawnOffAndSwitchingItOnAsks()
+    public void AUseWaitingOnPermissionIsOneTheAccountIsUsedForAndOneTheServerLacksIsNot()
     {
         var entry = Entry(
             AccountKind.Google,
             (AccountCapability.Mail, CapabilityState.On),
             (AccountCapability.Calendar, CapabilityState.NeedsPermission),
-            (AccountCapability.Contacts, CapabilityState.Off),
-            (AccountCapability.Colleagues, CapabilityState.Off));
-        var calendar = AccountSettingsRules.Switch(entry, AccountCapability.Calendar);
-        Assert.False(calendar.Active);
-        Assert.True(calendar.Asks && calendar.Enabled);
-        Assert.Equal(UseNote.Withheld, calendar.Note);
+            (AccountCapability.Contacts, CapabilityState.NotOffered));
+        Assert.Equal([AccountCapability.Mail, AccountCapability.Calendar], AccountSettingsRules.InUse(entry));
         Assert.True(AccountSettingsRules.NeedsPermission(entry));
         Assert.Equal([AccountCapability.Calendar], AccountSettingsRules.Withheld(entry));
-        // Listed as a use: it is chosen, only not granted.
-        Assert.Contains(AccountCapability.Calendar, AccountSettingsRules.InUse(entry));
-    }
-
-    [Fact]
-    public void AnOnlyUseWaitingOnPermissionCanStillBeAskedFor()
-    {
-        var entry = Entry(
-            AccountKind.Google,
-            (AccountCapability.Mail, CapabilityState.Off),
-            (AccountCapability.Calendar, CapabilityState.NeedsPermission),
-            (AccountCapability.Contacts, CapabilityState.Off));
-        Assert.Equal(
-            new UseSwitch(Active: false, Asks: true, Enabled: true, Note: UseNote.Withheld),
-            AccountSettingsRules.Switch(entry, AccountCapability.Calendar));
-    }
-
-    [Fact]
-    public void AUseTheServerDoesNotOfferCannotBeSwitchedAndHoldsNothingOn()
-    {
-        var entry = Entry(
-            AccountKind.Jmap,
-            (AccountCapability.Mail, CapabilityState.On),
-            (AccountCapability.Calendar, CapabilityState.NotOffered),
-            (AccountCapability.Contacts, CapabilityState.Off));
-        Assert.Equal(
-            new UseSwitch(Active: false, Asks: false, Enabled: false, Note: UseNote.NotOffered),
-            AccountSettingsRules.Switch(entry, AccountCapability.Calendar));
-        // Mail is the one use that works, so it is the last.
-        Assert.Equal(UseNote.Last, AccountSettingsRules.Switch(entry, AccountCapability.Mail).Note);
-        Assert.Equal([AccountCapability.Mail], AccountSettingsRules.InUse(entry));
     }
 
     [Fact]
@@ -203,51 +65,6 @@ public class AccountSettingsRulesTests
     }
 
     [Fact]
-    public void APickerIsOfferedOnlyForASlotTheAccountCanHold()
-    {
-        var entry = MailboxOnly();
-        Assert.Empty(AccountSettingsRules.LinkPickers(entry));
-
-        entry = entry with
-        {
-            LinkCandidates = new LinkCandidates([Linked("a@cloud.example"), Linked("b@cloud.example")], [], [], []),
-            Links = new AccountLinksView(Linked("b@cloud.example"), null, null),
-        };
-        var picker = Assert.Single(AccountSettingsRules.LinkPickers(entry));
-        Assert.Equal(LinkSlot.Calendar, picker.Slot);
-        Assert.Equal(2, picker.Options.Count);
-        Assert.Equal(1, picker.Selected);
-    }
-
-    [Fact]
-    public void ALinkedAccountMissingFromTheCandidatesIsStillShown()
-    {
-        var entry = MailboxOnly() with
-        {
-            Links = new AccountLinksView(null, Linked("book@cloud.example"), null),
-        };
-        var picker = Assert.Single(AccountSettingsRules.LinkPickers(entry));
-        Assert.Equal(LinkSlot.Contacts, picker.Slot);
-        Assert.Equal([Linked("book@cloud.example")], picker.Options);
-        Assert.Equal(0, picker.Selected);
-    }
-
-    [Fact]
-    public void ASuggestionIsOfferedOnlyWhereNothingIsLinked()
-    {
-        var entry = MailboxOnly() with
-        {
-            LinkCandidates = new LinkCandidates(
-                [Linked("a@cloud.example"), Linked("b@cloud.example")], [], [], ["b@cloud.example"]),
-        };
-        Assert.Equal(1, AccountSettingsRules.LinkPickers(entry)[0].Suggested);
-
-        entry = entry with { Links = new AccountLinksView(Linked("a@cloud.example"), null, null) };
-        // A link already made is not second-guessed.
-        Assert.Null(AccountSettingsRules.LinkPickers(entry)[0].Suggested);
-    }
-
-    [Fact]
     public void RemovingNamesTheAccountsThatLoseTheirLink()
     {
         var entry = MailboxOnly();
@@ -257,14 +74,6 @@ public class AccountSettingsRulesTests
             LinkedFrom = [Linked("a@example.org"), Linked("b@example.org") with { Distinction = new AccountDistinction.Kind(AccountKind.Dav) }],
         };
         Assert.Equal("a@example.org, b@example.org (DAV)", AccountSettingsRules.Unlinked(entry, AccountNamesTests.Words));
-    }
-
-    [Fact]
-    public void SwitchingOnAUseTheProviderWithholdsAsksForIt()
-    {
-        Assert.Equal(UseChangeOutcome.AskProvider, AccountSettingsRules.Outcome(CapabilityChange.NeedsConsent));
-        Assert.Equal(UseChangeOutcome.NeedsEndpoint, AccountSettingsRules.Outcome(CapabilityChange.NeedsEndpoint));
-        Assert.Equal(UseChangeOutcome.Applied, AccountSettingsRules.Outcome(CapabilityChange.Applied));
     }
 
     [Fact]
@@ -306,5 +115,24 @@ public class AccountSettingsRulesTests
 
         failed.Uses[1] = new AccountUse(AccountCapability.Calendar, CapabilityState.On, UseProblem.SignInRefused);
         Assert.NotEqual(unreachable, AccountSettingsRules.Fingerprint(new AccountsSnapshot([failed]), []));
+    }
+
+    [Fact]
+    public void AChangeStartingOrEndingRedrawsThePage()
+    {
+        var free = CorePage.Of(MailboxOnly());
+        var drawn = AccountSettingsRules.PageFingerprint(free).ToList();
+        Assert.Equal(drawn, AccountSettingsRules.PageFingerprint(CorePage.Of(MailboxOnly())));
+        // The page holds and spins from the record alone, so a change running is a redraw.
+        var running = free with
+        {
+            Uses = [free.Uses[0], free.Uses[1] with { On = true, Control = new ControlState(false, true) }, free.Uses[2]],
+        };
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(running));
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Remove = new ControlState(false, true) }));
+        // And a notice raised, which the page says once.
+        var notice = new AccountChangeNoticeRaised(1, new AccountChangeNotice.LinkFailed(LinkSlot.Calendar, "gone"));
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Notice = notice }));
+        Assert.Empty(AccountSettingsRules.PageFingerprint(null));
     }
 }

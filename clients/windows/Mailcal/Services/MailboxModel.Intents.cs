@@ -157,6 +157,7 @@ public sealed partial class MailboxModel
         // The record behind that address, when the flow was opened from an offer: the setup form
         // takes the route the other device wrote down rather than re-deriving one.
         SetupStartOffer = startOffer;
+        SetupStartDetected = null;
         AddingAccount = true;
     }
 
@@ -166,6 +167,8 @@ public sealed partial class MailboxModel
     /// </summary>
     public void ClearSetupAttempt()
     {
+        // A Nextcloud grant held for another try at that server becomes no account.
+        ReleaseSetupNextcloudGrant();
         SetupError = null;
         SetupRejectedCertificate = null;
         SetupAcceptedCertificate = null;
@@ -183,6 +186,7 @@ public sealed partial class MailboxModel
         AddingAccount = false;
         SetupStartEmail = string.Empty;
         SetupStartOffer = null;
+        SetupStartDetected = null;
         ClearSetupAttempt();
     }
 
@@ -274,11 +278,14 @@ public sealed partial class MailboxModel
     /// bare date with an exclusive end. Routing to the chosen (or default) writable calendar is the
     /// core's job; this only marshals the payload.
     /// </remarks>
-    internal void CreateEvent(CreateArgs args) =>
+    internal void CreateEvent(CreateArgs args)
+    {
+        Log.Info($"cal: create an event meeting={MeetingKind(args.Meeting)}");
         _app?.Dispatch(new Intent.Events(new EventIntent.Create(
             args.Title, args.Start, args.End, args.Account, args.Calendar, args.AllDay, args.Timezone,
             args.Notes, args.Location, args.Recurrence,
-            args.Invitees is null ? null : [.. args.Invitees])));
+            args.Invitees is null ? null : [.. args.Invitees], args.Meeting?.Change(CatalogMeetingWords()))));
+    }
 
     /// <summary>
     /// Edit a stored calendar event from the editor's payload, then refresh.
@@ -288,10 +295,32 @@ public sealed partial class MailboxModel
     /// organiser did not touch, and alarms survive). Notes/location are three-state, empty clears, a value sets. The write settles
     /// through the same <c>CalendarWriteStatus</c> surface as create and delete.
     /// </remarks>
-    internal void UpdateEvent(UpdateArgs args) =>
+    internal void UpdateEvent(UpdateArgs args)
+    {
+        // The kind of change only: a meeting's link is the user's.
+        Log.Info($"cal: edit an event meeting={MeetingKind(args.Meeting)}");
         _app?.Dispatch(new Intent.Events(new EventIntent.Update(
             args.Account, args.Key, args.Title, args.Start, args.End, args.Notes, args.Location,
-            args.Occurrence, args.Recurrence, args.TimesFromOccurrence, args.Invitees)));
+            args.Occurrence, args.Recurrence, args.TimesFromOccurrence, args.Invitees,
+            args.Meeting?.Change(CatalogMeetingWords()))));
+    }
+
+    private static string MeetingKind(MeetingPick? pick) => pick switch
+    {
+        MeetingPick.Set => "set",
+        MeetingPick.Remove => "remove",
+        _ => "unchanged",
+    };
+
+    /// <summary>The catalog's words for the block a meeting made elsewhere leaves in the notes, in
+    /// the app's language: the core has no locale (docs/conferencing.md, rule 12).</summary>
+    private static MeetingWords CatalogMeetingWords() => new(
+        L10n.EventVideoMeeting(),
+        L10n.EventJoin(),
+        L10n.EventMeetingId(),
+        L10n.EventMeetingPasscode(),
+        L10n.EventMeetingDialIn(),
+        L10n.EventMeetingConferenceId());
 
     /// <summary>
     /// What saving <paramref name="args"/> over the whole series would cost the occurrences the

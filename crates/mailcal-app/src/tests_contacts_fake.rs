@@ -322,6 +322,7 @@ pub(crate) fn account(id: &str, contacts: Vec<Box<dyn ContactsProvider>>) -> Acc
         id: AccountId::try_from(id).unwrap(),
         providers: vec![MailOnly].into(),
         calendar_provider: None,
+        meetings: None,
         contact_providers: contacts,
         identity: EmailAddress::new(format!("me@{id}.local")),
         dialled: true,

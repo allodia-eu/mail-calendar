@@ -34,6 +34,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountLinkPicker
 
 @Composable
 internal fun StepColumn(content: @Composable () -> Unit) {
@@ -149,7 +150,7 @@ internal fun SetupLinkStepScreen(
 
 /** One slot's picker: None first, then the accounts it may name. */
 @Composable
-private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit) {
+private fun StepPicker(picker: AccountLinkPicker, picked: Int?, onPick: (Int?) -> Unit) {
     val ctx = LocalContext.current
     var expanded by remember { mutableStateOf(false) }
     Text(linkTitle(ctx, picker.slot), style = MaterialTheme.typography.labelLarge)
@@ -184,7 +185,7 @@ private fun StepPicker(picker: LinkPicker, picked: Int?, onPick: (Int?) -> Unit)
             }
         }
     }
-    picker.suggested?.let { picker.options.getOrNull(it) }?.let { suggestion ->
+    picker.suggested?.let { picker.options.getOrNull(it.toInt()) }?.let { suggestion ->
         Text(
             L10n.settings_account_link_suggested(ctx, accountName(ctx, suggestion)),
             style = MaterialTheme.typography.bodySmall,

@@ -317,17 +317,6 @@ public class FolderActionsTests
     }
 
     [Fact]
-    public void TheNoticeNamesTheFolderAndWhyTheChangeDidNotHappen()
-    {
-        static string Text(FolderNotice? notice) =>
-            FolderActions.NoticeText(notice, name => $"changed:{name}", name => $"refused:{name}");
-
-        Assert.Equal(string.Empty, Text(null));
-        Assert.Equal("changed:Work", Text(new FolderNotice(Account, "Work", FolderAction.Rename, FolderProblem.ChangedElsewhere)));
-        Assert.Equal("refused:Work", Text(new FolderNotice(Account, "Work", FolderAction.Delete, FolderProblem.Refused)));
-    }
-
-    [Fact]
     public void TheReconcileCopiesWhatEachRowOffersAndWhetherItWaits()
     {
         var target = new ObservableCollection<SidebarItem>();

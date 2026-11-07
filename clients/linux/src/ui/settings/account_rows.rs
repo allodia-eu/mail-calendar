@@ -2,8 +2,8 @@
 //! rules are tested without a window.
 
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, AccountKind, CapabilityState, LinkSlot, LinkedAccount,
-    UseProblem,
+    AccountCapability, AccountChangeNotice, AccountEntry, AccountKind, AccountLinkPicker,
+    AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, LinkSlot, UseProblem,
 };
 
 use super::account_names::{kind_line, linked_name};
@@ -28,6 +28,7 @@ pub(in crate::ui) fn use_name(capability: AccountCapability) -> &'static str {
         AccountCapability::Contacts => l10n::nav_contacts(),
         AccountCapability::Colleagues => l10n::account_use_colleagues(),
         AccountCapability::SharedMailboxes => l10n::account_use_shared_mailboxes(),
+        AccountCapability::Meetings => l10n::account_use_meetings(),
     }
 }
 
@@ -113,187 +114,61 @@ fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static 
     }
 }
 
-/// The use whose row the account page's "Review" sits under: the last of those paused for a
-/// server found on another site, so it follows every note that says so. `None` when none is.
-pub(super) fn review_after(entry: &AccountEntry) -> Option<AccountCapability> {
-    entry
-        .uses
-        .iter()
-        .rfind(|use_| use_.problem == Some(UseProblem::ServerChanged))
-        .map(|use_| use_.capability)
+/// What a use's switch says beneath it: what is wrong with the use, then why it cannot be
+/// pressed, so neither hides the other.
+pub(super) fn switch_note(switch: &AccountUseSwitch) -> Option<String> {
+    let status = switch.status.map(|status| match status {
+        AccountUseStatus::Problem { problem } => problem_note(switch.capability, problem),
+        AccountUseStatus::Withheld => l10n::settings_account_use_withheld(),
+    });
+    let blocked = switch.blocked.map(|block| match block {
+        AccountUseBlock::LastUse => l10n::settings_account_use_last(),
+        AccountUseBlock::NeedsContacts => l10n::settings_account_colleagues_needs_contacts(),
+        AccountUseBlock::NeedsMail => l10n::settings_account_shared_needs_mail(),
+        AccountUseBlock::NotOffered => l10n::settings_account_use_not_offered(),
+        AccountUseBlock::NeedsServer => l10n::settings_account_use_needs_endpoint(),
+    });
+    let lines = [status, blocked].into_iter().flatten().collect::<Vec<_>>();
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
-/// The line above the calendar week or the contacts list for a use that did not connect
-/// (`docs/accounts.md` rule 16): which account, why in the words its own page uses, and that what
-/// is on screen is what was last synced.
-pub(in crate::ui) fn outage_line(
-    capability: AccountCapability,
-    problem: UseProblem,
-    address: &str,
-) -> String {
-    let title = if matches!(capability, AccountCapability::Calendar) {
-        l10n::calendar_outage_title(address)
-    } else {
-        l10n::contacts_outage_title(address)
-    };
-    format!(
-        "{title} {} {}",
-        problem_note(capability, problem),
-        l10n::use_outage_last_synced()
-    )
-}
-
-/// How one use's switch is drawn.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct UseSwitch {
-    /// On. A use waiting on a permission is drawn off: it is not working, and switching it on
-    /// is what asks the provider again.
-    pub(super) active: bool,
-    /// Whether switching it on asks the provider rather than the core.
-    pub(super) asks: bool,
-    /// Whether the person can flip it.
-    pub(super) sensitive: bool,
-    /// The line beneath it, when there is something to say.
-    pub(super) note: Option<&'static str>,
-}
-
-/// The switch for `capability` on `entry`. The last of mail, calendar and contacts cannot be
-/// switched off, and colleagues cannot be switched on without contacts, nor shared mailboxes
-/// without mail: the core refuses each, so the switch says why rather than letting the person
-/// find out.
-pub(super) fn use_switch(entry: &AccountEntry, capability: AccountCapability) -> UseSwitch {
-    let used = |wanted| {
-        entry
-            .uses
-            .iter()
-            .any(|use_| use_.capability == wanted && works(use_.state))
-    };
-    let state = entry
-        .uses
-        .iter()
-        .find(|use_| use_.capability == capability)
-        .map_or(CapabilityState::Off, |use_| use_.state);
-    let active = state == CapabilityState::On;
-    let primary = [
-        AccountCapability::Mail,
-        AccountCapability::Calendar,
-        AccountCapability::Contacts,
-    ];
-    // A use waiting on a permission is drawn off, so it is never the one held on: switching it
-    // on asks the provider, which the core does not refuse.
-    let last = state == CapabilityState::On
-        && primary.contains(&capability)
-        && primary.iter().filter(|wanted| used(**wanted)).count() == 1;
-    let without = |sub, within| capability == sub && state == CapabilityState::Off && !used(within);
-    let without_contacts = without(AccountCapability::Colleagues, AccountCapability::Contacts);
-    let without_mail = without(AccountCapability::SharedMailboxes, AccountCapability::Mail);
-    let not_offered = state == CapabilityState::NotOffered;
-    let problem = entry
-        .uses
-        .iter()
-        .find(|use_| use_.capability == capability)
-        .and_then(|use_| use_.problem);
-    let note = if not_offered {
-        Some(l10n::settings_account_use_not_offered())
-    } else if let Some(problem) = problem {
-        Some(problem_note(capability, problem))
-    } else if last {
-        Some(l10n::settings_account_use_last())
-    } else if without_contacts {
-        Some(l10n::settings_account_colleagues_needs_contacts())
-    } else if without_mail {
-        Some(l10n::settings_account_shared_needs_mail())
-    } else if state == CapabilityState::NeedsPermission {
-        Some(l10n::settings_account_use_withheld())
-    } else {
-        None
-    };
-    UseSwitch {
-        active,
-        asks: state == CapabilityState::NeedsPermission,
-        sensitive: !last && !without_contacts && !without_mail && !not_offered,
-        note,
+/// What a change on an account's page came to, when the core says it needs saying.
+pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notice::Notice {
+    match notice {
+        AccountChangeNotice::UseFailed { detail, .. }
+        | AccountChangeNotice::LinkFailed { detail, .. } => super::notice::Notice::Error {
+            title: l10n::settings_account_change_failed_title().to_owned(),
+            detail: detail.clone(),
+        },
+        AccountChangeNotice::RemoveFailed { detail } => super::notice::Notice::Error {
+            title: l10n::settings_account_change_failed_title().to_owned(),
+            detail: l10n::remove_account_failed(detail),
+        },
     }
 }
 
-/// One link slot's picker: "none" first, then the accounts it may name.
-#[derive(Debug, PartialEq, Eq)]
-pub(in crate::ui) struct LinkPicker {
-    pub(in crate::ui) slot: LinkSlot,
-    pub(in crate::ui) title: &'static str,
-    pub(in crate::ui) options: Vec<LinkedAccount>,
-    /// The index into `options` of the account linked now; `None` for "none".
-    pub(in crate::ui) selected: Option<usize>,
-    /// The index into `options` of the account to suggest, while nothing is linked: one whose
-    /// calendar server schedules as the mail account's address.
-    pub(in crate::ui) suggested: Option<usize>,
-}
-
-impl LinkPicker {
-    /// What the dropdown lists: "none", then each account as a person reads it.
-    pub(in crate::ui) fn labels(&self) -> Vec<String> {
-        std::iter::once(l10n::settings_account_link_none().to_owned())
-            .chain(self.options.iter().map(linked_name))
-            .collect()
-    }
-
-    /// The suggested account, as a person reads it.
-    pub(in crate::ui) fn suggested_name(&self) -> Option<String> {
-        self.suggested
-            .and_then(|index| self.options.get(index))
-            .map(linked_name)
+/// A link slot's picker's title.
+pub(in crate::ui) fn link_title(slot: LinkSlot) -> &'static str {
+    match slot {
+        LinkSlot::Calendar => l10n::settings_account_link_calendar(),
+        LinkSlot::Contacts => l10n::settings_account_link_contacts(),
+        LinkSlot::Mail => l10n::settings_account_link_mail(),
     }
 }
 
-/// The pickers an account's page offers: one per slot it can hold, which is a slot with
-/// candidates or one already linked.
-pub(in crate::ui) fn link_pickers(entry: &AccountEntry) -> Vec<LinkPicker> {
-    [
-        (
-            LinkSlot::Calendar,
-            l10n::settings_account_link_calendar(),
-            &entry.link_candidates.calendar,
-            &entry.links.calendar,
-        ),
-        (
-            LinkSlot::Contacts,
-            l10n::settings_account_link_contacts(),
-            &entry.link_candidates.contacts,
-            &entry.links.contacts,
-        ),
-        (
-            LinkSlot::Mail,
-            l10n::settings_account_link_mail(),
-            &entry.link_candidates.mail,
-            &entry.links.mail,
-        ),
-    ]
-    .into_iter()
-    .filter(|(_, _, candidates, current)| !candidates.is_empty() || current.is_some())
-    .map(|(slot, title, candidates, current)| {
-        let mut options = candidates.clone();
-        if let Some(current) = current
-            && !options.contains(current)
-        {
-            options.insert(0, current.clone());
-        }
-        let selected = current
-            .as_ref()
-            .and_then(|current| options.iter().position(|option| option == current));
-        let suggested = selected.is_none().then(|| {
-            options
-                .iter()
-                .position(|option| entry.link_candidates.suggested.contains(&option.id))
-        });
-        LinkPicker {
-            slot,
-            title,
-            options,
-            selected,
-            suggested: suggested.flatten(),
-        }
-    })
-    .collect()
+/// What a link picker lists: "none", then each account as a person reads it.
+pub(in crate::ui) fn link_labels(picker: &AccountLinkPicker) -> Vec<String> {
+    std::iter::once(l10n::settings_account_link_none().to_owned())
+        .chain(picker.options.iter().map(linked_name))
+        .collect()
+}
+
+/// The account a link picker suggests, as a person reads it.
+pub(in crate::ui) fn suggested_name(picker: &AccountLinkPicker) -> Option<String> {
+    picker
+        .suggested
+        .and_then(|index| picker.options.get(usize::try_from(index).ok()?))
+        .map(linked_name)
 }
 
 #[cfg(test)]

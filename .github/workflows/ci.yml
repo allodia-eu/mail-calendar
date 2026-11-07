@@ -410,55 +410,13 @@ jobs:
       - name: Build + test the Allodia sign-in feature
         run: cargo test -p mailcal-bindings --features allodia-license
 
-      - name: Run the gated JMAP live integration test
-        env:
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-          STALWART_ACCOUNT: alice@test.local
-          STALWART_PASSWORD: harness-alice-pw
-        run: cargo test -p mailcal-account --test live_jmap -- --nocapture
-
-      # "Sign in with your provider" for a JMAP account, against the harness's sign-in server:
-      # discovery, registration, the code exchange and a connect on the grant. The seeded server
-      # is asserted to offer no sign-in, which is what the clients' setup-form tests rely on.
-      - name: Run the gated JMAP sign-in live test
-        env:
-          STALWART_OAUTH_HTTP_ADDR: localhost:28081
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-        run: cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
-
-      # The same for an IMAP account, whose authorization server is learnt over HTTPS only: the
-      # provider's own autoconfig naming an issuer, the capability probe, registration, the code
-      # exchange and a connect over OAUTHBEARER, against the sign-in server as its HTTPS front
-      # presents it. The seeded server is asserted to stay on "only pre-registered apps".
-      # MAILCAL_EXTRA_CA is the harness's own certificates, which a debug build trusts.
-      - name: Run the gated IMAP sign-in live tests
-        env:
-          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
-          MAILCAL_HARNESS_IMAP: localhost:12993
-          MAILCAL_HARNESS_OAUTH_IMAP: localhost:12995
-        run: |
-          scripts/dev/harness.sh certs
-          cargo test -p mailcal-account --test live_imap_auth -- --nocapture
-          cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
-
-      # Shared mailboxes over JMAP and IMAP: alice's sign-in lists the `support` group mailbox,
-      # and choosing it syncs the group's mail, sends as its address and files the copy in its
-      # own Sent.
-      - name: Run the gated shared-mailbox live test
-        env:
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
-          MAILCAL_HARNESS_IMAP: localhost:12993
-        run: cargo test -p mailcal-bindings --test live_shared_mailboxes -- --nocapture
-
-      # A conversation's row menu over JMAP and IMAP: the three seeded conversations are gathered
-      # from the Inbox, Sent Items and Drafts, and each menu answers its newest message.
-      - name: Run the gated row-menu live test
-        env:
-          STALWART_HTTP_ADDR: 127.0.0.1:28080
-          MAILCAL_EXTRA_CA: ${{ github.workspace }}/docker/stalwart/tls/harness-ca.pem
-          MAILCAL_HARNESS_IMAP: localhost:12993
-        run: cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
+      # Every gated live suite against the harness, from the one list `harness.sh test` keeps, so a
+      # suite added there runs here too: JMAP and IMAP accounts, their sign-ins through the
+      # harness's sign-in server and its HTTPS front, shared mailboxes, row menus, link suggestions
+      # and calendars that sign in or split off. The script reads the harness's certificates first,
+      # which a debug build trusts through MAILCAL_EXTRA_CA.
+      - name: Run the gated live suites
+        run: scripts/dev/harness.sh test
 
       - name: Dump Stalwart logs on failure
         if: failure()
@@ -706,9 +664,10 @@ jobs:
           key: ${{ steps.warm-sim.outputs.key }}
 
       # The UI suite (clients/apple/UITests), on a simulator the script boots once the app is
-      # built. Every test drives the in-memory showcase dataset, so this needs no Docker harness, no
-      # account and no network, which is the same trade the Windows UI job makes with
-      # `-Dataset showcase,first-run`.
+      # built. Every test it runs drives the in-memory showcase dataset, so this needs no Docker
+      # harness, no account and no network, which is the same trade the Windows UI job makes with
+      # `-Dataset showcase,first-run`. `AccountPageTests` drives the harness instead, and so is not
+      # among them.
       #
       # This is also what builds the iOS app, against the same simulator it then tests on: a
       # `generic/platform=iOS Simulator` destination has no active arch, so it can compile x86_64
@@ -725,12 +684,13 @@ jobs:
       # **Five classes of seventeen, and that is the ten-minute budget rather than a judgement
       # about the rest.**
       # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
-      # launch per test. The five that run are the five that hold something written down: the
+      # launch per test. The six that run are the six that hold something written down: the
       # action row's order and the header that scrolls out from under it
       # (docs/reading-actions.md), the calendar pinch (docs/calendar.md), which is also the
       # regression test for a gesture that reached the iOS grid not at all, Settings as the one
       # place a later account is added (docs/settings.md), and the question a server found on
-      # another site asks before anything is sent to it (docs/account-autodetect.md rule 14). The
+      # another site asks before anything is sent to it (docs/account-autodetect.md rule 14), and
+      # each tab's own notice with its button (docs/notices.md rules 2 and 11). The
       # rest run from `clients/apple/Scripts/test-ui.sh` on a developer's machine;
       # `ComposerPresentationTests` is the slowest class in the bundle by some way. Add a `--only`
       # below to move one in.
@@ -740,7 +700,7 @@ jobs:
           clients/apple/Scripts/test-ui.sh --no-core --with-kit \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests --only SettingsAddAccountTests \
-            --only ServerChangeTests
+            --only ServerChangeTests --only NoticeTests
 
       # A pull request compiles everything the step above runs (the app, the UI suite and
       # MailcalKit's suite, all for the simulator) and boots nothing (rule 5 at the top of this
@@ -1165,6 +1125,12 @@ jobs:
       - name: Clippy (warnings as errors)
         run: cargo clippy -p mailcal-linux --all-targets --all-features -- -D warnings
 
+      - name: Check what ships (release, default features)
+        # Clippy above compiles the dev fixtures and the showcase hooks; this is the code the
+        # Flatpak and snap compile, where anything only those hooks use is dead code, and dead code
+        # under the workspace's `-D warnings` is a failed release.
+        run: cargo check -p mailcal-linux --release
+
       - name: Build the unit tests
         # Before the compositor starts, so it has to stay up for the seconds the tests run rather
         # than for the minute the build takes as well.
@@ -1277,6 +1243,93 @@ jobs:
           path: target/snap/*.snap
           if-no-files-found: error
 
+  linux-native:
+    # The tarball a native package is made from (clients/linux/package-native.sh): the release
+    # binaries and the files installed beside them, linked against Ubuntu 26.04's own GTK,
+    # libadwaita and WebKitGTK rather than a runtime's. A publisher packs it as a `.deb` and as an
+    # AUR package. Tag-only for the reason in this file's header, on both architectures because
+    # each is its own compile.
+    name: Linux native (${{ matrix.arch }})
+    needs: changes
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-26.04
+          - arch: aarch64
+            runner: ubuntu-26.04-arm
+    steps:
+      - name: Check out the product core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install GTK4 + libadwaita + WebKitGTK and the metadata validators
+        # The mirror bound the Linux job explains.
+        timeout-minutes: 5
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            pkg-config libgtk-4-dev libadwaita-1-dev libwebkitgtk-6.0-dev \
+            desktop-file-utils appstream
+
+      - name: Install the pinned Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: ${{ needs.changes.outputs.toolchain }}
+
+      - name: Build the native tarball
+        env:
+          # As for the Flatpak bundle above: a tag build that lost its registrations fails.
+          MAILCAL_REQUIRE_INJECTED_CONFIG: 1
+        run: clients/linux/package-native.sh
+
+      - name: Keep the tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mailcal-native-${{ matrix.arch }}
+          path: |
+            target/native/*.tar.xz
+            target/native/*.tar.xz.sha256
+          if-no-files-found: error
+
+  linux-native-arch:
+    # The claim the native tarball rests on: built on Ubuntu 26.04, it runs on a distribution whose
+    # libraries are newer. This checks it against today's Arch, in a pinned image brought up to
+    # date, so a soname Arch has moved on from fails here rather than in a user's AUR helper.
+    # x86_64 only, because Arch publishes no arm64 image.
+    name: Linux native on Arch
+    needs: linux-native
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    container: archlinux:base-devel@sha256:767de6eaa40dcfeda5263a48737ea03a782caabdf3a403b6e6a203c7fd333681
+    steps:
+      - name: Install Arch's GTK, libadwaita and WebKitGTK
+        run: pacman -Syu --noconfirm --needed gtk4 libadwaita webkitgtk-6.0
+
+      - name: Take the x86_64 tarball
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mailcal-native-x86_64
+          path: native
+
+      - name: Every library the binaries need resolves
+        run: |
+          set -euo pipefail
+          cd native && sha256sum --check ./*.sha256
+          mkdir root && tar -C root -xJf ./*.tar.xz
+          status=0
+          for binary in root/usr/bin/*; do
+            missing="$(ldd "$binary" | grep 'not found' || true)"
+            if [ -n "$missing" ]; then
+              echo "::error::${binary##*/} needs libraries this Arch does not have: $missing"
+              status=1
+            fi
+          done
+          exit "$status"
+
   unbranded:
     # The build every from-source checkout makes: no OAuth registrations, no Allodia sign-in, no
     # analytics relay. It is a supported build (BUILDING.md) and it has to stay green — but until
@@ -1346,7 +1399,7 @@ jobs:
   ci-ok:
     name: CI OK
     if: always()
-    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap]
+    needs: [changes, checks, lint, unbranded, jmap-stalwart, apple, windows, android, android-native-fault, linux, linux-snap, linux-native, linux-native-arch]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

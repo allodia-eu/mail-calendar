@@ -5,6 +5,7 @@
 // Saving tries the servers before keeping them (update_account_endpoints), so a typo never costs
 // a working account, and an expired password is replaced here too.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -128,52 +129,42 @@ public sealed partial class SettingsDialog
 
     /// <summary>Removing the account, confirmed inline and naming the accounts that lose their
     /// link to it. Last on the page, below everything the person might adjust.</summary>
-    private UIElement RemoveGroup(AccountEntry entry)
+    private UIElement RemoveGroup(AccountEntry entry, ControlState control)
     {
         var stack = new StackPanel { Spacing = 8 };
-        var remove = new Button { Content = L10n.ActionRemoveAccount() };
-        AutomationProperties.SetAutomationId(remove, "AccountRemove");
-        var confirm = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
         var message = L10n.RemoveAccountMessage(AccountNameText.Of(entry));
         if (AccountSettingsRules.Unlinked(entry, AccountNameText.Words) is { } unlinked)
         {
             message += " " + L10n.RemoveAccountUnlinks(unlinked);
         }
-        confirm.Children.Add(Heading(L10n.RemoveAccountTitle()));
-        var text = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap };
-        AutomationProperties.SetAutomationId(text, "AccountRemoveMessage");
-        confirm.Children.Add(text);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var cancel = new Button { Content = L10n.ActionCancel() };
-        var confirmed = new Button { Content = L10n.ActionRemove() };
-        AutomationProperties.SetAutomationId(confirmed, "AccountRemoveConfirm");
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(confirmed);
-        confirm.Children.Add(buttons);
-        remove.Click += (_, _) =>
+        StackPanel? remove = null;
+        var asking = $"remove:{entry.Id}";
+        // The page runs the removal and goes back to the list once the account is gone; an erase
+        // that failed is said there (MailboxModel.RemovalFailed).
+        var confirm = new ConfirmPanel(
+            L10n.RemoveAccountTitle(), message, L10n.ActionRemove(), "AccountRemove", yes =>
+            {
+                _confirmOpen = null;
+                remove!.Visibility = Visibility.Visible;
+                if (yes)
+                {
+                    _model.ChangeAccount(new AccountPageIntent.Remove(entry.Id));
+                }
+            });
+        remove = ControlComponents.Button(L10n.ActionRemoveAccount(), control, "AccountRemove", () =>
+        {
+            _confirmOpen = asking;
+            remove!.Visibility = Visibility.Collapsed;
+            confirm.Show();
+        });
+        if (_confirmOpen == asking)
         {
             remove.Visibility = Visibility.Collapsed;
-            confirm.Visibility = Visibility.Visible;
-        };
-        cancel.Click += (_, _) =>
-        {
-            confirm.Visibility = Visibility.Collapsed;
-            remove.Visibility = Visibility.Visible;
-        };
-        confirmed.Click += async (_, _) =>
-        {
-            confirmed.IsEnabled = false;
-            var error = await _model.RemoveAccountFromSettingsAsync(entry.Id);
-            // Back to the list either way: the core has let go of the account. What can still
-            // fail is erasing its stored sign-in, which would bring it back at the next launch,
-            // so that is said rather than left to surprise.
-            _accountPage = null;
-            NotifyAccounts(error is null
-                ? null
-                : new AccountNotice(InfoBarSeverity.Error, string.Empty, L10n.RemoveAccountFailed(error)));
-        };
+            confirm.Show();
+        }
+        confirm.Enabled = control.Enabled;
         stack.Children.Add(remove);
-        stack.Children.Add(confirm);
+        stack.Children.Add(confirm.Element);
         return stack;
     }
 }

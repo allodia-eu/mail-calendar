@@ -43,6 +43,7 @@ mod emit_rust;
 mod emit_swift;
 mod emit_winui;
 pub mod model;
+mod notice_lookup;
 mod parse;
 mod validate;
 

@@ -31,6 +31,7 @@ fn create(invitees: Option<Vec<Invitee>>) -> Intent {
         location: None,
         recurrence: None,
         invitees,
+        meeting: None,
     })
 }
 

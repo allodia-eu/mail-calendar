@@ -262,7 +262,8 @@ already does for Microsoft.
 **Where the screen is.** Settings → **Allodia account**, the first category and one of its own: an
 Allodia account is not a mail account, so it never appears among them
 ([`docs/settings.md`](../docs/settings.md)). It is also offered on the screen that adds the first
-mail account ([`docs/onboarding.md`](../docs/onboarding.md)); those are the only two places.
+mail account ([`docs/onboarding.md`](../docs/onboarding.md)); those are the only two places it is
+offered. A sign-in the service refused is also said in a banner, below.
 
 Four states and no more: signed out offers **both** a sign-in and a create, because someone who has
 no account and someone returning to one need different first steps and guessing wrong costs a
@@ -270,6 +271,34 @@ round trip; a sign-in in flight shows progress and no button to press again; a s
 names the **address** (the name only when the service holds one, because the address is what
 identifies the account) and offers **Manage account** and **Sign out**; a failure says what the
 service said.
+
+**A grant the service refused is a fifth state, drawn in place of the signed-in one.** The card
+names the address in "your sign-in as … has ended", offers **Sign in again** and **Sign out**, and
+draws no Manage account and no subscription section: the page would ask for a sign-in, and the read
+cannot succeed. Waiting never brings a refused grant back, so the outage sentence is never drawn
+for it. The card reads `ConnectivitySnapshot::allodia_sign_in_ended`, the
+same field the notice below is raised from, so the two cannot disagree; a subscription read that answers
+`AllodiaPurchaseError::SignedOut` raises it, and the screen redraws on the `Surface::Connectivity`
+signal like any other prompt. The stored grant is kept until the person acts, so the card can
+still say whose sign-in ended.
+
+**A refused sign-in is also a notice** ([`docs/notices.md`](../docs/notices.md)), on every screen,
+because nobody opens Settings to find out that a sign-in ended. The core raises it from
+`ConnectivitySnapshot::allodia_sign_in_ended`, the address, and signals `Surface::Notices` whenever
+it is raised or taken down. A refusal raises it and nothing else does; a sign-in or a sign-out takes
+it down, and so does a later call the service answers. Its words are `notice_allodia_sign_in_ended`
+and its one action, `SignInToAllodia`, runs the ordinary sign-in from where it is; a sign-in that
+does not complete is reported as a failed remedy and said on the notice, and a dismissed browser
+says nothing. There is no notice for `NeedsReauth`, which is an offer and stays on the account
+screen.
+
+**The notice is Degraded, and Blocked near a lapse.**
+Mail, calendar and contacts all work without the Allodia account, so a refused grant is Degraded.
+It is raised to Blocked while the stored answer grants a paid capability whose grace (above) ends
+within seven days, because from then on signing in again is what keeps that capability. Grace,
+not `currentPeriodEnd`, is the horizon: the period end is for display, and the grace is what this
+device will actually stop granting on. The rise is read from the stored answer, so it arrives with
+the entitlement read the matrix below plans.
 
 **Create is a `prompt` on the same request, never a second URL.** The authorization endpoint is
 discovered, so a literal sign-up address would be a second source of truth and would ignore
@@ -336,6 +365,8 @@ the service verifies, because neither is written down here.
 | Manage or delete the account, in the service's own page | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Read an entitlement, with the grace and degrade rules above | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Tell a narrowed grant from a revoked one, and prompt for the right one | ✅ | 🚧 | 🚧 | ✅ | 🚧 | 🚧 |
+| Draw a refused grant as ended, with sign in again, on the account card | ✅ | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
+| Say a refused grant in the app's banner, with sign in again | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Signing in again widens the grant, end to end | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
 | Draw a paid capability | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 

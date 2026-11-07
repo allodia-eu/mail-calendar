@@ -39,7 +39,7 @@ winget install Microsoft.WinAppCLI             # 0.7 or later, once, for pressin
 ## 0.5. Before writing a one-off script, check whether it belongs in the suite
 
 There is a standing set of UI suites, [`clients/windows/Mailcal.UiTests`](../../../clients/windows/Mailcal.UiTests),
-run with `./clients/windows/uitests/run-ui-tests.ps1` (or `dotnet test` on the project). They reach
+run with `./clients/windows/uitests/run-ui-tests.ps1` (or `dotnet run --project` on it). They reach
 the app through its debug-only **test agent**, which walks the automation peers on the app's own UI
 thread, so a lookup costs milliseconds rather than a cross-process walk. Read the project's README
 before adding a case: it carries the agent's traps and the rules for writing one.

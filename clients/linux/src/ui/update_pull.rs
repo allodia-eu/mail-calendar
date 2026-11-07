@@ -6,9 +6,7 @@
 
 use mailcal_bindings::{SendStatus, Surface};
 
-use super::{
-    AppModel, connectivity::ConnectivityState, sync_line, unfiled_copy::UnfiledCopyNotice,
-};
+use super::{AppModel, sync_line, unfiled_copy::UnfiledCopyNotice};
 use crate::l10n;
 
 impl AppModel {
@@ -80,17 +78,19 @@ impl AppModel {
             Surface::Settings => {
                 self.calendar.refresh_settings(&app);
                 self.settings.signalled();
+                // After the signal's redraw, so a notice it raises is drawn rather than skipped.
+                self.account_work_signalled();
                 // A link suggestion the core found after the link step was drawn.
                 self.refresh_link_step();
             }
-            // Both signals can change what an account's row says.
-            Surface::Connectivity => {
-                self.connectivity = ConnectivityState::pull(&app, &self.snapshot.accounts);
-                self.settings.signalled();
-            }
+            // It can change what an account's row in Settings says. What it raises for the
+            // person to act on arrives as the notices signal that follows it.
+            Surface::Connectivity => self.settings.signalled(),
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).
             Surface::DraftStatus => self.pull_draft_status(),
+            // Read on its own: nothing heavier is reloaded for it.
+            Surface::Notices => self.pull_notices(),
         }
     }
 }

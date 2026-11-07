@@ -61,6 +61,8 @@ pub(super) struct HostTasks {
     /// Signing a separate calendar server in at its own provider
     /// (`super::separate_server_sign_in`).
     pub(super) separate: AttemptSlot,
+    /// Signing in with Nextcloud from setup (`super::setup_nextcloud`).
+    pub(super) nextcloud: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
 }
 
@@ -149,6 +151,7 @@ impl HostTasks {
             consent: AttemptSlot::empty(),
             account_sign_in: AttemptSlot::empty(),
             separate: AttemptSlot::empty(),
+            nextcloud: AttemptSlot::empty(),
             jmap_loopback: None,
         }
     }
@@ -329,18 +332,6 @@ impl AppModel {
         });
     }
 
-    pub(super) fn remove_account(&mut self, id: String, sender: relm4::Sender<AppInput>) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        std::thread::spawn(move || {
-            // The core erases the stored credential through the host's `AccountCredentialStore`,
-            // so removing the Secret Service item here as well would be a second, racing delete.
-            let result = app.remove_account(id).map_err(|error| error.to_string());
-            sender.emit(AppInput::AccountRemoved(result));
-        });
-    }
-
     pub(super) fn collect_new_mail(&mut self, sender: relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {
             return;
@@ -395,9 +386,8 @@ impl AppModel {
             self.notice = None;
             if let Some(app) = &self.app {
                 self.snapshot.replace(app.mailbox_list());
-                self.connectivity =
-                    super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
             }
+            self.pull_notices();
         } else {
             self.credential_repair_failed = Some(account);
             self.notice = Some(crate::l10n::signin_expired_failed().to_owned());

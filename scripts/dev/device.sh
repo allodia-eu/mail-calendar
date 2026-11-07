@@ -5,9 +5,9 @@
 #
 # The simulator boot path is scripts/dev/boot.sh; this is its physical-device sibling. It encodes
 # the bits that otherwise cost a round of trial-and-error (all resolved by scripts/dev/lib.sh):
-# the signing team (from the cert OU, not the cert id), the Developer-Mode precondition, and
-# terminate-BEFORE-launch (a launch over a live process only re-foregrounds it, so no fresh onAppear
-# fires the MAILCAL_* hook).
+# the signing team (signing.local.xcconfig's, else the cert OU, never the cert id), the
+# Developer-Mode precondition, and terminate-BEFORE-launch (a launch over a live process only
+# re-foregrounds it, so no fresh onAppear fires the MAILCAL_* hook).
 #
 #   scripts/dev/device.sh doctor              # device / Developer Mode / signing team; run first
 #   scripts/dev/device.sh build [--core]      # device-signed Debug build (--core rebuilds Rust)

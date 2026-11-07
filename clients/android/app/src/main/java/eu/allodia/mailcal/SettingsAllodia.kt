@@ -30,16 +30,24 @@ import uniffi.mailcal_bindings.MailcalException
  *
  * [available] is what this build carries, false for a build from source, and the card is then not
  * mounted at all. [failure] is the line the card shows, as [allodiaFailureSaid] puts it.
+ * [signInEnded] is whether the core's connectivity snapshot names a refused Allodia sign-in.
  */
 internal data class AllodiaSettings(
     val available: Boolean = false,
     val account: AllodiaAccount? = null,
     val signingIn: Boolean = false,
     val failure: String? = null,
-)
+    val signInEnded: Boolean = false,
+) {
+    // The service refused the stored grant. The account is still named, because the grant is kept
+    // until the person acts, but nothing it held can be reached and waiting will not change that.
+    val sessionEnded: Boolean
+        get() = account != null && signInEnded
+}
 
 /**
- * Signed out → sign in or create; signing in → a spinner; signed in → who, and what to do about it.
+ * Signed out → sign in or create; signing in → a spinner; signed in → who, and what to do about it;
+ * a sign-in the service ended → which one, and the two ways on from it.
  *
  * Both routes are offered when signed out because someone who has no account and someone returning
  * to one need different pages, and guessing wrong costs a round trip through a form they did not
@@ -68,6 +76,24 @@ internal fun AllodiaAccountCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp),
                     )
+                }
+                state.sessionEnded && state.account != null -> {
+                    Text(
+                        L10n.settings_allodia_session_ended(ctx, state.account.email),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        L10n.settings_allodia_session_ended_hint(ctx),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // The ordinary sign-in: it replaces the stored grant once it completes.
+                    TextButton(onClick = onSignIn) {
+                        Text(L10n.settings_allodia_reauth_action(ctx))
+                    }
+                    TextButton(onClick = onSignOut) {
+                        Text(L10n.settings_allodia_sign_out(ctx))
+                    }
                 }
                 state.account != null -> {
                     // The name is what the person recognises, but the address is what identifies

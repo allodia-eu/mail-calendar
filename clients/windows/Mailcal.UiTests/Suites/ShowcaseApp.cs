@@ -2,6 +2,7 @@
 // accounts, deterministic, English unless a fixture says otherwise. The showcase engine performs no
 // real mail action, so anything that has to survive a round trip is a harness suite's.
 
+using System.Runtime.CompilerServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
@@ -45,7 +46,8 @@ public sealed class FirstRunApp : HarnessApp
 /// </summary>
 public sealed class OfflineFactAttribute : FactAttribute
 {
-    public OfflineFactAttribute()
+    public OfflineFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
         if (!App.HasBuild())
         {

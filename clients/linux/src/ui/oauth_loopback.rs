@@ -21,6 +21,8 @@ const MAX_REQUEST_BYTES: usize = 16 * 1024;
 pub(super) enum CallbackOutcome {
     Received(String),
     Cancelled,
+    /// Nothing came back before the wait ran out: the browser was left, or closed.
+    TimedOut(String),
     Failed(String),
 }
 
@@ -146,9 +148,9 @@ impl OAuthLoopback {
         if self.lingers {
             self.linger(match outcome {
                 CallbackOutcome::Received(_) => l10n::sign_in_page_done(),
-                CallbackOutcome::Cancelled | CallbackOutcome::Failed(_) => {
-                    l10n::sign_in_page_ended()
-                }
+                CallbackOutcome::Cancelled
+                | CallbackOutcome::TimedOut(_)
+                | CallbackOutcome::Failed(_) => l10n::sign_in_page_ended(),
             });
         }
         outcome
@@ -198,7 +200,7 @@ impl OAuthLoopback {
                 return CallbackOutcome::Cancelled;
             }
             if Instant::now() >= deadline {
-                return CallbackOutcome::Failed(timeout_message.to_owned());
+                return CallbackOutcome::TimedOut(timeout_message.to_owned());
             }
             match self.listener.accept() {
                 Ok((mut stream, peer)) if peer.ip().is_loopback() => {

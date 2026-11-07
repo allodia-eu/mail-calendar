@@ -22,6 +22,7 @@ pub(super) fn new(
     header.set_title_widget(Some(&adw::WindowTitle::new(title, "")));
     window.set_titlebar(Some(&header));
     window.add_controller(escape_closes());
+    super::nextcloud_flight::wake_on_return(&window);
     (window, header)
 }
 

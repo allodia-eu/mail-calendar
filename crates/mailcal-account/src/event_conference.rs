@@ -147,7 +147,7 @@ fn dial_in(entry: &EntryPoint) -> Option<DialIn> {
 }
 
 /// The name a service goes by, or `None` for one this build does not know.
-fn service_name(service: &ConferenceService) -> Option<&'static str> {
+pub(crate) fn service_name(service: &ConferenceService) -> Option<&'static str> {
     Some(match service {
         ConferenceService::Teams => "Microsoft Teams",
         ConferenceService::SkypeForBusiness => "Skype for Business",

@@ -60,17 +60,17 @@ if (-not $IsWindows) {
   exit 0
 }
 
-# Each suite is a `<Name>Tests` class in Mailcal.UiTests/Suites, matched by -Filter as `<Name>.Tests`,
-# and declares its dataset as a trait. One that declares none would run under no -Dataset at all.
-$suites = @(Get-ChildItem -Path (Join-Path $project 'Suites') -Filter '*Tests.cs' | ForEach-Object {
-    $declared = Select-String -LiteralPath $_.FullName -Pattern '\[Trait\("Dataset", "([a-z-]+)"\)\]' | Select-Object -First 1
-    if (-not $declared) { throw "$($_.Name) declares no [Trait(""Dataset"", …)], so no -Dataset would run it" }
-    [pscustomobject]@{
-      Name    = ($_.BaseName -replace 'Tests$', '') + '.Tests'
-      Class   = $_.BaseName
-      Dataset = $declared.Matches[0].Groups[1].Value
-    }
-  } | Where-Object { $_.Name -like $Filter } | Sort-Object Name)
+# Each suite is a `<Name>Tests` class, matched by -Filter as `<Name>.Tests`, and declares its
+# dataset as a trait. Both are read from the suites' own listing of what they compiled rather than
+# from their source, and a suite that declares none is refused rather than never run.
+$build = & dotnet build $project --nologo -v q 2>&1
+if ($LASTEXITCODE -ne 0) {
+  $build | ForEach-Object { Write-Host $_ }
+  throw "the UI suites did not build"
+}
+$listing = & dotnet run --project $project --no-build -- -list full/json 2>&1
+if ($LASTEXITCODE -ne 0) { throw "the UI suites could not list their cases: $($listing -join ' ')" }
+$suites = @(ConvertFrom-AgentTestList -Listing ($listing -join "`n") | Where-Object { $_.Name -like $Filter } | Sort-Object Name)
 if (-not $suites) { throw "no suite in $project matched -Filter '$Filter'" }
 
 $excluded = @($suites | Where-Object { $Dataset -notcontains $_.Dataset })
@@ -82,35 +82,42 @@ $wall = [Diagnostics.Stopwatch]::StartNew()
 
 if ($chosen) {
   Write-Host "==> $(($chosen.Name) -join ', ')" -ForegroundColor Cyan
-  $filterExpression = ($chosen | ForEach-Object { "FullyQualifiedName~.Suites.$($_.Class)." }) -join '|'
+  # The suites are a program of their own (xUnit v3), run directly rather than through a test host.
+  # The verbose reporter prints each case as it starts and as it ends, so a run cut short, by a hang
+  # or a job's time limit, shows the case it was in; the summary below is read from the report.
+  $report = Join-Path ([IO.Path]::GetTempPath()) "mailcal-uitests-$PID.xml"
+  $arguments = @('-noLogo', '-reporter', 'verbose', '-result-xml', $report) +
+    @($chosen | ForEach-Object { '-class', "Allodia.Mailcal.UiTests.Suites.$($_.Class)" })
   # MAILCAL_UITESTS_REQUIRE_HARNESS turns a missing harness from a skip into a failure, as
   # -RequireHarness promises.
   if ($RequireHarness) { $env:MAILCAL_UITESTS_REQUIRE_HARNESS = '1' }
   # What a failing case leaves is named after the case, so one left by an earlier run would read as
-  # this run's.
+  # this run's; so would an earlier run's report.
   Remove-Item (Join-Path $project 'failures') -Recurse -Force -ErrorAction SilentlyContinue
+  Remove-Item $report -ErrorAction SilentlyContinue
   try {
-    $output = & dotnet test $project --nologo --filter $filterExpression --logger 'console;verbosity=normal' 2>&1 |
-      ForEach-Object { "$_" }
+    & dotnet run --project $project --no-build -- @arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -Variable output | ForEach-Object { Write-Host $_ }
     $exit = $LASTEXITCODE
   }
   finally {
     Remove-Item env:MAILCAL_UITESTS_REQUIRE_HARNESS -ErrorAction SilentlyContinue
   }
-  $result = ConvertFrom-AgentTestOutput -Lines $output
-  $passed = $result.Passed
-  $failed = $result.Failed
-  $skipped = $result.Skipped
-  foreach ($line in $result.Order) {
-    switch ($line.Outcome) {
-      'Passed' { Write-Host "  PASS  $($line.Case)" -ForegroundColor Green }
-      'Skipped' { Write-Host "  SKIP  $($line.Case)" -ForegroundColor Yellow }
-      'Failed' { Write-Host "  FAIL  $($line.Case)" -ForegroundColor Red; Write-Host "        $($line.Why)" -ForegroundColor Red }
+  if (Test-Path $report) {
+    # A report cut short is a failure to name, not a reason to skip the summary and leave the app up.
+    try {
+      $result = ConvertFrom-AgentTestReport -Report ([xml] (Get-Content -Raw $report))
+      $passed = $result.Passed
+      $failed = $result.Failed
+      $skipped = $result.Skipped
     }
+    catch {
+      $failed += "the suites' report could not be read: $($_.Exception.Message)"
+    }
+    Remove-Item $report -ErrorAction SilentlyContinue
   }
-  # A build that failed, or a run that reported nothing, is a failure that names no case.
+  # A run that wrote no report is a failure that names no case.
   if ($exit -ne 0 -and $failed.Count -eq 0) {
-    $failed += "dotnet test exited $exit without a failing case; its output ends: $(($output | Select-Object -Last 5) -join ' | ')"
+    $failed += "the suites exited $exit without a failing case; their output ends: $((@($output) | Select-Object -Last 5) -join ' | ')"
   }
 }
 

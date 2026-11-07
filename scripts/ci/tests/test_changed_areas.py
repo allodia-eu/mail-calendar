@@ -133,6 +133,21 @@ class ChangedAreas(unittest.TestCase):
             if area != "rust":
                 self.assertRegex(result.stdout, rf"{area}\s+false")
 
+    def test_the_dotnet_settings_build_only_windows(self) -> None:
+        """Only the Windows job runs dotnet, so the SDK's settings need no other client's build."""
+        result = subprocess.run(
+            bash_argv(str(SCRIPT), "--files", "-"),
+            check=True,
+            capture_output=True,
+            text=True,
+            input="global.json\n",
+            env={**os.environ, "FORCE_AREAS": ""},
+        )
+        self.assertRegex(result.stdout, r"windows\s+true")
+        for area in AREAS:
+            if area != "windows":
+                self.assertRegex(result.stdout, rf"{area}\s+false")
+
 
 if __name__ == "__main__":
     unittest.main()

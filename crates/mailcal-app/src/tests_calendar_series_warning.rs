@@ -53,6 +53,7 @@ fn nothing() -> EventEdit {
         recurrence: None,
         occurrence: None,
         times_from_occurrence: None,
+        meeting: None,
     }
 }
 

@@ -20,17 +20,21 @@ namespace Allodia.Mailcal.Dialogs;
 /// <summary>The separate-server form's controls, for the caller that wires its buttons.</summary>
 internal sealed record SeparateServerForm(
     SeparateServerStep Step, StackPanel Panel, TextBlock Title, TextBox Username, PasswordBox Password, InfoBar Error, Button Connect, Button Secondary,
-    SeparateServerSignInRow SignIn)
+    SeparateServerSignInRow SignIn, ProgressRing Working)
 {
     // Whether a password's connect is running, which an offer answering meanwhile leaves disabled.
     private bool _connecting;
 
-    /// <summary>Disables the form while a connect runs, and enables it again after.</summary>
+    /// <summary>Disables the form while a connect or a skip runs, turning the ring beside its
+    /// buttons, and enables it again after. A connect can take a while: the mailbox's calendar
+    /// and contacts move to the new account and the mailbox is dialled again.</summary>
     internal void Busy(bool busy)
     {
         _connecting = busy;
         Username.IsEnabled = Password.IsEnabled = Connect.IsEnabled = Secondary.IsEnabled = !busy;
         SignIn.Button.IsEnabled = !busy;
+        Working.IsActive = busy;
+        Working.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Draws the sign-in at the server's own provider as <paramref name="signIn"/> has
@@ -39,8 +43,16 @@ internal sealed record SeparateServerForm(
     /// account's page does not, its form's Cancel being that way back.</summary>
     internal void Draw(SeparateServerSignIn signIn, bool cancelOwn)
     {
-        var offered = signIn.Offers(Step);
+        var offer = signIn.Offer(Step);
+        var offered = offer != SeparateSignInOffer.None;
         SignIn.Panel.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
+        // Nextcloud's sign-in is named as itself, and says where the person is while the browser
+        // holds it (docs/nextcloud-sign-in.md rule 5).
+        var nextcloud = offer == SeparateSignInOffer.Nextcloud;
+        SignIn.Button.Content = nextcloud ? L10n.NextcloudSignInButton() : L10n.SetupImapSigninButton();
+        SignIn.Note.Text = !nextcloud ? L10n.SetupImapSigninNote()
+            : signIn.Phase == SeparateSignInPhase.Waiting ? L10n.NextcloudSignInWaiting()
+            : L10n.NextcloudSignInNote();
         // One primary action: the sign-in where it is offered, Connect otherwise.
         var style = (Style)Application.Current.Resources[offered ? "DefaultButtonStyle" : "AccentButtonStyle"];
         if (!ReferenceEquals(Connect.Style, style))
@@ -74,9 +86,10 @@ internal sealed record SeparateServerForm(
 /// answers it as Cancel.</summary>
 internal sealed record UnreachedPrompt(Task<UnreachedAnswer> Answer, Action Dismiss);
 
-/// <summary>The sign-in at the server's own provider, above the login: the button, its Cancel
-/// and ring while an attempt is out, and the note beneath. Collapsed until the core offers it.</summary>
-internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring);
+/// <summary>The sign-in at the server's own provider, or Nextcloud's, above the login: the button,
+/// its Cancel and ring while an attempt is out, and the note beneath. Collapsed until the core
+/// offers it.</summary>
+internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring, TextBlock Note);
 
 internal static class UnreachedUsesViews
 {
@@ -227,10 +240,20 @@ internal static class UnreachedUsesViews
         AutomationProperties.SetAutomationId(connect, "SeparateServerConnect");
         var other = new Button { Content = secondary };
         AutomationProperties.SetAutomationId(other, "SeparateServerSecondary");
+        var working = new ProgressRing
+        {
+            Width = 20,
+            Height = 20,
+            IsActive = false,
+            Visibility = Visibility.Collapsed,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AutomationProperties.SetAutomationId(working, "SeparateServerWorking");
         buttons.Children.Add(connect);
         buttons.Children.Add(other);
+        buttons.Children.Add(working);
         panel.Children.Add(buttons);
-        return new SeparateServerForm(step, panel, title, login, password, error, connect, other, signIn);
+        return new SeparateServerForm(step, panel, title, login, password, error, connect, other, signIn, working);
     }
 
     private static SeparateServerSignInRow SignInRow()
@@ -257,12 +280,14 @@ internal static class UnreachedUsesViews
         buttons.Children.Add(cancel);
         buttons.Children.Add(ring);
         panel.Children.Add(buttons);
-        panel.Children.Add(new TextBlock
+        var note = new TextBlock
         {
             Text = L10n.SetupImapSigninNote(),
             Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
             TextWrapping = TextWrapping.Wrap,
-        });
-        return new SeparateServerSignInRow(panel, button, cancel, ring);
+        };
+        AutomationProperties.SetAutomationId(note, "SeparateServerSignInNote");
+        panel.Children.Add(note);
+        return new SeparateServerSignInRow(panel, button, cancel, ring, note);
     }
 }

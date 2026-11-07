@@ -22,7 +22,6 @@ using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 [Trait("Dataset", "harness")]
 public sealed class NotificationClickTests(NotificationHarnessApp harness) : IClassFixture<NotificationHarnessApp>
 {

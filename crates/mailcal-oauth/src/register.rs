@@ -80,8 +80,8 @@ pub enum DavUse {
 /// (Fastmail grants `urn:ietf:params:jmap:calendars` and `https://www.fastmail.com/dev/protocol-*`
 /// for a request naming `urn:ietf:params:oauth:scope:calendars`), so the granted set says only
 /// what was refused when it is written in the request's names. A grant that asked for no
-/// calendar scope has no claim on a calendar server, whatever that server accepts: Stalwart
-/// opens CalDAV for a mail-only token, so this check is the client's to make.
+/// calendar scope has no claim on a calendar server, whatever that server accepts: a server is not
+/// relied on to refuse a token without the scope, so this check is the client's to make.
 ///
 /// A sign-in that named no scope beyond `offline_access` is not refused: its issuer advertised
 /// none, applies its own default grant (RFC 6749 §3.3), and said nothing either way, as

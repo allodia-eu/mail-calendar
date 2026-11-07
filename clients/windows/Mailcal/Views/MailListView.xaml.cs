@@ -277,11 +277,6 @@ public sealed partial class MailListView : UserControl
     // dispatch the actions bar's Sync makes.
     private void OnRefresh(object sender, RoutedEventArgs e) => Model?.Refresh();
 
-    // Signs the first account whose mail writes the grant withholds in again, in place. The banner
-    // clears once a send or action succeeds; if several are affected it re-renders for the next
-    // after each completes.
-    private void OnMailReauth(object sender, RoutedEventArgs e) => Model?.ReconsentMail();
-
     /// <summary>
     /// The horizon line's "Change" link: opens Settings on the Accounts category, where the
     /// per-account sync depth lives. Raised as an event rather than opened here, the dialog needs
@@ -292,9 +287,4 @@ public sealed partial class MailListView : UserControl
 
     /// <summary>Raised when something in the list asks for a Settings category by tag.</summary>
     public event EventHandler<string>? SettingsRequested;
-
-    // Sign the first account with a dead grant back in. The model picks the flow from that
-    // account's provider; the button is hidden for a password/JMAP account (there is no browser
-    // flow to run), whose message points at Settings instead.
-    private void OnSignInExpired(object sender, RoutedEventArgs e) => Model?.ReconnectExpiredSignIn();
 }

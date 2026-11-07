@@ -1,7 +1,8 @@
 // A JMAP account whose pasted password stopped working, given a new one on its page in Settings →
 // Accounts (docs/accounts.md rule 11, the expired-sign-in prompt of rule 7): the server refuses the
-// stored secret, the window says so, the account's page offers the field, and the new secret
-// reconnects the account in place.
+// stored secret, the window says so in its notice bar and on the account's row, the notice opens the
+// account's page, which says it again and offers the field, and the new secret reconnects the account
+// in place (docs/notices.md).
 //
 // WHY HERE. The field is drawn only for an account the core reports as needing to sign in again,
 // which only a server refusing a real request produces, and what matters is that the secret typed
@@ -17,12 +18,13 @@ using Xunit;
 
 namespace Allodia.Mailcal.UiTests.Suites;
 
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 [Trait("Dataset", "harness")]
 public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {
     private const string Seeded = "harness-alice-pw";
     private const string Changed = "harness-alice-replaced-secret-pw";
+
+    private static readonly string Expired = App.NoticeWords("notice_signin_expired", Harness.Alice);
 
     private void Case(string name, Action<App, SetupFlow> body, bool changesPassword = false) =>
         harness.Case(name, app => body(app, new SetupFlow(app)), app =>
@@ -44,7 +46,7 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
             {
                 app.Agent.Invoke(sync);
             }
-            return app.Agent.Wait(Filter.ById("SignInExpiredBanner") with { OnScreen = true }, TimeSpan.FromSeconds(5)) is not null;
+            return app.WaitNotice(Expired, TimeSpan.FromSeconds(5)) is not null;
         }, TimeSpan.FromSeconds(45));
         Assert.True(expired, "the server refuses the stored secret, and the window never said the account has to sign in again");
     }
@@ -76,7 +78,9 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         Assert.True(app.Agent.Find(new Filter { Id = "AccountReplaceSecret", Under = dialog }) is null,
             $"{why}, so the page no longer asks for one: the core reconnected the account and its next answer cleared the expired sign-in");
         app.CloseDialogs();
-        Assert.True(app.Agent.Find(Filter.ById("SignInExpiredBanner") with { OnScreen = true }) is null, $"{why}, so the window's prompt is gone too");
+        Assert.True(App.Eventually(() => app.NoticeBar() is not { } bar || !app.Says(bar, Expired), TimeSpan.FromSeconds(10)),
+            $"{why}, so the window's notice is gone too");
+        Assert.True(app.AccountMark(Harness.Alice) is null, $"{why}, and so is the mark on the account's row");
     }
 
     [HarnessFact]
@@ -109,6 +113,30 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
             GiveSecret(app, flow, Seeded);
             AssertSignedIn(app, flow, "the seeded secret is the one the server holds again");
         }, changesPassword: true);
+
+    [HarnessFact]
+    public void TheNoticeMarksTheAccountAndOpensItsPage() => Case(nameof(TheNoticeMarksTheAccountAndOpensItsPage), (app, flow) =>
+    {
+        Harness.SetPassword("alice", Changed);
+        WaitSignInExpired(app);
+        app.CloseDialogs();
+        var bar = app.WaitNotice(Expired, TimeSpan.FromSeconds(10))
+            ?? throw new InvalidOperationException("the expired sign-in's notice went away on its own");
+        Assert.True(app.NoticeClose(bar) is null, "a sign-in that no longer works cannot be closed away: only signing in again ends it");
+        Assert.Equal(Catalog.English("notice_mark_signin_expired"), app.AccountMark(Harness.Alice));
+        // A password account has no browser sign-in to run, so its action opens its page.
+        var action = app.NoticeAction(bar) ?? throw new InvalidOperationException("the expired sign-in's notice offers no action");
+        Assert.Equal(Catalog.English("notice_action_open_account_settings"), action.Name);
+        app.Agent.Invoke(action);
+        var dialog = app.Dialog(Filter.ById("SettingsCategory_accounts"));
+        Assert.True(app.Agent.Wait(new Filter { Id = "AccountReplaceSecret", Under = dialog }, TimeSpan.FromSeconds(10)) is not null,
+            "the action opened the account's own page, where its secret is given");
+        var notice = app.Agent.Find(new Filter { Id = "AccountNotice", Under = dialog });
+        Assert.True(notice is not null && app.Says(notice, Expired), "and the page says the notice at its top");
+        Harness.SetPassword("alice", Seeded);
+        GiveSecret(app, flow, Seeded);
+        AssertSignedIn(app, flow, "the seeded secret is the one the server holds again");
+    }, changesPassword: true);
 
     [HarnessFact]
     public void AWrongSecretIsRefusedAndThePageKeepsAsking() => Case(nameof(AWrongSecretIsRefusedAndThePageKeepsAsking), (app, flow) =>

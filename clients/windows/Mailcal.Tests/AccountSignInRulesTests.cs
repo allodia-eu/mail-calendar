@@ -111,6 +111,59 @@ public class AccountSignInRulesTests
         Assert.Null(AccountSettingsRules.UpdateOffer(twice, string.Empty));
     }
 
+    private static AccountEntry Calendar(bool nextcloud, SignInMethod signIn) =>
+        AccountSettingsRulesTests.Entry(AccountKind.Dav, (AccountCapability.Calendar, CapabilityState.On))
+            with { SignIn = signIn, Nextcloud = nextcloud };
+
+    private static AccountSignInOptions NextcloudOffered(bool offered) => new(false, null, false, offered);
+
+    [Fact]
+    public void AnAccountANextcloudSignInMadeSignsInWithNextcloudAgainAndNeverSwitchesToAPassword()
+    {
+        // It reports Provider, which would otherwise read as a mailbox's provider sign-in.
+        var entry = Calendar(nextcloud: true, SignInMethod.Provider);
+        Assert.True(AccountSettingsRules.MayHaveSignInSection(entry));
+        Assert.True(AccountSettingsRules.SignInDrawnBeforeAnswer(entry));
+        Assert.Equal(
+            new SignInSection(true, false, false, null, false, Nextcloud: true),
+            AccountSettingsRules.SignIn(entry, null));
+        var section = AccountSettingsRules.SignIn(entry, NextcloudOffered(true) with { SignIn = true, Password = true });
+        Assert.Equal(new SignInSection(true, true, false, null, false, Nextcloud: true), section);
+        Assert.False(section!.OffersSwitch);
+    }
+
+    [Fact]
+    public void ATypedPasswordCalendarAccountAtNextcloudSwitchesToNextcloudByName()
+    {
+        var entry = Calendar(nextcloud: false, SignInMethod.Password);
+        Assert.True(AccountSettingsRules.MayHaveSignInSection(entry));
+        // Drawn only once its server has said it is Nextcloud.
+        Assert.False(AccountSettingsRules.SignInDrawnBeforeAnswer(entry));
+        Assert.Null(AccountSettingsRules.SignIn(entry, null));
+        Assert.Null(AccountSettingsRules.SignIn(entry, NextcloudOffered(false)));
+        var section = AccountSettingsRules.SignIn(entry, NextcloudOffered(true));
+        Assert.Equal(new SignInSection(false, false, true, "Nextcloud", false, Nextcloud: true), section);
+        // A calendar and contacts account has no mail or links for that line to keep.
+        Assert.False(section!.OffersSwitch);
+    }
+
+    [Fact]
+    public void AnExpiredNextcloudSignInIsSignedInWithNextcloudWhateverProviderItReports()
+    {
+        foreach (var provider in new AccountProvider?[] { AccountProvider.Password, AccountProvider.ImapOauth, null })
+        {
+            Assert.Equal(SignInRemedy.Nextcloud, AccountSettingsRules.Remedy(provider, nextcloud: true));
+        }
+    }
+
+    [Fact]
+    public void ARefusedNextcloudSignInOffersItsGrantAndNeverPrintsIt()
+    {
+        var offer = new ExistingAccountOffer("alice@cloud.example.org", string.Empty, [], NextcloudGrant: "secret");
+        Assert.DoesNotContain("secret", offer.ToString());
+        Assert.DoesNotContain("[imap]", new ExistingAccountOffer("a", "[imap]\npassword = \"x\"", []).ToString());
+    }
+
     [Fact]
     public void SwitchingHowAnAccountSignsInRedrawsItsPage()
     {
@@ -119,5 +172,9 @@ public class AccountSignInRulesTests
         Assert.NotEqual(
             drawn,
             AccountSettingsRules.Fingerprint(new AccountsSnapshot([password with { SignIn = SignInMethod.Provider }]), []));
+        var calendar = Calendar(nextcloud: false, SignInMethod.Password);
+        Assert.NotEqual(
+            AccountSettingsRules.Fingerprint(new AccountsSnapshot([calendar]), []),
+            AccountSettingsRules.Fingerprint(new AccountsSnapshot([calendar with { Nextcloud = true }]), []));
     }
 }

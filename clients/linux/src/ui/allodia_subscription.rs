@@ -15,7 +15,7 @@
 
 use std::sync::Arc;
 
-use mailcal_bindings::{AllodiaPlan, AllodiaSubscription, MailcalApp};
+use mailcal_bindings::{AllodiaPlan, AllodiaPurchaseError, AllodiaSubscription, MailcalApp};
 
 use super::{
     AppInput, AppModel,
@@ -45,8 +45,9 @@ pub(crate) enum SubscriptionInput {
 
 /// What one read learned.
 ///
-/// The three arms are not interchangeable: a service that could not be reached costs a sentence, a
-/// sign-in that predates the permission costs a sign-in, and only the third has anything to draw.
+/// The arms are not interchangeable: a service that could not be reached costs a sentence, a
+/// sign-in that predates the permission or that the service refused costs a sign-in, and only the
+/// last has anything to draw.
 #[derive(Clone, Debug)]
 pub(crate) enum SubscriptionAnswer {
     /// The read did not come back, or this deployment has no billing configured.
@@ -56,6 +57,10 @@ pub(crate) enum SubscriptionAnswer {
     /// current scope set. Kept apart from [`Self::Unavailable`] because the remedies differ:
     /// waiting fixes an outage and never fixes this.
     NeedsReauth,
+    /// The service refused this device's sign-in. The account card says so and offers signing in
+    /// again, and the section is not drawn: waiting never brings a refused grant back, so the
+    /// outage sentence would be wrong.
+    SignedOut,
     /// The service answered.
     Loaded(Box<AllodiaSubscription>),
 }
@@ -118,9 +123,10 @@ impl SubscriptionState {
     ///
     /// Only a section that has already answered: that is what says it is drawn at all, so the
     /// round trip is spent on the page that shows one rather than on every page this window has.
-    /// A read already in flight will answer for the return anyway.
+    /// A refused sign-in draws no section, and only signing in again changes that answer. A read
+    /// already in flight will answer for the return anyway.
     pub(crate) fn worth_rereading(&self) -> bool {
-        self.answer.is_some() && !self.checking
+        !matches!(self.answer, None | Some(SubscriptionAnswer::SignedOut)) && !self.checking
     }
 
     /// The currency the account is billed in, which the service sends with today's prices.
@@ -255,9 +261,15 @@ impl AppModel {
 
 /// One read, off the main thread.
 fn read(app: &Arc<MailcalApp>) -> SubscriptionAnswer {
-    match app.allodia_subscription() {
+    answer_for(app.allodia_subscription())
+}
+
+/// What one read's result is to the section.
+fn answer_for(result: Result<AllodiaSubscription, AllodiaPurchaseError>) -> SubscriptionAnswer {
+    match result {
         Ok(subscription) => SubscriptionAnswer::Loaded(Box::new(subscription)),
-        Err(mailcal_bindings::AllodiaPurchaseError::NeedsReauth) => SubscriptionAnswer::NeedsReauth,
+        Err(AllodiaPurchaseError::NeedsReauth) => SubscriptionAnswer::NeedsReauth,
+        Err(AllodiaPurchaseError::SignedOut) => SubscriptionAnswer::SignedOut,
         Err(error) => {
             // Deliberately quiet on screen: a read that did not arrive costs a sentence, never
             // access. The detail goes to the diagnostic log alone, where it names endpoints and

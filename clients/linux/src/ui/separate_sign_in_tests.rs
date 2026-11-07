@@ -44,6 +44,7 @@ pub(crate) fn mailbox(problem: Option<UseProblem>, server: Option<SeparateServer
         separate_server: server,
         distinction: None,
         mail_sync: None,
+        nextcloud: false,
     }
 }
 
@@ -80,6 +81,7 @@ fn the_form_starts_from_the_login_the_core_holds_for_that_server() {
 #[test]
 fn the_server_is_read_from_the_account_it_is_for() {
     let mut snapshot = AccountsSnapshot {
+        meeting_accounts: Vec::new(),
         accounts: vec![mailbox(None, None)],
     };
     assert_eq!(server_of(&snapshot, MAILBOX), None);

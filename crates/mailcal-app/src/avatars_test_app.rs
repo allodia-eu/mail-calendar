@@ -228,6 +228,7 @@ pub(super) fn app_with_sources(
             id: AccountId::try_from("work").unwrap(),
             providers: vec![MailOnly].into(),
             calendar_provider: None,
+            meetings: None,
             contact_providers: sources,
             identity: EmailAddress::new("me@work.local"),
             dialled: true,

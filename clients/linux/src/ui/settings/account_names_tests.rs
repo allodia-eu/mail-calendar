@@ -8,7 +8,7 @@ use mailcal_bindings::{
 use super::{entry_name, kind_line, linked_name};
 use crate::{
     l10n,
-    ui::settings::{account_rows::summary, link_pickers},
+    ui::settings::{account_rows::summary, link_labels, suggested_name},
 };
 
 fn linked(distinction: Option<AccountDistinction>) -> LinkedAccount {
@@ -37,6 +37,7 @@ fn mailbox(distinction: Option<AccountDistinction>) -> AccountEntry {
         separate_server: None,
         distinction,
         mail_sync: None,
+        nextcloud: false,
     }
 }
 
@@ -109,13 +110,13 @@ fn a_picker_names_every_option_and_the_suggestion_apart() {
     }));
     entry.link_candidates.calendar = vec![dav.clone()];
     entry.link_candidates.suggested = vec![dav.id];
-    let pickers = link_pickers(&entry);
+    let pickers = mailcal_bindings::setup_link_pickers(&entry);
     let named = l10n::settings_account_distinguished("alice@example.org", l10n::account_kind_dav());
     assert_eq!(
-        pickers[0].labels(),
+        link_labels(&pickers[0]),
         vec![l10n::settings_account_link_none().to_owned(), named.clone()]
     );
-    assert_eq!(pickers[0].suggested_name(), Some(named));
+    assert_eq!(suggested_name(&pickers[0]), Some(named));
 }
 
 #[test]

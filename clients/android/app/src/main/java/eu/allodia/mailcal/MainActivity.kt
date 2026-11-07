@@ -31,14 +31,12 @@ import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.AnalyticsConsent
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.ComposeOpening
-import uniffi.mailcal_bindings.ConnectivitySnapshot
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.ContactRow
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.EventRow
-import uniffi.mailcal_bindings.FolderNotice
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailtoPrefill
@@ -70,9 +68,6 @@ import uniffi.mailcal_bindings.deviceTimeZone
 private const val TAG = "Mailcal"
 private const val NOTIFICATION_PERMISSION_REQUEST = 1001
 
-// ConnectionIssue and ExpiredSignIn (the two small data classes refreshConnectivity() below
-// builds) live in MainActivityCore.kt beside it.
-
 class MainActivity : AppCompatActivity() {
 
     // The Compose source of truth, driven by the Rust app.
@@ -100,8 +95,6 @@ class MainActivity : AppCompatActivity() {
     // or on its way (MainActivityComposer.kt).
     internal val drafts = DraftUiState()
     internal val composer = ComposerUiState()
-    // A folder change the server refused, until the user closes it (docs/folder-pane.md, rule 28).
-    internal var folderNotice by mutableStateOf<FolderNotice?>(null)
     // A message the core withdrew from the Outbox so the user can change it. It exists nowhere
     // else by the time it arrives, so it is held until this client's composer has it.
     internal var withdrawnMessage by mutableStateOf<ComposeOpening?>(null)
@@ -164,27 +157,9 @@ class MainActivity : AppCompatActivity() {
     // "downloading Y of X" bar while a sync fills in; null/inactive hides it.
     internal var syncProgress by mutableStateOf<SyncProgressSnapshot?>(null)
 
-    // Connectivity, pulled on a CONNECTIVITY surface change: `offline` drives the offline banner;
-    // `unreachableAccounts` badges accounts whose server couldn't be reached.
-    internal var connectivity by mutableStateOf<ConnectivitySnapshot?>(null)
-    // The accounts that can't reach their server right now (while the device is online), each with
-    // its friendly email + technical detail, drives the connection-issues banner. Empty while the
-    // whole device is offline (the offline banner stands in) or when everything is connected.
-    internal var connectionIssues by mutableStateOf<List<ConnectionIssue>>(emptyList())
-    // Microsoft accounts whose calendar is withheld for lack of the calendar OAuth scope (connected
-    // before calendar support, or revoked consent), drives the calendar re-auth banner. Reconnecting
-    // signs the account in again in place for everything it is used for.
-    internal var calendarReauth by mutableStateOf<List<NamedAccount>>(emptyList())
-    // Microsoft accounts whose mail write/send is withheld for lack of the Mail.ReadWrite /
-    // Mail.Send OAuth scopes (connected before those scopes, or revoked consent): drives the mail
-    // re-auth banner. Reconnecting signs the account in again in place for everything it is used
-    // for, so it clears this and any calendar prompt at once.
-    internal var mailReauth by mutableStateOf<List<NamedAccount>>(emptyList())
-    // Accounts whose stored sign-in the server has stopped accepting, an expired or revoked OAuth
-    // grant, or a password it now refuses. Nothing about the account syncs and retrying never
-    // helps, so this drives its own banner rather than the connection-issues one (the core already
-    // keeps such an account out of the unreachable list).
-    internal var signInExpired by mutableStateOf<List<ExpiredSignIn>>(emptyList())
+    // The core's notices, pulled on a NOTICES surface change and once at launch
+    // (MainActivityNotices.kt).
+    internal val notices = NoticesState()
     internal var networkCallback: Any? = null
     // The per-account sync-behaviour settings (fetch depth, push vs. poll, watched folders),
     // pulled on a SETTINGS surface change; feeds the Accounts section of the Settings screen.

@@ -8,13 +8,14 @@ package eu.allodia.mailcal
 
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.UnreachedUses
 
 /** Asks account [accountId]'s server which ways in it takes, once per opening of its page. */
 internal fun MainActivity.askSignInOptions(accountId: String) {
     val instance = app ?: return
     val signIn = accountSettings.signIn
-    if (!AccountSignInRules.switchable(accountSettings.entry(accountId)?.kind)) return
+    if (!AccountSignInRules.asksOptions(accountSettings.entry(accountId)?.kind)) return
     if (!signIn.startAsking(accountId)) return
     thread(name = "mailcal-sign-in-options") {
         // Never throws, and bounded: an unanswered question offers nothing.
@@ -34,6 +35,7 @@ private fun MainActivity.signInFailedTitle(switching: Boolean): String =
  * redirect comes back through onNewIntent to [completeAccountSignIn].
  */
 internal fun MainActivity.startAccountSignIn(accountId: String, switching: Boolean) {
+    if (signsInWithNextcloud(accountId)) return startAccountNextcloudSignIn(accountId, switching)
     val instance = app ?: return
     val signIn = accountSettings.signIn
     val redirect = AccountSignInRules.redirectFor(accountSettings.entry(accountId)?.kind) ?: return
@@ -53,6 +55,7 @@ internal fun MainActivity.startAccountSignIn(accountId: String, switching: Boole
             start.onFailure {
                 logUiWarn("sign-in: starting an account's sign-in failed: ${coreErrorText(it)}")
                 signIn.finished()
+                noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, accountId, failed = true)
                 say(
                     AccountNotice(
                         NoticeKind.FAILURE,
@@ -73,8 +76,10 @@ private fun MainActivity.openAccountBrowser(url: String, redirect: String, switc
     }
     opened.onFailure { error ->
         logUiWarn("sign-in: the browser did not open: ${error.message}")
+        val account = signIn.running?.accountId
         signIn.yieldRedirect()
         signIn.finished()
+        noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, account, failed = true)
         val title = signInFailedTitle(switching)
         say(AccountNotice(NoticeKind.FAILURE, title, L10n.account_signin_browser_failed(this)))
     }
@@ -103,7 +108,8 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
         mainHandler.post {
             signIn.finished(switched = answer.isSuccess && claimed.switching)
             refreshAccountsSnapshot()
-            refreshConnectivity()
+            pullNotices()
+            noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, claimed.accountId, failed = answer.isFailure)
             answer.onSuccess {
                 logUiInfo("sign-in: an account signed in through its provider")
                 val said = if (claimed.switching) {
@@ -146,7 +152,7 @@ internal fun MainActivity.switchToPassword(accountId: String, password: String) 
             answer.onSuccess {
                 logUiInfo("sign-in: an account now signs in with a password")
                 say(AccountNotice(NoticeKind.SUCCESS, L10n.settings_account_switched_to_password(this), ""))
-                refreshConnectivity()
+                pullNotices()
                 askSignInOptions(accountId)
             }
             answer.onFailure {
@@ -211,15 +217,20 @@ private fun MainActivity.updateExistingAccount(unreached: UnreachedUses?) {
     setupFlow.updatingExisting = true
     thread(name = "mailcal-update-existing") {
         val answer = runCatching {
-            instance.useCredentialFrom(existing.accountId, existing.configToml, unreached)
+            existing.nextcloudGrant?.let { instance.completeAccountNextcloudSignIn(existing.accountId, it) }
+                ?: instance.useCredentialFrom(existing.accountId, existing.configToml, unreached)
         }
         mainHandler.post {
             setupFlow.updatingExisting = false
             setupFlow.existing = null
+            // The core has the grant now, or withdrew it as somebody else's.
+            if (answer.isSuccess || answer.exceptionOrNull() is MailcalException.DifferentAccount) {
+                setupFlow.nextcloud.take()
+            }
             answer.onSuccess {
                 logUiInfo("setup: the account already set up took the new sign-in")
                 refreshAccountsSnapshot()
-                refreshConnectivity()
+                pullNotices()
                 endSetupAfterUpdate()
             }
             answer.onFailure {

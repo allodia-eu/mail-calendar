@@ -40,6 +40,7 @@ pub(crate) fn build_demo(
         id: AccountId::try_from("demo").expect("valid account id"),
         providers: vec![Box::new(DemoProvider::new()) as Box<dyn Provider>].into(),
         calendar_provider: None,
+        meetings: None,
         contact_providers: Vec::new(),
         identity: EmailAddress::new("demo@allodia.local"),
         dialled: true,
@@ -80,11 +81,12 @@ pub(crate) fn build_demo(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
         calendar_connect_errors: Mutex::new(Vec::new()),
+        notice_book: Mutex::default(),
         registry,
         background,
         mcp,
@@ -103,12 +105,17 @@ pub(crate) fn build_demo(
         // The demo connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
         redialling: Arc::default(),
+        account_work: Arc::default(),
         device_zone: device_tz,
+        platform: None,
         // The demo fixture is what the CI verify gates assert on; it must keep behaving like a
         // real app, detection included.
         showcase: false,
         rediscovery: crate::dav_rediscovery::Rediscovery::default(),
-    })
+    });
+    // An account page's change runs on a thread of its own, which holds the app by this.
+    mailcal.rediscovery.adopt(&mailcal);
+    mailcal
 }
 
 /// Builds an in-memory **showcase** app: the body of [`MailcalApp::new_showcase`]. Two fictional
@@ -144,6 +151,7 @@ pub(crate) fn build_showcase(
         calendar_provider: Some(
             Box::new(ShowcaseCalendarProvider::new(calendars, events)) as Box<dyn Provider>
         ),
+        meetings: None,
         contact_providers: vec![Box::new(ShowcaseContactsProvider::new(
             crate::showcase_contacts::primary_contacts(),
         )) as Box<dyn engine_api::ContactsProvider>],
@@ -170,6 +178,7 @@ pub(crate) fn build_showcase(
         calendar_provider: None,
         // It does carry contacts, though; one of them the same person as the primary's, which
         // is what makes the merged "in 2 accounts" row visible in the showcase.
+        meetings: None,
         contact_providers: vec![Box::new(ShowcaseContactsProvider::new(
             crate::showcase_contacts::secondary_contacts(),
         )) as Box<dyn engine_api::ContactsProvider>],
@@ -227,6 +236,10 @@ pub(crate) fn build_showcase(
     if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
         pause_for_a_server_change(&app, &primary_identity);
     }
+    #[cfg(debug_assertions)]
+    if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
+        ask_for_reconsent(&app, &primary_identity);
+    }
     let registered = [
         listed(
             &primary_identity,
@@ -256,6 +269,17 @@ pub(crate) fn pause_for_a_server_change<P>(app: &App<P>, id: &str) {
             contacts_url: None,
         },
     );
+}
+
+/// The account `id` asked to sign in again for mail and for its calendar, for
+/// `MAILCAL_SHOWCASE_REAUTH`: the two notices only a narrowed Microsoft grant raises otherwise
+/// (`docs/provider-oauth.md` rule 11), staged for the UI suites and the help screenshots. Signing
+/// in again opens the account's page, as for any account without a browser sign-in.
+#[cfg(debug_assertions)]
+pub(crate) fn ask_for_reconsent<P: Provider>(app: &App<P>, id: &str) {
+    let id = AccountId::try_from(id).expect("valid account id");
+    app.note_calendar_reauth_required(&id);
+    app.note_mail_reauth_required(&id);
 }
 
 /// The registry entry that lists the showcase account `id` in Settings → Accounts, used for
@@ -317,11 +341,12 @@ fn finish_showcase(
         )),
         runtime.handle().clone(),
     ));
-    Arc::new(MailcalApp {
+    let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
         calendar_connect_errors: Mutex::new(Vec::new()),
+        notice_book: Mutex::default(),
         registry,
         background,
         mcp,
@@ -340,12 +365,17 @@ fn finish_showcase(
         // The showcase connects no real accounts, so nothing is ever disconnected.
         disconnected: Arc::new(Mutex::new(HashSet::new())),
         redialling: Arc::default(),
+        account_work: Arc::default(),
         device_zone: device_tz,
+        platform: None,
         // The one build where account detection answers from a script instead of the network;
         // see `MailcalApp::detect_account_settings`.
         showcase: true,
         rediscovery: crate::dav_rediscovery::Rediscovery::default(),
-    })
+    });
+    // An account page's change runs on a thread of its own, which holds the app by this.
+    mailcal.rediscovery.adopt(&mailcal);
+    mailcal
 }
 
 /// Builds an in-memory **showcase** app holding **no account**: the body of

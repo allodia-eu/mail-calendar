@@ -197,6 +197,7 @@ async fn a_calendar_that_no_longer_connects_is_offered_no_answer() {
         id: engine_api::AccountId::try_from("acct-a").unwrap(),
         providers: vec![InvitationFake::new()].into(),
         calendar_provider: None,
+        meetings: None,
         contact_providers: Vec::new(),
         identity: engine_api::EmailAddress::new("me@test.local"),
         dialled: true,

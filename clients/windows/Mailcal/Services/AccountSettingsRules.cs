@@ -1,75 +1,12 @@
-// What Settings → Accounts says about an account, decided from its snapshot entry alone
+// What Settings → Accounts' list says about an account, decided from its snapshot entry alone
 // (docs/accounts.md rules 11 to 13), how it signs in and what it can switch to (rule 17), and
-// what an expired sign-in and a refused duplicate offer. WinUI-free and L10n-free on purpose, so
-// each rule is reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
+// what an expired sign-in and a refused duplicate offer. An account's uses, links and removal are
+// the core's (`account_page`) and carry no rule here. WinUI-free and L10n-free on purpose, so each
+// rule is reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
 
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
-
-/// <summary>Which line, if any, sits under a use's switch.</summary>
-internal enum UseNote
-{
-    None,
-    /// <summary>The last of mail, calendar and contacts: the account is removed instead.</summary>
-    Last,
-    /// <summary>Colleagues, while contacts are off.</summary>
-    NeedsContacts,
-    /// <summary>Shared mailboxes, while mail is off.</summary>
-    NeedsMail,
-    /// <summary>Chosen, and the provider has not granted it.</summary>
-    Withheld,
-    /// <summary>The server offers none, so nothing can switch it on.</summary>
-    NotOffered,
-    /// <summary>On, and its server could not be reached; the next refresh tries again.</summary>
-    UnreachableCalendar,
-    /// <summary>As <see cref="UnreachableCalendar"/>, for the address book.</summary>
-    UnreachableContacts,
-    /// <summary>On, and its server refused the account's sign-in.</summary>
-    RefusedCalendar,
-    /// <summary>As <see cref="RefusedCalendar"/>, for the address book.</summary>
-    RefusedContacts,
-    /// <summary>On, and its server needs a sign-in of its own.</summary>
-    OwnSignInCalendar,
-    /// <summary>As <see cref="OwnSignInCalendar"/>, for the address book.</summary>
-    OwnSignInContacts,
-    /// <summary>On, and paused for a server found on another site that the person has not
-    /// allowed yet.</summary>
-    ServerChangedCalendar,
-    /// <summary>As <see cref="ServerChangedCalendar"/>, for the address book.</summary>
-    ServerChangedContacts,
-    /// <summary>On, and its server answered that it has none for this account; a refresh does
-    /// not ask again.</summary>
-    NoneOnServerCalendar,
-    /// <summary>As <see cref="NoneOnServerCalendar"/>, for the address book.</summary>
-    NoneOnServerContacts,
-}
-
-/// <summary>How one use's switch is drawn.</summary>
-/// <param name="Active">On. A use waiting on a permission is drawn off: it is not working, and
-/// switching it on is what asks the provider again.</param>
-/// <param name="Asks">Whether switching it on asks the provider rather than the core.</param>
-/// <param name="Enabled">Whether the person can flip it.</param>
-internal sealed record UseSwitch(bool Active, bool Asks, bool Enabled, UseNote Note);
-
-/// <summary>One link slot's picker: "none" first, then <see cref="Options"/>.</summary>
-/// <param name="Selected">The index into <see cref="Options"/> of the account linked now; null
-/// for "none".</param>
-/// <param name="Suggested">The index of the account to suggest while nothing is linked: one whose
-/// calendar server schedules as the mail account's address.</param>
-internal sealed record LinkPicker(
-    LinkSlot Slot, IReadOnlyList<LinkedAccount> Options, int? Selected, int? Suggested);
-
-/// <summary>What the page does once switching a use has answered.</summary>
-internal enum UseChangeOutcome
-{
-    /// <summary>Done; the page redraws from the next snapshot.</summary>
-    Applied,
-    /// <summary>The provider has not granted it: sign the account in again, asking for it.</summary>
-    AskProvider,
-    /// <summary>The account has no server for it.</summary>
-    NeedsEndpoint,
-}
 
 /// <summary>The Sign-in section of a standards or JMAP account's page.</summary>
 /// <param name="ThroughProvider">Whether it signs in through its provider now, rather than with a
@@ -78,11 +15,16 @@ internal enum UseChangeOutcome
 /// <param name="SwitchToProvider">Signing in through the provider in place of its password.</param>
 /// <param name="ProviderLabel">The provider's name for that button, when the core has one.</param>
 /// <param name="SwitchToPassword">A password in place of its grant.</param>
+/// <param name="Nextcloud">Whether its sign-in is Nextcloud's own, a calendar and contacts
+/// account's (docs/nextcloud-sign-in.md rule 7): then <paramref name="ThroughProvider"/> is an
+/// account a Nextcloud sign-in made.</param>
 internal sealed record SignInSection(
-    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword)
+    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword,
+    bool Nextcloud = false)
 {
-    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with.</summary>
-    internal bool OffersSwitch => SwitchToProvider || SwitchToPassword;
+    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with. A
+    /// calendar and contacts account switching to Nextcloud has no mail or links that line names.</summary>
+    internal bool OffersSwitch => (SwitchToProvider && !Nextcloud) || SwitchToPassword;
 }
 
 /// <summary>What an expired sign-in's banner button runs.</summary>
@@ -96,19 +38,26 @@ internal enum SignInRemedy
     JmapReauth,
     /// <summary>A standards account's stored grant, through the account sign-in.</summary>
     AccountSignIn,
+    /// <summary>A calendar and contacts account a Nextcloud sign-in made, signed in with
+    /// Nextcloud again (docs/nextcloud-sign-in.md rule 8).</summary>
+    Nextcloud,
 }
 
 /// <summary>The account an add was refused for, and the config the add was given, which the
 /// refusal offers to put on it (docs/accounts.md rule 17).</summary>
 /// <param name="Unreached">The calendar and contacts the sign-in that gave the config said it would
 /// not reach, which taking the offer asks about first (rule 18).</param>
-internal sealed record ExistingAccountOffer(string AccountId, string ConfigToml, IReadOnlyList<AccountCapability> Unreached);
+/// <param name="NextcloudGrant">In place of a config, the grant of a Nextcloud sign-in as the
+/// person that account is (docs/nextcloud-sign-in.md rule 7).</param>
+internal sealed record ExistingAccountOffer(
+    string AccountId, string ConfigToml, IReadOnlyList<AccountCapability> Unreached, string? NextcloudGrant = null)
+{
+    /// <summary>Never the config or the grant: each carries a credential.</summary>
+    public override string ToString() => $"ExistingAccountOffer({AccountId})";
+}
 
 internal static class AccountSettingsRules
 {
-    private static readonly AccountCapability[] Primary =
-        [AccountCapability.Mail, AccountCapability.Calendar, AccountCapability.Contacts];
-
     /// <summary>The uses the account is used for, working or waiting on a permission, in the
     /// snapshot's order.</summary>
     internal static IReadOnlyList<AccountCapability> InUse(AccountEntry entry) =>
@@ -159,14 +108,32 @@ internal static class AccountSettingsRules
     /// account.</summary>
     internal static bool SwitchesSignIn(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Jmap;
 
+    /// <summary>Whether <paramref name="entry"/>'s page may have a Sign-in section: a standards or
+    /// JMAP account's, or a calendar and contacts account's, which has one only at a Nextcloud
+    /// server.</summary>
+    internal static bool MayHaveSignInSection(AccountEntry entry) =>
+        entry.Nextcloud || SwitchesSignIn(entry.Kind) || entry.Kind == AccountKind.Dav;
+
+    /// <summary>Whether the section is drawn before its server answers: every one but that of a
+    /// calendar and contacts account with a typed password, which has a section only once its
+    /// server has said it is Nextcloud.</summary>
+    internal static bool SignInDrawnBeforeAnswer(AccountEntry entry) =>
+        entry.Nextcloud || SwitchesSignIn(entry.Kind);
+
     /// <summary>
     /// The Sign-in section for <paramref name="entry"/>, given what its server accepts
     /// (<paramref name="options"/>, null until <c>account_sign_in_options</c> answers). Null for a
     /// Microsoft or Google account, which signs in again through its own consent, and for a
-    /// calendar or address book used for no mail.
+    /// calendar or address book used for no mail, except at a Nextcloud server.
     /// </summary>
     internal static SignInSection? SignIn(AccountEntry entry, AccountSignInOptions? options)
     {
+        // Ahead of the sign-in method: an account a Nextcloud sign-in made reports Provider, and
+        // has no endpoints to switch a password onto.
+        if (entry.Nextcloud || entry.Kind == AccountKind.Dav)
+        {
+            return NextcloudSignIn(entry.Nextcloud, options);
+        }
         if (!SwitchesSignIn(entry.Kind))
         {
             return null;
@@ -186,16 +153,40 @@ internal static class AccountSettingsRules
             SwitchToPassword: throughProvider && password);
     }
 
-    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>.
-    /// Null, a provider the core could not name, has nothing to run.</summary>
-    internal static SignInRemedy Remedy(AccountProvider? provider) => provider switch
+    /// <summary>
+    /// The section of a calendar and contacts account, which has one only at a Nextcloud server:
+    /// signing in again for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), and the
+    /// switch from a typed password for one whose server answered that it is Nextcloud. It never
+    /// switches to a typed password: its login is the one the server issued the password under.
+    /// </summary>
+    private static SignInSection? NextcloudSignIn(bool nextcloud, AccountSignInOptions? options)
     {
-        AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
-        AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
-        AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
-        AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
-        _ => SignInRemedy.Settings,
-    };
+        var offered = options?.Nextcloud ?? false;
+        if (!nextcloud && !offered)
+        {
+            return null;
+        }
+        return new SignInSection(
+            ThroughProvider: nextcloud,
+            SignInAgain: nextcloud && offered,
+            SwitchToProvider: !nextcloud && offered,
+            ProviderLabel: !nextcloud && offered ? "Nextcloud" : null,
+            SwitchToPassword: false,
+            Nextcloud: true);
+    }
+
+    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>,
+    /// or for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), which reports a provider
+    /// as well. Null, a provider the core could not name, has nothing to run.</summary>
+    internal static SignInRemedy Remedy(AccountProvider? provider, bool nextcloud = false) =>
+        nextcloud ? SignInRemedy.Nextcloud : provider switch
+        {
+            AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
+            AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
+            AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
+            AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
+            _ => SignInRemedy.Settings,
+        };
 
     /// <summary>What a refused add offers: putting <paramref name="configToml"/> on the account
     /// already there, when the refusal is that it is set up already.</summary>
@@ -207,116 +198,12 @@ internal static class AccountSettingsRules
         _ => null,
     };
 
-    /// <summary>What a use that did not connect says beneath its switch, and on the screen that
-    /// shows it (<see cref="UseOutageLines"/>). Only a calendar or an address book fails on its own;
-    /// mail decides whether the account connected at all.</summary>
-    internal static UseNote ProblemNote(AccountCapability capability, UseProblem problem)
-    {
-        var calendar = capability == AccountCapability.Calendar;
-        return problem switch
-        {
-            UseProblem.Unreachable => calendar ? UseNote.UnreachableCalendar : UseNote.UnreachableContacts,
-            UseProblem.SignInRefused => calendar ? UseNote.RefusedCalendar : UseNote.RefusedContacts,
-            UseProblem.NeedsOwnSignIn => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
-            UseProblem.ServerChanged => calendar ? UseNote.ServerChangedCalendar : UseNote.ServerChangedContacts,
-            UseProblem.NoneOnServer => calendar ? UseNote.NoneOnServerCalendar : UseNote.NoneOnServerContacts,
-            _ => calendar ? UseNote.OwnSignInCalendar : UseNote.OwnSignInContacts,
-        };
-    }
-
-    /// <summary>Whether <paramref name="note"/> offers a review of the server change, which is
-    /// what allows the new server.</summary>
-    internal static bool ReviewsServerChange(UseNote note) =>
-        note is UseNote.ServerChangedCalendar or UseNote.ServerChangedContacts;
-
-    /// <summary>
-    /// The switch for <paramref name="capability"/>. The last of mail, calendar and contacts
-    /// cannot be switched off, and colleagues cannot be switched on without contacts, nor shared
-    /// mailboxes without mail: the core refuses each, so the switch says why rather than letting
-    /// the person find out.
-    /// </summary>
-    internal static UseSwitch Switch(AccountEntry entry, AccountCapability capability)
-    {
-        bool Used(AccountCapability wanted) =>
-            entry.Uses.Any(use => use.Capability == wanted && Works(use.State));
-        var state = entry.Uses.FirstOrDefault(use => use.Capability == capability)?.State
-            ?? CapabilityState.Off;
-        // A use waiting on a permission is drawn off, so it is never the one held on: switching it
-        // on asks the provider, which the core does not refuse.
-        var last = state == CapabilityState.On
-            && Primary.Contains(capability)
-            && Primary.Count(Used) == 1;
-        bool Without(AccountCapability sub, AccountCapability within) =>
-            capability == sub && state == CapabilityState.Off && !Used(within);
-        var withoutContacts = Without(AccountCapability.Colleagues, AccountCapability.Contacts);
-        var withoutMail = Without(AccountCapability.SharedMailboxes, AccountCapability.Mail);
-        var notOffered = state == CapabilityState.NotOffered;
-        var problem = entry.Uses.FirstOrDefault(use => use.Capability == capability)?.Problem;
-        var note = notOffered ? UseNote.NotOffered
-            : problem is { } failed ? ProblemNote(capability, failed)
-            : last ? UseNote.Last
-            : withoutContacts ? UseNote.NeedsContacts
-            : withoutMail ? UseNote.NeedsMail
-            : state == CapabilityState.NeedsPermission ? UseNote.Withheld
-            : UseNote.None;
-        return new UseSwitch(
-            Active: state == CapabilityState.On,
-            Asks: state == CapabilityState.NeedsPermission,
-            Enabled: !last && !withoutContacts && !withoutMail && !notOffered,
-            Note: note);
-    }
-
-    /// <summary>
-    /// The pickers an account's page offers: one per slot it can hold, which is a slot with
-    /// candidates or one already linked. A link the candidates no longer offer is kept as the
-    /// first option, so the picker shows what is stored rather than "none".
-    /// </summary>
-    internal static IReadOnlyList<LinkPicker> LinkPickers(AccountEntry entry)
-    {
-        var slots = new (LinkSlot Slot, LinkedAccount[] Candidates, LinkedAccount? Current)[]
-        {
-            (LinkSlot.Calendar, entry.LinkCandidates.Calendar, entry.Links.Calendar),
-            (LinkSlot.Contacts, entry.LinkCandidates.Contacts, entry.Links.Contacts),
-            (LinkSlot.Mail, entry.LinkCandidates.Mail, entry.Links.Mail),
-        };
-        var pickers = new List<LinkPicker>();
-        foreach (var (slot, candidates, current) in slots)
-        {
-            if (candidates.Length == 0 && current is null)
-            {
-                continue;
-            }
-            var options = candidates.ToList();
-            if (current is not null && !options.Contains(current))
-            {
-                options.Insert(0, current);
-            }
-            int? selected = current is null ? null : options.IndexOf(current);
-            int? suggested = null;
-            if (selected is null)
-            {
-                var at = options.FindIndex(option => entry.LinkCandidates.Suggested.Contains(option.Id));
-                suggested = at < 0 ? null : at;
-            }
-            pickers.Add(new LinkPicker(slot, options, selected, suggested));
-        }
-        return pickers;
-    }
-
     /// <summary>The accounts that lose their link when this one is removed, joined for the
     /// confirmation; null when none does.</summary>
     internal static string? Unlinked(AccountEntry entry, AccountNameWords words) =>
         entry.LinkedFrom.Length == 0
             ? null
             : string.Join(", ", entry.LinkedFrom.Select(linked => AccountNames.Of(linked, words)));
-
-    /// <summary>What switching a use on or off answered.</summary>
-    internal static UseChangeOutcome Outcome(CapabilityChange change) => change switch
-    {
-        CapabilityChange.NeedsConsent => UseChangeOutcome.AskProvider,
-        CapabilityChange.NeedsEndpoint => UseChangeOutcome.NeedsEndpoint,
-        _ => UseChangeOutcome.Applied,
-    };
 
     /// <summary>
     /// What the page compares to decide whether a core signal changed anything on it: every field
@@ -335,6 +222,7 @@ internal static class AccountSettingsRules
             parts.Add(entry.Address);
             parts.Add(entry.Kind.ToString());
             parts.Add(entry.SignIn.ToString());
+            parts.Add(entry.Nextcloud ? "nextcloud" : "-");
             parts.AddRange(entry.Uses.Select(use => $"{use.Capability}={use.State}/{use.Problem}"));
             parts.Add(Linked(entry.Links.Calendar));
             parts.Add(Linked(entry.Links.Contacts));
@@ -358,6 +246,32 @@ internal static class AccountSettingsRules
         parts.AddRange((drawnBeside ?? []).Order(StringComparer.Ordinal));
         return string.Join('\n', parts);
     }
+
+    /// <summary>What the page draws from the core's record of it, for <see cref="Fingerprint"/>'s
+    /// <c>drawnBeside</c>: every control's value and state, and the notice. A change starting or
+    /// ending redraws the page, since its controls hold and spin from this alone.</summary>
+    internal static IEnumerable<string> PageFingerprint(AccountPage? page)
+    {
+        if (page is null)
+        {
+            yield break;
+        }
+        yield return $"page:{page.Account}";
+        foreach (var use in page.Uses)
+        {
+            yield return $"use:{use.Capability}={use.On}/{Control(use.Control)}/{use.Blocked}/{use.Status}/"
+                + $"{use.AsksProvider}/{use.ConfirmsOff}/{use.ReviewsServerChange}";
+        }
+        foreach (var picker in page.Links)
+        {
+            yield return $"link:{picker.Slot}={picker.Selected}/{picker.Suggested}/{Control(picker.Control)}/"
+                + string.Join(',', picker.Options.Select(Linked));
+        }
+        yield return $"remove:{Control(page.Remove)}";
+        yield return $"notice:{page.Notice?.Id}";
+    }
+
+    private static string Control(ControlState control) => $"{control.Enabled}|{control.Running}";
 
     private static string Linked(LinkedAccount? linked) =>
         linked is null ? "-" : $"{linked.Id}={linked.Address}/{Distinction(linked.Distinction)}";

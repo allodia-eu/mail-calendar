@@ -44,7 +44,8 @@ is what builds the second.
 
 ## ⚠️ Both installed at once is one mailbox with two writers
 
-The app keeps its mail in `%LOCALAPPDATA%\Allodia\MailCalendar`, an ordinary path outside the
+The app keeps its mail under `%LOCALAPPDATA%`, in the brand's `MAILCAL_WINDOWS_DATA_DIR`
+([`branding.md`](branding.md)), an ordinary path outside the
 package container, because a packaged full-trust app gets no redirection there. Two installed
 packages therefore read and write **one** store, one log and one credential namespace.
 

@@ -77,6 +77,10 @@ pub enum Surface {
     /// screen at the same time and mean opposite things: a composer can be saving a draft
     /// while an earlier message is still going out.
     DraftStatus,
+    /// The notices a host draws (`docs/notices.md`), assembled above this crate from
+    /// [`Self::Connectivity`] and the facts signalled here: today the refused folder change
+    /// ([`crate::App::folder_notice`]).
+    Notices,
 }
 
 /// A host implements this to learn a [`Surface`] changed, then pulls its snapshot.
@@ -86,6 +90,11 @@ pub enum Surface {
 pub trait AppObserver: Send + Sync {
     /// Signals that `surface`'s snapshot changed.
     fn surface_changed(&self, surface: Surface);
+
+    /// Signals that `account`'s server has just refused its stored sign-in, once per refusal: the
+    /// moment a host can ask a question the refusal raises, such as whether a Nextcloud server
+    /// asked this device to wipe the account. Nothing by default.
+    fn signin_refused(&self, _account: &engine_api::AccountId) {}
 }
 
 /// Host-resolved bytes for one composer blob handle.

@@ -76,7 +76,8 @@ impl MailcalApp {
             tokens.scope,
         );
         let username = tokens.username.clone();
-        let (setup, grant) = pending.into_grant(refresh_token.expose().to_owned());
+        let (setup, grant) =
+            pending.into_grant(refresh_token.expose().to_owned(), username.clone());
         Ok(ImapSignedIn {
             setup,
             grant,

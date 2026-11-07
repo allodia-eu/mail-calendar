@@ -128,7 +128,7 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
                 // it now rather than at the next launch. A no-op when nobody is signed in.
                 activity.readAccountsSynced()
                 activity.syncAllodiaAccounts()
-                activity.refreshConnectivity()
+                activity.pullNotices()
                 activity.afterAccountAdded(row.id, signedInAtProvider = true)
             }
         } catch (e: Exception) {
@@ -330,6 +330,7 @@ internal fun MainActivity.reconnectJmap(accountId: String) {
             activity.mainHandler.post {
                 activity.signingInJmap = false
                 activity.toastSignInFailed(L10n.signin_expired_failed(activity))
+                activity.noticeRemedyEnded(NoticeRemedy.JMAP, accountId, failed = true)
             }
         }
     }
@@ -357,6 +358,7 @@ internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: Str
             activity.mainHandler.post {
                 activity.completingJmap = false
                 activity.signingInJmap = false
+                activity.noticeRemedyEnded(NoticeRemedy.JMAP, accountId, failed = false)
             }
         } catch (e: Exception) {
             logUiWarn("jmap re-authentication complete failed: ${coreErrorText(e)}")
@@ -364,6 +366,7 @@ internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: Str
                 activity.completingJmap = false
                 activity.signingInJmap = false
                 activity.toastSignInFailed(signInAgainSaid(e, activity))
+                activity.noticeRemedyEnded(NoticeRemedy.JMAP, accountId, failed = true)
             }
         }
     }
@@ -372,7 +375,7 @@ internal fun MainActivity.completeJmapReauth(accountId: String, callbackUrl: Str
 // What a failed re-authentication says on the mailbox screen: plain words, because the cause is an
 // OAuth protocol string that belongs in the log, not in front of anyone. The banner is still up
 // (the core leaves the prompt raised on every failure), so the retry is one tap away.
-private fun MainActivity.toastSignInFailed(said: String) {
+internal fun MainActivity.toastSignInFailed(said: String) {
     android.widget.Toast
         .makeText(this, said, android.widget.Toast.LENGTH_LONG)
         .show()
@@ -407,6 +410,7 @@ internal fun MainActivity.cancelAbandonedSignIns() {
         signingInAllodia = false
         allodiaSignInSlow = false
         pendingAllodiaSignIn = null
+        noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = false)
     }
     // And for a dismissed sign-in of an existing account (MainActivityAccountSettings.kt).
     cancelAbandonedConsent()
@@ -414,6 +418,7 @@ internal fun MainActivity.cancelAbandonedSignIns() {
     // below: its page stops waiting, and the redirect is still taken if it arrives.
     accountSettings.signIn.resumed()
     resumeSeparateSignIns()
+    resumeNextcloudSignIns()
     // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
     // (see openJmapSignIn), so resuming MainActivity does NOT mean the browser is gone, the
     // user may simply have stepped out to a password manager and come back. So the spinner is

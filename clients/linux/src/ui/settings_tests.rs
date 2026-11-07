@@ -340,6 +340,7 @@ fn taxonomy_order_matches_the_cross_platform_contract() {
             Category::Allodia,
             Category::General,
             Category::Calendar,
+            Category::Videoconferencing,
             Category::Reading,
             Category::Composing,
             Category::Signatures,

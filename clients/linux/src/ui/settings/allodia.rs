@@ -33,7 +33,7 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
         content.append(&section);
     }
     // The subscription sits under the account it belongs to, and is drawn only while somebody is
-    // signed in (`super::subscription`).
+    // signed in on a grant the service has not refused (`super::subscription`).
     if let Some(section) = super::subscription::subscription(ctx) {
         content.append(&section);
     }
@@ -52,7 +52,13 @@ pub(super) fn allodia(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
     if ctx.allodia_signing_in {
         section.add(&signing_in_row(&ctx.sender));
     } else if let Some(account) = ctx.app.allodia_account() {
-        section.add(&signed_in_row(&ctx.sender, &account));
+        // The Allodia notice's own source, so the two never disagree; the core raises the
+        // connectivity signal when it moves, and that redraws this page.
+        if ctx.app.connectivity().allodia_sign_in_ended.is_some() {
+            section.add(&session_ended_row(&ctx.sender, &account));
+        } else {
+            section.add(&signed_in_row(&ctx.sender, &account));
+        }
     } else {
         // Signed out offers both routes. Someone who has no account and someone returning to one
         // need different pages, and a lone "Sign in" sends the first of them through a form asking
@@ -126,6 +132,33 @@ fn signed_in_row(
 
     row.add_suffix(&manage);
     row.add_suffix(&delete);
+    row.add_suffix(&sign_out);
+    row
+}
+
+/// The service refused the stored grant: the address, the sign-in that ended, and the two ways on,
+/// in place of the signed-in row and with no Manage account (`entitlement.md`, "Signing in"). The
+/// grant stays stored until the person presses one of them.
+fn session_ended_row(
+    sender: &relm4::Sender<AppInput>,
+    account: &mailcal_bindings::AllodiaAccount,
+) -> adw::ActionRow {
+    let row = plain_text_row();
+    row.set_title(&l10n::settings_allodia_session_ended(&account.email));
+    row.set_subtitle(l10n::settings_allodia_session_ended_hint());
+
+    let again = gtk::Button::with_label(l10n::settings_allodia_reauth_action());
+    again.add_css_class("suggested-action");
+    again.set_valign(gtk::Align::Center);
+    let to_sign_in = sender.clone();
+    again.connect_clicked(move |_| to_sign_in.emit(AppInput::StartAllodiaSignIn));
+
+    let sign_out = gtk::Button::with_label(l10n::settings_allodia_sign_out());
+    sign_out.set_valign(gtk::Align::Center);
+    let out = sender.clone();
+    sign_out.connect_clicked(move |_| out.emit(AppInput::SignOutOfAllodia));
+
+    row.add_suffix(&again);
     row.add_suffix(&sign_out);
     row
 }

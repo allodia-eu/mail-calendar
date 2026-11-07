@@ -22,6 +22,11 @@ public sealed class FolderLabelsTests(HarnessApp harness)
     /// fault, so nothing here may compare without case.</summary>
     private static HashSet<string> RowNames(App app)
     {
+        // The mailbox, with alice's tree open: a suite before this one can leave the calendar on
+        // screen, which shuts every tree in the pane.
+        app.RowsList();
+        app.Agent.Expand(app.Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
+            ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}"));
         // A launch lists the account before its folders arrive from the server.
         if (app.Agent.Wait(Filter.Named("Projects", "ListItem") with { Window = app.Mailbox.Hwnd }, App.Patience) is null)
         {

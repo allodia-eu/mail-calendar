@@ -122,20 +122,26 @@ public class SidebarTreeCostTests
     }
 
     [Fact]
-    public void The_outage_badge_flips_in_place_rather_than_replacing_the_row()
+    public void A_notice_mark_lands_in_place_rather_than_replacing_the_row()
     {
         var target = new ObservableCollection<SidebarItem>();
         var counter = new TreeCounter(target);
         Sync(target, Accounts("a", "b"));
         var account = target[1];
         var settled = counter.Events;
+        var mark = new SidebarMark(SidebarMarkTone.Blocked, "The sign-in for a no longer works.", "detail");
 
-        Sync(target, Accounts("a", "b"), unreachable: id => id == "a");
+        Sync(target, Accounts("a", "b"), markOf: id => id == "a" ? mark : null);
 
-        Assert.True(account.ShowBadge);
+        Assert.True(account.HasMark);
+        Assert.Equal(mark.Label, account.MarkLabel);
         Assert.Same(account, target[1]);
-        // A re-badge is a property change on a row that stays put, not a collection event.
+        // A mark is a property change on a row that stays put, not a collection event.
         Assert.Equal(settled, counter.Events);
+
+        Sync(target, Accounts("a", "b"));
+        Assert.False(account.HasMark);
+        Assert.Equal(string.Empty, account.MarkLabel);
     }
 
     [Fact]

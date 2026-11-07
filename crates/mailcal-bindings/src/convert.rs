@@ -49,6 +49,7 @@ impl From<AppSurface> for Surface {
             AppSurface::ContactsStatus => Self::ContactsStatus,
             AppSurface::InvitationReply => Self::InvitationReply,
             AppSurface::UnfiledCopy => Self::UnfiledCopy,
+            AppSurface::Notices => Self::Notices,
         }
     }
 }
@@ -181,6 +182,10 @@ impl TryFrom<Intent> for AppIntent {
             Intent::RefreshCalendar => Self::RefreshCalendar,
             Intent::Outbox { intent } => Self::Outbox(outbox_intent(intent)?),
             Intent::Folders { intent } => Self::Folders(folder_intent(intent)?),
+            // `dispatch` handles these itself, before converting.
+            Intent::AccountPage { .. } => {
+                return Err("an account page change is the binding's own".to_owned());
+            }
             Intent::DismissComposeRequest => Self::DismissComposeRequest,
             Intent::RefreshContacts => Self::Contacts(AppContactsIntent::RefreshContacts),
             Intent::SearchContacts { query } => {
@@ -281,6 +286,8 @@ impl TryFrom<Intent> for AppIntent {
                 reply_subject,
             },
             Intent::ReportNetworkReachable { reachable } => Self::ReportNetworkReachable(reachable),
+            // The binding layer keeps the notices' state, and answers these before converting.
+            Intent::Notices { .. } => return Err("a notice intent has no core form".to_owned()),
             Intent::ReportDeviceTimeZone { id } => Self::ReportDeviceTimeZone(id),
             Intent::SetTimeZone { id } => Self::SetTimeZone(id),
             Intent::AcceptTimeZoneChange => Self::AcceptTimeZoneChange,

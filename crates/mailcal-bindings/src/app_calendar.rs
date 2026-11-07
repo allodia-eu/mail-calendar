@@ -131,6 +131,7 @@ impl From<AppEventDetail> for EventDetail {
             display_notes: detail.display_notes,
             display_location: detail.display_location,
             conferences: detail.conferences.into_iter().map(Into::into).collect(),
+            editor_meeting: detail.editor_meeting.map(Into::into),
             reminder_minutes: detail.reminder_minutes,
             recurrence: detail.recurrence.map(Into::into),
             is_recurring: detail.is_recurring,
@@ -237,6 +238,7 @@ impl From<AppCalendarRow> for CalendarRow {
             visible: row.visible,
             can_write: row.can_write,
             can_invite: row.can_invite,
+            meeting_choices: row.meeting_choices.into_iter().map(Into::into).collect(),
             is_default: row.is_default,
         }
     }

@@ -24,7 +24,8 @@ extension MailboxModel {
                     notes: args.notes,
                     location: args.location,
                     recurrence: args.recurrence,
-                    invitees: args.invitees
+                    invitees: args.invitees,
+                    meeting: args.meeting
                 )
             )
         )
@@ -45,7 +46,8 @@ extension MailboxModel {
                     occurrence: args.occurrence,
                     recurrence: args.recurrence,
                     timesFromOccurrence: args.timesFromOccurrence,
-                    invitees: args.invitees
+                    invitees: args.invitees,
+                    meeting: args.meeting
                 )
             )
         )

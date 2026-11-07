@@ -22,7 +22,6 @@ namespace Allodia.Mailcal.UiTests.Suites;
 public sealed class AppearanceApp : OppositeAppearanceApp;
 
 [Trait("Dataset", "showcase")]
-[TestCaseOrderer(DeclarationOrderer.Name, DeclarationOrderer.Assembly)]
 public sealed class AppearanceTests(AppearanceApp showcase) : IClassFixture<AppearanceApp>
 {
     private static readonly bool DesktopDark = OppositeAppearanceApp.DesktopDark;

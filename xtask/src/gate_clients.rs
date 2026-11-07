@@ -141,7 +141,9 @@ fn windows(run: &Runner<'_>) -> Vec<Step> {
         run.external(
             "windows (Mailcal.Tests)",
             "dotnet",
-            &["test", "clients/windows/Mailcal.Tests", "--nologo"],
+            // `--project`, not a bare directory: under the Microsoft.Testing.Platform runner
+            // `global.json` selects, `dotnet test` refuses a positional path.
+            &["test", "--project", "clients/windows/Mailcal.Tests"],
         ),
         // MailcalVerify is the only thing off Windows that compiles `Verify.cs` against the
         // freshly generated bindings. It is a plain net10.0 console app, so the build
@@ -193,6 +195,12 @@ fn cdylib_path() -> String {
 /// dispatches Wayland events for surfaces an earlier test already destroyed, which segfaults
 /// inside libwayland-client. The pipeline has no session at all and needs one made for it either
 /// way. `scripts/dev/with-headless-session.sh` owns that.
+///
+/// Clippy sees `--all-features` in debug, which compiles the dev fixtures and the showcase hooks.
+/// The release check compiles what the Flatpak and the snap compile, with default features, where
+/// something only those hooks use is dead code and, under `-D warnings`, a failed release. It is a
+/// check rather than clippy: rustc's lints are what fail that build, and clippy's pedantic set
+/// reads code `cfg` has trimmed as code that could be simpler.
 fn linux(run: &Runner<'_>) -> Vec<Step> {
     if std::env::consts::OS != "linux" {
         return vec![run.skip(
@@ -214,6 +222,11 @@ fn linux(run: &Runner<'_>) -> Vec<Step> {
                 "-D",
                 "warnings",
             ],
+        ),
+        run.external(
+            "linux (release check)",
+            "cargo",
+            &["check", "-p", "mailcal-linux", "--release"],
         ),
         run.external(
             "linux (tests)",

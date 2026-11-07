@@ -18,8 +18,9 @@ const MS_AUTHORITY: &str = "https://login.microsoftonline.com";
 /// and every mail write), `Mail.Send` (`POST /me/sendMail`; `Mail.ReadWrite` does **not** grant
 /// send), `Calendars.ReadWrite`, `Contacts.ReadWrite` (the account's own cards) and
 /// `User.ReadBasic.All` (the tenant directory, and the permission a colleague's photo is read
-/// through), and `Mail.ReadWrite.Shared` and `Mail.Send.Shared` (a mailbox the person was given
-/// access to, read, written and sent from through `/users/{address}`).
+/// through), `Mail.ReadWrite.Shared` and `Mail.Send.Shared` (a mailbox the person was given
+/// access to, read, written and sent from through `/users/{address}`), and
+/// `OnlineMeetings.ReadWrite` (a Teams meeting made for an event on another calendar).
 ///
 /// **No OpenID Connect scope.** Nothing reads an ID token, and Microsoft issues a refresh token
 /// for `offline_access` alone, so `openid`, `profile` and `email` would each be a line on the
@@ -50,6 +51,7 @@ pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
     "https://graph.microsoft.com/User.ReadBasic.All",
     "https://graph.microsoft.com/Mail.ReadWrite.Shared",
     "https://graph.microsoft.com/Mail.Send.Shared",
+    "https://graph.microsoft.com/OnlineMeetings.ReadWrite",
 ];
 
 /// The Google identity-platform OAuth 2.0 endpoints; fixed (Google has no per-tenant

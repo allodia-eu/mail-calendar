@@ -46,6 +46,8 @@ question only that OS can. The core supplies the running version through `AboutI
 | **Android**, Google Play | Play | ⬜ | ⬜ |
 | **Linux**, Flatpak | the user's Flatpak remote, through their software centre | ⬜ | ⬜ |
 | **Linux**, snap | snapd, which refreshes in the background and replaces a running app only once it is closed | ⬜ | ⬜ |
+| **Linux**, `.deb` | apt, from the publisher's repository, which the package adds when it is installed, through the system's software updates | ⬜ | ⬜ |
+| **Linux**, AUR (`-bin`) | the user's AUR helper, when the package moves to a new release; pacman alone never does | ⬜ | ⬜ |
 
 Windows is first because it is the platform where the question is real today: it is the only one
 that ships through two mechanisms, and its hosted channel is the only one where nobody else is

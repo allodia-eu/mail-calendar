@@ -89,7 +89,6 @@ fn default_calendar(ctx: &PageContext) -> adw::PreferencesGroup {
         );
         return group;
     }
-    let snapshot = ctx.app.mailbox_list();
     let mut calendars_by_account = std::collections::BTreeMap::<&str, Vec<&CalendarRow>>::new();
     for calendar in &calendars {
         calendars_by_account
@@ -101,11 +100,11 @@ fn default_calendar(ctx: &PageContext) -> adw::PreferencesGroup {
     let mut check_group: Option<gtk::CheckButton> = None;
     for (account_id, calendars) in calendars_by_account {
         if multiple_accounts {
-            let account = snapshot
-                .accounts
-                .iter()
-                .find(|account| account.id == account_id)
-                .map_or(account_id, |account| account.email.as_str());
+            // The core's address for the account: one used only for its calendar is in no mail
+            // list to look it up in.
+            let account = calendars
+                .first()
+                .map_or(account_id, |calendar| calendar.account_address.as_str());
             let heading = adw::ActionRow::builder()
                 .title(account)
                 .sensitive(false)

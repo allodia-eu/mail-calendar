@@ -122,7 +122,7 @@ attention, human or agent alike. Write the fact, not the story around it.
   code**, so the rule binds design rather than a call site: nothing new may ship a dispatch that
   would have to route around it. Five carve-outs exist, each stated with the condition that ends it
   in the doc
-  that owns it: connecting a mail account
+  that owns it: connecting a mail account, and the video meetings that account's provider makes
   ([`docs/provider-oauth.md`](docs/provider-oauth.md)), consented analytics
   ([`docs/analytics.md`](docs/analytics.md)), signing in to an Allodia account
   ([`allodia_license/entitlement.md`](allodia_license/entitlement.md)), the local MCP server
@@ -151,6 +151,9 @@ attention, human or agent alike. Write the fact, not the story around it.
   it, and the work is not done until that issue is closed. What a platform cannot do at all is a
   decision, stated as a rule in its contract with the reason. Existing "Known gaps" entries are
   debt to pay down; nothing new is added to them.
+- **A rule is decided once, in the core.** The check that refuses a change and the screen that
+  predicts it call the same function, and a client words the answer; a rule restated to predict
+  it (or copied into a client) is a second implementation that will disagree.
 - **Consume the engine only through its `engine-api` facade.** Never reach into lower engine crates.
 - **Protocol knowledge belongs in the engine: check before you parse.** About to read or write
   protocol bytes here (an iCalendar property, a MIME part, a JMAP or DAV payload, an RFC status
@@ -212,15 +215,18 @@ above). Two couplings apply to everything user-facing: copy may not out-run the 
 | [`signatures.md`](docs/signatures.md) | Standalone reusable entities in a named library; two independent slots per account; re-resolved when From changes; sanitised on store *and* submit; `data:` images rewritten to `cid:` on send. |
 | [`boot-sequence.md`](docs/boot-sequence.md) | Opening the core at launch. The constructor runs **off the UI thread** and takes the credential store as a parameter, never a later setter; until it returns the window shows a blank page, and after `launch_status_after_ms()` a progress indicator with "Opening your mailbox…", never "Connecting": no account has been dialled yet. |
 | [`timestamps.md`](docs/timestamps.md) | Relative label on the list row, full absolute date in the reading header; formatted client-side because the core is tzdata-free; bucket selection is unit-tested. |
+| [`notices.md`](docs/notices.md) | Every standing "something needs your attention". The **core** decides each one (kind, severity, screens, account, one typed action) and ranks them: Blocked, Degraded, Informational, then the whole app before one account, then older first. A client draws the first that belongs to the screen in its platform's prominent place and the rest behind one Issues entry, **never stacked**. One notice per account and fact; only an event can be dismissed; a failed remedy is said on the notice. |
 | [`logging.md`](docs/logging.md) | The shared `Logger` port: a rotating, size-capped, privacy-safe local log. Counts, ids, durations and events only, **never** mail content, addresses or credentials. |
 | [`analytics.md`](docs/analytics.md) | Opt-in, default off, EU-wide; the install id is minted **at consent**; the payload is closed-enum labels so it structurally cannot carry content; withdrawal erases locally and at the backend. |
 | [`settings.md`](docs/settings.md) | Which Settings categories exist, in which order, under which names, and what lives in each, so "Settings → Reading" is true on every platform. |
 | [`background-sync.md`](docs/background-sync.md) | The `run_background_sync` port: a bounded one-shot pass, the persisted per-account high-water-mark (inbound Inbox only, first-run seeded), and the notification content policy. |
+| [`waiting.md`](docs/waiting.md) | What a client shows while work the person started runs. A press shows it is working **from the press until the work ends**, on or beside its control, as the platform's spinner; greying alone is not that. A running control cannot start the same work twice, and a page holds every control while one change runs on it. The core says what is running (`ControlState`, `account_page`) and what a change came to; a client draws it through one set of components of its own and words it. Nothing that can wait on the network or the store is called from a UI thread. |
 | [`sync-progress.md`](docs/sync-progress.md) | The three things a client may say about mail arriving, or not arriving. A pass the user **awaits** gets the bar, in its own row **below** the list; a pass nobody started gets a **hint** inside a status line the client already draws, never a row of its own, and reaches it only once it has actually committed mail; an account its server asked to wait gets **"Sync paused"** in that same line, ahead of the hint, and never reads as an outage. The same rule decides the **reading spinner**: a client draws it only when the core says an open has outlasted its threshold, never merely because no snapshot has arrived. |
 | [`onboarding.md`](docs/onboarding.md) | The first screen that adds a mail account: the Allodia-account recommendation, the sign-in line, the divider and the email-address field, **in that order**. Skipping is one action on that screen; a build with no registration loses items 1 to 3 **together**; the copy may not out-run the capability matrix (phone and desktop, never web); the card claims the account list, never mail and never a password. |
 | [`account-autodetect.md`](docs/account-autodetect.md) | The strategy set raced in priority order, plus two rules binding every platform: an **untrusted** (non-HTTPS) result needs explicit user approval before a credential is sent, and the **email address never appears in a URL**, only the domain. |
 | [`certificate-exceptions.md`](docs/certificate-exceptions.md) | Reaching a server whose certificate does not verify, without any client turning verification off. An exception is consulted only **after** the policy has refused, and pins **one** certificate on **one** server name, so it is not "stop checking this host". Nothing is accepted that was not shown, fingerprint included; Connect stays inert until it is; and the acceptance is stored with the account, so nobody is asked twice. |
 | [`mail-oauth.md`](docs/mail-oauth.md) | Connecting a mail account at a provider we have never met. The **server** is asked what it accepts before any credential field is drawn; three answers, because they are three screens, and "this provider admits only apps it registered in advance" is one of them. An issuer comes from the provider describing itself, never from a third party or an untrusted hop. An OAuth account stores no password anywhere, and one authentication failure is worth exactly one re-dial. |
+| [`nextcloud-sign-in.md`](docs/nextcloud-sign-in.md) | Signing in to a Nextcloud server through its own browser sign-in, Login Flow v2. The **server** says it is Nextcloud (`status.php`), never the realm, which any administrator can rename; four existing surfaces offer it and nobody picks a provider. The app password is named after this app and platform, goes only to the server that issued it and leaves with the account. There is nothing to refresh: a refusal is a sign-in again, or, when the person chose it, a remote wipe. |
 | [`mcp.md`](docs/mcp.md) | Writes go through the same door the user does; reads must not be an `Intent`. Off by default, empty allow list, direct send its own toggle, the known-recipient guard, bodies only from `get_message`, no irreversible primitive. |
 | [`os-integration.md`](docs/os-integration.md) | The two doors the OS knocks on: a `mailto:` link and a share. Both pre-fill an **editable** composer and never send. A share may suggest a subject and body and **never** recipients; the one route to `To`/`Cc`/`Bcc` is shared text that is itself a mail link, decoded by the same allowlist. **`mailto:?attach=` is never honoured**: a handler cannot tell a page's URI from a local one, so files arrive only through a channel that is itself a user action. Names and media types are normalised in the core, and a refused file is reported, never dropped silently. The offer to become the default mail app is put **once**, never before an account exists, and never where the build cannot act. |
 | [`updates.md`](docs/updates.md) | Settings → About says **what keeps this copy current**, named as the thing a user would go to, and answers a check with one of three outcomes. The mechanism is read from the platform, never from the brand or the build. A check that failed is **never** reported as up to date. A client never claims to have installed what the platform will apply at the next launch. None of it belongs in the core: there is no shared state, only a different OS API per platform. |
@@ -428,7 +434,9 @@ either way: it needs no GTK, and it runs on the nightly the gate selects.
 `clients/linux/package.sh` is the packaging gate: it builds `--release` in the GNOME SDK, generates
 the desktop entry and AppStream metainfo from the resolved listing and [`VERSION`](VERSION), and
 validates both against the installed tree. CI runs it on **both** architectures at a tag, never on
-a push, and does the same with its sibling for the snap, `clients/linux/package-snap.sh`.
+a push, and does the same with its siblings for the snap, `clients/linux/package-snap.sh`, and
+for a native install, `clients/linux/package-native.sh`, whose x86_64 tarball it then checks
+against current Arch's libraries.
 
 ### Gates that stay green over a broken build
 

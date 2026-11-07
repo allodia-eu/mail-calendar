@@ -62,7 +62,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 command -v flatpak-builder >/dev/null ||
-  { echo "package.sh: need flatpak-builder (sudo apt install flatpak flatpak-builder)" >&2; exit 1; }
+  { echo "package.sh: need flatpak-builder (see the prerequisites in clients/linux/README.md)" >&2; exit 1; }
 
 # The OAuth client registrations have to cross into the sandbox, and only the source tree does.
 #

@@ -42,7 +42,16 @@ struct SettingsHubView: View {
     }
 
     var body: some View {
-        if hSize == .compact { iPhoneHub } else { iPadSplit }
+        Group {
+            if hSize == .compact { iPhoneHub } else { iPadSplit }
+        }
+        // An account's page asked for from another category, a row naming the account, is shown
+        // where it lives.
+        .onChange(of: model.accountPage) { _, page in
+            guard page != nil, selection != .accounts || path != [.accounts] else { return }
+            selection = .accounts
+            path = [.accounts]
+        }
     }
 
     /// iPhone: a hub of category rows, each pushing its detail. Back (arrow and system) steps

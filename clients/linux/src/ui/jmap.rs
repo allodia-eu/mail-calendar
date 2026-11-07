@@ -35,12 +35,12 @@ pub(crate) enum JmapOutcome {
     NotAdded(Box<super::setup_model::ConnectFailure>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum JmapReauthOutcome {
     Reauthenticated,
     Cancelled,
-    /// What the banner says.
-    Failed(String),
+    /// Said on the notice that started it (`docs/notices.md` rule 10).
+    Failed,
 }
 
 pub(super) fn prepare(
@@ -157,9 +157,7 @@ pub(super) fn complete_reauth(
 ) -> JmapReauthOutcome {
     match app.complete_jmap_reauth(account_id, pending, callback_url) {
         Ok(()) => JmapReauthOutcome::Reauthenticated,
-        Err(error) => JmapReauthOutcome::Failed(super::core_error::signing_in_again_failed(
-            &super::core_error::said(&error),
-        )),
+        Err(_) => JmapReauthOutcome::Failed,
     }
 }
 

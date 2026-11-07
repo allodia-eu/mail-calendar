@@ -1,15 +1,16 @@
 //! Pure calendar editor state and provider-neutral intent construction.
 
 use mailcal_bindings::{
-    EventAttendee, EventConference, EventDetail, EventIntent, EventRecurrence, Intent,
-    MeetingInvitee, MeetingInviteePatch, RecurrenceChange, RepeatDraft, RepeatSummary,
-    meeting_invitee_patch, repeat_change_of,
+    EditorMeeting, EventAttendee, EventConference, EventDetail, EventIntent, EventRecurrence,
+    Intent, MeetingInvitee, MeetingInviteePatch, MeetingOption, RecurrenceChange, RepeatDraft,
+    RepeatSummary, meeting_invitee_patch, repeat_change_of,
 };
 use time::{Duration, PrimitiveDateTime, Time};
 
 use super::{
     date::{date_from_wall, now_wall, parse_date, parse_wall, wall_string},
     drag::CreateSlot,
+    editor_meeting::MeetingSelection,
 };
 
 /// A writable calendar offered by the create form.
@@ -23,6 +24,8 @@ pub(super) struct CalendarChoice {
     pub(super) address: String,
     /// Whether a meeting may be organised here: the core's `CalendarRow::can_invite`.
     pub(super) can_invite: bool,
+    /// The video meetings an event here can have: the core's `CalendarRow::meeting_choices`.
+    pub(super) meeting_choices: Vec<MeetingOption>,
 }
 
 /// One stored event, reduced to the fields the Linux detail/editor needs.
@@ -69,6 +72,8 @@ pub(super) struct EventDetails {
     /// Everyone on the event, organiser first. The organiser edits the rows that carry a `role`
     /// when `can_edit_invitees` holds; everyone else reads them.
     pub(super) attendees: Vec<EventAttendee>,
+    /// The meeting the editor's Video meeting row opens showing.
+    pub(super) editor_meeting: Option<EditorMeeting>,
 }
 
 impl EventDetails {
@@ -109,6 +114,7 @@ impl EventDetails {
             my_answer: detail.my_answer,
             occurrence: detail.occurrence_start,
             attendees: detail.attendees,
+            editor_meeting: detail.editor_meeting,
         }
     }
 }
@@ -130,6 +136,8 @@ pub(crate) struct EventForm {
     /// The invitee list as it stands, organiser excluded. Read only where `can_invite` says the
     /// list was offered.
     pub(crate) invitees: Vec<MeetingInvitee>,
+    /// What the Video meeting row holds.
+    pub(crate) meeting: MeetingSelection,
 }
 
 /// An open create/edit form. All validation and date-shape decisions stay outside GTK.
@@ -258,13 +266,14 @@ impl EventEditor {
 
     /// Whether this save has to ask *This event · All events* first.
     ///
-    /// **A changed repeat or a changed roster settles the question**, so it is not put: both
-    /// belong to the series, and one occurrence is an instance of a rule rather than a holder of
+    /// **A changed repeat, roster or meeting settles the question**, so it is not put: each
+    /// belongs to the series, and one occurrence is an instance of a rule rather than a holder of
     /// one. The controls say so before the user touches them.
     pub(super) fn save_asks_about_the_series(&self, form: &EventForm) -> bool {
         self.asks_about_the_series()
             && self.repeat_change(form).is_none()
             && self.invitee_change(form).is_none()
+            && self.meeting_change(form).is_none()
     }
 
     /// Whether the invitee controls are offered with the calendar at `index` picked: on a create,
@@ -383,6 +392,10 @@ impl EventEditor {
                     invitees: (!this_occurrence_only)
                         .then(|| self.invitee_change(form))
                         .flatten(),
+                    // So does a meeting, and the core refuses one sent with an occurrence.
+                    meeting: (!this_occurrence_only)
+                        .then(|| self.meeting_change(form))
+                        .flatten(),
                 },
             });
         }
@@ -406,6 +419,7 @@ impl EventEditor {
                 },
                 invitees: (self.can_invite(form.calendar_index) && !form.invitees.is_empty())
                     .then(|| form.invitees.clone()),
+                meeting: self.meeting_change(form),
             },
         })
     }

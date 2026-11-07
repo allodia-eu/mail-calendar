@@ -138,7 +138,8 @@ services:
 
   # The sign-in server as a provider on the internet would present it to an IMAP client: its
   # autoconfig at https://localhost, naming https://127.0.0.1 as the issuer, and its metadata
-  # there, republished under that HTTPS issuer. Why two names, and what the rewrite costs, is in
+  # there, republished under that HTTPS issuer; its calendars and contacts at https://localhost,
+  # the host name its issuer lists. Why two names, and what the rewrites cost, is in
   # ./front/nginx.conf. The certificate is minted by `stalwart-oauth` (entrypoint.sh), so this
   # starts once that server is healthy.
   #
@@ -151,7 +152,7 @@ services:
   # about (docs/certificate-exceptions.md).
   stalwart-oauth-front:
     # Pinned by multi-arch index digest, like ./Dockerfile's images.
-    image: nginx:1.31-alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+    image: nginx:1.31-alpine@sha256:785835ea65db4bba6f021acc0f3be91b0fef76a53fe41f8588c6698d2aed0606
     depends_on:
       stalwart-oauth:
         condition: service_healthy
@@ -163,7 +164,7 @@ services:
       - ./front/autoconfig.xml:/usr/share/harness/autoconfig.xml:ro
       - stalwart-oauth-front-tls:/etc/nginx/harness-tls:ro
     ports:
-      - "127.0.0.1:443:443" # HTTPS: autoconfig (localhost) + metadata (127.0.0.1)
+      - "127.0.0.1:443:443" # HTTPS: autoconfig + DAV (localhost), metadata (127.0.0.1)
       - "127.0.0.1:12443:8443" # HTTPS: the seeded server's DAV, under a certificate nothing trusts
     # Healthy once the republished metadata names the HTTPS issuer, which proves the rewrite
     # rather than merely that nginx started.

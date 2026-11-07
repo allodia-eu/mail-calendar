@@ -52,6 +52,8 @@ pub(crate) struct RecordedPatch {
     pub(crate) end: Option<CalendarDateTime>,
     /// Invitee changes, when the patch touches the roster.
     pub(crate) invitees: Option<InviteePatch>,
+    /// What the patch does to the event's video meeting, when it touches one.
+    pub(crate) conference: Option<engine_api::ConferenceEdit>,
 }
 
 /// Every patch the provider was asked to apply, in order.
@@ -96,6 +98,8 @@ pub(crate) struct CalendarFake {
     pub(super) create_rules: Arc<Mutex<Vec<Option<DraftRecurrence>>>>,
     /// The scheduling data each create carried, or `None` for an appointment.
     pub(super) create_meetings: Arc<Mutex<Vec<Option<MeetingDraft>>>>,
+    /// The video meeting each create carried, or `None` for one without.
+    pub(super) create_conferences: Arc<Mutex<Vec<Option<engine_api::NewConference>>>>,
     pub(super) deletions: Arc<Mutex<Vec<String>>>,
     /// What each delete removed: the whole event, or one named occurrence. By value, for the
     /// reason [`RecordedPatch`] is: cancelling one Tuesday and cancelling the standup are
@@ -121,6 +125,8 @@ pub(crate) struct CalendarFake {
     /// When set, every patch fails with what it makes. The write path has no outbox behind it,
     /// so a failed edit is simply a lost edit: a test has to be able to prove the app says so.
     pub(super) patch_failure: Option<fn() -> ProviderError>,
+    /// When set, every create fails with what it makes, after it was recorded.
+    pub(super) create_failure: Option<fn() -> ProviderError>,
     /// When set, every read fails before it reaches anything: the account is there, the network
     /// is not. The store therefore stays as empty as it was, which is the shape a first launch
     /// with no connection has and the one case where claiming a materialized window is a lie.
@@ -164,6 +170,7 @@ impl CalendarFake {
             creations: Arc::new(Mutex::new(Vec::new())),
             create_rules: Arc::new(Mutex::new(Vec::new())),
             create_meetings: Arc::new(Mutex::new(Vec::new())),
+            create_conferences: Arc::new(Mutex::new(Vec::new())),
             delete_targets: Arc::new(Mutex::new(Vec::new())),
             create_targets: Arc::new(Mutex::new(Vec::new())),
             rsvps: Arc::new(Mutex::new(Vec::new())),
@@ -173,6 +180,7 @@ impl CalendarFake {
             patches: Arc::new(Mutex::new(Vec::new())),
             reply_delivery: ReplyDelivery::NotReported,
             patch_failure: None,
+            create_failure: None,
             unreachable: false,
             reject_event_delta: false,
             syncs: Arc::new(AtomicUsize::new(0)),
@@ -224,6 +232,11 @@ impl CalendarFake {
     /// A shared handle to the scheduling data each create carried.
     pub(crate) fn create_meetings(&self) -> Arc<Mutex<Vec<Option<MeetingDraft>>>> {
         Arc::clone(&self.create_meetings)
+    }
+
+    /// A shared handle to the video meeting each create carried.
+    pub(crate) fn create_conferences(&self) -> Arc<Mutex<Vec<Option<engine_api::NewConference>>>> {
+        Arc::clone(&self.create_conferences)
     }
 
     /// A shared handle to what each delete removed: the event, or one occurrence.
@@ -378,6 +391,13 @@ impl CalendarWrites for CalendarFake {
             .lock()
             .unwrap()
             .push(draft.meeting.clone());
+        self.create_conferences
+            .lock()
+            .unwrap()
+            .push(draft.conference.clone());
+        if let Some(failure) = self.create_failure {
+            return Err(failure());
+        }
         let href = format!("/cal/{}.ics", draft.uid.as_str());
         let event = EventId::try_from(href.as_str())
             .unwrap_or_else(|_| EventId::try_from("/cal/event.ics").unwrap());
@@ -426,6 +446,7 @@ impl CalendarWrites for CalendarFake {
             start: edit.patch.start_edit().cloned(),
             end: edit.patch.end_edit().cloned(),
             invitees: edit.patch.invitee_edit().cloned(),
+            conference: edit.patch.conference_edit().cloned(),
         });
         if let Some(failure) = self.patch_failure {
             return Err(failure());

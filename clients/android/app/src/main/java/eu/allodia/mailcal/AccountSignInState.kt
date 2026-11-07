@@ -74,6 +74,15 @@ internal class AccountSignInState {
     var pending: PendingAccountSignIn? = null
         private set
 
+    /** The Nextcloud sign-in in the air, while one is (MainActivityAccountNextcloud.kt). */
+    var nextcloudFlight: NextcloudFlight? = null
+
+    /**
+     * A Nextcloud grant the core could not put on its account yet, and that account, kept so the
+     * next press tries it again without the browser: the server hands it out once.
+     */
+    var nextcloudGrant: Pair<String, String>? = null
+
     /** Counts switches to a password, so the field empties after each. */
     var passwordsSaved by mutableIntStateOf(0)
         private set
@@ -109,6 +118,35 @@ internal class AccountSignInState {
         val run = running ?: return
         pending = PendingAccountSignIn(run.accountId, handle, run.switching, unreached)
         running = run.copy(step = SignInStep.BROWSER)
+    }
+
+    /**
+     * Withdraws a kept Nextcloud grant unless it is [keeping]'s, or the core is putting it on its
+     * account now.
+     */
+    fun leaveNextcloud(keeping: String? = null) {
+        val (accountId, grant) = nextcloudGrant ?: return
+        if (accountId == keeping) return
+        if (running?.let { it.accountId == accountId && it.step == SignInStep.COMPLETING } == true) return
+        nextcloudGrant = null
+        NextcloudFlights.withdraw(grant)
+    }
+
+    /** A Nextcloud sign-in's browser is open; the flight polls, with no redirect to wait for. */
+    fun polling() {
+        val run = running ?: return
+        running = run.copy(step = SignInStep.BROWSER)
+    }
+
+    /**
+     * A Nextcloud grant arrived for [accountId]: the core puts it on the account. False when
+     * another flow runs meanwhile, which the grant may not interrupt.
+     */
+    fun completingNextcloud(accountId: String, switching: Boolean): Boolean {
+        val run = running
+        if (run != null && run.accountId != accountId) return false
+        running = SignInRun(accountId, SignInStep.COMPLETING, switching)
+        return true
     }
 
     /** The running sign-in will not reach what [asked] names: the browser waits for an answer. */

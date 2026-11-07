@@ -24,11 +24,12 @@ public sealed partial class SettingsDialog
     private (ServerChangePanel Panel, Button Allow, Button NotNow)? _serverChangeDrawn;
 
     /// <summary>"Review" and, once pressed, the question under <paramref name="capability"/>'s
-    /// row, when <paramref name="note"/> says the use is paused for a server change.</summary>
-    private StackPanel? ServerChangeAction(AccountEntry entry, AccountCapability capability, UseNote note)
+    /// row, when the core offers it there (<paramref name="reviews"/>): under the last of the uses
+    /// paused for a server change.</summary>
+    private StackPanel? ServerChangeAction(AccountEntry entry, AccountCapability capability, bool reviews)
     {
         var kept = _serverChangeOpen is { } held && held.AccountId == entry.Id && held.Row == capability ? held : null;
-        if (!AccountSettingsRules.ReviewsServerChange(note))
+        if (!reviews)
         {
             // No longer paused, such as allowed meanwhile: a pause that comes back asks afresh.
             if (kept is not null)

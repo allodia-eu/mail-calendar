@@ -23,6 +23,9 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
+    <!-- An xUnit v3 test project is a program of its own, which runs its cases in-process.
+         `dotnet test` reaches it through Microsoft.Testing.Platform, which /global.json selects. -->
+    <OutputType>Exe</OutputType>
     <!-- The generated UniFFI bindings contain unsafe blocks (they marshal RustBuffer by pointer).
          They are never *called* here, no cdylib is loaded, but they must still compile. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -31,9 +34,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
-    <PackageReference Include="xunit" Version="2.9.3" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" />
+    <PackageReference Include="xunit.v3" Version="4.0.2" />
   </ItemGroup>
 
   <ItemGroup>
@@ -66,6 +67,7 @@
          live in the dialog, the paint records in the surface), so the create/edit payload shapes and
          the §7 hit geometry are pinned here without a UI. -->
     <Compile Include="..\Mailcal\Calendar\EventEditorState.cs" Link="Calendar\EventEditorState.cs" />
+    <Compile Include="..\Mailcal\Calendar\EventEditorMeeting.cs" Link="Calendar\EventEditorMeeting.cs" />
     <Compile Include="..\Mailcal\Calendar\ReminderBucket.cs" Link="Calendar\ReminderBucket.cs" />
     <Compile Include="..\Mailcal\Calendar\InviteeRoster.cs" Link="Calendar\InviteeRoster.cs" />
     <!-- An invitee's answer from the event detail: which button is the answer already given, and
@@ -219,12 +221,13 @@
          server on a non-standard port is the reason the manual form exists and nothing else
          here can fail when that breaks. -->
     <Compile Include="..\Mailcal\Services\ManualServerField.cs" Link="Services\ManualServerField.cs" />
-    <!-- What Settings → Accounts draws from the core's one snapshot (docs/accounts.md rules 11 to
-         14): which switch is held on and why, which link pickers a page offers and which account
-         one suggests, and what an edit of an account's servers sends back. WinUI-free and
-         L10n-free on purpose; each rule fails silently on screen, most sharply a suggestion that
-         second-guesses a link already made, and a save that adds a server the account never had. -->
+    <!-- What Settings → Accounts' list draws from the core's one snapshot (docs/accounts.md rules
+         11 to 14), when an account's page is drawn again from the core's record of it, and what an
+         edit of an account's servers sends back. WinUI-free and L10n-free on purpose; each rule
+         fails silently on screen, most sharply a page that keeps spinning after its change ended,
+         and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
+    <Compile Include="..\Mailcal\Services\MeetingAccountLabels.cs" Link="Services\MeetingAccountLabels.cs" />
     <!-- What an account page's Sign-in section lets the person press while its sign-in is out
          (docs/provider-oauth.md rule 13): buttons disabled only for a blocking call, so a sign-in
          abandoned in the browser is superseded by the next press rather than wedging the page. -->
@@ -242,11 +245,17 @@
          the core's yes for the form's uses, an answer from a superseded or retired attempt does
          nothing, and success goes where Connect's success goes. -->
     <Compile Include="..\Mailcal\Services\SeparateServerSignIn.cs" Link="Services\SeparateServerSignIn.cs" />
-    <!-- The line the calendar and contacts screens draw over a use that did not connect
-         (docs/accounts.md rule 16): the title, the reason the account's page gives and the
-         last-synced sentence, one per account. L10n-free, the words arrive as parameters. -->
-    <Compile Include="..\Mailcal\Services\UseOutageLines.cs" Link="Services\UseOutageLines.cs" />
-    <Compile Include="..\Mailcal\ViewModels\UseOutageLine.cs" Link="ViewModels\UseOutageLine.cs" />
+    <!-- Signing in with Nextcloud (docs/nextcloud-sign-in.md rules 2, 5 and 6): the flight's poll
+         and its wake, a grant answered after the way back withdrawn, a held grant kept for a retry
+         and never withdrawn while the core completes it, and which server and uses a setup press
+         signs in at. Silent when wrong: a grant dropped rather than withdrawn stays in the
+         person's Nextcloud device list, and a poll that never wakes leaves them waiting. -->
+    <Compile Include="..\Mailcal\Services\NextcloudFlight.cs" Link="Services\NextcloudFlight.cs" />
+    <Compile Include="..\Mailcal\Services\SetupNextcloud.cs" Link="Services\SetupNextcloud.cs" />
+    <!-- The servers found beside a JMAP server, offered on its link step (docs/onboarding.md):
+         kept for that account and address only, offered only for what its session lacks, and used
+         up once taken. Silent when wrong: a second copy of contacts the session already has. -->
+    <Compile Include="..\Mailcal\Services\SetupBeside.cs" Link="Services\SetupBeside.cs" />
     <!-- The question a calendar or address book server found on another site asks
          (docs/account-autodetect.md rule 14): which title, body and closing line a change earns,
          and where each site sits in its line, which is drawn in bold. L10n-free, the words arrive
@@ -367,6 +376,13 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarSources.cs" Link="ViewModels\SidebarSources.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
+    <Compile Include="..\Mailcal\ViewModels\SidebarMark.cs" Link="ViewModels\SidebarMark.cs" />
+    <!-- Which of the core's notices is drawn where (docs/notices.md): the bar's notice for the
+         screen on show, how many stand behind it, each account's mark, and what is announced once.
+         Silent when wrong: a notice drawn on a screen it does not belong to, or one read aloud on
+         every snapshot. It reads the generated Notice, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\NoticeRules.cs" Link="Services\NoticeRules.cs" />
+    <Compile Include="..\Mailcal\Services\AppDestination.cs" Link="Services\AppDestination.cs" />
     <Compile Include="..\Mailcal\ViewModels\AccountList.cs" Link="ViewModels\AccountList.cs" />
     <!-- What the folder pane offers and accepts when the tree is changed (docs/folder-pane.md,
          "Changing the tree"): a row's menu, Move to…'s destinations, which drops land, and the

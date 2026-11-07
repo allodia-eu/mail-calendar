@@ -125,7 +125,10 @@ public sealed partial class CalendarView
         {
             return;
         }
-        var editor = EventEditorState.Edit(detail, CalendarNameFor(detail.Account, detail.Calendar));
+        var calendar = Model.Calendars()
+            .FirstOrDefault(c => c.Account == detail.Account && c.Id == detail.Calendar);
+        var editor = EventEditorState.Edit(
+            detail, calendar?.Name ?? detail.Calendar, calendar?.MeetingChoices);
         while (true)
         {
             var dialog = new EventEditorDialog(Model, editor) { XamlRoot = this.XamlRoot };
@@ -217,9 +220,6 @@ public sealed partial class CalendarView
         return row is null ? null : CalendarChoice.Of(row);
     }
 
-    private string CalendarNameFor(string account, string calendar) =>
-        Model?.Calendars().FirstOrDefault(c => c.Account == account && c.Id == calendar)?.Name ?? calendar;
-
     private void OnAgendaEventClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is EventItem item)
@@ -235,27 +235,6 @@ public sealed partial class CalendarView
         if ((sender as FrameworkElement)?.Tag is EventItem item)
         {
             Model?.DeleteEvent(item.Account, item.Key);
-        }
-    }
-
-    // Signs the first account whose calendar the grant withholds in again, in place. The banner
-    // clears once the calendar connects; if several are affected it re-renders for the next after
-    // each completes.
-    private void OnCalendarReauth(object sender, RoutedEventArgs e) => Model?.ReconsentCalendar();
-
-    /// <summary>Raised with an account's id when its outage line asks for its page in Settings →
-    /// Accounts; the window opens the dialog, which needs its XamlRoot.</summary>
-    public event EventHandler<string>? AccountSettingsRequested;
-
-    /// <summary>Raised with an account's id when its outage line asks to review a server change;
-    /// the window opens the question, which needs its XamlRoot.</summary>
-    public event EventHandler<string>? ServerChangeRequested;
-
-    private void OnUseOutageAccount(object sender, RoutedEventArgs e)
-    {
-        if ((sender as FrameworkElement)?.Tag is UseOutageLine line)
-        {
-            (line.Reviews ? ServerChangeRequested : AccountSettingsRequested)?.Invoke(this, line.AccountId);
         }
     }
 }

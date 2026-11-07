@@ -9,7 +9,6 @@ import android.util.Log
 import java.lang.ref.WeakReference
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.AccountCredentialStore
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.CredentialStoreException
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
@@ -21,26 +20,6 @@ import uniffi.mailcal_bindings.ThreadRow
 import uniffi.mailcal_bindings.deviceTimeZone
 
 private const val TAG = "Mailcal"
-
-/// One account that can't reach its server: its display email and the technical detail (its
-/// connect error) revealed behind the connection banner's "Details" action.
-internal data class ConnectionIssue(val email: String, val detail: String)
-
-/// An account a banner names: its id, which the remedy is addressed to, and what a person reads it
-/// by.
-internal data class NamedAccount(val id: String, val name: String)
-
-/// One account whose stored sign-in the server has stopped accepting: its account id, what a
-/// person reads it by and its provider family, which decides the remedy (`AccountSignInRules.expiredRemedy`):
-/// `MICROSOFT`/`GOOGLE`/`JMAP_OAUTH`/`IMAP_OAUTH` re-run their browser sign-in, anything else (a
-/// password or pasted-secret JMAP account, or an unknown one) is updated in Settings. The id is
-/// what a sign-in again is addressed to: it re-authorises that account's own persisted grant
-/// rather than starting from an address.
-internal data class ExpiredSignIn(
-    val id: String,
-    val name: String,
-    val provider: AccountProvider?,
-)
 
 internal fun logUiInfo(message: String) {
     Log.i(TAG, message)
@@ -159,10 +138,8 @@ internal fun MainActivity.connect(
                 // (docs/background-sync.md).
                 MailcalApplication.liveCore = WeakReference(connected)
                 activity.connectError = null
-                // A boot outage no longer dumps raw connect errors into a banner: the failed
-                // accounts are kept as placeholders and surfaced by the friendly connection banner.
-                // Pull connectivity once now, the outage is seeded before any surface signal fires
-                // so the banner + badges show immediately, not only after the next change.
+                // A boot outage keeps the failed accounts as placeholders, and the core says it as
+                // a notice, pulled once below so it shows before any surface signal fires.
                 connected.calendarConnectError()?.let {
                     Log.w(TAG, "calendar (CalDAV) failed to connect: $it")
                 }
@@ -198,7 +175,7 @@ internal fun MainActivity.connect(
                 connected.reportAppOpened()
                 activity.observeNetworkReachability()
                 activity.refreshAccountsSnapshot()
-                activity.refreshConnectivity()
+                activity.pullNotices()
                 // Render the primed cached snapshot right away, so the last-synced mail shows
                 // instantly, even offline, when the RefreshMail below short-circuits (its rebuild
                 // signal is what the list otherwise waits for, and the boot prime's own signal
@@ -275,6 +252,8 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signatures()
             activity.refreshAccountsSnapshot()
+            // Raised while the showcase was built, before anything was listening for the signal.
+            activity.pullNotices()
             activity.reload()
             // No account, so nothing to sync: the first-run screen draws none of it.
             if (!firstRun) {
@@ -369,57 +348,8 @@ internal fun MainActivity.observeNetworkReachability() {
     cm.registerDefaultNetworkCallback(callback)
     // registerDefaultNetworkCallback fires onAvailable only when a default network exists, and
     // never fires on registration when there is none, so a launch in airplane mode would leave
-    // the core thinking it's online. Report the current state once so the offline banner is right.
+    // the core thinking it's online. Report the current state once so the offline notice is right.
     val online = cm.getNetworkCapabilities(cm.activeNetwork)
         ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     activity.app?.dispatch(Intent.ReportNetworkReachable(online))
-}
-
-/**
- * The lines the calendar or contacts screen draws for a use that did not connect, read from the
- * connectivity and accounts snapshots in composition, so they follow both.
- */
-internal fun MainActivity.outageLines(use: OutageUse, ctx: Context): List<OutageLine> =
-    UseOutageRules.lines(ctx, use, connectivity) { id ->
-        accountSettings.addressOf(id, accounts.firstOrNull { it.id == id }?.email)
-    }
-
-// Pulls the current connectivity and resolves each unreachable account to its friendly email +
-// technical detail, so the connection-issues banner can name the affected accounts and reveal
-// the raw error behind a "Details" action. Called at launch, on a CONNECTIVITY signal, and after
-// a reload (so the emails resolve once the switcher list is populated).
-internal fun MainActivity.refreshConnectivity() {
-    val instance = app ?: return
-    val snapshot = instance.connectivity()
-    connectivity = snapshot
-    // Named from the accounts snapshot, which lists every account, mail or not: an account without
-    // mail is in none of the switcher rows (docs/accounts.md rule 8).
-    fun address(id: String) =
-        accountSettings.addressOf(id, accounts.firstOrNull { it.id == id }?.email)
-    // A prompt to sign in again names the account apart from one that shares its address.
-    fun name(id: String) =
-        accountSettings.nameOf(this, id, accounts.firstOrNull { it.id == id }?.email)
-    connectionIssues = if (snapshot.offline) {
-        emptyList()
-    } else {
-        snapshot.unreachableAccounts.map { id ->
-            val email = address(id)
-            ConnectionIssue(email, instance.connectionDetail(id) ?: email)
-        }
-    }
-    // A standing permission gap, not a connectivity fault, shown regardless of the offline state.
-    calendarReauth = snapshot.calendarReauthAccounts.map { NamedAccount(it, name(it)) }
-    // Likewise the mail write/send permission gap (a refused send or mail action).
-    mailReauth = snapshot.mailReauthAccounts.map { NamedAccount(it, name(it)) }
-    // An account whose stored sign-in the server has stopped accepting (an expired or revoked
-    // OAuth grant, a refused password). Not an outage, the core keeps it out of
-    // `unreachableAccounts`, so it gets its own banner. Carries the provider because the remedy
-    // differs: an OAuth account re-runs its browser sign-in, anything else is fixed in Settings.
-    signInExpired = snapshot.signinExpiredAccounts.map { id ->
-        ExpiredSignIn(
-            id = id,
-            name = name(id),
-            provider = instance.accountProvider(id),
-        )
-    }
 }

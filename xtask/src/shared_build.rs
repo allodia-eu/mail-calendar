@@ -11,7 +11,8 @@
 //! the newest thing that has not been compiled yet.
 //!
 //! So a gate run claims the directory. It leaves a marker naming the checkout whose artifacts are
-//! in there, and when the marker names someone else it runs `cargo clean --workspace` first, which
+//! in there, and when the marker names someone else it runs `cargo clean --workspace` first, in
+//! every profile a step builds in and for every target the directory holds a build for, which
 //! drops the **members'** artifacts and leaves every dependency compiled. That is the whole of the
 //! sharing: the members collide, and sharing them was never buying anything, because two checkouts
 //! cannot both have their build in one entry.
@@ -57,6 +58,42 @@ pub(crate) enum Claim {
     Taken,
 }
 
+/// The profiles the gate's steps build in. `cargo clean --workspace` reaches one profile's
+/// artifacts at a time, the dev profile's when none is named, so a step in another profile would
+/// still be handed another checkout's build scripts, which name that checkout's directory.
+const PROFILES: [&str; 2] = ["dev", "release"];
+
+/// The directory cargo names a profile's artifacts after.
+fn profile_directory(profile: &str) -> &str {
+    if profile == "dev" { "debug" } else { profile }
+}
+
+/// The targets other than the host's that `build_dir` holds a build for. Cargo keeps a target's
+/// artifacts under `<triple>/<profile>/` beside the host's own `<profile>/`, and `cargo clean`
+/// reaches one target at a time, the host's when none is named: so the slices a client step
+/// cross-compiles (the Apple core's, the Android cdylib's) would otherwise stay another
+/// checkout's. A triple always has a hyphen in it, and none of cargo's own directories does.
+fn targets_in(build_dir: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(build_dir) else {
+        return Vec::new();
+    };
+    let mut targets: Vec<String> = entries
+        .flatten()
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| name.contains('-'))
+        .filter(|name| {
+            PROFILES.iter().any(|profile| {
+                build_dir
+                    .join(name)
+                    .join(profile_directory(profile))
+                    .is_dir()
+            })
+        })
+        .collect();
+    targets.sort();
+    targets
+}
+
 /// Claims the shared build directory for `root`, rebuilding the workspace if it was someone
 /// else's. The claim lasts as long as the returned lock is held, which is the rest of the run.
 ///
@@ -76,11 +113,21 @@ pub(crate) fn claim(root: &Path) -> Option<File> {
          own\n   crates are rebuilt here before anything is judged ({})",
         build_dir.display()
     );
-    let cleaned = Command::new("cargo")
-        .args(["clean", "--workspace", "--quiet"])
-        .current_dir(root)
-        .status()
-        .is_ok_and(|status| status.success());
+    let targets = targets_in(&build_dir);
+    let cleaned = PROFILES.iter().all(|profile| {
+        let host = std::iter::once(None);
+        host.chain(targets.iter().map(Some)).all(|target| {
+            let mut clean = Command::new("cargo");
+            clean.args(["clean", "--workspace", "--quiet", "--profile", profile]);
+            if let Some(target) = target {
+                clean.args(["--target", target]);
+            }
+            clean
+                .current_dir(root)
+                .status()
+                .is_ok_and(|status| status.success())
+        })
+    });
     if !cleaned {
         eprintln!(
             "!! could not clean the workspace: the steps below may report on another checkout's \
@@ -157,7 +204,7 @@ fn decide(root: &Path, build_dir: &Path) -> Claim {
 mod tests {
     use std::path::Path;
 
-    use super::{Claim, LOCK, MARKER, decide, hold};
+    use super::{Claim, LOCK, MARKER, PROFILES, decide, hold, targets_in};
 
     /// A directory nobody else writes to, named for the test using it.
     fn scratch(name: &str) -> std::path::PathBuf {
@@ -165,6 +212,46 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("a scratch directory");
         dir
+    }
+
+    #[test]
+    fn every_profile_a_step_builds_in_is_cleaned_when_the_directory_is_taken() {
+        // The steps name their profile on the cargo line; a profile left out of PROFILES is one
+        // whose artifacts a taken directory still holds from the checkout that built it.
+        let steps = concat!(
+            include_str!("gate_steps.rs"),
+            include_str!("gate_clients.rs")
+        );
+        if steps.contains("\"--release\"") {
+            assert!(PROFILES.contains(&"release"), "a step builds --release");
+        }
+        for named in steps.split("\"--profile\", \"").skip(1) {
+            let profile = named.split('"').next().unwrap_or_default();
+            assert!(
+                PROFILES.contains(&profile),
+                "a step builds in --profile {profile}"
+            );
+        }
+    }
+
+    #[test]
+    fn every_target_the_directory_holds_a_build_for_is_cleaned_too() {
+        let build = scratch("targets");
+        for built in [
+            "debug",
+            "release",
+            "tmp",
+            "aarch64-apple-ios/release",
+            "aarch64-linux-android/debug",
+            "a-directory-of-something-else/other",
+        ] {
+            std::fs::create_dir_all(build.join(built)).expect("a scratch build directory");
+        }
+        assert_eq!(
+            targets_in(&build),
+            ["aarch64-apple-ios", "aarch64-linux-android"],
+            "the host's own profiles and anything holding no profile are not targets"
+        );
     }
 
     #[test]

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run the Linux reading/composer + search + calendar (incl. organising a meeting) + invitations +
-# contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP + cross-account
-# merge + server-change question acceptance path on a private Wayland + D-Bus session. Controls are
-# selected through GTK's AT-SPI tree, never by screen coordinates. The mailbox is the local Stalwart
-# fixture, then the showcase for the one state no fixture can stage; every screenshot/tree/log is
-# kept under target/ui-test-artifacts for inspection.
+# Run the Linux reading/composer + search + calendar (incl. organising a meeting, the Jitsi server)
+# + invitations + contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP
+# + cross-account merge + server-change question acceptance path + the reauth notices on a private
+# Wayland + D-Bus session. Controls are selected through GTK's AT-SPI tree, never by screen
+# coordinates. The mailbox is the local Stalwart fixture, then the showcase for the states no fixture
+# can stage; every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
 # It expects the deterministic seed, the one `harness.sh up` lays down. Each run leaves its own mail
 # in Alice's Inbox (about ten messages: notifications, invitations, a bounce), so the list grows
@@ -135,6 +135,7 @@ launch_app() { # <open-subject> <log-prefix> [arguments...]
     --env=MAILCAL_SHOWCASE_SCREEN="${MAILCAL_SHOWCASE_SCREEN:-}" \
     --env=MAILCAL_SHOWCASE="${MAILCAL_SHOWCASE:-}" \
     --env=MAILCAL_SHOWCASE_SERVER_CHANGE="${MAILCAL_SHOWCASE_SERVER_CHANGE:-}" \
+    --env=MAILCAL_SHOWCASE_REAUTH="${MAILCAL_SHOWCASE_REAUTH:-}" \
     --env=XDG_DATA_HOME="$XDG_DATA_HOME" \
     --env=XDG_CONFIG_HOME="$XDG_CONFIG_HOME" \
     --env=XDG_CACHE_HOME="$XDG_CACHE_HOME" \
@@ -356,6 +357,20 @@ answer_uid() {
   printf '%s@test.local' "$(printf '%s' "$ANSWER_TITLE" | tr -c 'A-Za-z0-9' '-')"
 }
 
+# Clicks a control inside the toplevel titled <window>. `locate` answers in the node's own
+# window, so the window's place on the output is added to it; a dialog clicked at the bare
+# answer is clicked through to the main window behind it.
+click_in_window() { # <window> <locate arguments...>
+  local window="$1" geometry point
+  shift
+  geometry="$(linux_session_windows | awk -F'\t' -v title="$window" '$2 == title { print $3 }')"
+  [[ "$geometry" =~ \+([0-9]+)\+([0-9]+)$ ]] || die "no window titled '$window' on the compositor"
+  local left="${BASH_REMATCH[1]}" top="${BASH_REMATCH[2]}"
+  point="$("$PYTHON" "$ATSPI" locate "$@")"
+  [[ "$point" =~ ^([0-9]+)\ ([0-9]+)$ ]] || die "'$*' reported no position to click"
+  linux_session_pointer click "$((left + BASH_REMATCH[1]))" "$((top + BASH_REMATCH[2]))"
+}
+
 open_calendar_event() { # <title>
   # A saved event replaces its agenda row once the core snapshot arrives. AT-SPI can resolve the
   # outgoing button just before that replacement, so retry against the settled row until its
@@ -389,7 +404,7 @@ forward_mailto() { # <uri>
   mapfile -t existing_instances < <(
     flatpak ps 2>/dev/null | awk '$NF == "org.gnome.Sdk" { print $1 }'
   )
-  local log="$XDG_DATA_HOME/mailcal/mailcal.log" before launcher_pid received=0
+  local log="$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" before launcher_pid received=0
   before="$(grep -c 'mail link received' "$log" 2>/dev/null || true)"
   sdk_exec \
     --no-a11y-bus \
@@ -448,7 +463,8 @@ run_inside_session() {
   [[ ${#bus[@]} == 2 ]] || die "private AT-SPI bus did not report its address and PID"
   export AT_SPI_BUS_ADDRESS="${bus[0]}"
   ATSPI_BUS_PID="${bus[1]}"
-  /usr/libexec/at-spi2-registryd --dbus-name=org.a11y.atspi.Registry \
+  registryd="$(atspi_registryd_bin)" || die "at-spi2-registryd is required"
+  "$registryd" --dbus-name=org.a11y.atspi.Registry \
     >"$ARTIFACT_DIR/atspi-registry.log" 2>&1 &
   ATSPI_REGISTRY_PID=$!
   registry_ready=0
@@ -516,7 +532,7 @@ run_inside_session() {
   }
   trap cleanup EXIT INT TERM
 
-  "$PYTHON" "$ATSPI" wait --name "Welcome to Allodia Mail & Calendar" --showing --timeout 60
+  "$PYTHON" "$ATSPI" wait --name "Welcome to $MAILCAL_APP_NAME" --showing --timeout 60
   "$PYTHON" "$ATSPI" activate \
     --name "Share usage statistics" --role switch --timeout 20
   "$PYTHON" "$ATSPI" activate --name "See exactly what we send" --timeout 20
@@ -525,9 +541,9 @@ run_inside_session() {
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --within "See exactly what we send" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Get started" --timeout 20
-  "$PYTHON" "$ATSPI" wait --name "Welcome to Allodia Mail & Calendar" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Welcome to $MAILCAL_APP_NAME" --absent --timeout 20
 
-  local core_preferences="$XDG_DATA_HOME/mailcal/dev/preferences.toml"
+  local core_preferences="$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/dev/preferences.toml"
   for _ in {1..100}; do
     [[ -f "$core_preferences" ]] && grep -q '^analytics_consent = true$' "$core_preferences" && break
     sleep 0.05
@@ -599,7 +615,7 @@ run_inside_session() {
 
   local calendar_refreshes=0
   for _ in {1..100}; do
-    calendar_refreshes="$(grep -c 'refresh_calendar:' "$XDG_DATA_HOME/mailcal/mailcal.log" 2>/dev/null || true)"
+    calendar_refreshes="$(grep -c 'refresh_calendar:' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" 2>/dev/null || true)"
     (( calendar_refreshes >= 2 )) && break
     sleep 0.1
   done
@@ -678,14 +694,14 @@ run_inside_session() {
     --role text --within "Connect your assistant" --within-role grouping \
     --showing --timeout 20 >"$mcp_config"
   "$PYTHON" - "$mcp_config" "$(sdk_runtime_version)" \
-    "$(sdk_target_dir)/debug/mailcal-mcp" "$XDG_DATA_HOME/mailcal/mcp.sock" <<'PY'
+    "$(sdk_target_dir)/debug/mailcal-mcp" "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mcp.sock" <<'PY'
 import json
 import os
 import sys
 
 config_path, version, relay, endpoint = sys.argv[1:]
 with open(config_path, encoding="utf-8") as source:
-    entry = json.load(source)["mcpServers"]["allodia-mail-and-calendar"]
+    entry = json.load(source)["mcpServers"][os.environ["MAILCAL_MCP_SERVER_NAME"]]
 assert entry["command"] == "flatpak"
 args = entry["args"]
 assert args[1] in ("--user", "--system")
@@ -705,7 +721,7 @@ PY
   "$PYTHON" "$ATSPI" activate \
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
 
-  local mcp_endpoint="$XDG_DATA_HOME/mailcal/mcp.sock"
+  local mcp_endpoint="$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mcp.sock"
   for _ in {1..100}; do
     [[ -S "$mcp_endpoint" ]] && break
     sleep 0.05
@@ -718,7 +734,7 @@ import os
 import sys
 
 with open(sys.argv[1], encoding="utf-8") as source:
-    entry = json.load(source)["mcpServers"]["allodia-mail-and-calendar"]
+    entry = json.load(source)["mcpServers"][os.environ["MAILCAL_MCP_SERVER_NAME"]]
 os.execvp(entry["command"], [entry["command"], *entry["args"]])
 ' "$mcp_config" \
       2>"$ARTIFACT_DIR/mcp-relay.stderr.log"
@@ -742,11 +758,12 @@ os.execvp(entry["command"], [entry["command"], *entry["args"]])
     >"$ARTIFACT_DIR/mcp-session.jsonl"
   "$PYTHON" - "$ARTIFACT_DIR/mcp-session.jsonl" <<'PY'
 import json
+import os
 import sys
 
 responses = [json.loads(line) for line in open(sys.argv[1], encoding="utf-8")]
 assert [response["id"] for response in responses] == [1, 2, 3, 4]
-assert responses[0]["result"]["serverInfo"]["name"] == "allodia-mail-and-calendar"
+assert responses[0]["result"]["serverInfo"]["name"] == os.environ["MAILCAL_MCP_SERVER_NAME"]
 tools = [tool["name"] for tool in responses[1]["result"]["tools"]]
 assert "list_accounts" in tools
 assert "create_draft" in tools
@@ -1073,10 +1090,44 @@ PY
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   capture calendar-management
 
+  # Settings → Videoconferencing (docs/conferencing.md, rule 13). The field commits on Return and
+  # on losing focus, never per keystroke: an address the core refuses is said and stored nowhere,
+  # and a stored one is shown as the core keeps it, which is what makes the editor offer Jitsi
+  # below. AT-SPI can type into the row but not commit it: its accessible activate does not
+  # reach the row, and the row offers its apply button only once it has keyboard focus. So the
+  # row is clicked for that focus and Return is a real keystroke.
+  "$PYTHON" "$ATSPI" activate --name "Settings" --timeout 20
+  "$PYTHON" "$ATSPI" activate \
+    --name "Videoconferencing" --role "toggle button" \
+    --within "Settings" --within-role frame --timeout 20
+  click_in_window "Settings" --name "Jitsi server" --role text --timeout 20
+  "$PYTHON" "$ATSPI" set-text --name "Jitsi server" --text "meet.example.org" --timeout 20
+  linux_session_type -k Return
+  "$PYTHON" "$ATSPI" wait \
+    --name-substring "starts with https://" --role label --showing --timeout 20
+  grep -q '^jitsi_server' "$core_preferences" && die "a refused Jitsi server was stored"
+  "$PYTHON" "$ATSPI" set-text \
+    --name "Jitsi server" --text "https://meet.example.org/" --timeout 20
+  linux_session_type -k Return
+  for _ in {1..100}; do
+    grep -q '^jitsi_server = "https://meet.example.org"$' "$core_preferences" && break
+    sleep 0.05
+  done
+  grep -q '^jitsi_server = "https://meet.example.org"$' "$core_preferences" ||
+    die "the Jitsi server was not stored"
+  [[ "$("$PYTHON" "$ATSPI" read-text --name "Jitsi server" --timeout 20)" == \
+    "https://meet.example.org" ]] || die "the Jitsi field does not show the stored address"
+  capture settings-videoconferencing
+  "$PYTHON" "$ATSPI" activate \
+    --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
+
   "$PYTHON" "$ATSPI" activate --name "New Event" --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Title" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" set-text \
     --name "Title" --text "$CALENDAR_CRUD_TITLE" --timeout 20
+  # The server stored above is what makes the calendar offer a meeting; a new event has none.
+  "$PYTHON" "$ATSPI" wait --name "None" --role "combo box" \
+    --after "Video meeting" --showing --timeout 20
   "$PYTHON" "$ATSPI" activate --name "Save" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "$CALENDAR_CRUD_TITLE" --role "push button" --enabled --showing --timeout 45
@@ -1227,13 +1278,13 @@ PY
   # cannot check; that the core's narrowing reaches the screen, and that two people who merely
   # share a name stay two rows. The fixtures exist for exactly that (docker/stalwart/seed/contacts).
   local contacts_refreshes_before
-  contacts_refreshes_before="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/mailcal/mailcal.log" || true)"
+  contacts_refreshes_before="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" || true)"
   "$PYTHON" "$ATSPI" activate --name "Contacts" --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "Ahmed El Amrani" --role "list item" --enabled --showing --timeout 45
   local contacts_refreshes
   for _ in {1..200}; do
-    contacts_refreshes="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/mailcal/mailcal.log" || true)"
+    contacts_refreshes="$(grep -c 'refresh_contacts:' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" || true)"
     (( contacts_refreshes > contacts_refreshes_before )) && break
     sleep 0.05
   done
@@ -1252,7 +1303,7 @@ PY
   for _ in {1..3}; do
     "$PYTHON" "$ATSPI" set-text --name "Search contacts" --text "Vermeulen" --timeout 20
     for _ in {1..40}; do
-      if grep -q 'rebuild_contacts: .*query_chars=9' "$XDG_DATA_HOME/mailcal/mailcal.log"; then
+      if grep -q 'rebuild_contacts: .*query_chars=9' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log"; then
         contact_search_set=1
         break 2
       fi
@@ -1477,7 +1528,7 @@ PY
     --name "copy@example.test: Remove recipient" --role "push button" --showing --timeout 20
   "$PYTHON" "$ATSPI" wait \
     --name "audit@example.test: Remove recipient" --role "push button" --showing --timeout 20
-  grep -Fq "$mailto_uri" "$XDG_DATA_HOME/mailcal/mailcal.log" 2>/dev/null &&
+  grep -Fq "$mailto_uri" "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" 2>/dev/null &&
     die "mail link content reached the diagnostic log"
   capture mailto-composer
   "$PYTHON" "$ATSPI" activate --name "Discard" --timeout 20
@@ -1593,8 +1644,36 @@ PY
     --name "Close" --role "push button" --within "Settings" --within-role frame --timeout 20
   "$PYTHON" "$ATSPI" wait --name-substring "$paused" --showing --timeout 20
 
-  if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log"; then
-    grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/mailcal/mailcal.log" \
+  # The core's notices (docs/notices.md), on the showcase: MAILCAL_SHOWCASE_REAUTH has the core ask
+  # its first account to sign in again for mail and for its calendar, which no harness fixture can
+  # stage. Mail's notice holds the mail screen's banner, the calendar's the calendar screen's, and
+  # the account both are about reads "2 issues" beneath its address. An AdwBanner has one button,
+  # so Sign in again on it is also the proof that it offers no Close. The twins are
+  # clients/apple/UITests/NoticeTests.swift and
+  # clients/windows/Mailcal.UiTests/Suites/ReauthNoticeTests.cs.
+  stop_app
+  MAILCAL_SHOWCASE=1 MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE_SCREEN=list \
+    launch_app "" "$ARTIFACT_DIR/reauth-notices"
+  local mail_reauth="Sending and managing mail needs your permission for"
+  local calendar_reauth="Calendar access needs your permission for"
+  "$PYTHON" "$ATSPI" wait --name-substring "$mail_reauth" --showing --timeout 60
+  "$PYTHON" "$ATSPI" wait --name "Sign in again" --role "push button" --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "2 issues" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "1 more issue" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Issues" --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "Sign in again: $calendar_reauth" \
+    --role "push button" --showing --timeout 20
+  capture reauth-notices-issues
+  linux_session_type -k Escape
+  "$PYTHON" "$ATSPI" wait --name "Issues" --absent --timeout 20
+  capture reauth-notices-mail
+  "$PYTHON" "$ATSPI" activate --name "Calendar" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "$calendar_reauth" --showing --timeout 30
+  "$PYTHON" "$ATSPI" wait --name "Sign in again" --role "push button" --showing --timeout 20
+  capture reauth-notices-calendar
+
+  if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log"; then
+    grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" \
       >"$ARTIFACT_DIR/toolkit-errors.log"
     die "GTK reported a critical or fatal error; see toolkit-errors.log"
   fi
@@ -1627,7 +1706,8 @@ require_cmd sway
 require_cmd grim
 require_cmd pdftotext
 [[ -x "$PYTHON" ]] || die "the distro /usr/bin/python3 is required"
-[[ -x /usr/libexec/at-spi2-registryd ]] || die "at-spi2-registryd is required"
+atspi_registryd_bin >/dev/null ||
+  die "at-spi2-registryd is required: no org.a11y.atspi.Registry.service names one that exists"
 "$PYTHON" -c 'import pyatspi' 2>/dev/null ||
   die "python3-pyatspi is required (install the clients/linux/README.md prerequisites)"
 

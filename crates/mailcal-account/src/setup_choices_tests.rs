@@ -44,6 +44,7 @@ fn dav(caldav: Option<&str>, carddav: Option<&str>) -> SetupRecommendation {
         email: EMAIL.to_owned(),
         caldav_url: caldav.map(str::to_owned),
         carddav_url: carddav.map(str::to_owned),
+        nextcloud: false,
     }
 }
 
@@ -135,7 +136,7 @@ fn a_personal_address_is_offered_no_colleagues_and_no_shared_mailboxes() {
         let organisation = SetupRecommendation::Microsoft {
             email: email.to_owned(),
         };
-        assert_eq!(organisation.choices().len(), 5, "{email}");
+        assert_eq!(organisation.choices().len(), 6, "{email}");
     }
 }
 
@@ -147,16 +148,19 @@ fn a_provider_sign_in_offers_everything_switched_on() {
         choice(Capability::Calendar, true, true),
         choice(Capability::Contacts, true, true),
         choice(Capability::Colleagues, true, true),
+        // Teams meetings, on for a new work account (`docs/accounts.md` rule 19).
+        choice(Capability::Meetings, true, true),
     ];
     let microsoft = SetupRecommendation::Microsoft {
         email: EMAIL.to_owned(),
     };
     assert_eq!(microsoft.choices(), everything);
-    // A Gmail sign-in cannot open another mailbox.
+    // A Gmail sign-in cannot open another mailbox, and makes no meeting through the account.
     let google = SetupRecommendation::Google {
         email: EMAIL.to_owned(),
     };
     let mut without_shared = everything.to_vec();
+    without_shared.remove(5);
     without_shared.remove(1);
     assert_eq!(google.choices(), without_shared);
 }
@@ -171,6 +175,7 @@ fn jmap_and_manual_routes_have_no_choices_before_sign_in() {
         source: String::new(),
         caldav_url: Some(CALDAV.to_owned()),
         carddav_url: None,
+        nextcloud: false,
     };
     assert_eq!(jmap.choices(), []);
     let manual = SetupRecommendation::Manual {

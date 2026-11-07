@@ -20,6 +20,28 @@ pub enum SetupCredential {
     Password(String),
     /// An OAuth grant, from a completed browser sign-in.
     Grant(Box<OAuthGrant>),
+    /// An app password a Nextcloud sign-in issued, for a calendar and contacts account, with
+    /// where it came from (`docs/nextcloud-sign-in.md`).
+    Nextcloud {
+        /// The app password.
+        app_password: String,
+        /// The server that issued it, and who it signs in as.
+        login: crate::NextcloudLogin,
+    },
+}
+
+impl SetupCredential {
+    /// The password the DAV endpoints present, when the credential is one.
+    fn dav_password(&self) -> Option<&str> {
+        match self {
+            Self::Password(password)
+            | Self::Nextcloud {
+                app_password: password,
+                ..
+            } => Some(password),
+            Self::Grant(_) => None,
+        }
+    }
 }
 
 /// The fields a host collects in its account-setup UI, so it can build a config
@@ -142,7 +164,8 @@ pub fn normalize_caldav_base_url(input: &str) -> String {
 ///
 /// Returns [`ConfigError::Incomplete`] if a required field (username, password, the server of
 /// a chosen use) is empty or nothing is chosen, [`ConfigError::Refused`] for colleagues, which
-/// only a provider's directory offers, or [`ConfigError::Serialize`] on a serialization error.
+/// only a provider's directory offers, and for mail under a Nextcloud sign-in, or
+/// [`ConfigError::Serialize`] on a serialization error.
 pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
     let caldav_url = given(setup.caldav_base_url.as_ref());
     let carddav_url = given(setup.carddav_base_url.as_ref());
@@ -153,16 +176,21 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
             .is_none_or(|uses| uses.contains(capability))
     };
     let mail = chosen(Capability::Mail);
+    if mail && matches!(setup.credential, SetupCredential::Nextcloud { .. }) {
+        return Err(ConfigError::Refused(
+            "a Nextcloud sign-in holds a calendar and contacts, never mail",
+        ));
+    }
     if mail && setup.imap_host.trim().is_empty() {
         return Err(ConfigError::Incomplete("mail server"));
     }
     if let Some(uses) = &setup.uses {
-        check_uses(uses, caldav_url.is_some(), carddav_url.is_some())?;
+        crate::setup_choices::check_uses(uses, caldav_url.is_some(), carddav_url.is_some())?;
     }
     if setup.username.trim().is_empty() {
         return Err(ConfigError::Incomplete("username"));
     }
-    if matches!(&setup.credential, SetupCredential::Password(password) if password.is_empty()) {
+    if setup.credential.dav_password().is_some_and(str::is_empty) {
         return Err(ConfigError::Incomplete("password"));
     }
 
@@ -202,36 +230,17 @@ pub fn build_config_toml(setup: &AccountSetup) -> Result<String, ConfigError> {
         .flatten()
         .collect();
         if *uses != meant {
-            let names: Vec<toml::Value> = uses.iter().map(|use_| use_.as_str().into()).collect();
+            // A Nextcloud sign-in's account makes Talk meetings unless switched off (rule 19).
+            let talk = matches!(setup.credential, SetupCredential::Nextcloud { .. });
+            let names: Vec<toml::Value> = (uses.iter())
+                .chain(talk.then_some(Capability::Meetings))
+                .map(|use_| use_.as_str().into())
+                .collect();
             root.insert("capabilities".into(), names.into());
         }
     }
 
     finish(root, setup, username, caldav_url, carddav_url)
-}
-
-/// Refuses a choice of nothing, of colleagues, or of a use whose server is missing.
-fn check_uses(uses: &Capabilities, caldav: bool, carddav: bool) -> Result<(), ConfigError> {
-    if uses.contains(Capability::Colleagues) {
-        return Err(ConfigError::Refused(
-            "colleagues come from a Microsoft or Google directory",
-        ));
-    }
-    if uses.contains(Capability::SharedMailboxes) {
-        return Err(ConfigError::Refused(
-            "a standards account lists its shared mailboxes without being asked for them",
-        ));
-    }
-    if uses.iter().next().is_none() {
-        return Err(ConfigError::Incomplete("what the account is used for"));
-    }
-    if uses.contains(Capability::Calendar) && !caldav {
-        return Err(ConfigError::Incomplete("calendar server"));
-    }
-    if uses.contains(Capability::Contacts) && !caldav && !carddav {
-        return Err(ConfigError::Incomplete("address book server"));
-    }
-    Ok(())
 }
 
 /// A form field's value, trimmed, when it holds one.
@@ -260,8 +269,8 @@ fn finish(
         let mut dav = toml::Table::new();
         dav.insert("base_url".into(), normalize_caldav_base_url(url).into());
         dav.insert("username".into(), username.into());
-        if let SetupCredential::Password(password) = &setup.credential {
-            dav.insert("password".into(), password.clone().into());
+        if let Some(password) = setup.credential.dav_password() {
+            dav.insert("password".into(), password.into());
         }
         root.insert(section.into(), dav.into());
     }
@@ -271,8 +280,14 @@ fn finish(
             vec![toml::Value::from(accepted.to_table())].into(),
         );
     }
-    if let SetupCredential::Grant(grant) = &setup.credential {
-        root.insert("oauth".into(), grant.to_table().into());
+    match &setup.credential {
+        SetupCredential::Grant(grant) => {
+            root.insert("oauth".into(), grant.to_table().into());
+        }
+        SetupCredential::Nextcloud { login, .. } => {
+            root.insert("nextcloud".into(), login.to_table().into());
+        }
+        SetupCredential::Password(_) => {}
     }
     Ok(toml::to_string(&root)?)
 }

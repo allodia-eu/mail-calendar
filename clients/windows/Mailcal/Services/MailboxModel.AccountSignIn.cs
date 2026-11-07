@@ -143,7 +143,7 @@ public sealed partial class MailboxModel
         catch (TimeoutException)
         {
             Log.Warn("an account's sign-in timed out waiting for the browser");
-            return new ConsentEnded(false, L10n.AccountSigninTimeout());
+            return ConsentEnded.TimedOut();
         }
         catch (Exception ex)
         {
@@ -192,9 +192,22 @@ public sealed partial class MailboxModel
             return;
         }
         IsSubmitting = true;
+        // A Nextcloud grant is the core's from here: it goes on the account, or is withdrawn below,
+        // so setup no longer holds it for another try.
+        if (offer.NextcloudGrant is not null)
+        {
+            _ = _setupNextcloud.Release();
+        }
         try
         {
-            await Task.Run(() => app.UseCredentialFrom(offer.AccountId, offer.ConfigToml, choice));
+            if (offer.NextcloudGrant is { } grant)
+            {
+                await Task.Run(() => app.CompleteAccountNextcloudSignIn(offer.AccountId, grant));
+            }
+            else
+            {
+                await Task.Run(() => app.UseCredentialFrom(offer.AccountId, offer.ConfigToml, choice));
+            }
             Log.Info($"an account took the credential a refused add was given: {LogHandle(offer.AccountId)}");
             IsSubmitting = false;
             SetupError = null;
@@ -202,6 +215,12 @@ public sealed partial class MailboxModel
         }
         catch (Exception ex)
         {
+            // An unused grant leaves the server's list of devices; one for somebody else the core
+            // has withdrawn already.
+            if (offer.NextcloudGrant is { } unused && ex is not MailcalException.DifferentAccount)
+            {
+                AbandonNextcloudGrant(unused);
+            }
             Log.Error($"updating the account already set up failed: {CoreError.Describe(ex)}");
             IsSubmitting = false;
             SetupError = CoreErrorCopy.SaidAsConnect(ex);

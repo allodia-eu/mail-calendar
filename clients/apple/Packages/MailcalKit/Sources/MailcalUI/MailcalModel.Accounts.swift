@@ -1,10 +1,22 @@
 // Settings → Accounts' traffic with the core: the one snapshot every account is drawn from, and the
-// changes an account's page makes (docs/accounts.md rules 11 to 14). Each change may touch the
-// Keychain, delete local data or dial a server, so it runs off the main actor and answers with what
-// the page should say.
+// changes an account's page makes (docs/accounts.md rules 11 to 14). A use, a link and a removal
+// are the core's to run (docs/waiting.md): dispatched, they answer at once and the page says they
+// run. Every other change may touch the Keychain or dial a server, so it runs off the main actor and
+// answers with what the page should say.
 
 import Foundation
 import MailcalBindings
+
+/// The open account's page as the core decided it (`account_page`), read again on every Settings
+/// signal and whenever `accountPage` changes, and what a change on it came to.
+struct AccountPageState {
+    /// Its uses, links and removal.
+    var record: AccountPage?
+    /// What a change on the page came to, until the page says it.
+    var failure: AccountPageAlert?
+    /// The last of the core's change notices said, so each is said once.
+    var noticeSaid: UInt64 = 0
+}
 
 /// How signing an account in again ended. A cancelled one says nothing: the person closed it.
 enum ConsentEnded: Equatable {
@@ -121,15 +133,48 @@ func useNotConnectedMessage(_ capability: AccountCapability, _ problem: UseProbl
 
 extension MailboxModel {
     /// Pulls the snapshot again, and publishes it only when it changed, so a signal that changed
-    /// nothing on the page leaves it, and whatever is being typed on it, alone.
+    /// nothing on the page leaves it, and whatever is being typed on it, alone. The last account
+    /// gone returns the window to first-run setup, decided here rather than from the mailbox: an
+    /// account without mail is in none of its rows (docs/accounts.md rule 11).
     func refreshAccountsSnapshot() {
         guard let app else { return }
         let fresh = app.accountsSnapshot()
+        if fresh.accounts.isEmpty, !accountsSnapshot.accounts.isEmpty {
+            logAppleLifecycle("accounts: the last account is gone; returning to first-run setup")
+            needsSetup = true
+        }
         if fresh != accountsSnapshot { accountsSnapshot = fresh }
         if let accountPage, !fresh.accounts.contains(where: { $0.id == accountPage }) {
             self.accountPage = nil
         }
+        refreshAccountPage()
         refreshSetupLinks()
+    }
+
+    /// Reads the open account's page again, and says what a change came to, once: on its page,
+    /// or for a removal, wherever the person is.
+    func refreshAccountPage() {
+        guard let app else { return }
+        let fresh = accountPage.flatMap { app.accountPage(accountId: $0) }
+        if fresh != accountPageState.record { accountPageState.record = fresh }
+        if let raised = fresh?.notice, raised.id > accountPageState.noticeSaid {
+            accountPageState.noticeSaid = raised.id
+            logAppleLifecycle("accounts: a change on an account's page did not take")
+            accountPageState.failure = AccountSettingsLabels.changeFailed(raised.notice)
+        }
+        if let raised = app.accountsNotice(), raised.id > accountPageState.noticeSaid {
+            accountPageState.noticeSaid = raised.id
+            logAppleLifecycle("accounts: a removed account's stored sign-in could not be erased")
+            if case let .removeFailed(detail) = raised.notice {
+                removalFailure = L10n.remove_account_failed(error: detail)
+            }
+        }
+    }
+
+    /// Asks the core for a change on an account's page; it answers at once, and the page says it
+    /// runs.
+    func changeAccount(_ intent: AccountPageIntent) {
+        app?.dispatch(intent: .accountPage(intent: intent))
     }
 
     func accountEntry(_ id: String) -> AccountEntry? {
@@ -141,8 +186,8 @@ extension MailboxModel {
         connectivity?.signinExpiredAccounts.contains(id) ?? false
     }
 
-    /// Switches one of an account's uses on or off. Blocking in the core: switching a use off
-    /// deletes what the device holds of it.
+    /// Switches one of an account's uses on or off, for setup's own steps, which wait on the
+    /// answer. Blocking in the core: switching a use off deletes what the device holds of it.
     func setAccountUse(
         _ id: String, _ capability: AccountCapability, on: Bool
     ) async -> UseChangeOutcome {
@@ -162,8 +207,8 @@ extension MailboxModel {
         }
     }
 
-    /// Links an account to another for one slot, or clears that link. Answers why not, or `nil`
-    /// once stored.
+    /// Links an account to another for one slot, or clears that link, for setup's link step, which
+    /// stores its picks one after another. Answers why not, or `nil` once stored.
     func setAccountLink(_ id: String, _ slot: LinkSlot, _ target: String?) async -> String? {
         guard let app else { return L10n.app_unavailable() }
         do {
@@ -268,20 +313,11 @@ extension MailboxModel {
         consentBrowser = nil
     }
 
-    /// Signs in again from a banner in the main window, which says nothing on success: the banner
-    /// clearing is the answer. A failure is said in the notice above the list.
-    func signInAgainFromBanner(_ id: String) {
-        Task {
-            if let notice = await signInAgain(id).bannerNotice {
-                accountNotice = notice
-            }
-        }
-    }
-
     /// Opens Settings → Accounts on `id`'s page, from a prompt in the main window that points at
     /// it. The shell watches `settingsRequest` and presents Settings.
     func openAccountPage(_ id: String) {
         accountPage = id
         settingsRequest = .accounts
     }
+
 }

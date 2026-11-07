@@ -14,11 +14,11 @@ use super::{
 use crate::l10n;
 
 /// Where a sign-in was asked for, which is where its outcome is said: on the account's page, or
-/// in the main window's notice, beside the banner that asked.
+/// on the notice that asked (`docs/notices.md` rule 10).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ConsentFrom {
     Settings,
-    MainWindow,
+    Notice,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -117,7 +117,12 @@ impl AppModel {
                     }
                 }
                 CallbackOutcome::Cancelled => ConsentOutcome::Cancelled,
-                CallbackOutcome::Failed(error) => ConsentOutcome::Failed(error),
+                CallbackOutcome::TimedOut(_) if from == ConsentFrom::Notice => {
+                    ConsentOutcome::Cancelled
+                }
+                CallbackOutcome::TimedOut(error) | CallbackOutcome::Failed(error) => {
+                    ConsentOutcome::Failed(error)
+                }
             };
             sender.emit(finished(outcome));
         });
@@ -131,21 +136,16 @@ impl AppModel {
         }
         if let Some(app) = &self.app {
             self.snapshot.replace(app.mailbox_list());
-            self.connectivity =
-                super::connectivity::ConnectivityState::pull(app, &self.snapshot.accounts);
         }
+        self.pull_notices();
         match finished.from {
             ConsentFrom::Settings => match settings_notice(&finished.outcome) {
                 Some(notice) => self.settings.notify(notice),
                 None => self.settings.refresh_in_place(),
             },
-            ConsentFrom::MainWindow => {
-                self.notice = match &finished.outcome {
-                    ConsentOutcome::Failed(said) => {
-                        Some(super::core_error::signing_in_again_failed(said))
-                    }
-                    ConsentOutcome::SignedIn | ConsentOutcome::Cancelled => None,
-                };
+            ConsentFrom::Notice => {
+                let failed = matches!(finished.outcome, ConsentOutcome::Failed(_));
+                self.notice_remedy_ended(super::notices::Remedy::Consent, failed);
             }
         }
     }

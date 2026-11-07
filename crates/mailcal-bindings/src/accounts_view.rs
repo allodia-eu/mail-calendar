@@ -1,7 +1,7 @@
 //! Building Settings → Accounts from what each account stores, and deciding which of its stored
 //! links still hold.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use engine_api::AccountId;
 use mailcal_account::{AccountLinks, Capabilities, Capability};
@@ -34,6 +34,8 @@ pub(crate) struct AccountFacts {
     pub(crate) links: AccountLinks,
     /// Its servers and login, when Settings can edit them.
     pub(crate) endpoints: Option<mailcal_account::EndpointEdit>,
+    /// Whether a Nextcloud sign-in made it.
+    pub(crate) nextcloud: bool,
     /// A mailbox's calendar and contacts servers, each with the login it holds there.
     pub(crate) dav_servers: Vec<DavServer>,
     /// The addresses its calendar server treats as its user, once asked; empty when it has no
@@ -44,12 +46,12 @@ pub(crate) struct AccountFacts {
     pub(crate) server: Option<String>,
 }
 
-/// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
-/// whose provider refused their calendar when it was opened, and `problems` what stopped an
-/// account's calendar or contacts from connecting while the account did.
+/// Every account's entry, in the order `facts` lists them. `refused` holds the uses each account's
+/// provider refused when they were opened (`MailcalApp::refused_uses`), and `problems` what
+/// stopped an account's calendar or contacts from connecting while the account did.
 pub(crate) fn entries(
     facts: &[AccountFacts],
-    calendar_refused: &BTreeSet<String>,
+    refused: &BTreeMap<String, Capabilities>,
     problems: &BTreeMap<String, mailcal_app::UseProblems>,
 ) -> Vec<AccountEntry> {
     let links = valid_links(facts);
@@ -78,7 +80,7 @@ pub(crate) fn entries(
             sign_in: account.sign_in,
             uses: uses(
                 account,
-                calendar_refused.contains(&account.id),
+                refused.get(&account.id),
                 problems.get(&account.id).copied().unwrap_or_default(),
             ),
             links: AccountLinksView {
@@ -117,6 +119,7 @@ pub(crate) fn entries(
             ),
             distinction: told[index].clone(),
             mail_sync: None,
+            nextcloud: account.nextcloud,
         })
         .collect()
 }
@@ -322,10 +325,40 @@ pub(crate) fn valid_links(facts: &[AccountFacts]) -> Vec<AccountLinks> {
         .collect()
 }
 
-/// The uses `account` offers, each in its state.
+/// The accounts in `entries` that offer video meetings, each with its service and its use's
+/// state. Teams on a Microsoft account, Talk on any other: only those two kinds offer the use.
+pub(crate) fn meeting_accounts(entries: &[AccountEntry]) -> Vec<crate::MeetingAccount> {
+    entries
+        .iter()
+        .filter_map(|entry| {
+            let state = entry
+                .uses
+                .iter()
+                .find(|row| row.capability == crate::AccountCapability::Meetings)?
+                .state;
+            let service = if entry.kind == AccountKind::Microsoft {
+                engine_api::ConferenceService::Teams
+            } else {
+                engine_api::ConferenceService::NextcloudTalk
+            };
+            Some(crate::MeetingAccount {
+                account: LinkedAccount {
+                    id: entry.id.clone(),
+                    address: entry.address.clone(),
+                    distinction: entry.distinction.clone(),
+                },
+                service: mailcal_account::MeetingChoice::Server(service).name(),
+                state,
+            })
+        })
+        .collect()
+}
+
+/// The uses `account` offers, each in its state; `refused` are those its provider refused when
+/// they were opened.
 fn uses(
     account: &AccountFacts,
-    calendar_refused: bool,
+    refused: Option<&Capabilities>,
     problems: mailcal_app::UseProblems,
 ) -> Vec<AccountUse> {
     account
@@ -333,7 +366,7 @@ fn uses(
         .iter()
         .map(|capability| {
             let refused = account.withheld.contains(capability)
-                || (capability == Capability::Calendar && calendar_refused);
+                || refused.is_some_and(|refused| refused.contains(capability));
             let state = match (account.chosen.contains(capability), refused) {
                 _ if account.lacks.contains(capability) => CapabilityState::NotOffered,
                 (false, _) => CapabilityState::Off,

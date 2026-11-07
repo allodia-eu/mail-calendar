@@ -363,7 +363,7 @@ find_codesign_identity() {
 # AGENTS.md's rule that such a build is legitimate covers signing as much as it covers OAuth).
 SANDBOX_ARGS=()
 if [[ "$SANDBOXED" -eq 1 ]]; then
-  SANDBOX_TEAM="$(signing_team)"
+  SANDBOX_TEAM="$(signing_team || true)"
   [[ -n "$SANDBOX_TEAM" ]] || { echo "error: --sandboxed needs a signing team: install an Apple Development certificate, or set DEVELOPMENT_TEAM=<id>." >&2; exit 1; }
   # The group is read out of the helper's entitlements rather than written again here, one literal,
   # so what we demand of the profile cannot drift from what we actually sign (package.sh reads it

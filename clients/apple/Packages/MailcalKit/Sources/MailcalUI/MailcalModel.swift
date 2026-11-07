@@ -99,8 +99,6 @@ final class MailboxModel {
     /// Why the mail list has no rows, or `nil` whenever it has some. A search says how far it
     /// looked through `searchHorizon` instead, so the two are never both up.
     var emptyReason: EmptyReason?
-    /// A folder change the server refused, until dismissed (`docs/folder-pane.md`, rule 28).
-    var folderNotice: FolderNotice?
     var events: [EventRow] = []
     /// The contacts list, one row per unified **person**, not per provider card: the engine has
     /// already merged the cards that share an address, across accounts. Pulled on a
@@ -205,6 +203,8 @@ final class MailboxModel {
     var accountsSnapshot = AccountsSnapshot(accounts: [])
     /// The account whose page Settings → Accounts shows, or `nil` for the list.
     var accountPage: String?
+    /// That page as the core decided it, and what its changes came to.
+    var accountPageState = AccountPageState()
     /// A removal whose stored sign-in could not be erased, until the person has read it.
     var removalFailure: String?
     /// The account a sign-in in place is waiting on the browser for, or `nil`.
@@ -228,6 +228,8 @@ final class MailboxModel {
     /// The link step's picks are being stored; each stored link signals the core, which must not
     /// redraw the step under the person meanwhile.
     var savingSetupLinks = false
+    /// The uses step's choice is being stored; switching a use off deletes what the device holds.
+    var savingSetupUses = false
     /// The accounts still to be asked their name, one after another, once setup closes.
     @ObservationIgnored var senderNamesWaiting: [String] = []
     /// A name prompt is under way, from the moment it is decided on until it is answered.
@@ -245,6 +247,9 @@ final class MailboxModel {
     /// The record behind that address, so the sheet takes the route the other device wrote down
     /// rather than re-deriving one. `nil` for every other way in.
     var setupStartOffer: AllodiaAccountOffer?
+    /// A card to open on, for the servers a link step found beside a JMAP server (SetupBeside).
+    var setupStartDetected: DetectedSetup?
+    @ObservationIgnored var setupBeside = SetupBeside()
     /// An offer was pressed *inside* Settings, which is itself a modal here, a sheet on macOS and
     /// `taskPresentation` on iOS, and one modal cannot present another. So the press closes
     /// Settings and this carries the intent across the dismissal, where `ContentView` spends it.
@@ -274,6 +279,9 @@ final class MailboxModel {
     var setupExistingAccount: ExistingAccountUpdate?
     /// `true` while that offer is being taken.
     var updatingExistingAccount = false
+    /// Setup's sign-in with Nextcloud, and the account pages' and banner's (MailcalModel.Nextcloud).
+    let setupNextcloud = NextcloudSignIn()
+    let accountNextcloud = NextcloudSignIn()
     /// `true` while a Microsoft sign-in is in flight (browser + token exchange + first
     /// sync), so the form shows progress instead of looking dead.
     var microsoftSigningIn = false
@@ -288,13 +296,12 @@ final class MailboxModel {
     var isConnecting = false
     /// The core is being opened at launch (`connect`); the root view shows `LaunchView` meanwhile.
     var isOpening = false
-    /// A non-blocking notice that some stored accounts were skipped at launch because their
-    /// mail connect failed (a stale password, a server blip); `nil` when every account
-    /// connected. Dismissible, the user clears it once they've seen it.
-    var accountNotice: String?
-    /// Connectivity (pulled on a `Surface::Connectivity` signal): `offline` drives the offline
-    /// banner; `unreachableAccounts` badges accounts whose server couldn't be reached.
+    /// Connectivity (pulled on a `Surface::Connectivity` signal), for Settings and the calendar.
     var connectivity: ConnectivitySnapshot?
+    /// The core's notices, ranked (`Surface::Notices`, docs/notices.md); `nil` until first pulled.
+    var notices: [Notice]?
+    /// Whether the iPad's sidebar column, which carries the notice card, is on screen.
+    var sidebarShown = false
     /// The local MCP (AI assistant access) settings, pulled on a `Surface::Settings` signal and
     /// once at connect. Carries whether a server is actually listening and where, not only what
     /// the user chose, a panel showing the toggle alone would say "on" while nothing is

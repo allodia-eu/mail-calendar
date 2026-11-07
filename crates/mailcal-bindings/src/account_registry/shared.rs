@@ -44,6 +44,7 @@ impl AccountDial {
                     connections,
                     tokens,
                     capabilities: mail,
+                    talk: crate::talk_offer::TalkOffer::default(),
                     shared: Some(shared(parent)),
                 })
             }
@@ -169,6 +170,7 @@ impl AccountRegistry {
                     identity: dial.shared_identity()?.clone(),
                     providers: Vec::new().into(),
                     calendar_provider: None,
+                    meetings: None,
                     contact_providers: Vec::new(),
                     dialled: false,
                     uses_mail: true,

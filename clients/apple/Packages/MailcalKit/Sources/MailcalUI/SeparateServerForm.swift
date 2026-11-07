@@ -26,6 +26,15 @@ private struct SeparateServerFields: View {
                 SeparateServerSignInButton(form: form, ask: ask, takesReturn: takesReturn) {
                     form.startSignIn(model, ask, done: done)
                 }
+            } else if form.signIn.offersNextcloud(ask) {
+                NextcloudSignInControl(
+                    signIn: form.nextcloud, leads: form.signIn.signInLeads(ask),
+                    takesReturn: takesReturn,
+                    passwordInstead: form.signIn.signInLeads(ask) ? { form.choosePassword() } : nil
+                ) {
+                    form.startNextcloud(model, ask, done: done)
+                }
+                .disabled(form.busy)
             }
             if form.signIn.showsPasswordFields(ask) {
                 TextField(L10n.setup_field_username(), text: $form.username)
@@ -88,7 +97,7 @@ struct SeparateServerStepView: View {
             }
             .setupActionsInView()
         }
-        .onDisappear { form.retire() }
+        .onDisappear { form.leave(model) }
     }
 
     private func skip() {
@@ -148,7 +157,7 @@ struct AccountSeparateServerForm: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(6)
         }
-        .onDisappear { form.retire() }
+        .onDisappear { form.leave(model) }
     }
 
     private func moved() {

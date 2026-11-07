@@ -84,9 +84,12 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         // The one control on the page whose effect a stranger sees comes first (docs/settings.md).
         // Scrolled until both are drawn, since what fits depends on the window and the scale.
         var dialog = Page(settings, 0);
+        // The page's own scroller: the category list beside it scrolls as well.
+        var page = app.Agent.Find(new Filter { Id = "SettingsDetail", Under = dialog })
+            ?? throw new InvalidOperationException("Settings has no detail panel (#SettingsDetail)");
         foreach (var percent in new[] { 0, 25, 50, 75, 100 })
         {
-            app.Agent.ScrollTo(dialog, percent);
+            app.Agent.ScrollTo(page, percent);
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
             var name = Boxes(app, dialog).FirstOrDefault();
             var depth = app.Agent.Find(new Filter { Type = "ComboBox", Name = Depth, Under = dialog });

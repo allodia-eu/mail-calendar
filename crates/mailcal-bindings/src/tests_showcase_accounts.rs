@@ -119,3 +119,34 @@ fn showcase_can_pause_its_calendar_for_a_server_change_it_will_not_allow() {
     assert!(app.accept_server_change(primary.clone(), shown).is_err());
     assert!(app.pending_server_change(primary).is_some(), "still paused");
 }
+
+/// What `MAILCAL_SHOWCASE_REAUTH` puts in front of the UI suites and the help screenshots: the
+/// primary account asked to sign in again for mail and for its calendar, the two notices only a
+/// narrowed Microsoft grant raises otherwise (`docs/provider-oauth.md` rule 11).
+#[cfg(debug_assertions)]
+#[test]
+fn showcase_can_ask_its_account_to_sign_in_again_for_mail_and_calendar() {
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_showcase(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Europe/Amsterdam".to_owned(),
+        ShowcaseLocale::En,
+    );
+    let primary = app.accounts_snapshot().accounts[0].id.clone();
+    crate::boot::ask_for_reconsent(&app.app, &primary);
+
+    let kinds: Vec<_> = app
+        .notices()
+        .notices
+        .into_iter()
+        .filter(|notice| notice.account.as_deref() == Some(primary.as_str()))
+        .map(|notice| notice.kind)
+        .collect();
+    assert!(kinds.contains(&crate::NoticeKind::MailReauth), "{kinds:?}");
+    assert!(
+        kinds.contains(&crate::NoticeKind::CalendarReauth),
+        "{kinds:?}"
+    );
+}

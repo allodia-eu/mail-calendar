@@ -82,21 +82,27 @@ impl AppObserver for CountingObserver {
 
 /// Builds a one-account app over a fresh `SubmitProvider`, returning the app (behind an
 /// `Arc` so a send can be driven on a spawned task) and the provider's submission log.
+/// The one account the submit apps hold, over `provider`.
+fn submit_account(provider: SubmitProvider) -> Account<SubmitProvider> {
+    Account {
+        id: AccountId::try_from("acct-1").unwrap(),
+        providers: vec![provider].into(),
+        calendar_provider: None,
+        meetings: None,
+        contact_providers: Vec::new(),
+        identity: EmailAddress::new("me@allodia.local"),
+        dialled: true,
+        uses_mail: true,
+    }
+}
+
 fn submit_app() -> (Arc<App<SubmitProvider>>, Arc<Mutex<Vec<Draft>>>) {
     let engine = Engine::open_in_memory().unwrap();
     let provider = SubmitProvider::new();
     let submissions = provider.submissions();
     let app = App::new(
         engine,
-        vec![Account {
-            id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![provider].into(),
-            calendar_provider: None,
-            contact_providers: Vec::new(),
-            identity: EmailAddress::new("me@allodia.local"),
-            dialled: true,
-            uses_mail: true,
-        }],
+        vec![submit_account(provider)],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
             prefs_path: None,
@@ -113,15 +119,7 @@ fn submit_app_counting() -> (Arc<App<SubmitProvider>>, Arc<SendSignals>) {
     let signals = Arc::new(SendSignals::default());
     let app = App::new(
         Engine::open_in_memory().unwrap(),
-        vec![Account {
-            id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![SubmitProvider::new()].into(),
-            calendar_provider: None,
-            contact_providers: Vec::new(),
-            identity: EmailAddress::new("me@allodia.local"),
-            dialled: true,
-            uses_mail: true,
-        }],
+        vec![submit_account(SubmitProvider::new())],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
             prefs_path: None,
@@ -137,15 +135,7 @@ fn submit_app_counting() -> (Arc<App<SubmitProvider>>, Arc<SendSignals>) {
 fn app_over(provider: SubmitProvider) -> Arc<App<SubmitProvider>> {
     let app = App::new(
         Engine::open_in_memory().unwrap(),
-        vec![Account {
-            id: AccountId::try_from("acct-1").unwrap(),
-            providers: vec![provider].into(),
-            calendar_provider: None,
-            contact_providers: Vec::new(),
-            identity: EmailAddress::new("me@allodia.local"),
-            dialled: true,
-            uses_mail: true,
-        }],
+        vec![submit_account(provider)],
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
             prefs_path: None,

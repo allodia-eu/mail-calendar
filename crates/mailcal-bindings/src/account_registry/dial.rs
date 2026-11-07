@@ -209,6 +209,17 @@ pub(crate) struct DialOutcome {
     pub(crate) rediscover: bool,
 }
 
+impl DialOutcome {
+    /// The outcome, its account making video meetings through `meetings`.
+    pub(crate) fn with_meetings(
+        mut self,
+        meetings: Option<std::sync::Arc<dyn engine_api::MeetingService>>,
+    ) -> Self {
+        self.account.meetings = meetings;
+        self
+    }
+}
+
 /// How to rebuild one registered account's providers: the credential-bearing half of its
 /// [`ConnectedAccount`], snapshotted so the dial can run without the registry lock.
 ///
@@ -229,6 +240,8 @@ pub(crate) enum AccountDial {
         tokens: Option<Arc<GraphTokenSource>>,
         /// What the account is used for; a capability it is not used for is never opened.
         capabilities: Capabilities,
+        /// Where the dial records whether its Nextcloud server offers Talk.
+        talk: crate::talk_offer::TalkOffer,
         /// The shared mailbox this dial opens with the account's sign-in, `None` for the
         /// account's own.
         shared: Option<SharedDial>,
@@ -288,11 +301,13 @@ impl AccountDial {
                 config,
                 connections,
                 tokens,
+                talk,
             } => Self::Imap {
                 config: config.clone(),
                 connections: Arc::clone(connections),
                 tokens: tokens.clone(),
                 capabilities: config.capabilities(),
+                talk: talk.clone(),
                 shared: None,
             },
             ConnectedAccount::Microsoft { config, tokens } => Self::Microsoft {
@@ -357,7 +372,7 @@ impl AccountDial {
                 shared: Some(shared),
                 ..
             } => shared.identity.email.clone(),
-            Self::Imap { config, .. } => config.username().to_owned(),
+            Self::Imap { config, .. } => config.address().to_owned(),
             Self::Microsoft { identity, .. } | Self::Google { identity, .. } => {
                 identity.email.clone()
             }

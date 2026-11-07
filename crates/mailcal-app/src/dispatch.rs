@@ -174,10 +174,11 @@ impl<P: Provider> App<P> {
                 location,
                 recurrence,
                 invitees,
+                meeting,
             }) => {
                 self.create_event(
                     title, start, end, account, calendar, all_day, timezone, notes, location,
-                    recurrence, invitees,
+                    recurrence, invitees, meeting,
                 )
                 .await;
             }
