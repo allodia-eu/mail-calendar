@@ -1,11 +1,8 @@
 //! Switching video meetings on and off as an account's use (`docs/accounts.md` rule 19).
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
-use mailcal_account::Capability;
+use mailcal_account::{Capabilities, Capability};
 
 use crate::{
     AccountCapability, CapabilityState, MailcalError,
@@ -76,7 +73,7 @@ const DAV_ID: &str = "f3a9c1@dav:127.0.0.1:1";
 
 /// The state Settings → Accounts shows for `id`'s video meetings, `None` when it lists none.
 fn meetings(registry: &AccountRegistry) -> Option<CapabilityState> {
-    crate::accounts_view::entries(&registry.facts(), &BTreeSet::new(), &BTreeMap::new())[0]
+    crate::accounts_view::entries(&registry.facts(), &BTreeMap::new(), &BTreeMap::new())[0]
         .uses
         .iter()
         .find(|row| row.capability == AccountCapability::Meetings)
@@ -87,7 +84,12 @@ fn meetings(registry: &AccountRegistry) -> Option<CapabilityState> {
 fn teams_meetings_ask_a_work_account_for_their_permission_before_they_switch_on() {
     let registry = microsoft(&["Calendars.ReadWrite"], None, CALENDAR);
     assert_eq!(meetings(&registry), Some(CapabilityState::Off));
-    let asked = registry.set_use(MICROSOFT_ID, Capability::Meetings, true);
+    let asked = registry.set_use(
+        MICROSOFT_ID,
+        Capability::Meetings,
+        true,
+        &Capabilities::default(),
+    );
     assert!(matches!(asked, Ok(UseChange::NeedsConsent)));
     assert_eq!(meetings(&registry), Some(CapabilityState::Off));
 
@@ -96,7 +98,12 @@ fn teams_meetings_ask_a_work_account_for_their_permission_before_they_switch_on(
         None,
         CALENDAR,
     );
-    let on = granted.set_use(MICROSOFT_ID, Capability::Meetings, true);
+    let on = granted.set_use(
+        MICROSOFT_ID,
+        Capability::Meetings,
+        true,
+        &Capabilities::default(),
+    );
     assert!(matches!(on, Ok(UseChange::Changed { .. })));
     assert_eq!(meetings(&granted), Some(CapabilityState::On));
 }
@@ -120,7 +127,12 @@ fn a_personal_microsoft_account_has_no_teams_meetings_to_switch_on() {
         CALENDAR,
     );
     assert_eq!(meetings(&registry), None);
-    let refused = registry.set_use(MICROSOFT_ID, Capability::Meetings, true);
+    let refused = registry.set_use(
+        MICROSOFT_ID,
+        Capability::Meetings,
+        true,
+        &Capabilities::default(),
+    );
     assert!(matches!(refused, Err(MailcalError::Config(_))));
 }
 
@@ -129,18 +141,38 @@ fn a_nextcloud_account_makes_talk_meetings_until_switched_off_and_never_loses_it
     let registry = dav(true);
     // On without being asked: Talk uses the account's own app password.
     assert_eq!(meetings(&registry), Some(CapabilityState::On));
-    let off = registry.set_use(DAV_ID, Capability::Meetings, false);
+    let off = registry.set_use(
+        DAV_ID,
+        Capability::Meetings,
+        false,
+        &Capabilities::default(),
+    );
     assert!(matches!(off, Ok(UseChange::Changed { .. })));
     assert_eq!(meetings(&registry), Some(CapabilityState::Off));
-    let on = registry.set_use(DAV_ID, Capability::Meetings, true);
+    let on = registry.set_use(DAV_ID, Capability::Meetings, true, &Capabilities::default());
     assert!(matches!(on, Ok(UseChange::Changed { .. })));
     assert_eq!(meetings(&registry), Some(CapabilityState::On));
     // Meetings are no use to keep an account for: calendar and contacts are.
-    let calendar_off = registry.set_use(DAV_ID, Capability::Calendar, false);
+    let calendar_off = registry.set_use(
+        DAV_ID,
+        Capability::Calendar,
+        false,
+        &Capabilities::default(),
+    );
     assert!(matches!(calendar_off, Ok(UseChange::Changed { .. })));
-    let contacts_off = registry.set_use(DAV_ID, Capability::Contacts, false);
+    let contacts_off = registry.set_use(
+        DAV_ID,
+        Capability::Contacts,
+        false,
+        &Capabilities::default(),
+    );
     assert!(matches!(contacts_off, Err(MailcalError::Config(_))));
-    let off = registry.set_use(DAV_ID, Capability::Meetings, false);
+    let off = registry.set_use(
+        DAV_ID,
+        Capability::Meetings,
+        false,
+        &Capabilities::default(),
+    );
     assert!(matches!(off, Ok(UseChange::Changed { .. })));
 }
 
@@ -152,7 +184,7 @@ fn a_nextcloud_server_without_talk_reads_as_not_offered_until_a_connect_finds_it
     assert_eq!(meetings(&registry), Some(CapabilityState::NotOffered));
     assert!(
         registry
-            .set_use(DAV_ID, Capability::Meetings, true)
+            .set_use(DAV_ID, Capability::Meetings, true, &Capabilities::default())
             .is_err()
     );
     talk.record(true);
@@ -163,14 +195,14 @@ fn a_nextcloud_server_without_talk_reads_as_not_offered_until_a_connect_finds_it
 fn an_account_no_nextcloud_sign_in_made_offers_no_meetings() {
     let registry = dav(false);
     assert_eq!(meetings(&registry), None);
-    let refused = registry.set_use(DAV_ID, Capability::Meetings, true);
+    let refused = registry.set_use(DAV_ID, Capability::Meetings, true, &Capabilities::default());
     assert!(matches!(refused, Err(MailcalError::Config(_))));
 }
 
 /// What Settings → Videoconferencing lists for `registry`'s accounts.
 fn overview(registry: &AccountRegistry) -> Vec<(String, String, CapabilityState)> {
     let entries =
-        crate::accounts_view::entries(&registry.facts(), &BTreeSet::new(), &BTreeMap::new());
+        crate::accounts_view::entries(&registry.facts(), &BTreeMap::new(), &BTreeMap::new());
     crate::accounts_view::meeting_accounts(&entries)
         .into_iter()
         .map(|row| (row.service, row.account.address, row.state))

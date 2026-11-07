@@ -65,6 +65,11 @@ impl MailcalApp {
             self.dispatch_notice(intent);
             return;
         }
+        // The account page's changes are the binding's own: the registry they change lives here.
+        if let Intent::AccountPage { intent } = intent {
+            self.dispatch_account(intent);
+            return;
+        }
         // A key-routed intent carries its row's owning-account id; an unparseable id (in
         // practice impossible; it is a real row's account) is dropped rather than risk
         // routing the action to the wrong account. A calendar write is still settled, because

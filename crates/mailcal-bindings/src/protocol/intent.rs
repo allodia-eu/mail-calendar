@@ -337,6 +337,11 @@ pub enum Intent {
         /// Which Outbox action.
         intent: super::OutboxIntent,
     },
+    /// A change on an account's page in Settings ([`AccountPageIntent`](super::AccountPageIntent)).
+    AccountPage {
+        /// Which change.
+        intent: super::AccountPageIntent,
+    },
     /// A change to an account's folder tree ([`FolderIntent`](super::FolderIntent)).
     Folders {
         /// Which change.

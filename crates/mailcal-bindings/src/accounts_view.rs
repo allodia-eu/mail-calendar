@@ -1,7 +1,7 @@
 //! Building Settings → Accounts from what each account stores, and deciding which of its stored
 //! links still hold.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use engine_api::AccountId;
 use mailcal_account::{AccountLinks, Capabilities, Capability};
@@ -46,12 +46,12 @@ pub(crate) struct AccountFacts {
     pub(crate) server: Option<String>,
 }
 
-/// Every account's entry, in the order `facts` lists them. `calendar_refused` holds the accounts
-/// whose provider refused their calendar when it was opened, and `problems` what stopped an
-/// account's calendar or contacts from connecting while the account did.
+/// Every account's entry, in the order `facts` lists them. `refused` holds the uses each account's
+/// provider refused when they were opened (`MailcalApp::refused_uses`), and `problems` what
+/// stopped an account's calendar or contacts from connecting while the account did.
 pub(crate) fn entries(
     facts: &[AccountFacts],
-    calendar_refused: &BTreeSet<String>,
+    refused: &BTreeMap<String, Capabilities>,
     problems: &BTreeMap<String, mailcal_app::UseProblems>,
 ) -> Vec<AccountEntry> {
     let links = valid_links(facts);
@@ -80,7 +80,7 @@ pub(crate) fn entries(
             sign_in: account.sign_in,
             uses: uses(
                 account,
-                calendar_refused.contains(&account.id),
+                refused.get(&account.id),
                 problems.get(&account.id).copied().unwrap_or_default(),
             ),
             links: AccountLinksView {
@@ -354,10 +354,11 @@ pub(crate) fn meeting_accounts(entries: &[AccountEntry]) -> Vec<crate::MeetingAc
         .collect()
 }
 
-/// The uses `account` offers, each in its state.
+/// The uses `account` offers, each in its state; `refused` are those its provider refused when
+/// they were opened.
 fn uses(
     account: &AccountFacts,
-    calendar_refused: bool,
+    refused: Option<&Capabilities>,
     problems: mailcal_app::UseProblems,
 ) -> Vec<AccountUse> {
     account
@@ -365,7 +366,7 @@ fn uses(
         .iter()
         .map(|capability| {
             let refused = account.withheld.contains(capability)
-                || (capability == Capability::Calendar && calendar_refused);
+                || refused.is_some_and(|refused| refused.contains(capability));
             let state = match (account.chosen.contains(capability), refused) {
                 _ if account.lacks.contains(capability) => CapabilityState::NotOffered,
                 (false, _) => CapabilityState::Off,

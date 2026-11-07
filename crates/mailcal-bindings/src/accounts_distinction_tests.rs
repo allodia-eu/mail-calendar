@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use mailcal_account::{AccountLinks, Capability};
 
@@ -11,7 +11,7 @@ use crate::{
 };
 
 fn listed(facts: &[AccountFacts]) -> Vec<AccountEntry> {
-    entries(facts, &BTreeSet::new(), &BTreeMap::new())
+    entries(facts, &BTreeMap::new(), &BTreeMap::new())
 }
 
 /// The calendar split off from `mailbox`: the same person's login, at a server of its own.

@@ -1,9 +1,9 @@
 //! Switching what an account is used for, from Settings → Accounts.
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use engine_api::{AccountId, SearchDomain};
-use mailcal_account::Capability;
+use mailcal_account::{Capabilities, Capability};
 
 use crate::{
     AccountCapability, CapabilityChange, MailcalApp, MailcalError, account_registry::UseChange,
@@ -36,15 +36,20 @@ impl MailcalApp {
         on: bool,
     ) -> Result<CapabilityChange, MailcalError> {
         let capability = Capability::from(capability);
-        let (config_toml, previous) = match self.registry.set_use(&account_id, capability, on)? {
-            UseChange::Unchanged => return Ok(CapabilityChange::Applied),
-            UseChange::NeedsConsent => return Ok(CapabilityChange::NeedsConsent),
-            UseChange::NeedsEndpoint => return Ok(CapabilityChange::NeedsEndpoint),
-            UseChange::Changed {
-                config_toml,
-                previous,
-            } => (config_toml, previous),
-        };
+        let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
+        let (config_toml, previous) =
+            match self
+                .registry
+                .set_use(&account_id, capability, on, &refused)?
+            {
+                UseChange::Unchanged => return Ok(CapabilityChange::Applied),
+                UseChange::NeedsConsent => return Ok(CapabilityChange::NeedsConsent),
+                UseChange::NeedsEndpoint => return Ok(CapabilityChange::NeedsEndpoint),
+                UseChange::Changed {
+                    config_toml,
+                    previous,
+                } => (config_toml, previous),
+            };
         if let Err(err) = self.persist_config(&account_id, config_toml) {
             self.registry.restore_uses(&account_id, previous);
             return Err(err);
@@ -102,6 +107,18 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// The uses each account's provider refused when they were opened, although its stored
+    /// grant allows them, by account id: drawn as waiting on the provider, and switching one on
+    /// asks the provider again.
+    pub(crate) fn refused_uses(&self) -> BTreeMap<String, Capabilities> {
+        self.app
+            .connectivity()
+            .calendar_reauth_accounts
+            .into_iter()
+            .map(|id| (id, [Capability::Calendar].into_iter().collect()))
+            .collect()
+    }
+
     /// Lists `id` again without providers and stops its background sync, so nothing it no longer
     /// opens keeps syncing until its next dial.
     pub(crate) fn list_without_providers(&self, id: &AccountId) {

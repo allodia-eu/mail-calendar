@@ -158,6 +158,15 @@ that same file.
   `clients/windows/Generated/mailcal_bindings.cs` rather than from the sibling client, and grep a
   new file for a lowercase member access, which in this codebase is always either a namespace or a
   mistake.
+- **An enum variant may not share its name with a field of another variant, in C#.**
+  `mailcal-bindgen-cs` turns each variant into a record nested in the enum's class and each field
+  into a property, so a variant `Account` beside variants that carry an `account` field is two
+  members called `Account`, and the generated bindings stop compiling (CS8866). Swift and Kotlin
+  accept it, so `--clients` on a Linux host shows it only through `Mailcal.Tests`. Name a nested
+  family for what it is (`AccountPage`), not for the field its siblings already use.
+  The same goes for a new record or enum named like a type a client declares itself (`UseNote`,
+  `UseSwitch`): C# sees both through its `using`, and Swift through its module import, and either
+  one stops compiling. Grep `clients/` for a name before the core takes it.
 - **A `MailboxModel` partial that disagrees about accessibility is reported as a broken
   `MainWindow.xaml`.** C# rejects the class (`CS0262`), so every type in it disappears, and the
   XAML compiler then lists a dozen `WMC0001: Unknown type` lines naming views nobody touched. The
