@@ -118,6 +118,16 @@ internal sealed class ControlToggle
     /// <summary>Holds the switch where the person left it while a question about it is open.</summary>
     internal void Hold() => _toggle.IsEnabled = false;
 
+    /// <summary>Draws the switch off and held: a question about switching it off is still open
+    /// from before the page was drawn again.</summary>
+    internal void HoldOff()
+    {
+        _restoring = true;
+        _toggle.IsOn = false;
+        _restoring = false;
+        Hold();
+    }
+
     /// <summary>Puts the switch back where the core drew it: the question was answered no.</summary>
     internal void Restore()
     {
@@ -132,6 +142,8 @@ internal sealed class ControlToggle
 /// does not. Collapsed until <see cref="Show"/>; either answer collapses it again.</summary>
 internal sealed class ConfirmPanel
 {
+    private readonly Button _confirm;
+
     internal ConfirmPanel(string title, string message, string action, string automationId, Action<bool> answer)
     {
         Element = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
@@ -141,17 +153,17 @@ internal sealed class ConfirmPanel
         Element.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var cancel = new Button { Content = L10n.ActionCancel() };
-        var confirm = new Button { Content = action };
-        AutomationProperties.SetAutomationId(confirm, automationId + "Confirm");
+        _confirm = new Button { Content = action };
+        AutomationProperties.SetAutomationId(_confirm, automationId + "Confirm");
         buttons.Children.Add(cancel);
-        buttons.Children.Add(confirm);
+        buttons.Children.Add(_confirm);
         Element.Children.Add(buttons);
         cancel.Click += (_, _) =>
         {
             Element.Visibility = Visibility.Collapsed;
             answer(false);
         };
-        confirm.Click += (_, _) =>
+        _confirm.Click += (_, _) =>
         {
             Element.Visibility = Visibility.Collapsed;
             answer(true);
@@ -159,6 +171,13 @@ internal sealed class ConfirmPanel
     }
 
     internal StackPanel Element { get; }
+
+    /// <summary>Whether the action can be pressed: held while another change runs, as the control
+    /// it asks about is. Cancel always can.</summary>
+    internal bool Enabled
+    {
+        set => _confirm.IsEnabled = value;
+    }
 
     internal void Show() => Element.Visibility = Visibility.Visible;
 }

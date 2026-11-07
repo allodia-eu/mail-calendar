@@ -33,6 +33,7 @@ public sealed partial class SettingsDialog
         void Set(bool on) => _model.ChangeAccount(new AccountPageIntent.SetUse(entry.Id, capability, on));
         // Switching off deletes what the device holds of the use, so it is asked first where it
         // holds anything; cancelling puts the switch back.
+        var asking = $"use:{entry.Id}:{capability}";
         ControlToggle? toggle = null;
         var confirm = new ConfirmPanel(
             L10n.AccountUseOffTitle(UseName(capability)),
@@ -41,6 +42,7 @@ public sealed partial class SettingsDialog
             $"AccountUseOff_{capability}",
             yes =>
             {
+                _confirmOpen = null;
                 if (yes)
                 {
                     Set(false);
@@ -64,6 +66,7 @@ public sealed partial class SettingsDialog
                 }
                 else if (!on && use.ConfirmsOff)
                 {
+                    _confirmOpen = asking;
                     toggle!.Hold();
                     confirm.Show();
                 }
@@ -72,6 +75,18 @@ public sealed partial class SettingsDialog
                     Set(on);
                 }
             });
+        // Still asked while the use is still on to be switched off; Switch off waits while another
+        // change runs.
+        if (_confirmOpen == asking && use.On && use.ConfirmsOff)
+        {
+            toggle.HoldOff();
+            confirm.Show();
+        }
+        else if (_confirmOpen == asking)
+        {
+            _confirmOpen = null;
+        }
+        confirm.Enabled = use.Control.Enabled;
         row.Children.Add(toggle.Element);
         if (SeparateServerAction(entry, capability) is { } separate)
         {

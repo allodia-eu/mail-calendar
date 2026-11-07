@@ -138,11 +138,13 @@ public sealed partial class SettingsDialog
             message += " " + L10n.RemoveAccountUnlinks(unlinked);
         }
         StackPanel? remove = null;
+        var asking = $"remove:{entry.Id}";
         // The page runs the removal and goes back to the list once the account is gone; an erase
         // that failed is said there (MailboxModel.RemovalFailed).
         var confirm = new ConfirmPanel(
             L10n.RemoveAccountTitle(), message, L10n.ActionRemove(), "AccountRemove", yes =>
             {
+                _confirmOpen = null;
                 remove!.Visibility = Visibility.Visible;
                 if (yes)
                 {
@@ -151,9 +153,16 @@ public sealed partial class SettingsDialog
             });
         remove = ControlComponents.Button(L10n.ActionRemoveAccount(), control, "AccountRemove", () =>
         {
+            _confirmOpen = asking;
             remove!.Visibility = Visibility.Collapsed;
             confirm.Show();
         });
+        if (_confirmOpen == asking)
+        {
+            remove.Visibility = Visibility.Collapsed;
+            confirm.Show();
+        }
+        confirm.Enabled = control.Enabled;
         stack.Children.Add(remove);
         stack.Children.Add(confirm.Element);
         return stack;

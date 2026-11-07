@@ -1,8 +1,8 @@
 // Settings → Accounts drawn from the core's one snapshot (docs/accounts.md rules 8 and 11 to 13):
 // every account listed, mail or not; a link suggested where the calendar server schedules as the
 // mailbox's address, made only once the person presses it, and named by its kind beside the mailbox
-// of its address; a use switched off only once it is confirmed; and a removal that names the
-// accounts losing their link.
+// of its address; a use switched off only once it is confirmed; a question open on the page kept
+// open when the page is drawn again; and a removal that names the accounts losing their link.
 //
 // WHY HERE. The rules are pinned in Mailcal.Tests (AccountSettingsRulesTests), but whether the page
 // draws them, and whether a press reaches the core and comes back as the next snapshot, is WinUI and
@@ -65,12 +65,18 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
         // arrives a moment after the page.
         var link = app.Agent.Wait(new Filter { Id = "AccountLinkSuggested_Calendar", Under = dialog }, TimeSpan.FromSeconds(15))
             ?? throw new InvalidOperationException("the calendar server schedules as the mailbox's address, so its calendar is suggested with a button that links it");
+        // A question left open while the page is drawn again: the link redraws it twice, running and done.
+        app.Agent.Invoke(InPage(app, dialog, "AccountRemove"));
+        Assert.NotNull(app.Agent.Wait(new Filter { Id = "AccountRemoveConfirm", Under = dialog }, TimeSpan.FromSeconds(5)));
         app.Agent.Invoke(link);
         Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountLink_Calendar", Under = dialog }) is { } now && app.Agent.Read(now).Selection == $"{Harness.Alice} (CalDAV/CardDAV)",
             TimeSpan.FromSeconds(10)),
             "pressing Link picks the suggested calendar, named by its kind (docs/accounts.md rule 8): it has the mailbox's address, and the bare address would read as the mailbox itself");
         Assert.True(app.Agent.Find(new Filter { Id = "AccountLinkSuggested_Calendar", Under = dialog }) is null,
             "a link already made is not suggested again: the page was drawn from the next snapshot");
+        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountRemoveConfirm", Under = dialog }) is { Enabled: true }, TimeSpan.FromSeconds(5)),
+            "the removal's question survives the page being drawn again, and can be answered once the link is done: a question that closed by itself would read as answered");
+        app.Agent.Invoke(Button(app, dialog, "action_cancel"));
         // From the other end: naming a calendar from the mailbox links the mailbox to the calendar
         // too, and only the next snapshot can say so.
         var help = RowHelp(app, setup);

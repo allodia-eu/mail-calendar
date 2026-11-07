@@ -33,6 +33,11 @@ public sealed partial class SettingsDialog
     // Whether there was an account when Settings last looked: the last one going is what closes it.
     private bool _hadAccounts;
 
+    // The confirmation open on the page, so the page drawn again from a core signal draws it open
+    // too: a reconnecting account signals throughout, and a question that closed by itself would
+    // read as answered.
+    private string? _confirmOpen;
+
     private sealed record AccountNotice(InfoBarSeverity Severity, string Title, string Message);
 
     private UIElement BuildAccounts()
@@ -206,6 +211,7 @@ public sealed partial class SettingsDialog
     {
         _accountPage = accountId;
         _accountNotice = null;
+        _confirmOpen = null;
         // A page opened again asks its server again: what it takes, and which mailboxes it shares
         // with the account, can have changed meanwhile.
         _signInOptions.Clear();
