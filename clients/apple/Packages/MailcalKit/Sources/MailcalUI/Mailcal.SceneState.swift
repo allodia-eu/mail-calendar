@@ -76,7 +76,7 @@ extension ContentView {
             sceneSelectedFolder = ""
             clearOpenedMessage()
         }
-        Task { await model.removeAccount(id) }
+        model.removeAccount(id)
     }
 
     func setOpenedMessage(_ message: OpenedMessage) {

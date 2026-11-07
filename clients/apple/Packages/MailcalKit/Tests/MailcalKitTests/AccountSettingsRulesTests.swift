@@ -1,7 +1,6 @@
-// What Settings → Accounts says about an account, from a snapshot entry (docs/accounts.md rules
-// 11 to 13), and what an edit of its servers sends back (rule 14). The Apple client's copy of the
-// suite Linux (`account_rows_tests`, `account_servers`) and Windows (`AccountSettingsRulesTests`,
-// `AccountEndpointEditTests`) carry.
+// What Settings → Accounts' list says about an account, from a snapshot entry (docs/accounts.md
+// rules 11 to 13), and what an edit of its servers sends back (rule 14). An account's page is the
+// core's (`account_page`); `AccountPageWordsTests` covers how this client words it.
 
 import MailcalBindings
 import Testing
@@ -31,126 +30,18 @@ private func mailboxOnly() -> AccountEntry {
 }
 
 @Suite struct AccountSettingsRulesTests {
-    @Test func aUseThatDidNotConnectSaysWhyBeneathItsSwitch() {
-        var account = entry(.imap, [(.mail, .on), (.calendar, .on), (.contacts, .on)])
-        account.uses[1] = AccountUse(capability: .calendar, state: .on, problem: .needsOwnSignIn)
-        account.uses[2] = AccountUse(capability: .contacts, state: .on, problem: .unreachable)
-        let calendar = AccountSettingsRules.useSwitch(account, .calendar)
-        #expect(calendar.note == .problem(.needsOwnSignIn, .calendar))
-        #expect(calendar.active)
-        #expect(
-            AccountSettingsLabels.note(calendar.note)
-                == L10n.settings_account_use_own_sign_in_calendar())
-        #expect(
-            AccountSettingsRules.useSwitch(account, .contacts).note == .problem(.unreachable, .contacts))
-        #expect(AccountSettingsRules.useSwitch(account, .mail).note == UseNote.none)
-    }
-
-    @Test func aUsePausedForANewServerSaysSoAndOffersReview() {
-        var account = entry(.dav, [(.calendar, .on), (.contacts, .on)])
-        account.uses[0] = AccountUse(capability: .calendar, state: .on, problem: .serverChanged)
-        account.uses[1] = AccountUse(capability: .contacts, state: .on, problem: .serverChanged)
-        let calendar = AccountSettingsRules.useSwitch(account, .calendar).note
-        let contacts = AccountSettingsRules.useSwitch(account, .contacts).note
-        #expect(calendar == .problem(.serverChanged, .calendar))
-        #expect(
-            AccountSettingsLabels.note(calendar)
-                == L10n.settings_account_use_server_changed_calendar())
-        #expect(
-            AccountSettingsLabels.note(contacts)
-                == L10n.settings_account_use_server_changed_contacts())
-        #expect(AccountSettingsRules.reviewsServerChange(calendar))
-        #expect(AccountSettingsRules.reviewsServerChange(contacts))
-    }
-
-    @Test func onlyAServerChangeOffersReview() {
-        let notes: [UseNote] = [
-            .none, .last, .needsContacts, .needsMail, .withheld, .notOffered,
-            .problem(.needsOwnSignIn, .calendar), .problem(.signInRefused, .contacts),
-            .problem(.unreachable, .calendar),
-        ]
-        for note in notes {
-            #expect(!AccountSettingsRules.reviewsServerChange(note))
-        }
-    }
-
-    @Test func theLastUseCannotBeSwitchedOff() {
-        let mailbox = mailboxOnly()
-        #expect(
-            AccountSettingsRules.useSwitch(mailbox, .mail)
-                == UseSwitch(active: true, asks: false, enabled: false, note: .last))
-        #expect(
-            AccountSettingsRules.useSwitch(mailbox, .calendar)
-                == UseSwitch(active: false, asks: false, enabled: true, note: .none))
-    }
-
-    @Test func videoMeetingsAreNeverTheLastUseAndSwitchOffWithoutAsking() {
-        let account = entry(.dav, [(.calendar, .on), (.contacts, .off), (.meetings, .on)])
-        #expect(AccountSettingsRules.useSwitch(account, .calendar).note == .last)
-        #expect(AccountSettingsRules.useSwitch(account, .meetings).enabled)
-        #expect(!AccountSettingsRules.confirmsOff(.meetings))
-        #expect(AccountSettingsRules.confirmsOff(.calendar))
-        #expect(AccountSettingsLabels.use(.meetings) == L10n.account_use_meetings())
-    }
-
-    @Test func colleaguesWaitForContacts() {
-        var account = entry(
-            .microsoft, [(.mail, .on), (.calendar, .on), (.contacts, .off), (.colleagues, .off)])
-        let colleagues = AccountSettingsRules.useSwitch(account, .colleagues)
-        #expect(!colleagues.enabled)
-        #expect(colleagues.note == .needsContacts)
-
-        account.uses[2] = AccountUse(capability: .contacts, state: .on)
-        #expect(AccountSettingsRules.useSwitch(account, .colleagues).enabled)
-    }
-
-    @Test func sharedMailboxesWaitForMail() {
-        var account = entry(
-            .microsoft, [(.mail, .off), (.sharedMailboxes, .off), (.calendar, .on), (.contacts, .off)])
-        let shared = AccountSettingsRules.useSwitch(account, .sharedMailboxes)
-        #expect(!shared.enabled)
-        #expect(shared.note == .needsMail)
-        #expect(AccountSettingsLabels.note(shared.note) == L10n.settings_account_shared_needs_mail())
-
-        account.uses[0] = AccountUse(capability: .mail, state: .on)
-        #expect(
-            AccountSettingsRules.useSwitch(account, .sharedMailboxes)
-                == UseSwitch(active: false, asks: false, enabled: true, note: .none))
-        // Not one of mail, calendar and contacts, so never the last use held on.
-        account.uses[1] = AccountUse(capability: .sharedMailboxes, state: .on)
-        account.uses[2] = AccountUse(capability: .calendar, state: .off)
-        #expect(AccountSettingsRules.useSwitch(account, .sharedMailboxes).enabled)
-        #expect(AccountSettingsRules.useSwitch(account, .mail).note == .last)
-    }
-
-    @Test func aUseWaitingOnPermissionIsDrawnOffAndSwitchingItOnAsks() {
+    @Test func aUseWaitingOnPermissionIsStillOneTheAccountIsUsedFor() {
         let account = entry(
             .google,
             [(.mail, .on), (.calendar, .needsPermission), (.contacts, .off), (.colleagues, .off)])
-        let calendar = AccountSettingsRules.useSwitch(account, .calendar)
-        #expect(!calendar.active)
-        #expect(calendar.asks && calendar.enabled)
-        #expect(calendar.note == .withheld)
         #expect(AccountSettingsRules.needsPermission(account))
         #expect(AccountSettingsRules.withheld(account) == [.calendar])
         // Listed as a use: it is chosen, only not granted.
-        #expect(AccountSettingsRules.inUse(account).contains(.calendar))
+        #expect(AccountSettingsRules.inUse(account) == [.mail, .calendar])
     }
 
-    @Test func anOnlyUseWaitingOnPermissionCanStillBeAskedFor() {
-        let account = entry(.google, [(.mail, .off), (.calendar, .needsPermission), (.contacts, .off)])
-        #expect(
-            AccountSettingsRules.useSwitch(account, .calendar)
-                == UseSwitch(active: false, asks: true, enabled: true, note: .withheld))
-    }
-
-    @Test func aUseTheServerDoesNotOfferCannotBeSwitchedAndHoldsNothingOn() {
+    @Test func aUseTheServerDoesNotOfferIsNotOneTheAccountIsUsedFor() {
         let account = entry(.jmap, [(.mail, .on), (.calendar, .notOffered), (.contacts, .off)])
-        #expect(
-            AccountSettingsRules.useSwitch(account, .calendar)
-                == UseSwitch(active: false, asks: false, enabled: false, note: .notOffered))
-        // Mail is the one use that works, so it is the last.
-        #expect(AccountSettingsRules.useSwitch(account, .mail).note == .last)
         #expect(AccountSettingsRules.inUse(account) == [.mail])
     }
 
@@ -246,55 +137,6 @@ private func mailboxOnly() -> AccountEntry {
         mailbox.distinction = .server(host: "mail.example.org")
         #expect(AccountSettingsLabels.kindLine(mailbox) == "\(kind) · mail.example.org")
         #expect(AccountSettingsLabels.summary(mailbox)[0] == "\(kind) · mail.example.org · \(uses)")
-    }
-
-    @Test func aPickerIsOfferedOnlyForASlotTheAccountCanHold() {
-        var mailbox = mailboxOnly()
-        #expect(AccountSettingsRules.linkPickers(mailbox).isEmpty)
-
-        mailbox.linkCandidates = LinkCandidates(
-            calendar: [linked("a@cloud.example"), linked("b@cloud.example")], contacts: [], mail: [],
-            suggested: [])
-        mailbox.links = AccountLinksView(calendar: linked("b@cloud.example"), contacts: nil, mail: nil)
-        let pickers = AccountSettingsRules.linkPickers(mailbox)
-        #expect(pickers.count == 1)
-        #expect(pickers.first?.slot == .calendar)
-        #expect(pickers.first?.options.count == 2)
-        #expect(pickers.first?.selected == 1)
-    }
-
-    @Test func aLinkedAccountMissingFromTheCandidatesIsStillShown() {
-        var mailbox = mailboxOnly()
-        mailbox.links = AccountLinksView(calendar: nil, contacts: linked("book@cloud.example"), mail: nil)
-        let pickers = AccountSettingsRules.linkPickers(mailbox)
-        #expect(pickers.count == 1)
-        #expect(pickers.first?.slot == .contacts)
-        #expect(pickers.first?.options == [linked("book@cloud.example")])
-        #expect(pickers.first?.selected == 0)
-    }
-
-    @Test func aLinkIsMatchedToItsCandidateByIdAlone() {
-        var mailbox = mailboxOnly()
-        mailbox.linkCandidates = LinkCandidates(
-            calendar: [LinkedAccount(id: "cal", address: "new@cloud.example")], contacts: [],
-            mail: [], suggested: [])
-        mailbox.links = AccountLinksView(
-            calendar: LinkedAccount(id: "cal", address: "old@cloud.example"), contacts: nil, mail: nil)
-        let picker = AccountSettingsRules.linkPickers(mailbox).first
-        #expect(picker?.options.map(\.id) == ["cal"])
-        #expect(picker?.selected == 0)
-    }
-
-    @Test func aSuggestionIsOfferedOnlyWhereNothingIsLinked() {
-        var mailbox = mailboxOnly()
-        mailbox.linkCandidates = LinkCandidates(
-            calendar: [linked("a@cloud.example"), linked("b@cloud.example")], contacts: [], mail: [],
-            suggested: ["b@cloud.example"])
-        #expect(AccountSettingsRules.linkPickers(mailbox).first?.suggested == 1)
-
-        mailbox.links = AccountLinksView(calendar: linked("a@cloud.example"), contacts: nil, mail: nil)
-        // A link already made is not second-guessed.
-        #expect(AccountSettingsRules.linkPickers(mailbox).first?.suggested == nil)
     }
 
     @Test func removingNamesTheAccountsThatLoseTheirLink() {

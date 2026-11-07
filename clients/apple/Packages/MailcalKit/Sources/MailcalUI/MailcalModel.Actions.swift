@@ -160,40 +160,14 @@ extension MailboxModel {
         AccountSettingsLabels.name(accountEntry(id), or: accountEmail(id))
     }
 
-    /// Removes account `id`: drops it from the running app (the core rebuilds the switcher +
-    /// list without it and, if it was selected, falls back to the unified inbox), and clears every
-    /// link the other accounts held to it. The core also erases its Keychain entry, through the
-    /// same port it wrote it through, so it doesn't return on the next launch. The last account
+    /// Removes account `id`: the core drops it from the running app (rebuilding the switcher and
+    /// list without it, falling back to the unified inbox if it was selected), clears every link
+    /// the other accounts held to it, and erases its Keychain entry through the port it wrote it
+    /// through. Dispatched: it answers at once, and the account's page says it runs until the
+    /// account is gone. An erase that failed is said as `removalFailure`, and the last account
     /// gone returns the window to first-run setup (`docs/accounts.md` rule 11).
-    ///
-    /// Off the main actor: the core deletes everything the device holds of the account, which
-    /// takes seconds on a large store.
-    ///
-    /// Answers why its stored sign-in could not be erased, or `nil`.
-    @discardableResult
-    func removeAccount(_ id: String) async -> String? {
-        guard let app else { return nil }
-        var failure: String?
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.removeAccount(id: id)
-            }.value
-        } catch {
-            // The account IS gone from the app, only the Keychain erase failed, so it would come
-            // back at the next launch. Say so rather than letting it reappear unexplained.
-            FileLog.shared.append(
-                level: "WARN",
-                target: "accounts",
-                message: "remove account: the stored credential could not be erased: \(error)"
-            )
-            failure = L10n.remove_account_failed(error: coreMessage(error))
-        }
-        removalFailure = failure
-        refreshAccountsSnapshot()
-        if accountsSnapshot.accounts.isEmpty {
-            needsSetup = true
-        }
-        return failure
+    func removeAccount(_ id: String) {
+        changeAccount(.remove(account: id))
     }
 
     /// Focus one folder of one account, in the mail view.

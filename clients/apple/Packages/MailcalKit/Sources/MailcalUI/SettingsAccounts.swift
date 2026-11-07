@@ -14,32 +14,31 @@ struct AccountsSettingsView: View {
     let removeAccount: (String) -> Void
 
     var body: some View {
-        content.modifier(RemovalFailureAlert(model: model))
+        content
+            .modifier(RemovalFailureAlert(model: model))
+            .onChange(of: model.accountPage, initial: true) { model.refreshAccountPage() }
     }
 
     @ViewBuilder
     private var content: some View {
         #if os(macOS)
-        if let id = model.accountPage, let entry = model.accountEntry(id) {
-            AccountPageView(model: model, entry: entry, remove: remove)
+        if let id = model.accountPage, let entry = model.accountEntry(id),
+           let page = model.accountPageState.record, page.account == id
+        {
+            AccountPageView(model: model, entry: entry, page: page, remove: removeAccount)
                 .id(entry.id)
         } else {
             list
         }
         #else
         list.navigationDestination(item: pageBinding) { id in
-            AccountPageScreen(model: model, id: id, remove: remove)
+            AccountPageScreen(model: model, id: id, remove: removeAccount)
         }
         #endif
     }
 
     private var pageBinding: Binding<String?> {
         Binding(get: { model.accountPage }, set: { model.accountPage = $0 })
-    }
-
-    private func remove(_ id: String) {
-        model.accountPage = nil
-        removeAccount(id)
     }
 
     private var list: some View {
@@ -120,9 +119,11 @@ private struct AccountPageScreen: View {
     let remove: (String) -> Void
 
     var body: some View {
-        if let entry = model.accountEntry(id) {
+        if let entry = model.accountEntry(id), let page = model.accountPageState.record,
+           page.account == id
+        {
             ScrollView {
-                AccountPageView(model: model, entry: entry, remove: remove)
+                AccountPageView(model: model, entry: entry, page: page, remove: remove)
                     .id(entry.id)
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)

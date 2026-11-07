@@ -8,12 +8,12 @@ import MailcalBindings
 
 /// The last setup step, and a skippable one: an account that lacks a calendar or contacts can use
 /// another account's, and a calendar without mail can name the account that sends its invitations.
-/// The pickers are Settings' own, from the same snapshot, so the step offers exactly what the
-/// account's page would.
+/// The pickers are the core's (`setup_link_pickers`), the ones the account's page offers that
+/// nothing fills yet.
 struct SetupLinkStep: Equatable {
     /// The account the step links.
     let account: String
-    let pickers: [LinkPicker]
+    let pickers: [AccountLinkPicker]
     /// The servers found beside the account's JMAP server, offered as an account of their own
     /// for what its session lacks.
     let beside: BesideStep?
@@ -23,11 +23,11 @@ struct SetupLinkStep: Equatable {
     /// Whether the person has changed a pick, after which a late suggestion leaves the step alone.
     private(set) var touched = false
 
-    private init(account: String, pickers: [LinkPicker], beside: BesideStep?) {
+    private init(account: String, pickers: [AccountLinkPicker], beside: BesideStep?) {
         self.account = account
         self.pickers = pickers
         self.beside = beside
-        picked = pickers.map(\.suggested)
+        picked = pickers.map { picker in picker.suggested.map { Int($0) } }
     }
 
     /// The step for `account`, or `nil` when no other account can fill anything it lacks and its
@@ -37,12 +37,13 @@ struct SetupLinkStep: Equatable {
     /// anyway, for "Add another account" and for `beside`, which is offered only then.
     static func step(
         _ snapshot: AccountsSnapshot, account: String, beside: BesideOffer? = nil,
-        offersLinks: (AccountKind) -> Bool = { offersSetupLinks(kind: $0) }
+        offersLinks: (AccountKind) -> Bool = { offersSetupLinks(kind: $0) },
+        pickers: (AccountEntry) -> [AccountLinkPicker] = { setupLinkPickers(entry: $0) }
     ) -> SetupLinkStep? {
         guard let entry = snapshot.accounts.first(where: { $0.id == account }),
               offersLinks(entry.kind)
         else { return nil }
-        let pickers = AccountSettingsRules.linkPickers(entry).filter { $0.selected == nil }
+        let pickers = pickers(entry)
         func lacks(_ capability: AccountCapability) -> Bool {
             entry.uses.contains { $0.capability == capability && $0.state == .notOffered }
         }

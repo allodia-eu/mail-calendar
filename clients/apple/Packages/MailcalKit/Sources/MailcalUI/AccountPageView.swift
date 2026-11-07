@@ -16,13 +16,15 @@ struct AccountPageAlert: Identifiable {
 struct AccountPageView: View {
     var model: MailboxModel
     let entry: AccountEntry
-    /// Removes the account, and leaves the page.
+    /// Its uses, links and removal, as the core decided them.
+    let page: AccountPage
+    /// Removes the account; the page goes once the account is gone.
     let remove: (String) -> Void
 
     @State private var alert: AccountPageAlert?
     /// The line the sign-in section shows once a sign-in has answered.
     @State private var signInResult: String?
-    @State private var confirmingRemoval = false
+    @State private var confirmingRemoval: String?
     /// What the server answered about the mailboxes the account's sign-in opens besides its own.
     @State private var sharedMailboxes: SharedMailboxesView?
 
@@ -61,10 +63,9 @@ struct AccountPageView: View {
                         .padding(6)
                 }
             }
-            AccountUsesSection(model: model, entry: entry, alert: $alert, signIn: signIn)
-            let pickers = AccountSettingsRules.linkPickers(entry)
-            if !pickers.isEmpty {
-                AccountLinksSection(model: model, entry: entry, pickers: pickers, alert: $alert)
+            AccountUsesSection(model: model, entry: entry, uses: page.uses, signIn: signIn)
+            if !page.links.isEmpty {
+                AccountLinksSection(model: model, entry: entry, pickers: page.links)
             }
             AccountSharedMailboxesSection(
                 model: model, entry: entry, answer: $sharedMailboxes, alert: $alert)
@@ -90,6 +91,12 @@ struct AccountPageView: View {
             removeSection
         }
         .modifier(SharedMailboxesAsking(model: model, entry: entry, answer: $sharedMailboxes))
+        // What a change on this page came to, said once (docs/waiting.md rule 5).
+        .onChange(of: model.accountPageState.failure?.id, initial: true) {
+            guard let failure = model.accountPageState.failure else { return }
+            model.accountPageState.failure = nil
+            alert = failure
+        }
         .alert(item: $alert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -175,45 +182,43 @@ struct AccountPageView: View {
     /// Last, and the only destructive control on the page: a remove sits below the things you
     /// might actually adjust, not among them.
     private var removeSection: some View {
-        Button(role: .destructive) {
-            confirmingRemoval = true
-        } label: {
-            Label(L10n.action_remove_account(), systemImage: "trash")
+        ControlButton(
+            title: L10n.action_remove_account(), systemImage: "trash", role: .destructive,
+            control: page.remove
+        ) {
+            confirmingRemoval = entry.id
         }
         .buttonStyle(.bordered)
-        // An `alert`, not a `confirmationDialog`: iPadOS presents the latter as a popover, which
-        // drops the `.cancel` button (see the remove-account alert in Mailcal.swift).
-        .alert(L10n.remove_account_title(), isPresented: $confirmingRemoval) {
-            Button(L10n.action_remove(), role: .destructive) { remove(entry.id) }
-            Button(L10n.action_cancel(), role: .cancel) {}
-        } message: {
-            Text(AccountSettingsLabels.removal(entry))
-        }
+        .confirmAlert(
+            $confirmingRemoval, action: L10n.action_remove(),
+            title: { _ in L10n.remove_account_title() },
+            message: { _ in AccountSettingsLabels.removal(entry) },
+            confirm: remove)
     }
 }
 
-/// A switch per use the account's kind offers. Switching one off is confirmed first, because it
-/// deletes what the device holds of it.
+/// A switch per use the account's kind offers, as the core decided each. Switching one off is
+/// confirmed first where it deletes what the device holds of it; switching on one the provider
+/// withholds goes to its sign-in, asking for it.
 struct AccountUsesSection: View {
     var model: MailboxModel
     let entry: AccountEntry
-    @Binding var alert: AccountPageAlert?
+    let uses: [AccountUseSwitch]
     /// Signs the account in again, asking for these as well.
     let signIn: ([AccountCapability]) -> Void
 
-    @State private var switching: AccountCapability?
     @State private var confirmingOff: AccountCapability?
     /// The use under which the sign-in of its own is open.
     @State private var separateServerUnder: AccountCapability?
     @State private var serverChange: ServerChangeReview?
 
     init(
-        model: MailboxModel, entry: AccountEntry, alert: Binding<AccountPageAlert?>,
+        model: MailboxModel, entry: AccountEntry, uses: [AccountUseSwitch],
         signIn: @escaping (_ adding: [AccountCapability]) -> Void
     ) {
         self.model = model
         self.entry = entry
-        _alert = alert
+        self.uses = uses
         self.signIn = signIn
     }
 
@@ -223,64 +228,55 @@ struct AccountUsesSection: View {
             description: L10n.settings_account_uses_description()
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(entry.uses, id: \.capability) { use in
-                    row(use.capability)
+                ForEach(uses, id: \.capability) { toggle in
+                    row(toggle)
                 }
             }
         }
-        .alert(
-            L10n.account_use_off_title(
-                capability: confirmingOff.map(AccountSettingsLabels.use) ?? ""),
-            isPresented: Binding(
-                get: { confirmingOff != nil }, set: { if !$0 { confirmingOff = nil } }
-            ),
-            presenting: confirmingOff
-        ) { capability in
-            Button(L10n.action_switch_off(), role: .destructive) { change(capability, on: false) }
-            Button(L10n.action_cancel(), role: .cancel) {}
-        } message: { _ in
-            Text(L10n.account_use_off_message())
-        }
+        .confirmAlert(
+            $confirmingOff, action: L10n.action_switch_off(),
+            title: { L10n.account_use_off_title(capability: AccountSettingsLabels.use($0)) },
+            message: { _ in L10n.account_use_off_message() },
+            confirm: { set($0, on: false) })
+        // The Review under a use paused for a new server asks the question here, as the outage
+        // banner does (docs/account-autodetect.md rule 14).
+        .serverChangeReview(model, $serverChange)
     }
 
-    private func row(_ capability: AccountCapability) -> some View {
-        let toggle = AccountSettingsRules.useSwitch(entry, capability)
+    private func row(_ toggle: AccountUseSwitch) -> some View {
+        let capability = toggle.capability
+        // A sign-in at the provider for this account holds its switches until it answers.
+        let control = toggle.control.held(model.signingInAgain == entry.id)
         return VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Toggle(
-                    AccountSettingsLabels.use(capability),
-                    isOn: Binding(
-                        get: { toggle.active },
-                        set: { on in flipped(capability, on: on, asks: toggle.asks) }
-                    )
-                )
-                // A switch, as the copy calls it ("Switch off Contacts?").
-                .toggleStyle(.switch)
-                .disabled(!toggle.enabled || switching != nil)
-                if switching == capability {
-                    ProgressView().controlSize(.small)
+            ControlToggle(
+                title: AccountSettingsLabels.use(capability),
+                note: AccountSettingsLabels.note(toggle),
+                on: toggle.on,
+                control: control
+            ) { on in
+                if on, toggle.asksProvider {
+                    signIn([capability])
+                } else if !on, toggle.confirmsOff {
+                    confirmingOff = capability
+                } else {
+                    set(capability, on: on)
                 }
             }
-            if let note = AccountSettingsLabels.note(toggle.note) {
-                Text(note)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if AccountSettingsRules.reviewsServerChange(toggle.note) {
+            if toggle.reviewsServerChange {
                 Button(L10n.server_changed_review()) {
                     serverChange = model.serverChangeReview(entry.id)
                 }
                 .controlSize(.small)
+                .disabled(!control.enabled)
             }
-            separateServer(capability)
+            separateServer(capability, enabled: control.enabled)
         }
     }
 
     /// A sign-in of its own, under a use whose server needs one or refused the account's
     /// (docs/accounts.md rule 18): a button, then the form it opens.
     @ViewBuilder
-    private func separateServer(_ capability: AccountCapability) -> some View {
+    private func separateServer(_ capability: AccountCapability, enabled: Bool) -> some View {
         if SeparateServerRules.offered(entry, capability),
            let ask = SeparateServerRules.ask(entry)
         {
@@ -292,44 +288,13 @@ struct AccountUsesSection: View {
                     separateServerUnder = capability
                 }
                 .controlSize(.small)
-                .disabled(separateServerUnder != nil || switching != nil)
+                .disabled(separateServerUnder != nil || !enabled)
             }
         }
     }
 
-    private func flipped(_ capability: AccountCapability, on: Bool, asks: Bool) {
-        if on, asks {
-            // Already chosen, and waiting on the provider: switching it on asks again.
-            signIn([capability])
-        } else if on || !AccountSettingsRules.confirmsOff(capability) {
-            change(capability, on: on)
-        } else {
-            confirmingOff = capability
-        }
-    }
-
-    /// Asks the core. A use the provider has not granted is asked for straight away: the person
-    /// switching it on is the person who would be asked.
-    private func change(_ capability: AccountCapability, on: Bool) {
-        switching = capability
-        let id = entry.id
-        Task {
-            let outcome = await model.setAccountUse(id, capability, on: on)
-            switching = nil
-            switch outcome {
-            case .applied:
-                break
-            case .askProvider:
-                signIn([capability])
-            case .needsEndpoint:
-                alert = AccountPageAlert(
-                    title: L10n.settings_account_change_failed_title(),
-                    detail: L10n.settings_account_use_needs_endpoint())
-            case let .failed(detail):
-                alert = AccountPageAlert(
-                    title: L10n.settings_account_change_failed_title(), detail: detail)
-            }
-        }
+    private func set(_ capability: AccountCapability, on: Bool) {
+        model.changeAccount(.setUse(account: entry.id, capability: capability, on: on))
     }
 }
 
@@ -339,8 +304,7 @@ struct AccountUsesSection: View {
 struct AccountLinksSection: View {
     var model: MailboxModel
     let entry: AccountEntry
-    let pickers: [LinkPicker]
-    @Binding var alert: AccountPageAlert?
+    let pickers: [AccountLinkPicker]
 
     var body: some View {
         SettingsGroup(
@@ -349,66 +313,53 @@ struct AccountLinksSection: View {
         ) {
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(pickers, id: \.slot) { picker in
-                    LinkPickerRow(picker: picker) { target in link(picker.slot, target) }
+                    LinkPickerRow(picker: picker) { target in
+                        model.changeAccount(
+                            .setLink(account: entry.id, slot: picker.slot, target: target))
+                    }
                 }
-            }
-        }
-    }
-
-    private func link(_ slot: LinkSlot, _ target: String?) {
-        let id = entry.id
-        Task {
-            if let failure = await model.setAccountLink(id, slot, target) {
-                alert = AccountPageAlert(
-                    title: L10n.settings_account_change_failed_title(), detail: failure)
             }
         }
     }
 }
 
-/// One link slot: its heading, a picker with "None" first, and the suggestion beneath it. Shared
-/// with the link step at the end of setup, which offers exactly what this page would.
+/// One link slot: its picker with "None" first, and the suggestion beneath it. Shared with the
+/// link step at the end of setup, which offers the slots this page would that nothing fills yet.
 struct LinkPickerRow: View {
-    let picker: LinkPicker
+    let picker: AccountLinkPicker
     /// The option picked, as its index into `picker.options`; `nil` for "None". The page links on
     /// it, the setup step records it.
     var selected: Int?
     /// Whether the suggestion is named with a button that picks it. The setup step starts with
     /// the suggestion already picked, so it names it without one.
     var suggestButton = true
+    /// Setup's own hold, which the core does not know about; the page's is the picker's.
+    var control: ControlState
     let pick: (String?) -> Void
 
     init(
-        picker: LinkPicker, selected: Int?? = nil, suggestButton: Bool = true,
-        pick: @escaping (String?) -> Void
+        picker: AccountLinkPicker, selected: Int?? = nil, suggestButton: Bool = true,
+        control: ControlState? = nil, pick: @escaping (String?) -> Void
     ) {
         self.picker = picker
-        self.selected = selected ?? picker.selected
+        self.selected = selected ?? picker.selected.map { Int($0) }
         self.suggestButton = suggestButton
+        self.control = control ?? picker.control
         self.pick = pick
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // Drawn here rather than left to the Picker: outside a Form, a `.menu` Picker renders
-            // its label on macOS but drops it on iOS.
-            Text(AccountSettingsLabels.slot(picker.slot)).font(.subheadline).bold()
-            Picker(
-                AccountSettingsLabels.slot(picker.slot),
-                selection: Binding<String?>(
-                    get: { selected.map { picker.options[$0].id } },
-                    set: { pick($0) }
-                )
-            ) {
-                Text(L10n.settings_account_link_none()).tag(String?.none)
-                ForEach(picker.options, id: \.id) { option in
-                    Text(AccountSettingsLabels.name(option)).tag(Optional(option.id))
-                }
+            ControlPicker(
+                title: AccountSettingsLabels.slot(picker.slot),
+                labels: [L10n.settings_account_link_none()]
+                    + picker.options.map { AccountSettingsLabels.name($0) },
+                selected: selected.map { $0 + 1 } ?? 0,
+                control: control
+            ) { at in
+                pick(at == 0 ? nil : picker.options[at - 1].id)
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .fixedSize()
-            if let suggested = picker.suggested {
+            if let suggested = picker.suggested.map { Int($0) } {
                 let option = picker.options[suggested]
                 HStack(spacing: 8) {
                     Text(L10n.settings_account_link_suggested(
@@ -418,6 +369,7 @@ struct LinkPickerRow: View {
                     if suggestButton, selected != suggested {
                         Button(L10n.action_link()) { pick(option.id) }
                             .controlSize(.small)
+                            .disabled(!control.enabled)
                     }
                 }
             }

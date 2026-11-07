@@ -1,7 +1,7 @@
 // The last setup step, and a skippable one (docs/onboarding.md, "After the connect"): an account
 // that lacks a calendar or contacts can use another account's, and a calendar without mail can
-// name the account that sends its invitations. The pickers are the account page's own, so the step
-// offers exactly what Settings would.
+// name the account that sends its invitations. The pickers are the core's: the ones the account's
+// page offers that nothing fills yet.
 
 import MailcalBindings
 import SwiftUI
@@ -23,7 +23,8 @@ struct SetupLinkStepView: View {
                                 // A suggestion starts picked, so it is named without a button: the
                                 // person confirms it by continuing.
                                 LinkPickerRow(
-                                    picker: picker, selected: step.picked[index], suggestButton: false
+                                    picker: picker, selected: step.picked[index], suggestButton: false,
+                                    control: .free(!model.savingSetupLinks)
                                 ) { target in
                                     model.setupFlow.pick(
                                         index, target.flatMap { id in picker.options.firstIndex { $0.id == id } })
