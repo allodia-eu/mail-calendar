@@ -232,11 +232,11 @@ pub(crate) fn build_showcase(
             ],
         )
     });
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
         pause_for_a_server_change(&app, &primary_identity);
     }
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
         ask_for_reconsent(&app, &primary_identity);
     }
@@ -257,7 +257,7 @@ pub(crate) fn build_showcase(
 /// `MAILCAL_SHOWCASE_SERVER_CHANGE`, which puts the question in front of the UI suites
 /// (`docs/account-autodetect.md` rule 14). Allowing it is refused, because a showcase account has
 /// no servers to change.
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, feature = "dev-harness"))]
 pub(crate) fn pause_for_a_server_change<P>(app: &App<P>, id: &str) {
     let id = AccountId::try_from(id).expect("valid account id");
     app.note_server_change(
@@ -275,7 +275,7 @@ pub(crate) fn pause_for_a_server_change<P>(app: &App<P>, id: &str) {
 /// `MAILCAL_SHOWCASE_REAUTH`: the two notices only a narrowed Microsoft grant raises otherwise
 /// (`docs/provider-oauth.md` rule 11), staged for the UI suites and the help screenshots. Signing
 /// in again opens the account's page, as for any account without a browser sign-in.
-#[cfg(debug_assertions)]
+#[cfg(any(debug_assertions, feature = "dev-harness"))]
 pub(crate) fn ask_for_reconsent<P: Provider>(app: &App<P>, id: &str) {
     let id = AccountId::try_from(id).expect("valid account id");
     app.note_calendar_reauth_required(&id);
