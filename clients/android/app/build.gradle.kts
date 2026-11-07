@@ -451,6 +451,41 @@ val coreNativeSymbols = tasks.register<CoreNativeSymbolsTask>("coreNativeSymbols
     )
 }
 
+// A debuggable APK is built to be installed and run, and one without the cross-compiled core
+// installs fine and dies at its first `System.loadLibrary`, minutes later on a device rather than
+// here. So packaging a debug APK stops when no ABI in `abiFilters` has the library cargo-ndk
+// writes. One is enough: a debug build is for the device or emulator at hand, and compiling the
+// core for an ABI nobody will run costs minutes. Release is left alone: CI assembles one without the core
+// to exercise the shrinker, and a shipped artifact is checked by check-android-native-libs.sh.
+// Presence only: a library built from another revision passes here and fails UniFFI's checksum at
+// launch.
+abstract class CheckCoreLibraryTask : DefaultTask() {
+    @get:Internal
+    abstract val jniLibs: DirectoryProperty
+
+    @get:Input
+    abstract val abis: ListProperty<String>
+
+    @TaskAction
+    fun check() {
+        val built = abis.get().filter { jniLibs.get().file("$it/libmailcal_bindings.so").asFile.isFile }
+        if (built.isEmpty()) {
+            throw GradleException(
+                "The Rust core is not built for any of ${abis.get().joinToString()}: " +
+                    "src/main/jniLibs/<abi>/libmailcal_bindings.so is missing, and an APK without it " +
+                    "dies at launch. Run clients/android/build-and-run.sh, or cross-compile it with " +
+                    "cargo-ndk for the device's ABI as that script does.",
+            )
+        }
+    }
+}
+
+val checkCoreLibrary = tasks.register<CheckCoreLibraryTask>("checkCoreLibrary") {
+    description = "Fails a debug APK that would package no Rust core at all."
+    jniLibs.set(layout.projectDirectory.dir("src/main/jniLibs"))
+    abis.set(provider { android.defaultConfig.ndk.abiFilters.sorted() })
+}
+
 // The unit tests run against the debug variant only. Compose's test rule hosts its content in the
 // empty ComponentActivity that `ui-test-manifest` contributes, and that artifact is a
 // `debugImplementation`, adding it to release would merge a test activity into the shipped
@@ -460,6 +495,11 @@ val coreNativeSymbols = tasks.register<CoreNativeSymbolsTask>("coreNativeSymbols
 androidComponents {
     beforeVariants(selector().withBuildType("release")) { variant ->
         variant.hostTests[HostTestBuilder.UNIT_TEST_TYPE]?.enable = false
+    }
+
+    onVariants(selector().withBuildType("debug")) { variant ->
+        val packaging = "package" + variant.name.replaceFirstChar { it.uppercase() }
+        tasks.configureEach { if (name == packaging) dependsOn(checkCoreLibrary) }
     }
 
     // Release only: a debuggable variant extracts no symbol tables at all, and packages no bundle.

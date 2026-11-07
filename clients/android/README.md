@@ -15,8 +15,8 @@ The Rust core is identical across platforms; only the renderer differs. The same
 
 It:
 
-- cross-compiles the cdylib for `arm64-v8a` via `cargo-ndk` (installing it if needed) into
-  `app/src/main/jniLibs/`;
+- cross-compiles the cdylib for `arm64-v8a` and `x86_64` via `cargo-ndk` (installing it if
+  needed) into `app/src/main/jniLibs/`;
 - generates the Kotlin bindings (from the host cdylib) into `app/src/main/java/uniffi/`;
 - assembles the debug APK with Gradle;
 - installs + launches it on a connected device/emulator, then captures `screenshot.png`
@@ -28,12 +28,14 @@ booted device/emulator (`$ANDROID_HOME/emulator/emulator -list-avds`). Verified 
 
 ## ABIs: 64-bit only (`arm64-v8a` + `x86_64`)
 
-The app ships two ABIs, and **three things must agree or the app breaks in a way no build error
-reports**: `defaultConfig.ndk.abiFilters` in `app/build.gradle.kts`, the `ABIS` array in
-`build-and-run.sh` and `build-release.sh`, and `ALLOWED_ABIS` in the checker below. Gradle packages
-every ABI in the filter whether or not cargo-ndk built a cdylib for it, an ABI that is filtered in
-but not compiled produces an APK that installs happily and then dies at the first
-`System.loadLibrary`. Both scripts therefore always cross-compile **both** targets
+The app ships two ABIs, and **three things must agree**: `defaultConfig.ndk.abiFilters` in
+`app/build.gradle.kts`, the `ABIS` array in `build-and-run.sh` and `build-release.sh`, and
+`ALLOWED_ABIS` in the checker below. Gradle packages every ABI in the filter whether or not
+cargo-ndk built a cdylib for it, and an ABI that is filtered in but not compiled produces an APK
+that installs happily and then dies at the first `System.loadLibrary`. A debug APK with no core for
+any ABI stops at `checkCoreLibrary` instead, so a bare `./gradlew :app:installPlayDebug` in a
+checkout that never cross-compiled it fails at once; one ABI passes, since a debug build is for the
+device at hand. A release artifact is caught by the checker below. Both scripts therefore always cross-compile **both** targets
 (`aarch64-linux-android`, `x86_64-linux-android`), so the debug loop works on an arm64 device and
 on an x86_64 emulator alike.
 
