@@ -205,8 +205,9 @@ it. One value per account, held by the core, put in the `From` of every send.
    the address, which is what an account is recognised by.
 
 Where the account holder owns the provider's copy (JMAP, Gmail), a change is pushed there too,
-best-effort. It is not reported: the user asked to be called something and, on this device,
-they now are.
+best-effort and in the background: `set_account_sender_name` stores the name and returns, so the
+next send carries it and no client waits on the provider to draw its next frame. It is not
+reported: the user asked to be called something and, on this device, they now are.
 
 ## What a forward carries
 

@@ -31,11 +31,18 @@ impl MailcalApp {
     ///
     /// The core sanitises what it is given, so pass the field's text through unchanged: a
     /// client that validated first would be a second opinion about what a `From` header may
-    /// contain, and the two would drift. Persisted, then pushed to the provider where the
-    /// account holder owns its copy; signals `Surface::Settings`.
+    /// contain, and the two would drift. Persisted before it returns, so the next send uses
+    /// it; then pushed to the provider where the account holder owns its copy, in the
+    /// background, and `Surface::Settings` signalled once that is done. Returns without waiting
+    /// on the provider, so a client may call it from its UI thread.
     pub fn set_account_sender_name(&self, account: String, name: String) {
-        self.runtime
-            .block_on(|| self.app.set_account_sender_name(&account, &name));
+        if !self.app.store_sender_name(&account, &name) {
+            return;
+        }
+        let app = std::sync::Arc::clone(&self.app);
+        self.runtime.spawn(async move {
+            app.publish_sender_name(&account).await;
+        });
     }
 
     /// The name to fill a "your name" field in with: the one already set, else the one the

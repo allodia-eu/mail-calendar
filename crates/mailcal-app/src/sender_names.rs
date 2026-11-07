@@ -136,14 +136,24 @@ impl<P: Provider> App<P> {
     /// else's copy. The name is sanitised on store (`mailcal_account::sanitize_sender_name`),
     /// so what is pushed can never be a header the user did not intend.
     pub async fn set_account_sender_name(&self, account: &str, name: &str) {
-        let changed = self
-            .sender_names
+        if self.store_sender_name(account, name) {
+            self.publish_sender_name(account).await;
+        }
+    }
+
+    /// The local half of [`App::set_account_sender_name`]: stores the name, which is the one a
+    /// send reads from now on, and answers whether it changed. Touches no network, so a host can
+    /// call it where it cannot wait and leave [`App::publish_sender_name`] to run on its own.
+    pub fn store_sender_name(&self, account: &str, name: &str) -> bool {
+        self.sender_names
             .lock()
             .expect("sender-name mutex poisoned")
-            .set(account, name);
-        if !changed {
-            return;
-        }
+            .set(account, name)
+    }
+
+    /// The rest of [`App::set_account_sender_name`] once the name is stored: pushes it to the
+    /// provider where the account holder owns its copy, then redraws what names the account.
+    pub async fn publish_sender_name(&self, account: &str) {
         self.push_sender_name(account).await;
         self.rebuild_snapshot().await;
         self.observer.surface_changed(Surface::Settings);
