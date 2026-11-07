@@ -27,6 +27,13 @@ enum NoticeRules {
         notices.filter { $0.account == account }
     }
 
+    /// What an account's row says under its address: the first notice's few words, or how many
+    /// there are when there are several (rule 6). `nil` when the account has none.
+    static func rowLabel(_ about: [Notice]) -> String? {
+        if about.count > 1 { return L10n.notices_account_count(count: about.count) }
+        return about.first?.mark.map(text)
+    }
+
     /// The notices in `current` that were not in force before: the ones to announce (rule 12).
     static func raised(_ current: [Notice], since previous: [Notice]) -> [Notice] {
         let before = Set(previous.map(\.id))

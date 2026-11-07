@@ -23,6 +23,7 @@ import Testing
             severity: severity,
             screens: screens,
             account: account,
+            mark: account.map { _ in NoticeText(key: "notice_mark_signin_expired", args: [:]) },
             action: nil,
             actionLabel: nil,
             dismissible: false,
@@ -51,6 +52,14 @@ import Testing
         ]
         #expect(NoticeRules.about("a", in: ranked).map(\.id) == ["a-calendar", "a-mail"])
         #expect(NoticeRules.about("c", in: ranked).isEmpty)
+    }
+
+    @Test func anAccountRowSaysTheFewWordsOrHowManyThereAre() {
+        let one = [notice("a-mail", .mail, account: "a")]
+        #expect(NoticeRules.rowLabel(one) == L10n.notice_mark_signin_expired())
+        let two = one + [notice("a-calendar", .calendar, account: "a")]
+        #expect(NoticeRules.rowLabel(two) == L10n.notices_account_count(count: 2))
+        #expect(NoticeRules.rowLabel([]) == nil)
     }
 
     @Test func onlyANoticeNotInForceBeforeIsAnnounced() {

@@ -202,19 +202,20 @@ extension ContentView {
                     .modifier(AccountRowFolderDrop(
                         model: model, account: account.id, dragEnabled: hasReadingPane
                     ))
-                    // The account carries its own notices: the first one's glyph on the row, and its
-                    // words beneath it, readable without a pointer (docs/notices.md rule 6).
-                    .overlay(alignment: .trailing) {
-                        if let mark = model.notices(about: account.id).first {
-                            NoticeGlyph(severity: mark.severity).padding(.trailing, 10)
+                    // The account carries its own notices: one line under its address, the first
+                    // one's glyph and a few words, readable without a pointer and never wrapping; the
+                    // sentences are in the notice and on the account's page (docs/notices.md rule 6).
+                    let about = model.notices(about: account.id)
+                    if let first = about.first, let label = NoticeRules.rowLabel(about) {
+                        HStack(spacing: 5) {
+                            NoticeGlyph(severity: first.severity).imageScale(.small)
+                            Text(label).lineLimit(1).truncationMode(.tail)
                         }
-                    }
-                    if let mark = model.notices(about: account.id).first {
-                        Text(NoticeRules.text(mark.title))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .padding(.leading, 28)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 28)
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(about.map { NoticeRules.text($0.title) }.joined(separator: " "))
                     }
                     // Every expanded account's folders show indented beneath it, not just the
                     // selected one's, and whatever surface is on screen: the pane is furniture,
