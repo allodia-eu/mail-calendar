@@ -182,7 +182,7 @@ class SeparateSignInTest {
             linkCandidates = LinkCandidates(listOf(linked("bob@dav")), emptyList(), emptyList(), emptyList()),
         )
         val snapshot = AccountsSnapshot(listOf(entry))
-        val stepFor: (String) -> SetupLinkStep? = { SetupLinkStep.of(snapshot, it, { true }) }
+        val stepFor: (String) -> SetupLinkStep? = { SetupLinkStep.of(snapshot, it, { true }, ::setupPickers) }
         val flow = SetupFlow()
         flow.accountAdded("alice@imap", false, emptyList(), stepFor, UnreachedRules.form(entry))
         val form = flow.separate.form!!

@@ -189,6 +189,7 @@ class SetupCardsTest {
             ),
             mailboxOnly().id,
             { true },
+            ::setupPickers,
         )!!
         val done = mutableListOf<Boolean>()
         var another = 0

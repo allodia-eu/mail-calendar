@@ -235,7 +235,7 @@ class SettingsHubTest {
         val state = AccountsUiState().apply {
             snapshot = uniffi.mailcal_bindings.AccountsSnapshot(listOf(mailboxOnly()))
         }
-        show(initialCategory = SettingsCategory.ACCOUNTS, accountsUi = AccountsSettingsUi(state))
+        show(initialCategory = SettingsCategory.ACCOUNTS, accountsUi = openingPages(state))
         compose.onNodeWithTag("account-row-${mailboxOnly().id}").performClick()
         compose.waitForIdle()
         compose.onNodeWithTag("account-use-MAIL").assertExists()

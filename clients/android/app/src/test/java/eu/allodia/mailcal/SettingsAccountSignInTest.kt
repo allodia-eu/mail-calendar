@@ -43,6 +43,7 @@ class SettingsAccountSignInTest {
     private fun show(entry: AccountEntry, options: AccountSignInOptions? = null) {
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
+        state.accountPage = pageOf(entry)
         options?.let { state.signIn.answered(entry.id, it) }
         val ui = AccountsSettingsUi(
             state = state,
@@ -52,8 +53,8 @@ class SettingsAccountSignInTest {
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                AccountsSettings(ui, allodiaSyncCard = {}) { page ->
-                    AccountPage(page, ui, syncMode = null, onSetSyncMode = {}) {}
+                AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
                 }
             }
         }
