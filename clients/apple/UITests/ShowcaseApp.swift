@@ -1,9 +1,9 @@
 // Launching and steering the app under test.
 //
-// Every test in this bundle drives the in-memory **showcase** dataset. It needs no network, no
-// Docker harness and no stored account, which is what lets one suite run on a simulator and on a
-// physical iPhone: the local mail harness is loopback-only and a device cannot reach it
-// (`scripts/dev/device.sh`).
+// Every test in this bundle but `AccountPageTests` drives the in-memory **showcase** dataset. It
+// needs no network, no Docker harness and no stored account, which is what lets one suite run on a
+// simulator and on a physical iPhone: the local mail harness is loopback-only and a device cannot
+// reach it (`scripts/dev/device.sh`). `AccountPageTests` says why it is the exception.
 //
 // The language is pinned with `-AppleLanguages`, the argument the screenshot runs already use
 // (`scripts/dev/showcase.sh`), so a Dutch Mac and a CI runner drive the same English chrome. The
