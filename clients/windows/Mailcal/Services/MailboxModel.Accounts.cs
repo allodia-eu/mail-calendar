@@ -438,44 +438,17 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Removes account <paramref name="id"/>: drops it from the running core (which stops its
-    /// background sync, takes it out of the switcher/list, and, if it was selected, falls back
-    /// to the unified inbox, then rebuilds the snapshot so the sidebar updates via the observer)
-    /// and deletes its stored credential so it doesn't return on the next launch.
+    /// Removes account <paramref name="id"/>: the core drops it (stopping its background sync,
+    /// taking it out of the switcher and list, and falling back to the unified inbox if it was
+    /// selected), clears every link the other accounts held to it, and erases its stored
+    /// credential through the port it wrote it through. Dispatched: it answers at once, and the
+    /// account's page says it runs until the account is gone. An erase that failed is
+    /// <see cref="RemovalFailed"/>; the last account gone returns the window to first-run setup.
     /// </summary>
-    public void RemoveAccount(string id) => _ = RemoveAccountAsync(id);
-
-    private async Task<string?> RemoveAccountAsync(string id)
+    public void RemoveAccount(string id)
     {
-        if (_app is null)
-        {
-            return L10n.AppUnavailable();
-        }
-        try
-        {
-            // Quick (no network), but run off the UI thread to match the other account
-            // operations; the observer refreshes the sidebar + list as the snapshot rebuilds.
-            // The core erases the stored credential too, through the port it wrote it through.
-            await Task.Run(() => _app!.RemoveAccount(id));
-            Log.Info($"account removed: {LogHandle(id)}");
-            // The last account gone, mail or not, is a first run again (docs/accounts.md rule 11).
-            _ui.TryEnqueue(() =>
-            {
-                if (_app?.AccountsSnapshot().Accounts.Length == 0)
-                {
-                    NeedsSetup = true;
-                }
-            });
-            return null;
-        }
-        catch (Exception ex)
-        {
-            // The account IS gone from the app, what can still fail here is erasing its stored
-            // credential, which would bring it back at the next launch. Say so rather than letting
-            // it reappear unexplained.
-            Log.Error($"remove account failed: {CoreError.Describe(ex)}");
-            return CoreErrorCopy.Said(ex);
-        }
+        Log.Info($"account removal asked for: {LogHandle(id)}");
+        ChangeAccount(new AccountPageIntent.Remove(id));
     }
 
     /// <summary>

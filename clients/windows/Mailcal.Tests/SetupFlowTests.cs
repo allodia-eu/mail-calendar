@@ -28,12 +28,12 @@ public class SetupFlowTests
     private static bool Standards(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Dav;
 
     private static Func<string, SetupLinkStep?> StepsOf(AccountsSnapshot snapshot) =>
-        account => SetupLinkStep.For(snapshot, account, Standards);
+        account => SetupLinkStep.For(snapshot, account, Standards, CorePage.SetupPickers);
 
     [Fact]
     public void ASuggestionStartsPickedAndContinuingLinksIt()
     {
-        var step = SetupLinkStep.For(Snapshot(), "alice@imap", Standards);
+        var step = SetupLinkStep.For(Snapshot(), "alice@imap", Standards, CorePage.SetupPickers);
         Assert.NotNull(step);
         Assert.Single(step.Pickers);
         Assert.Equal(new int?[] { 1 }, step.Picked);
@@ -43,27 +43,27 @@ public class SetupFlowTests
     [Fact]
     public void NothingToLinkIsNoStep()
     {
-        Assert.Null(SetupLinkStep.For(Snapshot(), "someone-else", Standards));
+        Assert.Null(SetupLinkStep.For(Snapshot(), "someone-else", Standards, CorePage.SetupPickers));
         // A provider account is linked from Settings, not offered it at setup.
-        Assert.Null(SetupLinkStep.For(Snapshot(AccountKind.Google), "alice@imap", Standards));
+        Assert.Null(SetupLinkStep.For(Snapshot(AccountKind.Google), "alice@imap", Standards, CorePage.SetupPickers));
         var lone = new AccountsSnapshot([Snapshot().Accounts[0] with { LinkCandidates = new LinkCandidates([], [], [], []) }]);
-        Assert.Null(SetupLinkStep.For(lone, "alice@imap", Standards));
+        Assert.Null(SetupLinkStep.For(lone, "alice@imap", Standards, CorePage.SetupPickers));
     }
 
     [Fact]
     public void APickSurvivesALateSuggestionAndNoneLinksNothing()
     {
-        var step = SetupLinkStep.For(Snapshot(suggested: false), "alice@imap", Standards)!;
+        var step = SetupLinkStep.For(Snapshot(suggested: false), "alice@imap", Standards, CorePage.SetupPickers)!;
         Assert.Equal(new int?[] { null }, step.Picked);
         Assert.Empty(step.Links());
 
         // Untouched, the step takes the suggestion that arrived.
-        step = step.Refreshed(SetupLinkStep.For(Snapshot(), "alice@imap", Standards)!);
+        step = step.Refreshed(SetupLinkStep.For(Snapshot(), "alice@imap", Standards, CorePage.SetupPickers)!);
         Assert.Equal(new int?[] { 1 }, step.Picked);
 
         // Touched, it keeps what the person picked.
         step.Pick(0, 0);
-        var kept = step.Refreshed(SetupLinkStep.For(Snapshot(), "alice@imap", Standards)!);
+        var kept = step.Refreshed(SetupLinkStep.For(Snapshot(), "alice@imap", Standards, CorePage.SetupPickers)!);
         Assert.Equal([(LinkSlot.Calendar, "bob@dav")], kept.Links());
     }
 

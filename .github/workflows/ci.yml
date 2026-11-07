@@ -664,9 +664,10 @@ jobs:
           key: ${{ steps.warm-sim.outputs.key }}
 
       # The UI suite (clients/apple/UITests), on a simulator the script boots once the app is
-      # built. Every test drives the in-memory showcase dataset, so this needs no Docker harness, no
-      # account and no network, which is the same trade the Windows UI job makes with
-      # `-Dataset showcase,first-run`.
+      # built. Every test it runs drives the in-memory showcase dataset, so this needs no Docker
+      # harness, no account and no network, which is the same trade the Windows UI job makes with
+      # `-Dataset showcase,first-run`. `AccountPageTests` drives the harness instead, and so is not
+      # among them.
       #
       # This is also what builds the iOS app, against the same simulator it then tests on: a
       # `generic/platform=iOS Simulator` destination has no active arch, so it can compile x86_64

@@ -53,13 +53,17 @@ Each client draws `ControlState` through one set of components of its own (a swi
 a picker, a confirmation), in its platform's idiom, so a control drawn anywhere waits the same way:
 [`controls.rs`](../clients/linux/src/ui/controls.rs) on Linux,
 [`ControlComponents.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/ControlComponents.kt)
-on Android.
+on Android,
+[`ControlComponents.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/ControlComponents.swift)
+on macOS, iOS and iPadOS, and
+[`ControlComponents.cs`](../clients/windows/Mailcal/Controls/ControlComponents.cs) on Windows, whose
+confirmation is drawn inline because Settings is itself a dialog and a nested one is not allowed.
 
 ## Per-platform
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| An account's page: uses, links and removal drawn from `account_page` | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
+| An account's page: uses, links and removal drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -76,4 +80,11 @@ on Android.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
   ([`controls.rs`](../clients/linux/src/ui/controls.rs)), Android's in
   [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt),
-  each drawing a page the core would answer and asking the core for every change.
+  each drawing a page the core would answer and asking the core for every change. Apple words the
+  record in
+  [`AccountPageWordsTests.swift`](../clients/apple/Packages/MailcalKit/Tests/MailcalKitTests/AccountPageWordsTests.swift);
+  Windows redraws the page whenever a change starts or ends
+  ([`AccountSettingsRulesTests.cs`](../clients/windows/Mailcal.Tests/AccountSettingsRulesTests.cs)),
+  and its UI suite
+  ([`SettingsAccountsTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SettingsAccountsTests.cs))
+  drives the switches, the suggested link and the removal against the running app.

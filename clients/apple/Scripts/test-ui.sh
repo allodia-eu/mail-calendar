@@ -21,9 +21,11 @@
 # compiled MailcalUI for this destination, where `test-kit.sh --ios` compiles it again into a
 # derived-data directory of its own.
 #
-# Every test drives the in-memory showcase dataset, so nothing here needs the Docker harness, a
-# stored account or a network. That is what lets the device leg run the same suite: the harness is
-# loopback-only and a device cannot reach it (scripts/dev/device.sh).
+# Every test but one drives the in-memory showcase dataset, so it needs no Docker harness, no stored
+# account and no network. That is what lets the device leg run the same suite: the harness is
+# loopback-only and a device cannot reach it (scripts/dev/device.sh). The one is
+# `AccountPageTests`, which drives the harness's linked accounts on a simulator and skips, saying
+# why, on a device or without `scripts/dev/harness.sh up`.
 #
 # ⚠️ A physical device needs Settings -> Privacy & Security -> Developer Mode on, as every device
 # build does. It also has a **Settings -> Developer -> Enable UI Automation** switch that nothing
@@ -158,6 +160,10 @@ if [[ "$ON_DEVICE" -eq 0 ]]; then
   "$KEYBOARD_TOOL" "$UDID" off >/dev/null ||
     echo "warning: could not switch the simulated hardware keyboard off; tests run as the simulator is" >&2
   info "hardware keyboard off after $((SECONDS - t0))s"
+  # The harness's certificate, for the one class that drives the harness rather than the
+  # showcase (UITests/AccountPageTests.swift). xcodebuild hands a `TEST_RUNNER_` variable to the
+  # runner without its prefix, and the runner passes it on to the app it launches.
+  export TEST_RUNNER_MAILCAL_EXTRA_CA="$HARNESS_CA"
 fi
 
 info "running $TARGET $([[ "${#ONLY[@]}" -gt 0 ]] && printf '%s ' "${ONLY[@]}" || printf '(every test)')"

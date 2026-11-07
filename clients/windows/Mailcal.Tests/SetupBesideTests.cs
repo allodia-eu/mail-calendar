@@ -94,13 +94,13 @@ public class SetupBesideTests
             (AccountCapability.Calendar, CapabilityState.NotOffered),
             (AccountCapability.Contacts, CapabilityState.On));
         var offer = new BesideOffer("alice@jmap", new FoundBeside("alice@example.org", Calendar, Book, false));
-        var step = SetupLinkStep.For(snapshot, "alice@jmap", Links, offer);
+        var step = SetupLinkStep.For(snapshot, "alice@jmap", Links, CorePage.SetupPickers, offer);
         Assert.NotNull(step);
         Assert.Empty(step.Pickers);
         Assert.Equal(BesideFills.Calendar, step.Beside?.Fills);
 
         // Without servers found beside it, the step is drawn all the same, for "Add another account".
-        step = SetupLinkStep.For(snapshot, "alice@jmap", Links);
+        step = SetupLinkStep.For(snapshot, "alice@jmap", Links, CorePage.SetupPickers);
         Assert.NotNull(step);
         Assert.Null(step.Beside);
     }
@@ -113,6 +113,6 @@ public class SetupBesideTests
             (AccountCapability.Calendar, CapabilityState.On),
             (AccountCapability.Contacts, CapabilityState.On));
         var offer = new BesideOffer("alice@jmap", new FoundBeside("alice@example.org", Calendar, Book, false));
-        Assert.Null(SetupLinkStep.For(snapshot, "alice@jmap", Links, offer));
+        Assert.Null(SetupLinkStep.For(snapshot, "alice@jmap", Links, CorePage.SetupPickers, offer));
     }
 }
