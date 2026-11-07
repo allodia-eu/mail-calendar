@@ -26,8 +26,9 @@ public sealed partial class MailboxModel
     /// <summary>
     /// The notice's sign-in: the ordinary Allodia sign-in, run from where the person is.
     /// </summary>
-    /// <returns>Whether it failed. A sign-in the person gave up on did not, and neither did one
-    /// already waiting on the browser, whose redirect a second would orphan.</returns>
+    /// <returns>Whether it failed. A sign-in the person gave up on, or whose browser never came
+    /// back, did not, and neither did one already waiting on the browser, whose redirect a second
+    /// would orphan.</returns>
     private async Task<bool> SignInToAllodiaFromNoticeAsync()
     {
         if (_allodiaSignIn is not null)
@@ -41,6 +42,6 @@ public sealed partial class MailboxModel
         {
             _ = SyncAllodiaAccountsAsync();
         }
-        return failure is not null;
+        return NoticeRules.RemedyFailed(signedIn: false, failure?.Said, failure?.Unanswered == true);
     }
 }

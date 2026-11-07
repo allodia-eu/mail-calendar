@@ -840,6 +840,9 @@ sits in `App::make_meeting`, the one place every meeting service is called from.
   fails (surfaced as a `Failed` hint and logged), and *then* the reconnect banner appears. A
   reconnect for any reason (including the calendar prompt) re-requests the whole scope set and
   clears it ahead of a first failure.
+  Both notices and the in-place sign-in that clears them were driven on Windows against a real
+  work account on 2026-11-07, its grant narrowed to mail read-only and no calendar with
+  [`ms-grant.sh`](../scripts/dev/ms-grant.sh), which is how to reproduce it.
 - **Both ends of rule 12 are verified on a device, except the mixed *sync* pass.** The three legs that
   matter were driven on real hardware (Android, 2026-08-10) with
   `scripts/dev/imap-fault-proxy.py` refusing a login the harness would have accepted: `--refuse-all`

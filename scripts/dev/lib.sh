@@ -107,21 +107,25 @@ PACKAGE_CREDENTIAL_VARS=(
 #
 # It is derived from the registration rather than being a switch of its own, so the two halves
 # cannot disagree: a build with the client id gets the code that uses it, and a build without one
-# links nothing closed and offers no sign-in. Environment first, then the repo's gitignored `.env`,
-# which is the order and the file the core's own build script reads. Blank counts as absent, the
-# way a CI run without access to the secrets sets the empty string rather than leaving the name
-# unbound.
+# links nothing closed and offers no sign-in, read as `injected_value` reads it.
 core_cargo_features() {
-  local value="${MAILCAL_ALLODIA_CLIENT_ID:-}"
+  [[ -n "$(injected_value MAILCAL_ALLODIA_CLIENT_ID)" ]] && printf 'allodia-license'
+  return 0
+}
+
+# An injected build value: the environment's, else the last assignment in the repo's gitignored
+# `.env`, the order and the file the core's own build script reads. Blank counts as absent, the way
+# a CI run without access to the secrets sets the empty string rather than leaving the name unbound.
+injected_value() { # <name>
+  local value="${!1:-}"
   if [[ -z "$value" && -f "$REPO_ROOT/.env" ]]; then
-    value="$(sed -n 's/^[[:space:]]*\(export[[:space:]][[:space:]]*\)\{0,1\}MAILCAL_ALLODIA_CLIENT_ID[[:space:]]*=[[:space:]]*//p' \
+    value="$(sed -n "s/^[[:space:]]*\(export[[:space:]][[:space:]]*\)\{0,1\}$1[[:space:]]*=[[:space:]]*//p" \
       "$REPO_ROOT/.env" | tail -n 1)"
     # One pair of surrounding quotes, which every other reader of this file tolerates too.
     value="${value%\"}"; value="${value#\"}"
     value="${value%\'}"; value="${value#\'}"
   fi
-  [[ -n "$value" ]] && printf 'allodia-license'
-  return 0
+  printf '%s' "$value"
 }
 
 # The PowerShell executable for driving the Windows client from these bash wrappers on a Windows

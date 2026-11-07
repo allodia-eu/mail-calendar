@@ -63,6 +63,15 @@ internal static class NoticeRules
         _ => SidebarMarkTone.Informational,
     };
 
+    /// <summary>
+    /// Whether a sign-in started from a notice is a failed remedy (rule 10): it ended without
+    /// signing in and with something to say, and the browser answered. A sign-in whose wait for
+    /// the browser ran out is not one: closing the tab is all it takes to get there, and a closed
+    /// browser is not a failure.
+    /// </summary>
+    internal static bool RemedyFailed(bool signedIn, string? error, bool unanswered) =>
+        !signedIn && error is not null && !unanswered;
+
     /// <summary>Whether a notice has something to run, which only an action label can say: the
     /// core sends both or neither.</summary>
     internal static bool Offers(Notice notice) => notice.Action is not null && notice.ActionLabel is not null;

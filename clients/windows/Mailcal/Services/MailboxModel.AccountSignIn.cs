@@ -143,7 +143,7 @@ public sealed partial class MailboxModel
         catch (TimeoutException)
         {
             Log.Warn("an account's sign-in timed out waiting for the browser");
-            return new ConsentEnded(false, L10n.AccountSigninTimeout());
+            return ConsentEnded.TimedOut();
         }
         catch (Exception ex)
         {

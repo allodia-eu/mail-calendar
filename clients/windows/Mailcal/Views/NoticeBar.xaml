@@ -34,7 +34,9 @@
                     AutomationProperties.AutomationId="NoticeMore">
                 <Button.Flyout>
                     <Flyout x:Name="MoreFlyout" Opening="OnMoreOpening">
-                        <ScrollViewer MaxHeight="480" MaxWidth="520">
+                        <!-- Narrower than the flyout itself, whose own maximum is the theme's: a list
+                             wider than that is clipped rather than wrapped. -->
+                        <ScrollViewer MaxHeight="480" MaxWidth="400">
                             <StackPanel x:Name="MoreList"
                                         Spacing="16"
                                         AutomationProperties.AutomationId="NoticeList" />
