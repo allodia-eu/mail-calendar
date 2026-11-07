@@ -359,7 +359,7 @@ struct LinkPickerRow: View {
             ) { at in
                 pick(at == 0 ? nil : picker.options[at - 1].id)
             }
-            if let suggested = picker.suggested.map { Int($0) } {
+            if let suggested = picker.suggested.map({ Int($0) }) {
                 let option = picker.options[suggested]
                 HStack(spacing: 8) {
                     Text(L10n.settings_account_link_suggested(
