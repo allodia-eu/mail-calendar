@@ -65,7 +65,6 @@ fn mailbox_only() -> AccountEntry {
     )
 }
 
-/// The page with nothing running, switching any use on applying at once.
 /// The hold of a page whose own change is `work`.
 const fn own(work: PageWork) -> Hold {
     Hold {
@@ -268,6 +267,17 @@ fn a_linked_account_is_matched_by_id_not_by_how_it_reads() {
 }
 
 #[test]
+fn setup_offers_only_the_slots_nothing_fills() {
+    let mut account = mailbox_only();
+    account.link_candidates.calendar = vec![linked("cal@cloud.example")];
+    account.link_candidates.contacts = vec![linked("book@cloud.example")];
+    account.links.contacts = Some(linked("book@cloud.example"));
+    let offered = super::setup_link_pickers(&account);
+    assert_eq!(offered.len(), 1);
+    assert_eq!(offered[0].slot, LinkSlot::Calendar);
+}
+
+#[test]
 fn a_suggestion_is_offered_only_where_nothing_is_linked() {
     let mut account = mailbox_only();
     account.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
@@ -290,7 +300,15 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
     );
     account.link_candidates.calendar = vec![linked("cal@cloud.example")];
 
-    let switching = page(&account, own(PageWork::Use(Calendar)), None, applies);
+    let switching = page(
+        &account,
+        own(PageWork::Use {
+            capability: Calendar,
+            on: false,
+        }),
+        None,
+        applies,
+    );
     assert_eq!(
         switch(&switching, Calendar).control,
         ControlState {
@@ -298,17 +316,29 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             running: true,
         }
     );
+    assert!(
+        !switch(&switching, Calendar).on,
+        "a running switch is drawn where it is going"
+    );
     assert_eq!(switch(&switching, Contacts).control, HELD);
     assert_eq!(switching.links[0].control, HELD);
     assert_eq!(switching.remove, HELD);
 
     let linking = page(
         &account,
-        own(PageWork::Link(LinkSlot::Calendar)),
+        own(PageWork::Link {
+            slot: LinkSlot::Calendar,
+            target: Some("cal@cloud.example".to_owned()),
+        }),
         None,
         applies,
     );
     assert!(linking.links[0].control.running && !linking.links[0].control.enabled);
+    assert_eq!(
+        linking.links[0].selected,
+        Some(0),
+        "a running picker shows what it is linking"
+    );
     assert!(
         linking
             .uses

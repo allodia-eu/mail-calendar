@@ -1,9 +1,11 @@
 //! The traffic of Settings → Accounts' account pages: which page is open, and the changes made on
-//! one. Each change is a core call that may touch the keyring or delete local data, so it runs
-//! off the main thread and redraws the page when it is done.
+//! one. A use, a link and a removal are the core's to run (`docs/waiting.md`): dispatched, they
+//! return at once, and the page says they run. Every other change is a core call that may touch
+//! the keyring or a server, so it runs off the main thread and redraws the page when it is done.
 
 use mailcal_bindings::{
-    AccountCapability, AccountEndpoints, CapabilityChange, LinkSlot, MailcalError,
+    AccountCapability, AccountChangeNoticeRaised, AccountEndpoints, AccountPageIntent, Intent,
+    LinkSlot, MailcalError,
 };
 
 use super::{
@@ -23,17 +25,12 @@ pub(crate) enum AccountsInput {
     Open(String),
     /// Move the open Settings to an account's page under Accounts, from another category.
     Visit(String),
-    /// Switch one of an account's uses on or off.
-    SetUse {
+    /// A use, a link or a removal on an account's page, for the core to run.
+    Change(AccountPageIntent),
+    /// The links setup's link step chose for an account it just added, made one after another.
+    LinkFromSetup {
         account: String,
-        capability: AccountCapability,
-        on: bool,
-    },
-    /// Link an account to another for one slot, or clear it.
-    SetLink {
-        account: String,
-        slot: LinkSlot,
-        target: Option<String>,
+        links: Vec<(LinkSlot, String)>,
     },
     /// Sign the account in again at its provider, asking for what it is used for plus `adding`.
     SignInAgain {
@@ -103,26 +100,6 @@ fn endpoints_saved(result: Result<(), MailcalError>) -> AccountsInput {
     }
 }
 
-/// What the page does once switching a use has answered. A use the provider has not granted is
-/// asked for straight away: the person switching it on is the person who would be asked.
-fn use_changed(
-    result: Result<CapabilityChange, MailcalError>,
-    account: String,
-    capability: AccountCapability,
-) -> AccountsInput {
-    match result {
-        Ok(CapabilityChange::Applied) => AccountsInput::Changed(None),
-        Ok(CapabilityChange::NeedsConsent) => AccountsInput::SignInAgain {
-            account,
-            adding: vec![capability],
-        },
-        Ok(CapabilityChange::NeedsEndpoint) => AccountsInput::Changed(Some(change_failed(
-            l10n::settings_account_use_needs_endpoint().to_owned(),
-        ))),
-        Err(error) => AccountsInput::Changed(Some(change_failed(error.to_string()))),
-    }
-}
-
 /// A change the account's page could not make, and why.
 pub(super) fn change_failed(detail: String) -> Notice {
     Notice::Error {
@@ -180,16 +157,10 @@ impl AppModel {
                     .record_category(super::settings::Category::Accounts);
                 self.accounts_input(AccountsInput::Show(Some(account)), sender);
             }
-            AccountsInput::SetUse {
-                account,
-                capability,
-                on,
-            } => self.set_account_use(account, capability, on, sender),
-            AccountsInput::SetLink {
-                account,
-                slot,
-                target,
-            } => self.set_account_link(account, slot, target, sender),
+            AccountsInput::Change(intent) => self.dispatch(Intent::AccountPage { intent }),
+            AccountsInput::LinkFromSetup { account, links } => {
+                self.link_from_setup(account, links, sender);
+            }
             AccountsInput::SignInAgain { account, adding } => {
                 self.start_account_consent(account, adding, ConsentFrom::Settings, sender);
             }
@@ -220,21 +191,27 @@ impl AppModel {
         }
     }
 
-    fn set_account_use(
-        &self,
-        account: String,
-        capability: AccountCapability,
-        on: bool,
-        sender: relm4::Sender<AppInput>,
-    ) {
+    /// The core's settings signal, for the account pages: what a change came to, said once, and
+    /// the list again once the account on screen is gone.
+    pub(super) fn account_work_signalled(&mut self) {
         let Some(app) = self.app.clone() else {
             return;
         };
-        // Blocking: switching a use off deletes what the device holds of it.
-        std::thread::spawn(move || {
-            let result = app.set_account_capability(account.clone(), capability, on);
-            sender.emit(AppInput::Accounts(use_changed(result, account, capability)));
-        });
+        if let Some(account) = self.settings.account.clone() {
+            match app.account_page(account) {
+                Some(page) => self.say_account_notice(page.notice),
+                None => self.account_removed(),
+            }
+        }
+        self.say_account_notice(app.accounts_notice());
+    }
+
+    fn say_account_notice(&mut self, raised: Option<AccountChangeNoticeRaised>) {
+        if let Some(raised) = raised.filter(|raised| raised.id > self.settings.core_notice) {
+            self.settings.core_notice = raised.id;
+            self.settings
+                .notify(super::settings::account_rows::change_notice(&raised.notice));
+        }
     }
 
     /// Tries the edited servers, which connects to each of them, so it runs off the main thread.
@@ -251,11 +228,12 @@ impl AppModel {
         });
     }
 
-    fn set_account_link(
+    /// Makes setup's links one after another: the page's own changes run one at a time, and a
+    /// second would be turned away while the first ran.
+    fn link_from_setup(
         &self,
         account: String,
-        slot: LinkSlot,
-        target: Option<String>,
+        links: Vec<(LinkSlot, String)>,
         sender: relm4::Sender<AppInput>,
     ) {
         let Some(app) = self.app.clone() else {
@@ -263,20 +241,22 @@ impl AppModel {
         };
         // The link is stored through the host's keyring, which may block.
         std::thread::spawn(move || {
-            let notice = app
-                .set_account_link(account, slot, target)
-                .err()
-                .map(|error| change_failed(error.to_string()));
-            sender.emit(AppInput::Accounts(AccountsInput::Changed(notice)));
+            for (slot, target) in links {
+                let notice = app
+                    .set_account_link(account.clone(), slot, Some(target))
+                    .err()
+                    .map(|error| change_failed(error.to_string()));
+                sender.emit(AppInput::Accounts(AccountsInput::Changed(notice)));
+            }
         });
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use mailcal_bindings::{AccountCapability, CapabilityChange, MailcalError};
+    use mailcal_bindings::MailcalError;
 
-    use super::{AccountsInput, endpoints_saved, use_changed};
+    use super::{AccountsInput, endpoints_saved};
     use crate::{l10n, ui::settings::notice::Notice};
 
     #[test]
@@ -310,27 +290,5 @@ mod tests {
             },
         };
         assert!(!format!("{edit:?}").contains("hunter2"));
-    }
-
-    #[test]
-    fn switching_on_a_use_the_provider_withholds_asks_for_it() {
-        let input = use_changed(
-            Ok(CapabilityChange::NeedsConsent),
-            "a".to_owned(),
-            AccountCapability::Contacts,
-        );
-        assert!(matches!(
-            input,
-            AccountsInput::SignInAgain { account, adding }
-                if account == "a" && adding == [AccountCapability::Contacts]
-        ));
-        assert!(matches!(
-            use_changed(
-                Ok(CapabilityChange::Applied),
-                "a".to_owned(),
-                AccountCapability::Contacts
-            ),
-            AccountsInput::Changed(None)
-        ));
     }
 }

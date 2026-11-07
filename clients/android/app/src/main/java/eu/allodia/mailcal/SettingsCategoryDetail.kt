@@ -308,9 +308,10 @@ internal fun CategoryDetail(
             allodiaSyncCard = {
                 AllodiaSyncCard(allodiaSync, onAllodiaSetUp, onAllodiaKeepLocal, onAllodiaSignIn)
             },
-        ) { entry ->
+        ) { entry, page ->
             AccountPage(
                 entry = entry,
+                page = page,
                 ui = accountsUi,
                 syncMode = accountsSyncMode[entry.id],
                 onSetSyncMode = { mode -> onSetAccountSyncMode(entry.id, mode) },

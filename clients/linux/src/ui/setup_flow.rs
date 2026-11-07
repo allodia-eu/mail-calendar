@@ -225,15 +225,12 @@ impl AppModel {
             AppInput::SetupAddLinkedAccount => self.setup.add_linked(),
             AppInput::SetupLinksDone(link) => {
                 if link && let Some(step) = &self.setup.links {
-                    for (slot, target) in step.links() {
-                        input.emit(AppInput::Accounts(
-                            super::account_settings::AccountsInput::SetLink {
-                                account: step.account.clone(),
-                                slot,
-                                target: Some(target),
-                            },
-                        ));
-                    }
+                    input.emit(AppInput::Accounts(
+                        super::account_settings::AccountsInput::LinkFromSetup {
+                            account: step.account.clone(),
+                            links: step.links(),
+                        },
+                    ));
                 }
                 self.finish_setup(input);
             }

@@ -1,6 +1,6 @@
 // Settings → Accounts as a person meets it (docs/accounts.md rules 11 to 14): every account from
-// the core's snapshot, mail or not, each opening a page whose switches, pickers, servers and
-// removal ask the core rather than deciding anything themselves.
+// the core's snapshot, mail or not, each opening a page that draws what the core decided of its
+// switches, pickers and removal, and asks the core for every change.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
@@ -21,17 +21,24 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.robolectric.RuntimeEnvironment
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountChangeNotice
 import uniffi.mailcal_bindings.AccountDistinction
 import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinksView
+import uniffi.mailcal_bindings.AccountPage
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountUseBlock
+import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
+import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.LinkCandidates
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
@@ -41,11 +48,9 @@ class SettingsAccountsTest {
     @get:Rule val compose = createComposeRule()
 
     private val state = AccountsUiState()
-    private val uses = mutableListOf<Triple<String, AccountCapability, Boolean>>()
-    private val links = mutableListOf<Triple<String, LinkSlot, String?>>()
+    private val changes = mutableListOf<AccountPageIntent>()
     private val signIns = mutableListOf<Pair<String, List<AccountCapability>>>()
     private val saved = mutableListOf<AccountEndpoints>()
-    private val removed = mutableListOf<String>()
     private var added = 0
 
     private val calendarOnly = accountEntry(
@@ -57,21 +62,27 @@ class SettingsAccountsTest {
         address = "alice@cloud.example",
     )
 
-    private fun show(vararg accounts: AccountEntry) {
+    /** Shows [accounts], the open one's page drawn from [page], else from [pageOf]. */
+    private fun show(vararg accounts: AccountEntry, page: AccountPage? = null) {
         state.snapshot = AccountsSnapshot(accounts.toList())
+        fun open(id: String?) {
+            state.page = id
+            state.accountPage = page?.takeIf { it.account == id }
+                ?: id?.let(state::entry)?.let { pageOf(it) }
+        }
+        open(state.page)
         val ui = AccountsSettingsUi(
             state = state,
             onAddAccount = { added++ },
-            onSetUse = { id, capability, on -> uses += Triple(id, capability, on) },
-            onSetLink = { id, slot, target -> links += Triple(id, slot, target) },
+            onOpenPage = ::open,
+            onChange = { changes += it },
             onSignInAgain = { id, adding -> signIns += id to adding },
             onSaveServers = { _, endpoints -> saved += endpoints },
-            onRemove = { removed += it },
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                AccountsSettings(ui, allodiaSyncCard = {}) { entry ->
-                    AccountPage(entry, ui, syncMode = null, onSetSyncMode = {}) {}
+                AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
                 }
             }
         }
@@ -111,20 +122,65 @@ class SettingsAccountsTest {
 
         compose.onNodeWithTag("account-use-CONTACTS").performClick()
         // Nothing is asked of the core until the person confirms what it deletes.
-        assertEquals(emptyList<Any>(), uses)
+        assertEquals(emptyList<Any>(), changes)
         compose.onNodeWithTag("account-use-off-confirm").performClick()
 
-        assertEquals(listOf(Triple(calendarOnly.id, AccountCapability.CONTACTS, false)), uses)
+        assertEquals(
+            listOf(AccountPageIntent.SetUse(calendarOnly.id, AccountCapability.CONTACTS, false)),
+            changes,
+        )
     }
 
     @Test
-    fun the_last_use_cannot_be_switched_off() {
-        state.page = mailboxOnly().id
-        show(mailboxOnly())
+    fun a_switch_the_core_holds_says_why_beside_what_is_wrong() {
+        val entry = mailboxOnly()
+        state.page = entry.id
+        val held = ControlState(enabled = false, running = false)
+        val unreachable = AccountUseStatus.Problem(uniffi.mailcal_bindings.UseProblem.UNREACHABLE)
+        show(
+            entry,
+            page = pageOf(
+                entry,
+                uses = listOf(
+                    useSwitch(AccountCapability.MAIL, on = true, control = held, blocked = AccountUseBlock.LAST_USE),
+                    useSwitch(AccountCapability.CALENDAR, on = true, status = unreachable),
+                ),
+            ),
+        )
 
         compose.onNodeWithTag("account-use-MAIL").assertIsNotEnabled()
         compose.onNodeWithText("An account is used for at least one of these. Remove it instead.")
             .assertExists()
+        compose.onNodeWithText("Couldn’t reach your calendar server", substring = true).assertExists()
+    }
+
+    @Test
+    fun a_change_running_spins_beside_its_own_control() {
+        val entry = calendarOnly
+        state.page = entry.id
+        val running = ControlState(enabled = false, running = true)
+        show(
+            entry,
+            page = pageOf(
+                entry,
+                uses = listOf(useSwitch(AccountCapability.CALENDAR, on = false, control = running)),
+                remove = ControlState(enabled = false, running = false),
+            ),
+        )
+
+        compose.onNodeWithTag("account-use-CALENDAR-running").assertExists()
+        compose.onNodeWithTag("account-use-CALENDAR").assertIsOff().assertIsNotEnabled()
+        compose.onNodeWithTag("account-remove").performScrollTo().assertIsNotEnabled()
+        compose.onNodeWithTag("account-remove-running").assertDoesNotExist()
+    }
+
+    @Test
+    fun what_a_change_came_to_is_said_in_the_persons_words() {
+        val ctx = RuntimeEnvironment.getApplication()
+        val failed = changeNotice(ctx, AccountChangeNotice.LinkFailed(LinkSlot.CALENDAR, "refused"))
+        assertEquals(AccountNotice(NoticeKind.FAILURE, "Couldn’t change this account", "refused"), failed)
+        val kept = changeNotice(ctx, AccountChangeNotice.RemoveFailed("locked"))
+        assertEquals("Couldn't remove this account: locked", kept.message)
     }
 
     @Test
@@ -139,12 +195,18 @@ class SettingsAccountsTest {
             address = "alice@gmail.com",
         )
         state.page = google.id
-        show(google)
+        val calendar = useSwitch(
+            AccountCapability.CALENDAR,
+            on = false,
+            status = AccountUseStatus.Withheld,
+            asksProvider = true,
+        )
+        show(google, page = pageOf(google, uses = listOf(calendar)))
 
         compose.onNodeWithTag("account-use-CALENDAR").assertIsOff().performClick()
 
         assertEquals(listOf(google.id to listOf(AccountCapability.CALENDAR)), signIns)
-        assertEquals(emptyList<Any>(), uses)
+        assertEquals(emptyList<Any>(), changes)
     }
 
     @Test
@@ -158,14 +220,18 @@ class SettingsAccountsTest {
             ),
         )
         state.page = entry.id
-        show(entry)
+        val picker = linkPicker(LinkSlot.CALENDAR, entry.linkCandidates.calendar, suggested = 1)
+        show(entry, page = pageOf(entry, links = listOf(picker)))
 
         // The picker still reads None: a suggestion is the person's to confirm (rule 12).
         compose.onNodeWithText("None").assertExists()
         compose.onNodeWithText("Suggested: alice@dav:cloud.example").assertExists()
         compose.onNodeWithTag("account-link-suggested-CALENDAR").performScrollTo().performClick()
 
-        assertEquals(listOf(Triple(entry.id, LinkSlot.CALENDAR, "alice@dav:cloud.example")), links)
+        assertEquals(
+            listOf(AccountPageIntent.SetLink(entry.id, LinkSlot.CALENDAR, "alice@dav:cloud.example")),
+            changes,
+        )
     }
 
     @Test
@@ -176,7 +242,7 @@ class SettingsAccountsTest {
             candidates = LinkCandidates(listOf(calendar), emptyList(), emptyList(), emptyList()),
         )
         state.page = entry.id
-        show(entry)
+        show(entry, page = pageOf(entry, links = listOf(linkPicker(LinkSlot.CALENDAR, listOf(calendar), 0))))
 
         compose.onNodeWithText("alice@example.org (CalDAV/CardDAV)").assertExists()
         compose.onNodeWithTag("account-link-CALENDAR").performScrollTo().performClick()
@@ -194,7 +260,7 @@ class SettingsAccountsTest {
             .assertExists()
         compose.onNodeWithTag("account-remove-confirm").performClick()
 
-        assertEquals(listOf(linkedTo.id), removed)
+        assertEquals(listOf(AccountPageIntent.Remove(linkedTo.id)), changes)
     }
 
     @Test

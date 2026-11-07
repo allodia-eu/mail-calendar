@@ -10,6 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountPage
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.UseProblem
@@ -19,13 +20,6 @@ internal enum class NoticeKind { SUCCESS, WARNING, FAILURE }
 
 /** What an account's page or the list says about the last change. */
 internal data class AccountNotice(val kind: NoticeKind, val title: String, val message: String)
-
-/** A use being switched, drawn at its new position and held still until the core answers. */
-internal data class PendingUse(
-    val accountId: String,
-    val capability: AccountCapability,
-    val on: Boolean,
-)
 
 /** A sign-in in the browser for an existing account, waiting for its redirect. */
 internal data class PendingConsent(
@@ -57,8 +51,11 @@ internal class AccountsUiState {
     /** What the last change said, until it is dismissed or the page closes. */
     var notice by mutableStateOf<AccountNotice?>(null)
 
-    /** A use switch the core is still answering. */
-    var pendingUse by mutableStateOf<PendingUse?>(null)
+    /** The open account's page as the core decided it: its uses, links and removal. */
+    var accountPage by mutableStateOf<AccountPage?>(null)
+
+    /** The last of the core's change notices said, so each is said once. */
+    var coreNotice: ULong = 0u
 
     /** The account whose servers are being tried. */
     var savingServers by mutableStateOf<String?>(null)

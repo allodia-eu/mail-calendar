@@ -26,6 +26,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.ServerChange
@@ -191,12 +192,21 @@ class ServerChangeTest {
         val state = AccountsUiState()
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
+        val paused = AccountUseStatus.Problem(UseProblem.SERVER_CHANGED)
+        state.accountPage = pageOf(
+            entry,
+            uses = listOf(
+                useSwitch(AccountCapability.MAIL, on = true),
+                useSwitch(AccountCapability.CALENDAR, on = true, status = paused, reviews = true),
+                useSwitch(AccountCapability.CONTACTS, on = true),
+            ),
+        )
         val reviewed = mutableListOf<String>()
         val ui = AccountsSettingsUi(state = state, onReviewServerChange = { reviewed += it })
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                AccountsSettings(ui, allodiaSyncCard = {}) { page ->
-                    AccountPage(page, ui, syncMode = null, onSetSyncMode = {}) {}
+                AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
                 }
             }
         }

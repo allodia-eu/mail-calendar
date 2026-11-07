@@ -56,11 +56,25 @@ impl MailcalApp {
             AccountPageIntent::SetUse {
                 account,
                 capability,
-                ..
-            } => (account.clone(), PageWork::Use(*capability)),
-            AccountPageIntent::SetLink { account, slot, .. } => {
-                (account.clone(), PageWork::Link(*slot))
-            }
+                on,
+            } => (
+                account.clone(),
+                PageWork::Use {
+                    capability: *capability,
+                    on: *on,
+                },
+            ),
+            AccountPageIntent::SetLink {
+                account,
+                slot,
+                target,
+            } => (
+                account.clone(),
+                PageWork::Link {
+                    slot: *slot,
+                    target: target.clone(),
+                },
+            ),
             AccountPageIntent::Remove { account } => (account.clone(), PageWork::Remove),
         };
         let Some(app) = self.rediscovery.app() else {

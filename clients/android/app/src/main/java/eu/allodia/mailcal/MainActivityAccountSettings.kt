@@ -1,15 +1,19 @@
 // Settings → Accounts' traffic with the core: the one snapshot every account is drawn from, and the
-// changes an account's page makes (docs/accounts.md rules 11 to 14). Each change may touch the
-// Keystore, delete local data or dial a server, so it runs off the main thread and answers with
-// what the page should say.
+// changes an account's page makes (docs/accounts.md rules 11 to 14). A use, a link and a removal
+// are the core's to run (docs/waiting.md): dispatched, they answer at once and the page says they
+// run. Every other change may touch the Keystore or dial a server, so it runs off the main thread
+// and answers with what the page should say.
 package eu.allodia.mailcal
 
 import android.widget.Toast
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountChangeNoticeRaised
 import uniffi.mailcal_bindings.AccountEndpoints
-import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.LinkSlot
+import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /**
  * Reads the snapshot again. The last account gone returns the app to first-run setup, which is
@@ -33,6 +37,7 @@ internal fun MainActivity.refreshAccountsSnapshot() {
     if (accountSettings.page?.let { accountSettings.entry(it) } == null) {
         accountSettings.page = null
     }
+    refreshAccountPage()
     // A suggestion the core found after the link step was drawn reaches it.
     setupFlow.links?.let { setupFlow.refresh(linkStepFor(it.account)) }
 }
@@ -41,8 +46,49 @@ internal fun MainActivity.refreshAccountsSnapshot() {
 internal fun MainActivity.openAccountPage(id: String) {
     accountSettings.notice = null
     accountSettings.page = id
+    refreshAccountPage()
     settingsCategory = SettingsCategory.ACCOUNTS
     showingSettings = true
+}
+
+/**
+ * Reads the open account's page again, and says what a change came to, once: on its page, or for a
+ * removal, wherever the person is.
+ */
+internal fun MainActivity.refreshAccountPage() {
+    val instance = app ?: return
+    val page = accountSettings.page?.let { instance.accountPage(it) }
+    accountSettings.accountPage = page
+    page?.notice?.let(::sayAccountNotice)
+    instance.accountsNotice()?.let(::sayAccountNotice)
+}
+
+private fun MainActivity.sayAccountNotice(raised: AccountChangeNoticeRaised) {
+    if (raised.id <= accountSettings.coreNotice) return
+    accountSettings.coreNotice = raised.id
+    logUiWarn("accounts: a change on an account's page did not take")
+    say(changeNotice(this, raised.notice))
+}
+
+/** Asks the core for a change on an account's page; it answers at once, and the page says it runs. */
+internal fun MainActivity.changeAccount(intent: AccountPageIntent) {
+    app?.dispatch(Intent.AccountPage(intent))
+}
+
+/**
+ * Makes the links setup's link step chose, one after another: the page's own changes run one at a
+ * time, and a second would be turned away while the first ran.
+ */
+internal fun MainActivity.linkFromSetup(accountId: String, links: List<Pair<LinkSlot, String>>) {
+    val instance = app ?: return
+    thread(name = "mailcal-setup-links") {
+        // Stored through the Keystore, which may block.
+        links.forEach { (slot, target) ->
+            runCatching { instance.setAccountLink(accountId, slot, target) }
+                .onFailure { logUiWarn("setup: linking an account failed: ${coreErrorText(it)}") }
+        }
+        mainHandler.post { refreshAccountsSnapshot() }
+    }
 }
 
 /**
@@ -64,51 +110,6 @@ internal fun MainActivity.changeFailed(detail: String?) = AccountNotice(
     L10n.settings_account_change_failed_title(this),
     detail ?: L10n.error_unknown(this),
 )
-
-/** Switches one of an account's uses on or off, and asks the provider when the core says to. */
-internal fun MainActivity.setAccountUse(accountId: String, capability: AccountCapability, on: Boolean) {
-    val instance = app ?: return
-    if (accountSettings.pendingUse != null) return
-    accountSettings.pendingUse = PendingUse(accountId, capability, on)
-    thread(name = "mailcal-account-use") {
-        // Blocking: switching a use off deletes what the device holds of it.
-        val answer = runCatching { instance.setAccountCapability(accountId, capability, on) }
-        mainHandler.post {
-            accountSettings.pendingUse = null
-            answer.onFailure {
-                logUiWarn("accounts: switching a use failed: ${coreErrorText(it)}")
-                accountSettings.notice = changeFailed(coreErrorSaid(it, this))
-            }
-            answer.onSuccess { change ->
-                when (AccountSettingsRules.outcome(change)) {
-                    // The provider has not granted it: the person switching it on is the person
-                    // who would be asked, so they are asked now.
-                    UseChangeOutcome.ASK_PROVIDER -> signInAgain(accountId, listOf(capability))
-                    UseChangeOutcome.NEEDS_ENDPOINT -> accountSettings.notice =
-                        changeFailed(L10n.settings_account_use_needs_endpoint(this))
-                    UseChangeOutcome.APPLIED -> Unit
-                }
-            }
-            refreshAccountsSnapshot()
-        }
-    }
-}
-
-/** Links an account to another for one slot, or clears that link when [target] is null. */
-internal fun MainActivity.setAccountLink(accountId: String, slot: LinkSlot, target: String?) {
-    val instance = app ?: return
-    thread(name = "mailcal-account-link") {
-        // Stored through the Keystore, which may block.
-        val answer = runCatching { instance.setAccountLink(accountId, slot, target) }
-        mainHandler.post {
-            answer.onFailure {
-                logUiWarn("accounts: linking an account failed: ${coreErrorText(it)}")
-                accountSettings.notice = changeFailed(coreErrorSaid(it, this))
-            }
-            refreshAccountsSnapshot()
-        }
-    }
-}
 
 /**
  * Tries an account's edited servers and sign-in, and keeps them only if they connect. A refusal
@@ -171,28 +172,6 @@ internal fun MainActivity.replaceAccountSecret(accountId: String, secret: String
                     coreErrorSaid(it, this) ?: L10n.error_unknown(this),
                 )
             }
-        }
-    }
-}
-
-/**
- * Removes account [id] off the main thread: the core lets go of it (its sync stops, it leaves
- * every surface, the links other accounts hold to it are cleared) and deletes its stored
- * credential. What can still fail is that erase, which would bring the account back at the next
- * launch, so it is said wherever the person is left rather than left to surprise them.
- */
-internal fun MainActivity.removeAccount(id: String) {
-    val instance = app ?: return
-    if (accountSettings.page == id) accountSettings.page = null
-    thread(name = "mailcal-remove-account") {
-        val answer = runCatching { instance.removeAccount(id) }
-        mainHandler.post {
-            answer.onFailure {
-                logUiWarn("remove account: the credential could not be erased: ${coreErrorText(it)}")
-                val said = L10n.remove_account_failed(this, coreErrorSaid(it, this) ?: L10n.error_unknown(this))
-                say(AccountNotice(NoticeKind.FAILURE, "", said))
-            }
-            refreshAccountsSnapshot()
         }
     }
 }

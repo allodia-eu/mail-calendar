@@ -212,9 +212,9 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onOpenPage = { id ->
         accountSettings.notice = null
         accountSettings.page = id
+        refreshAccountPage()
     },
-    onSetUse = { id, capability, on -> setAccountUse(id, capability, on) },
-    onSetLink = { id, slot, target -> setAccountLink(id, slot, target) },
+    onChange = { intent -> changeAccount(intent) },
     onSignInAgain = { id, adding -> signInAgain(id, adding) },
     onSaveServers = { id, endpoints -> saveAccountEndpoints(id, endpoints) },
     onReplaceSecret = { id, secret -> replaceAccountSecret(id, secret) },
@@ -230,5 +230,4 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onAskSharedMailboxes = { id -> askSharedMailboxes(id) },
     onSetSharedMailbox = { id, mailbox, on -> setSharedMailbox(id, mailbox, on) },
     onAddSharedMailbox = { id, address -> addSharedMailbox(id, address) },
-    onRemove = { id -> removeAccount(id) },
 )

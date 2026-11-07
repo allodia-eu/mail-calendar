@@ -44,28 +44,36 @@ the signal is raised when one starts and when it ends. A use's switch carries `b
 core would refuse pressing it, asked of the registry's `toggle`, which `set_use` acts on too, so a
 switch is enabled exactly when nothing blocks it and no change runs; and `status`, what is wrong
 with the use, said beside it whether or not it can be pressed. Only the page that started a change marks its
-control running; every other page holds its controls without a spinner. The page's `notice` carries
+control running, drawn at the value it is moving to rather than the one it is leaving; every other
+page holds its controls without a spinner. The page's `notice` carries
 an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
 Each client draws `ControlState` through one set of components of its own (a switch row, a button,
-a picker, a confirmation), in its platform's idiom, so a control drawn anywhere waits the same way.
+a picker, a confirmation), in its platform's idiom, so a control drawn anywhere waits the same way:
+[`controls.rs`](../clients/linux/src/ui/controls.rs) on Linux,
+[`ControlComponents.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/ControlComponents.kt)
+on Android.
 
 ## Per-platform
 
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
-| An account's page: uses, links and removal drawn from `account_page` | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| An account's page: uses, links and removal drawn from `account_page` | ⬜ | ⬜ | ⬜ | ✅ | ✅ |
 
 ## Enforcement
 
 - [`account_page_tests.rs`](../crates/mailcal-bindings/src/account_page_tests.rs) pins the account
   page as it is put together: a refused switch held and saying why, a status said beside it, one
   Review beneath the paused uses, the link pickers, and running work holding every control and
-  marking its own.
+  marking its own, drawn where it is going.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
 - [`app_account_page_tests.rs`](../crates/mailcal-bindings/src/app_account_page_tests.rs) drives a
   change through `dispatch`: it runs and the page comes back free, and one the core refuses leaves
   a notice.
+- Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
+  ([`controls.rs`](../clients/linux/src/ui/controls.rs)), Android's in
+  [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt),
+  each drawing a page the core would answer and asking the core for every change.

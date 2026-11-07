@@ -162,6 +162,7 @@ mod use_outages;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
+pub use account_page::setup_link_pickers;
 pub use account_sign_in::{AccountSignInOptions, AccountSignInStart};
 pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};

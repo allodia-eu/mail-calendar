@@ -80,6 +80,8 @@ impl AppModel {
             Surface::Settings => {
                 self.calendar.refresh_settings(&app);
                 self.settings.signalled();
+                // After the signal's redraw, so a notice it raises is drawn rather than skipped.
+                self.account_work_signalled();
                 // A link suggestion the core found after the link step was drawn.
                 self.refresh_link_step();
             }

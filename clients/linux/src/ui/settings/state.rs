@@ -71,6 +71,8 @@ pub(in crate::ui) struct SettingsState {
     /// How many notices have been raised, so a notice raised after one was dropped never reuses
     /// a number the window has already shown.
     notices_raised: u64,
+    /// The last of the core's account change notices said, so each is said once.
+    pub(in crate::ui) core_notice: u64,
 }
 
 impl Default for SettingsState {
@@ -93,6 +95,7 @@ impl Default for SettingsState {
             separate_forms: 0,
             notice: None,
             notices_raised: 0,
+            core_notice: 0,
         }
     }
 }
