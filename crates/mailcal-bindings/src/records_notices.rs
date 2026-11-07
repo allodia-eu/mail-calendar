@@ -34,6 +34,10 @@ pub struct Notice {
     pub screens: NoticeScreens,
     /// The id of the account it is about, or `None` when it is about the whole app.
     pub account: Option<String>,
+    /// A few words for the account's row, which already shows its address, so they name no
+    /// address and take no arguments: one line under it (`docs/notices.md` rule 6). There exactly
+    /// when `account` is.
+    pub mark: Option<NoticeText>,
     /// The one thing a host offers to do about it, or `None` when there is nothing to do.
     pub action: Option<NoticeAction>,
     /// The label of `action`'s button, there exactly when `action` is.

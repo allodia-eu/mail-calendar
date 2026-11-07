@@ -83,6 +83,7 @@ fn the_launch_skip_and_a_refused_folder_change_are_events_that_can_be_closed() {
         (NoticeSeverity::Degraded, NoticeScreens::Mail)
     );
     assert_eq!((skipped.account.as_deref(), skipped.action), (None, None));
+    assert_eq!(skipped.mark, None);
     assert!(skipped.dismissible);
 
     let refused = pull_with(
@@ -107,6 +108,10 @@ fn the_launch_skip_and_a_refused_folder_change_are_events_that_can_be_closed() {
     assert_eq!(
         (refused.account.as_deref(), refused.action),
         (Some("a"), None)
+    );
+    assert_eq!(
+        refused.mark.as_ref().map(|words| words.key.as_str()),
+        Some("notice_mark_folder_change_refused")
     );
     assert!(refused.dismissible);
 }

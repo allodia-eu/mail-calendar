@@ -162,6 +162,11 @@ fn each_fact_maps_to_its_kind_severity_screens_and_action() {
         assert_eq!(notice.account.as_deref(), account, "{kind:?}");
         assert_eq!(notice.action, action, "{kind:?}");
         assert!(!notice.dismissible, "{kind:?} is a state that holds");
+        assert_eq!(
+            notice.mark.is_some(),
+            notice.account.is_some(),
+            "{kind:?}: a mark exactly for an account"
+        );
         assert!(!notice.remedy_failed, "{kind:?}");
     }
 }

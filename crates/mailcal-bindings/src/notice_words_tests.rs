@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use super::{action_label, detail, title};
+use super::{action_label, detail, mark, title};
 use crate::{FolderAction, FolderProblem, NoticeAction, NoticeKind, NoticeText, UseProblem};
 
 const CATALOG: &str = include_str!("../../../messages/en.json");
@@ -75,6 +75,7 @@ fn every_text() -> Vec<NoticeText> {
         .iter()
         .map(|kind| title(kind, "anna@example.org"))
         .chain(kinds.iter().filter_map(detail))
+        .chain(kinds.iter().filter_map(mark))
         .chain(actions.into_iter().map(action_label))
         .collect()
 }
@@ -120,6 +121,27 @@ fn only_an_outage_has_a_detail_and_each_problem_its_own() {
         .collect();
     assert_eq!(details.len(), 10, "five problems for each of two uses");
     assert_eq!(detail(&NoticeKind::SignInExpired), None);
+}
+
+#[test]
+fn a_mark_is_a_few_words_with_no_address_and_a_moved_server_reads_paused() {
+    for kind in every_kind() {
+        if let Some(words) = mark(&kind) {
+            assert!(
+                words.args.is_empty(),
+                "{kind:?}: the row already shows the address"
+            );
+        }
+    }
+    let paused = |problem| mark(&NoticeKind::CalendarOutage { problem }).map(|words| words.key);
+    assert_eq!(
+        paused(UseProblem::ServerChanged).as_deref(),
+        Some("notice_mark_calendar_paused")
+    );
+    assert_eq!(
+        paused(UseProblem::Unreachable).as_deref(),
+        Some("notice_mark_calendar_outage")
+    );
 }
 
 #[test]

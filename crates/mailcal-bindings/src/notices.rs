@@ -348,6 +348,7 @@ impl NoticeBook {
             .map(|(_, notice, remedy_failed)| Notice {
                 id: notice.id.0,
                 detail: notice_words::detail(&notice.kind),
+                mark: notice_words::mark(&notice.kind),
                 kind: notice.kind,
                 title: notice.title,
                 severity: notice.severity,

@@ -62,6 +62,29 @@ pub(crate) fn detail(kind: &NoticeKind) -> Option<NoticeText> {
     Some(text(&format!("notice_detail_{why}_{used}"), &[]))
 }
 
+/// The few words an account's row says for `kind`, or `None` for a notice about the whole app.
+pub(crate) fn mark(kind: &NoticeKind) -> Option<NoticeText> {
+    let key = match kind {
+        NoticeKind::SignInExpired => "notice_mark_signin_expired",
+        NoticeKind::MailReauth => "notice_mark_mail_reauth",
+        NoticeKind::CalendarReauth => "notice_mark_calendar_reauth",
+        NoticeKind::CalendarOutage {
+            problem: UseProblem::ServerChanged,
+        } => "notice_mark_calendar_paused",
+        NoticeKind::CalendarOutage { .. } => "notice_mark_calendar_outage",
+        NoticeKind::ContactsOutage {
+            problem: UseProblem::ServerChanged,
+        } => "notice_mark_contacts_paused",
+        NoticeKind::ContactsOutage { .. } => "notice_mark_contacts_outage",
+        NoticeKind::Unreachable => "notice_mark_unreachable",
+        NoticeKind::FolderChangeRefused { .. } => "notice_mark_folder_change_refused",
+        NoticeKind::Offline
+        | NoticeKind::AllodiaSignInEnded { .. }
+        | NoticeKind::AccountsSkipped { .. } => return None,
+    };
+    Some(text(key, &[]))
+}
+
 /// The label of `action`'s button.
 pub(crate) fn action_label(action: NoticeAction) -> NoticeText {
     let key = match action {
