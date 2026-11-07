@@ -20,7 +20,8 @@
 // Known limit: SwiftUI `.swipeActions` do NOT fire from synthetic events (any scroll phase); that
 // gesture needs a real trackpad. Everything else here (rows, buttons, fields, sheets) drives fine.
 //
-// Exit codes: 0 ok · 1 usage/not-found · 2 app not running · 3 no Accessibility permission.
+// Exit codes: 0 ok · 1 usage/not-found · 2 this checkout's debug build not running · 3 no
+// Accessibility permission.
 
 import Cocoa
 
@@ -36,19 +37,23 @@ func fail(_ message: String, _ code: Int32) -> Never {
     exit(code)
 }
 
-/// The **debug build only**; never a copy installed in `/Applications`.
+/// The **debug build of this checkout only**; never a copy installed in `/Applications`, and never
+/// another checkout's debug build.
 ///
 /// A developer running this repo very often has their own release build open on their real
-/// accounts at the same time, and both processes answer to the same name and bundle id. Picking
-/// `runningApplications.first` therefore chose between them by list order, which is to say by
-/// luck: a `tap` meant for the harness could land in a real mailbox. That is not a stray
-/// keystroke; the reading view now carries Accept / Decline, and a tap there emails a real
-/// organiser. The Android skill already states this rule for a physical phone
-/// (`docs/debugging.md`); macOS has exactly the same exposure and had no guard at all.
+/// accounts at the same time, and every copy answers to the same name and bundle id, so the
+/// bundle's path is the only thing that tells them apart. A tap that lands in the wrong copy is
+/// not a stray keystroke: the reading view carries Accept / Decline, and a tap there emails a real
+/// organiser. The Android skill states the same rule for a physical phone (`docs/debugging.md`).
 ///
-/// So the match is narrowed to a bundle inside a **repo checkout**, and a lone installed copy is
-/// refused with an explanation rather than driven. There is no override: an escape hatch here
-/// would be a footgun whose only use is the case this exists to prevent.
+/// It must be the *Debug* path: a Release build sits under the same `clients/apple/build/` tree
+/// and is exactly what a developer runs on their real accounts to try a branch out. And it must be
+/// *this* checkout's: with two worktrees' debug apps up, any Debug path would pick between them by
+/// list order, driving one checkout's code while reading the other's.
+///
+/// So the match is the Debug products directory under the repository this script sits in, and
+/// anything else is refused with what is running instead. There is no override: an escape hatch
+/// here would be a footgun whose only use is the case this exists to prevent.
 func appElement() -> AXUIElement {
     let candidates = NSWorkspace.shared.runningApplications.filter {
         appNames.contains($0.localizedName ?? "")
@@ -57,29 +62,38 @@ func appElement() -> AXUIElement {
     guard !candidates.isEmpty else {
         fail("the macOS client is not running: boot it first with scripts/dev/boot.sh macos", 2)
     }
-    // The Debug product of a checkout, and nothing else. The process name, the bundle id and
-    // the window title are identical across every copy, so the path is the only thing that tells
-    // them apart; and it must be the *Debug* path, not merely a checkout one: a Release build
-    // sits under the same `clients/apple/build/DerivedData/` tree and is exactly what a developer
-    // runs on their real accounts to try a branch out. Matching the tree alone picked between the
-    // two by list order, which is the coin-flip this function exists to remove.
-    let development = candidates.filter {
-        ($0.bundleURL?.path ?? "").contains("/clients/apple/build/DerivedData/Build/Products/Debug/")
+    let debugProducts = "/clients/apple/build/DerivedData/Build/Products/Debug/"
+    // This file is scripts/dev/macos-ax.swift under the root. Symlinks are resolved on both sides, so
+    // a checkout reached through a link still matches its own build.
+    let root = URL(fileURLWithPath: #filePath).resolvingSymlinksInPath()
+        .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().path
+    let path = { (app: NSRunningApplication) in
+        app.bundleURL?.resolvingSymlinksInPath().path ?? ""
     }
-    guard let app = development.first else {
+    if let app = candidates.first(where: { path($0).hasPrefix(root + debugProducts) }) {
+        app.activate()
+        usleep(300_000)  // let the window come forward before we read or click it
+        return AXUIElementCreateApplication(app.processIdentifier)
+    }
+    let otherCheckouts = candidates.map(path).filter { $0.contains(debugProducts) }
+    if !otherCheckouts.isEmpty {
         fail(
             """
-            no *debug* Allodia Mail & Calendar is running. Only \
-            \(candidates.compactMap { $0.bundleURL?.path }.joined(separator: ", ")), \
-            which is a build on the developer's own accounts (an installed copy, or a Release \
-            build of a branch). Refusing to drive it: a synthetic tap in the reading view can \
-            archive real mail or answer a real meeting invitation. Boot the debug build first with \
-            scripts/dev/boot.sh macos --account stalwart
+            this checkout's debug build is not running. The debug builds that are running belong \
+            to other checkouts: \(otherCheckouts.joined(separator: ", ")). Refusing to drive one: \
+            it is not the code in this checkout. Boot this checkout's build with \
+            scripts/dev/boot.sh macos --account stalwart, run from \(root)
             """, 2)
     }
-    app.activate()
-    usleep(300_000)  // let the window come forward before we read or click it
-    return AXUIElementCreateApplication(app.processIdentifier)
+    fail(
+        """
+        no *debug* Allodia Mail & Calendar is running. Only \
+        \(candidates.map(path).joined(separator: ", ")), \
+        which is a build on the developer's own accounts (an installed copy, or a Release \
+        build of a branch). Refusing to drive it: a synthetic tap in the reading view can \
+        archive real mail or answer a real meeting invitation. Boot this checkout's debug build \
+        with scripts/dev/boot.sh macos --account stalwart, run from \(root)
+        """, 2)
 }
 
 func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
