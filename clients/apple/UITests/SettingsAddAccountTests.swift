@@ -15,8 +15,10 @@ final class SettingsAddAccountTests: XCTestCase {
         // The iPhone hub row reads its summary after the name; the iPad sidebar row is the name.
         let accounts = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Accounts'"))
             .firstMatch
-        XCTAssertTrue(accounts.waitForExistence(timeout: ShowcaseApp.timeout))
-        if !accounts.isHittable { app.swipeUp() }
+        // The iPhone hub is a lazy list taller than the screen, so its Accounts row exists only
+        // once it has been scrolled to.
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: ShowcaseApp.timeout))
+        for _ in 0..<3 where !(accounts.exists && accounts.isHittable) { app.swipeUp() }
         ShowcaseApp.tap(accounts)
         ShowcaseApp.tap(app.buttons["settings-add-account"])
         XCTAssertTrue(
