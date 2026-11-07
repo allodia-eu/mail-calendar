@@ -45,6 +45,7 @@ mod composer_signature;
 mod connectivity;
 mod contacts;
 mod contacts_actions;
+mod controls;
 mod core_error;
 pub(crate) mod destinations;
 mod detached;

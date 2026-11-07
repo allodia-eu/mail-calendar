@@ -175,8 +175,6 @@ impl fmt::Debug for AppInput {
             Self::ReplaceAccountSecret { .. } => "ReplaceAccountSecret",
             Self::AccountSecretReplaced { .. } => "AccountSecretReplaced",
             Self::Accounts(_) => "Accounts",
-            Self::RemoveAccount(_) => "RemoveAccount",
-            Self::AccountRemoved(_) => "AccountRemoved",
             Self::AnalyticsDecided(_) => "AnalyticsDecided",
             Self::CollectNewMail => "CollectNewMail",
             Self::BackgroundFinished => "BackgroundFinished",

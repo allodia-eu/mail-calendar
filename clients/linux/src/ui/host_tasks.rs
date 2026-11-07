@@ -332,18 +332,6 @@ impl AppModel {
         });
     }
 
-    pub(super) fn remove_account(&mut self, id: String, sender: relm4::Sender<AppInput>) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        std::thread::spawn(move || {
-            // The core erases the stored credential through the host's `AccountCredentialStore`,
-            // so removing the Secret Service item here as well would be a second, racing delete.
-            let result = app.remove_account(id).map_err(|error| error.to_string());
-            sender.emit(AppInput::AccountRemoved(result));
-        });
-    }
-
     pub(super) fn collect_new_mail(&mut self, sender: relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {
             return;

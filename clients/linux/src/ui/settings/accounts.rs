@@ -12,12 +12,11 @@ use crate::{
 
 pub(super) fn accounts(ctx: &PageContext) -> gtk::Box {
     let snapshot = ctx.app.accounts_snapshot();
-    if let Some(entry) = ctx
-        .account
-        .as_deref()
-        .and_then(|id| snapshot.accounts.iter().find(|entry| entry.id == id))
-    {
-        return account_page::page(ctx, entry);
+    if let Some((entry, page)) = ctx.account.as_deref().and_then(|id| {
+        let entry = snapshot.accounts.iter().find(|entry| entry.id == id)?;
+        Some((entry, ctx.app.account_page(id.to_owned())?))
+    }) {
+        return account_page::page(ctx, entry, &page);
     }
     let content = page_box(l10n::settings_category_accounts());
     let add = gtk::Button::with_label(l10n::action_add_account());

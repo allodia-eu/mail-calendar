@@ -462,15 +462,6 @@ impl AppModel {
             AppInput::Accounts(input) => {
                 self.accounts_input(input, sender.input_sender().clone());
             }
-            AppInput::RemoveAccount(id) => {
-                self.remove_account(id, sender.input_sender().clone());
-            }
-            AppInput::AccountRemoved(result) => match result {
-                Ok(()) => self.account_removed(),
-                // The account is still connected when the keyring write fails, so say what
-                // happened in the app's own voice rather than surfacing a bare D-Bus string.
-                Err(error) => self.notice = Some(l10n::remove_account_failed(&error)),
-            },
             AppInput::AnalyticsDecided(enabled) => {
                 if let Some(app) = &self.app {
                     app.set_analytics_consent(enabled);
