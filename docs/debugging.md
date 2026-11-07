@@ -941,8 +941,10 @@ CLI-drivable trigger: an lldb `_simulateLaunchForTaskWithIdentifier` won't conne
 CoreDevice tunnel from the CLI, and the Darwin `notifyutil` trigger is simulator-only). It prints the
 per-account **mark before/after** as the deterministic SEEDED-vs-DETECTED signal.
 
-Gotchas the tooling handles for you: the signing **team** is derived from the cert OU (not the cert
-id); **Developer Mode** must be enabled on the device (manual, `doctor` flags it); the device must be
+Gotchas the tooling handles for you: the signing **team** is `DEVELOPMENT_TEAM`, else the one
+`clients/apple/signing.local.xcconfig` names, else the OU (not the cert id) of the keychain's Apple
+Development certificates when they share one team, and certificates of several teams are refused
+rather than picked by keychain order; **Developer Mode** must be enabled on the device (manual, `doctor` flags it); the device must be
 **unlocked** to launch; and it **terminates before launch** so a fresh `onAppear` fires the hook.
 
 The local Stalwart harness is **loopback-only**. Android physical devices and emulators use

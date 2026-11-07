@@ -641,18 +641,30 @@ device_name() { # <udid>
   list_connected_devices | awk -F '\t' -v udid="$1" '$1 == udid { print $2; exit }'
 }
 
-# The signing team id for a device build: $DEVELOPMENT_TEAM, else the OU of the first "Apple
-# Development" codesigning cert (a cert's OU IS its team id; the name's parenthetical is the cert
-# id; a common wrong guess). Returns 1 if none derivable.
+# The signing team id for a device build: $DEVELOPMENT_TEAM, else the team this checkout's Xcode
+# builds already sign with (clients/apple/signing.local.xcconfig), else the team of the keychain's
+# "Apple Development" certificates when they all belong to one. A cert's OU IS its team id; the
+# name's parenthetical is the cert id, a common wrong guess. Returns 1 when none is derivable, and
+# when the certificates span several teams: which of them owns this app's identifier is not
+# something the keychain's order can answer.
 signing_team() {
   if [[ -n "${DEVELOPMENT_TEAM:-}" ]]; then printf '%s\n' "$DEVELOPMENT_TEAM"; return 0; fi
-  local name ou
-  name="$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/{print $2; exit}')"
-  [[ -n "$name" ]] || return 1
-  ou="$(security find-certificate -c "$name" -p 2>/dev/null | openssl x509 -noout -subject 2>/dev/null |
-    sed -nE 's/.*OU ?= ?([0-9A-Za-z]+).*/\1/p')"
-  [[ -n "$ou" ]] || return 1
-  printf '%s\n' "$ou"
+  local configured="" name xcconfig="$REPO_ROOT/clients/apple/signing.local.xcconfig"
+  if [[ -f "$xcconfig" ]]; then
+    configured="$(sed -nE 's/^[[:space:]]*MAILCAL_DEVELOPMENT_TEAM[[:space:]]*=[[:space:]]*([0-9A-Za-z]+).*/\1/p' \
+      "$xcconfig" | tail -1)"
+  fi
+  if [[ -n "$configured" ]]; then printf '%s\n' "$configured"; return 0; fi
+  local teams=()
+  while IFS= read -r name; do
+    teams+=("$(security find-certificate -c "$name" -p 2>/dev/null |
+      openssl x509 -noout -subject 2>/dev/null | sed -nE 's/.*OU ?= ?([0-9A-Za-z]+).*/\1/p' || true)")
+  done < <(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development/{print $2}' || true)
+  mapfile -t teams < <(printf '%s\n' "${teams[@]}" | grep . | sort -u)
+  if [[ "${#teams[@]}" -eq 1 ]]; then printf '%s\n' "${teams[0]}"; return 0; fi
+  [[ "${#teams[@]}" -eq 0 ]] ||
+    warn "Apple Development certificates of several teams (${teams[*]}): set DEVELOPMENT_TEAM=<id>"
+  return 1
 }
 
 # One field of a connected device's `devicectl` details: developer-mode, model or os. Empty when

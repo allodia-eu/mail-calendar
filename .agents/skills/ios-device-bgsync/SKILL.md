@@ -30,8 +30,9 @@ scripts/dev/device.sh doctor
   restart → confirm*). This is manual and needs a reboot; it **cannot** be toggled from the CLI, and
   without it install fails. `doctor` flags it.
 - **Device registered in the dev account** + an *Apple Development* signing identity in the keychain.
-  The team id is auto-derived from the cert's OU (override with `DEVELOPMENT_TEAM=<id>`). The device
-  must be added to the team's devices (do it once in Xcode, or it happens on the first device build).
+  The team id is `DEVELOPMENT_TEAM`, else the one in `clients/apple/signing.local.xcconfig`, else the
+  OU of the keychain's Apple Development certificates when they all belong to one team; certificates
+  of several teams with neither set is refused, naming them. The device must be added to the team's devices (do it once in Xcode, or it happens on the first device build).
 
 ## 1. Build, install, launch
 
