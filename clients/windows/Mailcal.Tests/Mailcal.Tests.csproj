@@ -221,11 +221,11 @@
          server on a non-standard port is the reason the manual form exists and nothing else
          here can fail when that breaks. -->
     <Compile Include="..\Mailcal\Services\ManualServerField.cs" Link="Services\ManualServerField.cs" />
-    <!-- What Settings → Accounts draws from the core's one snapshot (docs/accounts.md rules 11 to
-         14): which switch is held on and why, which link pickers a page offers and which account
-         one suggests, and what an edit of an account's servers sends back. WinUI-free and
-         L10n-free on purpose; each rule fails silently on screen, most sharply a suggestion that
-         second-guesses a link already made, and a save that adds a server the account never had. -->
+    <!-- What Settings → Accounts' list draws from the core's one snapshot (docs/accounts.md rules
+         11 to 14), when an account's page is drawn again from the core's record of it, and what an
+         edit of an account's servers sends back. WinUI-free and L10n-free on purpose; each rule
+         fails silently on screen, most sharply a page that keeps spinning after its change ended,
+         and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
     <Compile Include="..\Mailcal\Services\MeetingAccountLabels.cs" Link="Services\MeetingAccountLabels.cs" />
     <!-- What an account page's Sign-in section lets the person press while its sign-in is out

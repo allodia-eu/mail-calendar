@@ -1,10 +1,9 @@
 // An account's page, its first questions: what the account is used for (docs/accounts.md rule 13),
 // which other accounts fill what it is not (rule 12), and, for one that signs in at its provider,
-// signing in again (docs/provider-oauth.md rule 11).
-//
-// A nested ContentDialog is not allowed, so switching a use off is confirmed inline, under its
-// switch, as the database reset is.
+// signing in again (docs/provider-oauth.md rule 11). The uses and links are the core's
+// (`account_page`), drawn through the controls every page waits the same way with (docs/waiting.md).
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -16,114 +15,78 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    /// <summary>A switch per use the account's kind offers.</summary>
-    private UIElement UsesGroup(AccountEntry entry)
+    /// <summary>A switch per use the account's kind offers, as the core decided each.</summary>
+    private UIElement UsesGroup(AccountEntry entry, AccountPage page)
     {
         var stack = new StackPanel { Spacing = 8 };
-        foreach (var use in entry.Uses)
+        foreach (var use in page.Uses)
         {
-            stack.Children.Add(UseRow(entry, use.Capability));
+            stack.Children.Add(UseRow(entry, use));
         }
         return Group(L10n.SettingsAccountUsesHeading(), L10n.SettingsAccountUsesDescription(), stack);
     }
 
-    private StackPanel UseRow(AccountEntry entry, AccountCapability capability)
+    private StackPanel UseRow(AccountEntry entry, AccountUseSwitch use)
     {
-        var rule = AccountSettingsRules.Switch(entry, capability);
+        var capability = use.Capability;
         var row = new StackPanel { Spacing = 2 };
-        var toggle = new ToggleSwitch { Header = UseName(capability), IsOn = rule.Active, IsEnabled = rule.Enabled };
-        AutomationProperties.SetAutomationId(toggle, $"AccountUse_{capability}");
-        row.Children.Add(toggle);
-        if (AccountUseText.Note(rule.Note) is { } note)
-        {
-            row.Children.Add(Description(note));
-        }
+        void Set(bool on) => _model.ChangeAccount(new AccountPageIntent.SetUse(entry.Id, capability, on));
+        // Switching off deletes what the device holds of the use, so it is asked first where it
+        // holds anything; cancelling puts the switch back.
+        ControlToggle? toggle = null;
+        var confirm = new ConfirmPanel(
+            L10n.AccountUseOffTitle(UseName(capability)),
+            L10n.AccountUseOffMessage(),
+            L10n.ActionSwitchOff(),
+            $"AccountUseOff_{capability}",
+            yes =>
+            {
+                if (yes)
+                {
+                    Set(false);
+                }
+                else
+                {
+                    toggle?.Restore();
+                }
+            });
+        toggle = new ControlToggle(
+            UseName(capability), AccountUseText.Note(use), use.On, use.Control, $"AccountUse_{capability}", on =>
+            {
+                if (_rebuilding)
+                {
+                    return;
+                }
+                if (on && use.AsksProvider)
+                {
+                    // Chosen, and waiting on the provider: switching it on asks again.
+                    _ = SignInAgainFromPageAsync(entry, [capability]);
+                }
+                else if (!on && use.ConfirmsOff)
+                {
+                    toggle!.Hold();
+                    confirm.Show();
+                }
+                else
+                {
+                    Set(on);
+                }
+            });
+        row.Children.Add(toggle.Element);
         if (SeparateServerAction(entry, capability) is { } separate)
         {
             row.Children.Add(separate);
         }
-        if (ServerChangeAction(entry, capability, rule.Note) is { } review)
+        if (ServerChangeAction(entry, capability, use.ReviewsServerChange) is { } review)
         {
             row.Children.Add(review);
         }
-
-        // Switching off deletes what the device holds of the use, so it is asked first, where the
-        // device holds anything of it; cancelling puts the switch back.
-        var confirm = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        confirm.Children.Add(Heading(L10n.AccountUseOffTitle(UseName(capability))));
-        confirm.Children.Add(new TextBlock { Text = L10n.AccountUseOffMessage(), TextWrapping = TextWrapping.Wrap });
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var cancel = new Button { Content = L10n.ActionCancel() };
-        var off = new Button { Content = L10n.ActionSwitchOff() };
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(off);
-        confirm.Children.Add(buttons);
-        row.Children.Add(confirm);
-
-        var restoring = false;
-        toggle.Toggled += (_, _) =>
-        {
-            if (_rebuilding || restoring)
-            {
-                return;
-            }
-            if (toggle.IsOn && rule.Asks)
-            {
-                // Chosen, and waiting on the provider: switching it on asks again.
-                _ = SignInAgainFromPageAsync(entry, [capability]);
-            }
-            else if (toggle.IsOn || !AccountSettingsRules.ConfirmsOff(capability))
-            {
-                _ = SetUseAsync(entry, capability, toggle.IsOn);
-            }
-            else
-            {
-                toggle.IsEnabled = false;
-                confirm.Visibility = Visibility.Visible;
-            }
-        };
-        cancel.Click += (_, _) =>
-        {
-            confirm.Visibility = Visibility.Collapsed;
-            restoring = true;
-            toggle.IsOn = true;
-            restoring = false;
-            toggle.IsEnabled = true;
-        };
-        off.Click += (_, _) =>
-        {
-            confirm.Visibility = Visibility.Collapsed;
-            _ = SetUseAsync(entry, capability, false);
-        };
+        row.Children.Add(confirm.Element);
         return row;
     }
 
-    private async Task SetUseAsync(AccountEntry entry, AccountCapability capability, bool on)
-    {
-        var (outcome, error) = await _model.SetAccountUseAsync(entry.Id, capability, on);
-        if (error is not null)
-        {
-            NotifyAccounts(ChangeFailed(error));
-            return;
-        }
-        switch (outcome)
-        {
-            // The provider has not granted it: the person switching it on is the person who
-            // would be asked, so they are asked now.
-            case UseChangeOutcome.AskProvider:
-                await SignInAgainFromPageAsync(entry, [capability]);
-                break;
-            case UseChangeOutcome.NeedsEndpoint:
-                NotifyAccounts(ChangeFailed(L10n.SettingsAccountUseNeedsEndpoint()));
-                break;
-            default:
-                NotifyAccounts(null);
-                break;
-        }
-    }
-
     /// <summary>A picker per link slot the account can hold.</summary>
-    private UIElement LinksGroup(AccountEntry entry, IReadOnlyList<LinkPicker> pickers)
+    private UIElement LinksGroup(AccountEntry entry, IReadOnlyList<AccountLinkPicker> pickers)
     {
         var stack = new StackPanel { Spacing = 12 };
         foreach (var picker in pickers)
@@ -133,40 +96,38 @@ public sealed partial class SettingsDialog
         return Group(L10n.SettingsAccountLinksHeading(), L10n.SettingsAccountLinksDescription(), stack);
     }
 
-    private StackPanel LinkRow(AccountEntry entry, LinkPicker picker)
+    private StackPanel LinkRow(AccountEntry entry, AccountLinkPicker picker)
     {
-        var row = new StackPanel { Spacing = 4 };
-        var box = new ComboBox { Header = LinkTitle(picker.Slot), MinWidth = 260 };
-        AutomationProperties.SetName(box, LinkTitle(picker.Slot));
-        AutomationProperties.SetAutomationId(box, $"AccountLink_{picker.Slot}");
-        box.Items.Add(L10n.SettingsAccountLinkNone());
-        foreach (var option in picker.Options)
+        void Link(string? target)
         {
-            box.Items.Add(AccountNameText.Of(option));
-        }
-        box.SelectedIndex = picker.Selected is { } selected ? selected + 1 : 0;
-        box.SelectionChanged += (_, _) =>
-        {
-            if (_rebuilding || box.SelectedIndex < 0)
+            if (!_rebuilding)
             {
-                return;
+                _model.ChangeAccount(new AccountPageIntent.SetLink(entry.Id, picker.Slot, target));
             }
-            var target = box.SelectedIndex == 0 ? null : picker.Options[box.SelectedIndex - 1].Id;
-            _ = SetLinkAsync(entry.Id, picker.Slot, target);
-        };
-        row.Children.Add(box);
-        // A suggestion is named under the picker, with a button that picks it: the person confirms
+        }
+        var row = new StackPanel { Spacing = 4 };
+        var labels = new List<string> { L10n.SettingsAccountLinkNone() };
+        labels.AddRange(picker.Options.Select(option => AccountNameText.Of(option)));
+        row.Children.Add(ControlComponents.ComboBox(
+            LinkTitle(picker.Slot),
+            labels,
+            picker.Selected is { } selected ? (int)selected + 1 : 0,
+            picker.Control,
+            $"AccountLink_{picker.Slot}",
+            at => Link(at == 0 ? null : picker.Options[at - 1].Id)));
+        // A suggestion is named under the picker, with a button that links it: the person confirms
         // it, it is never linked for them (docs/accounts.md rule 12).
         if (picker.Suggested is { } suggested)
         {
+            var option = picker.Options[(int)suggested];
             var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            var text = Description(L10n.SettingsAccountLinkSuggested(AccountNameText.Of(picker.Options[suggested])));
+            var text = Description(L10n.SettingsAccountLinkSuggested(AccountNameText.Of(option)));
             text.VerticalAlignment = VerticalAlignment.Center;
             line.Children.Add(text);
-            var link = new Button { Content = L10n.ActionLink() };
-            AutomationProperties.SetAutomationId(link, $"AccountLinkSuggested_{picker.Slot}");
-            link.Click += (_, _) => box.SelectedIndex = suggested + 1;
-            line.Children.Add(link);
+            // The picker carries the ring while its change runs; the button beside it is held.
+            line.Children.Add(ControlComponents.Button(
+                L10n.ActionLink(), picker.Control with { Running = false }, $"AccountLinkSuggested_{picker.Slot}",
+                () => Link(option.Id)));
             row.Children.Add(line);
         }
         return row;
@@ -178,12 +139,6 @@ public sealed partial class SettingsDialog
         LinkSlot.Contacts => L10n.SettingsAccountLinkContacts(),
         _ => L10n.SettingsAccountLinkMail(),
     };
-
-    private async Task SetLinkAsync(string accountId, LinkSlot slot, string? target)
-    {
-        var error = await _model.SetAccountLinkAsync(accountId, slot, target);
-        NotifyAccounts(error is null ? null : ChangeFailed(error));
-    }
 
     /// <summary>"Sign in again", for an account that signs in at its provider's page: the remedy
     /// for an expired sign-in and for a permission the provider withheld.</summary>

@@ -4,9 +4,10 @@
 // shared with it (AccountShared), how it signs in (AccountSignIn), its servers and its removal
 // (AccountServers), and its mail settings (AccountMail).
 //
-// State lives in the core. A change on a page forwards to it off the UI thread, and the page is
-// drawn again from the next snapshot; a core signal that changed nothing the page shows leaves it,
-// and whatever is being typed on it, alone.
+// State lives in the core. A use, a link and a removal are dispatched and the page says they run
+// (docs/waiting.md); every other change forwards to the core off the UI thread. The page is drawn
+// again from the next snapshot and page record; a core signal that changed nothing the page shows
+// leaves it, and whatever is being typed on it, alone.
 
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
@@ -37,17 +38,18 @@ public sealed partial class SettingsDialog
     private UIElement BuildAccounts()
     {
         var snapshot = _model.AccountsSnapshot();
-        _accountsDrawn = AccountsFingerprint(snapshot);
+        var page = OpenPage();
+        _accountsDrawn = AccountsFingerprint(snapshot, page);
         var panel = new StackPanel { Spacing = 16 };
         _accountNoticeBar = new InfoBar { IsClosable = true };
         ShowNotice(_accountNoticeBar, _accountNotice);
         _accountNoticeBar.Closed += (_, _) => _accountNotice = null;
         var entry = snapshot.Accounts.FirstOrDefault(account => account.Id == _accountPage);
-        if (entry is not null)
+        if (entry is not null && page is not null)
         {
             panel.Children.Add(BackToAccounts());
             panel.Children.Add(_accountNoticeBar);
-            BuildAccountPage(panel, entry);
+            BuildAccountPage(panel, entry, page);
             return panel;
         }
         _accountPage = null;
@@ -135,7 +137,7 @@ public sealed partial class SettingsDialog
     /// <summary>One account's page: how it travels, what it is used for, the accounts it relies
     /// on, the mailboxes shared with it, how it signs in, its own servers, its mail settings while
     /// it is used for mail, and its removal, last.</summary>
-    private void BuildAccountPage(StackPanel panel, AccountEntry entry)
+    private void BuildAccountPage(StackPanel panel, AccountEntry entry, AccountPage page)
     {
         var title = new TextBlock
         {
@@ -153,10 +155,10 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(BuildSyncModePicker(entry.Id, mode));
         }
-        panel.Children.Add(UsesGroup(entry));
-        if (AccountSettingsRules.LinkPickers(entry) is { Count: > 0 } pickers)
+        panel.Children.Add(UsesGroup(entry, page));
+        if (page.Links.Length > 0)
         {
-            panel.Children.Add(LinksGroup(entry, pickers));
+            panel.Children.Add(LinksGroup(entry, page.Links));
         }
         panel.Children.Add(SharedMailboxesSlot(entry));
         var expired = _model.SignInExpiredIds.Contains(entry.Id);
@@ -180,8 +182,12 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(mail);
         }
-        panel.Children.Add(RemoveGroup(entry));
+        panel.Children.Add(RemoveGroup(entry, page.Remove));
     }
+
+    /// <summary>The open account's page as the core decided it; null for the list, and once the
+    /// account is gone.</summary>
+    private AccountPage? OpenPage() => _accountPage is { } id ? _model.AccountPageOf(id) : null;
 
     private Button BackToAccounts()
     {
@@ -254,6 +260,28 @@ public sealed partial class SettingsDialog
     private static AccountNotice ChangeFailed(string detail) =>
         new(InfoBarSeverity.Error, L10n.SettingsAccountChangeFailedTitle(), detail);
 
+    /// <summary>What a change on the page came to, in the core's words for why.</summary>
+    private static AccountNotice ChangeFailed(AccountChangeNotice notice) => notice switch
+    {
+        AccountChangeNotice.UseFailed use => ChangeFailed(use.Detail),
+        AccountChangeNotice.LinkFailed link => ChangeFailed(link.Detail),
+        AccountChangeNotice.RemoveFailed removal => RemovalFailed(L10n.RemoveAccountFailed(removal.Detail)),
+        _ => ChangeFailed(L10n.ErrorUnknown()),
+    };
+
+    /// <summary>A removal whose stored sign-in could not be erased, so it comes back at the next
+    /// launch: said rather than left to surprise.</summary>
+    private static AccountNotice RemovalFailed(string message) => new(InfoBarSeverity.Error, string.Empty, message);
+
+    /// <summary>The model says a removal's erase failed; said on the list while Accounts is open.</summary>
+    private void OnRemovalFailed(string message)
+    {
+        if (CurrentCategory() == "accounts")
+        {
+            NotifyAccounts(RemovalFailed(message));
+        }
+    }
+
     /// <summary>
     /// The core says the accounts may have changed. The open list or page is drawn again when what
     /// it shows did; the last account gone closes Settings, because the window returns to first-run
@@ -283,20 +311,30 @@ public sealed partial class SettingsDialog
             return;
         }
         _hadAccounts = any;
-        if (AccountsFingerprint(snapshot) != _accountsDrawn)
+        var page = OpenPage();
+        if (_model.TakeChangeNotice(page) is { } notice)
+        {
+            _accountNotice = ChangeFailed(notice);
+        }
+        if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {
             ShowCategory("accounts");
+        }
+        else if (_accountNoticeBar is { } bar)
+        {
+            ShowNotice(bar, _accountNotice);
         }
     }
 
     /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, which
-    /// accounts have a mailbox listed and how each is shared, and the notices about accounts,
-    /// which the page draws from calls of their own.</summary>
-    private string AccountsFingerprint(AccountsSnapshot snapshot)
+    /// accounts have a mailbox listed and how each is shared, the notices about accounts, and the
+    /// open page's record, which the page draws from calls of their own.</summary>
+    private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page)
     {
         var beside = (_model.GetSyncSettings()?.Accounts.Select(account => "mail:" + account.AccountId) ?? [])
             .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"))
-            .Concat(AccountNoticesFingerprint());
+            .Concat(AccountNoticesFingerprint())
+            .Concat(AccountSettingsRules.PageFingerprint(page));
         return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);
     }
 

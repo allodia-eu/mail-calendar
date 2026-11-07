@@ -1,6 +1,6 @@
 # An account's page shows a change running until it is done
 
-Platforms: android, linux
+Platforms: all
 Bump: patch
 
 > Switching one of an account's uses, linking another account or removing it in Settings now shows

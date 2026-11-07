@@ -94,7 +94,9 @@ public sealed partial class MailboxModel
     }
 
     private SetupLinkStep? LinkStepFor(string accountId) =>
-        SetupLinkStep.For(AccountsSnapshot(), accountId, MailcalBindingsMethods.OffersSetupLinks, _setupBeside.OfferFor(accountId));
+        SetupLinkStep.For(
+            AccountsSnapshot(), accountId, MailcalBindingsMethods.OffersSetupLinks, MailcalBindingsMethods.SetupLinkPickers,
+            _setupBeside.OfferFor(accountId));
 
     /// <summary>The link step answered: the picks are linked when <paramref name="link"/>, and the
     /// form closes either way.</summary>

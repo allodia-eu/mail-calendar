@@ -85,6 +85,15 @@ public sealed partial class MainWindow : Window
         // asks whether to allow it. Both need this window's XamlRoot.
         Model.AccountSettingsRequested += account => _ = OpenSettingsAsync("accounts", account);
         Model.ServerChangeRequested += account => _ = ServerChangeDialog.AskAsync(Content.XamlRoot, Model, account);
+        // A removal from the sidebar whose stored sign-in could not be erased; Settings, when it is
+        // the dialog open, says it on its own list.
+        Model.RemovalFailed += message =>
+        {
+            if (!DialogHelper.IsShowing)
+            {
+                _ = DialogHelper.TellAsync(Content.XamlRoot, message);
+            }
+        };
         ReadingPanel.Init(Model);
 
         // The sidebar depends on the account set, the selected account's folders, and the
