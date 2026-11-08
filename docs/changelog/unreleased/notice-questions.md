@@ -4,7 +4,8 @@ Platforms: macos, ios, windows, android, linux
 Bump: minor
 
 > A message whose copy could not be saved in Sent, an invitation answer the calendar server could
-> not pass on, and a changed time zone were each asked in a dialog of their own. Each is now a notice
+> not pass on, and a changed time zone were each asked through a prompt of their own, a dialog or,
+> on Windows, a bar. Each is now a notice
 > with two answers, waiting where the other notices wait. Whether an account emails invitation
 > replies its server cannot deliver is a setting on the account's page rather than a tick on the
 > question.
