@@ -104,7 +104,7 @@ internal static class ControlComponents
         Action<int> pick)
     {
         var box = new ComboBox { Header = header, MinWidth = 260, IsEnabled = control.Enabled };
-        AutomationProperties.SetName(box, name);
+        AutomationProperties.SetName(box, header);
         AutomationProperties.SetAutomationId(box, automationId);
         foreach (var label in labels)
         {
