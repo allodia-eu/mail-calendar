@@ -25,6 +25,9 @@ pub(super) fn refusal_said(refusal: &AccountChangeRefusal) -> String {
             super::settings::account_rows::block_note(*block).to_owned()
         }
         AccountChangeRefusal::Withheld => l10n::settings_account_use_withheld().to_owned(),
+        AccountChangeRefusal::NoLongerShared => {
+            l10n::settings_account_shared_withdrawn().to_owned()
+        }
         AccountChangeRefusal::Other { detail } => detail.clone(),
     }
 }

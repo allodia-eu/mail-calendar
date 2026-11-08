@@ -296,6 +296,8 @@ pub enum AccountChangeRefusal {
     Blocked { block: AccountUseBlock },
     /// The provider has not granted the use.
     Withheld,
+    /// The shared mailbox is no longer one the account's sign-in opens.
+    NoLongerShared,
     /// Anything else, as the core renders it.
     Other { detail: String },
 }

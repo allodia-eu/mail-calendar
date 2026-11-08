@@ -38,6 +38,7 @@ internal static class AccountUseText
     {
         AccountChangeRefusal.Blocked blocked => BlockNote(blocked.Block),
         AccountChangeRefusal.Withheld => L10n.SettingsAccountUseWithheld(),
+        AccountChangeRefusal.NoLongerShared => L10n.SettingsAccountSharedWithdrawn(),
         _ => CoreError.Refused(refusal, CoreErrorCopy.Words()),
     };
 

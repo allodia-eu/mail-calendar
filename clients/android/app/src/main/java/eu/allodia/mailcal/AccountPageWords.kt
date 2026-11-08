@@ -111,5 +111,6 @@ internal fun refusalSaid(ctx: Context, refusal: AccountChangeRefusal): String = 
     is AccountChangeRefusal.UseNotConnected -> useNotConnectedSaid(refusal.capability, refusal.problem, ctx)
     is AccountChangeRefusal.Blocked -> blockSaid(ctx, refusal.block)
     AccountChangeRefusal.Withheld -> L10n.settings_account_use_withheld(ctx)
+    AccountChangeRefusal.NoLongerShared -> L10n.settings_account_shared_withdrawn(ctx)
     is AccountChangeRefusal.Other -> refusal.detail
 }

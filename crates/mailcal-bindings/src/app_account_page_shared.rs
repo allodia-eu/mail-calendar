@@ -113,9 +113,7 @@ impl MailcalApp {
                     .find(|mailbox| mailbox.handle == handle)
                 else {
                     return Some(AccountChangeNotice::SharedMailboxFailed {
-                        refusal: AccountChangeRefusal::Other {
-                            detail: "the server no longer offers that mailbox".to_owned(),
-                        },
+                        refusal: AccountChangeRefusal::NoLongerShared,
                     });
                 };
                 self.set_shared_mailbox(account, mailbox, on)
