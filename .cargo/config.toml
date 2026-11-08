@@ -41,13 +41,21 @@ xtask = 'run --package xtask --quiet --'
 #
 # ⚠️ A RUSTFLAGS environment variable suppresses `target.*.rustflags` outright, silently undoing
 # all of this; clients/windows/rust-crt.ps1 asserts on the built artifact to catch that.
+#
+# ⚠️ **A string, never an array**, here and for every other value in this file. A worktree under
+# `.claude/worktrees/` reads its own copy of this file and the main checkout's, and cargo
+# concatenates arrays across files where the nearer string simply wins. As an array the flag is
+# passed twice in every worktree, which changes cargo's artifact hashes, so no compiler cache can
+# match a worktree against the main checkout. The two ends must agree on the type: a string in one
+# and an array in the other fails every cargo command with `failed to merge configuration` until
+# the older checkout is rebased.
 # ---------------------------------------------------------------------------------------------
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = "-C target-feature=+crt-static"
 
 [target.aarch64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
+rustflags = "-C target-feature=+crt-static"
 
 # ---------------------------------------------------------------------------------------------
 # Engine path override (simultaneous engine + core development).
