@@ -1,48 +1,32 @@
 // Reusable building blocks for the unified Settings screen (see SettingsScreen.kt): the
-// language override card and the per-account "New mail" card (fetch depth + push/poll behaviour +
-// watched folders); the quote-style card lives in SettingsQuoteStyle.kt. Split out of SettingsScreen so each
-// file stays under the 500-line limit (gradle auto-globs the package). State lives in the Rust
-// core (the SyncSettingsSnapshot / persisted preferences); these only render it and dispatch
-// the setters, which re-signal SETTINGS. The language override is the one exception, it is a
-// host concern (AppCompat's per-app locale), applied immediately by recreating the activity.
+// language override card, an account's sharing picker and the single-choice row the screen's
+// option lists are drawn with; the quote-style card lives in SettingsQuoteStyle.kt. Split out of
+// SettingsScreen so each file stays under the 500-line limit (gradle auto-globs the package). The
+// language override is a host concern (AppCompat's per-app locale), applied immediately by
+// recreating the activity.
 package eu.allodia.mailcal
 
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
-import uniffi.mailcal_bindings.AccountSyncRow
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
-import uniffi.mailcal_bindings.SyncSettingsSnapshot
-import uniffi.mailcal_bindings.SyncStrategyKind
 
 // The app-language override as tappable rows: "System default", then one row per language the
 // catalog ships, each labelled with its own endonym ("Deutsch", never "German"). The rows come
@@ -134,148 +118,6 @@ internal fun AccountSyncModePicker(
     )
 }
 
-// One account's mail settings, on its page in Settings → Accounts: the name it sends under, how far
-// back to download (fetch depth), whether to receive mail as it arrives (IMAP IDLE push, shown only
-// when the server supports it) or on a schedule, and which folders to watch for push.
-@Composable
-internal fun AccountSyncCard(
-    account: AccountSyncRow,
-    settings: SyncSettingsSnapshot,
-    onSetSyncDepth: (account: String, months: UShort) -> Unit,
-    onSetMessageSize: (account: String, megabytes: UShort) -> Unit,
-    onSetStrategy: (account: String, strategy: SyncStrategyKind) -> Unit,
-    onSetPollInterval: (account: String, minutes: UShort) -> Unit,
-    onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
-    onSetSenderName: (account: String, name: String) -> Unit,
-) {
-    val ctx = LocalContext.current
-    Column(modifier = Modifier.fillMaxWidth()) {
-        // The name this account sends under: the one thing on the card a recipient can see, so
-        // it comes before the questions about how much of the account this device keeps
-        // (docs/settings.md).
-        SenderNameField(account, onSetSenderName)
-        Spacer(modifier = Modifier.height(12.dp))
-        // Fetch depth, how far back this account downloads mail (per-account).
-        FetchDepthPicker(account, settings.syncDepths) { months ->
-            onSetSyncDepth(account.accountId, months)
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        // Message size, the largest message kept offline (per-account).
-        MessageSizePicker(account, settings.messageSizeLimitsMb) { megabytes ->
-            onSetMessageSize(account.accountId, megabytes)
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        // The strategy choice. Push is offered only when the server advertises IDLE;
-        // otherwise we explain it and show the polling intervals only.
-        if (account.idleSupported) {
-            StrategyRow(
-                label = L10n.settings_sync_strategy_push(ctx),
-                selected = account.strategy == SyncStrategyKind.PUSH,
-            ) { onSetStrategy(account.accountId, SyncStrategyKind.PUSH) }
-            StrategyRow(
-                label = L10n.settings_sync_strategy_poll(ctx),
-                selected = account.strategy == SyncStrategyKind.POLL,
-            ) { onSetStrategy(account.accountId, SyncStrategyKind.POLL) }
-        } else {
-            Text(
-                L10n.settings_sync_idle_unsupported(ctx),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        when (account.strategy) {
-            SyncStrategyKind.PUSH ->
-                PushFolders(account, settings.maxPushFolders.toInt(), onSetPushFolder)
-            SyncStrategyKind.POLL -> PollIntervals(account, settings, onSetPollInterval)
-        }
-    }
-}
-
-// The per-account fetch-depth dropdown, built from the shared depth set so it never hardcodes.
-// "All time" is the 0-month sentinel; a month count otherwise.
-@Composable
-private fun FetchDepthPicker(
-    account: AccountSyncRow,
-    depths: List<UShort>,
-    onSelect: (UShort) -> Unit,
-) {
-    val ctx = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
-    fun label(months: UShort): String =
-        if (months == 0.toUShort()) L10n.sync_depth_all(ctx) else L10n.sync_depth_months(ctx, months.toInt())
-    Text(L10n.settings_sync_depth_heading(ctx), style = MaterialTheme.typography.labelLarge)
-    Text(
-        L10n.settings_sync_depth_description(ctx),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Box {
-        TextButton(onClick = { expanded = true }) {
-            Text(label(account.syncDepthMonths), maxLines = 1)
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_drop_down),
-                contentDescription = L10n.settings_sync_depth_label(ctx),
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            depths.forEach { months ->
-                DropdownMenuItem(
-                    text = { Text(label(months)) },
-                    onClick = {
-                        expanded = false
-                        onSelect(months)
-                    },
-                )
-            }
-        }
-    }
-}
-
-// The per-account message-size dropdown, built from the shared option set so it never hardcodes.
-// "Any size" is the 0-megabyte sentinel; a megabyte count otherwise.
-@Composable
-private fun MessageSizePicker(
-    account: AccountSyncRow,
-    limits: List<UShort>,
-    onSelect: (UShort) -> Unit,
-) {
-    val ctx = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
-    fun label(megabytes: UShort): String =
-        if (megabytes == 0.toUShort()) {
-            L10n.message_size_unlimited(ctx)
-        } else {
-            L10n.message_size_megabytes(ctx, megabytes.toInt())
-        }
-    Text(L10n.settings_message_size_heading(ctx), style = MaterialTheme.typography.labelLarge)
-    Text(
-        L10n.settings_message_size_description(ctx),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    Box {
-        TextButton(onClick = { expanded = true }) {
-            Text(label(account.messageSizeLimitMb), maxLines = 1)
-            Icon(
-                painter = painterResource(R.drawable.ic_arrow_drop_down),
-                contentDescription = L10n.settings_message_size_label(ctx),
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            limits.forEach { megabytes ->
-                DropdownMenuItem(
-                    text = { Text(label(megabytes)) },
-                    onClick = {
-                        expanded = false
-                        onSelect(megabytes)
-                    },
-                )
-            }
-        }
-    }
-}
-
 @Composable
 internal fun StrategyRow(label: String, selected: Boolean, onSelect: () -> Unit) {
     Row(
@@ -284,60 +126,5 @@ internal fun StrategyRow(label: String, selected: Boolean, onSelect: () -> Unit)
     ) {
         RadioButton(selected = selected, onClick = onSelect)
         Text(label, style = MaterialTheme.typography.bodyLarge)
-    }
-}
-
-// The poll-interval radio list, built from the shared interval set so it never hardcodes.
-@Composable
-private fun PollIntervals(
-    account: AccountSyncRow,
-    settings: SyncSettingsSnapshot,
-    onSetPollInterval: (account: String, minutes: UShort) -> Unit,
-) {
-    val ctx = LocalContext.current
-    Text(L10n.settings_sync_interval_label(ctx), style = MaterialTheme.typography.labelLarge)
-    settings.pollIntervals.forEach { minutes ->
-        StrategyRow(
-            label = L10n.settings_sync_interval_minutes(ctx, minutes.toInt()),
-            selected = account.pollIntervalMins == minutes,
-        ) { onSetPollInterval(account.accountId, minutes) }
-    }
-}
-
-// The push-folder checklist. Unchecked folders are disabled once the account is at the cap.
-@Composable
-private fun PushFolders(
-    account: AccountSyncRow,
-    maxFolders: Int,
-    onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
-) {
-    val ctx = LocalContext.current
-    Text(L10n.settings_sync_folders_heading(ctx), style = MaterialTheme.typography.labelLarge)
-    Text(
-        L10n.settings_sync_folders_note(ctx, maxFolders),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-    account.folders.forEach { folder ->
-        val enabled = folder.subscribed || !account.atPushLimit
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(enabled = enabled) {
-                    onSetPushFolder(account.accountId, folder.key, !folder.subscribed)
-                }
-                .padding(vertical = 2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Checkbox(
-                checked = folder.subscribed,
-                onCheckedChange = { checked -> onSetPushFolder(account.accountId, folder.key, checked) },
-                enabled = enabled,
-            )
-            Text(
-                folderLabel(folder.role, folder.name, LocalContext.current),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-        }
     }
 }

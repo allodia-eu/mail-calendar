@@ -4,7 +4,7 @@
 //! to one of them and is measured from that surface's own top.
 
 use super::{
-    super::{model::EventIdentity, paint::Rect},
+    super::{blocks::GAP, model::EventIdentity, paint::Rect},
     scene::{BandPaint, EventPaint, GUTTER, GridScene, HEADING_HEIGHT, LANE_HEIGHT, pixels},
 };
 use crate::l10n;
@@ -70,17 +70,19 @@ impl Geometry {
     }
 }
 
+/// Where a timed block is drawn, hit and announced: the one copy of that arithmetic, a gap clear of
+/// its neighbours on every side.
 fn timed_hit(scene: &GridScene, event: &EventPaint, day_width: f64) -> Hit {
     let lane_width = day_width / f64::from(event.columns);
+    let minutes = f64::from(event.end_minutes.saturating_sub(event.start_minutes));
     Hit {
         identity: Some(event.identity.clone()),
         spoken: event.spoken.clone(),
         rect: Rect {
-            x: GUTTER + pixels(event.day) * day_width + f64::from(event.column) * lane_width + 1.0,
-            y: f64::from(event.start_minutes) * scene.hour_height / 60.0,
-            width: (lane_width - 2.0).max(1.0),
-            height: (f64::from(event.end_minutes - event.start_minutes) * scene.hour_height / 60.0)
-                .max(3.0),
+            x: GUTTER + pixels(event.day) * day_width + f64::from(event.column) * lane_width + GAP,
+            y: f64::from(event.start_minutes) * scene.hour_height / 60.0 + GAP,
+            width: (lane_width - GAP * 2.0).max(1.0),
+            height: (minutes * scene.hour_height / 60.0 - GAP * 2.0).max(3.0),
         },
     }
 }

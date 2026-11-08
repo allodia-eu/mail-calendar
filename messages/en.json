@@ -721,13 +721,11 @@
 
 	"settings_sync_depth_heading": "Sync depth",
 	"settings_sync_depth_description": "How far back to download mail. Older messages stay on the server until you widen this.",
-	"settings_sync_depth_label": "Download",
 	"sync_depth_months": "Last {count} months",
 	"sync_depth_all": "All time",
 
 	"settings_message_size_heading": "Message size",
 	"settings_message_size_description": "The largest message to download in the background. Larger ones stay on the server and download when you open them.",
-	"settings_message_size_label": "Download up to",
 	"message_size_megabytes": "{count} MB",
 	"message_size_unlimited": "Any size",
 	"sync_downloading": "Downloading {fetched} of {total}…",

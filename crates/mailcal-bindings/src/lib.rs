@@ -22,6 +22,7 @@ use mailcal_app::{Account, App};
 mod about;
 mod account_capability;
 mod account_page;
+mod account_page_mail;
 mod account_registry;
 mod account_repair;
 mod account_sign_in;
@@ -189,7 +190,7 @@ pub use allodia_sync::{
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_accounts_consent::AccountConsentStart;
 pub use app_display::stored_appearance;
-pub use app_month::calendar_palette;
+pub use app_month::{calendar_event_swatch, calendar_palette};
 pub use app_sender_name::sender_label;
 pub use app_server_change::{ServerChange, ServerChangeAnswer};
 pub use app_shared_mailboxes::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView};
@@ -247,8 +248,9 @@ pub use records::{
     },
 };
 pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountLinkPicker, AccountPage,
-    AccountUseBlock, AccountUseStatus, AccountUseSwitch, ControlState,
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountCountChoice, AccountLinkPicker,
+    AccountMailSettings, AccountPage, AccountSenderName, AccountToggle, AccountUseBlock,
+    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

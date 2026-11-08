@@ -1,12 +1,10 @@
-// An account's page, its mail settings: the name it sends under, how far back and how much it
-// keeps, push or poll and the folders it watches, and, for a JMAP account whose pasted password or
-// API token the server stopped accepting, the field that replaces it. Drawn only while the account
-// is used for mail and the core lists its mailbox. And the sharing picker the page opens with.
-//
-// A strategy or folder change alters the section's layout, so those go through Apply() and redraw;
-// a depth, size or interval change does not, so it sets directly.
+// An account's page, its mail settings as the core's page record says them: how far back and how
+// much it keeps, push or poll and the folders it watches, and, for a JMAP account whose pasted
+// password or API token the server stopped accepting, the field that replaces it. Drawn only while
+// the account is used for mail. And the sharing picker the page opens with.
 
-using Allodia.Mailcal.ViewModels;
+using Allodia.Mailcal.Controls;
+using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -86,15 +84,10 @@ public sealed partial class SettingsDialog
         _ => L10n.SettingsAccountSyncOffHint(),
     };
 
-    /// <summary>The mail settings, while the account is used for mail and the core lists its
-    /// mailbox.</summary>
-    private UIElement? MailGroup(AccountEntry entry, bool expired)
+    /// <summary>The mail settings, while the account is used for mail, as the core's page record
+    /// says them.</summary>
+    private UIElement MailGroup(AccountEntry entry, AccountMailSettings mail, bool expired)
     {
-        var settings = _model.GetSyncSettings();
-        if (settings?.Accounts.FirstOrDefault(account => account.AccountId == entry.Id) is not { } account)
-        {
-            return null;
-        }
         // An account whose servers are editable takes its new password in that section, so this
         // offers it only to a JMAP account holding a pasted password or API token.
         var replacesSecret = expired
@@ -105,67 +98,24 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(SecretRemedy(entry));
         }
+        var id = entry.Id;
+        panel.Children.Add(Count(
+            L10n.SettingsSyncDepthHeading(), L10n.SettingsSyncDepthDescription(), mail.Depth,
+            months => months == 0 ? L10n.SyncDepthAll() : L10n.SyncDepthMonths(months), "AccountSyncDepth",
+            months => new AccountPageIntent.SetSyncDepth(id, months)));
+        panel.Children.Add(Count(
+            L10n.SettingsMessageSizeHeading(), L10n.SettingsMessageSizeDescription(), mail.Size,
+            mb => mb == 0 ? L10n.MessageSizeUnlimited() : L10n.MessageSizeMegabytes(mb), "AccountMessageSize",
+            mb => new AccountPageIntent.SetMessageSizeLimit(id, mb)));
 
-        // The name this account sends under: the one thing here a recipient can see, so it comes
-        // before the questions about how much of the account this device keeps (docs/settings.md).
-        panel.Children.Add(BuildSenderName(account));
-
-        // Fetch depth, how far back this account downloads mail (per-account). A depth change
-        // doesn't change the card's layout, so it sets directly (no rebuild), like the interval.
-        panel.Children.Add(new TextBlock { Text = L10n.SettingsSyncDepthHeading() });
-        panel.Children.Add(Description(L10n.SettingsSyncDepthDescription()));
-        var depthOptions = settings.SyncDepths.Select(m => new DepthOption(m, DepthLabel(m))).ToList();
-        var depthBox = new ComboBox
+        // How mail arrives: as it comes (IMAP IDLE, where the server offers it) or on a timer.
+        if (mail.Push is { } push)
         {
-            MinWidth = 220,
-            ItemsSource = depthOptions,
-            SelectedItem = depthOptions.FirstOrDefault(o => o.Months == account.SyncDepthMonths),
-        };
-        depthBox.SelectionChanged += (_, _) =>
-        {
-            if (!_rebuilding && depthBox.SelectedItem is DepthOption option)
-            {
-                _model.SetAccountSyncDepthChoice(account.AccountId, option.Months);
-            }
-        };
-        // The heading above is a sibling TextBlock, which carries no relation a screen reader
-        // follows, so the picker needs its own name, the catalog's field label, as Android uses it.
-        AutomationProperties.SetName(depthBox, L10n.SettingsSyncDepthLabel());
-        panel.Children.Add(depthBox);
-
-        // Message size, the largest message kept offline (per-account). Like the depth, it sets
-        // directly: the choice changes no layout, so the card needs no rebuild.
-        panel.Children.Add(new TextBlock { Text = L10n.SettingsMessageSizeHeading() });
-        panel.Children.Add(Description(L10n.SettingsMessageSizeDescription()));
-        var sizeOptions = settings.MessageSizeLimitsMb
-            .Select(mb => new MessageSizeOption(mb, MessageSizeLabel(mb)))
-            .ToList();
-        var sizeBox = new ComboBox
-        {
-            MinWidth = 220,
-            ItemsSource = sizeOptions,
-            SelectedItem = sizeOptions.FirstOrDefault(o => o.Megabytes == account.MessageSizeLimitMb),
-        };
-        sizeBox.SelectionChanged += (_, _) =>
-        {
-            if (!_rebuilding && sizeBox.SelectedItem is MessageSizeOption option)
-            {
-                _model.SetAccountMessageSizeChoice(account.AccountId, option.Megabytes);
-            }
-        };
-        AutomationProperties.SetName(sizeBox, L10n.SettingsMessageSizeLabel());
-        panel.Children.Add(sizeBox);
-
-        // Sync behaviour, push (IMAP IDLE, when supported) vs. interval polling.
-        if (account.IdleSupported)
-        {
-            var group = $"strategy-{account.AccountId}";
-            panel.Children.Add(Radio(
-                L10n.SettingsSyncStrategyPush(), group, account.Strategy == SyncStrategyChoice.Push,
-                () => _model.SetSyncStrategyChoice(account.AccountId, true), rebuild: true));
-            panel.Children.Add(Radio(
-                L10n.SettingsSyncStrategyPoll(), group, account.Strategy == SyncStrategyChoice.Poll,
-                () => _model.SetSyncStrategyChoice(account.AccountId, false), rebuild: true));
+            panel.Children.Add(ControlComponents.ComboBox(
+                L10n.SettingsSyncStrategyLabel(),
+                [L10n.SettingsSyncStrategyPush(), L10n.SettingsSyncStrategyPoll()],
+                push.On ? 0 : 1, push.Control, "AccountSyncStrategy",
+                at => _model.ChangeAccount(new AccountPageIntent.SetPush(id, at == 0))));
         }
         else
         {
@@ -175,14 +125,39 @@ public sealed partial class SettingsDialog
                 TextWrapping = TextWrapping.Wrap,
             });
         }
-
-        panel.Children.Add(account.Strategy == SyncStrategyChoice.Push
-            ? PushFolders(account, settings.MaxPushFolders)
-            : PollIntervals(account, settings.PollIntervals));
+        if (mail.Interval is { } interval)
+        {
+            panel.Children.Add(Count(
+                L10n.SettingsSyncIntervalLabel(), null, interval,
+                minutes => L10n.SettingsSyncIntervalMinutes(minutes), "AccountPollInterval",
+                minutes => new AccountPageIntent.SetPollInterval(id, minutes)));
+        }
+        if (mail.Push?.On == true)
+        {
+            panel.Children.Add(WatchedFolders(id, mail));
+        }
         return Group(
             L10n.NavMail(),
             replacesSecret ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry)) : L10n.SettingsSyncDescription(),
             panel);
+    }
+
+    /// <summary>A combo box over <paramref name="choice"/>'s counts, worded by
+    /// <paramref name="label"/>, asking for the count picked.</summary>
+    private UIElement Count(
+        string header, string? note, AccountCountChoice choice, Func<ushort, string> label,
+        string automationId, Func<ushort, AccountPageIntent> intent)
+    {
+        var panel = new StackPanel { Spacing = 4 };
+        var box = ControlComponents.ComboBox(
+            header, choice.Options.Select(label).ToList(), (int)choice.Selected, choice.Control, automationId,
+            at => _model.ChangeAccount(intent(choice.Options[at])));
+        panel.Children.Add(box);
+        if (note is not null)
+        {
+            panel.Children.Add(Description(note));
+        }
+        return panel;
     }
 
     /// <summary>A new password or API token for a JMAP account the server stopped accepting,
@@ -217,76 +192,25 @@ public sealed partial class SettingsDialog
         return stack;
     }
 
-    private UIElement PollIntervals(AccountSyncChoice account, IReadOnlyList<ushort> intervals)
-    {
-        var options = intervals
-            .Select(minutes => new IntervalOption(minutes, L10n.SettingsSyncIntervalMinutes(minutes)))
-            .ToList();
-        var combo = new ComboBox
-        {
-            Header = L10n.SettingsSyncIntervalLabel(),
-            ItemsSource = options,
-            SelectedItem = options.FirstOrDefault(option => option.Minutes == account.PollIntervalMins),
-        };
-        // An interval change doesn't change the layout, so it sets directly (no rebuild).
-        combo.SelectionChanged += (_, _) =>
-        {
-            if (!_rebuilding && combo.SelectedItem is IntervalOption option)
-            {
-                _model.SetPollIntervalChoice(account.AccountId, option.Minutes);
-            }
-        };
-        return combo;
-    }
-
-    private UIElement PushFolders(AccountSyncChoice account, int maxFolders)
+    private UIElement WatchedFolders(string id, AccountMailSettings mail)
     {
         var panel = new StackPanel { Spacing = 4 };
         panel.Children.Add(new TextBlock { Text = L10n.SettingsSyncFoldersHeading() });
         panel.Children.Add(new TextBlock
         {
-            Text = L10n.SettingsSyncFoldersNote(maxFolders),
+            Text = L10n.SettingsSyncFoldersNote(mail.WatchLimit),
             TextWrapping = TextWrapping.Wrap,
         });
-        foreach (var folder in account.Folders)
+        foreach (var folder in mail.Folders)
         {
-            var check = new CheckBox
-            {
-                Content = folder.Name,
-                IsChecked = folder.Subscribed,
-                // Unchecked folders are disabled once the account is at the cap.
-                IsEnabled = folder.Subscribed || !account.AtPushLimit,
-            };
-            check.Checked += (_, _) => Apply(() => _model.SetPushFolderChoice(account.AccountId, folder.Key, true));
-            check.Unchecked += (_, _) => Apply(() => _model.SetPushFolderChoice(account.AccountId, folder.Key, false));
-            panel.Children.Add(check);
+            // The same word the folder pane uses (docs/folder-pane.md rule 13).
+            var key = folder.Key;
+            var toggle = new ControlToggle(
+                FolderLabel.For(folder.Role, folder.Name), null, folder.On, folder.Control,
+                $"AccountWatchedFolder_{key}",
+                on => _model.ChangeAccount(new AccountPageIntent.SetWatchedFolder(id, key, on)));
+            panel.Children.Add(toggle.Element);
         }
         return panel;
-    }
-
-    // The label for a fetch-depth option: a month count, or "All time" for the 0 sentinel.
-    private static string DepthLabel(ushort months) =>
-        months == 0 ? L10n.SyncDepthAll() : L10n.SyncDepthMonths(months);
-
-    // The label for a message-size option: a megabyte count, or "Any size" for the 0 sentinel.
-    private static string MessageSizeLabel(ushort megabytes) =>
-        megabytes == 0 ? L10n.MessageSizeUnlimited() : L10n.MessageSizeMegabytes(megabytes);
-
-    // A message-size option; ToString is the localised label so the ComboBox shows it directly.
-    private sealed record MessageSizeOption(ushort Megabytes, string Label)
-    {
-        public override string ToString() => Label;
-    }
-
-    // A fetch-depth option; ToString is the localised label so the ComboBox shows it directly.
-    private sealed record DepthOption(ushort Months, string Label)
-    {
-        public override string ToString() => Label;
-    }
-
-    // One interval option; ToString is the localised label so the ComboBox shows it directly.
-    private sealed record IntervalOption(ushort Minutes, string Label)
-    {
-        public override string ToString() => Label;
     }
 }

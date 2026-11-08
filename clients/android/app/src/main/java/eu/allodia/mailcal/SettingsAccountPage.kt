@@ -39,7 +39,7 @@ import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 /**
  * One account's page: its uses, links and removal as the core decided them ([page]), the rest from
  * [entry]. [syncMode] is how it is shared with the other devices, null in a build with no Allodia
- * sign-in; [mail] draws its mail settings, and nothing while it has no mailbox listed.
+ * sign-in.
  */
 @Composable
 internal fun AccountPage(
@@ -48,7 +48,6 @@ internal fun AccountPage(
     ui: AccountsSettingsUi,
     syncMode: AllodiaAccountSyncMode?,
     onSetSyncMode: (AllodiaAccountSyncMode) -> Unit,
-    mail: @Composable () -> Unit,
 ) {
     val ctx = LocalContext.current
     Text(
@@ -63,6 +62,10 @@ internal fun AccountPage(
     if (syncMode != null) {
         AccountSyncModePicker(syncMode, onSetSyncMode)
         Spacer(modifier = Modifier.height(12.dp))
+    }
+    page.senderName?.let { name ->
+        AccountSenderNameGroup(entry, name, ui)
+        Spacer(modifier = Modifier.height(8.dp))
     }
     SettingsGroupCard(
         L10n.settings_account_uses_heading(ctx),
@@ -119,7 +122,10 @@ internal fun AccountPage(
         Spacer(modifier = Modifier.height(8.dp))
         ServersGroup(entry, endpoints, expired, ui)
     }
-    mail()
+    page.mail?.let { mail ->
+        Spacer(modifier = Modifier.height(8.dp))
+        AccountMailGroup(entry, mail, ui)
+    }
     Spacer(modifier = Modifier.height(16.dp))
     RemoveAccount(entry, page.remove, ui)
 }

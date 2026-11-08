@@ -11,7 +11,7 @@ use crate::records::AccountRow;
 
 /// The special role a folder plays (RFC 6154 SPECIAL-USE / JMAP equivalent), exposed on
 /// [`FolderRow`] so a client can badge or group well-known folders without name heuristics.
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderRole {
     /// The primary inbox.
     Inbox,

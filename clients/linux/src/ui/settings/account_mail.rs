@@ -1,20 +1,21 @@
 //! An account's mail settings, on its page: credentials, fetch depth, message size, live delivery
-//! and watched folders. Drawn only while the account is used for mail.
+//! and watched folders, as the core's page record says them. Drawn only while the account is used
+//! for mail.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountProvider, AccountSyncRow, SyncSettingsSnapshot, SyncStrategyKind};
+use mailcal_bindings::{AccountMailSettings, AccountPageIntent, AccountProvider};
 
-use super::{PageContext, group};
+use super::{PageContext, account_page::change, group};
 use crate::{
     l10n,
-    ui::{folder_names::folder_label, mailbox::plain_text_row},
+    ui::{controls, folder_names::folder_label},
 };
 
 pub(super) fn mail_group(
     ctx: &PageContext,
-    account: &AccountSyncRow,
+    account: &str,
+    mail: &AccountMailSettings,
     name: &str,
-    snapshot: &SyncSettingsSnapshot,
     signin_expired: bool,
     provider: Option<&AccountProvider>,
 ) -> adw::PreferencesGroup {
@@ -24,7 +25,7 @@ pub(super) fn mail_group(
             Some(AccountProvider::Password | AccountProvider::Jmap)
         );
     let description = if can_replace_secret {
-        if ctx.credential_repair_failed.as_deref() == Some(account.account_id.as_str()) {
+        if ctx.credential_repair_failed.as_deref() == Some(account) {
             l10n::signin_expired_failed().to_owned()
         } else {
             l10n::signin_expired_prompt(name)
@@ -36,114 +37,74 @@ pub(super) fn mail_group(
     if can_replace_secret {
         add_secret_remedy(
             &section,
-            &account.account_id,
+            account,
             provider.expect("secret remedy has a provider"),
             &ctx.sender,
         );
     }
-    // The name this account sends under: the one thing on the card a recipient can see, so it
-    // comes before the questions about how much of the account this device keeps
-    // (`docs/settings.md`).
-    super::sender_name::add_row(&section, account, &ctx.sender);
-    let depth_labels = snapshot
-        .sync_depths
+    let sender = &ctx.sender;
+
+    let labels: Vec<String> = mail
+        .depth
+        .options
         .iter()
-        .map(|months| {
-            if *months == 0 {
-                l10n::sync_depth_all().to_owned()
-            } else {
-                l10n::sync_depth_months(i64::from(*months))
-            }
+        .map(|months| match months {
+            0 => l10n::sync_depth_all().to_owned(),
+            months => l10n::sync_depth_months(i64::from(*months)),
         })
-        .collect::<Vec<_>>();
-    let selected = snapshot
-        .sync_depths
-        .iter()
-        .position(|months| *months == account.sync_depth_months)
-        .and_then(|index| u32::try_from(index).ok())
-        .unwrap_or(0);
-    let row = adw::ActionRow::builder()
-        .title(l10n::settings_sync_depth_heading())
-        .subtitle(l10n::settings_sync_depth_description())
-        .use_markup(false)
-        .build();
-    let labels = depth_labels.iter().map(String::as_str).collect::<Vec<_>>();
-    let picker = gtk::DropDown::from_strings(&labels);
-    picker.set_selected(selected);
-    let app = ctx.app.clone();
-    let account_id = account.account_id.clone();
-    let depths = snapshot.sync_depths.clone();
-    picker.connect_selected_notify(move |picker| {
-        if let Some(months) = depths.get(picker.selected() as usize) {
-            app.set_account_sync_depth(account_id.clone(), *months);
-        }
-    });
-    row.add_suffix(&picker);
+        .collect();
+    let row = pick(
+        l10n::settings_sync_depth_heading(),
+        &labels,
+        &mail.depth,
+        sender,
+        account,
+        |account, months| AccountPageIntent::SetSyncDepth { account, months },
+    );
+    row.set_subtitle(l10n::settings_sync_depth_description());
     section.add(&row);
 
-    // Message size; the largest message kept offline (per-account).
-    let size_labels = snapshot
-        .message_size_limits_mb
+    // Message size: the largest message kept offline.
+    let labels: Vec<String> = mail
+        .size
+        .options
         .iter()
-        .map(|megabytes| {
-            if *megabytes == 0 {
-                l10n::message_size_unlimited().to_owned()
-            } else {
-                l10n::message_size_megabytes(i64::from(*megabytes))
-            }
+        .map(|megabytes| match megabytes {
+            0 => l10n::message_size_unlimited().to_owned(),
+            megabytes => l10n::message_size_megabytes(i64::from(*megabytes)),
         })
-        .collect::<Vec<_>>();
-    let selected = snapshot
-        .message_size_limits_mb
-        .iter()
-        .position(|megabytes| *megabytes == account.message_size_limit_mb)
-        .and_then(|index| u32::try_from(index).ok())
-        .unwrap_or(0);
-    // Built with the setters rather than the builder: a translated title or subtitle may hold a
-    // bare ampersand, and the builder cannot promise `use-markup` is applied before the text.
-    let row = plain_text_row();
-    row.set_title(l10n::settings_message_size_heading());
+        .collect();
+    let row = pick(
+        l10n::settings_message_size_heading(),
+        &labels,
+        &mail.size,
+        sender,
+        account,
+        |account, megabytes| AccountPageIntent::SetMessageSizeLimit { account, megabytes },
+    );
     row.set_subtitle(l10n::settings_message_size_description());
-    let labels = size_labels.iter().map(String::as_str).collect::<Vec<_>>();
-    let picker = gtk::DropDown::from_strings(&labels);
-    picker.set_selected(selected);
-    let app = ctx.app.clone();
-    let account_id = account.account_id.clone();
-    let limits = snapshot.message_size_limits_mb.clone();
-    picker.connect_selected_notify(move |picker| {
-        if let Some(megabytes) = limits.get(picker.selected() as usize) {
-            app.set_account_message_size_limit(account_id.clone(), *megabytes);
-        }
-    });
-    row.add_suffix(&picker);
     section.add(&row);
 
-    if account.idle_supported {
-        let row = adw::ActionRow::builder()
-            .title(l10n::settings_sync_strategy_label())
-            .use_markup(false)
-            .build();
-        let picker = gtk::DropDown::from_strings(&[
-            l10n::settings_sync_strategy_push(),
-            l10n::settings_sync_strategy_poll(),
-        ]);
-        picker.set_selected(match account.strategy {
-            SyncStrategyKind::Push => 0,
-            SyncStrategyKind::Poll => 1,
-        });
-        let app = ctx.app.clone();
-        let account_id = account.account_id.clone();
-        picker.connect_selected_notify(move |picker| {
-            app.set_sync_strategy(
-                account_id.clone(),
-                if picker.selected() == 0 {
-                    SyncStrategyKind::Push
-                } else {
-                    SyncStrategyKind::Poll
-                },
-            );
-        });
-        row.add_suffix(&picker);
+    if let Some(push) = mail.push {
+        let (sender, account) = (sender.clone(), account.to_owned());
+        let (row, _) = controls::picker_row(
+            l10n::settings_sync_strategy_label(),
+            &[
+                l10n::settings_sync_strategy_push(),
+                l10n::settings_sync_strategy_poll(),
+            ],
+            u32::from(!push.on),
+            push.control,
+            move |at| {
+                change(
+                    &sender,
+                    AccountPageIntent::SetPush {
+                        account: account.clone(),
+                        on: at == 0,
+                    },
+                );
+            },
+        );
         section.add(&row);
     } else {
         section.add(
@@ -154,12 +115,45 @@ pub(super) fn mail_group(
                 .build(),
         );
     }
-
-    match account.strategy {
-        SyncStrategyKind::Poll => add_poll_row(ctx, account, snapshot, &section),
-        SyncStrategyKind::Push => add_folder_rows(ctx, account, snapshot, &section),
+    if let Some(interval) = &mail.interval {
+        let labels: Vec<String> = interval
+            .options
+            .iter()
+            .map(|minutes| l10n::settings_sync_interval_minutes(i64::from(*minutes)))
+            .collect();
+        section.add(&pick(
+            l10n::settings_sync_interval_label(),
+            &labels,
+            interval,
+            sender,
+            account,
+            |account, minutes| AccountPageIntent::SetPollInterval { account, minutes },
+        ));
+    }
+    if mail.push.is_some_and(|push| push.on) {
+        add_folder_rows(sender, account, mail, &section);
     }
     section
+}
+
+/// A picker row over `choice`'s counts, worded as `labels`, asking for the count picked.
+fn pick(
+    title: &str,
+    labels: &[String],
+    choice: &mailcal_bindings::AccountCountChoice,
+    sender: &relm4::Sender<super::super::AppInput>,
+    account: &str,
+    intent: impl Fn(String, u16) -> AccountPageIntent + 'static,
+) -> adw::ActionRow {
+    let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+    let (sender, account, options) = (sender.clone(), account.to_owned(), choice.options.clone());
+    let (row, _) =
+        controls::picker_row(title, &labels, choice.selected, choice.control, move |at| {
+            if let Some(count) = options.get(at as usize) {
+                change(&sender, intent(account.clone(), *count));
+            }
+        });
+    row
 }
 
 fn add_secret_remedy(
@@ -215,76 +209,41 @@ fn secret_remedy_row(
     row
 }
 
-fn add_poll_row(
-    ctx: &PageContext,
-    account: &AccountSyncRow,
-    snapshot: &SyncSettingsSnapshot,
-    section: &adw::PreferencesGroup,
-) {
-    let labels = snapshot
-        .poll_intervals
-        .iter()
-        .map(|minutes| l10n::settings_sync_interval_minutes(i64::from(*minutes)))
-        .collect::<Vec<_>>();
-    let refs = labels.iter().map(String::as_str).collect::<Vec<_>>();
-    let picker = gtk::DropDown::from_strings(&refs);
-    let selected = snapshot
-        .poll_intervals
-        .iter()
-        .position(|minutes| *minutes == account.poll_interval_mins)
-        .and_then(|index| u32::try_from(index).ok())
-        .unwrap_or(0);
-    picker.set_selected(selected);
-    let app = ctx.app.clone();
-    let account_id = account.account_id.clone();
-    let intervals = snapshot.poll_intervals.clone();
-    picker.connect_selected_notify(move |picker| {
-        if let Some(minutes) = intervals.get(picker.selected() as usize) {
-            app.set_poll_interval(account_id.clone(), *minutes);
-        }
-    });
-    let row = adw::ActionRow::builder()
-        .title(l10n::settings_sync_interval_label())
-        .use_markup(false)
-        .build();
-    row.add_suffix(&picker);
-    section.add(&row);
-}
-
 fn add_folder_rows(
-    ctx: &PageContext,
-    account: &AccountSyncRow,
-    snapshot: &SyncSettingsSnapshot,
+    sender: &relm4::Sender<super::super::AppInput>,
+    account: &str,
+    mail: &AccountMailSettings,
     section: &adw::PreferencesGroup,
 ) {
     section.add(
         &adw::ActionRow::builder()
             .title(l10n::settings_sync_folders_heading())
             .subtitle(l10n::settings_sync_folders_note(i64::from(
-                snapshot.max_push_folders,
+                mail.watch_limit,
             )))
             .use_markup(false)
             .build(),
     );
-    for folder in &account.folders {
-        let row = adw::SwitchRow::new();
-        // A folder name is the server's text, not ours: `PreferencesRow` titles are Pango markup
-        // by default, so "Sales & Marketing" would fail to parse and render blank. A setter,
-        // before the title; the property builder applies properties in GObject's order, not the
-        // written one, so a builder can set the title while markup is still on.
-        row.set_use_markup(false);
+    for folder in &mail.folders {
+        let (sender, account, key) = (sender.clone(), account.to_owned(), folder.key.clone());
         // The same word the pane uses. A folder called two things in one app is worse than one
         // called something odd in both (`docs/folder-pane.md` rule 13).
-        row.set_title(&folder_label(folder.role.as_ref(), &folder.name));
-        row.set_active(folder.subscribed);
-        row.set_sensitive(folder.subscribed || !account.at_push_limit);
-        let app = ctx.app.clone();
-        let account_id = account.account_id.clone();
-        let folder_id = folder.key.clone();
-        row.connect_active_notify(move |row| {
-            app.set_push_folder(account_id.clone(), folder_id.clone(), row.is_active());
-        });
-        section.add(&row);
+        section.add(&controls::switch_row(
+            &folder_label(folder.role.as_ref(), &folder.name),
+            None,
+            folder.on,
+            folder.control,
+            move |_, on| {
+                change(
+                    &sender,
+                    AccountPageIntent::SetWatchedFolder {
+                        account: account.clone(),
+                        key: key.clone(),
+                        on,
+                    },
+                );
+            },
+        ));
     }
 }
 

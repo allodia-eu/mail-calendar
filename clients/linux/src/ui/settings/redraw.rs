@@ -3,12 +3,13 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use adw::prelude::*;
+use adw::{glib, prelude::*};
 
 /// What to do with the core's settings signal while Accounts is on screen.
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Signalled {
-    Draw,
+pub(super) enum Signalled<T> {
+    /// Draw from what was just read, so the pages read nothing again.
+    Draw(T),
     /// The accounts are as drawn: the signal was about another page's setting.
     Skip,
     /// The person is typing; ask again on the next update.
@@ -36,35 +37,90 @@ pub(super) fn signalled<T: PartialEq>(
     typing: bool,
     drawn: Option<&T>,
     now: impl FnOnce() -> T,
-) -> Signalled {
+) -> Signalled<T> {
     if typing {
-        Signalled::Wait
-    } else if drawn == Some(&now()) {
+        return Signalled::Wait;
+    }
+    let now = now();
+    if drawn == Some(&now) {
         Signalled::Skip
     } else {
-        Signalled::Draw
+        Signalled::Draw(now)
     }
 }
 
 /// Whether a redraw would take something the person is typing: the caret is in a field, or a
 /// field was edited since the window was drawn. The second holds after the caret moves on, which
-/// is usually to the button that submits what was typed.
+/// is usually to the button that submits what was typed. A field that sends what was typed
+/// itself counts only while it holds text it has not sent.
 pub(super) fn typing(window: &gtk::Window, edited: bool) -> bool {
     edited
-        || GtkWindowExt::focus(window)
-            .is_some_and(|focus| focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>())
+        || GtkWindowExt::focus(window).is_some_and(|focus| {
+            crate::ui::controls::unsent(&focus)
+                .unwrap_or_else(|| focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>())
+        })
 }
 
-/// Sets `edited` when the person changes any field under `root`. Connected after the page is
-/// built, so the text a page is drawn with does not count.
+/// A list open over the page, such as a picker's: a redraw now would close it under the pointer
+/// and lose the pick.
+pub(super) fn open_popover(root: &gtk::Widget) -> Option<gtk::Popover> {
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(popover) = widget
+            .downcast_ref::<gtk::Popover>()
+            .filter(|popover| popover.is_visible())
+        {
+            return Some(popover.clone());
+        }
+        if let Some(popover) = open_popover(&widget) {
+            return Some(popover);
+        }
+        child = widget.next_sibling();
+    }
+    None
+}
+
+/// Whether a redraw waits for a list open over `window`, asked again once it closes: drawn now,
+/// the list would close under the pointer, and the pick, which the core queues behind what runs,
+/// would be lost. `waiting_on` keeps the list already watched, so a second signal while it is open
+/// connects nothing more.
+pub(super) fn wait_for_open_list(
+    window: Option<&gtk::Window>,
+    waiting_on: &mut Option<glib::WeakRef<gtk::Popover>>,
+    sender: &relm4::Sender<crate::ui::AppInput>,
+) -> bool {
+    let Some(open) = window.and_then(|window| open_popover(window.upcast_ref())) else {
+        return false;
+    };
+    if waiting_on
+        .as_ref()
+        .and_then(glib::WeakRef::upgrade)
+        .as_ref()
+        != Some(&open)
+    {
+        let again = sender.clone();
+        open.connect_closed(move |_| {
+            again.emit(crate::ui::AppInput::SurfaceChanged(
+                mailcal_bindings::Surface::Settings,
+            ));
+        });
+        *waiting_on = Some(open.downgrade());
+    }
+    true
+}
+
+/// Sets `edited` when the person changes any field under `root` that waits for a button to send
+/// it. Connected after the page is built, so the text a page is drawn with does not count.
 pub(super) fn watch_edits(root: &gtk::Widget, edited: &Rc<Cell<bool>>) {
     let mut child = root.first_child();
     while let Some(widget) = child {
-        if let Some(editable) = widget.dynamic_cast_ref::<gtk::Editable>() {
-            let edited = Rc::clone(edited);
-            editable.connect_changed(move |_| edited.set(true));
+        if crate::ui::controls::unsent(&widget).is_none() {
+            if let Some(editable) = widget.dynamic_cast_ref::<gtk::Editable>() {
+                let edited = Rc::clone(edited);
+                editable.connect_changed(move |_| edited.set(true));
+            }
+            watch_edits(&widget, edited);
         }
-        watch_edits(&widget, edited);
         child = widget.next_sibling();
     }
 }

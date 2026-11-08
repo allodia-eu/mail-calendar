@@ -277,10 +277,10 @@ private const val PREVIEW_MAX_HEIGHT_DP = 240f
 
 /**
  * The spoken label for a calendar record: the unanswered-hold disclosure, then "video meeting",
- * appended where each applies.
+ * then "repeats", appended where each applies.
  *
- * The dashed border and hatched gutter that mark an unanswered invitation, and the camera that
- * marks a meeting, are **invisible to a screen reader**, so the label has to say them,
+ * The dashed border and hatched gutter that mark an unanswered invitation, and the camera and
+ * repeat glyphs, are **invisible to a screen reader**, so the label has to say them,
  * docs/calendar.md §4 and docs/conferencing.md rule 7. Shared by the grid block and the all-day
  * bar so one rule covers every drawn surface.
  */
@@ -291,10 +291,13 @@ internal fun calendarEventLabel(
     calendar: String,
     participation: ResponseStatus,
     hasConference: Boolean,
+    repeats: Boolean = false,
 ): String {
     var label = L10n.calendar_event_a11y(ctx, title, time, calendar)
     if (isAwaitingResponse(participation)) label += ", ${L10n.a11y_invitation_awaiting_response(ctx)}"
-    return EventMeeting.spoken(label, L10n.event_video_meeting(ctx), hasConference)
+    label = EventMeeting.spoken(label, L10n.event_video_meeting(ctx), hasConference)
+    // The repeat glyph is drawn on a canvas, so the label says what it shows.
+    return if (repeats) "$label, ${L10n.a11y_event_repeats(ctx)}" else label
 }
 
 /**

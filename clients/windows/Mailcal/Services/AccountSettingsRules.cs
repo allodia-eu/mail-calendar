@@ -267,11 +267,29 @@ internal static class AccountSettingsRules
             yield return $"link:{picker.Slot}={picker.Selected}/{picker.Suggested}/{Control(picker.Control)}/"
                 + string.Join(',', picker.Options.Select(Linked));
         }
+        if (page.SenderName is { } name)
+        {
+            yield return $"name:{name.Name}/{name.Editable}/{Control(name.Control)}";
+        }
+        if (page.Mail is { } mail)
+        {
+            yield return $"depth:{Count(mail.Depth)}";
+            yield return $"size:{Count(mail.Size)}";
+            yield return $"push:{mail.Push?.On}/{(mail.Push is { } push ? Control(push.Control) : "")}";
+            yield return $"interval:{(mail.Interval is { } interval ? Count(interval) : "")}";
+            foreach (var folder in mail.Folders)
+            {
+                yield return $"folder:{folder.Key}={folder.Name}/{folder.Role}/{folder.On}/{Control(folder.Control)}";
+            }
+        }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
     }
 
     private static string Control(ControlState control) => $"{control.Enabled}|{control.Running}";
+
+    private static string Count(AccountCountChoice choice) =>
+        $"{string.Join(',', choice.Options)}@{choice.Selected}/{Control(choice.Control)}";
 
     private static string Linked(LinkedAccount? linked) =>
         linked is null ? "-" : $"{linked.Id}={linked.Address}/{Distinction(linked.Distinction)}";

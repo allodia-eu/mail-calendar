@@ -103,8 +103,6 @@ extension MailboxModel {
         app.setAgentHostUi(ui: AgentComposerBridge(model: self))
         app.setMcpEndpoint(endpoint: McpEndpoint.path(dataDirName: dataDirName))
         mcpSettings = app.mcpSettings()
-        // Pull the per-account sync-behaviour settings so the "New mail" screen opens current.
-        syncSettings = app.syncSettings()
         refreshAccountsSnapshot()
         // The swipe actions are read while rendering every row, so mirror them now rather
         // than crossing the FFI per row; the composer's From dropdown wants the stored

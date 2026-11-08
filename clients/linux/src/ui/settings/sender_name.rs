@@ -1,82 +1,54 @@
-//! The "your name" row on an account's settings card: what recipients see beside the address on
-//! the mail this account sends (`docs/sending.md`).
-//!
-//! Its own file so `accounts.rs` stays under the line limit, and because this is the one control
-//! on the card whose effect a stranger can see; everything else there is about how much of the
-//! account this device keeps.
+//! The "your name" row on an account's page: what recipients see beside the address on the mail
+//! this account sends (`docs/sending.md`), as the core's page record says it.
 
 use adw::prelude::*;
-use mailcal_bindings::AccountSyncRow;
+use mailcal_bindings::{AccountPageIntent, AccountSenderName};
 
-use crate::{l10n, ui::AppInput};
+use crate::{
+    l10n,
+    ui::{AppInput, controls},
+};
 
-/// Adds the name field, or the note that the name is not this person's to change.
-///
-/// The edit is sent on **activate** (return) and on losing focus, never on every keystroke: a
-/// per-keystroke write would push a half-typed name to the provider and rebuild the snapshot
-/// under the cursor.
-pub(super) fn add_row(
-    section: &adw::PreferencesGroup,
-    account: &AccountSyncRow,
+/// The name's own group, drawn directly under the sharing control: the one thing on the page a
+/// recipient can see, so it comes before how much of the account this device keeps
+/// (`docs/settings.md`).
+pub(super) fn group(
+    account: &str,
+    name: &AccountSenderName,
     sender: &relm4::Sender<AppInput>,
-) {
-    if !account.sender_name_editable {
+) -> adw::PreferencesGroup {
+    let section = adw::PreferencesGroup::new();
+    if !name.editable {
         // The name is the organisation's. Show it, and say why there is no field, rather than a
         // dead entry that reads as a bug.
-        let shown = if account.sender_name.is_empty() {
-            account.email.clone()
-        } else {
-            account.sender_name.clone()
-        };
         let row = adw::ActionRow::builder()
             .title(l10n::settings_sender_name_heading())
             .subtitle(l10n::settings_sender_name_managed())
             .use_markup(false)
             .build();
-        let value = gtk::Label::new(Some(&shown));
+        let value = gtk::Label::new(Some(&name.name));
         value.set_valign(gtk::Align::Center);
         row.add_suffix(&value);
         section.add(&row);
-        return;
+        return section;
     }
-
-    let row = adw::ActionRow::builder()
-        .title(l10n::settings_sender_name_heading())
-        .subtitle(l10n::settings_sender_name_description())
-        .use_markup(false)
-        .build();
-    let entry = gtk::Entry::new();
-    entry.set_placeholder_text(Some(l10n::settings_sender_name_heading()));
-    entry.set_text(&account.sender_name);
-    entry.set_valign(gtk::Align::Center);
-    entry.set_width_chars(24);
-
-    let commit = {
-        let sender = sender.clone();
-        let account_id = account.account_id.clone();
-        let stored = account.sender_name.clone();
-        move |entry: &gtk::Entry| {
-            let typed = entry.text().to_string();
-            // Nothing changed: tabbing through the card costs no write, and no snapshot
-            // rebuild that would reseed the entry mid-edit.
-            if typed == stored {
-                return;
-            }
-            sender.emit(AppInput::SetAccountSenderName {
-                account: account_id.clone(),
-                name: typed,
-            });
-        }
-    };
-    let on_activate = commit.clone();
-    entry.connect_activate(move |entry| on_activate(entry));
-    let controller = gtk::EventControllerFocus::new();
-    let entry_for_focus = entry.clone();
-    controller.connect_leave(move |_| commit(&entry_for_focus));
-    entry.add_controller(controller);
-
-    row.add_suffix(&entry);
-    section.add(&row);
+    let (sender, account) = (sender.clone(), account.to_owned());
+    section.add(&controls::text_row(
+        l10n::settings_sender_name_heading(),
+        l10n::settings_sender_name_description(),
+        &name.name,
+        name.control,
+        move |typed| {
+            super::account_page::change(
+                &sender,
+                AccountPageIntent::SetSenderName {
+                    account: account.clone(),
+                    name: typed,
+                },
+            );
+        },
+    ));
+    section
 }
 
 #[cfg(test)]

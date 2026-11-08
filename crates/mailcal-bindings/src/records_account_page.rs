@@ -2,7 +2,7 @@
 //! control on it, what it shows, whether it can be used, and whether work it started is still
 //! running (`docs/waiting.md`). A client draws this and keeps no rule of its own about it.
 
-use crate::{AccountCapability, LinkSlot, LinkedAccount, UseProblem};
+use crate::{AccountCapability, FolderRole, LinkSlot, LinkedAccount, UseProblem};
 
 /// What a control the person can act on is doing, as every client draws it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
@@ -87,6 +87,68 @@ pub struct AccountLinkPicker {
     pub control: ControlState,
 }
 
+/// The name an account's mail is sent under (`docs/sending.md`), drawn under the sharing control
+/// while the account is used for mail.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountSenderName {
+    /// What the field holds, empty when nobody has set one. Where the name is not `editable` it is
+    /// the line drawn instead, and falls back to the account's address.
+    pub name: String,
+    /// The person may change it: `false` where the provider holds the name, as a Microsoft
+    /// mailbox's directory does, and the page says so instead of offering a field.
+    pub editable: bool,
+    pub control: ControlState,
+}
+
+/// A choice of one count from a list, such as months of mail or megabytes. `0` in `options`
+/// means all of it, which the client words.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountCountChoice {
+    pub options: Vec<u16>,
+    /// The index into `options` of the count in effect.
+    pub selected: u32,
+    pub control: ControlState,
+}
+
+/// A folder that can be watched for mail as it arrives.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountWatchedFolder {
+    /// The folder's key, sent back to watch it or not.
+    pub key: String,
+    /// Its server name with the folders it sits in; a client words a role-bearing folder its own
+    /// way, as the folder pane does (`docs/folder-pane.md`).
+    pub name: String,
+    pub role: Option<FolderRole>,
+    pub on: bool,
+    /// Held as well while it is off and the most folders an account may watch already are.
+    pub control: ControlState,
+}
+
+/// How an account's mail arrives and how much of it this device keeps (`docs/settings.md`).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountMailSettings {
+    /// Months of mail kept.
+    pub depth: AccountCountChoice,
+    /// The largest message downloaded in full in the background, in megabytes.
+    pub size: AccountCountChoice,
+    /// Mail arrives as it comes (`on`) or on a timer. `None` where the server cannot push, and the
+    /// page says the account checks on a timer.
+    pub push: Option<AccountToggle>,
+    /// Minutes between checks, while the account checks on a timer.
+    pub interval: Option<AccountCountChoice>,
+    /// The folders watched, while mail arrives as it comes.
+    pub folders: Vec<AccountWatchedFolder>,
+    /// The most folders an account may watch, which the page says above them.
+    pub watch_limit: u8,
+}
+
+/// A setting that is on or off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct AccountToggle {
+    pub on: bool,
+    pub control: ControlState,
+}
+
 /// Something about the page's last change that needs saying, once. A change that worked says
 /// nothing: the page shows its result.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
@@ -110,6 +172,10 @@ pub struct AccountPage {
     pub account: String,
     pub uses: Vec<AccountUseSwitch>,
     pub links: Vec<AccountLinkPicker>,
+    /// While the account is used for mail.
+    pub sender_name: Option<AccountSenderName>,
+    /// While the account is used for mail.
+    pub mail: Option<AccountMailSettings>,
     pub remove: ControlState,
     /// What the last change came to, when it needs saying; `id` grows with each, so a client
     /// says each one once.
