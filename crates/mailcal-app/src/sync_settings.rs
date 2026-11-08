@@ -159,7 +159,7 @@ impl<P: Provider> App<P> {
         let mut rows = Vec::with_capacity(accounts.len());
         // How mail syncs, so only for an account that has mail.
         for account in accounts.iter().filter(|account| account.uses_mail) {
-            rows.push(self.sync_row(account).await);
+            rows.push(self.sync_row(account, None).await);
         }
         SyncSettingsSnapshot {
             accounts: rows,
@@ -194,19 +194,26 @@ impl<P: Provider> App<P> {
     /// re-picking. Persists and signals [`Surface::Settings`]. The bindings restart the
     /// account's background work after this.
     pub async fn set_sync_strategy(&self, id: &str, strategy: SyncStrategyKind) {
-        let Some(eff) = self.effective_for(id).await else {
-            return;
-        };
-        self.store_entry(
-            id,
-            AccountSyncSettings {
-                strategy: to_strategy(strategy),
-                push_folders: eff.push_folders,
-                poll_interval_mins: eff.poll_interval_mins,
-                sync_depth: self.stored_depth_override(id),
-                message_size_limit: self.stored_size_override(id),
-            },
-        );
+        if let Some(entry) = self.strategy_entry(id, strategy).await {
+            self.store_entry(id, entry);
+        }
+    }
+
+    /// What switching `id` to `strategy` stores, which the account's page also draws while the
+    /// switch runs.
+    async fn strategy_entry(
+        &self,
+        id: &str,
+        strategy: SyncStrategyKind,
+    ) -> Option<AccountSyncSettings> {
+        let eff = self.effective_for(id).await?;
+        Some(AccountSyncSettings {
+            strategy: to_strategy(strategy),
+            push_folders: eff.push_folders,
+            poll_interval_mins: eff.poll_interval_mins,
+            sync_depth: self.stored_depth_override(id),
+            message_size_limit: self.stored_size_override(id),
+        })
     }
 
     /// Sets an account's poll interval (snapped to the allowed set), leaving its strategy

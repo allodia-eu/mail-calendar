@@ -133,8 +133,10 @@ internal fun ControlTextButton(
 
 /**
  * A text field under its title, which tells [onCommit] what was typed on Done and when it loses
- * focus, and only when it differs from [text]: never on every keystroke, which would store a
- * half-typed value and redraw the page under the cursor.
+ * focus, and only when it differs from what it last told, starting from [text]: never on every
+ * keystroke, which would store a half-typed value and redraw the page under the cursor, and never
+ * twice for one edit, as Done and then the focus leaving would. The focus leaving includes another
+ * change holding the field; the core runs what was typed once that change ends.
  */
 @Composable
 internal fun ControlTextField(
@@ -147,7 +149,13 @@ internal fun ControlTextField(
     // Seeded again whenever the core draws another value, so a field never carries what an older
     // page said.
     var draft by remember(text) { mutableStateOf(text) }
-    val commit = { if (draft != text) onCommit(draft) }
+    var sent by remember(text) { mutableStateOf(text) }
+    val commit = {
+        if (draft != sent) {
+            sent = draft
+            onCommit(draft)
+        }
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = draft,

@@ -16,13 +16,9 @@ fn spinner(control: ControlState) -> Option<adw::Spinner> {
     })
 }
 
-/// An action row whose title and subtitle are plain text. Set through the setters, markup first:
-/// a translated title may hold a bare ampersand, and a builder applies properties in `GObject`'s
-/// order rather than the written one, so it can set the title while markup is still on and draw
-/// it blank.
+/// An action row titled `title` in plain text: a translated title may hold a bare ampersand.
 fn plain_row(title: &str) -> adw::ActionRow {
-    let row = adw::ActionRow::new();
-    row.set_use_markup(false);
+    let row = super::mailbox::plain_text_row();
     row.set_title(title);
     row
 }
@@ -97,9 +93,24 @@ pub(super) fn button_row(
     row
 }
 
+/// Marks a field that sends what was typed itself, so a redraw of the page does not wait on it
+/// once it has.
+const SENDS_ITSELF: &str = "sends-itself";
+/// Marks such a field while it holds text it has not sent.
+const UNSENT: &str = "unsent";
+
+/// Whether `widget` sits in a field that sends what was typed itself, and if so, whether that
+/// field holds text it has not sent yet.
+pub(super) fn unsent(widget: &gtk::Widget) -> Option<bool> {
+    std::iter::successors(Some(widget.clone()), gtk::Widget::parent)
+        .find(|widget| widget.has_css_class(SENDS_ITSELF))
+        .map(|field| field.has_css_class(UNSENT))
+}
+
 /// A row with a text field, which tells `committed` what was typed on Return and when it loses
-/// focus, and only when it differs from `text`: never on every keystroke, which would store a
-/// half-typed value and redraw the page under the cursor.
+/// focus, and only when it differs from what it last told, starting from `text`: never on every
+/// keystroke, which would store a half-typed value and redraw the page under the cursor, and never
+/// twice for one edit, as Return and then the focus leaving would.
 pub(super) fn text_row(
     title: &str,
     subtitle: &str,
@@ -118,10 +129,21 @@ pub(super) fn text_row(
     entry.set_valign(gtk::Align::Center);
     entry.set_width_chars(24);
     entry.set_sensitive(control.enabled);
-    let drawn = text.to_owned();
+    entry.add_css_class(SENDS_ITSELF);
+    let sent = std::rc::Rc::new(std::cell::RefCell::new(text.to_owned()));
+    let unsent_now = sent.clone();
+    entry.connect_changed(move |entry| {
+        if entry.text() == unsent_now.borrow().as_str() {
+            entry.remove_css_class(UNSENT);
+        } else {
+            entry.add_css_class(UNSENT);
+        }
+    });
     let commit = std::rc::Rc::new(move |entry: &gtk::Entry| {
         let typed = entry.text().to_string();
-        if typed != drawn {
+        if typed != *sent.borrow() {
+            sent.replace(typed.clone());
+            entry.remove_css_class(UNSENT);
             committed(typed);
         }
     });

@@ -4,8 +4,10 @@
 use std::collections::HashSet;
 
 use engine_api::{AccountId, Provider};
-use mailcal_account::{MAX_PUSH_FOLDERS, SyncStrategy};
-use mailcal_viewmodel::{AccountSyncRow, SyncFolderRow, folder_paths, sorted_folder_rows};
+use mailcal_account::{AccountSyncSettings, MAX_PUSH_FOLDERS, SyncStrategy};
+use mailcal_viewmodel::{
+    AccountSyncRow, SyncFolderRow, SyncStrategyKind, folder_paths, sorted_folder_rows,
+};
 
 use super::{kind, resolve};
 use crate::{
@@ -14,16 +16,31 @@ use crate::{
 };
 
 impl<P: Provider> App<P> {
-    /// `id`'s row, or `None` for an account that is gone or not used for mail.
-    pub async fn sync_settings_row(&self, id: &str) -> Option<AccountSyncRow> {
+    /// `id`'s row, or `None` for an account that is gone or not used for mail. `going` is the
+    /// strategy a running switch is moving the account to: the row is then drawn as the switch
+    /// will store it, its watched folders included.
+    pub async fn sync_settings_row(
+        &self,
+        id: &str,
+        going: Option<SyncStrategyKind>,
+    ) -> Option<AccountSyncRow> {
         let account = self.account_handle(&AccountId::try_from(id).ok()?).await?;
         if !account.uses_mail {
             return None;
         }
-        Some(self.sync_row(&account).await)
+        let stored = match going {
+            Some(strategy) => Some(self.strategy_entry(id, strategy).await?),
+            None => None,
+        };
+        Some(self.sync_row(&account, stored).await)
     }
 
-    pub(crate) async fn sync_row(&self, account: &Account<P>) -> AccountSyncRow {
+    /// `account`'s row, from `going` in place of its stored settings when given.
+    pub(crate) async fn sync_row(
+        &self,
+        account: &Account<P>,
+        going: Option<AccountSyncSettings>,
+    ) -> AccountSyncRow {
         // IDLE is a server property, so any provider's capability answers for the account;
         // checking all is cheap and robust to which folder bound first.
         let idle_supported = account
@@ -37,7 +54,7 @@ impl<P: Provider> App<P> {
                 .lock()
                 .expect("sync-settings mutex poisoned");
             (
-                guard.get(account.id.as_str()),
+                going.or_else(|| guard.get(account.id.as_str())),
                 u16::from(guard.effective_depth(account.id.as_str())),
             )
         };

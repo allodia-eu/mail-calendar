@@ -16,8 +16,10 @@ before the work does.
    Greying the control alone is not that: it reads as broken.
 2. **A running control cannot start the same work again,** and while one account change runs,
    every account page holds its controls, so two changes never race: one account's change can
-   write another's (a link is stored on both ends). The exception is
-   a browser sign-in, where a fresh press supersedes the attempt still out
+   write another's (a link is stored on both ends). A change that still arrives meanwhile, as a
+   text field sends what was typed when the held page takes its focus, waits and runs next, drawn
+   running from then; the same work asked for again is dropped. The exception is a browser
+   sign-in, where a fresh press supersedes the attempt still out
    ([`provider-oauth.md`](provider-oauth.md) rule 13).
 3. **When the surface the control sat on closes, the progress goes on where the person lands.** A
    dialog that closes on Save hands its progress to the surface beneath it (the calendar's write
@@ -40,21 +42,21 @@ Every control a person can act on carries a `ControlState`: `enabled`, and `runn
 started is under way. A running control is never enabled. A Settings page is a record the core
 produces (`MailcalApp::account_page` for an account's page), read again on every
 `Surface::Settings` signal; its changes are dispatched (`Intent::AccountPage`) and return at once, and
-the signal is raised when one starts and when it ends. A use's switch carries `blocked`, why the
+the signal is raised when one starts, when one is queued behind it and when each ends. A use's switch carries `blocked`, why the
 core would refuse pressing it, asked of the registry's `toggle`, which `set_use` acts on too, so a
 switch is enabled exactly when nothing blocks it and no change runs; and `status`, what is wrong
 with the use, said beside it whether or not it can be pressed. Only the page that started a change marks its
 control running, drawn at the value it is moving to rather than the one it is leaving; every other
 page holds its controls without a spinner. While the account is used for mail the page carries
 its `sender_name` and its `mail` settings too (fetch depth, message size, push or poll, the
-interval, the watched folders), each a control of its own: a change to one is stored before it
-ends, and what follows from it (telling the provider the name, reconciling the mail to a new depth
+interval, the watched folders), each a control of its own, a switch to push drawn with the
+folders it will watch: a change to one is stored before it ends, and what follows from it (telling the provider the name, reconciling the mail to a new depth
 or size) runs on afterwards as sync work the page does not wait on. The page's `notice` carries
 an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
 Each client draws `ControlState` through one set of components of its own (a switch row, a button,
-a picker, a confirmation), in its platform's idiom, so a control drawn anywhere waits the same way:
+a text field, a picker, a confirmation), in its platform's idiom, so a control drawn anywhere waits the same way:
 [`controls.rs`](../clients/linux/src/ui/controls.rs) on Linux,
 [`ControlComponents.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/ControlComponents.kt)
 on Android,
@@ -62,7 +64,8 @@ on Android,
 on macOS, iOS and iPadOS, and
 [`ControlComponents.cs`](../clients/windows/Mailcal/Controls/ControlComponents.cs) on Windows, whose
 confirmation is drawn inline because Settings is itself a dialog and a nested one is not allowed.
-Every control on a page the core draws goes through them, one that only opens something (a
+A text field sends what was typed on Return and when it loses focus, once for each edit, and a
+redraw waits on it only while it holds text it has not sent. Every control on a page the core draws goes through them, one that only opens something (a
 question, a form) included: it is given a state that never runs, so it is held while a change runs
 on the page and the spinner stays with the control that started it. A platform control of the
 client's own is drawn only where the core gives no state yet, and the fix there is the core's
@@ -86,6 +89,9 @@ record, not a state the client keeps.
   page as it is put together: a refused switch held and saying why, a status said beside it, one
   Review beneath the paused uses, the link pickers, and running work holding every control and
   marking its own, drawn where it is going.
+- [`account_work_tests.rs`](../crates/mailcal-bindings/src/account_work_tests.rs) pins the
+  queue: a change asked for while another runs waits and runs next, the same work asked twice is
+  dropped, and a removal drops what waited for its account.
 - [`account_page_mail_tests.rs`](../crates/mailcal-bindings/src/account_page_mail_tests.rs) pins
   the page's mail half: a name the provider holds falls back to the address, a server that cannot
   push offers only the interval, a folder past the watch limit is held, and a running change is
@@ -95,10 +101,13 @@ record, not a state the client keeps.
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
 - [`app_account_page_tests.rs`](../crates/mailcal-bindings/src/app_account_page_tests.rs) drives a
   change through `dispatch`: it runs and the page comes back free, one the core refuses leaves a
-  notice, and a mail setting and the name are on the page once they end.
+  notice, and a mail setting and a name asked for while it runs are both on the page once they
+  end.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
-  ([`controls.rs`](../clients/linux/src/ui/controls.rs), and the name's row in
-  [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs)), Android's in
+  ([`controls.rs`](../clients/linux/src/ui/controls.rs), the name's row in
+  [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs), and a redraw
+  waiting on a field only until it has sent in
+  [`redraw_tests.rs`](../clients/linux/src/ui/settings/redraw_tests.rs)), Android's in
   [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt)
   and
   [`SettingsAccountMailTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountMailTest.kt),

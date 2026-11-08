@@ -7,8 +7,9 @@ use adw::prelude::*;
 
 /// What to do with the core's settings signal while Accounts is on screen.
 #[derive(Debug, PartialEq, Eq)]
-pub(super) enum Signalled {
-    Draw,
+pub(super) enum Signalled<T> {
+    /// Draw from what was just read, so the pages read nothing again.
+    Draw(T),
     /// The accounts are as drawn: the signal was about another page's setting.
     Skip,
     /// The person is typing; ask again on the next update.
@@ -36,35 +37,43 @@ pub(super) fn signalled<T: PartialEq>(
     typing: bool,
     drawn: Option<&T>,
     now: impl FnOnce() -> T,
-) -> Signalled {
+) -> Signalled<T> {
     if typing {
-        Signalled::Wait
-    } else if drawn == Some(&now()) {
+        return Signalled::Wait;
+    }
+    let now = now();
+    if drawn == Some(&now) {
         Signalled::Skip
     } else {
-        Signalled::Draw
+        Signalled::Draw(now)
     }
 }
 
 /// Whether a redraw would take something the person is typing: the caret is in a field, or a
 /// field was edited since the window was drawn. The second holds after the caret moves on, which
-/// is usually to the button that submits what was typed.
+/// is usually to the button that submits what was typed. A field that sends what was typed
+/// itself counts only while it holds text it has not sent.
 pub(super) fn typing(window: &gtk::Window, edited: bool) -> bool {
     edited
-        || GtkWindowExt::focus(window)
-            .is_some_and(|focus| focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>())
+        || GtkWindowExt::focus(window).is_some_and(|focus| {
+            crate::ui::controls::unsent(&focus).unwrap_or_else(|| {
+                focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>()
+            })
+        })
 }
 
-/// Sets `edited` when the person changes any field under `root`. Connected after the page is
-/// built, so the text a page is drawn with does not count.
+/// Sets `edited` when the person changes any field under `root` that waits for a button to send
+/// it. Connected after the page is built, so the text a page is drawn with does not count.
 pub(super) fn watch_edits(root: &gtk::Widget, edited: &Rc<Cell<bool>>) {
     let mut child = root.first_child();
     while let Some(widget) = child {
-        if let Some(editable) = widget.dynamic_cast_ref::<gtk::Editable>() {
-            let edited = Rc::clone(edited);
-            editable.connect_changed(move |_| edited.set(true));
+        if crate::ui::controls::unsent(&widget).is_none() {
+            if let Some(editable) = widget.dynamic_cast_ref::<gtk::Editable>() {
+                let edited = Rc::clone(edited);
+                editable.connect_changed(move |_| edited.set(true));
+            }
+            watch_edits(&widget, edited);
         }
-        watch_edits(&widget, edited);
         child = widget.next_sibling();
     }
 }

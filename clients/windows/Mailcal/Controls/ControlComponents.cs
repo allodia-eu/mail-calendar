@@ -52,31 +52,38 @@ internal static class ControlComponents
     }
 
     /// <summary>
-    /// A text box under its header, which tells <paramref name="commit"/> what was typed on Enter
-    /// and when it loses focus, and only when it differs from <paramref name="text"/>: never on
-    /// every keystroke, which would store a half-typed value and redraw the page under the cursor.
+    /// A text box named <paramref name="name"/>, which the page's own heading stands above, and
+    /// which tells <paramref name="commit"/> what was typed on Enter,
+    /// when it loses focus and when the page is redrawn without it, and only when it differs from
+    /// what it last told, starting from <paramref name="text"/>: never on every keystroke, which
+    /// would store a half-typed value and redraw the page under the cursor, and never twice for
+    /// one edit, as Enter and then the focus leaving would. A redraw for another change takes the
+    /// box away; the core runs what was typed once that change ends.
     /// </summary>
     internal static StackPanel TextBox(
-        string header, string text, ControlState control, string automationId, Action<string> commit)
+        string name, string text, ControlState control, string automationId, Action<string> commit)
     {
         var box = new TextBox
         {
-            Header = header,
+            PlaceholderText = name,
             Text = text,
             MinWidth = 260,
             HorizontalAlignment = HorizontalAlignment.Left,
             IsEnabled = control.Enabled,
         };
-        AutomationProperties.SetName(box, header);
+        AutomationProperties.SetName(box, name);
         AutomationProperties.SetAutomationId(box, automationId);
+        var sent = text;
         void Send()
         {
-            if (box.Text != text)
+            if (box.Text != sent)
             {
-                commit(box.Text);
+                sent = box.Text;
+                commit(sent);
             }
         }
         box.LostFocus += (_, _) => Send();
+        box.Unloaded += (_, _) => Send();
         box.KeyDown += (_, e) =>
         {
             if (e.Key == Windows.System.VirtualKey.Enter)
@@ -97,7 +104,7 @@ internal static class ControlComponents
         Action<int> pick)
     {
         var box = new ComboBox { Header = header, MinWidth = 260, IsEnabled = control.Enabled };
-        AutomationProperties.SetName(box, header);
+        AutomationProperties.SetName(box, name);
         AutomationProperties.SetAutomationId(box, automationId);
         foreach (var label in labels)
         {

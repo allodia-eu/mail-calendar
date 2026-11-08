@@ -1,48 +1,32 @@
 // Reusable building blocks for the unified Settings screen (see SettingsScreen.kt): the
-// language override card and the per-account "New mail" card (fetch depth + push/poll behaviour +
-// watched folders); the quote-style card lives in SettingsQuoteStyle.kt. Split out of SettingsScreen so each
-// file stays under the 500-line limit (gradle auto-globs the package). State lives in the Rust
-// core (the SyncSettingsSnapshot / persisted preferences); these only render it and dispatch
-// the setters, which re-signal SETTINGS. The language override is the one exception, it is a
-// host concern (AppCompat's per-app locale), applied immediately by recreating the activity.
+// language override card, an account's sharing picker and the single-choice row the screen's
+// option lists are drawn with; the quote-style card lives in SettingsQuoteStyle.kt. Split out of
+// SettingsScreen so each file stays under the 500-line limit (gradle auto-globs the package). The
+// language override is a host concern (AppCompat's per-app locale), applied immediately by
+// recreating the activity.
 package eu.allodia.mailcal
 
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
-import uniffi.mailcal_bindings.AccountSyncRow
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
-import uniffi.mailcal_bindings.SyncSettingsSnapshot
-import uniffi.mailcal_bindings.SyncStrategyKind
 
 // The app-language override as tappable rows: "System default", then one row per language the
 // catalog ships, each labelled with its own endonym ("Deutsch", never "German"). The rows come

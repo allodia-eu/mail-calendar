@@ -45,7 +45,7 @@ fn row() -> AccountSyncRow {
 fn own(work: PageWork) -> Hold {
     Hold {
         busy: true,
-        own: Some(work),
+        own: vec![work],
     }
 }
 
@@ -150,13 +150,23 @@ fn a_running_change_is_drawn_where_it_goes_and_holds_the_rest() {
 
     let (name, _) = mail_half(row(), &own(PageWork::SenderName("Alice".to_owned())));
     assert_eq!((name.name.as_str(), name.control), ("Alice", RUNNING));
+
+    // A change waiting behind the running one is drawn running too, where it goes.
+    let queued = Hold {
+        busy: true,
+        own: vec![PageWork::Depth(12), PageWork::SenderName("Alice".to_owned())],
+    };
+    let (name, mail) = mail_half(row(), &queued);
+    assert_eq!((name.name.as_str(), name.control), ("Alice", RUNNING));
+    assert_eq!(mail.depth.control, RUNNING);
+    assert_eq!(mail.size.control, HELD);
 }
 
 #[test]
 fn another_pages_change_holds_every_control_without_a_spinner() {
     let elsewhere = Hold {
         busy: true,
-        own: None,
+        own: Vec::new(),
     };
     let (name, mail) = mail_half(row(), &elsewhere);
     assert_eq!(name.control, HELD);

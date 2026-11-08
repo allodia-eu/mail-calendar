@@ -286,27 +286,29 @@ fn a_mail_setting_changes_through_the_page() {
         .find(|minutes| *minutes != interval.options[interval.selected as usize])
         .expect("more than one interval is offered");
 
-    app.dispatch(Intent::AccountPage {
-        intent: AccountPageIntent::SetPollInterval {
-            account: ID.to_owned(),
-            minutes: other,
-        },
-    });
-    let interval = settled(&app)
-        .mail
-        .and_then(|mail| mail.interval)
-        .expect("still on a timer");
-    assert_eq!(interval.options[interval.selected as usize], other);
-    assert!(interval.control.enabled && !interval.control.running);
-
+    // Asked for while the interval runs, as a field sends what was typed when the held page
+    // takes its focus: it waits its turn rather than being turned away.
+    for _ in 0..2 {
+        app.dispatch(Intent::AccountPage {
+            intent: AccountPageIntent::SetPollInterval {
+                account: ID.to_owned(),
+                minutes: other,
+            },
+        });
+    }
     app.dispatch(Intent::AccountPage {
         intent: AccountPageIntent::SetSenderName {
             account: ID.to_owned(),
             name: "Alice Example".to_owned(),
         },
     });
-    let name = settled(&app)
-        .sender_name
-        .expect("a mail account sends under a name");
+    let page = settled(&app);
+    let interval = page
+        .mail
+        .and_then(|mail| mail.interval)
+        .expect("still on a timer");
+    assert_eq!(interval.options[interval.selected as usize], other);
+    assert!(interval.control.enabled && !interval.control.running);
+    let name = page.sender_name.expect("a mail account sends under a name");
     assert_eq!(name.name, "Alice Example");
 }

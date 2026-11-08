@@ -132,6 +132,8 @@ struct ControlTextField: View {
     let commit: (String) -> Void
 
     @State private var draft = ""
+    /// What was last told to `commit` since the core drew `text`, so one edit is told once.
+    @State private var sent: String?
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -143,6 +145,8 @@ struct ControlTextField: View {
                 .frame(maxWidth: 320, alignment: .leading)
                 .disabled(!control.enabled)
                 .onSubmit(send)
+                // Also when another change holds the field and takes its focus: the core runs
+                // what was typed once that change ends.
                 .onChange(of: focused) { _, isFocused in
                     if !isFocused { send() }
                 }
@@ -151,12 +155,15 @@ struct ControlTextField: View {
         .onAppear { draft = text }
         // The core drew another value: adopt it, unless the field is being typed in.
         .onChange(of: text) { _, latest in
+            sent = nil
             if !focused { draft = latest }
         }
     }
 
     private func send() {
-        if draft != text { commit(draft) }
+        guard draft != (sent ?? text) else { return }
+        sent = draft
+        commit(draft)
     }
 }
 

@@ -20,11 +20,10 @@ pub(crate) fn mail_half(
         enabled: free && !hold.busy,
         running,
     };
-    let own = hold.own.as_ref();
-    let naming = match own {
-        Some(PageWork::SenderName(name)) => Some(name.clone()),
+    let naming = hold.going(|work| match work {
+        PageWork::SenderName(name) => Some(name.clone()),
         _ => None,
-    };
+    });
     let editable = row.sender_name_editable;
     let sender_name = AccountSenderName {
         control: control(naming.is_some(), editable),
@@ -57,24 +56,24 @@ pub(crate) fn mail_half(
     let depth = count(
         &SYNC_DEPTHS,
         row.sync_depth_months,
-        match own {
-            Some(PageWork::Depth(months)) => Some(*months),
+        hold.going(|work| match work {
+            PageWork::Depth(months) => Some(*months),
             _ => None,
-        },
+        }),
     );
     let size = count(
         &MESSAGE_SIZE_LIMITS_MB,
         row.message_size_limit_mb,
-        match own {
-            Some(PageWork::Size(megabytes)) => Some(*megabytes),
+        hold.going(|work| match work {
+            PageWork::Size(megabytes) => Some(*megabytes),
             _ => None,
-        },
+        }),
     );
 
-    let pushing_to = match own {
-        Some(PageWork::Push(on)) => Some(*on),
+    let pushing_to = hold.going(|work| match work {
+        PageWork::Push(on) => Some(*on),
         _ => None,
-    };
+    });
     let pushes = row.idle_supported && pushing_to.unwrap_or(row.strategy == SyncStrategyKind::Push);
     let push = row.idle_supported.then(|| AccountToggle {
         on: pushes,
@@ -84,20 +83,20 @@ pub(crate) fn mail_half(
         count(
             &POLL_INTERVALS,
             row.poll_interval_mins,
-            match own {
-                Some(PageWork::Interval(minutes)) => Some(*minutes),
+            hold.going(|work| match work {
+                PageWork::Interval(minutes) => Some(*minutes),
                 _ => None,
-            },
+            }),
         )
     });
     let folders = if pushes {
         row.folders
             .into_iter()
             .map(|folder| {
-                let going = match own {
-                    Some(PageWork::Folder { key, on }) if *key == folder.key => Some(*on),
+                let going = hold.going(|work| match work {
+                    PageWork::Folder { key, on } if *key == folder.key => Some(*on),
                     _ => None,
-                };
+                });
                 let on = going.unwrap_or(folder.subscribed);
                 AccountWatchedFolder {
                     control: control(going.is_some(), on || !row.at_push_limit),

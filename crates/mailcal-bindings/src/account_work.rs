@@ -2,11 +2,13 @@
 //!
 //! One change at a time across every account: a change to one account can write another's config
 //! (a link is stored on both ends), so while one runs every account page holds its controls, and
-//! only the page that started it marks its control running. Kept here rather than by any client,
-//! so a page drawn on any platform says the same thing about the same work.
+//! only the page that started it marks its control running. A change that still arrives while
+//! another runs (a field sending what was typed as the held page takes its focus) waits and runs
+//! next; the same work asked for again is dropped. Kept here rather than by any client, so a page
+//! drawn on any platform says the same thing about the same work.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{
         Mutex,
         atomic::{AtomicU64, Ordering},
@@ -72,14 +74,41 @@ impl PageWork {
 pub(crate) struct Hold {
     /// A change runs somewhere, so every control is held.
     pub(crate) busy: bool,
-    /// The change this page started, whose control is drawn running.
-    pub(crate) own: Option<PageWork>,
+    /// The changes this page started, running or waiting in the order they run, whose controls
+    /// are drawn running.
+    pub(crate) own: Vec<PageWork>,
+}
+
+impl Hold {
+    /// Where this page's work takes the control `at` picks out, from the last change that moves
+    /// it, which is where it ends up; `None` when none of it does.
+    pub(crate) fn going<'a, T>(&'a self, at: impl Fn(&'a PageWork) -> Option<T>) -> Option<T> {
+        self.own.iter().rev().find_map(at)
+    }
+}
+
+/// What asking for a change came to.
+#[derive(Debug)]
+pub(crate) enum Start {
+    /// Nothing else runs: run it now.
+    Run(AccountPageIntent),
+    /// It runs once the changes ahead of it end.
+    Waits,
+    /// The same work is already running or waiting.
+    Dropped,
+}
+
+/// The change running and those waiting behind it, each with the account it is for.
+#[derive(Debug, Default)]
+struct Queue {
+    running: Option<(String, PageWork)>,
+    waiting: VecDeque<(String, PageWork, AccountPageIntent)>,
 }
 
 /// Every account page's state.
 #[derive(Debug, Default)]
 pub(crate) struct AccountWork {
-    running: Mutex<Option<(String, PageWork)>>,
+    queue: Mutex<Queue>,
     notices: Mutex<HashMap<String, AccountChangeNoticeRaised>>,
     /// What a removal came to: said on the accounts list, since the page is gone with the account.
     list_notice: Mutex<Option<AccountChangeNoticeRaised>>,
@@ -87,37 +116,49 @@ pub(crate) struct AccountWork {
 }
 
 impl AccountWork {
-    /// Marks `work` running for `account`, and takes away the notice the last change on its page
-    /// left. `false` while another change runs, and then nothing starts.
-    pub(crate) fn start(&self, account: &str, work: PageWork) -> bool {
-        let mut running = self.running.lock().expect("account work mutex poisoned");
-        if running.is_some() {
-            return false;
+    /// Asks for `intent`'s change: it runs now when nothing else does, and takes away the notice
+    /// the last change on its page left; otherwise it waits its turn, unless the same work is
+    /// already running or waiting.
+    pub(crate) fn start(&self, intent: AccountPageIntent) -> Start {
+        let (account, work) = (intent.account().to_owned(), PageWork::of(&intent));
+        let mut queue = self.queue.lock().expect("account work mutex poisoned");
+        let same = |id: &String, other: &PageWork| *id == account && *other == work;
+        if queue
+            .running
+            .as_ref()
+            .is_some_and(|(id, other)| same(id, other))
+            || queue.waiting.iter().any(|(id, other, _)| same(id, other))
+        {
+            return Start::Dropped;
         }
-        *running = Some((account.to_owned(), work));
-        self.notices
-            .lock()
-            .expect("account notice mutex poisoned")
-            .remove(account);
-        true
+        if queue.running.is_some() {
+            queue.waiting.push_back((account, work, intent));
+            return Start::Waits;
+        }
+        queue.running = Some((account.clone(), work));
+        drop(queue);
+        self.forget(&account);
+        Start::Run(intent)
     }
 
     /// The change for `account` ended, saying `notice` when it needs saying: on the account's
-    /// page, or on the accounts list when the change removed it.
-    pub(crate) fn finish(&self, account: &str, notice: Option<AccountChangeNotice>) {
-        let removed = matches!(
-            *self.running.lock().expect("account work mutex poisoned"),
-            Some((_, PageWork::Remove))
-        );
+    /// page, or on the accounts list when the change removed it. Answers the change that runs
+    /// next, now marked running; a waiting change for an account the ended one removed is dropped.
+    /// The next change leaves the notice standing: it was asked for before the notice was raised.
+    pub(crate) fn finish(
+        &self,
+        account: &str,
+        notice: Option<AccountChangeNotice>,
+    ) -> Option<AccountPageIntent> {
+        let mut queue = self.queue.lock().expect("account work mutex poisoned");
+        let removed = matches!(queue.running, Some((_, PageWork::Remove)));
         let raised = notice.map(|notice| AccountChangeNoticeRaised {
             id: self.raised.fetch_add(1, Ordering::Relaxed) + 1,
             notice,
         });
         if removed {
-            self.notices
-                .lock()
-                .expect("account notice mutex poisoned")
-                .remove(account);
+            queue.waiting.retain(|(id, _, _)| id != account);
+            self.forget(account);
             *self
                 .list_notice
                 .lock()
@@ -128,7 +169,12 @@ impl AccountWork {
                 .expect("account notice mutex poisoned")
                 .insert(account.to_owned(), raised);
         }
-        *self.running.lock().expect("account work mutex poisoned") = None;
+        let Some((next_account, work, intent)) = queue.waiting.pop_front() else {
+            queue.running = None;
+            return None;
+        };
+        queue.running = Some((next_account, work));
+        Some(intent)
     }
 
     /// Drops what `account`'s page had to say, for an account that is gone: one added again later
@@ -142,15 +188,19 @@ impl AccountWork {
 
     /// How `account`'s page stands, and the notice it shows.
     pub(crate) fn of(&self, account: &str) -> (Hold, Option<AccountChangeNoticeRaised>) {
-        let running = self.running.lock().expect("account work mutex poisoned");
+        let queue = self.queue.lock().expect("account work mutex poisoned");
         let hold = Hold {
-            busy: running.is_some(),
-            own: running
-                .as_ref()
-                .filter(|(id, _)| id == account)
-                .map(|(_, work)| work.clone()),
+            busy: queue.running.is_some(),
+            own: queue
+                .running
+                .iter()
+                .map(|(id, work)| (id, work))
+                .chain(queue.waiting.iter().map(|(id, work, _)| (id, work)))
+                .filter(|(id, _)| *id == account)
+                .map(|(_, work)| work.clone())
+                .collect(),
         };
-        drop(running);
+        drop(queue);
         let notice = self
             .notices
             .lock()
@@ -168,3 +218,7 @@ impl AccountWork {
             .clone()
     }
 }
+
+#[cfg(test)]
+#[path = "account_work_tests.rs"]
+mod tests;
