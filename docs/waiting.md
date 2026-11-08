@@ -65,7 +65,8 @@ on macOS, iOS and iPadOS, and
 [`ControlComponents.cs`](../clients/windows/Mailcal/Controls/ControlComponents.cs) on Windows, whose
 confirmation is drawn inline because Settings is itself a dialog and a nested one is not allowed.
 A text field sends what was typed on Return and when it loses focus, once for each edit, and a
-redraw waits on it only while it holds text it has not sent. Every control on a page the core draws goes through them, one that only opens something (a
+redraw waits on it only while it holds text it has not sent; a redraw also waits while a picker's
+list is open, which it would close under the pointer, and comes once the list closes. Every control on a page the core draws goes through them, one that only opens something (a
 question, a form) included: it is given a state that never runs, so it is held while a change runs
 on the page and the spinner stays with the control that started it. A platform control of the
 client's own is drawn only where the core gives no state yet, and the fix there is the core's
@@ -106,7 +107,7 @@ record, not a state the client keeps.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
   ([`controls.rs`](../clients/linux/src/ui/controls.rs), the name's row in
   [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs), and a redraw
-  waiting on a field only until it has sent in
+  waiting on a field only until it has sent, and on an open list until it closes, in
   [`redraw_tests.rs`](../clients/linux/src/ui/settings/redraw_tests.rs)), Android's in
   [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt)
   and

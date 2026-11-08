@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use adw::prelude::*;
 use mailcal_bindings::{AccountEntry, AccountKind, AccountsSnapshot};
 
-use super::{Signalled, keep_offset, offset, signalled, typing, watch_edits};
+use super::{Signalled, keep_offset, offset, open_popover, signalled, typing, watch_edits};
 
 fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
     AccountsSnapshot {
@@ -62,6 +62,7 @@ pub(crate) fn a_redraw_keeps_the_persons_place() {
     a_second_redraw_in_one_frame_keeps_the_offset_the_first_was_given();
     a_field_being_typed_in_holds_a_signalled_redraw();
     a_field_that_sends_itself_holds_a_redraw_only_until_it_has();
+    an_open_list_holds_a_redraw_until_it_closes();
 }
 
 fn a_redrawn_page_opens_where_the_last_one_was_scrolled_to() {
@@ -184,4 +185,24 @@ fn find_entry(root: &gtk::Widget) -> Option<gtk::Entry> {
         child = widget.next_sibling();
     }
     None
+}
+
+fn an_open_list_holds_a_redraw_until_it_closes() {
+    let window = gtk::Window::new();
+    let button = gtk::Button::with_label("Last 3 months");
+    let list = gtk::Popover::new();
+    list.set_parent(&button);
+    window.set_child(Some(&button));
+    window.present();
+    assert!(open_popover(window.upcast_ref()).is_none());
+    list.popup();
+    assert_eq!(
+        open_popover(window.upcast_ref()),
+        Some(list.clone()),
+        "a redraw now would close the list under the pointer"
+    );
+    list.popdown();
+    assert!(open_popover(window.upcast_ref()).is_none());
+    list.unparent();
+    window.close();
 }

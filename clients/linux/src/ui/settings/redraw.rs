@@ -3,7 +3,7 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use adw::prelude::*;
+use adw::{glib, prelude::*};
 
 /// What to do with the core's settings signal while Accounts is on screen.
 #[derive(Debug, PartialEq, Eq)]
@@ -60,6 +60,49 @@ pub(super) fn typing(window: &gtk::Window, edited: bool) -> bool {
                 focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>()
             })
         })
+}
+
+/// A list open over the page, such as a picker's: a redraw now would close it under the pointer
+/// and lose the pick.
+pub(super) fn open_popover(root: &gtk::Widget) -> Option<gtk::Popover> {
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(popover) = widget
+            .downcast_ref::<gtk::Popover>()
+            .filter(|popover| popover.is_visible())
+        {
+            return Some(popover.clone());
+        }
+        if let Some(popover) = open_popover(&widget) {
+            return Some(popover);
+        }
+        child = widget.next_sibling();
+    }
+    None
+}
+
+/// Whether a redraw waits for a list open over `window`, asked again once it closes: drawn now,
+/// the list would close under the pointer, and the pick, which the core queues behind what runs,
+/// would be lost. `waiting_on` keeps the list already watched, so a second signal while it is open
+/// connects nothing more.
+pub(super) fn wait_for_open_list(
+    window: Option<&gtk::Window>,
+    waiting_on: &mut Option<glib::WeakRef<gtk::Popover>>,
+    sender: &relm4::Sender<crate::ui::AppInput>,
+) -> bool {
+    let Some(open) = window.and_then(|window| open_popover(window.upcast_ref())) else {
+        return false;
+    };
+    if waiting_on.as_ref().and_then(glib::WeakRef::upgrade).as_ref() != Some(&open) {
+        let again = sender.clone();
+        open.connect_closed(move |_| {
+            again.emit(crate::ui::AppInput::SurfaceChanged(
+                mailcal_bindings::Surface::Settings,
+            ));
+        });
+        *waiting_on = Some(open.downgrade());
+    }
+    true
 }
 
 /// Sets `edited` when the person changes any field under `root` that waits for a button to send

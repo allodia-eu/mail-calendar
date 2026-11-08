@@ -167,6 +167,8 @@ pub(super) struct SettingsWindow {
     drawn: Option<redraw::Drawn>,
     /// Whether a field was edited since the window was drawn.
     edited: std::rc::Rc<std::cell::Cell<bool>>,
+    /// The open list a redraw waits for, asking again once it closes.
+    waiting_on: Option<gtk::glib::WeakRef<gtk::Popover>>,
     /// Where toasts are shown: above the pages, which every redraw replaces.
     toasts: Option<adw::ToastOverlay>,
     /// The last notice shown.
@@ -212,6 +214,9 @@ impl SettingsWindow {
         };
         let mut read = None;
         if state.redraw == Redraw::Signalled {
+            if redraw::wait_for_open_list(self.window.as_ref(), &mut self.waiting_on, &sender) {
+                return;
+            }
             let typing = self
                 .window
                 .as_ref()
