@@ -85,6 +85,35 @@ internal static class NoticeRules
     /// core sends both or neither.</summary>
     internal static bool Offers(Notice notice) => notice.Action is not null && notice.ActionLabel is not null;
 
+    /// <summary>The accounts whose stored sign-in the server refuses, in the core's order, which an
+    /// account's page in Settings draws its sign-in section for. A grant that is merely narrower
+    /// is not one: the account still signs in.</summary>
+    internal static IReadOnlyList<string> SignInExpired(IReadOnlyList<Notice> notices) =>
+        AccountsOf<NoticeKind.SignInExpired>(notices);
+
+    /// <summary>Whether the account service refused the Allodia sign-in, which the Allodia card
+    /// draws.</summary>
+    internal static bool AllodiaSignInEnded(IReadOnlyList<Notice> notices) =>
+        notices.Any(notice => notice.Kind is NoticeKind.AllodiaSignInEnded);
+
+    /// <summary>Whether the device has no network, which the folder pane's connection status
+    /// says.</summary>
+    internal static bool Offline(IReadOnlyList<Notice> notices) =>
+        notices.Any(notice => notice.Kind is NoticeKind.Offline);
+
+    /// <summary>The accounts that cannot reach their server while the device is online, in the
+    /// core's order, which the folder pane's connection status names. None while offline: the
+    /// device is the fault then.</summary>
+    internal static IReadOnlyList<string> Unreachable(IReadOnlyList<Notice> notices) =>
+        Offline(notices) ? [] : AccountsOf<NoticeKind.Unreachable>(notices);
+
+    private static List<string> AccountsOf<TKind>(IReadOnlyList<Notice> notices)
+        where TKind : NoticeKind =>
+        notices.Where(notice => notice.Kind is TKind && notice.Account is not null)
+            .Select(notice => notice.Account!)
+            .Distinct()
+            .ToList();
+
     /// <summary>What two snapshots differ in for a reader of them, so a signal that changed
     /// nothing redraws nothing.</summary>
     internal static string Fingerprint(IEnumerable<Notice> notices) =>
