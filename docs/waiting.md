@@ -107,7 +107,7 @@ record, not a state the client keeps.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
   ([`controls.rs`](../clients/linux/src/ui/controls.rs), the name's row in
   [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs), and a redraw
-  waiting on a field only until it has sent, and on an open list until it closes, in
+  waiting on a field only until it has sent in
   [`redraw_tests.rs`](../clients/linux/src/ui/settings/redraw_tests.rs)), Android's in
   [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt)
   and
