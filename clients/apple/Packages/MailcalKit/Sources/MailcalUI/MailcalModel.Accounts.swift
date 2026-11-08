@@ -223,20 +223,10 @@ extension MailboxModel {
         }
     }
 
-    /// Tries an account's edited servers and sign-in, and keeps them if they connect. Answers why
-    /// not, or `nil` once saved; the form is then left as the person typed it.
-    func saveAccountEndpoints(_ id: String, _ endpoints: AccountEndpoints) async -> String? {
-        guard let app else { return L10n.app_unavailable() }
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.updateAccountEndpoints(accountId: id, endpoints: endpoints)
-            }.value
-            return nil
-        } catch {
-            // Never the endpoints themselves: they carry the password.
-            logAppleLifecycle("accounts: editing an account's servers failed (\(coreMessage(error)))")
-            return coreMessage(error)
-        }
+    /// What `endpoints` leaves out of account `id`'s servers, as its save would refuse it. Reads
+    /// only what is stored, so the page asks it as the person types.
+    func endpointsGap(_ id: String, _ endpoints: AccountEndpoints) -> AccountEndpointsGap? {
+        app?.accountEndpointsGap(accountId: id, endpoints: endpoints)
     }
 
     /// Replaces a pasted password or API token the server stopped accepting, after proving it

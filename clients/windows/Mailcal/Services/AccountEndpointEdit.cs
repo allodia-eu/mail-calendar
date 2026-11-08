@@ -42,12 +42,17 @@ internal static class AccountEndpointEdit
     /// <summary>
     /// The address to store: a host the person wrote a port into as written, as the setup form
     /// dials it; otherwise the bare host when the port is empty or the standard one for
-    /// <paramref name="security"/>, and <c>host:port</c> when it is not.
+    /// <paramref name="security"/>, and <c>host:port</c> when it is not. No host is no address,
+    /// whatever the port says, so the core sees the server as missing.
     /// </summary>
     internal static string Joined(
         string host, string port, ConnectionSecurity security, Func<ConnectionSecurity, ushort> standardPort)
     {
         var (bareHost, barePort) = (host.Trim(), port.Trim());
+        if (bareHost.Length == 0)
+        {
+            return string.Empty;
+        }
         if (ManualServerField.SplitHost(bareHost).Port.Length > 0)
         {
             return bareHost;

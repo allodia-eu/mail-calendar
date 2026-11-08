@@ -203,6 +203,7 @@ fn the_page_draws_what_the_registry_decides() {
         &entry,
         Hold::default(),
         None,
+        None,
         crate::ReplyFallbackChoice::Ask,
         |capability, on| toggle(&registry, MICROSOFT_ID, Capability::from(capability), on),
     );

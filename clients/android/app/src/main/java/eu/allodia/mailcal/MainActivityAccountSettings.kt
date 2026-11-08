@@ -59,6 +59,11 @@ internal fun MainActivity.refreshAccountPage() {
     val instance = app ?: return
     val page = accountSettings.page?.let { instance.accountPage(it) }
     accountSettings.accountPage = page
+    // The core withdraws what a change came to when the page's next change starts: a save that
+    // worked must not stand under the failure before it.
+    if (page != null && page.notice == null && accountSettings.notice === accountSettings.changeNotice) {
+        accountSettings.notice = null
+    }
     page?.notice?.let(::sayAccountNotice)
     instance.accountsNotice()?.let(::sayAccountNotice)
 }
@@ -67,7 +72,9 @@ private fun MainActivity.sayAccountNotice(raised: AccountChangeNoticeRaised) {
     if (raised.id <= accountSettings.coreNotice) return
     accountSettings.coreNotice = raised.id
     logUiWarn("accounts: a change on an account's page did not take")
-    say(changeNotice(this, raised.notice))
+    val said = changeNotice(this, raised.notice)
+    say(said)
+    accountSettings.changeNotice = said
 }
 
 /** Asks the core for a change on an account's page; it answers at once, and the page says it runs. */
@@ -107,43 +114,6 @@ internal fun MainActivity.changeFailed(detail: String?) = AccountNotice(
     L10n.settings_account_change_failed_title(this),
     detail ?: L10n.error_unknown(this),
 )
-
-/**
- * Tries an account's edited servers and sign-in, and keeps them only if they connect. A refusal
- * leaves the form as the person typed it, password included, so one field is corrected rather
- * than all of them retyped.
- */
-internal fun MainActivity.saveAccountEndpoints(accountId: String, endpoints: AccountEndpoints) {
-    val instance = app ?: return
-    accountSettings.savingServers = accountId
-    thread(name = "mailcal-account-servers") {
-        val answer = runCatching { instance.updateAccountEndpoints(accountId, endpoints) }
-        mainHandler.post {
-            accountSettings.savingServers = null
-            answer.onSuccess {
-                // The form starts again from what was saved, the password field empty.
-                accountSettings.serversSaved += 1
-                accountSettings.notice = AccountNotice(
-                    NoticeKind.SUCCESS,
-                    L10n.settings_account_servers_saved(this),
-                    "",
-                )
-                pullNotices()
-            }
-            answer.onFailure {
-                // The reason, never the certificate: a refusal's message carries the whole of it
-                // (docs/certificate-exceptions.md rule 9).
-                logUiWarn("accounts: editing an account's servers failed")
-                accountSettings.notice = AccountNotice(
-                    NoticeKind.FAILURE,
-                    L10n.settings_account_servers_failed(this),
-                    coreErrorSaid(it, this) ?: L10n.error_unknown(this),
-                )
-            }
-            refreshAccountsSnapshot()
-        }
-    }
-}
 
 /** Replaces a JMAP account's pasted password or API token, after proving it connects. */
 internal fun MainActivity.replaceAccountSecret(accountId: String, secret: String) {

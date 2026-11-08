@@ -56,11 +56,21 @@ private func toggle(
 
     @Test func aChangeThatDidNotTakeIsSaidWithTheCoresReason() {
         let use = AccountSettingsLabels.changeFailed(
-            .useFailed(capability: .calendar, on: true, detail: "refused"))
+            .useFailed(capability: .mail, on: false, refusal: .blocked(block: .lastUse)))
         #expect(use.title == L10n.settings_account_change_failed_title())
-        #expect(use.detail == "refused")
-        let link = AccountSettingsLabels.changeFailed(.linkFailed(slot: .calendar, detail: "gone"))
+        #expect(use.detail == L10n.settings_account_use_last())
+        let link = AccountSettingsLabels.changeFailed(
+            .linkFailed(slot: .calendar, refusal: .other(detail: "gone")))
         #expect(link.detail == "gone")
+        let servers = AccountSettingsLabels.changeFailed(.serversFailed(refusal: .signInRefused))
+        #expect(servers.title == L10n.settings_account_servers_failed())
+        #expect(servers.detail == L10n.signin_refused())
+    }
+
+    @Test func whatTheServersLeaveOutNamesTheField() {
+        #expect(
+            AccountSettingsLabels.endpointsGap(.smtp)
+                == L10n.settings_account_servers_gap(field: L10n.setup_field_smtp()))
     }
 
     @Test func aHeldControlIsNotEnabledAndKeepsRunning() {

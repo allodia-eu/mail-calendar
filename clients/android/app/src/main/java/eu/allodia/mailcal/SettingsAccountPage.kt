@@ -125,9 +125,9 @@ internal fun AccountPage(
         Spacer(modifier = Modifier.height(8.dp))
         AccountSyncTechnologyCard(technology)
     }
-    entry.endpoints?.let { endpoints ->
+    page.servers?.let { servers ->
         Spacer(modifier = Modifier.height(8.dp))
-        ServersGroup(entry, endpoints, expired, ui)
+        ServersGroup(entry, servers, expired, ui)
     }
     page.mail?.let { mail ->
         Spacer(modifier = Modifier.height(8.dp))

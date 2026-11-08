@@ -23,11 +23,15 @@ public sealed partial class SettingsDialog
 {
     // The account whose page is open; null for the list.
     private string? _accountPage;
-    // The open picker or the field holding unsent text that the page's next redraw waits on.
-    private Control? _redrawWaitsOn;
+    // The open picker, the field holding unsent text or the unsent form that the page's next
+    // redraw waits on.
+    private object? _redrawWaitsOn;
 
     // What the list or the page last said, kept across the redraw a change ends with.
     private AccountNotice? _accountNotice;
+    // The notice shown that a change on the page left, which the core withdraws when the page's
+    // next change starts.
+    private AccountNotice? _changeNotice;
     private InfoBar? _accountNoticeBar;
 
     // What the open list or page was drawn from, so a signal that changed none of it is ignored.
@@ -190,9 +194,9 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(SyncTechnologyGroup(technology));
         }
-        if (entry.Endpoints is { } endpoints)
+        if (page.Servers is { } servers)
         {
-            panel.Children.Add(ServersGroup(entry, endpoints, expired));
+            panel.Children.Add(ServersGroup(entry, servers, expired));
         }
         if (page.Mail is { } mail)
         {
@@ -280,9 +284,11 @@ public sealed partial class SettingsDialog
     /// <summary>What a change on the page came to, in the core's words for why.</summary>
     private static AccountNotice ChangeFailed(AccountChangeNotice notice) => notice switch
     {
-        AccountChangeNotice.UseFailed use => ChangeFailed(use.Detail),
-        AccountChangeNotice.LinkFailed link => ChangeFailed(link.Detail),
+        AccountChangeNotice.UseFailed use => ChangeFailed(AccountUseText.Refused(use.Refusal)),
+        AccountChangeNotice.LinkFailed link => ChangeFailed(AccountUseText.Refused(link.Refusal)),
         AccountChangeNotice.RemoveFailed removal => RemovalFailed(L10n.RemoveAccountFailed(removal.Detail)),
+        AccountChangeNotice.ServersFailed servers => new(
+            InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), AccountUseText.Refused(servers.Refusal)),
         _ => ChangeFailed(L10n.ErrorUnknown()),
     };
 
@@ -331,7 +337,13 @@ public sealed partial class SettingsDialog
         var page = OpenPage();
         if (_model.TakeChangeNotice(page) is { } notice)
         {
-            _accountNotice = ChangeFailed(notice);
+            _accountNotice = _changeNotice = ChangeFailed(notice);
+        }
+        else if (_changeNotice is not null && ReferenceEquals(_accountNotice, _changeNotice) && page?.Notice is null)
+        {
+            // A change since says nothing of the one that failed: a save that worked must not
+            // stand under "Couldn't save".
+            _accountNotice = _changeNotice = null;
         }
         if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {
@@ -347,6 +359,11 @@ public sealed partial class SettingsDialog
             if (UnsentField() is { } field)
             {
                 WhenLeft(field);
+                return;
+            }
+            if (UnsentForm() is { } form)
+            {
+                WhenSent(form);
                 return;
             }
             ShowCategory("accounts");
@@ -382,6 +399,42 @@ public sealed partial class SettingsDialog
         && ControlComponents.HoldsUnsentText(box)
             ? box
             : null;
+
+    /// <summary>A form on the page holding edits its button has not sent, if any.</summary>
+    private ControlComponents.FormState? UnsentForm()
+    {
+        var pending = new Stack<DependencyObject>([_detail]);
+        while (pending.TryPop(out var node))
+        {
+            if (node is FrameworkElement { Tag: ControlComponents.FormState { Unsent: true } form })
+            {
+                return form;
+            }
+            for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(node); i++)
+            {
+                pending.Push(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(node, i));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="form"/> is sent, once however many
+    /// signals arrive meanwhile.</summary>
+    private void WhenSent(ControlComponents.FormState form)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, form))
+        {
+            return;
+        }
+        _redrawWaitsOn = form;
+        void Sent()
+        {
+            form.Sent -= Sent;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        form.Sent += Sent;
+    }
 
     /// <summary>Asks for the page again once <paramref name="picker"/>'s list closes, once
     /// however many signals arrive while it is open.</summary>

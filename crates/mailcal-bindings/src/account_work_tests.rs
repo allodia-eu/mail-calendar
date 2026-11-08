@@ -82,3 +82,24 @@ fn a_removal_drops_what_waited_for_the_account_it_removed() {
     let _ = work.start(name("b", "Bob"));
     assert_eq!(work.finish("a", None), Some(name("b", "Bob")));
 }
+
+#[test]
+fn a_change_starting_keeps_the_edit_the_last_save_refused() {
+    let work = AccountWork::default();
+    let refused = crate::AccountEndpoints {
+        imap_host: Some("imap.example.com".to_owned()),
+        imap_security: crate::ConnectionSecurity::ImplicitTls,
+        smtp_host: Some("smtp.example.com".to_owned()),
+        smtp_security: crate::ConnectionSecurity::StartTls,
+        caldav_url: None,
+        carddav_url: None,
+        username: "alice".to_owned(),
+        password: Some("typed".to_owned()),
+    };
+    work.servers_saved("a", Some(refused.clone()));
+    let _ = work.start(depth("a", 6));
+    assert!(
+        work.refused_servers("a") == Some(refused),
+        "the form goes on being drawn as it was typed, password included"
+    );
+}

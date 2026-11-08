@@ -248,10 +248,10 @@ pub use records::{
     },
 };
 pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountCountChoice, AccountLinkPicker,
-    AccountMailSettings, AccountPage, AccountReplyFallback, AccountSenderName, AccountToggle,
-    AccountUseBlock, AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState,
-    ReplyFallbackChoice,
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
+    AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountReplyFallback,
+    AccountSenderName, AccountServers, AccountToggle, AccountUseBlock, AccountUseStatus,
+    AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

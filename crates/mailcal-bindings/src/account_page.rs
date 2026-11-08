@@ -4,21 +4,23 @@
 //! decision. Every client draws the [`AccountPage`] this makes and decides none of it.
 
 use crate::{
-    AccountCapability, AccountChangeNoticeRaised, AccountEntry, AccountLinkPicker, AccountPage,
-    AccountReplyFallback, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
-    LinkSlot, ReplyFallbackChoice, UseProblem,
+    AccountCapability, AccountChangeNoticeRaised, AccountEndpoints, AccountEntry,
+    AccountLinkPicker, AccountPage, AccountReplyFallback, AccountServers, AccountUseStatus,
+    AccountUseSwitch, CapabilityState, ControlState, LinkSlot, ReplyFallbackChoice, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
     app_accounts_uses::domain_of,
 };
 
-/// `entry`'s page. `hold` says which change runs, `toggle` what switching a use on (`true`) or
-/// off comes to, and `reply_fallback` the account's standing answer about invitation replies.
-/// The control a running change started is drawn at the value it is moving to.
+/// `entry`'s page. `hold` says which change runs, `refused_servers` is the edit its last save of
+/// servers refused, `reply_fallback` the account's standing answer about invitation replies, and
+/// `toggle` what switching a use on (`true`) or off comes to. The control a running change started
+/// is drawn at the value it is moving to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
+    refused_servers: Option<AccountEndpoints>,
     reply_fallback: ReplyFallbackChoice,
     toggle: impl Fn(AccountCapability, bool) -> Toggle,
 ) -> AccountPage {
@@ -83,6 +85,16 @@ pub(crate) fn page(
         remove: control(hold.own.contains(&PageWork::Remove), true),
         sender_name: None,
         mail: None,
+        servers: entry.endpoints.clone().map(|stored| {
+            let saving = hold.going(|work| match work {
+                PageWork::Servers(edit) => Some(edit.as_ref().clone()),
+                _ => None,
+            });
+            AccountServers {
+                save: control(saving.is_some(), true),
+                form: saving.or(refused_servers).unwrap_or(stored),
+            }
+        }),
         reply_fallback: entry
             .uses
             .iter()

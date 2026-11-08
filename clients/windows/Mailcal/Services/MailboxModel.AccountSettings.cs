@@ -140,31 +140,10 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>Tries an account's edited servers and sign-in, and keeps them if they connect.</summary>
-    /// <returns>Null when saved, otherwise why not; the form is then left as the person typed it.</returns>
-    internal async Task<string?> SaveAccountEndpointsAsync(string accountId, AccountEndpoints endpoints)
-    {
-        if (_app is not { } app)
-        {
-            return L10n.AppUnavailable();
-        }
-        try
-        {
-            await Task.Run(() => app.UpdateAccountEndpoints(accountId, endpoints));
-            return null;
-        }
-        catch (MailcalException.CertificateRejected refused)
-        {
-            // The message carries the whole certificate; the reason is what a person reads.
-            Log.Error("editing an account's servers was refused for a certificate");
-            return refused.reason;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"editing an account's servers failed: {CoreError.Describe(ex)}");
-            return CoreErrorCopy.Said(ex);
-        }
-    }
+    /// <summary>What <paramref name="endpoints"/> leaves out of an account's servers, as its save
+    /// would refuse it. Reads only what is stored, so the page asks it as the person types.</summary>
+    internal AccountEndpointsGap? EndpointsGap(string accountId, AccountEndpoints endpoints) =>
+        _app?.AccountEndpointsGap(accountId, endpoints);
 
     /// <summary>Replaces a JMAP account's pasted password or API token, after proving it connects.</summary>
     /// <returns>Null when replaced, otherwise why not.</returns>

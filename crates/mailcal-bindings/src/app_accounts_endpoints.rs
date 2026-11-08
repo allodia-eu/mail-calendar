@@ -3,11 +3,29 @@
 use mailcal_account::CredentialOrigin;
 
 use crate::{
-    AccountEndpoints, MailcalApp, MailcalError, account_repair::CredentialPersistence,
-    app_accounts_uses::domain_of, boot,
+    AccountEndpoints, AccountEndpointsGap, MailcalApp, MailcalError,
+    account_repair::CredentialPersistence, app_accounts_uses::domain_of, boot,
 };
 
 #[uniffi::export]
+impl MailcalApp {
+    /// What `endpoints` leaves out of `account_id`'s servers, the first in the order the page draws
+    /// them, or `None` when they can be tried: what [`AccountPageIntent::SaveServers`] would refuse
+    /// before dialling anything. Reads only what is stored, so a page asks it as the person types.
+    ///
+    /// [`AccountPageIntent::SaveServers`]: crate::AccountPageIntent::SaveServers
+    #[must_use]
+    pub fn account_endpoints_gap(
+        &self,
+        account_id: String,
+        endpoints: AccountEndpoints,
+    ) -> Option<AccountEndpointsGap> {
+        self.registry
+            .endpoint_gap(&account_id, &endpoints.into())
+            .map(Into::into)
+    }
+}
+
 impl MailcalApp {
     /// Replaces `account_id`'s servers and login with `endpoints`, after proving they connect.
     ///
@@ -35,9 +53,7 @@ impl MailcalApp {
     ) -> Result<(), MailcalError> {
         self.replace_endpoints(account_id, endpoints, &[])
     }
-}
 
-impl MailcalApp {
     /// [`MailcalApp::update_account_endpoints`], refusing the edit unless each use in
     /// `must_connect` connects on the new servers, with
     /// [`MailcalError::UseNotConnected`] naming the first that did not.
@@ -75,6 +91,8 @@ impl MailcalApp {
                 self.drop_shared_mailbox(&child);
             }
         }
+        // Whichever path kept them, the stored servers are what the page's form is drawn from now.
+        self.account_work.servers_saved(&account_id, None);
         self.app.accounts_changed();
         Ok(())
     }

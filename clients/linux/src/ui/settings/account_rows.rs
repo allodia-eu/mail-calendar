@@ -121,28 +121,37 @@ pub(super) fn switch_note(switch: &AccountUseSwitch) -> Option<String> {
         AccountUseStatus::Problem { problem } => problem_note(switch.capability, problem),
         AccountUseStatus::Withheld => l10n::settings_account_use_withheld(),
     });
-    let blocked = switch.blocked.map(|block| match block {
+    let blocked = switch.blocked.map(block_note);
+    let lines = [status, blocked].into_iter().flatten().collect::<Vec<_>>();
+    (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
+/// Why a use's switch cannot be pressed.
+pub(in crate::ui) fn block_note(block: AccountUseBlock) -> &'static str {
+    match block {
         AccountUseBlock::LastUse => l10n::settings_account_use_last(),
         AccountUseBlock::NeedsContacts => l10n::settings_account_colleagues_needs_contacts(),
         AccountUseBlock::NeedsMail => l10n::settings_account_shared_needs_mail(),
         AccountUseBlock::NotOffered => l10n::settings_account_use_not_offered(),
         AccountUseBlock::NeedsServer => l10n::settings_account_use_needs_endpoint(),
-    });
-    let lines = [status, blocked].into_iter().flatten().collect::<Vec<_>>();
-    (!lines.is_empty()).then(|| lines.join("\n"))
+    }
 }
 
 /// What a change on an account's page came to, when the core says it needs saying.
 pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notice::Notice {
     match notice {
-        AccountChangeNotice::UseFailed { detail, .. }
-        | AccountChangeNotice::LinkFailed { detail, .. } => super::notice::Notice::Error {
+        AccountChangeNotice::UseFailed { refusal, .. }
+        | AccountChangeNotice::LinkFailed { refusal, .. } => super::notice::Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
-            detail: detail.clone(),
+            detail: crate::ui::core_error::refusal_said(refusal),
         },
         AccountChangeNotice::RemoveFailed { detail } => super::notice::Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
             detail: l10n::remove_account_failed(detail),
+        },
+        AccountChangeNotice::ServersFailed { refusal } => super::notice::Notice::Error {
+            title: l10n::settings_account_servers_failed().to_owned(),
+            detail: crate::ui::core_error::refusal_said(refusal),
         },
     }
 }

@@ -63,6 +63,26 @@ internal static class CoreError
     };
 
     /// <summary>
+    /// Why a change on an account's page did not take, as <see cref="Said(Exception,
+    /// CoreErrorWords)"/> words the same refusal: the outcomes the core types for a person in
+    /// <paramref name="words"/>, anything else as the core renders it. A refused switch and a use
+    /// the provider withholds are worded beside the switch (<c>AccountUseText</c>), and fall back
+    /// to that rendering here.
+    /// </summary>
+    internal static string Refused(uniffi.mailcal_bindings.AccountChangeRefusal refusal, CoreErrorWords words) =>
+        refusal switch
+        {
+            uniffi.mailcal_bindings.AccountChangeRefusal.SignInRefused => words.SignInRefused,
+            uniffi.mailcal_bindings.AccountChangeRefusal.AlreadySetUp => words.AlreadySetUp,
+            uniffi.mailcal_bindings.AccountChangeRefusal.DifferentAccount => words.DifferentAccount,
+            uniffi.mailcal_bindings.AccountChangeRefusal.StaleSignIn => words.StaleSignIn,
+            uniffi.mailcal_bindings.AccountChangeRefusal.UseNotConnected use =>
+                NotConnected(use.Capability, use.Problem, words),
+            uniffi.mailcal_bindings.AccountChangeRefusal.Other other => other.Detail,
+            _ => refusal.ToString() ?? string.Empty,
+        };
+
+    /// <summary>
     /// <see cref="Said(Exception, CoreErrorWords)"/> on a route that says "Couldn't connect"
     /// around it. A sign-in the browser returned from another request is said on its own: nothing
     /// failed to connect, and its remedy is to sign in again.

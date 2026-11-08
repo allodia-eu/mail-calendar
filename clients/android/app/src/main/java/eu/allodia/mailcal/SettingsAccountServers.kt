@@ -2,10 +2,11 @@
 // with a password to servers of its own (docs/accounts.md rule 14), and the pasted password or API
 // token of a JMAP account whose server stopped accepting it.
 //
-// Saving tries them before keeping them (update_account_endpoints, replace_account_secret), so a
-// typo never costs a working account, and an expired password is replaced here.
+// Saving tries them before keeping them (SaveServers, replace_account_secret), so a typo never
+// costs a working account, and an expired password is replaced here.
 package eu.allodia.mailcal
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -23,8 +26,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.AccountEndpoints
+import uniffi.mailcal_bindings.AccountEndpointsGap
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountServers
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.MailServerKind
 
@@ -39,31 +44,43 @@ private fun editedServer(
     EditedServer(ManualServerField.splitHost(it).first, ManualServerField(standard).adoptDetected(it, security))
 }
 
+/** What Save says the fields leave out, naming the field as the form labels it. */
+internal fun endpointsGapSaid(ctx: Context, gap: AccountEndpointsGap): String =
+    L10n.settings_account_servers_gap(
+        ctx,
+        when (gap) {
+            AccountEndpointsGap.IMAP -> L10n.settings_account_field_imap(ctx)
+            AccountEndpointsGap.SMTP -> L10n.setup_field_smtp(ctx)
+            AccountEndpointsGap.CAL_DAV -> L10n.setup_field_caldav(ctx)
+            AccountEndpointsGap.CARD_DAV -> L10n.settings_account_field_carddav(ctx)
+            AccountEndpointsGap.USERNAME -> L10n.settings_account_field_login(ctx)
+            AccountEndpointsGap.PASSWORD -> L10n.settings_account_field_new_password(ctx)
+        },
+    )
+
 /**
- * The servers the account has, its login and a new password. What is typed is remembered against
- * the account and what it was drawn from, so a redraw the core asks for leaves it alone and a
- * saved change starts the form again from what was saved.
+ * The servers the account has, its login and a new password, drawn from the page's [servers]:
+ * the edit being saved while a save runs, the one the last save refused so one field is corrected,
+ * and otherwise what is stored. What is typed is remembered against that, so a redraw the core asks
+ * for leaves it alone.
  */
 @Composable
 internal fun ServersGroup(
     entry: AccountEntry,
-    endpoints: AccountEndpoints,
+    servers: AccountServers,
     expired: Boolean,
     ui: AccountsSettingsUi,
 ) {
     val ctx = LocalContext.current
+    val form = servers.form
     val imapPort = ui.standardPort?.let { lookup -> { s: ConnectionSecurity -> lookup(MailServerKind.IMAP, s) } }
     val smtpPort = ui.standardPort?.let { lookup -> { s: ConnectionSecurity -> lookup(MailServerKind.SMTP, s) } }
-    var imap by remember(entry.id, endpoints, ui.state.serversSaved) {
-        mutableStateOf(editedServer(endpoints.imapHost, endpoints.imapSecurity, imapPort))
-    }
-    var smtp by remember(entry.id, endpoints, ui.state.serversSaved) {
-        mutableStateOf(editedServer(endpoints.smtpHost, endpoints.smtpSecurity, smtpPort))
-    }
-    var caldav by remember(entry.id, endpoints, ui.state.serversSaved) { mutableStateOf(endpoints.caldavUrl) }
-    var carddav by remember(entry.id, endpoints, ui.state.serversSaved) { mutableStateOf(endpoints.carddavUrl) }
-    var login by remember(entry.id, endpoints, ui.state.serversSaved) { mutableStateOf(endpoints.username) }
-    var password by remember(entry.id, endpoints, ui.state.serversSaved) { mutableStateOf("") }
+    var imap by remember(entry.id, form) { mutableStateOf(editedServer(form.imapHost, form.imapSecurity, imapPort)) }
+    var smtp by remember(entry.id, form) { mutableStateOf(editedServer(form.smtpHost, form.smtpSecurity, smtpPort)) }
+    var caldav by remember(entry.id, form) { mutableStateOf(form.caldavUrl) }
+    var carddav by remember(entry.id, form) { mutableStateOf(form.carddavUrl) }
+    var login by remember(entry.id, form) { mutableStateOf(form.username) }
+    var password by remember(entry.id, form) { mutableStateOf(form.password.orEmpty()) }
     val fields = EndpointFields(
         imapHost = imap?.let {
             AccountEndpointEdit.joined(it.host, it.field.port, it.field.security, imapPort)
@@ -78,7 +95,8 @@ internal fun ServersGroup(
         username = login.trim(),
         password = password,
     )
-    val saving = ui.state.savingServers == entry.id
+    val edited = AccountEndpointEdit.edited(form, fields)
+    val gap = ui.endpointsGap(entry.id, edited)
     val description = if (expired) {
         L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
     } else {
@@ -86,53 +104,70 @@ internal fun ServersGroup(
     }
     SettingsGroupCard(L10n.settings_account_servers_heading(ctx), description) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            imap?.let { server ->
-                ServerRow(
-                    host = server.host,
-                    onHostChange = { imap = server.copy(host = it) },
-                    label = L10n.settings_account_field_imap(ctx),
-                    placeholder = null,
-                    field = server.field,
-                    onFieldChange = { imap = server.copy(field = it) },
-                    ctx = ctx,
-                )
-            }
-            smtp?.let { server ->
-                ServerRow(
-                    host = server.host,
-                    onHostChange = { smtp = server.copy(host = it) },
-                    label = L10n.setup_field_smtp(ctx),
-                    placeholder = null,
-                    field = server.field,
-                    onFieldChange = { smtp = server.copy(field = it) },
-                    ctx = ctx,
-                )
-            }
-            caldav?.let { url ->
-                SetupField(url, { caldav = it }, L10n.setup_field_caldav(ctx), keyboardType = KeyboardType.Uri)
-            }
-            carddav?.let { url ->
-                SetupField(url, { carddav = it }, L10n.settings_account_field_carddav(ctx), keyboardType = KeyboardType.Uri)
-            }
-            SetupField(login, { login = it }, L10n.settings_account_field_login(ctx))
-            PasswordField(password, { password = it }, L10n.settings_account_field_new_password(ctx))
-            Button(
-                onClick = {
-                    ui.onSaveServers(entry.id, AccountEndpointEdit.edited(endpoints, fields))
-                },
-                // Waits while a server the account has is left empty, rather than sending it for
-                // the core to refuse.
-                enabled = !saving && AccountEndpointEdit.complete(endpoints, fields),
-                modifier = Modifier.testTag("account-servers-save"),
-            ) {
-                if (saving) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    androidx.compose.material3.Text(L10n.settings_account_servers_trying(ctx))
-                } else {
-                    androidx.compose.material3.Text(L10n.action_save(ctx))
+            HeldFields(servers.save) { enabled ->
+                imap?.let { server ->
+                    ServerRow(
+                        host = server.host,
+                        onHostChange = { imap = server.copy(host = it) },
+                        label = L10n.settings_account_field_imap(ctx),
+                        placeholder = null,
+                        field = server.field,
+                        onFieldChange = { imap = server.copy(field = it) },
+                        ctx = ctx,
+                        enabled = enabled,
+                    )
                 }
+                smtp?.let { server ->
+                    ServerRow(
+                        host = server.host,
+                        onHostChange = { smtp = server.copy(host = it) },
+                        label = L10n.setup_field_smtp(ctx),
+                        placeholder = null,
+                        field = server.field,
+                        onFieldChange = { smtp = server.copy(field = it) },
+                        ctx = ctx,
+                        enabled = enabled,
+                    )
+                }
+                caldav?.let { url ->
+                    SetupField(
+                        url,
+                        { caldav = it },
+                        L10n.setup_field_caldav(ctx),
+                        keyboardType = KeyboardType.Uri,
+                        enabled = enabled,
+                    )
+                }
+                carddav?.let { url ->
+                    SetupField(
+                        url,
+                        { carddav = it },
+                        L10n.settings_account_field_carddav(ctx),
+                        keyboardType = KeyboardType.Uri,
+                        enabled = enabled,
+                    )
+                }
+                SetupField(login, { login = it }, L10n.settings_account_field_login(ctx), enabled = enabled)
+                PasswordField(
+                    password,
+                    { password = it },
+                    L10n.settings_account_field_new_password(ctx),
+                    enabled = enabled,
+                )
             }
+            gap?.let {
+                Text(
+                    endpointsGapSaid(ctx, it),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            ControlButton(
+                label = L10n.action_save(ctx),
+                control = servers.save,
+                tag = "account-servers-save",
+                ready = gap == null,
+            ) { ui.onChange(AccountPageIntent.SaveServers(entry.id, edited)) }
         }
     }
 }

@@ -86,10 +86,10 @@ struct AccountPageView: View {
             if let technology = entry.mailSync {
                 AccountSyncTechnologySection(technology: technology)
             }
-            if let endpoints = entry.endpoints {
+            if let servers = page.servers {
                 AccountServersSection(
-                    model: model, entry: entry, endpoints: endpoints,
-                    expired: model.signInExpired(entry.id), alert: $alert
+                    model: model, entry: entry, servers: servers,
+                    expired: model.signInExpired(entry.id)
                 )
             }
             if let mail = page.mail {

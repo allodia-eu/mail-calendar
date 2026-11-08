@@ -271,7 +271,7 @@ pub enum CapabilityChange {
 
 /// An account's servers and sign-in, as Settings shows and edits them. A server that is `None` is
 /// one the account does not have.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountEndpoints {
     /// The IMAP server, `host` or `host:port`; the standard port for its security when bare.
     pub imap_host: Option<String>,
@@ -288,8 +288,26 @@ pub struct AccountEndpoints {
     /// The login every server takes.
     pub username: String,
     /// A new password for every server, or `None` to keep the stored one. Always `None` in the
-    /// snapshot: a password is never handed back.
+    /// snapshot: a stored password is never handed back, and only an edit a save refused carries
+    /// the one the person typed ([`crate::AccountServers::form`]).
     pub password: Option<String>,
+}
+
+/// Never the password: an edit travels in a page change and a client's own inputs, and either can
+/// reach a log through its `Debug`.
+impl std::fmt::Debug for AccountEndpoints {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AccountEndpoints")
+            .field("imap_host", &self.imap_host)
+            .field("imap_security", &self.imap_security)
+            .field("smtp_host", &self.smtp_host)
+            .field("smtp_security", &self.smtp_security)
+            .field("caldav_url", &self.caldav_url)
+            .field("carddav_url", &self.carddav_url)
+            .field("username", &self.username)
+            .field("password_given", &self.password.is_some())
+            .finish()
+    }
 }
 
 impl From<mailcal_account::EndpointEdit> for AccountEndpoints {

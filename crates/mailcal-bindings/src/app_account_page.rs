@@ -9,9 +9,9 @@ use std::sync::Arc;
 use mailcal_account::Capability;
 
 use crate::{
-    AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
-    AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp, MailcalError,
-    ReplyFallbackChoice, SyncStrategyKind, account_page, account_page_mail,
+    AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal,
+    AccountPage, AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp,
+    MailcalError, ReplyFallbackChoice, SyncStrategyKind, account_page, account_page_mail,
     account_registry::Toggle,
     account_work::{PageWork, Start},
 };
@@ -41,6 +41,7 @@ impl MailcalApp {
         let mail = self
             .runtime
             .block_on(|| self.app.sync_settings_row(&account_id, pushing));
+        let refused_servers = self.account_work.refused_servers(&account_id);
         let reply_fallback = engine_api::AccountId::try_from(account_id.as_str())
             .map_or(ReplyFallbackChoice::Ask, |id| {
                 self.app.reply_fallback(&id).into()
@@ -49,6 +50,7 @@ impl MailcalApp {
             &entry,
             hold.clone(),
             notice,
+            refused_servers,
             reply_fallback,
             |capability, on| {
                 self.registry
@@ -135,11 +137,26 @@ impl MailcalApp {
                 account,
                 capability,
                 on,
-            } => use_failed(
-                capability,
-                on,
-                self.set_account_capability(account, capability, on),
-            ),
+            } => {
+                // Asked of the decision the page draws the switch from, so a refusal names the
+                // same reason the page gives beside it.
+                let refused = self.refused_uses().remove(&account).unwrap_or_default();
+                if let Some(Toggle::Refused(block)) =
+                    self.registry
+                        .toggle(&account, Capability::from(capability), on, &refused)
+                {
+                    return Some(AccountChangeNotice::UseFailed {
+                        capability,
+                        on,
+                        refusal: AccountChangeRefusal::Blocked { block },
+                    });
+                }
+                use_failed(
+                    capability,
+                    on,
+                    self.set_account_capability(account, capability, on),
+                )
+            }
             AccountPageIntent::SetLink {
                 account,
                 slot,
@@ -208,6 +225,16 @@ impl MailcalApp {
                 self.set_push_folder(account, key, on);
                 None
             }
+            // Tried before anything is kept; the page shows what was stored once it ends.
+            AccountPageIntent::SaveServers { account, endpoints } => {
+                let error = self
+                    .update_account_endpoints(account.clone(), endpoints.clone())
+                    .err()?;
+                self.account_work.servers_saved(&account, Some(endpoints));
+                Some(AccountChangeNotice::ServersFailed {
+                    refusal: AccountChangeRefusal::from(&error),
+                })
+            }
         }
     }
 }
@@ -220,23 +247,25 @@ fn use_failed(
     on: bool,
     answer: Result<CapabilityChange, MailcalError>,
 ) -> Option<AccountChangeNotice> {
-    let detail = match answer {
+    let refusal = match answer {
         Ok(CapabilityChange::Applied) => return None,
-        Ok(CapabilityChange::NeedsConsent) => "the provider has not granted that".to_owned(),
-        Ok(CapabilityChange::NeedsEndpoint) => AccountUseBlock::NeedsServer.reason().to_owned(),
-        Err(error) => error.to_string(),
+        Ok(CapabilityChange::NeedsConsent) => AccountChangeRefusal::Withheld,
+        Ok(CapabilityChange::NeedsEndpoint) => AccountChangeRefusal::Blocked {
+            block: AccountUseBlock::NeedsServer,
+        },
+        Err(error) => AccountChangeRefusal::from(&error),
     };
     Some(AccountChangeNotice::UseFailed {
         capability,
         on,
-        detail,
+        refusal,
     })
 }
 
 fn link_failed(slot: LinkSlot, answer: Result<(), MailcalError>) -> Option<AccountChangeNotice> {
     answer.err().map(|error| AccountChangeNotice::LinkFailed {
         slot,
-        detail: error.to_string(),
+        refusal: AccountChangeRefusal::from(&error),
     })
 }
 

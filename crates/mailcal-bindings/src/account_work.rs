@@ -44,6 +44,7 @@ pub(crate) enum PageWork {
         key: String,
         on: bool,
     },
+    Servers(Box<crate::AccountEndpoints>),
 }
 
 impl PageWork {
@@ -71,6 +72,9 @@ impl PageWork {
                 key: key.clone(),
                 on: *on,
             },
+            AccountPageIntent::SaveServers { endpoints, .. } => {
+                Self::Servers(Box::new(endpoints.clone()))
+            }
         }
     }
 }
@@ -118,6 +122,8 @@ pub(crate) struct AccountWork {
     notices: Mutex<HashMap<String, AccountChangeNoticeRaised>>,
     /// What a removal came to: said on the accounts list, since the page is gone with the account.
     list_notice: Mutex<Option<AccountChangeNoticeRaised>>,
+    /// The edit of each account's servers its last save refused, which its form is drawn with.
+    refused_servers: Mutex<HashMap<String, crate::AccountEndpoints>>,
     raised: AtomicU64,
 }
 
@@ -143,7 +149,11 @@ impl AccountWork {
         }
         queue.running = Some((account.clone(), work));
         drop(queue);
-        self.forget(&account);
+        // Only the notice: what the page is drawn from outlives a change.
+        self.notices
+            .lock()
+            .expect("account notice mutex poisoned")
+            .remove(&account);
         Start::Run(intent)
     }
 
@@ -190,6 +200,29 @@ impl AccountWork {
             .lock()
             .expect("account notice mutex poisoned")
             .remove(account);
+        self.servers_saved(account, None);
+    }
+
+    /// What `account`'s last save of its servers came to: `refused` is the edit it did not keep,
+    /// `None` once one was kept.
+    pub(crate) fn servers_saved(&self, account: &str, refused: Option<crate::AccountEndpoints>) {
+        let mut kept = self
+            .refused_servers
+            .lock()
+            .expect("account work mutex poisoned");
+        match refused {
+            Some(edit) => kept.insert(account.to_owned(), edit),
+            None => kept.remove(account),
+        };
+    }
+
+    /// The edit of `account`'s servers its last save refused.
+    pub(crate) fn refused_servers(&self, account: &str) -> Option<crate::AccountEndpoints> {
+        self.refused_servers
+            .lock()
+            .expect("account work mutex poisoned")
+            .get(account)
+            .cloned()
     }
 
     /// How `account`'s page stands, and the notice it shows.

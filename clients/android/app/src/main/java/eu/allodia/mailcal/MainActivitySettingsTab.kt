@@ -183,6 +183,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     notices = notices.notices,
     noticeHandlers = noticeHandlers(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
+    endpointsGap = { id, endpoints -> app?.accountEndpointsGap(id, endpoints) },
     // Add account opens setup in place of Settings, and cancelling or finishing returns to Accounts.
     onAddAccount = {
         addError = null
@@ -196,7 +197,6 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     },
     onChange = { intent -> changeAccount(intent) },
     onSignInAgain = { id, adding -> signInAgain(id, adding) },
-    onSaveServers = { id, endpoints -> saveAccountEndpoints(id, endpoints) },
     onReplaceSecret = { id, secret -> replaceAccountSecret(id, secret) },
     onAskSignInOptions = { id -> askSignInOptions(id) },
     onAccountSignIn = { id, switching -> startAccountSignIn(id, switching) },

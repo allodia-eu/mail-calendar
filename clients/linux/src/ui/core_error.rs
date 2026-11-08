@@ -1,26 +1,31 @@
 //! What a person is shown for a core refusal.
 
-use mailcal_bindings::{AccountCapability, MailcalError, UseProblem};
+use mailcal_bindings::{AccountCapability, AccountChangeRefusal, MailcalError, UseProblem};
 
 use crate::l10n;
 
 /// A refusal the core names in the person's language, since the server's reply is meant for a
 /// developer and the core has logged it; anything else as the core renders it.
 pub(super) fn said(error: &MailcalError) -> String {
-    match error {
-        MailcalError::SignInRefused { .. } => l10n::signin_refused().to_owned(),
-        MailcalError::AlreadySetUp { .. } => l10n::account_already_set_up().to_owned(),
-        MailcalError::DifferentAccount => l10n::signin_different_account().to_owned(),
-        MailcalError::StaleSignIn => l10n::signin_stale().to_owned(),
-        MailcalError::UseNotConnected {
+    refusal_said(&AccountChangeRefusal::from(error))
+}
+
+/// Why a change on an account's page did not take, as [`said`] words a refusal.
+pub(super) fn refusal_said(refusal: &AccountChangeRefusal) -> String {
+    match refusal {
+        AccountChangeRefusal::SignInRefused => l10n::signin_refused().to_owned(),
+        AccountChangeRefusal::AlreadySetUp => l10n::account_already_set_up().to_owned(),
+        AccountChangeRefusal::DifferentAccount => l10n::signin_different_account().to_owned(),
+        AccountChangeRefusal::StaleSignIn => l10n::signin_stale().to_owned(),
+        AccountChangeRefusal::UseNotConnected {
             capability,
             problem,
         } => use_not_connected(*capability, *problem).to_owned(),
-        MailcalError::Config(_)
-        | MailcalError::Connect(_)
-        | MailcalError::CertificateRejected { .. }
-        | MailcalError::Engine(_)
-        | MailcalError::Composer(_) => error.to_string(),
+        AccountChangeRefusal::Blocked { block } => {
+            super::settings::account_rows::block_note(*block).to_owned()
+        }
+        AccountChangeRefusal::Withheld => l10n::settings_account_use_withheld().to_owned(),
+        AccountChangeRefusal::Other { detail } => detail.clone(),
     }
 }
 

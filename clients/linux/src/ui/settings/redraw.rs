@@ -51,10 +51,11 @@ pub(super) fn signalled<T: PartialEq>(
 
 /// Whether a redraw would take something the person is typing: the caret is in a field, or a
 /// field was edited since the window was drawn. The second holds after the caret moves on, which
-/// is usually to the button that submits what was typed. A field that sends what was typed
-/// itself counts only while it holds text it has not sent.
+/// is usually to the button that submits what was typed. A field or form that sends what was
+/// typed itself counts only while it holds edits it has not sent.
 pub(super) fn typing(window: &gtk::Window, edited: bool) -> bool {
     edited
+        || crate::ui::controls::holds_unsent(window.upcast_ref())
         || GtkWindowExt::focus(window).is_some_and(|focus| {
             crate::ui::controls::unsent(&focus)
                 .unwrap_or_else(|| focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>())

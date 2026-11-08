@@ -62,6 +62,7 @@ pub(crate) fn a_redraw_keeps_the_persons_place() {
     a_second_redraw_in_one_frame_keeps_the_offset_the_first_was_given();
     a_field_being_typed_in_holds_a_signalled_redraw();
     a_field_that_sends_itself_holds_a_redraw_only_until_it_has();
+    a_form_holds_a_redraw_until_its_button_sends_it();
 }
 
 fn a_redrawn_page_opens_where_the_last_one_was_scrolled_to() {
@@ -190,4 +191,43 @@ fn find_entry(root: &gtk::Widget) -> Option<gtk::Entry> {
         child = widget.next_sibling();
     }
     None
+}
+
+fn a_form_holds_a_redraw_until_its_button_sends_it() {
+    let window = gtk::Window::new();
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let form = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let host = gtk::Entry::new();
+    form.append(&host);
+    let elsewhere = gtk::Button::with_label("Other");
+    content.append(&form);
+    content.append(&elsewhere);
+    window.set_child(Some(&content));
+    crate::ui::controls::form_unsent(&form, false);
+    let edited = Rc::new(Cell::new(false));
+    watch_edits(content.upcast_ref(), &edited);
+    window.present();
+
+    host.grab_focus();
+    assert!(
+        !typing(&window, edited.get()),
+        "the caret in a form holding what was sent holds nothing"
+    );
+    host.set_text("imap.example.org");
+    crate::ui::controls::form_unsent(&form, true);
+    elsewhere.grab_focus();
+    assert!(
+        typing(&window, edited.get()),
+        "an unsent form holds a redraw wherever the caret went"
+    );
+    crate::ui::controls::form_unsent(&form, false);
+    assert!(
+        !typing(&window, edited.get()),
+        "once its button sent it, the page can be redrawn"
+    );
+    assert!(
+        !edited.get(),
+        "a form that sends itself is no edit the window waits on"
+    );
+    window.close();
 }
