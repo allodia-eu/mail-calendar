@@ -118,7 +118,13 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
             NoticeKind::AllodiaSignInEnded {
                 address: address.clone(),
             },
-            Degraded,
+            // Mail, calendar and contacts all work without the account, until signing in again
+            // is what keeps a capability someone paid for.
+            if connectivity.allodia_lapses_soon {
+                Blocked
+            } else {
+                Degraded
+            },
             Everywhere,
             Some(NoticeAction::SignInToAllodia),
         ));

@@ -31,6 +31,8 @@ mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
+#[cfg(feature = "allodia-license")]
+mod allodia_entitlement;
 mod allodia_health;
 #[cfg(feature = "allodia-license")]
 mod allodia_pass;
@@ -372,6 +374,9 @@ pub struct MailcalApp {
     /// Nothing in it is written down and nothing needs to be: the store is the durable copy.
     #[cfg(feature = "allodia-license")]
     allodia_purchases: Mutex<allodia_license::Ledger>,
+    /// The entitlement this device last read; see [`allodia_entitlement`].
+    #[cfg(feature = "allodia-license")]
+    allodia_entitlement: allodia_entitlement::EntitlementState,
     /// Where this device remembers what it has synced with the account service, once a host has
     /// installed somewhere to keep it. `None` until then, which is a wiring bug rather than a
     /// state a pass may quietly run in; see [`crate::app_allodia_sync`].

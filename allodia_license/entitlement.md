@@ -59,9 +59,12 @@ failures are invisible to the device experiencing them.
 
 ## Storing
 
-A client stores the reply and when it took it. The answer is derived, not a credential, so it
-belongs in the app's preferences beside the store, **not** in the platform keystore, which is for
-secrets and costs a prompt on some platforms.
+The core reads the entitlement itself, in the background and never on a path anyone waits for: at
+launch, after a sign-in and on a mail refresh, each only once `refreshAfterSeconds` has passed. It
+stores the reply and when it took it as `allodia-entitlement.json` in the app data directory,
+beside the store. The answer is derived, not a credential, so it belongs there, **not** in the
+platform keystore, which is for secrets and costs a prompt on some platforms. Signing out erases
+it, and so does signing in as a different account. No client reads or stores it.
 
 Two horizons, and they answer different questions:
 
@@ -296,8 +299,9 @@ Mail, calendar and contacts all work without the Allodia account, so a refused g
 It is raised to Blocked while the stored answer grants a paid capability whose grace (above) ends
 within seven days, because from then on signing in again is what keeps that capability. Grace,
 not `currentPeriodEnd`, is the horizon: the period end is for display, and the grace is what this
-device will actually stop granting on. The rise is read from the stored answer, so it arrives with
-the entitlement read the matrix below plans.
+device will actually stop granting on. The rise is read from the stored answer, which is what
+stands while the grant is refused, so no request is needed to raise it; the seven days are
+`LAPSE_WARNING_SECONDS` and the decision `Cache::lapses_soon`.
 
 **Create is a `prompt` on the same request, never a second URL.** The authorization endpoint is
 discovered, so a literal sign-up address would be a second source of truth and would ignore
@@ -362,7 +366,7 @@ the service verifies, because neither is written down here.
 | Sign in to an Allodia account | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Create an account from inside the app (`prompt=create`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Manage or delete the account, in the service's own page | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Read an entitlement, with the grace and degrade rules above | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Read an entitlement, with the grace and degrade rules above | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Tell a narrowed grant from a revoked one, and prompt for the right one | ✅ | 🚧 | 🚧 | ✅ | 🚧 | 🚧 |
 | Draw a refused grant as ended, with sign in again, on the account card | ✅ | ✅ | 🚧 | 🚧 | 🚧 | 🚧 |
 | Say a refused grant in the app's banner, with sign in again | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -417,10 +421,9 @@ Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ pl
   the production service (2026-09-11): a grant carrying all five `mailcal:*` scopes, and
   `plan: free` with `capabilities: ["accounts_sync"]` parsed back through `Cache`. Paid accounts
   now exist there, one attached from a Play purchase and one from a real charge through Allodia's
-  own checkout ([`purchasing.md`](purchasing.md)), and nothing has read `GET /entitlement` against
-  either: the subscription card reads `GET /subscription`, which gates nothing. So what is missing
-  is the read rather than the plan, and the grace and degrade rules stay unobserved against a paid
-  account.
+  own checkout ([`purchasing.md`](purchasing.md)). The core now reads `GET /entitlement` on every
+  platform, but not yet against either of those accounts, so the grace and degrade rules stay
+  unobserved against a paid one.
 - **No client draws a paid capability**, so the grace and degrade rules are unit-tested in the core
   and unproven in a UI.
 - **Signing out is local.** It erases this install's copy of the grant, which is what removing a mail

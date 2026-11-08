@@ -241,7 +241,16 @@ impl MailcalApp {
                     MailcalError::Connect(err.to_string())
                 })?;
             let account = stored.account();
-            *self.allodia.lock().expect("allodia account lock") = Some(stored);
+            let previous = self
+                .allodia
+                .lock()
+                .expect("allodia account lock")
+                .replace(stored)
+                .and_then(|previous| previous.id);
+            // A plan read for another account says nothing about this one.
+            if previous != account.id {
+                self.allodia_entitlement.forget();
+            }
             // The token held for the process was minted from the grant this one replaces, and the
             // service refuses it the moment the new authorisation supersedes that grant. Left in
             // place it is presented for its full hour, so signing in reads as being signed out a
@@ -255,6 +264,7 @@ impl MailcalApp {
                 self.note_allodia_health(health);
             }
             log::info!("allodia: signed in; the grant is stored");
+            self.refresh_allodia_entitlement();
             Ok(account)
         }
     }
@@ -304,6 +314,9 @@ impl MailcalApp {
         // authenticated requests for as long as the token lasts.
         #[cfg(feature = "allodia-license")]
         self.forget_allodia_access_token();
+        // What the account that is leaving was entitled to describes nobody here any more.
+        #[cfg(feature = "allodia-license")]
+        self.allodia_entitlement.forget();
         // Nothing is known about a grant that is not there, so a refusal of the one leaving is not
         // carried over to the next sign-in.
         #[cfg(feature = "allodia-license")]

@@ -17,6 +17,7 @@ fn quiet() -> ConnectivitySnapshot {
         calendar_outages: Vec::new(),
         contacts_outages: Vec::new(),
         allodia_sign_in_ended: None,
+        allodia_lapses_soon: false,
     }
 }
 
@@ -369,3 +370,34 @@ mod mapping;
 
 #[path = "notices_retry_tests.rs"]
 mod retry;
+
+#[test]
+fn the_allodia_notice_is_blocked_while_a_paid_capability_is_about_to_lapse() {
+    let mut book = NoticeBook::default();
+    let ended = ConnectivitySnapshot {
+        allodia_sign_in_ended: Some("me@allodia.example".to_owned()),
+        unreachable_accounts: ids(&["z"]),
+        ..quiet()
+    };
+    let severity = |notices: &[crate::Notice]| {
+        notices
+            .iter()
+            .find(|notice| notice.id == "allodia_sign_in_ended")
+            .map(|notice| notice.severity)
+    };
+    assert_eq!(
+        severity(&pull(&mut book, &ended)),
+        Some(NoticeSeverity::Degraded)
+    );
+
+    let lapsing = ConnectivitySnapshot {
+        allodia_lapses_soon: true,
+        ..ended
+    };
+    let ranked = pull(&mut book, &lapsing);
+    assert_eq!(severity(&ranked), Some(NoticeSeverity::Blocked));
+    assert_eq!(
+        ranked[0].id, "allodia_sign_in_ended",
+        "Blocked is drawn first"
+    );
+}
