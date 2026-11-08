@@ -361,10 +361,7 @@ pub(crate) fn build_accounts(
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
     #[cfg(feature = "allodia-license")]
-    {
-        mailcal.allodia_entitlement.adopt(&mailcal);
-        mailcal.refresh_allodia_entitlement();
-    }
+    mailcal.refresh_allodia_entitlement();
     // A refresh that widens a grant opens a use the dial before it was planned without; dial it
     // again now. Off the runtime, whose thread must not drop the last handle on the app.
     let widened = Arc::downgrade(&mailcal);

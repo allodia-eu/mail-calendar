@@ -12,7 +12,7 @@
 use std::{
     path::PathBuf,
     sync::{
-        Mutex, OnceLock, Weak,
+        Mutex,
         atomic::{AtomicBool, Ordering},
     },
 };
@@ -32,8 +32,6 @@ pub(crate) struct EntitlementState {
     cache: Mutex<Cache>,
     /// A read is out, so a second trigger does not start another.
     asking: AtomicBool,
-    /// The app, for a read that outlives the call that started it.
-    app: OnceLock<Weak<MailcalApp>>,
 }
 
 impl EntitlementState {
@@ -49,11 +47,6 @@ impl EntitlementState {
             cache: Mutex::new(Cache::restore(stored)),
             ..Self::default()
         }
-    }
-
-    /// Hands the state the app it belongs to, once the app exists.
-    pub(crate) fn adopt(&self, app: &std::sync::Arc<MailcalApp>) {
-        let _ = self.app.set(std::sync::Arc::downgrade(app));
     }
 
     /// Whether the stored answer is in its last week of grace while granting a paid capability.
@@ -113,7 +106,8 @@ impl MailcalApp {
         if !signed_in || !state.should_refresh(now()) {
             return;
         }
-        let Some(app) = state.app.get().and_then(Weak::upgrade) else {
+        // The app, for a read that outlives the call that started it.
+        let Some(app) = self.rediscovery.app() else {
             return;
         };
         if state.asking.swap(true, Ordering::AcqRel) {
