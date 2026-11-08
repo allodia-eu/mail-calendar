@@ -1106,11 +1106,10 @@ before believing the paragraph above.
 - **The incremental cache, which no cargo reclaims.** Cargo keeps a session directory per
   compilation context and prunes none of them (every engine re-pin and every local-engine
   `[patch]` toggle mints a fresh set), and its `clean gc` collects `$CARGO_HOME`, not `target/`.
-  Two days of one branch left 20 GiB. A **green** [`cargo xtask gate`](../xtask/src/prune.rs) now
-  drops it past a 5 GiB cap. "Nine seconds on the next rebuild" is the cost of dropping a *small*
-  one: dropping a 3.6 GiB cache by hand cost **70 crates recompiled and 323 s**, so it is a disk
-  trade, not a free one. Do **not** reach for `cargo clean` instead: that takes `deps/` with it,
-  which is the rebuild this section is about.
+  Two days of one branch left 20 GiB. Dropping it costs a rebuild: a 3.6 GiB cache dropped by hand
+  cost **70 crates recompiled and 323 s**, so it is a disk trade, not a free one, and nothing here
+  makes it for you. Do **not** reach for `cargo clean` instead: that takes `deps/` with it, which
+  is the rebuild this section is about.
 - **Stale test binaries, which no cargo reclaims either.** Every rebuild links a new test executable
   under a new hash and leaves the old one; a day of iterating left **434 of them, 5.7 GB**. They
   cost disk, and on macOS they cost more than that (see below). Deleting executables in
@@ -1134,8 +1133,8 @@ disable Gatekeeper, and `spctl --master-disable` is not the answer.
 
 Same repo, same commit, same 19 crates rebuilt, before and after granting it: **35.8 min → 7.8 min.**
 
-Per-machine wins that belong in no tracked file (`lld-link.exe`, a shared `CARGO_TARGET_DIR` for
-worktrees): this document → "Build time and disk".
+Per-machine wins that belong in no tracked file (`lld-link.exe`): this document → "Build time and
+disk".
 
 ### The incremental cache is 20 GB, and nothing reclaims it
 
@@ -1154,18 +1153,17 @@ churn, not accumulation, which is why deleting "old" directories reclaims nothin
 `cache.auto-clean-frequency`. Here that whole global cache is 1.6 GB and its GC reports zero files;
 the 20 GiB is in `target/`, which no version of cargo garbage-collects.
 
-So [`cargo xtask gate`](../xtask/src/prune.rs) does it: a **green** gate drops the cache once it is
-past a 5 GiB cap. A red gate leaves it alone, because that is when you are still iterating and the
-cache is worth its disk. What that costs, measured on an M-series Mac:
-`cargo build -p mailcal-bindings` after a one-line edit in `mailcal-app`:
+Nothing here reclaims it for you: dropping it costs a rebuild, and only you know when the disk is
+worth more than that. What it costs, measured on an M-series Mac, `cargo build -p mailcal-bindings`
+after a one-line edit in `mailcal-app`:
 
 | | rebuild |
 |---|---|
 | cache warm | 3.3s |
-| first rebuild after a prune | 12.0s |
+| first rebuild after dropping it | 12.0s |
 | every rebuild after that | 3.4s |
 
-Nine seconds, once, per chunk of work. To reclaim it by hand at any time:
+To reclaim it:
 
 ```sh
 rm -rf target/*/incremental        # safe, always; costs one non-incremental rebuild
@@ -1215,46 +1213,23 @@ build reverts to `link.exe` and is slower, never wrong.
 
 ### Worktrees each grow their own `target/`
 
-A `.claude/worktrees/*` checkout is a separate Cargo workspace, so it would build a full target dir
-of its own, several GB per worktree. What stops it is `build.build-dir` in
-[`.cargo/config.toml`](../.cargo/config.toml), which every checkout reads: the intermediates go to
-one shared directory and only the final artifacts stay local. Nothing to set up per machine.
+A `.claude/worktrees/*` checkout is a separate Cargo workspace and builds in a `target/` of its
+own: its first build compiles the whole dependency tree, and it holds several GB from then on.
+Removing the worktree removes its build with it.
 
-Prefer it to a shared `CARGO_TARGET_DIR`. Both share the compile work and both make builds
-serialise on a lock, but a shared target dir also shares the **final** artifacts, so two worktrees
-on different revisions overwrite each other's binaries and whichever built last is the one you run.
-`build-dir` shares only the intermediates.
+Do not point checkouts at one shared directory to save that, by `build-dir` or `CARGO_TARGET_DIR`.
+Cargo names a workspace crate's artifact, and the fingerprint guarding it, from the
+workspace-relative path, so every checkout collides on one entry and freshness comes down to mtimes
+against a relative file list: a checkout whose sources predate another checkout's last build is
+handed that checkout's binary. Reduced to two workspaces sharing one build directory, `cargo test`
+in the one whose only test asserts `2 + 2 == 5` reports `1 passed`.
 
-⚠️ **Sharing only the intermediates is better than that, and it is not safe.** Cargo derives an
-artifact's name, and the fingerprint guarding it, from the workspace-relative path, so every
-checkout collides on one entry and freshness comes down to mtimes against a relative file list. A
-checkout whose sources predate another checkout's last build is declared fresh and is uplifted that
-checkout's binary. Reduced to two workspaces sharing one build directory, `cargo test` in the one
-whose only test asserts `2 + 2 == 5` reports `1 passed`. A worktree created before another worktree
-built is the everyday shape of it.
-
-**The gate is held out of it, from both ends.** `cargo xtask` carries
-`--config build.build-dir="{workspace-root}/target"` in its alias, so the gate is this checkout's
-own binary rather than whichever one was compiled last. And a gate run *claims* the shared
-directory before it judges anything: it leaves a marker naming the checkout whose artifacts are in
-there, and when the marker names someone else it runs `cargo clean --workspace` first, which drops
-the members' artifacts and leaves every dependency compiled. So a gate run after a switch rebuilds
-this repository's own crates, and one from the checkout that built here last rebuilds nothing.
-
-Everything else is not covered. A `cargo test` or `cargo build` typed by hand claims nothing, so it
-can still be handed another checkout's output. The tell is a result that cannot be squared with the
-diff: a step failing over a file the branch never touched, or a test passing that cannot. Run the
-gate, or re-run the step with `CARGO_BUILD_BUILD_DIR` pointed somewhere private, and expect a full
-rebuild when you do.
-
-⚠️ **A gate step this tree does not define is the same thing wearing a disguise.** It reads as a
-broken task runner, because the runner is what names the steps, so the search starts in `xtask/`
-and finds nothing wrong there. The step belongs to the `xtask` another checkout compiled, running
-against this tree's files, and it usually surfaces as a missing script: `could not start: No such
-file or directory`, for a path that is not in this branch. Every step's label is a literal in
-`xtask/src/`, so grepping that directory for the label you were shown settles it: no match means
-the binary that printed it was not built here. Reach for the grep rather than `gate --list`, which
-collapses the client steps into a single line and so cannot show you the step you are asking about.
+Sharing the work is a compiler cache's job, and only one that maps each checkout's paths away
+helps. sccache keys on absolute paths, and every rustc call names the build directory, so it misses
+across worktrees: a cold `cargo build -p mailcal-bindings` in a second build directory, with the
+first one's build already in the cache, took 254 s with **0 hits** of 230, its base-directory
+setting included. In the same directory it hit 85% and still took 195 s against 240 s cold, since
+our own crates, proc macros, build scripts and links are not cached.
 
 ## Known gaps / follow-ups
 

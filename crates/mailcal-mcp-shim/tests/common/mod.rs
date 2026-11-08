@@ -4,14 +4,11 @@ use std::ffi::OsString;
 
 /// The `mailcal-mcp` binary this `cargo test` just built.
 ///
-/// ⚠️ **`env!("CARGO_BIN_EXE_mailcal-mcp")` is not this checkout's copy.** It is resolved when the
-/// test is *compiled*, and every checkout shares one build directory
-/// ([`.cargo/config.toml`](../../../../.cargo/config.toml)), while the binaries themselves are
-/// uplifted into each worktree's own `target/`. A test binary compiled by one worktree is reused
-/// by the next, carrying the first one's absolute path: the tests then spawn a relay belonging to
-/// a different checkout, or, once that checkout is deleted, fail with `NotFound` in a tree whose
-/// diff does not touch this crate. What it looks like from the outside is five tests failing over
-/// a change that cannot have caused them.
+/// ⚠️ **`env!("CARGO_BIN_EXE_mailcal-mcp")` need not be this checkout's copy.** It is resolved when
+/// the test is *compiled*, and a test binary is not always run by the checkout that compiled it
+/// ([`.cargo/config.toml`](../../../../.cargo/config.toml)): it carries the first one's absolute
+/// path, so the tests spawn a relay belonging to a different checkout or, once that checkout is
+/// deleted, fail with `NotFound` in a tree whose diff does not touch this crate.
 ///
 /// Cargo exports the same variable into the test *process*, where it is computed by the run that
 /// is happening now, so it always names the binary beside this run's. The compile-time value stays

@@ -56,10 +56,11 @@ rustup target add "$rust_target" >/dev/null
 # cargo-ndk supplies the NDK linker and sysroot, the same way the cdylib cross-build does, so this
 # script and clients/android/build-and-run.sh agree about what an Android build means.
 echo "==> Cross-compiling the bindings test binary"
-# A test executable is never uplifted to `target/`; it stays in cargo's build directory, which
-# `.cargo/config.toml` points outside the checkout. Pin it for this one build so the find below
-# has a path to look in that does not depend on whose config is in effect.
-build_dir="$REPO_ROOT/target/android-native-fault"
+# A test executable is never uplifted out of cargo's build directory, which a personal cargo
+# config can move. Pinned to the checkout's own `target/`, the default, so the find below has a
+# path that does not depend on whose config is in effect, and the build reuses this checkout's
+# other Android builds.
+build_dir="$REPO_ROOT/target"
 (cd "$REPO_ROOT" && CARGO_BUILD_BUILD_DIR="$build_dir" cargo ndk -t "$ndk_abi" test -p mailcal-bindings --no-run)
 
 # Found on disk rather than read from `--message-format=json`, because cargo-ndk swallows cargo's
