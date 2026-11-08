@@ -246,8 +246,9 @@ pub use records::{
 pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
     AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountSenderName,
-    AccountServers, AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
-    AccountWatchedFolder, ControlState,
+    AccountServers, AccountSharedAddress, AccountSharedMailbox, AccountSharedMailboxes,
+    AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch, AccountWatchedFolder,
+    ControlState, SharedMailboxesNote,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

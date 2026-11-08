@@ -10,7 +10,7 @@ use mailcal_app::{SharedMailboxLookup, SharedMailboxOffer};
 use crate::{MailcalApp, MailcalError};
 
 /// Whether an account's sign-in can open mailboxes besides its own.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SharedMailboxSupport {
     /// The server lists the mailboxes it opens; they are in
     /// [`SharedMailboxesView::mailboxes`], none when nothing is shared with the account.
@@ -28,7 +28,7 @@ pub enum SharedMailboxSupport {
 }
 
 /// One mailbox an account's sign-in opens besides its own.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedMailboxEntry {
     /// The server's handle for it, handed back to [`MailcalApp::set_shared_mailbox`].
     pub handle: String,
@@ -44,7 +44,7 @@ pub struct SharedMailboxEntry {
 }
 
 /// An account's shared mailboxes, as its server answered and as the account is used.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedMailboxesView {
     /// Whether the sign-in can open any.
     pub support: SharedMailboxSupport,
@@ -52,10 +52,11 @@ pub struct SharedMailboxesView {
     pub mailboxes: Vec<SharedMailboxEntry>,
 }
 
-#[uniffi::export]
+/// What the account's page asks through its own changes (`AccountPage::shared`); kept public for
+/// the live suites, which drive a real server through them.
 impl MailcalApp {
     /// Asks `account_id`'s server which mailboxes its sign-in opens besides its own. Blocks on
-    /// the network, so a client calls it off its UI thread, when the account's page opens.
+    /// the network.
     ///
     /// The mailboxes the account is used for are in the answer whatever the server said, so
     /// one can be switched off while the server is away.
@@ -72,25 +73,10 @@ impl MailcalApp {
         {
             return Err(MailcalError::Config("no such account".to_owned()));
         }
-        let chosen = self
-            .registry
-            .shared_mailboxes(&account_id)
-            .into_iter()
-            .map(|(_, choice)| choice)
-            .collect();
-        if !self.opens_shared_mailboxes(&account_id) {
-            return Ok(view(Ok::<_, ()>(SharedMailboxOffer::Unsupported), chosen));
-        }
-        let account = AccountId::try_from(account_id.as_str())
-            .map_err(|err| MailcalError::Config(err.to_string()))?;
-        let app = Arc::clone(&self.app);
-        let offer = self
-            .runtime
-            .block_on(|| async move { app.shared_mailbox_offer(&account).await })
-            .inspect_err(|err| {
-                log::info!("shared mailboxes: the server did not list them ({err})");
-            });
-        Ok(view(offer, chosen))
+        Ok(view(
+            self.shared_offer(&account_id),
+            self.chosen_shared_mailboxes(&account_id),
+        ))
     }
 
     /// The mailbox at `address`, if `account_id`'s sign-in opens it, ready for
@@ -206,10 +192,36 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// Whether `account_id` is an account whose sign-in may open a shared mailbox: an IMAP or
-    /// JMAP account, whose server says, or a Microsoft account used for shared mailboxes with a
-    /// grant that allows them. Never a shared mailbox itself.
-    fn opens_shared_mailboxes(&self, account_id: &str) -> bool {
+    /// The shared mailboxes `account_id` is used for, in the order they were chosen.
+    pub(crate) fn chosen_shared_mailboxes(&self, account_id: &str) -> Vec<SharedMailboxChoice> {
+        self.registry
+            .shared_mailboxes(account_id)
+            .into_iter()
+            .map(|(_, choice)| choice)
+            .collect()
+    }
+
+    /// What `account_id`'s server says of the mailboxes its sign-in opens: asked of the server
+    /// only for an account that may open one. **Blocking** on the network.
+    pub(crate) fn shared_offer(&self, account_id: &str) -> Result<SharedMailboxOffer, ()> {
+        if !self.opens_shared_mailboxes(account_id) {
+            return Ok(SharedMailboxOffer::Unsupported);
+        }
+        let Ok(account) = AccountId::try_from(account_id) else {
+            return Ok(SharedMailboxOffer::Unsupported);
+        };
+        let app = Arc::clone(&self.app);
+        self.runtime
+            .block_on(|| async move { app.shared_mailbox_offer(&account).await })
+            .map_err(|err| {
+                log::info!("shared mailboxes: the server did not list them ({err})");
+            })
+    }
+
+    /// Whether `account_id`'s sign-in may open a shared mailbox: an IMAP or JMAP account, whose
+    /// server says, or a Microsoft account used for shared mailboxes with a grant that allows
+    /// them. Never a shared mailbox itself.
+    pub(crate) fn opens_shared_mailboxes(&self, account_id: &str) -> bool {
         if self.registry.shared_parent(account_id).is_some() {
             return false;
         }
@@ -306,7 +318,7 @@ impl MailcalApp {
 }
 
 /// The view Settings draws: the chosen mailboxes first, then the rest the server listed.
-fn view<E>(
+pub(crate) fn view<E>(
     offer: Result<SharedMailboxOffer, E>,
     chosen: Vec<SharedMailboxChoice>,
 ) -> SharedMailboxesView {

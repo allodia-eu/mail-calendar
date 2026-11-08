@@ -15,7 +15,6 @@ use crate::{
 
 mod account_consent;
 mod account_settings;
-mod account_shared;
 mod account_sign_in;
 mod allodia;
 mod allodia_subscription;

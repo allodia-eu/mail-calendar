@@ -150,6 +150,14 @@ impl FormSend {
         &self.row
     }
 
+    /// Sends the form as its button would, when the button may be pressed: for a field whose
+    /// Return sends it.
+    pub(super) fn press(&self) {
+        if self.button.is_sensitive() {
+            self.button.emit_clicked();
+        }
+    }
+
     /// The fields as they stand: `missing` says what they leave out, `None` when they can be
     /// sent.
     pub(super) fn ready(&self, missing: Option<&str>) {

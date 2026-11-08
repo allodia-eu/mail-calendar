@@ -57,6 +57,15 @@ pub enum AccountPageIntent {
         account: String,
         endpoints: crate::AccountEndpoints,
     },
+    /// Use the account for the shared mailbox `handle`, from its switch, or stop: switched off,
+    /// what the device holds of it is deleted.
+    SetSharedMailbox {
+        account: String,
+        handle: String,
+        on: bool,
+    },
+    /// Use the account for the shared mailbox at `address`, once its server opens one there.
+    AddSharedMailbox { account: String, address: String },
 }
 
 impl AccountPageIntent {
@@ -72,7 +81,9 @@ impl AccountPageIntent {
             | Self::SetPush { account, .. }
             | Self::SetPollInterval { account, .. }
             | Self::SetWatchedFolder { account, .. }
-            | Self::SaveServers { account, .. } => account,
+            | Self::SaveServers { account, .. }
+            | Self::SetSharedMailbox { account, .. }
+            | Self::AddSharedMailbox { account, .. } => account,
         }
     }
 }

@@ -65,7 +65,7 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
             return;
         }
         app.Agent.SetToggle(toggle, on: false);
-        app.Agent.Invoke(Button(app, dialog, "SharedMailboxOff"));
+        app.Agent.Invoke(Button(app, dialog, "SharedMailboxOffConfirm"));
         App.Eventually(() => !IsOn(app, dialog), TimeSpan.FromSeconds(20));
     }
 
@@ -136,12 +136,12 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
         dialog = setup.OpenAccount(Harness.Alice);
         app.Agent.SetToggle(Switch(app, dialog), on: false);
         // Rule 7: switching it off deletes what the device holds of it, so it is confirmed first.
-        Button(app, dialog, "SharedMailboxOff");
+        Button(app, dialog, "SharedMailboxOffConfirm");
         app.Agent.Invoke(Button(app, dialog, "SharedMailboxOffCancel"));
         Assert.True(App.Eventually(() => IsOn(app, dialog), TimeSpan.FromSeconds(5)), "cancelling leaves the mailbox on");
 
         app.Agent.SetToggle(Switch(app, dialog), on: false);
-        app.Agent.Invoke(Button(app, dialog, "SharedMailboxOff"));
+        app.Agent.Invoke(Button(app, dialog, "SharedMailboxOffConfirm"));
         Assert.True(App.Eventually(() => !IsOn(app, dialog), TimeSpan.FromSeconds(20)), "confirmed, the mailbox is switched off");
         app.CloseDialogs();
         Assert.True(App.Eventually(() => PaneRow(app) is null, TimeSpan.FromSeconds(20)),

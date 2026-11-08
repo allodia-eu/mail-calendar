@@ -50,15 +50,17 @@ control running, drawn at the value it is moving to rather than the one it is le
 page holds its controls without a spinner. While the account is used for mail the page carries
 its `sender_name` and its `mail` settings too (fetch depth, message size, push or poll, the
 interval, the watched folders), each a control of its own, a switch to push drawn with the
-folders it will watch: a change to one is stored before it ends, and what follows from it (telling the provider the name, reconciling the mail to a new depth
-or size) runs on afterwards as sync work the page does not wait on. For an account whose servers
+folders it will watch: a change to one is stored before it ends, and what follows from it (telling
+the provider the name, reconciling the mail to a new depth or size) runs on afterwards as sync work
+the page does not wait on. For an account whose servers
 can be edited the page carries its `servers`: the form, drawn from the edit being saved while a
 save runs, from the edit the last save refused (its password included, so one field is corrected
 rather than all retyped), and otherwise from what is stored; and Save, held too while
 `account_endpoints_gap` says the fields leave something out, which the page says beside it. The
 fields are held with Save, without its spinner, so nothing typed during a save is drawn over when
-it ends. The page's `notice` carries
-an id that grows with each one, so a client says each notice once. A removal's notice is the
+it ends. Its `shared` mailboxes are switches and an address field of the same kind: switching one
+or adding one is a change on the page, and the server's answer is the core's to ask for and keep.
+The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
 Each client draws `ControlState` through one set of components of its own (a switch row, a button,
@@ -86,6 +88,7 @@ record, not a state the client keeps.
 | An account's page: uses, links and removal drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its name and mail settings drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its servers drawn from `account_page`, saved as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An account's page: its shared mailboxes drawn from `account_page`, switched and added as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -110,6 +113,10 @@ record, not a state the client keeps.
   and a refused save says why and draws the form as it was typed. What the rule refuses is in
   [`config_edit_tests.rs`](../crates/mailcal-account/src/config_edit_tests.rs): a server the account
   has keeps an address, the address book's falling back to the calendar's.
+- [`account_page_shared_tests.rs`](../crates/mailcal-bindings/src/account_page_shared_tests.rs)
+  pins the shared mailboxes: the server asked once, and again only when the page opens or the
+  account changed, an older answer never replacing a newer one, the rows and the line under them,
+  and a running switch or add drawn where it goes.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

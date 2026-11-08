@@ -47,8 +47,8 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     if !account.links.is_empty() {
         content.append(&links_group(ctx, entry, &account.links));
     }
-    if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
-        content.append(&shared);
+    if let Some(shared) = &account.shared {
+        content.append(&super::shared_mailboxes::section(ctx, entry, shared));
     }
     if account_rows::signs_in_at_provider(entry.kind) {
         content.append(&signin_group(ctx, entry));

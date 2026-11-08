@@ -58,6 +58,7 @@ impl MailcalApp {
             page.sender_name = Some(sender_name);
             page.mail = Some(mail);
         }
+        page.shared = self.shared_section(&account_id, &hold);
         Some(page)
     }
 
@@ -213,6 +214,8 @@ impl MailcalApp {
                 self.set_push_folder(account, key, on);
                 None
             }
+            intent @ (AccountPageIntent::SetSharedMailbox { .. }
+            | AccountPageIntent::AddSharedMailbox { .. }) => self.run_shared_change(intent),
             // Tried before anything is kept; the page shows what was stored once it ends.
             AccountPageIntent::SaveServers { account, endpoints } => {
                 let result = self.update_account_endpoints(account.clone(), endpoints.clone());
@@ -261,3 +264,6 @@ fn link_failed(slot: LinkSlot, answer: Result<(), MailcalError>) -> Option<Accou
 #[cfg(test)]
 #[path = "app_account_page_tests.rs"]
 mod tests;
+
+#[path = "app_account_page_shared.rs"]
+mod shared;

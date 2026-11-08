@@ -12,6 +12,7 @@ import uniffi.mailcal_bindings.AccountMailSettings
 import uniffi.mailcal_bindings.AccountPage
 import uniffi.mailcal_bindings.AccountSenderName
 import uniffi.mailcal_bindings.AccountServers
+import uniffi.mailcal_bindings.AccountSharedMailboxes
 import uniffi.mailcal_bindings.AccountUse
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
@@ -124,6 +125,7 @@ internal fun pageOf(
     senderName: AccountSenderName? = null,
     mail: AccountMailSettings? = null,
     servers: AccountServers? = entry.endpoints?.let { AccountServers(form = it, save = FREE) },
+    shared: AccountSharedMailboxes? = null,
 ) = AccountPage(
     account = entry.id,
     uses = uses,
@@ -131,6 +133,7 @@ internal fun pageOf(
     senderName = senderName,
     mail = mail,
     servers = servers,
+    shared = shared,
     remove = remove,
     notice = null,
 )

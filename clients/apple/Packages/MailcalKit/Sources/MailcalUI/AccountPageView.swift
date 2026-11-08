@@ -26,8 +26,6 @@ struct AccountPageView: View {
     /// The line the sign-in section shows once a sign-in has answered.
     @State private var signInResult: String?
     @State private var confirmingRemoval: String?
-    /// What the server answered about the mailboxes the account's sign-in opens besides its own.
-    @State private var sharedMailboxes: SharedMailboxesView?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -71,8 +69,9 @@ struct AccountPageView: View {
             if !page.links.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: page.links)
             }
-            AccountSharedMailboxesSection(
-                model: model, entry: entry, answer: $sharedMailboxes, alert: $alert)
+            if let shared = page.shared {
+                AccountSharedMailboxesSection(model: model, entry: entry, shared: shared)
+            }
             if AccountSettingsRules.signsInAtProvider(entry.kind) {
                 signInSection
             } else if AccountSignInRules.switchesSignIn(entry.kind) {
@@ -94,7 +93,8 @@ struct AccountPageView: View {
             }
             removeSection
         }
-        .modifier(SharedMailboxesAsking(model: model, entry: entry, answer: $sharedMailboxes))
+        // Its server is asked again which mailboxes the account's sign-in opens.
+        .task(id: entry.id) { model.accountPageOpened(entry.id) }
         // What a change on this page came to, said once (docs/waiting.md rule 5).
         .onChange(of: model.accountPageState.failure?.id, initial: true) {
             guard let failure = model.accountPageState.failure else { return }

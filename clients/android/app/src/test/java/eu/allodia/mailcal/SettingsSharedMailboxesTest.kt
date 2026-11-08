@@ -1,6 +1,6 @@
 // The Shared mailboxes section of an account's page as a person meets it
-// (docs/shared-mailboxes.md rules 3 and 7): asked as the page opens, a switch per mailbox, the
-// address field where the server lists none, and switching one off confirmed first.
+// (docs/shared-mailboxes.md rules 3 and 7), drawn from what the core decided: a switch per
+// mailbox, the address field where the server lists none, and switching one off confirmed first.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
@@ -22,11 +22,14 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountSharedAddress
+import uniffi.mailcal_bindings.AccountSharedMailbox
+import uniffi.mailcal_bindings.AccountSharedMailboxes
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
-import uniffi.mailcal_bindings.SharedMailboxEntry
-import uniffi.mailcal_bindings.SharedMailboxSupport
-import uniffi.mailcal_bindings.SharedMailboxesView
+import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.SharedMailboxesNote
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 @RunWith(RobolectricTestRunner::class)
@@ -34,25 +37,20 @@ class SettingsSharedMailboxesTest {
     @get:Rule val compose = createComposeRule()
 
     private val state = AccountsUiState()
-    private val asked = mutableListOf<String>()
-    private val set = mutableListOf<Triple<String, SharedMailboxEntry, Boolean>>()
-    private val added = mutableListOf<Pair<String, String>>()
+    private val changes = mutableListOf<AccountPageIntent>()
 
-    private val support = sharedMailbox("Support Team", "support@example.org")
-    private val board = sharedMailbox("Board", selected = true)
+    private fun mailbox(title: String, label: String? = null, on: Boolean = false, withdrawn: Boolean = false) =
+        AccountSharedMailbox(title, title, label, withdrawn, on, FREE)
 
-    private fun show(view: SharedMailboxesView?) {
+    private val support = mailbox("support@example.org", label = "Support Team")
+    private val board = mailbox("Board", on = true)
+
+    private fun show(shared: AccountSharedMailboxes?) {
         val entry = mailboxOnly()
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
-        state.accountPage = pageOf(entry)
-        state.shared.answered(entry.id, view, state.shared.read())
-        val ui = AccountsSettingsUi(
-            state = state,
-            onAskSharedMailboxes = { asked += it },
-            onSetSharedMailbox = { id, mailbox, on -> set += Triple(id, mailbox, on) },
-            onAddSharedMailbox = { id, address -> added += id to address },
-        )
+        state.accountPage = pageOf(entry, shared = shared)
+        val ui = AccountsSettingsUi(state = state, onChange = { changes += it })
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
@@ -64,55 +62,81 @@ class SettingsSharedMailboxesTest {
     }
 
     @Test
-    fun the_server_is_asked_as_the_page_opens_and_each_mailbox_is_a_switch() {
-        show(sharedView(SharedMailboxSupport.LISTED, board, support))
+    fun each_mailbox_is_a_switch_named_by_its_address_with_the_servers_label() {
+        show(AccountSharedMailboxes(listOf(board, support), null, null))
 
-        assertEquals(listOf(mailboxOnly().id), asked)
         compose.onNodeWithText("Shared mailboxes").assertExists()
         compose.onNodeWithText("Support Team").assertExists()
         compose.onNodeWithTag("account-shared-Board").assertIsOn()
         compose.onNodeWithTag("account-shared-support@example.org").performScrollTo().assertIsOff()
             .performClick()
 
-        assertEquals(listOf(Triple(mailboxOnly().id, support, true)), set)
+        assertEquals(
+            listOf(AccountPageIntent.SetSharedMailbox(mailboxOnly().id, "support@example.org", true)),
+            changes,
+        )
     }
 
     @Test
     fun switching_one_off_is_confirmed_first() {
-        show(sharedView(SharedMailboxSupport.LISTED, board))
+        show(AccountSharedMailboxes(listOf(board), null, null))
 
         compose.onNodeWithTag("account-shared-Board").performScrollTo().performClick()
         // Nothing is asked of the core until the person confirms what it deletes.
-        assertEquals(emptyList<Any>(), set)
+        assertEquals(emptyList<Any>(), changes)
         compose.onNodeWithText("Stop using Board?").assertExists()
         compose.onNodeWithTag("account-shared-off-confirm").performClick()
 
-        assertEquals(listOf(Triple(mailboxOnly().id, board, false)), set)
+        assertEquals(listOf(AccountPageIntent.SetSharedMailbox(mailboxOnly().id, "Board", false)), changes)
+    }
+
+    @Test
+    fun a_withdrawn_mailbox_says_so_and_a_running_switch_holds_the_rest() {
+        val running = board.copy(control = ControlState(enabled = false, running = true))
+        val held = mailbox("old@example.org", withdrawn = true).copy(control = ControlState(enabled = false, running = false))
+        show(AccountSharedMailboxes(listOf(running, held), null, null))
+
+        compose.onNodeWithText("No longer shared with this account").assertExists()
+        compose.onNodeWithTag("account-shared-Board-running").assertExists()
+        compose.onNodeWithTag("account-shared-old@example.org").performScrollTo().assertIsNotEnabled()
     }
 
     @Test
     fun a_server_that_lists_none_takes_an_address() {
-        show(sharedView(SharedMailboxSupport.BY_ADDRESS))
+        show(AccountSharedMailboxes(emptyList(), SharedMailboxesNote.BY_ADDRESS, AccountSharedAddress("", FREE)))
 
         compose.onNodeWithText(
             "Microsoft does not list the mailboxes shared with you, so add one by its address.",
         ).assertExists()
+        compose.onNodeWithTag("account-shared-add").performScrollTo().assertIsNotEnabled()
         compose.onNodeWithTag("account-shared-address").performScrollTo()
             .performTextInput(" orders@example.org ")
         compose.onNodeWithTag("account-shared-add").performClick()
 
-        assertEquals(listOf(mailboxOnly().id to "orders@example.org"), added)
+        assertEquals(listOf(AccountPageIntent.AddSharedMailbox(mailboxOnly().id, "orders@example.org")), changes)
+    }
+
+    @Test
+    fun an_address_nothing_answered_to_stays_to_be_corrected() {
+        show(
+            AccountSharedMailboxes(
+                emptyList(),
+                SharedMailboxesNote.BY_ADDRESS,
+                AccountSharedAddress("typo@example.org", FREE),
+            ),
+        )
+        compose.onNodeWithText("typo@example.org").performScrollTo().assertExists()
     }
 
     @Test
     fun nothing_shared_says_so() {
-        show(sharedView(SharedMailboxSupport.LISTED))
+        show(AccountSharedMailboxes(emptyList(), SharedMailboxesNote.NONE_SHARED, null))
         compose.onNodeWithText("No mailbox is shared with this account.").assertExists()
     }
 
     @Test
-    fun an_account_that_opens_none_has_no_section() {
-        show(sharedView(SharedMailboxSupport.UNSUPPORTED))
+    fun a_page_without_the_section_draws_none() {
+        show(null)
         compose.onNodeWithText("Shared mailboxes").assertDoesNotExist()
     }
 

@@ -93,6 +93,7 @@ pub(crate) fn page(
                 form: saving.or(refused_servers).unwrap_or(stored),
             }
         }),
+        shared: None,
         notice,
     }
 }
@@ -186,3 +187,6 @@ fn index(found: Option<usize>) -> Option<u32> {
 #[cfg(test)]
 #[path = "account_page_tests.rs"]
 mod tests;
+
+#[path = "account_page_shared.rs"]
+pub(crate) mod shared;

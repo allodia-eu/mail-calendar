@@ -94,7 +94,7 @@ internal fun AccountPage(
             page.links.forEach { picker -> LinkRow(entry, picker, ui) }
         }
     }
-    SharedMailboxesGroup(entry, ui)
+    page.shared?.let { SharedMailboxesGroup(entry, it, ui) }
     val expired = entry.id in ui.expired
     if (AccountSettingsRules.signsInAtProvider(entry.kind)) {
         Spacer(modifier = Modifier.height(8.dp))

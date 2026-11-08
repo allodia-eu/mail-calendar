@@ -141,7 +141,8 @@ pub(in crate::ui) fn block_note(block: AccountUseBlock) -> &'static str {
 pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notice::Notice {
     match notice {
         AccountChangeNotice::UseFailed { refusal, .. }
-        | AccountChangeNotice::LinkFailed { refusal, .. } => super::notice::Notice::Error {
+        | AccountChangeNotice::LinkFailed { refusal, .. }
+        | AccountChangeNotice::SharedMailboxFailed { refusal } => super::notice::Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
             detail: crate::ui::core_error::refusal_said(refusal),
         },
@@ -153,6 +154,10 @@ pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notic
             title: l10n::settings_account_servers_failed().to_owned(),
             detail: crate::ui::core_error::refusal_said(refusal),
         },
+        // Not a failure of the app: the address is the person's to check.
+        AccountChangeNotice::SharedMailboxNotFound { .. } => {
+            super::notice::Notice::Toast(l10n::settings_account_shared_not_found().to_owned())
+        }
     }
 }
 

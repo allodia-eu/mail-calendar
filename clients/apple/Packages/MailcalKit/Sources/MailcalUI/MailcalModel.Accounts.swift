@@ -177,6 +177,12 @@ extension MailboxModel {
         app?.dispatch(intent: .accountPage(intent: intent))
     }
 
+    /// Account `id`'s page opened: its server is asked again which mailboxes its sign-in opens,
+    /// on the core's own thread, and the page is signalled once it answers.
+    func accountPageOpened(_ id: String) {
+        app?.accountPageOpened(accountId: id)
+    }
+
     func accountEntry(_ id: String) -> AccountEntry? {
         accountsSnapshot.accounts.first { $0.id == id }
     }

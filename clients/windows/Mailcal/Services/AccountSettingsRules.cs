@@ -290,6 +290,19 @@ internal static class AccountSettingsRules
                 form.SmtpSecurity, form.CaldavUrl, form.CarddavUrl, form.Username, form.Password,
                 Control(servers.Save));
         }
+        if (page.Shared is { } shared)
+        {
+            foreach (var mailbox in shared.Mailboxes)
+            {
+                yield return $"shared:{mailbox.Handle}={mailbox.Title}/{mailbox.Label}/{mailbox.Withdrawn}/{mailbox.On}/"
+                    + Control(mailbox.Control);
+            }
+            yield return $"shared-note:{shared.Note}";
+            if (shared.Address is { } address)
+            {
+                yield return $"shared-address:{address.Text}/{Control(address.Add)}";
+            }
+        }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
     }

@@ -299,6 +299,7 @@ internal sealed class ConfirmPanel
         Element.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var cancel = new Button { Content = L10n.ActionCancel() };
+        AutomationProperties.SetAutomationId(cancel, automationId + "Cancel");
         _confirm = new Button { Content = action };
         AutomationProperties.SetAutomationId(_confirm, automationId + "Confirm");
         buttons.Children.Add(cancel);

@@ -13,7 +13,6 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
     when (surface) {
         CoreSurface.MAILBOX_LIST -> {
             reload()
-            askSharedMailboxesAgain()
         }
         // A message the core withdrew from the Outbox so the user could change it. It exists
         // nowhere else by the time this arrives, so this may not drop it: it is held until the
@@ -52,7 +51,6 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             // Every account, mail or not: adding, removing, linking and signing one in again all
             // raise this signal (docs/accounts.md rule 11).
             refreshAccountsSnapshot()
-            askSharedMailboxesAgain()
         }
         // The reading body (a potentially large HTML string) only changes on a
         // Reading signal, pull it just then, not on every other refresh.
@@ -65,7 +63,6 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // says as a notice follows on its own NOTICES signal.
         CoreSurface.CONNECTIVITY -> {
             refreshAccountsSnapshot()
-            askSharedMailboxesAgain()
         }
         // A composition's save moved. The signal names none, so there is nothing to publish
         // but the fact that one did: every open composer re-pulls its own off this counter

@@ -124,6 +124,57 @@ pub struct AccountWatchedFolder {
     pub control: ControlState,
 }
 
+/// The mailboxes an account's sign-in opens besides its own (`docs/shared-mailboxes.md`), as its
+/// server last answered and as the account is used.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountSharedMailboxes {
+    /// A switch per mailbox: the chosen ones first, then the rest the server listed.
+    pub mailboxes: Vec<AccountSharedMailbox>,
+    /// The line under the switches, when one is said.
+    pub note: Option<SharedMailboxesNote>,
+    /// For a server that lists none and opens one at an address the person types: the field.
+    pub address: Option<AccountSharedAddress>,
+}
+
+/// One mailbox's switch. Switching one off deletes what the device holds of it, so a client asks
+/// first (rule 7).
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountSharedMailbox {
+    /// The server's handle, sent back to switch it.
+    pub handle: String,
+    /// Its address, or the server's label where it has none.
+    pub title: String,
+    /// The server's label beside the address, when it says something else.
+    pub label: Option<String>,
+    /// Chosen, and no longer listed by the server: said in place of the label (rule 8).
+    pub withdrawn: bool,
+    pub on: bool,
+    pub control: ControlState,
+}
+
+/// The line under an account's shared mailboxes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum SharedMailboxesNote {
+    /// The server lists them, and lists none.
+    NoneShared,
+    /// The server lists none and opens one at an address the person types.
+    ByAddress,
+    /// The account is not connected yet, so there is nothing to ask.
+    NotConnected,
+    /// The server was asked and did not answer.
+    Unreachable,
+}
+
+/// The address field on a server that opens a shared mailbox at an address the person types.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountSharedAddress {
+    /// What the field is drawn with: the address being added while an add runs, the one the
+    /// last add did not find so it can be corrected, and otherwise nothing.
+    pub text: String,
+    /// Add, running while the server is asked.
+    pub add: ControlState,
+}
+
 /// An account's servers and login, for an account whose servers can be edited
 /// (`docs/accounts.md` rule 14): what is stored, which the form is drawn with, and its Save.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -217,6 +268,11 @@ pub enum AccountChangeNotice {
     /// The edited servers were not kept: they did not connect, refused the login, or are another
     /// account's. The account is as it was.
     ServersFailed { refusal: AccountChangeRefusal },
+    /// Switching a shared mailbox, or adding one, did not take.
+    SharedMailboxFailed { refusal: AccountChangeRefusal },
+    /// Nothing the account's sign-in opens answers to `address`. The server will not say
+    /// whether no such mailbox exists or it was not shared with the account, so neither does this.
+    SharedMailboxNotFound { address: String },
 }
 
 /// Why a change did not take, for a client to say in the person's language: the reasons it can
@@ -279,6 +335,9 @@ pub struct AccountPage {
     /// For an account whose servers can be edited: a standards account that signs in with a
     /// password.
     pub servers: Option<AccountServers>,
+    /// Once its server has answered, for an account whose sign-in can open a shared mailbox or
+    /// that still has one chosen.
+    pub shared: Option<AccountSharedMailboxes>,
     pub remove: ControlState,
     /// What the last change came to, when it needs saying; `id` grows with each, so a client
     /// says each one once.
