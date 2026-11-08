@@ -197,7 +197,7 @@ final class MailboxModel {
     /// what it already calls this person (docs/sending.md).
     var senderNamePrompt: SenderNamePrompt?
     /// Every account, mail or not, as Settings → Accounts draws it (`docs/accounts.md` rule 11).
-    /// Pulled on a `Surface::Settings` or `Surface::Connectivity` signal.
+    /// Pulled on a `Surface::Settings` or `Surface::Notices` signal.
     var accountsSnapshot = AccountsSnapshot(accounts: [])
     /// The account whose page Settings → Accounts shows, or `nil` for the list.
     var accountPage: String?
@@ -294,8 +294,6 @@ final class MailboxModel {
     var isConnecting = false
     /// The core is being opened at launch (`connect`); the root view shows `LaunchView` meanwhile.
     var isOpening = false
-    /// Connectivity (pulled on a `Surface::Connectivity` signal), for Settings and the calendar.
-    var connectivity: ConnectivitySnapshot?
     /// The core's notices, ranked (`Surface::Notices`, docs/notices.md); `nil` until first pulled.
     var notices: [Notice]?
     /// Whether the iPad's sidebar column, which carries the notice card, is on screen.

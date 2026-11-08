@@ -22,7 +22,7 @@ use std::{
 
 use mailcal_bindings::{
     AccountCredentialStore, CredentialStoreError, DeviceClass, DeviceInfo, LogLevel, Logger,
-    MailcalApp, Observer, Platform, Surface, allodia_sign_in_available,
+    MailcalApp, NoticeKind, Observer, Platform, Surface, allodia_sign_in_available,
 };
 
 /// A host store, in memory. The real ones are a Keychain, a Credential Manager and an Android
@@ -179,10 +179,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(SharedStore(Arc::clone(&store))),
     )?;
     println!("  restored: {:?}", relaunched.allodia_account());
-    println!("  account errors: {:?}", relaunched.account_connect_error());
+    let notices = relaunched.notices().notices;
+    println!(
+        "  notices: {:?}",
+        notices
+            .iter()
+            .map(|notice| &notice.kind)
+            .collect::<Vec<_>>()
+    );
     println!("  mail accounts: {}", relaunched.mailbox_list().rows.len());
     assert_eq!(relaunched.allodia_account().as_ref(), Some(&account));
-    assert_eq!(relaunched.account_connect_error(), None);
+    assert!(
+        !notices
+            .iter()
+            .any(|notice| matches!(notice.kind, NoticeKind::AccountsSkipped { .. })),
+        "every stored account came back"
+    );
 
     relaunched.sign_out_of_allodia()?;
     println!(

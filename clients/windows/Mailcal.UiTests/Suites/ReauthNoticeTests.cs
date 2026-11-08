@@ -3,7 +3,7 @@
 // calendar's; and the account they are about says "2 issues" in the folder pane.
 //
 // MAILCAL_SHOWCASE_REAUTH (debug builds, read in the core) raises both on the showcase's first
-// account, so everything from the connectivity snapshot to the bar is real and CI runs it. The
+// account, so everything from the core's facts to the bar is real and CI runs it. The
 // twin is clients/apple/UITests/NoticeTests.swift.
 
 using Allodia.Mailcal.UiTests.Driver;

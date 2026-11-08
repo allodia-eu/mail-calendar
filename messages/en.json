@@ -41,8 +41,6 @@
 	"folder_delete_message": "Its subfolders and messages go to Trash as well.",
 	"folder_delete_permanent_title": "Delete “{name}” permanently?",
 	"folder_delete_permanent_message": "The folder, its subfolders and their messages are deleted for good. This can’t be undone.",
-	"folder_notice_changed": "“{name}” was changed elsewhere before your change reached the server, so your change wasn’t made.",
-	"folder_notice_refused": "The server didn’t accept your change to “{name}”.",
 	"folder_pending": "Waiting to sync",
 	"mailbox_new_mail": "New mail",
 

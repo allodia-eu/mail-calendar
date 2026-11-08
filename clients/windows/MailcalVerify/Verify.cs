@@ -329,7 +329,7 @@ internal static class Verifier
             var kept = accounts.Length == 1;
             var id = kept ? accounts[0].Id : string.Empty;
 
-            // 2. It is badged unreachable, a per-account outage, the device itself being online,
+            // 2. It has an Unreachable notice, a per-account outage, the device itself being online,
             //    and 3. its technical detail is available (the "details" link) and names the account.
             //    Both land when the BACKGROUND dial fails, shortly after NewAccounts returns, so poll
             //    until they do (a refused connection fails fast; the timeout is generous for slow CI).
@@ -339,8 +339,9 @@ internal static class Verifier
             var deadline = DateTime.UtcNow.AddSeconds(15);
             while (kept && DateTime.UtcNow < deadline)
             {
-                var connectivity = app.Connectivity();
-                badged = !connectivity.Offline && connectivity.UnreachableAccounts.Contains(id);
+                var notices = app.Notices().Notices;
+                badged = !notices.Any(n => n.Kind is NoticeKind.Offline)
+                    && notices.Any(n => n.Kind is NoticeKind.Unreachable && n.Account == id);
                 detail = app.ConnectionDetail(id);
                 hasDetail = detail is not null && detail.Contains("outage@example.com");
                 if (badged && hasDetail) { break; }

@@ -12,7 +12,6 @@ import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeIntent
-import uniffi.mailcal_bindings.NoticeKind
 
 /** The notices in force and what the activity derived from them. */
 internal class NoticesState {
@@ -34,11 +33,10 @@ internal class NoticesState {
     val announcements = NoticeAnnouncements()
 
     /** The accounts whose sign-in the server stopped accepting. */
-    val expired: Set<String>
-        get() = notices.filter { it.kind == NoticeKind.SignInExpired }.mapNotNull { it.account }.toSet()
+    val expired: Set<String> get() = NoticeRules.expired(notices)
 
     /** Whether the Allodia account's sign-in was refused. */
-    val allodiaSignInEnded: Boolean get() = notices.any { it.kind is NoticeKind.AllodiaSignInEnded }
+    val allodiaSignInEnded: Boolean get() = NoticeRules.allodiaSignInEnded(notices)
 }
 
 /** Pulls the notices in force; a pull that changed nothing redraws nothing. */

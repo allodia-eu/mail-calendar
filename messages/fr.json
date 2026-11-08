@@ -41,8 +41,6 @@
 	"folder_delete_message": "Ses sous-dossiers et ses messages sont aussi mis à la corbeille.",
 	"folder_delete_permanent_title": "Supprimer définitivement « {name} » ?",
 	"folder_delete_permanent_message": "Le dossier, ses sous-dossiers et leurs messages seront supprimés définitivement. Cette action est irréversible.",
-	"folder_notice_changed": "« {name} » a été modifié ailleurs avant que votre modification n’atteigne le serveur ; elle n’a donc pas été appliquée.",
-	"folder_notice_refused": "Le serveur n’a pas accepté votre modification de « {name} ».",
 	"folder_pending": "En attente de synchronisation",
 	"mailbox_new_mail": "Nouveau message",
 

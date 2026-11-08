@@ -37,18 +37,15 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | `unreachable_accounts` | `Unreachable` | Degraded | Mail | ✓ | `Retry` | No |
 | `offline` | `Offline` | Informational | Everywhere | | none | No |
 | `allodia_sign_in_ended` | `AllodiaSignInEnded { address }` | Degraded | Everywhere | | `SignInToAllodia` | No |
-| `account_connect_error` | `AccountsSkipped { count }` | Degraded | Mail | | none | Yes |
+| `account_connect_errors` | `AccountsSkipped { count }` | Degraded | Mail | | none | Yes |
 | `folder_notice` | `FolderChangeRefused { folder, action, problem }` | Degraded | Mail | ✓ | none | Yes |
 
-- **`calendar_connect_error` raises nothing of its own.** Every calendar that did not connect is
-  already a `calendar_outages` entry with its account and its reason, which the free text lacks.
 - **`AccountsSkipped` counts stored accounts that could not be read**, which is what
-  `account_connect_error` holds in the app. Such an account has no id, so the notice is the whole
+  `account_connect_errors` holds in the app. Such an account has no id, so the notice is the whole
   app's and has no page to open. An account that was read and then failed to connect is an
   `Unreachable` or `SignInExpired` notice instead.
-- **A refused folder change is closed where it is held.** Dismissing it clears the pane's notice,
-  as `FolderIntent::DismissNotice` does, so the mailbox snapshot's `folder_notice` and this list
-  never disagree; but only while the pane still holds that refusal. A later refusal on the same
+- **A refused folder change is closed where it is held.** Dismissing it clears the refusal the app
+  holds, so the two never disagree; but only while the app still holds that refusal. A later refusal on the same
   account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves
   standing.
 - **A failed remedy belongs to the action that failed.** When a notice comes to offer another
@@ -65,16 +62,14 @@ reply the server could not deliver (`Surface::InvitationReply`) and a changed ti
 [`sending.md`](sending.md) changes with them. Until then each is answered through its own surface,
 as that surface's contract says.
 
-**The fields this list is built from stay.** `ConnectivitySnapshot`'s prompt fields,
-`account_connect_error`, `calendar_connect_error` and `folder_notice` are what every client draws
-today; they go once no client reads them, and every contract that names them moves in that change.
-
 ## Signals
 
-`Surface::Notices` follows every `Surface::Connectivity` signal, because most notices are read
-from that snapshot, and is raised on its own when the folder pane's refusal changes, when a notice
-is dismissed and when a remedy is reported as failed. A client that does not draw notices yet
-ignores the signal and must not let it reach a heavier reload.
+`Surface::Notices` is signalled whenever what the app can reach changes, when the folder pane's
+refusal changes, when a notice is dismissed and when a remedy is reported as failed. It is the only
+signal for any of these: the facts the notices are read from are the core's own, and no client
+reads them, so a status a client draws from them (the Windows connection label, an account page's
+expired sign-in, the Allodia card) is drawn from the notices too. The signal must not reach a
+heavier reload.
 
 ## Per-platform
 

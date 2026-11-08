@@ -32,8 +32,8 @@ public sealed partial class MailboxModel
         {
             return;
         }
-        // The notices touch only the bar, the folder pane's marks and Settings, never the mailbox
-        // projection below.
+        // The notices touch only the bar, the folder pane's marks and connection status, and
+        // Settings, never the mailbox projection below.
         if (changed == Surface.Notices)
         {
             PullNotices();
@@ -59,13 +59,6 @@ public sealed partial class MailboxModel
         if (changed == Surface.SyncProgress)
         {
             UpdateSyncProgress(_app.SyncProgress());
-            return;
-        }
-        // A connectivity signal updates the folder pane's footer status and Settings; what a
-        // person is told about it arrives as notices. It doesn't touch the mailbox projection.
-        if (changed == Surface.Connectivity)
-        {
-            UpdateConnectivity(_app.Connectivity());
             return;
         }
         // A calendar-write-status signal only moves the small header badge (spinner -> check /

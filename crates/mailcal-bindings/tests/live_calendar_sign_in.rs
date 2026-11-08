@@ -15,7 +15,7 @@ mod live_oauth;
 
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, CapabilityState, MailcalApp, SignInMethod,
+    AccountCapability, AccountEntry, CapabilityState, MailcalApp, NoticeKind, SignInMethod,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
@@ -39,6 +39,20 @@ fn used_for(entry: &AccountEntry) -> Vec<AccountCapability> {
         .filter(|used| used.state == CapabilityState::On)
         .map(|used| used.capability)
         .collect()
+}
+
+/// How many of the app's notices say a calendar, or an address book, did not connect.
+fn outages(app: &MailcalApp) -> (usize, usize) {
+    let notices = app.notices().notices;
+    let calendar = notices
+        .iter()
+        .filter(|notice| matches!(notice.kind, NoticeKind::CalendarOutage { .. }))
+        .count();
+    let contacts = notices
+        .iter()
+        .filter(|notice| matches!(notice.kind, NoticeKind::ContactsOutage { .. }))
+        .count();
+    (calendar, contacts)
 }
 
 #[test]
@@ -116,8 +130,7 @@ password = "not-this-servers"
         "{:?}",
         moved.uses
     );
-    let outages = app.connectivity();
-    assert!(outages.calendar_outages.is_empty() && outages.contacts_outages.is_empty());
+    assert_eq!(outages(&app), (0, 0));
     assert!(
         app.calendars()
             .iter()

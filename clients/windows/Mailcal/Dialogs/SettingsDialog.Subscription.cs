@@ -68,7 +68,7 @@ public sealed partial class SettingsDialog
             return null;
         }
         // The read's own SignedOut answer hides it too: it can arrive a moment before the
-        // Connectivity signal that turns the account card above into the ended one.
+        // notices signal that turns the account card above into the ended one.
         if (AllodiaSessionEnded() || _subscription.Status == AllodiaSubscriptionStatus.SignedOut)
         {
             // Nothing to ask again: a read on a refused grant answers the same, so a return to the

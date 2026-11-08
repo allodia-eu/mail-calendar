@@ -27,8 +27,8 @@ public sealed partial class SettingsDialog
     private bool _allodiaSigningIn;
     // What the last sign-in or sign-out failure says, or null.
     private string? _allodiaFailure;
-    // Whether the panel on screen was drawn with the sign-in ended, so a Connectivity signal
-    // redraws it only when that moved.
+    // Whether the panel on screen was drawn with the sign-in ended, so a notices signal redraws
+    // it only when that moved.
     private bool _allodiaEndedDrawn;
 
     // The card, or null in a build that carries no Allodia registration, which is the ordinary
@@ -117,12 +117,11 @@ public sealed partial class SettingsDialog
         return panel;
     }
 
-    // Whether the service refused this device's stored grant: the same answer the mail list's
-    // banner draws, from the connectivity snapshot.
+    // Whether the service refused this device's stored grant: the notice the window's bar draws.
     private bool AllodiaSessionEnded() => _model.HasAllodiaSignInEnded;
 
-    // The core raises Connectivity when a refusal is learned or cleared, usually by the
-    // subscription read this panel made, so the open panel is drawn again when that moved.
+    // The core signals Notices when a refusal is learned or cleared, usually by the subscription
+    // read this panel made, so the open panel is drawn again when that moved.
     private void OnAllodiaSignInMoved()
     {
         if (_rebuilding || CurrentCategory() != "allodia" || AllodiaSessionEnded() == _allodiaEndedDrawn)

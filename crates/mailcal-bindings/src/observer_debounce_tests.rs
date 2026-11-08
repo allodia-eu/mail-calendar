@@ -24,7 +24,6 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::Reading => AppSurface::Reading,
         Surface::Sending => AppSurface::Sending,
         Surface::SyncProgress => AppSurface::SyncProgress,
-        Surface::Connectivity => AppSurface::Connectivity,
         Surface::CalendarStatus => AppSurface::CalendarStatus,
         Surface::ComposeRequest => AppSurface::ComposeRequest,
         Surface::Contacts => AppSurface::Contacts,

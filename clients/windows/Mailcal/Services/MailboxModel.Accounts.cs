@@ -328,18 +328,10 @@ public sealed partial class MailboxModel
                 EndLaunch();
                 // The retention signal, once per launch. A no-op until the user opts in.
                 _app.ReportAppOpened();
-                // A configured-but-failed CalDAV connect is non-fatal (mail still works), so it's
-                // otherwise invisible, log it as the likely empty-calendar cause.
-                var calendarError = app.CalendarConnectError();
-                if (calendarError is not null)
-                {
-                    Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
-                }
                 Reload();
-                // Pull connectivity and the notices once now (a boot outage is seeded before any
-                // surface signal fires), so a stored account whose server is unreachable is said at
-                // once, not only after the next change.
-                UpdateConnectivity(_app.Connectivity());
+                // Pull the notices once now (a boot outage is seeded before any surface signal
+                // fires), so a stored account whose server is unreachable is said at once, not only
+                // after the next change.
                 PullNotices();
                 ObserveSystemTimeZone();
                 ObserveNetworkReachability();
@@ -389,19 +381,12 @@ public sealed partial class MailboxModel
             _ui.TryEnqueue(() =>
             {
                 IsSubmitting = false;
-                // A configured-but-failed CalDAV connect is non-fatal (mail still works), so
-                // it's otherwise invisible, surface it here as the likely empty-calendar cause.
-                var calendarError = _app!.CalendarConnectError();
-                if (calendarError is not null)
-                {
-                    Log.Warn($"calendar (CalDAV) failed to connect: {calendarError}");
-                }
                 Log.Info($"account added: {LogHandle(row.Id)}");
                 // The next step, or the end of setup and the name it sends under (docs/sending.md).
                 AccountAdded(row.Id);
                 // The core synced the new account and refreshed the snapshot (the observer
                 // reloads the sidebar + unified inbox); nudge a mail sync too.
-                _app.Dispatch(new Intent.RefreshMail());
+                _app!.Dispatch(new Intent.RefreshMail());
             });
         }
         catch (Exception ex)

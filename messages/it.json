@@ -41,8 +41,6 @@
 	"folder_delete_message": "Anche le sue sottocartelle e i suoi messaggi vengono spostati nel cestino.",
 	"folder_delete_permanent_title": "Eliminare definitivamente «{name}»?",
 	"folder_delete_permanent_message": "La cartella, le sue sottocartelle e i relativi messaggi verranno eliminati definitivamente. L’operazione non può essere annullata.",
-	"folder_notice_changed": "«{name}» è stata modificata altrove prima che la tua modifica raggiungesse il server, quindi non è stata applicata.",
-	"folder_notice_refused": "Il server non ha accettato la tua modifica a «{name}».",
 	"folder_pending": "In attesa di sincronizzazione",
 	"mailbox_new_mail": "Nuova posta",
 

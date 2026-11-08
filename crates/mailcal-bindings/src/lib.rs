@@ -77,6 +77,7 @@ mod composer_host;
 mod composer_open;
 mod connected_account;
 mod connection_log;
+mod connectivity_facts;
 mod connector;
 mod consent;
 mod convert;
@@ -209,6 +210,7 @@ pub use composer_host::{
 };
 pub use composer_open::{ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, QuoteSource};
 pub(crate) use connected_account::ConnectedAccount;
+pub(crate) use connectivity_facts::{ConnectivitySnapshot, UseOutage};
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 pub use dav_oauth::SeparateServerSignInStart;
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
@@ -260,17 +262,15 @@ pub use records_calendar::{
     MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
 };
 pub use records_conference::{ConferenceDialIn, ConferenceState, EventConference};
-pub use records_connectivity::{
-    AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion, UseOutage,
-};
+pub use records_connectivity::{AccountProvider, ConnectionInfo, HttpVersion, TlsVersion};
 pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
     ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
 pub use records_event_detail::{EventAttendee, EventDetail};
+pub(crate) use records_folders::FolderNotice;
 pub use records_folders::{
-    AccountFolderRow, FolderAction, FolderNameCheck, FolderNotice, FolderProblem, FolderRole,
-    FolderRow,
+    AccountFolderRow, FolderAction, FolderNameCheck, FolderProblem, FolderRole, FolderRow,
 };
 pub use records_invitation::{
     AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
@@ -330,17 +330,9 @@ uniffi::setup_scaffolding!();
 pub struct MailcalApp {
     runtime: runtime::FfiRuntime,
     app: Arc<App<Box<dyn Provider>>>,
-    /// Non-fatal account-connect diagnostics: at launch, any stored account whose IMAP/mail
-    /// connect failed (a stale password, a server blip) and was skipped so the others come
-    /// up. Account-prefixed. Empty when every stored account connected. Distinct from
-    /// [`MailcalApp::calendar_connect_errors`] so a skipped *account* is never mislabeled a
-    /// calendar failure.
+    /// The stored accounts that could not be read or connected at launch, account-prefixed;
+    /// their count is the `AccountsSkipped` notice.
     account_connect_errors: Mutex<Vec<String>>,
-    /// Non-fatal calendar (CalDAV) connect diagnostics: an account whose mail is up but whose
-    /// configured calendar provider couldn't connect (so its calendar is empty rather than
-    /// missing by choice). Account-prefixed. Runtime additions (`add_account`) append here, so
-    /// it is behind a `Mutex`. Empty when every configured calendar connected.
-    calendar_connect_errors: Mutex<Vec<String>>,
     /// When each notice was first raised, and which were dismissed or reported as failed; see
     /// [`notices`].
     notice_book: Mutex<notices::NoticeBook>,
@@ -448,11 +440,6 @@ impl MailcalApp {
 
 /// Joins one diagnostic channel's account-prefixed messages into a single newline-separated
 /// string for a host to surface, or `None` when the channel is empty.
-fn joined(errors: &Mutex<Vec<String>>) -> Option<String> {
-    let errors = errors.lock().expect("diagnostics mutex poisoned");
-    (!errors.is_empty()).then(|| errors.join("\n"))
-}
-
 #[cfg(test)]
 mod tests;
 

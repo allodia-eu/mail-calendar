@@ -93,11 +93,10 @@ impl MailcalApp {
     /// the host then calls [`MailcalApp::add_account`].
     ///
     /// One account that fails to connect (a stale password, a server blip) does **not**
-    /// block the others: the app comes up with whatever connected, and each skipped account
-    /// is recorded in [`MailcalApp::account_connect_error`] for the host to surface. A
-    /// configured calendar that fails to connect (mail still up) is recorded separately in
-    /// [`MailcalApp::calendar_connect_error`]. (Adding an account interactively *does*
-    /// surface its mail error, see [`MailcalApp::add_account`].)
+    /// block the others: the app comes up with whatever connected, and the host reads what
+    /// went wrong from the notices: the stored accounts skipped at launch, and a configured
+    /// calendar that did not connect while mail did (`docs/notices.md`). (Adding an account
+    /// interactively *does* surface its mail error, see [`MailcalApp::add_account`].)
     ///
     /// Each account's id is derived from its login username **and host** (both lowercased,
     /// see [`mailcal_account::AccountConfig::account_id`]), so the same mailbox keeps a
@@ -170,8 +169,8 @@ impl MailcalApp {
     /// # Errors
     ///
     /// Returns [`MailcalError`] if the config cannot be loaded or its IMAP connection/login
-    /// fails. A calendar-connect failure is non-fatal; recorded in
-    /// [`MailcalApp::calendar_connect_error`] rather than returned.
+    /// fails. A calendar-connect failure is non-fatal: it is the calendar's outage notice rather
+    /// than an error.
     pub fn add_account(&self, config_toml: String) -> Result<AccountRow, MailcalError> {
         // Parse, derive the id, build the account's ONE token source, and REGISTER it; all before
         // a socket is opened, and through exactly the code both boot modes use. The kind is
@@ -257,7 +256,6 @@ impl MailcalApp {
             }
         };
         let account = outcome.account;
-        let calendar_error = outcome.calendar_error;
         // Write the credential. For anything with a grant the bytes come from the **registry**, not
         // from `config_toml`: a rotation during the dial has already advanced the registered
         // config, and the caller's string still carries the token it replaced. A password IMAP
@@ -287,12 +285,6 @@ impl MailcalApp {
         self.app
             .track(mailcal_app::Event::SetupCompleted { protocol });
         self.refresh_analytics_accounts();
-        if let Some(error) = calendar_error {
-            self.calendar_connect_errors
-                .lock()
-                .expect("calendar-errors mutex poisoned")
-                .push(error);
-        }
         connection_log::log_account_connection_info("new-account", account_type, &account);
         // Register the connected account WITHOUT syncing (`add_new_account_deferred`) so it appears
         // in the switcher and the setup modal can dismiss at once, with the product default

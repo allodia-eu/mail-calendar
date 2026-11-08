@@ -154,13 +154,13 @@ struct SharedMailboxesAsking: ViewModifier {
             .onChange(of: AccountSettingsRules.inUse(entry)) { Task { await ask() } }
             .onChange(of: entry) { askAgain() }
             .onChange(of: model.accounts) { askAgain() }
-            .onChange(of: model.connectivity) { askAgain() }
+            .onChange(of: model.notices) { askAgain() }
     }
 
     private func askAgain() {
         guard !asking, SharedMailboxRules.mayAskAgain(answer) else { return }
         // Claimed before the task starts: one snapshot changes `entry`, `accounts` and
-        // `connectivity` together, and each would otherwise start an ask of its own.
+        // `notices` together, and each would otherwise start an ask of its own.
         asking = true
         Task { await ask() }
     }

@@ -13,11 +13,12 @@ import Testing
         account: String? = nil,
         severity: NoticeSeverity = .degraded,
         failed: Bool = false,
-        detail: NoticeText? = nil
+        detail: NoticeText? = nil,
+        kind: NoticeKind = .offline
     ) -> Notice {
         Notice(
             id: id,
-            kind: .offline,
+            kind: kind,
             title: NoticeText(key: "notice_offline", args: [:]),
             detail: detail,
             severity: severity,
@@ -52,6 +53,22 @@ import Testing
         ]
         #expect(NoticeRules.about("a", in: ranked).map(\.id) == ["a-calendar", "a-mail"])
         #expect(NoticeRules.about("c", in: ranked).isEmpty)
+    }
+
+    @Test func anExpiredSignInIsTheAccountsOwnNotice() {
+        let ranked = [
+            notice("a-expired", .everywhere, account: "a", kind: .signInExpired),
+            notice("b-mail", .mail, account: "b", kind: .mailReauth),
+        ]
+        #expect(NoticeRules.signInExpired("a", in: ranked))
+        #expect(!NoticeRules.signInExpired("b", in: ranked), "a narrower grant is not a dead sign-in")
+        #expect(!NoticeRules.signInExpired("c", in: ranked))
+    }
+
+    @Test func theAllodiaCardFollowsItsNotice() {
+        let ended = notice("allodia", .everywhere, kind: .allodiaSignInEnded(address: "anna@example.org"))
+        #expect(NoticeRules.allodiaSignInEnded([notice("offline", .everywhere), ended]))
+        #expect(!NoticeRules.allodiaSignInEnded([notice("offline", .everywhere)]))
     }
 
     @Test func anAccountRowSaysTheFewWordsOrHowManyThereAre() {

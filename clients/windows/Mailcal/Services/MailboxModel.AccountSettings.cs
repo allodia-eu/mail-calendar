@@ -23,7 +23,7 @@ public sealed partial class MailboxModel
 {
     /// <summary>Raised when what Settings → Accounts draws may have changed: the core's
     /// settings signal, which adding, removing, linking and signing an account in again raise,
-    /// and its connectivity signal, which an expired sign-in and a refused calendar raise.</summary>
+    /// and its notices signal, which an expired sign-in and a refused calendar raise.</summary>
     public event Action? AccountsChanged;
 
     /// <summary>Raised on the UI thread, once, with what a removal came to when the core says it

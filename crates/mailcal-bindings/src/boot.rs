@@ -160,7 +160,6 @@ pub(crate) fn build_accounts(
         mut account_errors,
     } = prepare_accounts(&registry, &sink, &configs);
 
-    let mut calendar_errors: Vec<String> = Vec::new();
     let mut failed: Vec<FailedDial> = Vec::new();
     let accounts: Vec<BoxedAccount> = if start_live_sync {
         // Nothing is dialed yet, so nothing is known-failed: each account shows its cached mail as
@@ -182,7 +181,6 @@ pub(crate) fn build_accounts(
                 failure,
                 &mut connected,
                 &mut account_errors,
-                &mut calendar_errors,
                 &mut failed,
             );
         }
@@ -331,7 +329,6 @@ pub(crate) fn build_accounts(
         runtime,
         app,
         account_connect_errors: Mutex::new(account_errors),
-        calendar_connect_errors: Mutex::new(calendar_errors),
         notice_book: Mutex::default(),
         registry,
         background,

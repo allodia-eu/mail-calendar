@@ -276,15 +276,14 @@ service said.
 names the address in "your sign-in as … has ended", offers **Sign in again** and **Sign out**, and
 draws no Manage account and no subscription section: the page would ask for a sign-in, and the read
 cannot succeed. Waiting never brings a refused grant back, so the outage sentence is never drawn
-for it. The card reads `ConnectivitySnapshot::allodia_sign_in_ended`, the
-same field the notice below is raised from, so the two cannot disagree; a subscription read that answers
-`AllodiaPurchaseError::SignedOut` raises it, and the screen redraws on the `Surface::Connectivity`
-signal like any other prompt. The stored grant is kept until the person acts, so the card can
+for it. The card is drawn while the notice below is in force, so the two cannot disagree; a
+subscription read that answers `AllodiaPurchaseError::SignedOut` raises it, and the screen redraws
+on the `Surface::Notices` signal. The stored grant is kept until the person acts, so the card can
 still say whose sign-in ended.
 
 **A refused sign-in is also a notice** ([`docs/notices.md`](../docs/notices.md)), on every screen,
-because nobody opens Settings to find out that a sign-in ended. The core raises it from
-`ConnectivitySnapshot::allodia_sign_in_ended`, the address, and signals `Surface::Notices` whenever
+because nobody opens Settings to find out that a sign-in ended. The core raises it with
+the address, and signals `Surface::Notices` whenever
 it is raised or taken down. A refusal raises it and nothing else does; a sign-in or a sign-out takes
 it down, and so does a later call the service answers. Its words are `notice_allodia_sign_in_ended`
 and its one action, `SignInToAllodia`, runs the ordinary sign-in from where it is; a sign-in that

@@ -83,14 +83,16 @@ impl AppModel {
                 // A link suggestion the core found after the link step was drawn.
                 self.refresh_link_step();
             }
-            // It can change what an account's row in Settings says. What it raises for the
-            // person to act on arrives as the notices signal that follows it.
-            Surface::Connectivity => self.settings.signalled(),
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).
             Surface::DraftStatus => self.pull_draft_status(),
-            // Read on its own: nothing heavier is reloaded for it.
-            Surface::Notices => self.pull_notices(),
+            // Read on its own: nothing heavier is reloaded for it. What an account's row in
+            // Settings says can move on this signal too, and Accounts redraws only when what it
+            // drew changed.
+            Surface::Notices => {
+                self.settings.signalled();
+                self.pull_notices();
+            }
         }
     }
 }

@@ -13,7 +13,7 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        controls,
+        controls, notice_rules,
         server_change::{self, Review, ReviewFrom},
     },
 };
@@ -297,10 +297,7 @@ fn mail_group(
 
 /// Whether the server refused the account's stored sign-in.
 fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
-    ctx.app
-        .connectivity()
-        .signin_expired_accounts
-        .contains(&entry.id)
+    notice_rules::sign_in_expired(&ctx.app.notices().notices, &entry.id)
 }
 
 /// Removing the account, last, confirmed first.

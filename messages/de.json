@@ -41,8 +41,6 @@
 	"folder_delete_message": "Seine Unterordner und Nachrichten kommen ebenfalls in den Papierkorb.",
 	"folder_delete_permanent_title": "„{name}“ endgültig löschen?",
 	"folder_delete_permanent_message": "Der Ordner, seine Unterordner und ihre Nachrichten werden endgültig gelöscht. Dies lässt sich nicht rückgängig machen.",
-	"folder_notice_changed": "„{name}“ wurde an anderer Stelle geändert, bevor Ihre Änderung den Server erreichte. Ihre Änderung wurde daher nicht übernommen.",
-	"folder_notice_refused": "Der Server hat Ihre Änderung an „{name}“ nicht angenommen.",
 	"folder_pending": "Wartet auf Synchronisierung",
 	"mailbox_new_mail": "Neue E-Mail",
 

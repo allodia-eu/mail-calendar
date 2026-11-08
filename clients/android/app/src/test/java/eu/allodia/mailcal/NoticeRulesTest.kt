@@ -3,6 +3,7 @@
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -145,6 +146,26 @@ class NoticeRulesTest {
         )
 
         assertEquals(listOf("a1", "a2"), NoticeRules.about(notices, "a").map { it.id })
+    }
+
+    @Test
+    fun `an expired sign-in is the account's own notice`() {
+        val notices = listOf(
+            notice("a-expired", account = "a", kind = NoticeKind.SignInExpired),
+            notice("b-mail", account = "b", kind = NoticeKind.MailReauth),
+        )
+
+        // A narrower grant is not a dead sign-in.
+        assertEquals(setOf("a"), NoticeRules.expired(notices))
+    }
+
+    @Test
+    fun `the Allodia card follows its notice`() {
+        val offline = notice("offline", screens = NoticeScreens.EVERYWHERE, kind = NoticeKind.Offline)
+        val ended = notice("allodia", screens = NoticeScreens.EVERYWHERE, kind = NoticeKind.AllodiaSignInEnded("anna@example.org"))
+
+        assertTrue(NoticeRules.allodiaSignInEnded(listOf(offline, ended)))
+        assertFalse(NoticeRules.allodiaSignInEnded(listOf(offline)))
     }
 
     @Test

@@ -344,8 +344,7 @@ of its own, refused the account's, or could not be reached ([`accounts.md`](acco
 What the store holds of it stays on the grid, so the week is not emptied by a sign-in change, and
 the calendar screen says what that week is:
 
-- **One notice per account** ([`notices.md`](notices.md)), raised from
-  `ConnectivitySnapshot.calendar_outages` and drawn wherever the client draws the calendar's
+- **One notice per account** ([`notices.md`](notices.md)), `CalendarOutage`, drawn wherever the client draws the calendar's
   notices: "The calendar for {address} isn't connected.", with the reason the account's page gives
   for the same problem and "You're seeing what was last synced." beneath it. Its one action is
   **Try again** for a server that could not be reached, **Review** for one paused on a new server,
@@ -2200,17 +2199,13 @@ Stated, not buried.
   Microsoft account connected **before** calendar support (or with revoked consent) lacks the
   `Calendars.ReadWrite` scope, so its calendar-list probe `403`s (`ErrorAccessDenied`). The core
   classifies that specific `403` as `AccountError::CalendarAccessDenied` (distinct from a transient
-  failure), records the account in a per-account **`calendar_reauth_accounts`** set on
-  `ConnectivitySnapshot` (signalled on `Surface::Connectivity`, **not** suppressed while offline;
-  it is a standing permission gap, and mail is unaffected), and every client renders a **"reconnect
-  to enable calendar"** banner on the calendar naming the account. Its action re-runs that account's
+  failure), records the account in a per-account **`calendar_reauth_accounts`** set, which raises the
+  `CalendarReauth` notice on the calendar naming the account ([`notices.md`](notices.md); **not**
+  suppressed while offline: it is a standing permission gap, and mail is unaffected). Its action re-runs that account's
   Microsoft sign-in with the address as `login_hint` and the now-expanded scopes; because the
   re-auth resolves to the **same account id**, `complete_microsoft_login` upgrades the existing
   account's token **in place** (no duplicate), reconnects the calendar, and clears the flag (which
-  clears the banner). This is a **cross-platform contract**: the signal is shared and all four
-  clients (Android: device-verified; macOS + iOS/iPadOS: one SwiftUI banner, compile-verified;
-  Windows: InfoBar, compile + UIA owed on a Windows host; Linux: GTK banner and loopback sign-in,
-  runtime-verified) render it. The **whole loop** was verified live on a real Android device
+  takes the notice down). The **whole loop** was verified live on a real Android device
   2026-07-18 and on Linux 2026-08-25: the `403` classified as `CalendarAccessDenied`, the banner
   named the affected account, **Reconnect** opened the Microsoft consent for
   `Calendars.ReadWrite` targeted at that account via `login_hint`, and on consent the token upgraded
@@ -2228,8 +2223,8 @@ Stated, not buried.
   (`reconcile_calendar_events`), **never** by re-issuing the write. An answer to an invitation
   settles the same way: not sent unless its write may have landed where storing it is sending it
   (`invitation_failed` or `invitation_unconfirmed`). An explicit
-  `RefreshCalendar` clears the status (a full sync reconciles the whole scope); a genuine outage shows
-  through `Surface::Connectivity`, not here. **Cross-platform status:** the surface is shared;
+  `RefreshCalendar` clears the status (a full sync reconciles the whole scope); a genuine outage is
+  a notice, not here. **Cross-platform status:** the surface is shared;
   **Android** and the **Apple** clients (macOS + iOS/iPadOS, one SwiftUI header) render it today
   (spinner/warning/retry). **Windows** has the header badge wired the same way (the pure
   `CalendarWriteIndicators.Of` mapping is unit-tested via `dotnet test`, and the model + XAML mirror

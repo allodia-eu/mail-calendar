@@ -11,9 +11,8 @@ use mailcal_app::{Intent as AppIntent, ReaderId as AppReaderId};
 
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeOpening, ConnectionInfo,
-    ConnectivitySnapshot, ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp,
-    QuoteSettings, QuoteStyleKind, ReadingSnapshot, ReplyPrompt, SendStatus, SyncProgressSnapshot,
-    TimeZoneSnapshot, UnfiledCopy, joined,
+    ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind,
+    ReadingSnapshot, ReplyPrompt, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot, UnfiledCopy,
 };
 
 #[uniffi::export]
@@ -101,8 +100,8 @@ impl MailcalApp {
     }
 
     /// The technical detail behind an account's outage (its connect error), or `None` when the
-    /// account is reachable: a host reveals this behind the connectivity banner's / status
-    /// label's "details" link. Pulled after a `Surface::Connectivity` signal.
+    /// account is reachable: a host reveals this behind its connection status's "details" link.
+    /// Pulled after a `Surface::Notices` signal.
     #[must_use]
     pub fn connection_detail(&self, account_id: String) -> Option<String> {
         let account_id = AccountId::try_from(account_id.as_str()).ok()?;
@@ -111,8 +110,7 @@ impl MailcalApp {
 
     /// Which sign-in `account_id` was connected with, or `None` when the account is unknown.
     ///
-    /// A host asks this when rendering the "your sign-in expired; reconnect" prompt for an
-    /// account in `ConnectivitySnapshot::signin_expired_accounts`, since the remedy differs by
+    /// A host asks this when running a notice's `SignInAgain`, since the remedy differs by
     /// family: `Microsoft` and `Google` re-run their browser sign-in with the address as a login
     /// hint, while `Password` and `Jmap` are re-entered in the account's settings. Reads the
     /// binding layer's own registry: the only layer that knows what a `dyn Provider` speaks.
@@ -180,44 +178,6 @@ impl MailcalApp {
     /// `active`, hiding it once the pass completes.
     pub fn sync_progress(&self) -> SyncProgressSnapshot {
         self.app.sync_progress().into()
-    }
-
-    /// The current connectivity state (pulled after a `Surface::Connectivity` signal): the
-    /// device-offline flag (a host shows a global banner) and, while online, the ids of
-    /// accounts whose last sync couldn't reach their server (a host badges each in the
-    /// switcher), and the calendars and address books that did not connect beside a working
-    /// account. Dispatch `Intent::ReportNetworkReachable` to feed the OS reachability signal.
-    pub fn connectivity(&self) -> ConnectivitySnapshot {
-        let snapshot = crate::use_outages::with_outages(
-            self.app.connectivity().into(),
-            &self.app.every_use_problem(),
-        );
-        let mut snapshot = crate::gmail_unreachable::with_unreachable_gmail(
-            snapshot,
-            &self.registry.facts(),
-            mailcal_account::gmail_mail_route,
-        );
-        snapshot.allodia_sign_in_ended = self.allodia_sign_in_ended();
-        snapshot
-    }
-
-    /// The non-fatal account-connect diagnostics (account-prefixed, newline-joined), or
-    /// `None` when there are none: any stored account skipped at launch because its mail
-    /// connect failed (a stale password, a server blip). The host reads this after
-    /// construction to surface that some accounts couldn't connect and were skipped. Distinct
-    /// from [`MailcalApp::calendar_connect_error`], which reports CalDAV-only failures.
-    pub fn account_connect_error(&self) -> Option<String> {
-        joined(&self.account_connect_errors)
-    }
-
-    /// The non-fatal calendar (CalDAV) connect diagnostics (account-prefixed, newline-joined),
-    /// or `None` when there are none: an account whose mail is up but whose configured calendar
-    /// provider couldn't connect (so its calendar is empty, not missing by choice). The host
-    /// reads this after construction and after [`MailcalApp::add_account`] to explain an empty
-    /// calendar. Distinct from [`MailcalApp::account_connect_error`], which reports skipped
-    /// accounts whose mail connect failed.
-    pub fn calendar_connect_error(&self) -> Option<String> {
-        joined(&self.calendar_connect_errors)
     }
 
     /// The current display-timezone setting (pulled after a `Surface::Settings` signal):
@@ -313,8 +273,8 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// The banner's address: see `ConnectivitySnapshot::allodia_sign_in_ended`.
-    fn allodia_sign_in_ended(&self) -> Option<String> {
+    /// The address of the Allodia account whose sign-in the account service refused.
+    pub(crate) fn allodia_sign_in_ended(&self) -> Option<String> {
         #[cfg(not(feature = "allodia-license"))]
         {
             None

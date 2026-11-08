@@ -9,6 +9,7 @@ import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeIntent
+import uniffi.mailcal_bindings.NoticeKind
 import uniffi.mailcal_bindings.NoticeScreens
 import uniffi.mailcal_bindings.NoticeSeverity
 import uniffi.mailcal_bindings.NoticeText
@@ -66,6 +67,16 @@ internal object NoticeRules {
 
     /** The notices about [account], in the core's order, which its page in Settings opens with. */
     fun about(notices: List<Notice>, account: String): List<Notice> = notices.filter { it.account == account }
+
+    /**
+     * The accounts whose stored sign-in the server refuses, which their pages in Settings offer a
+     * new password for. A grant too narrow for one use is a different notice: the sign-in works.
+     */
+    fun expired(notices: List<Notice>): Set<String> =
+        notices.filter { it.kind == NoticeKind.SignInExpired }.mapNotNull { it.account }.toSet()
+
+    /** Whether the account service refused the Allodia sign-in, which the Allodia card draws. */
+    fun allodiaSignInEnded(notices: List<Notice>): Boolean = notices.any { it.kind is NoticeKind.AllodiaSignInEnded }
 
     /** The mark each account with a notice carries; [count] words "N issues". */
     fun marks(
