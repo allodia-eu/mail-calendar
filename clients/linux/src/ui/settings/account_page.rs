@@ -44,6 +44,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     if !account.links.is_empty() {
         content.append(&links_group(ctx, entry, &account.links));
     }
+    if let Some(picker) = account.reply_fallback {
+        content.append(&super::account_reply_fallback::group(ctx, entry, picker));
+    }
     if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
         content.append(&shared);
     }

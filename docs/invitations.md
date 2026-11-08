@@ -883,25 +883,6 @@ a bar and a chip have none, so they gain the whole treatment in one call.
   it, or a CalDAV server that does not schedule (the engine's SabreDAV fixture is the only one on
   hand). Every client is the direct mirror of `InvitationRespondView.swift`, driven off the same two
   FFI booleans.
-- **The Linux reply-undelivered prompt was verified against a live server, not the harness.** It is
-  raised on the **server** delivery route, which is CalDAV, so the shared acceptance run cannot
-  reach it: that run pins the JMAP harness account, and the fixture the prompt needs is on the other
-  one. What covered it instead was a real answer on a **Sabre/DAV** account (the deployment this
-  document already records as reporting `5.2` and never delivering) with **no**
-  `MAILCAL_FAKE_REPLY_DELIVERY` in force, so the whole chain ran on the server's own verdict:
-  the answer stored, `5.2` read back, the question raised, the modal answered "send", and the iTIP
-  `REPLY` submitted through the outbox. That is a stronger exercise than the substituted verdict the
-  Windows suite is built on, and it is also the *only* one that has proved the wiring between core
-  and client here: `Surface::InvitationReply` reaching the model and the generation opening the
-  window exactly once.
-
-  It is a **manual** verification, which is why this is still a gap: nothing re-runs it. The
-  repeatable half is the GTK widget test (`ui/invitation/widget_tests.rs`), which renders a
-  `ReplyPrompt` and asserts the organiser is named, the RFC 6638 status code is not, and a
-  `close-request` is **refused** and leaves the window standing. To drive the live path again:
-  launch with `MAILCAL_DEV_ACCOUNT=stalwart-imap` and `MAILCAL_FAKE_REPLY_DELIVERY=failed:5.2`, open
-  the harness's `Quarterly planning`, and decline: declining leaves the free-day fixture the
-  preview suite depends on exactly as it found it.
 - **No capture of a tenant-internal `CANCEL`.** `exchange-internal-request` closed the gap that
   mattered (a `REQUEST` delivered inside one M365 tenant, with no delivery header), but its
   cancellation was not kept, because `outlook-cancel` already pins `METHOD:CANCEL` in Exchange's

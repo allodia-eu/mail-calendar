@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Run the Linux reading/composer + search + calendar (incl. organising a meeting, the Jitsi server)
 # + invitations + contacts (incl. the editor's refusal) + mail actions + printing + signatures + MCP
-# + cross-account merge + server-change question acceptance path + the reauth notices on a private
-# Wayland + D-Bus session. Controls are selected through GTK's AT-SPI tree, never by screen
+# + cross-account merge + server-change question acceptance path + the reauth and question notices
+# on a private Wayland + D-Bus session. Controls are selected through GTK's AT-SPI tree, never by screen
 # coordinates. The mailbox is the local Stalwart fixture, then the showcase for the states no fixture
 # can stage; every screenshot/tree/log is kept under target/ui-test-artifacts for inspection.
 #
@@ -554,10 +554,12 @@ run_inside_session() {
   grep -q '^analytics_install_id = ' "$core_preferences" ||
     die "analytics consent minted no install id"
 
-  "$PYTHON" "$ATSPI" wait --name "Time zone changed" --role frame --showing --timeout 20
-  "$PYTHON" "$ATSPI" activate \
-    --name-substring "Keep " --role "push button" --timeout 20
-  "$PYTHON" "$ATSPI" wait --name "Time zone changed" --absent --timeout 20
+  # The device zone this run fakes is a question the core asks as a notice (docs/notices.md
+  # rule 8), answered in the banner's strip.
+  local zone_question="Your device is now in Pacific/Auckland."
+  "$PYTHON" "$ATSPI" wait --name-substring "$zone_question" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Keep current" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "$zone_question" --absent --timeout 20
   MAILCAL_FAKE_DEVICE_TIMEZONE=""
 
   "$PYTHON" "$ATSPI" wait --name "Message list" --role list --timeout 60
@@ -1672,6 +1674,36 @@ PY
   "$PYTHON" "$ATSPI" wait --name-substring "$calendar_reauth" --showing --timeout 30
   "$PYTHON" "$ATSPI" wait --name "Sign in again" --role "push button" --showing --timeout 20
   capture reauth-notices-calendar
+
+  # The core's questions (docs/notices.md rule 8), on the showcase: MAILCAL_SHOWCASE_QUESTIONS has
+  # the core raise all three, so everything from the question to the button is real. The time zone
+  # question is the whole app's, so it holds the banner and its answers are the strip's; the other
+  # two are behind Issues. Each lesser answer takes its own notice away. The twins are
+  # clients/apple/UITests/QuestionNoticeTests.swift and Android's QuestionNoticeTest.
+  stop_app
+  MAILCAL_SHOWCASE=1 MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE_SCREEN=list \
+    launch_app "" "$ARTIFACT_DIR/question-notices"
+  local zone_asked="Update the display time zone?"
+  "$PYTHON" "$ATSPI" wait --name-substring "$zone_asked" --showing --timeout 60
+  "$PYTHON" "$ATSPI" wait --name "Update" --role "push button" --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Keep current" --role "push button" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "2 more issues" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Issues" --showing --timeout 20
+  local answer
+  for answer in "Save to Sent" "Not now" "Send the email" "Don’t send"; do
+    "$PYTHON" "$ATSPI" wait --name-substring "$answer: " --role "push button" --showing \
+      --timeout 20
+  done
+  capture question-notices-issues
+  "$PYTHON" "$ATSPI" activate --name-substring "Not now: " --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "1 more issue" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "1 more issue" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "Save to Sent: " --absent --timeout 20
+  "$PYTHON" "$ATSPI" activate --name-substring "Don’t send: " --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "1 more issue" --absent --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "Keep current" --role "push button" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name-substring "$zone_asked" --absent --timeout 20
+  capture question-notices-answered
 
   if grep -Eq 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log"; then
     grep -E 'critical from |unhandled error from ' "$XDG_DATA_HOME/$MAILCAL_DATA_DIR_NAME/mailcal.log" \

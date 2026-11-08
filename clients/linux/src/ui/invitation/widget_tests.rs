@@ -1,4 +1,4 @@
-//! Widget-level regressions for the invitation card and the reply-undelivered question.
+//! Widget-level regressions for the invitation card.
 //!
 //! Called from the crate's one GTK test (`ui::mailbox_tests`) because GTK may be initialised once
 //! per process. What is worth asserting here is the half neither a unit test nor a screenshot can
@@ -8,10 +8,10 @@
 use adw::prelude::*;
 use mailcal_bindings::{
     AttendeeTally, CalendarWriteStatus, InvitationCard, InvitationKind, InvitationPreview,
-    InvitationResponse, ReplyPrompt, ResponseStatus,
+    ResponseStatus,
 };
 
-use super::{InvitationCardView, ReplyPromptDialog};
+use super::InvitationCardView;
 use crate::{
     l10n,
     ui::{
@@ -337,67 +337,6 @@ pub(crate) fn a_settling_write_is_reported_and_a_settled_one_is_not() {
             .iter()
             .any(|text| text == l10n::invitation_failed())
     );
-}
-
-/// The question a calendar server raises when it stored the answer and could not pass it on.
-///
-/// Three of the four rules are visible in one render: the RSVP is reported as fine, the recipient
-/// is **named**, and the RFC 6638 status code is **not** on screen.
-pub(crate) fn the_reply_question_names_the_recipient_and_withholds_the_status_code() {
-    let (sender, _receiver) = relm4::channel::<AppInput>();
-    let application = adw::Application::builder()
-        .application_id(format!("{}.invitation-test", crate::l10n::APP_ID))
-        .build();
-    application
-        .register(None::<&gtk::gio::Cancellable>)
-        .expect("register test application");
-    let window = adw::ApplicationWindow::new(&application);
-    let dialog = ReplyPromptDialog::new();
-    let prompt = ReplyPrompt {
-        account: "fixture".to_owned(),
-        summary: "Research & Development".to_owned(),
-        organizer: "bob@example.test".to_owned(),
-        response: InvitationResponse::Decline,
-        status_code: "5.2".to_owned(),
-    };
-    let ((), records) = glib_records(|| dialog.render(Some(&prompt), 1, &window, &sender));
-    let modal = dialog.window().expect("the question is on screen");
-    let shown = rendered_labels(modal.clone().upcast_ref::<gtk::Widget>());
-    assert!(
-        !records.iter().any(|line| line.contains("from markup")),
-        "the meeting's title and the organizer's address are attacker-controlled: {records:?}"
-    );
-    assert!(
-        shown.iter().any(|text| {
-            text.contains("bob@example.test") && text.contains("Research & Development")
-        }),
-        "consent to send mail on someone's behalf is not informed without the recipient: {shown:?}"
-    );
-    assert!(
-        !shown.iter().any(|text| text.contains("5.2")),
-        "the status code is for the log; it explains nothing to the person reading this: {shown:?}"
-    );
-    assert!(
-        shown
-            .iter()
-            .any(|text| text == l10n::invitation_reply_undelivered_remember()),
-        "the choice can be remembered, in both directions: {shown:?}"
-    );
-
-    // Nothing may dismiss it without answering, or the core goes on holding a question the user
-    // can no longer see. Both routes out are refused.
-    assert!(!modal.is_deletable());
-    let refused: bool = modal.emit_by_name("close-request", &[]);
-    assert!(
-        refused,
-        "the close handler must stop the signal, not merely ignore it"
-    );
-    assert!(modal.is_visible(), "a refused close must leave it standing");
-
-    // `None` is equally how the core says *close it*: it clears the question the moment it is
-    // answered, so a stale window cannot answer twice.
-    dialog.render(None, 1, &window, &sender);
-    assert!(dialog.window().is_none());
 }
 
 fn entries(root: &gtk::Widget) -> Vec<gtk::Entry> {

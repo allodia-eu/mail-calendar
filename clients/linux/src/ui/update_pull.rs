@@ -6,7 +6,7 @@
 
 use mailcal_bindings::{SendStatus, Surface};
 
-use super::{AppModel, sync_line, unfiled_copy::UnfiledCopyNotice};
+use super::{AppModel, sync_line};
 use crate::l10n;
 
 impl AppModel {
@@ -39,16 +39,10 @@ impl AppModel {
                     SendStatus::NotSent => Some(l10n::send_status_not_sent().to_owned()),
                     SendStatus::Failed => Some(l10n::send_status_failed().to_owned()),
                     // Nothing to show, for two different reasons: nothing is in flight, and for
-                    // `SentNotFiled` the standing UnfiledCopy question already says it: with a
-                    // button, which a transient hint has nowhere to put.
+                    // `SentNotFiled` the standing notice already says it: with its answers, which
+                    // a transient hint has nowhere to put.
                     SendStatus::Idle | SendStatus::SentNotFiled => None,
                 };
-            }
-            // The question raised when a calendar server stored the answer and then reported it
-            // could not pass it on. The core holds it and clears it; this only mirrors.
-            Surface::InvitationReply => {
-                self.reply_prompt = app.reply_prompt();
-                self.reply_prompt_generation = self.reply_prompt_generation.wrapping_add(1);
             }
             // A message the core withdrew from the Outbox so the user could change it. It
             // exists nowhere else by the time this arrives, so this may not refuse.
@@ -56,12 +50,6 @@ impl AppModel {
                 if let Some(opening) = app.compose_request() {
                     self.open_withdrawn_message(&app, opening);
                 }
-            }
-            Surface::UnfiledCopy => {
-                self.unfiled_copy = app.unfiled_copy().map(|copy| UnfiledCopyNotice {
-                    body: l10n::unfiled_copy_body(&copy.subject),
-                    retrying: copy.retrying,
-                });
             }
             // All three progress surfaces share one snapshot and one strip. The foreground bar
             // wins while active; below it the caption is either an account being made to wait

@@ -281,8 +281,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     );
     crate::ui::separate_sign_in_view::tests::the_page_form_offers_the_sign_in_in_place();
     crate::ui::notice_bar::tests::one_banner_per_screen_and_the_rest_behind_issues();
-    crate::ui::unfiled_copy::tests::
-        the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();
+    crate::ui::notice_bar::tests::a_question_offers_both_answers_and_holds_them_while_one_runs();
     // The ampersand has to sit in **both** halves. A property builder applies `use-markup` in
     // GObject's order, not the written one: it landed after `title` but before `subtitle`,
     // so a fixture with an ampersand only in the subject stays silent while every real
@@ -416,7 +415,6 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     invitation::a_cancelled_or_superseded_card_states_itself_and_offers_no_answer();
     invitation::an_unread_calendar_withholds_both_the_count_and_the_grid();
     invitation::a_settling_write_is_reported_and_a_settled_one_is_not();
-    invitation::the_reply_question_names_the_recipient_and_withholds_the_status_code();
 
     let application = adw::Application::builder()
         .application_id(format!("{}.composer-test", crate::l10n::APP_ID))

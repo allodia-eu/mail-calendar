@@ -15,7 +15,6 @@ use super::{
     detached::DetachedWindows,
     folder_actions,
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
-    invitation::ReplyPromptDialog,
     mail_actions::PermanentDeleteDialog,
     mail_toolbar::MailToolbar,
     mailbox::MailboxRendering,
@@ -33,9 +32,7 @@ use super::{
     setup_widgets::SenderNamePrompt,
     shell_sidebar::{restore_pane_width, sidebar_pane},
     sync_line,
-    time_zone::TimeZonePrompt,
     timestamps::MailClock,
-    unfiled_copy::UnfiledCopyPrompt,
     welcome::WelcomeWindow,
 };
 use crate::l10n;
@@ -69,12 +66,7 @@ pub(crate) struct AppWidgets {
     settings: SettingsWindow,
     setup: SetupWindow,
     welcome: WelcomeWindow,
-    time_zone: TimeZonePrompt,
     sender_name: SenderNamePrompt,
-    unfiled_copy: UnfiledCopyPrompt,
-    /// The standing "the organiser wasn't told" question. A dialog rather than a banner: it
-    /// carries two answers and a tick, and it may not be dismissed without one of them.
-    reply_prompt: ReplyPromptDialog,
     mail_delete: PermanentDeleteDialog,
     discard_draft: DiscardDraftDialog,
     sender: relm4::Sender<AppInput>,
@@ -91,7 +83,6 @@ impl AppWidgets {
         // The banner now also carries host error strings (a failed account removal), and
         // `AdwBanner:title` is Pango markup by default: an ampersand would render it blank.
         notice.set_use_markup(false);
-        let unfiled_copy = UnfiledCopyPrompt::new(&sender);
         let shell = gtk::Box::new(gtk::Orientation::Vertical, 0);
         shell.append(&notice);
         let notices = NoticeBar::new(&sender);
@@ -261,10 +252,7 @@ impl AppWidgets {
             settings: SettingsWindow::default(),
             setup: SetupWindow::default(),
             welcome: WelcomeWindow::default(),
-            time_zone: TimeZonePrompt::default(),
             sender_name: SenderNamePrompt::default(),
-            unfiled_copy,
-            reply_prompt: ReplyPromptDialog::new(),
             mail_delete: PermanentDeleteDialog::default(),
             discard_draft: DiscardDraftDialog::default(),
             sender,
@@ -436,26 +424,11 @@ impl AppWidgets {
             model.app.as_deref(),
             self.sender.clone(),
         );
-        self.time_zone.render(
-            (!model.host_tasks.welcome_pending)
-                .then_some(model.app.as_deref())
-                .flatten(),
-            &self.root,
-            &self.sender,
-        );
         let front = self.settings.front_or(&self.root);
         self.setup.render(&model.setup, &front, &self.sender);
         self.sender_name.render(
             model.host_tasks.sender_name_ask.as_ref(),
             &front,
-            &self.sender,
-        );
-        self.unfiled_copy
-            .render(model.unfiled_copy.as_ref(), &self.root);
-        self.reply_prompt.render(
-            model.reply_prompt.as_ref(),
-            model.reply_prompt_generation,
-            &self.root,
             &self.sender,
         );
         self.mail_delete

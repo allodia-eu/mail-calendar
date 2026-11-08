@@ -82,7 +82,7 @@ heavier reload.
 | The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | 🚧 | 🚧 | 🚧 |
+| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
 | Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Announced once (rule 12) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia notice raised to Blocked near a lapse | ✅ | | | | | |
@@ -108,7 +108,8 @@ each action in [`notices.rs`](../clients/linux/src/ui/notices.rs), and the accou
 [`account_notices.rs`](../clients/linux/src/ui/settings/account_notices.rs). An `AdwBanner` holds
 one sentence and one button, so the strip around it carries the severity's glyph, the spinner while
 the button's sign-in runs and the Issues button; the detail shares the banner's sentence, a line
-below the title. The account row's glyph sits at the row's end, the one place an `AdwActionRow`
+below the title. A question's banner draws neither answer: the strip draws both after the sentence,
+the lesser first, because a banner's own button can be neither held nor given a sibling. The account row's glyph sits at the row's end, the one place an `AdwActionRow`
 takes a widget, with the mark as its subtitle.
 
 Android: [`NoticeArea`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeViews.kt)

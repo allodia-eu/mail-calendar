@@ -71,7 +71,6 @@ pub(super) fn button(
     button
 }
 
-/// A row that picks one of `labels`. `picked` is told the position the person picked, and never
 /// A row that opens something, a question or a form, and starts no work of its own: it is only
 /// held, while a change runs on the page, and the spinner is the control's that started it.
 pub(super) fn button_row(
@@ -87,6 +86,7 @@ pub(super) fn button_row(
     row
 }
 
+/// A row that picks one of `labels`. `picked` is told the position the person picked, and never
 /// the one it was drawn with.
 pub(super) fn picker_row(
     title: &str,
