@@ -85,8 +85,9 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
             intent?.getStringExtra("MAILCAL_AUTODETECT_WELL_KNOWN_BASE")?.let { base ->
                 android.system.Os.setenv("MAILCAL_AUTODETECT_WELL_KNOWN_BASE", base, true)
             }
-            // The showcase's staged questions, which the core reads in a debug build only: a
-            // calendar server found on another site, and both reauth notices.
+            // The showcase's staged questions, which the core reads only in a development build
+            // (build-and-run.sh's): a calendar server found on another site, and both reauth
+            // notices.
             for (staged in listOf("MAILCAL_SHOWCASE_SERVER_CHANGE", "MAILCAL_SHOWCASE_REAUTH")) {
                 intent?.getStringExtra(staged)?.let { android.system.Os.setenv(staged, it, true) }
             }
