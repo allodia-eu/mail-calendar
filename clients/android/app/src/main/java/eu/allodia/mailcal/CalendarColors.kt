@@ -6,10 +6,14 @@
 // whether a chip is readable. All that is left here is parsing `#rrggbb` and choosing a theme.
 package eu.allodia.mailcal
 
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import java.util.concurrent.ConcurrentHashMap
 import uniffi.mailcal_bindings.CalendarColor
 import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.EventSwatch
 import uniffi.mailcal_bindings.Swatch
+import uniffi.mailcal_bindings.calendarEventSwatch
 
 // The chip a block falls back to when its calendar is missing from the page's calendar list. That
 // should not happen, the core lists every calendar it draws from, but a block with no colour at
@@ -40,3 +44,32 @@ internal fun List<CalendarRow>.rowFor(account: String, calendar: String): Calend
 /** The swatch for a looked-up calendar, or the grey fallback when the page didn't list it. */
 internal fun CalendarRow?.swatchOrFallback(dark: Boolean): Swatch =
     this?.color?.swatch(dark) ?: FALLBACK
+
+/**
+ * How an event wears its calendar's colour (docs/calendar.md §1): the tint that fills it, the bar of
+ * the colour down its leading edge, and the title, which the core guarantees clears AA on the tint.
+ */
+@Immutable
+internal data class EventColors(val fill: Color, val accent: Color, val text: Color)
+
+/** The core's event colours, asked once per calendar colour and theme rather than per block. */
+internal object EventSwatches {
+    /** Where the colours come from: the core. The JVM suite, which loads no core, swaps in its own. */
+    @Volatile
+    var source: (String, Boolean) -> EventSwatch = ::calendarEventSwatch
+        set(value) {
+            field = value
+            cache.clear()
+        }
+
+    private val cache = ConcurrentHashMap<String, EventColors>()
+
+    fun colors(hex: String, dark: Boolean): EventColors = cache.getOrPut("$hex|$dark") {
+        val swatch = source(hex, dark)
+        EventColors(parseHexColor(swatch.fill), parseHexColor(swatch.accent), parseHexColor(swatch.text))
+    }
+}
+
+/** The event colours for a looked-up calendar, or the grey fallback's when the page didn't list it. */
+internal fun CalendarRow?.eventColorsOrFallback(dark: Boolean): EventColors =
+    EventSwatches.colors(this?.color?.hex ?: FALLBACK.background, dark)

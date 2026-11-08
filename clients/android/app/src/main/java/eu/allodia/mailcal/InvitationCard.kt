@@ -42,10 +42,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipRect
@@ -58,6 +56,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
@@ -71,7 +70,6 @@ import uniffi.mailcal_bindings.InvitationKind
 import uniffi.mailcal_bindings.InvitationPreview
 import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.ReadingSnapshot
-import uniffi.mailcal_bindings.Swatch
 
 // The preview carries no calendar list, it is one already-loaded day, not a page, so every block
 // falls back to the neutral swatch. The preview is about *when*, not about which calendar.
@@ -343,9 +341,9 @@ private fun InvitationPreviewGrid(
                             val top = laneHeight * band.lane.toInt()
                             drawPreviewChip(
                                 rect = Rect(0f, top, size.width, top + laneHeight),
-                                swatch = NO_CALENDARS
+                                colors = NO_CALENDARS
                                     .rowFor(band.account, band.calendar)
-                                    .swatchOrFallback(dark),
+                                    .eventColorsOrFallback(dark),
                                 text = band.title.ifEmpty { noTitle },
                                 style = labelStyle,
                                 measurer = measurer,
@@ -386,9 +384,9 @@ private fun InvitationPreviewGrid(
                                         right = left + columnWidth,
                                         bottom = hourHeight * (segment.endMinutes.toInt() / 60f),
                                     ),
-                                    swatch = NO_CALENDARS
+                                    colors = NO_CALENDARS
                                         .rowFor(segment.account, segment.calendar)
-                                        .swatchOrFallback(dark),
+                                        .eventColorsOrFallback(dark),
                                     text = segment.title.ifEmpty { noTitle },
                                     style = labelStyle,
                                     measurer = measurer,
@@ -436,7 +434,7 @@ private fun DrawScope.drawPreviewRuler(
 @Suppress("LongParameterList")
 private fun DrawScope.drawPreviewChip(
     rect: Rect,
-    swatch: Swatch,
+    colors: EventColors,
     text: String,
     style: TextStyle,
     measurer: TextMeasurer,
@@ -445,20 +443,13 @@ private fun DrawScope.drawPreviewChip(
     val pad = 1.dp.toPx()
     val inner = Rect(rect.left + pad, rect.top + pad, rect.right - pad, rect.bottom - pad)
     if (inner.width <= 0f || inner.height <= 0f) return
-    val corner = CORNER_RADIUS.toPx()
-    val edge = parseHexColor(swatch.border)
-    drawRoundRect(
-        color = parseHexColor(swatch.background).holdFill(awaiting),
-        topLeft = Offset(inner.left, inner.top),
-        size = Size(inner.width, inner.height),
-        cornerRadius = CornerRadius(corner),
-    )
-    drawHold(inner, edge, corner, awaiting)
-    val room = inner.width - 8.dp.toPx()
+    drawEventShape(inner, colors.fill.holdFill(awaiting), colors.accent, awaiting, CORNER_RADIUS.toPx())
+    val start = EVENT_LABEL_START.toPx()
+    val room = inner.width - start - EVENT_LABEL_PAD.toPx()
     if (room <= 0f) return
     val line = measurer.measure(
         text = text,
-        style = style.copy(color = parseHexColor(swatch.text)),
+        style = style.copy(color = colors.text, fontWeight = FontWeight.SemiBold),
         overflow = TextOverflow.Ellipsis,
         softWrap = false,
         maxLines = 1,
@@ -468,6 +459,6 @@ private fun DrawScope.drawPreviewChip(
     // the same rule the full grid applies at a low zoom.
     if (line.size.height > inner.height) return
     clipRect(inner.left, inner.top, inner.right, inner.bottom) {
-        drawText(line, topLeft = Offset(inner.left + 4.dp.toPx(), inner.top + pad))
+        drawText(line, topLeft = Offset(inner.left + start, inner.top + pad))
     }
 }

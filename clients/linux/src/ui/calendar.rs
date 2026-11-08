@@ -2,6 +2,7 @@
 
 mod answer;
 pub(super) mod attendees;
+mod blocks;
 mod conference;
 pub(in crate::ui) mod date;
 mod detail;
@@ -26,7 +27,7 @@ mod views;
 pub(crate) use drag::CreateSlot;
 pub(crate) use editor::EventForm;
 #[cfg(test)]
-pub(crate) use grid::widget_tests;
+pub(crate) use grid::{labels_widget_tests, widget_tests};
 pub(crate) use model::{CalendarMode, CalendarModel, EventIdentity};
 pub(crate) use pane::CalendarPane;
 
