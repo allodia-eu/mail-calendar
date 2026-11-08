@@ -74,9 +74,16 @@ impl EndpointEdit {
     pub fn gap(&self, account: &AccountConfig) -> Option<EndpointGap> {
         let blank =
             |field: &Option<String>| field.as_deref().is_none_or(|value| value.trim().is_empty());
-        if account.imap.is_some() && blank(&self.imap_host) {
+        // A port with nothing before it is no address: a form joins a cleared host with the port
+        // still in its own field.
+        let no_host = |field: &Option<String>| {
+            field
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty() || value.trim().starts_with(':'))
+        };
+        if account.imap.is_some() && no_host(&self.imap_host) {
             Some(EndpointGap::Imap)
-        } else if account.smtp.is_some() && blank(&self.smtp_host) {
+        } else if account.smtp.is_some() && no_host(&self.smtp_host) {
             Some(EndpointGap::Smtp)
         } else if account.caldav.is_some() && blank(&self.caldav_url) {
             Some(EndpointGap::CalDav)
