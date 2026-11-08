@@ -255,7 +255,9 @@ fn draw(scene: &Scene, context: &cairo::Context, width: f64) {
         Rgb::new(0.86, 0.86, 0.86)
     };
     let day_width = (width - GUTTER).max(1.0);
-    let (fill, text, border) = paint::neutral_swatch();
+    // The preview carries no calendar list, so every block wears the neutral colour, in the
+    // grid's own style.
+    let colors = paint::event_colors(paint::NEUTRAL_HEX, scene.dark);
 
     paint::set_source(context, line);
     context.set_line_width(1.0);
@@ -283,9 +285,8 @@ fn draw(scene: &Scene, context: &cairo::Context, width: f64) {
             width: day_width - 2.0,
             height: LANE_HEIGHT - 2.0,
         };
-        paint::fill_rect(context, rect, fill, band.awaiting);
-        paint::hatch_and_dash(context, rect, fill, band.awaiting);
-        paint::set_source(context, text);
+        paint::event_block(context, rect, colors, band.awaiting);
+        paint::set_source(context, colors.text);
         clipped_text(context, rect, &band.title, 9.0);
     }
 
@@ -299,17 +300,11 @@ fn draw(scene: &Scene, context: &cairo::Context, width: f64) {
             width: lane_width - 2.0,
             height: (bottom - top).max(2.0),
         };
-        paint::fill_rect(context, rect, fill, block.awaiting);
-        paint::hatch(context, rect, border, block.awaiting);
-        paint::set_source(context, border);
-        paint::set_dash(context, block.awaiting);
-        context.rectangle(rect.x, rect.y, rect.width, rect.height);
-        let _ = context.stroke();
-        paint::set_dash(context, false);
+        paint::event_block(context, rect, colors, block.awaiting);
         // Below the threshold a block goes untitled rather than carrying a title sliced through
         // the middle. Never clipped; and the spoken label is there either way.
         if rect.height >= MINIMUM_TITLED_HEIGHT {
-            paint::set_source(context, text);
+            paint::set_source(context, colors.text);
             clipped_text(context, rect, &block.title, 9.0);
         }
     }
@@ -365,14 +360,14 @@ fn title(value: &str) -> String {
 fn clipped_text(context: &cairo::Context, rect: Rect, text: &str, size: f64) {
     let _ = context.save();
     context.rectangle(
-        rect.x + 5.0,
+        rect.x + 7.0,
         rect.y + 1.0,
-        (rect.width - 8.0).max(0.0),
+        (rect.width - 11.0).max(0.0),
         (rect.height - 2.0).max(0.0),
     );
     context.clip();
     select_font(context, size);
-    context.move_to(rect.x + 6.0, rect.y + size + 1.0);
+    context.move_to(rect.x + 7.0, rect.y + size + 1.0);
     let _ = context.show_text(text);
     let _ = context.restore();
 }

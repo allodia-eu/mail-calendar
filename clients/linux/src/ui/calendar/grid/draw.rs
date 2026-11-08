@@ -3,7 +3,8 @@
 use gtk::cairo;
 
 use super::{
-    camera::{self, Camera},
+    geometry::Geometry,
+    labels::{self, Ink},
     scene::{GUTTER, GridScene, HEADING_HEIGHT, LANE_HEIGHT, pixels},
 };
 use crate::{
@@ -15,7 +16,12 @@ use crate::{
 };
 
 /// The scrolled hours, midnight at the surface's top.
-pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64, camera: &Camera) {
+pub(super) fn draw_hours(
+    scene: &GridScene,
+    context: &cairo::Context,
+    width: f64,
+    ink: &mut Ink<'_>,
+) {
     let foreground = theme_color(scene.dark, true);
     set_source(context, theme_color(scene.dark, false));
     let _ = context.paint();
@@ -37,7 +43,7 @@ pub(super) fn draw_hours(scene: &GridScene, context: &cairo::Context, width: f64
     }
     let _ = context.stroke();
     draw_hour_labels(scene, context, foreground);
-    draw_events(scene, context, geometry.day_width, camera);
+    draw_events(scene, context, &geometry, ink);
     draw_now(scene, context, width, geometry.day_width);
     draw_create(scene, context, width, geometry.day_width);
 }
@@ -50,7 +56,7 @@ pub(super) fn draw_header(
     scene: &GridScene,
     context: &cairo::Context,
     width: f64,
-    camera: &Camera,
+    ink: &mut Ink<'_>,
 ) {
     let foreground = theme_color(scene.dark, true);
     set_source(context, theme_color(scene.dark, false));
@@ -67,7 +73,7 @@ pub(super) fn draw_header(
     context.line_to(width, height - 0.5);
     let _ = context.stroke();
     draw_labels(scene, context, geometry.day_width, foreground);
-    draw_bands(scene, context, geometry.day_width, foreground, camera);
+    draw_bands(scene, context, geometry.day_width, foreground, ink);
 }
 
 fn day_lines(scene: &GridScene, context: &cairo::Context, day_width: f64, height: f64) {
@@ -124,19 +130,17 @@ fn draw_bands(
     context: &cairo::Context,
     day_width: f64,
     foreground: Rgb,
-    camera: &Camera,
+    ink: &mut Ink<'_>,
 ) {
-    for band in &scene.bands {
+    for (index, band) in scene.bands.iter().enumerate() {
         let rect = Rect {
             x: GUTTER + pixels(band.day) * day_width + 1.0,
             y: HEADING_HEIGHT + f64::from(band.lane) * LANE_HEIGHT + 1.0,
             width: pixels(band.days) * day_width - 2.0,
             height: LANE_HEIGHT - 2.0,
         };
-        paint::fill_rect(context, rect, band.background, band.awaiting);
-        paint::hatch_and_dash(context, rect, band.background, band.awaiting);
-        let meeting = band.has_conference.then_some(camera);
-        title_line(context, rect, &band.title, 11.0, band.foreground, meeting);
+        paint::event_block(context, rect, band.colors, band.awaiting);
+        labels::draw_band(context, ink, index, band, rect);
     }
     for (day, hidden) in scene.hidden_per_day.iter().copied().enumerate() {
         if hidden == 0 {
@@ -150,31 +154,22 @@ fn draw_bands(
     }
 }
 
-fn draw_events(scene: &GridScene, context: &cairo::Context, day_width: f64, camera: &Camera) {
-    for event in &scene.events {
-        let lane_width = day_width / f64::from(event.columns);
-        let rect = Rect {
-            x: GUTTER + pixels(event.day) * day_width + f64::from(event.column) * lane_width + 1.0,
-            y: f64::from(event.start_minutes) * scene.hour_height / 60.0,
-            width: lane_width - 2.0,
-            height: f64::from(event.end_minutes - event.start_minutes) * scene.hour_height / 60.0,
-        };
-        let visible_bottom = scene.viewport_top + scene.viewport_height;
+/// Every timed block, where the hit and the spoken node for it are: `Geometry` is the one copy of
+/// that arithmetic.
+fn draw_events(
+    scene: &GridScene,
+    context: &cairo::Context,
+    geometry: &Geometry,
+    ink: &mut Ink<'_>,
+) {
+    let visible_bottom = scene.viewport_top + scene.viewport_height;
+    for (index, (event, hit)) in scene.events.iter().zip(&geometry.hits).enumerate() {
+        let rect = hit.rect;
         if rect.y + rect.height < scene.viewport_top || rect.y > visible_bottom {
             continue;
         }
-        paint::fill_rect(context, rect, event.background, event.awaiting);
-        paint::hatch(context, rect, event.border, event.awaiting);
-        set_source(context, event.border);
-        paint::set_dash(context, event.awaiting);
-        context.rectangle(rect.x, rect.y, rect.width, rect.height.max(2.0));
-        let _ = context.stroke();
-        paint::set_dash(context, false);
-        if rect.height >= 14.0 {
-            let size = if rect.height < 28.0 { 9.0 } else { 11.0 };
-            let meeting = event.has_conference.then_some(camera);
-            title_line(context, rect, &event.title, size, event.foreground, meeting);
-        }
+        paint::event_block(context, rect, event.colors, event.awaiting);
+        labels::draw_event(context, ink, index, event, rect, scene.hour_height);
     }
 }
 
@@ -291,51 +286,6 @@ fn rounded_rect(context: &cairo::Context, x: f64, y: f64, width: f64, height: f6
     context.arc(x + radius, y + height - radius, radius, FRAC_PI_2, PI);
     context.arc(x + radius, y + radius, radius, PI, PI + FRAC_PI_2);
     context.close_path();
-}
-
-/// Below this much room for the title itself, the camera gives way to the title.
-const MIN_TITLE_ROOM: f64 = 16.0;
-
-/// An event's title inside `rect`, and the camera after it when `camera` is given, which the
-/// caller does only for an event with a video meeting. The title gives up the camera's room first,
-/// so the camera stays in sight; a block too narrow for both draws the title alone, and its spoken
-/// label still says "video meeting".
-fn title_line(
-    context: &cairo::Context,
-    rect: Rect,
-    text: &str,
-    size: f64,
-    color: Rgb,
-    camera: Option<&Camera>,
-) {
-    let room = (rect.width - 6.0).max(0.0);
-    let reserve = size + camera::GAP;
-    let camera = camera.filter(|_| room - reserve >= MIN_TITLE_ROOM);
-    let title_room = if camera.is_some() {
-        room - reserve
-    } else {
-        room
-    };
-    let _ = context.save();
-    context.rectangle(rect.x + 3.0, rect.y + 2.0, room, rect.height - 4.0);
-    context.clip();
-    let _ = context.save();
-    context.rectangle(rect.x + 3.0, rect.y + 2.0, title_room, rect.height - 4.0);
-    context.clip();
-    set_source(context, color);
-    select_font(context, size, cairo::FontWeight::Bold);
-    context.move_to(rect.x + 4.0, rect.y + size + 3.0);
-    let _ = context.show_text(text);
-    let advance = context
-        .text_extents(text)
-        .map_or(title_room, |extents| extents.x_advance());
-    let _ = context.restore();
-    if let Some(camera) = camera {
-        // After the text as drawn, which the clip has already cut to its room.
-        let x = rect.x + 4.0 + advance.min(title_room - 1.0) + camera::GAP;
-        camera.draw(context, x, rect.y + 3.5, size, color);
-    }
-    let _ = context.restore();
 }
 
 fn theme_color(dark: bool, foreground: bool) -> Rgb {

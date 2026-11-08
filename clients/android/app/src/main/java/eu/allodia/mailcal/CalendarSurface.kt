@@ -348,7 +348,8 @@ private fun surfaceTheme(createSwatch: Swatch): SurfaceTheme {
     val colors = MaterialTheme.colorScheme
     val type = MaterialTheme.typography
     val camera = painterResource(R.drawable.ic_videocam)
-    return remember(colors, type, createSwatch, camera) {
+    val repeat = painterResource(R.drawable.ic_repeat)
+    return remember(colors, type, createSwatch, camera, repeat) {
         SurfaceTheme(
             primary = colors.primary,
             outlineVariant = colors.outlineVariant,
@@ -370,6 +371,7 @@ private fun surfaceTheme(createSwatch: Swatch): SurfaceTheme {
             pillFill = colors.inverseSurface,
             pillLabel = type.labelMedium.copy(color = colors.inverseOnSurface),
             camera = camera,
+            repeat = repeat,
         )
     }
 }

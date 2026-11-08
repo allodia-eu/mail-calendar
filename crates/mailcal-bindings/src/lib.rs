@@ -186,7 +186,7 @@ pub use allodia_sync::{
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_accounts_consent::AccountConsentStart;
 pub use app_display::stored_appearance;
-pub use app_month::calendar_palette;
+pub use app_month::{calendar_event_swatch, calendar_palette};
 pub use app_sender_name::sender_label;
 pub use app_server_change::{ServerChange, ServerChangeAnswer};
 pub use app_shared_mailboxes::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView};
