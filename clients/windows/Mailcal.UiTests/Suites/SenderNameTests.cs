@@ -21,7 +21,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 public sealed partial class SenderNameTests(ShowcaseApp showcase)
 {
     private static readonly string Heading = Catalog.English("settings_sender_name_heading");
-    private static readonly string Depth = Catalog.English("settings_sync_depth_label");
+    private static readonly string Depth = Catalog.English("settings_sync_depth_heading");
 
     [GeneratedRegex(@"^.+ <[^<>@]+@[^<>]+>$")]
     private static partial Regex NameAndAddress();

@@ -1,6 +1,6 @@
 // The controls a page draws from the core's `ControlState` (docs/waiting.md): a switch row, a
-// button, a picker and a confirmation. Each is held while it cannot be used and shows a spinner
-// beside it while work it started runs, so every page waits the same way.
+// button, a picker, a text field and a confirmation. Each is held while it cannot be used and
+// shows a spinner beside it while work it started runs, so every page waits the same way.
 
 import MailcalBindings
 import SwiftUI
@@ -79,10 +79,11 @@ struct ControlButton: View {
     }
 }
 
-/// A menu picker under its title: `labels` listed, `selected` shown. `pick` is told the position
-/// the person picked, and only when it differs from `selected`.
+/// A menu picker under its title, and `note` when there is one: `labels` listed, `selected`
+/// shown. `pick` is told the position the person picked, and only when it differs from `selected`.
 struct ControlPicker: View {
     let title: String
+    var note: String?
     let labels: [String]
     let selected: Int
     let control: ControlState
@@ -93,6 +94,12 @@ struct ControlPicker: View {
             // Drawn here rather than left to the Picker: outside a Form, a `.menu` Picker renders
             // its label on macOS but drops it on iOS.
             Text(title).font(.subheadline).bold()
+            if let note {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(spacing: 8) {
                 Picker(
                     title,
@@ -112,6 +119,44 @@ struct ControlPicker: View {
                 Running(control: control)
             }
         }
+    }
+}
+
+/// A text field, which tells `commit` what was typed on return and when it loses focus, and only
+/// when it differs from `text`: never on every keystroke, which would store a half-typed value and
+/// redraw the page under the cursor.
+struct ControlTextField: View {
+    let title: String
+    let text: String
+    let control: ControlState
+    let commit: (String) -> Void
+
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: 8) {
+            TextField(title, text: $draft)
+                .textFieldStyle(.roundedBorder)
+                .labelsHidden()
+                .focused($focused)
+                .frame(maxWidth: 320, alignment: .leading)
+                .disabled(!control.enabled)
+                .onSubmit(send)
+                .onChange(of: focused) { _, isFocused in
+                    if !isFocused { send() }
+                }
+            Running(control: control)
+        }
+        .onAppear { draft = text }
+        // The core drew another value: adopt it, unless the field is being typed in.
+        .onChange(of: text) { _, latest in
+            if !focused { draft = latest }
+        }
+    }
+
+    private func send() {
+        if draft != text { commit(draft) }
     }
 }
 

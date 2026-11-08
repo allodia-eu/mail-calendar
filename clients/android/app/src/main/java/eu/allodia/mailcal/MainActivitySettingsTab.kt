@@ -157,28 +157,6 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetAccountSyncMode = { accountId, mode ->
                                 setAllodiaAccountSyncMode(accountId, mode)
                             },
-                            // Accounts, per-account fetch depth + sync behaviour.
-                            settings = syncSettings,
-                            onSetSyncDepth = { account, months ->
-                                instance.setAccountSyncDepth(account, months)
-                            },
-                            onSetMessageSize = { account, megabytes ->
-                                instance.setAccountMessageSizeLimit(account, megabytes)
-                            },
-                            onSetStrategy = { account, strategy ->
-                                instance.setSyncStrategy(account, strategy)
-                            },
-                            onSetPollInterval = { account, minutes ->
-                                instance.setPollInterval(account, minutes)
-                            },
-                            onSetPushFolder = { account, folder, subscribed ->
-                                instance.setPushFolder(account, folder, subscribed)
-                            },
-                            // The name this account's mail goes out under. Passed through
-                            // unchanged: the core sanitises it (docs/sending.md).
-                            onSetSenderName = { account, name ->
-                                instance.setAccountSenderName(account, name)
-                            },
                             // Diagnostics, the log viewer/share + debug-detail screen.
                             onOpenDiagnostics = { showingDiagnostics = true },
                             // Advanced, reset the local cache.

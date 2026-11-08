@@ -160,6 +160,10 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(BuildSyncModePicker(entry.Id, mode));
         }
+        if (page.SenderName is { } name)
+        {
+            panel.Children.Add(SenderNameGroup(entry, name));
+        }
         panel.Children.Add(UsesGroup(entry, page));
         if (page.Links.Length > 0)
         {
@@ -183,9 +187,9 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(ServersGroup(entry, endpoints, expired));
         }
-        if (MailGroup(entry, expired) is { } mail)
+        if (page.Mail is { } mail)
         {
-            panel.Children.Add(mail);
+            panel.Children.Add(MailGroup(entry, mail, expired));
         }
         panel.Children.Add(RemoveGroup(entry, page.Remove));
     }
@@ -332,13 +336,12 @@ public sealed partial class SettingsDialog
         }
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, which
-    /// accounts have a mailbox listed and how each is shared, the notices about accounts, and the
-    /// open page's record, which the page draws from calls of their own.</summary>
+    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, how
+    /// each account is shared, the notices about accounts, and the open page's record, which the
+    /// page draws from calls of their own.</summary>
     private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page)
     {
-        var beside = (_model.GetSyncSettings()?.Accounts.Select(account => "mail:" + account.AccountId) ?? [])
-            .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"))
+        var beside = _model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}")
             .Concat(AccountNoticesFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));
         return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);

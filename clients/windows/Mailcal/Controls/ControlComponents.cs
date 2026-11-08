@@ -1,6 +1,6 @@
 // The controls a page draws from the core's ControlState (docs/waiting.md): a switch, a button, a
-// combo box and a confirmation. Each is held while it cannot be used and shows a ring beside it
-// while work it started runs, so every page waits the same way.
+// text box, a combo box and a confirmation. Each is held while it cannot be used and shows a ring
+// beside it while work it started runs, so every page waits the same way.
 //
 // The confirmation is inline, beneath what it asks about: Settings is a ContentDialog, and a nested
 // one is not allowed.
@@ -49,6 +49,42 @@ internal static class ControlComponents
         AutomationProperties.SetAutomationId(button, automationId);
         button.Click += (_, _) => click();
         return Beside(button, control, automationId);
+    }
+
+    /// <summary>
+    /// A text box under its header, which tells <paramref name="commit"/> what was typed on Enter
+    /// and when it loses focus, and only when it differs from <paramref name="text"/>: never on
+    /// every keystroke, which would store a half-typed value and redraw the page under the cursor.
+    /// </summary>
+    internal static StackPanel TextBox(
+        string header, string text, ControlState control, string automationId, Action<string> commit)
+    {
+        var box = new TextBox
+        {
+            Header = header,
+            Text = text,
+            MinWidth = 260,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            IsEnabled = control.Enabled,
+        };
+        AutomationProperties.SetName(box, header);
+        AutomationProperties.SetAutomationId(box, automationId);
+        void Send()
+        {
+            if (box.Text != text)
+            {
+                commit(box.Text);
+            }
+        }
+        box.LostFocus += (_, _) => Send();
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                Send();
+            }
+        };
+        return Beside(box, control, automationId);
     }
 
     /// <summary>

@@ -78,6 +78,8 @@ pub(crate) fn page(
             })
             .collect(),
         remove: control(hold.own == Some(PageWork::Remove), true),
+        sender_name: None,
+        mail: None,
         notice,
     }
 }

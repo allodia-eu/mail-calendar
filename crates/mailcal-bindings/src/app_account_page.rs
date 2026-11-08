@@ -11,7 +11,8 @@ use mailcal_account::Capability;
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
     AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp, MailcalError,
-    account_page, account_registry::Toggle, account_work::PageWork,
+    SyncStrategyKind, account_page, account_page_mail, account_registry::Toggle,
+    account_work::PageWork,
 };
 
 #[uniffi::export]
@@ -28,16 +29,20 @@ impl MailcalApp {
             .find(|entry| entry.id == account_id)?;
         let (hold, notice) = self.account_work.of(&account_id);
         let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
-        Some(account_page::page(
-            &entry,
-            hold,
-            notice,
-            |capability, on| {
-                self.registry
-                    .toggle(&account_id, Capability::from(capability), on, &refused)
-                    .unwrap_or(Toggle::Unchanged)
-            },
-        ))
+        let mail = self
+            .runtime
+            .block_on(|| self.app.sync_settings_row(&account_id));
+        let mut page = account_page::page(&entry, hold.clone(), notice, |capability, on| {
+            self.registry
+                .toggle(&account_id, Capability::from(capability), on, &refused)
+                .unwrap_or(Toggle::Unchanged)
+        });
+        if let Some(row) = mail {
+            let (sender_name, mail) = account_page_mail::mail_half(row.into(), &hold);
+            page.sender_name = Some(sender_name);
+            page.mail = Some(mail);
+        }
+        Some(page)
     }
 
     /// What the last removal came to, when it needs saying: on the accounts list, since the
@@ -52,31 +57,7 @@ impl MailcalApp {
     /// Starts `intent`'s change, unless another change is running; every page's controls are held
     /// from now until it ends.
     pub(crate) fn dispatch_account(&self, intent: AccountPageIntent) {
-        let (account, work) = match &intent {
-            AccountPageIntent::SetUse {
-                account,
-                capability,
-                on,
-            } => (
-                account.clone(),
-                PageWork::Use {
-                    capability: *capability,
-                    on: *on,
-                },
-            ),
-            AccountPageIntent::SetLink {
-                account,
-                slot,
-                target,
-            } => (
-                account.clone(),
-                PageWork::Link {
-                    slot: *slot,
-                    target: target.clone(),
-                },
-            ),
-            AccountPageIntent::Remove { account } => (account.clone(), PageWork::Remove),
-        };
+        let (account, work) = (intent.account().to_owned(), PageWork::of(&intent));
         let Some(app) = self.rediscovery.app() else {
             log::warn!("accounts: a change to an account was asked for while the app shuts down");
             return;
@@ -130,6 +111,58 @@ impl MailcalApp {
                         detail: error.to_string(),
                     })
             }
+            mail => {
+                self.run_mail_change(mail);
+                None
+            }
+        }
+    }
+
+    /// A change to how the account's mail arrives, how much of it is kept, or the name it is sent
+    /// under. Each is stored before this returns and none can be refused, so none has anything to
+    /// say; what follows from it (telling the provider, reconciling the mail) runs on afterwards
+    /// as work the page does not wait on.
+    fn run_mail_change(&self, intent: AccountPageIntent) {
+        let app = Arc::clone(&self.app);
+        match intent {
+            AccountPageIntent::SetSenderName { account, name } => {
+                self.set_account_sender_name(account, name);
+            }
+            AccountPageIntent::SetSyncDepth { account, months } => {
+                let stored = self
+                    .runtime
+                    .block_on(|| app.store_account_sync_depth(&account, months));
+                if let Some(change) = stored {
+                    self.runtime
+                        .spawn(async move { app.reconcile_sync_depth(change).await });
+                }
+            }
+            AccountPageIntent::SetMessageSizeLimit { account, megabytes } => {
+                let stored = self
+                    .runtime
+                    .block_on(|| app.store_account_message_size_limit(&account, megabytes));
+                if let Some(change) = stored {
+                    self.runtime
+                        .spawn(async move { app.reconcile_message_size_limit(change).await });
+                }
+            }
+            AccountPageIntent::SetPush { account, on } => {
+                let strategy = if on {
+                    SyncStrategyKind::Push
+                } else {
+                    SyncStrategyKind::Poll
+                };
+                self.set_sync_strategy(account, strategy);
+            }
+            AccountPageIntent::SetPollInterval { account, minutes } => {
+                self.set_poll_interval(account, minutes);
+            }
+            AccountPageIntent::SetWatchedFolder { account, key, on } => {
+                self.set_push_folder(account, key, on);
+            }
+            AccountPageIntent::SetUse { .. }
+            | AccountPageIntent::SetLink { .. }
+            | AccountPageIntent::Remove { .. } => {}
         }
     }
 }

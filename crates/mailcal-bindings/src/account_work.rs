@@ -13,7 +13,9 @@ use std::{
     },
 };
 
-use crate::{AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, LinkSlot};
+use crate::{
+    AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPageIntent, LinkSlot,
+};
 
 /// A change an account's page started, with where it takes the control, so a running control is
 /// drawn at the value it is moving to rather than back at the one it is leaving.
@@ -28,6 +30,41 @@ pub(crate) enum PageWork {
         target: Option<String>,
     },
     Remove,
+    SenderName(String),
+    Depth(u16),
+    Size(u16),
+    Push(bool),
+    Interval(u16),
+    Folder {
+        key: String,
+        on: bool,
+    },
+}
+
+impl PageWork {
+    /// The work `intent` starts, with where it takes its control.
+    pub(crate) fn of(intent: &AccountPageIntent) -> Self {
+        match intent {
+            AccountPageIntent::SetUse { capability, on, .. } => Self::Use {
+                capability: *capability,
+                on: *on,
+            },
+            AccountPageIntent::SetLink { slot, target, .. } => Self::Link {
+                slot: *slot,
+                target: target.clone(),
+            },
+            AccountPageIntent::Remove { .. } => Self::Remove,
+            AccountPageIntent::SetSenderName { name, .. } => Self::SenderName(name.clone()),
+            AccountPageIntent::SetSyncDepth { months, .. } => Self::Depth(*months),
+            AccountPageIntent::SetMessageSizeLimit { megabytes, .. } => Self::Size(*megabytes),
+            AccountPageIntent::SetPush { on, .. } => Self::Push(*on),
+            AccountPageIntent::SetPollInterval { minutes, .. } => Self::Interval(*minutes),
+            AccountPageIntent::SetWatchedFolder { key, on, .. } => Self::Folder {
+                key: key.clone(),
+                on: *on,
+            },
+        }
+    }
 }
 
 /// How a page's controls stand against the change running, if any.

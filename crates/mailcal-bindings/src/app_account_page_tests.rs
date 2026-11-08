@@ -266,3 +266,47 @@ fn a_removal_takes_the_page_and_says_on_the_list_what_it_could_not_finish() {
         "the account is gone, and the list says its credential was kept"
     );
 }
+
+/// A mail account's page carries its mail half, and a change to it runs through `dispatch` and is
+/// on the page when it ends: the interval in effect, the name it sends under.
+#[test]
+fn a_mail_setting_changes_through_the_page() {
+    let app = app("account-page-mail", MAIL_ONLY);
+    let page = settled(&app);
+    let mail = page.mail.expect("a mail account has its mail settings");
+    // The server never answered, so nothing says it pushes: it checks on a timer.
+    assert!(mail.push.is_none());
+    let interval = mail
+        .interval
+        .expect("an account that cannot push checks on a timer");
+    let other = interval
+        .options
+        .iter()
+        .copied()
+        .find(|minutes| *minutes != interval.options[interval.selected as usize])
+        .expect("more than one interval is offered");
+
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SetPollInterval {
+            account: ID.to_owned(),
+            minutes: other,
+        },
+    });
+    let interval = settled(&app)
+        .mail
+        .and_then(|mail| mail.interval)
+        .expect("still on a timer");
+    assert_eq!(interval.options[interval.selected as usize], other);
+    assert!(interval.control.enabled && !interval.control.running);
+
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SetSenderName {
+            account: ID.to_owned(),
+            name: "Alice Example".to_owned(),
+        },
+    });
+    let name = settled(&app)
+        .sender_name
+        .expect("a mail account sends under a name");
+    assert_eq!(name.name, "Alice Example");
+}

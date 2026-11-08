@@ -45,7 +45,11 @@ core would refuse pressing it, asked of the registry's `toggle`, which `set_use`
 switch is enabled exactly when nothing blocks it and no change runs; and `status`, what is wrong
 with the use, said beside it whether or not it can be pressed. Only the page that started a change marks its
 control running, drawn at the value it is moving to rather than the one it is leaving; every other
-page holds its controls without a spinner. The page's `notice` carries
+page holds its controls without a spinner. While the account is used for mail the page carries
+its `sender_name` and its `mail` settings too (fetch depth, message size, push or poll, the
+interval, the watched folders), each a control of its own: a change to one is stored before it
+ends, and what follows from it (telling the provider the name, reconciling the mail to a new depth
+or size) runs on afterwards as sync work the page does not wait on. The page's `notice` carries
 an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -69,6 +73,7 @@ record, not a state the client keeps.
 | | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | An account's page: uses, links and removal drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An account's page: its name and mail settings drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -81,15 +86,22 @@ record, not a state the client keeps.
   page as it is put together: a refused switch held and saying why, a status said beside it, one
   Review beneath the paused uses, the link pickers, and running work holding every control and
   marking its own, drawn where it is going.
+- [`account_page_mail_tests.rs`](../crates/mailcal-bindings/src/account_page_mail_tests.rs) pins
+  the page's mail half: a name the provider holds falls back to the address, a server that cannot
+  push offers only the interval, a folder past the watch limit is held, and a running change is
+  drawn where it goes.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
 - [`app_account_page_tests.rs`](../crates/mailcal-bindings/src/app_account_page_tests.rs) drives a
-  change through `dispatch`: it runs and the page comes back free, and one the core refuses leaves
-  a notice.
+  change through `dispatch`: it runs and the page comes back free, one the core refuses leaves a
+  notice, and a mail setting and the name are on the page once they end.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
-  ([`controls.rs`](../clients/linux/src/ui/controls.rs)), Android's in
-  [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt),
+  ([`controls.rs`](../clients/linux/src/ui/controls.rs), and the name's row in
+  [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs)), Android's in
+  [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt)
+  and
+  [`SettingsAccountMailTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountMailTest.kt),
   each drawing a page the core would answer and asking the core for every change. Apple words the
   record in
   [`AccountPageWordsTests.swift`](../clients/apple/Packages/MailcalKit/Tests/MailcalKitTests/AccountPageWordsTests.swift);

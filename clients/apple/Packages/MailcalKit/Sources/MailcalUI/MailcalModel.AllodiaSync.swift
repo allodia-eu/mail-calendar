@@ -110,9 +110,9 @@ extension MailboxModel {
 
     /// How each account is shared. A local read per account; it never asks the service.
     ///
-    /// The account list comes from the **core**, never from `syncSettings`: that cache is filled
-    /// later in `connect` than this runs, so reading it here produced an empty map, and an empty
-    /// map draws no control at all, a whole feature missing, with every build green.
+    /// The account list is asked of the **core** here, never of a copy the model keeps: a copy
+    /// filled later in `connect` than this runs produced an empty map, and an empty map draws no
+    /// control at all, a whole feature missing, with every build green.
     ///
     /// Empty in a build with no Allodia registration, which is what draws none of it.
     func readAccountsSynced() {

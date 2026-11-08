@@ -723,13 +723,11 @@
 
 	"settings_sync_depth_heading": "Profundidade de sincronização",
 	"settings_sync_depth_description": "Até que ponto o correio é transferido. As mensagens mais antigas ficam no servidor até alargar este período.",
-	"settings_sync_depth_label": "Transferir",
 	"sync_depth_months": "Últimos {count} meses",
 	"sync_depth_all": "Todo o histórico",
 
 	"settings_message_size_heading": "Tamanho das mensagens",
 	"settings_message_size_description": "A maior mensagem a transferir em segundo plano. As maiores ficam no servidor e são transferidas quando as abre.",
-	"settings_message_size_label": "Transferir até",
 	"message_size_megabytes": "{count} MB",
 	"message_size_unlimited": "Qualquer tamanho",
 	"sync_downloading": "A transferir {fetched} de {total}…",
