@@ -634,28 +634,24 @@ the default is to ask. Four rules bind every client:
    organiser". Consent to send mail on someone's behalf is not informed without the address.
 3. **The status code is not shown.** It rides the prompt for the diagnostics log; `5.2` explains
    nothing to the person reading a modal.
-4. **The choice can be remembered, per account, and it applies in both directions.** A server that
-   fails every reply must not ask at every meeting. One tick, wired to whichever button was pressed:
-   beside "Don't send" it is a standing *no*, which is the half that is easy to drop and impossible
-   to notice: the symptom of dropping it is being asked again, forever, on exactly the server the
-   setting exists for. Stored as `reply_fallback` per account (`Ask` / `Always` / `Never`).
+4. **The choice can be made once, per account, and it applies in both directions.** A server that
+   fails every reply must not ask at every meeting. The account's page in Settings carries it as a
+   picker (`AccountPage::reply_fallback`: Ask each time, Email them, Don't email them), shown for an
+   account used for its calendar; "Don't email them" is a standing *no*, the half that is easy to
+   drop and impossible to notice, because the symptom of dropping it is being asked again, forever,
+   on exactly the server the setting exists for. Stored as `reply_fallback` per account (`Ask` /
+   `Always` / `Never`); the question's own answers never set it.
 
-The question lives in the **core**, not in a view: it is raised on `Surface::InvitationReply`,
-answered by `Intent::AnswerReplyPrompt`, and **taken** before any await, so two taps on a modal
-that has not closed yet, or a client dispatching on both press and release, cannot email the
-organiser twice. `None` is equally how the core says *close it*; a host never dismisses on its own,
-and nothing may dismiss it without answering, or the core would go on holding a question the user
-can no longer see. It carries no handle on the meeting, and everything is re-derived from the store
-when the reply is finally sent, so a prompt cannot act on stale state.
+The question lives in the **core**, not in a view, and reaches a host as the `ReplyNotDelivered`
+notice ([`notices.md`](notices.md) rule 8), answered with `SendReply` or `DontSendReply`, each an
+`Intent::AnswerReplyPrompt`. The core **takes** the question before any await, so two taps, or a
+client dispatching on both press and release, cannot email the organiser twice; the notice goes the
+moment it is answered, and nothing closes it without an answer. It carries no handle on the meeting,
+and everything is re-derived from the store when the reply is finally sent, so a question cannot act
+on stale state.
 
 Where there is no organiser to email, there is no question: an offer to email nobody is a control
 that cannot work, so the answer is stored and nothing is asked.
-
-**The chrome differs by platform; the decision set does not.** macOS and iOS present a sheet
-(SwiftUI's alert takes buttons and nothing else, and the tick has to be a control whose state is
-visible before committing); Android an `AlertDialog` with a checkbox; Windows an **InfoBar**,
-because WinUI permits one `ContentDialog` at a time and silently drops a second: a question raised
-while another dialog was open would have been thrown away while the core kept holding it.
 
 **If we send it ourselves, it goes out the ordinary way.** `send_imip_reply` submits through the
 outbox, so the send reports through `SendStatus` like any other message and inherits its durability.
@@ -677,10 +673,9 @@ MAILCAL_FAKE_REPLY_DELIVERY=failed:5.2       # also delivered:2.0 · unrecognize
 ```
 
 Two properties make it a testing aid rather than a mock. It replaces **only the server's verdict**:
-everything downstream is the real thing, so a run still proves that the core raises the question,
-signals `Surface::InvitationReply`, takes it before any await, remembers the choice and puts real
-mail in the outbox; a hook that faked the *prompt* would keep passing after the wiring between core
-and client was cut. And its value names a **variant**, never a status token to be classified: which
+everything downstream is the real thing, so a run still proves that the core raises the question
+as its notice, takes it before any await and puts real mail in the outbox; a hook that faked the
+*question* would keep passing after the wiring between core and client was cut. And its value names a **variant**, never a status token to be classified: which
 class a code belongs to is protocol knowledge and it lives in the engine, whose `ReplyDelivery` docs
 say in as many words that no caller should branch on the text. A value it does not recognise is
 declined with a warning and the server's real answer is used: it under-tests rather than inventing
@@ -690,9 +685,8 @@ on.
 
 The Windows UI suite ([`InvitationReplyPromptTests.cs`](../clients/windows/Mailcal.UiTests/Suites/InvitationReplyPromptTests.cs))
 is built on it, and covers the half no other machine can see: `Mailcal.Tests` cannot link a WinUI
-type and `cargo test` cannot see a XAML binding, so the InfoBar's `IsOpen`, the tick's initial state,
-`IsClosable="False"`, and the code-behind line that clears the tick between meetings had nothing
-watching them. It needs `MAILCAL_DEV_ACCOUNT=stalwart-imap` (`resolve_reply_delivery` runs on the
+type and `cargo test` cannot see a XAML binding, so the notice reaching the bar with both answers
+and no close button had nothing else watching it. It needs `MAILCAL_DEV_ACCOUNT=stalwart-imap` (`resolve_reply_delivery` runs on the
 **server** delivery route, which is CalDAV) and it **declines** rather than accepts, because a
 declined event is hidden from every calendar surface and so leaves the free-day fixture the
 invitation-preview suite depends on exactly as it found it.

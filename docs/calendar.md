@@ -160,9 +160,9 @@ grid wears** (§10): a new event's block says where it is going before the edito
 ### Device time-zone changes
 
 The active display zone never changes merely because the device moved. A client reports a new IANA
-device zone to the core; `TimeZoneSnapshot::pending_device` then raises one choice: **Update** the
-display zone, or **Keep** the active one. Only Update persists the new zone and rebuilds the diary.
-Closing the prompt means Keep. Linux checks the device zone once a minute while the app remains open
+device zone to the core, which then raises one question, the `TimeZoneChanged` notice
+([`notices.md`](notices.md) rule 8): **Update** the display zone, or **Keep current**. Only Update
+persists the new zone and rebuilds the diary. Linux checks the device zone once a minute while the app remains open
 and drives both answers through the same core state machine as the manual Settings picker.
 
 ---

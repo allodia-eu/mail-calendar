@@ -8,11 +8,16 @@
 
 use std::collections::{HashMap, HashSet};
 
+pub(crate) use questions::{Questions, ReplyQuestion, UnfiledQuestion};
+
 use crate::{
     AccountProvider, ConnectivitySnapshot, FolderNotice, Notice, NoticeAction, NoticeKind,
     NoticeScreens, NoticeSeverity, NoticeText, NoticesSnapshot, UseOutage, UseProblem,
     notice_words,
 };
+
+#[path = "notices_questions.rs"]
+mod questions;
 
 /// What the notices are built from: everything is read, nothing is kept.
 pub(crate) struct NoticeFacts<'a> {
@@ -26,6 +31,8 @@ pub(crate) struct NoticeFacts<'a> {
     pub(crate) provider: &'a dyn Fn(&str) -> Option<AccountProvider>,
     /// The address a person knows an account by.
     pub(crate) address: &'a dyn Fn(&str) -> String,
+    /// The questions the core is holding (rule 8).
+    pub(crate) questions: &'a Questions,
 }
 
 /// A notice's identity: its kind and the account it is about. Never parsed; only compared.
@@ -60,6 +67,8 @@ pub(crate) struct Raised {
     screens: NoticeScreens,
     account: Option<String>,
     action: Option<NoticeAction>,
+    second_action: Option<NoticeAction>,
+    running: bool,
     dismissal: Option<Dismissal>,
 }
 
@@ -82,8 +91,22 @@ impl Raised {
             screens,
             account: account.map(str::to_owned),
             action,
+            second_action: None,
+            running: false,
             dismissal: None,
         }
+    }
+
+    /// A question's other answer (rule 8).
+    fn or(mut self, second: NoticeAction) -> Self {
+        self.second_action = Some(second);
+        self
+    }
+
+    /// Whether an answer is being carried out.
+    fn running(mut self, running: bool) -> Self {
+        self.running = running;
+        self
     }
 
     fn dismissed_by(mut self, dismissal: Dismissal) -> Self {
@@ -249,6 +272,7 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         refused.id = NoticeId::new("folder_change_refused", Some(&scope));
         raised.push(refused);
     }
+    questions::raise(facts, &mut raised);
     raised
 }
 
@@ -365,6 +389,9 @@ impl NoticeBook {
                 account: notice.account,
                 action: notice.action,
                 action_label: notice.action.map(notice_words::action_label),
+                second_action: notice.second_action,
+                second_action_label: notice.second_action.map(notice_words::action_label),
+                running: notice.running,
                 dismissible: notice.dismissal.is_some(),
                 remedy_failed,
             })

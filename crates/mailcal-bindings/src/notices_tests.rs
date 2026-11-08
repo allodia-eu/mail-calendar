@@ -1,7 +1,7 @@
 //! The notices contract (`docs/notices.md`): what each fact becomes, in what order, one per
 //! account and fact, and what dismissing and a failed remedy do.
 
-use super::{Dismissal, NoticeBook, NoticeFacts, raise};
+use super::{Dismissal, NoticeBook, NoticeFacts, Questions, raise};
 use crate::{
     AccountProvider, ConnectivitySnapshot, FolderAction, FolderNotice, FolderProblem, Notice,
     NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, UseOutage, UseProblem,
@@ -59,6 +59,7 @@ fn pull_with(
         folder_notice,
         provider: &oauth,
         address: &mail_address,
+        questions: &Questions::default(),
     };
     book.snapshot(raise(&facts)).notices
 }
@@ -134,6 +135,7 @@ fn a_dead_password_sign_in_opens_settings_and_an_oauth_one_signs_in_again() {
         folder_notice: None,
         provider: &provider,
         address: &mail_address,
+        questions: &Questions::default(),
     };
     let notices = NoticeBook::default().snapshot(raise(&facts)).notices;
     let action = |account: &str| {

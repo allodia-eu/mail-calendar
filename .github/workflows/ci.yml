@@ -693,7 +693,7 @@ jobs:
           clients/apple/Scripts/test-ui.sh --no-core --with-kit \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests --only SettingsAddAccountTests \
-            --only ServerChangeTests --only NoticeTests
+            --only ServerChangeTests --only NoticeTests --only QuestionNoticeTests
 
       # A pull request compiles everything the step above runs (the app, the UI suite and
       # MailcalKit's suite, all for the simulator) and boots nothing (rule 5 at the top of this

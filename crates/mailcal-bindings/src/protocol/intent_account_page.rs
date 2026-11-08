@@ -27,6 +27,14 @@ pub enum AccountPageIntent {
         /// The account to link, from the picker's options; `None` for none.
         target: Option<String>,
     },
+    /// Choose what happens when the account's calendar server cannot pass an invitation answer
+    /// on.
+    SetReplyFallback {
+        /// The account's id.
+        account: String,
+        /// The choice.
+        choice: crate::ReplyFallbackChoice,
+    },
     /// Remove the account from this device.
     Remove {
         /// The account's id.

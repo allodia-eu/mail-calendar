@@ -12,7 +12,7 @@ use mailcal_app::{Intent as AppIntent, ReaderId as AppReaderId};
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeOpening, ConnectionInfo,
     ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind,
-    ReadingSnapshot, ReplyPrompt, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot, UnfiledCopy,
+    ReadingSnapshot, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot,
 };
 
 #[uniffi::export]
@@ -233,26 +233,6 @@ impl MailcalApp {
     /// this saved", never "rejected", and `Invalid` is a form to correct rather than a retry.
     pub fn contact_write_status(&self) -> ContactWriteStatus {
         self.app.contact_write_status().into()
-    }
-
-    /// The unanswered question raised when a calendar server reported it could not deliver an
-    /// invitation reply (pulled after a `Surface::InvitationReply` signal), or `None` when
-    /// there is nothing to ask.
-    ///
-    /// A host shows this as a modal: the answer is already saved, but the organiser has not
-    /// been told, and we can email them instead. `None` also means *close the modal*: the core
-    /// clears the prompt the moment it is answered, so a stale one cannot be answered twice.
-    pub fn reply_prompt(&self) -> Option<ReplyPrompt> {
-        self.app.reply_prompt().map(Into::into)
-    }
-
-    /// The message that was sent without its copy reaching the account's Sent folder (pulled
-    /// after a `Surface::UnfiledCopy` signal), or `None` when there is nothing to ask.
-    ///
-    /// A host shows this as a modal offering to file the copy. `None` also means *close the
-    /// modal*: the core clears it the moment the copy lands or the user dismisses it.
-    pub fn unfiled_copy(&self) -> Option<UnfiledCopy> {
-        self.app.unfiled_copy().map(Into::into)
     }
 
     /// The message the core is asking this host to open in its composer (pulled after a

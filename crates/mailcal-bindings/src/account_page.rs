@@ -5,18 +5,21 @@
 
 use crate::{
     AccountCapability, AccountChangeNoticeRaised, AccountEntry, AccountLinkPicker, AccountPage,
-    AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState, LinkSlot, UseProblem,
+    AccountReplyFallback, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
+    LinkSlot, ReplyFallbackChoice, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
     app_accounts_uses::domain_of,
 };
 
-/// `entry`'s page. `hold` says which change runs, and `toggle` what switching a use on (`true`)
-/// or off comes to. The control a running change started is drawn at the value it is moving to.
+/// `entry`'s page. `hold` says which change runs, `toggle` what switching a use on (`true`) or
+/// off comes to, and `reply_fallback` the account's standing answer about invitation replies.
+/// The control a running change started is drawn at the value it is moving to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
+    reply_fallback: ReplyFallbackChoice,
     toggle: impl Fn(AccountCapability, bool) -> Toggle,
 ) -> AccountPage {
     let control = |running: bool, free: bool| ControlState {
@@ -78,6 +81,22 @@ pub(crate) fn page(
             })
             .collect(),
         remove: control(hold.own == Some(PageWork::Remove), true),
+        reply_fallback: entry
+            .uses
+            .iter()
+            .any(|use_| {
+                use_.capability == AccountCapability::Calendar && use_.state == CapabilityState::On
+            })
+            .then(|| {
+                let going = match &hold.own {
+                    Some(PageWork::ReplyFallback { choice }) => Some(*choice),
+                    _ => None,
+                };
+                AccountReplyFallback {
+                    choice: going.unwrap_or(reply_fallback),
+                    control: control(going.is_some(), true),
+                }
+            }),
         notice,
     }
 }

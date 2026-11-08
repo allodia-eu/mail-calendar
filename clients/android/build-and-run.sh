@@ -124,7 +124,7 @@ if [[ -n "${MAILCAL_SHOWCASE:-}" ]]; then
   START_EXTRAS+=(-e MAILCAL_SHOWCASE "$MAILCAL_SHOWCASE")
   [[ -n "${MAILCAL_SHOWCASE_SCREEN:-}" ]] && START_EXTRAS+=(-e MAILCAL_SHOWCASE_SCREEN "$MAILCAL_SHOWCASE_SCREEN")
   # The questions the core stages on the showcase (docs/debugging.md), which the app hands it.
-  for staged in MAILCAL_SHOWCASE_SERVER_CHANGE MAILCAL_SHOWCASE_REAUTH; do
+  for staged in MAILCAL_SHOWCASE_SERVER_CHANGE MAILCAL_SHOWCASE_REAUTH MAILCAL_SHOWCASE_QUESTIONS; do
     [[ -n "${!staged:-}" ]] && START_EXTRAS+=(-e "$staged" "${!staged}")
   done
   # A flag that names a language pins the chrome to it, as it does on every other client. The app

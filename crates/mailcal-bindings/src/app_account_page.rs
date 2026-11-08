@@ -11,7 +11,7 @@ use mailcal_account::Capability;
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
     AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp, MailcalError,
-    account_page, account_registry::Toggle, account_work::PageWork,
+    ReplyFallbackChoice, account_page, account_registry::Toggle, account_work::PageWork,
 };
 
 #[uniffi::export]
@@ -28,10 +28,15 @@ impl MailcalApp {
             .find(|entry| entry.id == account_id)?;
         let (hold, notice) = self.account_work.of(&account_id);
         let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
+        let reply_fallback = engine_api::AccountId::try_from(account_id.as_str())
+            .map_or(ReplyFallbackChoice::Ask, |id| {
+                self.app.reply_fallback(&id).into()
+            });
         Some(account_page::page(
             &entry,
             hold,
             notice,
+            reply_fallback,
             |capability, on| {
                 self.registry
                     .toggle(&account_id, Capability::from(capability), on, &refused)
@@ -75,6 +80,9 @@ impl MailcalApp {
                     target: target.clone(),
                 },
             ),
+            AccountPageIntent::SetReplyFallback { account, choice } => {
+                (account.clone(), PageWork::ReplyFallback { choice: *choice })
+            }
             AccountPageIntent::Remove { account } => (account.clone(), PageWork::Remove),
         };
         let Some(app) = self.rediscovery.app() else {
@@ -121,6 +129,13 @@ impl MailcalApp {
                 slot,
                 target,
             } => link_failed(slot, self.set_account_link(account, slot, target)),
+            // A preference written beside the store: nothing to say unless the id is not one.
+            AccountPageIntent::SetReplyFallback { account, choice } => {
+                if let Ok(id) = engine_api::AccountId::try_from(account.as_str()) {
+                    self.app.set_reply_fallback(&id, choice.into());
+                }
+                None
+            }
             // The account is gone whatever this answers: an error says its stored credential
             // could not be erased, which the accounts list says.
             AccountPageIntent::Remove { account } => {

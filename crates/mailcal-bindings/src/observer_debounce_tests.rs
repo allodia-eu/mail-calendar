@@ -28,8 +28,6 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::ComposeRequest => AppSurface::ComposeRequest,
         Surface::Contacts => AppSurface::Contacts,
         Surface::ContactsStatus => AppSurface::ContactsStatus,
-        Surface::InvitationReply => AppSurface::InvitationReply,
-        Surface::UnfiledCopy => AppSurface::UnfiledCopy,
         Surface::DraftStatus => AppSurface::DraftStatus,
         Surface::Notices => AppSurface::Notices,
     }

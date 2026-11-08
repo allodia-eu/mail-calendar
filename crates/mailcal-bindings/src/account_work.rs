@@ -27,6 +27,9 @@ pub(crate) enum PageWork {
         slot: LinkSlot,
         target: Option<String>,
     },
+    ReplyFallback {
+        choice: crate::ReplyFallbackChoice,
+    },
     Remove,
 }
 

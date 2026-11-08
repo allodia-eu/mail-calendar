@@ -357,6 +357,17 @@ impl<P: Provider> App<P> {
         taken
     }
 
+    /// `account`'s standing answer, which its page in Settings shows and changes.
+    #[must_use]
+    pub fn reply_fallback(&self, account: &AccountId) -> ReplyFallback {
+        self.reply_fallback_for(account)
+    }
+
+    /// Sets `account`'s standing answer from its page in Settings.
+    pub fn set_reply_fallback(&self, account: &AccountId, choice: ReplyFallback) {
+        self.remember_reply_fallback(account, choice);
+    }
+
     /// Records what the user decided, so the same server does not ask again on every meeting.
     pub(crate) fn remember_reply_fallback(&self, account: &AccountId, choice: ReplyFallback) {
         let Some(path) = &self.prefs_path else {
