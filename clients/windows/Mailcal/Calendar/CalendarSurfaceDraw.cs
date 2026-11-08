@@ -252,20 +252,8 @@ internal static class CalendarSurfaceDraw
                 {
                     continue;
                 }
-                ds.FillRoundedRectangle(rect, SurfaceTheme.CornerRadius, SurfaceTheme.CornerRadius, band.Background);
-                // A bar draws no border of its own, so an unanswered hold gains the whole treatment
-                // in one call. A no-op on a commitment (CalendarHold).
-                CalendarHold.Draw(ds, rect, band.Border, SurfaceTheme.CornerRadius, band.Awaiting);
-
-                var room = (float)rect.Width - (SurfaceTheme.BlockPadding * 2f);
-                if (room <= 0f)
-                {
-                    continue;
-                }
-                using var titleLayer = ds.CreateLayer(1f, rect);
-                CalendarTitleDraw.Draw(
-                    ds, text, theme, band.Title, band.Meeting, theme.BlockLarge, formatId: 1, room,
-                    (float)rect.X + SurfaceTheme.BlockPadding, (float)rect.Y + 2f, band.Text);
+                CalendarBlockDraw.Shape(ds, rect, band.Colors, band.Awaiting);
+                CalendarBlockDraw.BandLabel(ds, text, theme, band, rect);
             }
 
             // The "+N" chips, one per column, because a hidden multi-day bar is hidden on every day it
@@ -387,7 +375,6 @@ internal static class CalendarSurfaceDraw
         TextLayoutCache text,
         float shapeWidth)
     {
-        var inset = SurfaceTheme.BlockInset(block.Minutes);
         var rect = new Rect(
             r.Left + SurfaceTheme.BlockGap,
             r.Top + SurfaceTheme.BlockGap,
@@ -398,43 +385,14 @@ internal static class CalendarSurfaceDraw
             return;
         }
 
-        ds.FillRoundedRectangle(rect, SurfaceTheme.CornerRadius, SurfaceTheme.CornerRadius, block.Background);
-        // A block already has a hairline, so a hold restyles it rather than gaining a second edge.
-        ds.DrawRoundedRectangle(
-            rect, SurfaceTheme.CornerRadius, SurfaceTheme.CornerRadius, block.Border, 1f,
-            CalendarHold.Stroke(block.Awaiting));
-        CalendarHold.Hatch(ds, rect, block.Border, block.Awaiting);
+        CalendarBlockDraw.Shape(ds, rect, block.Colors, block.Awaiting);
 
-        if (!SurfaceTheme.ShowsLabel(block.Minutes, m.HourHeight))
-        {
-            // Too short to hold text at this zoom. It stays a coloured block and KEEPS ITS FULL SPOKEN
-            // LABEL (§4), the semantics overlay reads block.Spoken regardless of what is drawn.
-            return;
-        }
-
-        // Shaped against the FROZEN width, drawn and clipped against the LIVE one. Mid-pinch those
-        // differ, and that is the entire point: the rectangle tracks the fingers, the shaper sleeps.
-        var room = (shapeWidth / block.Span.Columns) - (inset * 2f) - (SurfaceTheme.BlockGap * 2f);
-        if (room <= 0f)
-        {
-            return;
-        }
-
-        using var clip = ds.CreateLayer(1f, rect);
-        var format = theme.BlockFormat(block.Minutes);
-        var formatId = block.Minutes < 30 ? 0 : 1;
-        var y = (float)rect.Y + inset;
-
-        CalendarTitleDraw.Draw(
-            ds, text, theme, block.Title, block.Meeting, format, formatId, room,
-            (float)rect.X + inset, y, block.Text);
-
-        if (SurfaceTheme.ShowsTime(block.Minutes, m.HourHeight))
-        {
-            y += SurfaceTheme.BlockLineHeight(block.Minutes);
-            var clock = text.Line(block.Clock, format, room, formatId);
-            ds.DrawTextLayout(clock, (float)rect.X + inset, y, block.Text);
-        }
+        // Laid out against the FROZEN width, drawn and clipped against the LIVE one. Mid-pinch those
+        // differ: the rectangle tracks the fingers, the shaper sleeps (§7). A block too short for a
+        // line at this zoom keeps its full spoken label (§4); the automation overlay reads Spoken.
+        var shapedRoom = (shapeWidth / block.Span.Columns) - (SurfaceTheme.BlockGap * 2f)
+            - CalendarBlocks.BarWidth - (CalendarBlocks.LabelPadding * 2f);
+        CalendarBlockDraw.BlockLabel(ds, text, theme, block, rect, m.HourHeight, shapedRoom);
     }
 
     /// <summary>

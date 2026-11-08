@@ -241,52 +241,35 @@ internal sealed class MonthGridView : UserControl
 
     private UIElement Chip(MonthPage page, MonthChip chip, bool dark)
     {
-        var swatch = CalendarColors.SwatchFor(page.Calendars, chip.Account, chip.Calendar, dark);
+        var colors = CalendarColors.EventColorsFor(page.Calendars, chip.Account, chip.Calendar, dark);
         var title = string.IsNullOrEmpty(chip.Title) ? L10n.EventNoTitle() : chip.Title;
         // An invitation nobody has answered is a hold, not a commitment: faded, dashed and hatched
         // (CalendarHold), and its spoken label says so, the drawing alone is invisible to a screen
         // reader (docs/calendar.md §4).
         var awaiting = InvitationFormat.IsAwaitingResponse(chip.Participation);
-        var edge = CalendarColors.Parse(swatch.Border);
+        // A timed event leads with its start time; an all-day one is its title alone.
+        var text = chip.AllDay
+            ? title
+            : $"{CalendarFormat.ClockTime((int)chip.StartMinutes, _use24Hour, _culture)} {title}";
 
-        UIElement element;
-        if (chip.AllDay)
+        // The grid's block in miniature, so an event looks the same in every view (§1): the tint, the
+        // calendar's colour down the leading edge, and a semibold title in the deep shade. A border
+        // on the leading side alone follows the chip's rounded corners, as the grid's bar does.
+        var shape = new Border
         {
-            // A filled bar, the whole day is this event's colour.
-            var bar = new Border
-            {
-                Height = ChipHeight - 2,
-                CornerRadius = new CornerRadius(3),
-                Padding = new Thickness(5, 0, 5, 0),
-                Background = new SolidColorBrush(
-                    CalendarHold.Fade(CalendarColors.Parse(swatch.Background), awaiting)),
-                Child = TitleLine(
-                    title, chip.HasConference, new SolidColorBrush(CalendarColors.Parse(swatch.Text))),
-            };
-            element = CalendarHold.Compose(bar, edge, corner: 3, awaiting, ChipHeight - 2);
-        }
-        else
+            Height = ChipHeight - 2,
+            CornerRadius = new CornerRadius(3),
+            Padding = new Thickness(CalendarBlocks.BarWidth + 2, 0, 3, 0),
+            Background = new SolidColorBrush(CalendarHold.Fade(colors.Fill, awaiting)),
+            Child = TitleLine(text, chip.HasConference, new SolidColorBrush(colors.Text)),
+        };
+        if (!awaiting)
         {
-            // A timed event, a coloured dot, its start time, and its title. A grid rather than a
-            // horizontal stack, which measures the title at infinite width and so never trims it.
-            var row = new Grid { ColumnSpacing = 5, Height = ChipHeight - 2 };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.Children.Add(new Border
-            {
-                Width = 8,
-                Height = 8,
-                CornerRadius = new CornerRadius(4),
-                VerticalAlignment = VerticalAlignment.Center,
-                Background = new SolidColorBrush(
-                    CalendarHold.Fade(CalendarColors.Parse(swatch.Background), awaiting)),
-            });
-            var time = CalendarFormat.ClockTime((int)chip.StartMinutes, _use24Hour, _culture);
-            var line = TitleLine($"{time} {title}", chip.HasConference, foreground: null);
-            Grid.SetColumn(line, 1);
-            row.Children.Add(line);
-            element = CalendarHold.Compose(row, edge, corner: 3, awaiting, ChipHeight - 2);
+            shape.Padding = new Thickness(2, 0, 3, 0);
+            shape.BorderBrush = new SolidColorBrush(colors.Accent);
+            shape.BorderThickness = new Thickness(CalendarBlocks.BarWidth, 0, 0, 0);
         }
+        var element = CalendarHold.Compose(shape, colors.Accent, corner: 3, awaiting, ChipHeight - 2);
 
         // A tap opens the event's detail, and is marked handled so it does not also fire the cell's
         // DayPicked and jump into the day zoom instead.
@@ -296,11 +279,10 @@ internal sealed class MonthGridView : UserControl
             EventPicked?.Invoke(new EventOpen(chip.Account, chip.Event, chip.OccurrenceStart));
         };
         AutomationProperties.SetName(
-            (DependencyObject)element,
+            element,
             Dialogs.CalendarEventText.Spoken(title, chip.Participation, chip.HasConference));
         return element;
     }
-
     // A chip's text, with the camera after it when the event has a video meeting
     // (docs/conferencing.md). Left-aligned with the text in a star column, so the grid is as wide
     // as its content until the chip runs out of room, and then the text trims and the camera stays.
@@ -311,6 +293,7 @@ internal sealed class MonthGridView : UserControl
         {
             Text = text,
             FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
             MaxLines = 1,
             TextTrimming = TextTrimming.CharacterEllipsis,
             VerticalAlignment = VerticalAlignment.Center,
