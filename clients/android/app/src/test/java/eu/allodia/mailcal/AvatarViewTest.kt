@@ -16,11 +16,16 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.Avatar
 import uniffi.mailcal_bindings.Swatch
 
+// Native graphics, so a path decodes to what the file holds. Robolectric's legacy shadow makes up a
+// bitmap for any path, a missing one included, and the unreadable photo then replaced the monogram
+// whenever the background decode finished before the assertion ran.
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 class AvatarViewTest {
     @get:Rule val compose = createComposeRule()
 
