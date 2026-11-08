@@ -27,8 +27,9 @@ final class QuestionNoticeTests: XCTestCase {
             "the copy's notice offers no Save to Sent"
         )
         XCTAssertTrue(app.buttons["Send the email"].exists, "the reply's notice offers no Send the email")
-        XCTAssertTrue(app.buttons["Update"].exists, "the time zone's notice offers no Update")
 
+        // The sheet opens at half height, so the third notice is drawn once the first two are
+        // answered and it moves up.
         ShowcaseApp.tap(app.buttons["Not now"])
         XCTAssertTrue(
             app.buttons["Save to Sent"].waitForNonExistence(timeout: ShowcaseApp.timeout),
@@ -38,6 +39,10 @@ final class QuestionNoticeTests: XCTestCase {
         XCTAssertTrue(
             app.buttons["Send the email"].waitForNonExistence(timeout: ShowcaseApp.timeout),
             "Don't send left the reply's notice standing"
+        )
+        XCTAssertTrue(
+            app.buttons["Update"].waitForExistence(timeout: ShowcaseApp.timeout),
+            "the time zone's notice offers no Update"
         )
         ShowcaseApp.tap(app.buttons["Keep current"])
         XCTAssertTrue(
