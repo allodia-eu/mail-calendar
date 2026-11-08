@@ -201,19 +201,23 @@ fn showcase_can_ask_every_question_as_a_notice() {
         Some((Some(UseDeviceTimeZone), Some(KeepTimeZone)))
     );
 
+    // An intent runs on the core's runtime, so the answer lands a moment after `dispatch` returns.
     app.dispatch(crate::Intent::DismissTimeZoneChange);
     app.dispatch(crate::Intent::DismissUnfiledCopy);
-    let left: Vec<_> = app
-        .notices()
-        .notices
-        .into_iter()
-        .map(|notice| notice.kind)
-        .collect();
-    assert!(
-        !left.iter().any(|kind| matches!(
+    let answered = |kind: &crate::NoticeKind| {
+        matches!(
             kind,
             crate::NoticeKind::TimeZoneChanged { .. } | crate::NoticeKind::SentNotFiled { .. }
-        )),
-        "an answered question goes: {left:?}"
+        )
+    };
+    assert!(
+        crate::tests::wait_until(std::time::Duration::from_secs(5), || {
+            !app.notices()
+                .notices
+                .iter()
+                .any(|notice| answered(&notice.kind))
+        }),
+        "an answered question goes: {:?}",
+        app.notices().notices
     );
 }
