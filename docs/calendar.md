@@ -1162,15 +1162,19 @@ calendar and moves it itself, hours, then days, then a zoom on both axes, the sa
 so two builds compare without a hand on the trackpad. It measures what a frame costs to draw, not
 the gesture that asked for it; that half is measured by hand with the plain trace.
 
-    scripts/dev/device.sh run MAILCAL_CALENDAR_TRACE=drive     # a phone, unlocked
-    scripts/dev/device.sh logs --grep 'calendar frames'
-    open -n --env MAILCAL_CALENDAR_TRACE=drive <the Release MailCal.app>   # the Mac
+[`scripts/dev/calendar-perf-apple.sh`](../scripts/dev/calendar-perf-apple.sh) builds Release on a
+release core, runs the drive and prints the run's lines, one per axis:
+
+    scripts/dev/calendar-perf-apple.sh mac            # the Mac
+    scripts/dev/calendar-perf-apple.sh device         # the connected phone, unlocked
+    scripts/dev/calendar-perf-apple.sh mac-profile    # the Mac, under the Time Profiler
 
 ⚠️ **Instruments' command line does not reach an app on the phone** here: attaching by name, by
 pid and by launch all fail, and a whole-device trace collects gigabytes it cannot then export. The
 trace is the instrument because of that, and because it labels each burst with what drove it. On
-the Mac, `xctrace record --template 'Time Profiler' --attach <pid>` works, and is what finds a cost
-once the trace has said there is one.
+the Mac, `xctrace record --attach` works, and `mac-profile` is what finds a cost once the trace has
+said there is one: the main thread's busy time per axis, and the frames it was busy in. The
+`apple-frame-budget` skill carries the traps.
 
 Measured on release builds, scripted motion, 60 Hz:
 

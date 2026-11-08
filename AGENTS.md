@@ -637,6 +637,7 @@ traps that produce a false pass.
 | `diagnose-linux-gtk` | A GLib/GTK critical or a stall. Reasoning from the message finds the wrong file; get the backtrace. |
 | `ios-device-bgsync` | Background sync or notifications, which a simulator cannot run. |
 | `device-interaction` | "It feels laggy", or before claiming any performance win. Needs a physical Android device. |
+| `apple-frame-budget` | The same on macOS or iOS: Release builds, the calendar's frame trace, the Mac Time Profiler (`calendar-perf-apple.sh`). |
 
 ⚠️ **This repo's harness is a different compose project** (`mailcal-core-harness`, ports
 `12xxx`/`28080`) from the engine repo's, because Compose keys a project on its `name:` and both
