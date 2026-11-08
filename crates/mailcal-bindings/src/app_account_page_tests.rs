@@ -314,3 +314,26 @@ fn a_mail_setting_changes_through_the_page() {
     let name = page.sender_name.expect("a mail account sends under a name");
     assert_eq!(name.name, "Alice Example");
 }
+
+/// An add the core refuses keeps the address in the field, as the person meant it, so it is
+/// corrected rather than typed again.
+#[test]
+fn a_refused_add_keeps_the_address_it_was_given() {
+    let app = app("account-page-shared-add", MAIL_ONLY);
+    settled(&app);
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::AddSharedMailbox {
+            account: ID.to_owned(),
+            address: "  team@example.org ".to_owned(),
+        },
+    });
+    let page = settled(&app);
+    assert!(matches!(
+        page.notice.map(|raised| raised.notice),
+        Some(AccountChangeNotice::SharedMailboxFailed { .. })
+    ));
+    assert_eq!(
+        app.account_work.shared.missed_at(ID).as_deref(),
+        Some("team@example.org")
+    );
+}

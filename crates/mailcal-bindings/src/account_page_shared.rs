@@ -29,7 +29,7 @@ pub(crate) type Offer = Result<SharedMailboxOffer, ()>;
 /// off opens or closes them, and a mailbox that connected can now be asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Asked {
-    pub(crate) uses: String,
+    pub(crate) uses: mailcal_account::Capabilities,
     pub(crate) live: bool,
 }
 
@@ -77,7 +77,10 @@ impl SharedAnswers {
     /// The server answered the ask `ticket` with `offer`.
     pub(crate) fn answered(&self, account: &str, ticket: u64, offer: Offer) {
         let mut answers = self.answers();
-        let answer = answers.entry(account.to_owned()).or_default();
+        // An account forgotten while its server was asked is gone: nothing is kept for it.
+        let Some(answer) = answers.get_mut(account) else {
+            return;
+        };
         if answer.asking == Some(ticket) {
             answer.asking = None;
         }
@@ -99,7 +102,7 @@ impl SharedAnswers {
         self.answers().entry(account.to_owned()).or_default().missed = address;
     }
 
-    fn missed_at(&self, account: &str) -> Option<String> {
+    pub(crate) fn missed_at(&self, account: &str) -> Option<String> {
         self.answers()
             .get(account)
             .and_then(|answer| answer.missed.clone())

@@ -108,7 +108,7 @@ fn a_change_starting_keeps_the_edit_the_last_save_refused() {
 fn a_change_starting_keeps_what_the_server_said_of_its_shared_mailboxes() {
     let work = AccountWork::default();
     let asked = crate::account_page::shared::Asked {
-        uses: String::new(),
+        uses: mailcal_account::Capabilities::default(),
         live: true,
     };
     let ticket = work.shared.ask("a", &asked, false).expect("never asked");

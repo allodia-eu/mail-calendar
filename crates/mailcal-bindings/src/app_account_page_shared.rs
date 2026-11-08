@@ -53,14 +53,15 @@ impl MailcalApp {
         if !self.opens_shared_mailboxes(account_id) {
             return;
         }
+        // The app first: a ticket taken with no thread to answer it would hold every later ask.
+        let Some(app) = self.rediscovery.app() else {
+            return;
+        };
         let Some(ticket) =
             self.account_work
                 .shared
                 .ask(account_id, &self.asked_as(account_id), again)
         else {
-            return;
-        };
-        let Some(app) = self.rediscovery.app() else {
             return;
         };
         let account = account_id.to_owned();
@@ -82,7 +83,7 @@ impl MailcalApp {
             uses: self
                 .registry
                 .dial(account_id)
-                .map(|dial| format!("{:?}", dial.capabilities()))
+                .map(|dial| dial.capabilities().clone())
                 .unwrap_or_default(),
             live,
         }
@@ -121,25 +122,26 @@ impl MailcalApp {
                     .map(|error| failed(&error))
             }
             AccountPageIntent::AddSharedMailbox { account, address } => {
-                match self.resolve_shared_mailbox(account.clone(), address.clone()) {
+                let address = address.trim().to_owned();
+                // The field keeps the address until it is added, so a refusal is corrected
+                // rather than retyped.
+                let refused = match self.resolve_shared_mailbox(account.clone(), address.clone()) {
                     Ok(Some(mailbox)) => {
-                        self.account_work.shared.missed(&account, None);
-                        self.set_shared_mailbox(account, mailbox, true)
-                            .err()
-                            .map(|error| failed(&error))
+                        match self.set_shared_mailbox(account.clone(), mailbox, true) {
+                            Ok(()) => {
+                                self.account_work.shared.missed(&account, None);
+                                return None;
+                            }
+                            Err(error) => failed(&error),
+                        }
                     }
-                    Ok(None) => {
-                        let address = address.trim().to_owned();
-                        self.account_work
-                            .shared
-                            .missed(&account, Some(address.clone()));
-                        Some(AccountChangeNotice::SharedMailboxNotFound { address })
-                    }
-                    Err(error) => {
-                        self.account_work.shared.missed(&account, Some(address));
-                        Some(failed(&error))
-                    }
-                }
+                    Ok(None) => AccountChangeNotice::SharedMailboxNotFound {
+                        address: address.clone(),
+                    },
+                    Err(error) => failed(&error),
+                };
+                self.account_work.shared.missed(&account, Some(address));
+                Some(refused)
             }
             _ => None,
         }

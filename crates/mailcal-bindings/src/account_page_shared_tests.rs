@@ -27,9 +27,9 @@ fn chosen(handle: &str, address: &str) -> SharedMailboxChoice {
     }
 }
 
-fn asked(uses: &str, live: bool) -> Asked {
+fn asked(live: bool) -> Asked {
     Asked {
-        uses: uses.to_owned(),
+        uses: [mailcal_account::Capability::Mail].into_iter().collect(),
         live,
     }
 }
@@ -37,7 +37,7 @@ fn asked(uses: &str, live: bool) -> Asked {
 #[test]
 fn the_server_is_asked_once_and_again_only_when_the_account_changed_or_its_page_opened() {
     let answers = SharedAnswers::default();
-    let now = asked("mail", false);
+    let now = asked(false);
     let first = answers.ask("a", &now, false).expect("nothing answered yet");
     assert_eq!(answers.ask("a", &now, true), None, "one ask at a time");
     answers.answered("a", first, Ok(SharedMailboxOffer::NotConnected));
@@ -48,11 +48,11 @@ fn the_server_is_asked_once_and_again_only_when_the_account_changed_or_its_page_
         "a page drawn again is no reason to ask: its answer raised the signal that drew it"
     );
     let connected = answers
-        .ask("a", &asked("mail", true), false)
+        .ask("a", &asked(true), false)
         .expect("a mailbox that connected can now be asked");
     answers.answered("a", connected, Ok(SharedMailboxOffer::ByAddress));
     assert!(
-        answers.ask("a", &asked("mail", true), true).is_some(),
+        answers.ask("a", &asked(true), true).is_some(),
         "its page opened"
     );
     assert!(
@@ -64,15 +64,24 @@ fn the_server_is_asked_once_and_again_only_when_the_account_changed_or_its_page_
 #[test]
 fn an_older_answer_landing_late_does_not_replace_a_newer_one() {
     let answers = SharedAnswers::default();
-    let old = answers.ask("a", &asked("mail", true), false).unwrap();
+    let old = answers.ask("a", &asked(true), false).unwrap();
     answers.answered("a", old, Ok(SharedMailboxOffer::ByAddress));
-    let new = answers.ask("a", &asked("mail", true), true).unwrap();
+    let new = answers.ask("a", &asked(true), true).unwrap();
     answers.answered("a", new, Ok(SharedMailboxOffer::Listed(Vec::new())));
     answers.answered("a", old, Ok(SharedMailboxOffer::Unsupported));
     assert_eq!(
         answers.offer("a"),
         Some(Ok(SharedMailboxOffer::Listed(Vec::new())))
     );
+}
+
+#[test]
+fn an_answer_for_an_account_forgotten_meanwhile_is_dropped() {
+    let answers = SharedAnswers::default();
+    let ticket = answers.ask("a", &asked(true), false).unwrap();
+    answers.forget("a");
+    answers.answered("a", ticket, Ok(SharedMailboxOffer::ByAddress));
+    assert_eq!(answers.offer("a"), None);
 }
 
 #[test]
