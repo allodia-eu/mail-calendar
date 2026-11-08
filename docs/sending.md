@@ -309,7 +309,7 @@ opens there and nothing of the user's is displaced.
 | Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup, only where the provider holds none | Name in Settings | `Name <address>` in From |
 |---|---|---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
-| Android | ✅ banner | 🚧 notice | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
+| Android | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
 | Windows | ✅ InfoBar | 🚧 notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Linux | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 

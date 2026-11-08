@@ -82,7 +82,7 @@ heavier reload.
 | The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | 🚧 | 🚧 | ✅ |
+| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
 | Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Announced once (rule 12) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia notice raised to Blocked near a lapse | ✅ | | | | | |
@@ -114,7 +114,7 @@ takes a widget, with the mark as its subtitle.
 
 Android: [`NoticeArea`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeViews.kt)
 under each screen's bar, [`NoticeRules`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeRules.kt)
-(pinned by `NoticeRulesTest` and `NoticeViewsTest`), each action in
+(pinned by `NoticeRulesTest`, `NoticeViewsTest` and, for the questions, `QuestionNoticesTest`), each action in
 [`MainActivityNotices.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/MainActivityNotices.kt),
 and the account's page through `AccountNoticesGroup`. The account's mark is a second line under its
 address in the folder drawer, and its glyph leads its entry in the account switcher. A notice is

@@ -1679,7 +1679,7 @@ PY
   # the core raise all three, so everything from the question to the button is real. The time zone
   # question is the whole app's, so it holds the banner and its answers are the strip's; the other
   # two are behind Issues. Each lesser answer takes its own notice away. The twins are
-  # clients/apple/UITests/QuestionNoticeTests.swift and Android's QuestionNoticeTest.
+  # clients/apple/UITests/QuestionNoticeTests.swift and Android's QuestionNoticesTest.
   stop_app
   MAILCAL_SHOWCASE=1 MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE_SCREEN=list \
     launch_app "" "$ARTIFACT_DIR/question-notices"

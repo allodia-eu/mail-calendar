@@ -34,14 +34,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A write-status signal only moves the small header badge (spinner → check /
         // warning); the grid/agenda arrive on their own CALENDAR signal.
         CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()
-        // The answer is already saved; what failed is the message to the organiser.
-        CoreSurface.INVITATION_REPLY -> replyPrompt = app.replyPrompt()
-        // The message went out; its copy did not reach Sent, and nothing later
-        // will find it. The user is offered the one repair there is.
-        CoreSurface.UNFILED_COPY -> unfiledCopy = app.unfiledCopy()
         // A settings change refreshes the per-account sync-behaviour screen and the
-        // default quote style (the timezone snapshot the caller took already covers
-        // the pending-zone prompt).
+        // default quote style.
         CoreSurface.SETTINGS -> {
             syncSettings = app.syncSettings()
             quoteSettings = app.quoteSettings()

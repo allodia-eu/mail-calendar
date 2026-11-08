@@ -1,6 +1,6 @@
 # The three questions are notices, and replies are chosen per account in Settings
 
-Platforms: macos, ios, linux
+Platforms: macos, ios, android, linux
 Bump: minor
 
 > A message whose copy could not be saved in Sent, an invitation answer the calendar server could

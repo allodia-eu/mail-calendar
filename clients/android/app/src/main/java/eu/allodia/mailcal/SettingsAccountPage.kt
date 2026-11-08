@@ -1,6 +1,7 @@
 // One account's page in Settings → Accounts, and its first questions: how it is shared, what it
-// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), the
-// mailboxes its sign-in opens besides its own (SettingsSharedMailboxes.kt), and how it signs in:
+// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), what
+// happens to an invitation answer its calendar server cannot pass on, the mailboxes its sign-in
+// opens besides its own (SettingsSharedMailboxes.kt), and how it signs in:
 // again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched, for IMAP and JMAP
 // (docs/accounts.md rule 17). The servers, the mail settings and the removal follow, in that order
 // (docs/settings.md).
@@ -30,10 +31,12 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinkPicker
 import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountReplyFallback
 import uniffi.mailcal_bindings.AccountUseSwitch
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.ReplyFallbackChoice
 import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
@@ -90,6 +93,10 @@ internal fun AccountPage(
         ) {
             page.links.forEach { picker -> LinkRow(entry, picker, ui) }
         }
+    }
+    page.replyFallback?.let { picker ->
+        Spacer(modifier = Modifier.height(8.dp))
+        ReplyFallbackGroup(entry, picker, ui)
     }
     SharedMailboxesGroup(entry, ui)
     val expired = entry.id in ui.expired
@@ -222,6 +229,34 @@ private fun LinkRow(entry: AccountEntry, picker: AccountLinkPicker, ui: Accounts
         }
     }
     Spacer(modifier = Modifier.height(8.dp))
+}
+
+/** The reply setting's choices, in the order its picker lists them. */
+private val replyFallbackChoices = listOf(ReplyFallbackChoice.ASK, ReplyFallbackChoice.ALWAYS, ReplyFallbackChoice.NEVER)
+
+/**
+ * What happens to an invitation answer the account's calendar server cannot pass on: asked each
+ * time with a notice, emailed, or not (docs/invitations.md).
+ */
+@Composable
+private fun ReplyFallbackGroup(entry: AccountEntry, picker: AccountReplyFallback, ui: AccountsSettingsUi) {
+    val ctx = LocalContext.current
+    SettingsGroupCard(
+        L10n.settings_reply_fallback_heading(ctx),
+        L10n.settings_reply_fallback_description(ctx),
+    ) {
+        ControlDropdown(
+            title = L10n.settings_reply_fallback_label(ctx),
+            labels = listOf(
+                L10n.settings_reply_fallback_ask(ctx),
+                L10n.settings_reply_fallback_always(ctx),
+                L10n.settings_reply_fallback_never(ctx),
+            ),
+            selected = replyFallbackChoices.indexOf(picker.choice).coerceAtLeast(0),
+            control = picker.control,
+            tag = "account-reply-fallback",
+        ) { at -> ui.onChange(AccountPageIntent.SetReplyFallback(entry.id, replyFallbackChoices[at])) }
+    }
 }
 
 /**

@@ -8,6 +8,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.AccountProvider
+import uniffi.mailcal_bindings.Intent
+import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeIntent
@@ -120,10 +122,48 @@ class NoticeRulesTest {
     fun `only a Retry goes to the core, and only a notice with a label offers its action`() {
         val retry = notice("r", action = NoticeAction.RETRY)
 
-        assertEquals(NoticeIntent.Retry("r"), NoticeRules.coreRemedy(retry))
-        assertNull(NoticeRules.coreRemedy(notice("s", action = NoticeAction.SIGN_IN_AGAIN)))
+        assertEquals(NoticeIntent.Retry("r"), NoticeRules.coreRemedy(retry, NoticeAction.RETRY))
+        assertNull(NoticeRules.coreRemedy(retry, NoticeAction.SIGN_IN_AGAIN))
         assertTrue(NoticeRules.offers(retry))
         assertEquals(false, NoticeRules.offers(notice("n")))
+    }
+
+    @Test
+    fun `each answer to a question sends the intent it always sent`() {
+        val reply = notice("reply", kind = NoticeKind.ReplyNotDelivered("Planning", "org@example.com", InvitationResponse.ACCEPT))
+        val subject = { response: InvitationResponse, summary: String -> "$response: $summary" }
+
+        assertEquals(Intent.RetryUnfiledCopy, NoticeRules.answer(reply, NoticeAction.FILE_SENT_COPY, subject))
+        assertEquals(Intent.DismissUnfiledCopy, NoticeRules.answer(reply, NoticeAction.LEAVE_SENT_COPY, subject))
+        assertEquals(
+            Intent.AnswerReplyPrompt(send = true, remember = false, replySubject = "ACCEPT: Planning"),
+            NoticeRules.answer(reply, NoticeAction.SEND_REPLY, subject),
+        )
+        // Not sending composes no subject, and neither answer is remembered: that is the account's
+        // page's to choose.
+        assertEquals(
+            Intent.AnswerReplyPrompt(send = false, remember = false, replySubject = null),
+            NoticeRules.answer(reply, NoticeAction.DONT_SEND_REPLY, subject),
+        )
+        assertEquals(Intent.AcceptTimeZoneChange, NoticeRules.answer(reply, NoticeAction.USE_DEVICE_TIME_ZONE, subject))
+        assertEquals(Intent.DismissTimeZoneChange, NoticeRules.answer(reply, NoticeAction.KEEP_TIME_ZONE, subject))
+        assertNull(NoticeRules.answer(reply, NoticeAction.SIGN_IN_AGAIN, subject))
+        assertNull(NoticeRules.answer(notice("other"), NoticeAction.SEND_REPLY, subject))
+    }
+
+    @Test
+    fun `a question offers its other answer, and both are held while one runs`() {
+        val question = notice("q", action = NoticeAction.FILE_SENT_COPY).copy(
+            secondAction = NoticeAction.LEAVE_SENT_COPY,
+            secondActionLabel = text("second_q"),
+        )
+
+        assertTrue(NoticeRules.offersSecond(question))
+        assertFalse(NoticeRules.offersSecond(notice("n", action = NoticeAction.RETRY)))
+        assertFalse(NoticeRules.held(question, null))
+        assertTrue(NoticeRules.held(question.copy(running = true), null))
+        assertTrue(NoticeRules.held(question, "q"))
+        assertFalse(NoticeRules.held(question, "other"))
     }
 
     @Test
