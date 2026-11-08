@@ -282,6 +282,10 @@ internal static class AccountSettingsRules
                 yield return $"folder:{folder.Key}={folder.Name}/{folder.Role}/{folder.On}/{Control(folder.Control)}";
             }
         }
+        if (page.ReplyFallback is { } replies)
+        {
+            yield return $"replies:{replies.Choice}/{Control(replies.Control)}";
+        }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
     }

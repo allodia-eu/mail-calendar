@@ -683,10 +683,13 @@ a failure that never happened. It is `cfg(debug_assertions)`, like the harness C
 and it logs a warning on **every** RSVP while it is in force, so no log of a run can hide that it was
 on.
 
-The Windows UI suite ([`InvitationReplyPromptTests.cs`](../clients/windows/Mailcal.UiTests/Suites/InvitationReplyPromptTests.cs))
-is built on it, and covers the half no other machine can see: `Mailcal.Tests` cannot link a WinUI
+The Windows UI suites ([`InvitationReplyPromptTests.cs`](../clients/windows/Mailcal.UiTests/Suites/InvitationReplyPromptTests.cs)
+and [`EventAnswerReplyPromptTests.cs`](../clients/windows/Mailcal.UiTests/Suites/EventAnswerReplyPromptTests.cs))
+are built on it, and cover the half no other machine can see: `Mailcal.Tests` cannot link a WinUI
 type and `cargo test` cannot see a XAML binding, so the notice reaching the bar with both answers
-and no close button had nothing else watching it. It needs `MAILCAL_DEV_ACCOUNT=stalwart-imap` (`resolve_reply_delivery` runs on the
+and no close button, the open event detail drawing the same question over the bar its overlay hides,
+and a standing no chosen on the account's page answering the next one had nothing else watching
+them. It needs `MAILCAL_DEV_ACCOUNT=stalwart-imap` (`resolve_reply_delivery` runs on the
 **server** delivery route, which is CalDAV) and it **declines** rather than accepts, because a
 declined event is hidden from every calendar surface and so leaves the free-day fixture the
 invitation-preview suite depends on exactly as it found it.

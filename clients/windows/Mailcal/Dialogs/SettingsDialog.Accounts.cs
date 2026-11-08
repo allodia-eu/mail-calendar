@@ -172,6 +172,10 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(LinksGroup(entry, page.Links));
         }
+        if (page.ReplyFallback is { } replies)
+        {
+            panel.Children.Add(ReplyFallbackGroup(entry, replies));
+        }
         panel.Children.Add(SharedMailboxesSlot(entry));
         var expired = _model.SignInExpiredIds.Contains(entry.Id);
         if (AccountSettingsRules.SignsInAtProvider(entry.Kind))

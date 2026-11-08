@@ -40,15 +40,6 @@ public sealed partial class MainWindow
         shell == Visibility.Visible && mail == Visibility.Visible
             ? Visibility.Visible
             : Visibility.Collapsed;
-
-    /// <summary>
-    /// A <see cref="Visibility"/> from a flag, for the banner strip, whose bars bind both
-    /// <c>IsOpen</c> and <c>Visibility</c> to the same one (MainWindow.xaml says why). A function
-    /// rather than the <c>BoolToVisibility</c> converter because an <c>x:Bind</c> converter needs a
-    /// FrameworkElement to resolve against and this file's root is a <c>Window</c>. An instance
-    /// method for the same reason as <see cref="IsVisible"/>.
-    /// </summary>
-    public Visibility Shown(bool flag) => flag ? Visibility.Visible : Visibility.Collapsed;
 #pragma warning restore CA1822
 
     // The pane toggle lives in the title bar (the NavigationView's own is hidden), which is the

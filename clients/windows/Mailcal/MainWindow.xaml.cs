@@ -198,37 +198,4 @@ public sealed partial class MainWindow : Window
 
         Log.Info("window launched");
     }
-
-    private void OnAcceptZone(object sender, RoutedEventArgs e) => Model.AcceptTimeZoneChange();
-
-    private void OnDismissZone(object sender, RoutedEventArgs e) => Model.DismissTimeZoneChange();
-
-    // The reply-undelivered prompt. Both buttons carry the tick, so it applies to whichever way the
-    // user went, beside "Don't send" it is a standing *no*, which is what stops a server that
-    // fails every reply asking again at every meeting. The box is reset here rather than trusted to
-    // the bar closing: the InfoBar's content is not re-created when IsOpen goes false and back, so
-    // a tick left over from the last meeting would silently apply to the next one.
-    private void OnSendUndeliveredReply(object sender, RoutedEventArgs e) => AnswerReply(send: true);
-
-    private void OnDismissUndeliveredReply(object sender, RoutedEventArgs e) => AnswerReply(send: false);
-
-    private void AnswerReply(bool send)
-    {
-        var remember = RememberReplyChoice.IsChecked == true;
-        RememberReplyChoice.IsChecked = false;
-        // The subject is composed in the shell, not the core, on the same terms as the RSVP's: the
-        // core carries no locale, and this is copy a stranger reads in their inbox.
-        var prompt = Model.ReplyPrompt;
-        Model.AnswerReplyPrompt(
-            send,
-            remember,
-            prompt is null ? null : InvitationText.ReplySubject(prompt.Response, prompt.Summary));
-    }
-
-    // "Save to Sent" on the missing-copy bar: files the copy of a message that already went out.
-    // It sends nothing, and the core ignores a second press while one is in flight.
-    private void OnRetryUnfiledCopy(object sender, RoutedEventArgs e) => Model.RetryUnfiledCopy();
-
-    // "Not now": the user has read it and accepts the missing copy. The message stays sent.
-    private void OnDismissUnfiledCopy(object sender, RoutedEventArgs e) => Model.DismissUnfiledCopy();
 }

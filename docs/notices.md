@@ -82,7 +82,7 @@ heavier reload.
 | The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
+| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Announced once (rule 12) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia notice raised to Blocked near a lapse | ✅ | | | | | |
@@ -101,6 +101,11 @@ Windows: [`NoticeBar`](../clients/windows/Mailcal/Views/NoticeBar.xaml.cs) above
 [`MailboxModel.Notices.cs`](../clients/windows/Mailcal/Services/MailboxModel.Notices.cs), and the
 account's page in
 [`SettingsDialog.AccountNotices.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.AccountNotices.cs).
+An `InfoBar` holds one action button, so a question draws both answers in its content instead, the
+first in the accent style, held with a spinner beside them while `running`. The event detail is a
+`ContentDialog` whose overlay hides the bar, so it draws the reply question about an answer given
+there as well
+([`EventDetailDialog.Answer.cs`](../clients/windows/Mailcal/Dialogs/EventDetailDialog.Answer.cs)).
 
 Linux: [`NoticeBar`](../clients/linux/src/ui/notice_bar.rs) across the top of the window,
 [`notice_rules`](../clients/linux/src/ui/notice_rules.rs) (pinned by `notice_rules_tests.rs`),

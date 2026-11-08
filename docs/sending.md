@@ -310,7 +310,7 @@ opens there and nothing of the user's is displaced.
 |---|---|---|---|---|---|---|---|
 | macOS / iOS / iPadOS | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Android | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
-| Windows | ✅ InfoBar | 🚧 notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
+| Windows | ✅ InfoBar | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
 | Linux | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
 | Platform | A forward opens holding the original's files | Removable | Failure said out loud | Not a draft on its own | Staged files deleted |
