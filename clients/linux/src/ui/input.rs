@@ -15,6 +15,7 @@ use super::{
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::ComposerSubmission,
     composer_open::ComposerOpened,
+    composer_pop_out::PoppedOut,
     contacts::EditTarget,
     folder_actions::FolderInput,
     folder_pane::SidebarTarget,
@@ -209,6 +210,11 @@ pub(crate) enum AppInput {
     ComposerUntouched(ComposerHost),
     /// Leaving a composer that was written in: save and close it, then take any navigation.
     LeaveComposer(Box<ComposerSubmission>),
+    /// The pane's composer's pop-out button, with everything the composer held: open it again in
+    /// a window of its own, on the same composition (`docs/reading-window.md`).
+    PopOutComposer(Box<PoppedOut>),
+    /// The pop-out button could not read the composer's document, so nothing moved.
+    ComposerPopOutFailed,
     /// The "Discard draft?" question's Discard: throw the draft away.
     DiscardDraft,
     /// The question's Keep editing: leave the composer as it was.

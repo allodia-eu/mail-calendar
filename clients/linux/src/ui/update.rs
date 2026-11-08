@@ -213,6 +213,12 @@ impl AppModel {
             AppInput::DiscardComposer(host, edited) => self.discard_composer(host, edited),
             AppInput::ComposerUntouched(host) => self.composer_untouched(host),
             AppInput::LeaveComposer(submission) => self.leave_composer(&submission),
+            AppInput::PopOutComposer(popped) => {
+                self.pop_out_composer(*popped, sender.input_sender());
+            }
+            AppInput::ComposerPopOutFailed => {
+                self.notice = Some(l10n::compose_open_failed().to_owned());
+            }
             AppInput::DiscardDraft => self.discard_draft(),
             AppInput::KeepEditing => self.keep_editing(),
             AppInput::SubmitComposer(submission) => self.submit_composer(&submission),

@@ -51,6 +51,9 @@ final class RichComposerEditor: NSObject {
     /// The attribution a reopened quote is completed with once the signature is in, so the style
     /// picker switches it to a full one (`completeComposerQuoteAttribution`).
     var pendingQuoteAttribution: String?
+    /// The document a composer moved from another view left with (`MovedComposer.documentJson`),
+    /// seeded through `setComposerDocument` in place of every other body seed.
+    var pendingDocument: String?
     /// The style the reopened message's quote was saved in, read back from the document once it
     /// is seeded, for the style picker to open on. `nil` for anything that is not reopened.
     private(set) var storedQuoteStyle: QuoteStyleKind?
@@ -135,9 +138,9 @@ final class RichComposerEditor: NSObject {
         // TEXT, never markup (docs/composer-security.md, Gate 11), which matters most for an
         // assistant's draft, written by a model that may itself have been steered by a hostile
         // message. Each seed assigns the whole body, so a signature seeded first would be wiped.
-        guard let body = Self.openingSeedScript(
-            html: pendingStoredHTML, quote: pendingQuote, text: pendingPlainBody
-        ) else {
+        let seed = pendingDocument.map { "window.setComposerDocument(\(EditorHost.jsString($0)))" }
+            ?? Self.openingSeedScript(html: pendingStoredHTML, quote: pendingQuote, text: pendingPlainBody)
+        guard let body = seed else {
             seedSignatureThenCapture()
             return
         }
@@ -191,7 +194,7 @@ final class RichComposerEditor: NSObject {
         documentJSON { [weak self] result in
             if case let .success(document) = result {
                 self?.seedDocument = document
-                if self?.pendingStoredHTML != nil {
+                if self?.pendingStoredHTML != nil || self?.pendingDocument != nil {
                     self?.storedQuoteStyle = ComposeOpeningSeed.quoteStyle(ofDocument: document)
                 }
             }

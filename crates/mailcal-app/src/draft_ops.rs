@@ -29,6 +29,7 @@ use crate::{
 
 mod digest;
 mod from_outbox;
+pub(crate) mod moved;
 mod open;
 mod reopen;
 mod resume;

@@ -1,5 +1,5 @@
 //! The windows beside the mailbox: one per message opened in a window of its own, one per draft
-//! raised inside one (`docs/reading-window.md`).
+//! raised inside one or popped out of the pane (`docs/reading-window.md`).
 //!
 //! Each is an `AdwWindow` whose whole content is a view the mailbox window already has, drawing a
 //! slot of its own in the one core: the reading window is [`ReadingPane`], the composer window is

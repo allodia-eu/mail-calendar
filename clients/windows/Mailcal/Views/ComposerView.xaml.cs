@@ -195,7 +195,8 @@ public sealed partial class ComposerView : UserControl
     }
 
     /// <summary>
-    /// Whether the user has changed anything since the composer opened, the question both leaving
+    /// Whether the user has changed anything since the composer opened, or in the composer it was
+    /// moved from, the question both leaving
     /// (save or only close) and Discard (ask or not) turn on. True as soon as a header field is edited; otherwise the
     /// editor document is compared against the seed it opened with, so a reply that merely carries
     /// its quoted original does NOT count as dirty until something is actually written above it
@@ -208,7 +209,8 @@ public sealed partial class ComposerView : UserControl
     /// </summary>
     internal async Task<bool> IsDirtyAsync()
     {
-        if (_headersDirty || _attachments.Count != _baselineAttachments)
+        // A composer moved from another view was written in there, whatever it opened holding here.
+        if (_request?.Moved?.Written == true || _headersDirty || _attachments.Count != _baselineAttachments)
         {
             return true;
         }
@@ -395,7 +397,13 @@ public sealed partial class ComposerView : UserControl
             // quote, a stored message's own HTML, or the text a link, a share or an assistant
             // brought. Each assigns the WHOLE body, so it goes ahead of the signature. Nothing about
             // it is logged (docs/logging.md).
-            if (_request?.Quote is { } quote)
+            // A moved composer's document is the whole message as it was left, its signature
+            // included, so nothing else is seeded over it.
+            if (_request?.Moved is { } moved)
+            {
+                await _editor.RunAsync($"window.setComposerDocument({EditorWebViewHost.Arg(moved.DocumentJson)})");
+            }
+            else if (_request?.Quote is { } quote)
             {
                 await _editor.RunAsync($"window.setComposerQuote({EditorWebViewHost.Arg(quote)})");
             }
@@ -403,7 +411,10 @@ public sealed partial class ComposerView : UserControl
             {
                 await _editor.RunAsync(body);
             }
-            await ApplySignatureAsync();
+            if (_request?.Moved is null)
+            {
+                await ApplySignatureAsync();
+            }
             // A reopened quote shows one style's attribution; the other is completed from its
             // original, so the style picker switches it to a full one (docs/drafts.md).
             if (_request?.QuoteAttribution is { } attribution)

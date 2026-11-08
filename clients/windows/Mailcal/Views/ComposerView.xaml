@@ -136,6 +136,15 @@
                      draft at all. -->
                 <Button x:Name="SaveDraftButton" Visibility="Collapsed"
                         Content="{x:Bind l10n:L10n.ActionSaveDraft(), Mode=OneTime}" Click="OnSaveDraft" />
+                <!-- Moves the composer into a window of its own, holding everything it holds
+                     (docs/reading-window.md, "Popping a composer out"). Shown only in the reading
+                     pane: a composer already in a window has nowhere further to go. -->
+                <Button x:Name="PopOutButton" Visibility="Collapsed" Click="OnPopOut"
+                        AutomationProperties.AutomationId="PopOutButton"
+                        AutomationProperties.Name="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}"
+                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}">
+                    <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                </Button>
             </StackPanel>
             <ListView x:Name="AttachmentList" MaxHeight="92" SelectionMode="Single"
                       DisplayMemberPath="DisplayName" SelectionChanged="OnAttachmentSelectionChanged" />

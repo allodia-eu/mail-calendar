@@ -3,7 +3,8 @@
 //! wrong, so each is pinned on its own.
 
 use mailcal_bindings::{
-    ComposeKind, ComposeOpening, ComposerFileAttachment, QuoteSource, QuoteStyleKind,
+    ComposeKind, ComposeOpening, ComposerFileAttachment, MovedComposer, MovedSignature,
+    QuoteSource, QuoteStyleKind,
 };
 use serde_json::Value;
 
@@ -30,6 +31,7 @@ fn opening(kind: ComposeKind) -> ComposeOpening {
         attachments: Vec::new(),
         attachments_failed: false,
         seeds_signature: true,
+        moved: None,
     }
 }
 
@@ -321,4 +323,51 @@ fn only_a_message_carrying_a_quote_offers_the_style_picker() {
         "a reopened reply whose original is still here can switch its quote's style"
     );
     assert!(!context(opening(ComposeKind::New)).has_quote);
+}
+
+const MOVED_DOCUMENT: &str = r#"{"blocks":[{"Quote":{"style":"LineAndHeader","attribution":{"line":"Bob wrote:","headers":[]},"body_html":"<p>Hi</p>","body_plain":"Hi"}}],"attachments":[]}"#;
+
+fn moved(signature: MovedSignature) -> ComposeContext {
+    context(ComposeOpening {
+        seeds_signature: false,
+        moved: Some(MovedComposer {
+            document_json: MOVED_DOCUMENT.to_owned(),
+            written: true,
+            signature,
+        }),
+        ..opening(ComposeKind::Reply)
+    })
+}
+
+/// A composer popped out of the pane opens on the document it left with, and on nothing else: a
+/// quote or a signature seeded over it would change the message the window's next save stores.
+#[test]
+fn a_moved_composer_opens_on_its_document_alone() {
+    let request = moved(MovedSignature::Chosen {
+        id: "work".to_owned(),
+    });
+    let script = body_seed_script(&request).expect("a moved composer seeds its document");
+    assert_eq!(
+        argument(&script, "setComposerDocument"),
+        serde_json::from_str::<Value>(MOVED_DOCUMENT).expect("the document is JSON")
+    );
+    assert!(
+        request.has_quote,
+        "its quote is in the document, styled as it was left"
+    );
+    assert!(
+        request.opened_written(),
+        "what was written before the move is still written"
+    );
+    assert!(
+        request.manages_signature(),
+        "the picker goes on offering the choice it made"
+    );
+}
+
+/// A composer that left the signature alone (a resumed draft's, an assistant's) still does.
+#[test]
+fn a_moved_composer_that_left_the_signature_alone_still_does() {
+    assert!(!moved(MovedSignature::Untouched).manages_signature());
+    assert!(moved(MovedSignature::FollowsAccount).manages_signature());
 }

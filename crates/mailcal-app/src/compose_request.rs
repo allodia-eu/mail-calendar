@@ -101,4 +101,7 @@ pub struct ComposeOpening {
     /// Whether the composer seeds the account's signature. A stored message already carries the
     /// one it was written with, and a second under it would be stored by the next save.
     pub seeds_signature: bool,
+    /// What a composer moved from another view opens with besides the fields above; `None` for
+    /// every other opening. Its body is this, never `body_html`, `body_text` or `quote`.
+    pub moved: Option<crate::MovedComposer>,
 }

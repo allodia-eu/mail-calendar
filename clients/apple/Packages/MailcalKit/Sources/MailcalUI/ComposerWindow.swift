@@ -1,8 +1,9 @@
 // The detached composer window: one draft, in a window of its own (`docs/reading-window.md`).
 //
 // The composer is `ComposeHost`, the same one the detail column and the iOS cover mount, so a
-// reply raised in a window is seeded, signed, submitted and cancelled by the paths that already
-// exist. All this file adds is which window the draft belongs to and when to forget it.
+// reply raised in a window, or a composer popped out of the detail column, is seeded, signed,
+// submitted and cancelled by the paths that already exist. All this file adds is which window the
+// draft belongs to and when to forget it.
 
 #if os(macOS)
 import SwiftUI

@@ -71,6 +71,7 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
         files: Vec::new(),
         opening_files: 0,
         attachments_failed: false,
+        moved: None,
     };
     pane.show(
         42,

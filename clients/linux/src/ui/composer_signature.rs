@@ -17,7 +17,7 @@ use std::{
 
 use adw::prelude::*;
 use gtk::{gio, glib};
-use mailcal_bindings::{MailcalApp, SignatureBody, SignatureSlotKind};
+use mailcal_bindings::{MailcalApp, MovedSignature, SignatureBody, SignatureSlotKind};
 use serde_json::json;
 use webkit6::prelude::WebViewExt;
 
@@ -170,6 +170,27 @@ impl SignatureControl {
             "window.setComposerSignature({});",
             signature_seed(body.as_ref())
         )
+    }
+
+    /// What a moved composer opens with in place of [`Self::seed_script`]: the choice the composer
+    /// it left had made, with nothing seeded, because its document already carries the signature.
+    pub(super) fn carry_on(&self, moved: &MovedSignature) {
+        self.choice.replace(match moved {
+            MovedSignature::NoSignature => Some(SignatureChoice::NoSignature),
+            MovedSignature::Chosen { id } => Some(SignatureChoice::Named(id.clone())),
+            MovedSignature::Untouched | MovedSignature::FollowsAccount => None,
+        });
+        self.ready.set(true);
+        self.mark(self.current().as_ref());
+    }
+
+    /// What this composer is doing with the signature, for a composer moved from it to carry on.
+    pub(super) fn moved(&self) -> MovedSignature {
+        match &*self.choice.borrow() {
+            None => MovedSignature::FollowsAccount,
+            Some(SignatureChoice::NoSignature) => MovedSignature::NoSignature,
+            Some(SignatureChoice::Named(id)) => MovedSignature::Chosen { id: id.clone() },
+        }
     }
 
     /// Pushes the resolved signature into the editor and re-marks the menu.

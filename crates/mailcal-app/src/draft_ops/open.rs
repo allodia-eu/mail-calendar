@@ -11,7 +11,7 @@
 
 use engine_api::{AccountId, MessageIdHeader, Provider};
 
-use super::reopen::Opening;
+use super::{moved::ComposerState, reopen::Opening};
 use crate::{
     App, ComposeKind, ComposeOpening, CompositionId, QuoteSource,
     draft_ops::Threading,
@@ -44,6 +44,12 @@ pub enum ComposeOrigin {
     Draft {
         /// The stored draft.
         message: MessageRef,
+    },
+    /// A composer already open in another view, moved here with everything it holds: opened into
+    /// the composition that view had, which the move keeps (`docs/reading-window.md`).
+    Moved {
+        /// What the composer it left was holding.
+        state: Box<ComposerState>,
     },
 }
 
@@ -85,12 +91,16 @@ impl<P: Provider> App<P> {
     /// not lost for want of the message they answer. A reply the user started has no such words,
     /// and refuses.
     ///
+    /// A moved composer opens into the composition it already had, which is not joined again, and
+    /// a prefill has nothing to lay over it: it brings everything it holds.
+    ///
     /// # Errors
     ///
     /// A plain error string when the message cannot be resolved, there is no account to compose
     /// from, or, for a draft, when it is not one, its content cannot be read or its files cannot
-    /// be staged. Nothing is joined on an error: a composer that opened without a draft's content
-    /// must not be one whose next save replaces it.
+    /// be staged; and for a moved composer, when `composition` is not open or its document is not
+    /// one. Nothing is joined on an error: a composer that opened without a draft's content must
+    /// not be one whose next save replaces it.
     pub async fn open_composer(
         &self,
         composition: CompositionId,
@@ -117,6 +127,7 @@ impl<P: Provider> App<P> {
             ComposeOrigin::Draft { message } => {
                 self.stored_draft(&message, staging_directory).await?
             }
+            ComposeOrigin::Moved { state } => return self.moved_composer(&composition, *state),
         };
         if let Some(prefill) = prefill {
             lay_over(&mut opening, prefill);

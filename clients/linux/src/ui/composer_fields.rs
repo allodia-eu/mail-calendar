@@ -67,7 +67,7 @@ pub(crate) fn read_document(
     editor: &webkit6::WebView,
     fields: &ComposerFields,
     sender: &relm4::Sender<AppInput>,
-    deliver: fn(Box<ComposerSubmission>) -> AppInput,
+    deliver: impl FnOnce(Box<ComposerSubmission>) -> AppInput + 'static,
     on_failure: impl Fn() + 'static,
 ) {
     let request = fields.request.clone();

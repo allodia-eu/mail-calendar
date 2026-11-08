@@ -33,10 +33,17 @@ public sealed partial class ComposerView
     // entry is "None" tells the user nothing, and every platform hides it the same way.
     private void InitSignatures()
     {
-        _signatureChoice = null;
+        // A moved composer carries on with the choice the one it left had made.
+        _signatureChoice = _request?.Moved?.Signature switch
+        {
+            MovedSignature.NoSignature => new SignatureChoice(null),
+            MovedSignature.Chosen chosen => new SignatureChoice(chosen.Id),
+            _ => null,
+        };
         // A stored message (a resumed draft, an Outbox edit) carries the signature it was written
-        // with, so it gets no seed and no picker (ComposeOpening.SeedsSignature).
-        _signatureLibrary = _request?.SeedsSignature == true
+        // with, so it gets no seed and no picker (ComposeOpening.SeedsSignature). A moved composer
+        // is offered what the one it left was (ComposeContext.ManagesSignature).
+        _signatureLibrary = _request?.ManagesSignature == true
             ? _model?.Signatures.Signatures ?? (IReadOnlyList<SignatureRow>)Array.Empty<SignatureRow>()
             : Array.Empty<SignatureRow>();
         if (_signatureLibrary.Count == 0)
@@ -92,7 +99,7 @@ public sealed partial class ComposerView
     // The signature this message should carry right now, per the shared precedence rule.
     private SignatureBody? CurrentSignature()
     {
-        if (_model is not { } model || _request is not { } request || !request.SeedsSignature)
+        if (_model is not { } model || _request is not { } request || !request.ManagesSignature)
         {
             return null;
         }
@@ -111,10 +118,11 @@ public sealed partial class ComposerView
     //
     // A composer that seeds no signature never touches the region at all: a stored message carries
     // the signature it was written with, and resolving "none" for it would take that signature off
-    // the message on open, or on a From change, and the next save would store it without.
+    // the message on open, or on a From change, and the next save would store it without. A moved
+    // composer is not seeded on open either (OnEditorReadyAsync): its document already has it.
     private async Task ApplySignatureAsync()
     {
-        if (_request?.SeedsSignature != true)
+        if (_request?.ManagesSignature != true)
         {
             return;
         }

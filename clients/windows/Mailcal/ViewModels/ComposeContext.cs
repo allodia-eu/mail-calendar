@@ -67,8 +67,18 @@ internal sealed record ComposeContext(
         ? Opening.BodyText
         : ComposeOpeningSeed.PlainBody(Opening, Quote);
 
-    /// <summary>Whether the account's signature is seeded: a stored message carries its own.</summary>
+    /// <summary>Whether the account's signature is seeded: a stored message carries its own, and
+    /// so does a moved composer's document.</summary>
     public bool SeedsSignature => Opening.SeedsSignature;
+
+    /// <summary>What a composer moved from another view brings besides its fields and files: the
+    /// editor's document, whether it was written in, and its signature choice. <c>null</c> for
+    /// every other opening (docs/reading-window.md, "Popping a composer out").</summary>
+    public MovedComposer? Moved => Opening.Moved;
+
+    /// <summary>Whether the composer offers the signature picker and swaps the signature on a From
+    /// change: one that seeds the account's, and a moved one whose predecessor did.</summary>
+    public bool ManagesSignature => SeedsSignature || Moved?.Signature is not (null or MovedSignature.Untouched);
 
     /// <summary>Every file the composer opens holding: what the core staged, and a share's.</summary>
     public IReadOnlyList<ComposerFileAttachment> Attachments =>
@@ -90,7 +100,9 @@ internal sealed record ComposeContext(
     /// whose both attributions are known, a fresh one or a reopened one whose original is still
     /// here, and the user opted into per-message styling in Settings.</summary>
     public bool ShowsStylePicker =>
-        ComposerQuote.ShowsStylePicker(Opening.Quote is not null, QuoteStylePerMessage);
+        ComposerQuote.ShowsStylePicker(
+            Opening.Quote is not null || ComposeOpeningSeed.QuoteStyleOf(Moved?.DocumentJson) is not null,
+            QuoteStylePerMessage);
 
     /// <summary>Whether the composer opens with the caret in the message body. A reply/forward
     /// already has its From/To/Subject filled in, so writing is the only thing left to do; a new

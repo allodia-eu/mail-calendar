@@ -50,6 +50,7 @@ extension RichComposeView {
                 signatureMenu
             }
             Spacer()
+            popOutButton
         }
         #else
         // A phone has room for neither four labelled buttons nor one row of them, so the bar takes

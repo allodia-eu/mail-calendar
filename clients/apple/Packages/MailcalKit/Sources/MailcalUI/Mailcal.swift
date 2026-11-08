@@ -31,6 +31,10 @@ public struct ContentView: View {
     /// that already accounts for both. iOS/iPadOS hands it to the Settings cover; see there.
     @Environment(\.colorScheme) var windowScheme
     @State var compose: ComposeContext?
+    #if os(macOS)
+    /// The drafts the composer windows show, which a composer popped out of the pane joins.
+    let desktopDrafts: DesktopDrafts
+    #endif
     /// What to say about a composer that could not open, raised instead of opening an empty one:
     /// for a draft, its next save would replace the stored copy (`docs/drafts.md`).
     @State var composeOpenFailed: String?
@@ -100,6 +104,9 @@ public struct ContentView: View {
 
     public init(session: AppSession) {
         self.model = session.model
+        #if os(macOS)
+        self.desktopDrafts = session.drafts
+        #endif
     }
 
     public var body: some View {

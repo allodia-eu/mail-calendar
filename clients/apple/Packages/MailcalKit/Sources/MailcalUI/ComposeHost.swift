@@ -19,6 +19,9 @@ struct ComposeHost: View {
     /// Called once the draft is finished with, sent or cancelled. Closing the column, the cover
     /// or the window is the host's to do, because only the host knows which of those it is.
     let dismiss: () -> Void
+    /// Moves the composer into a window of its own, answering whether it moved; `nil` where there
+    /// is nowhere to move it: a phone, an iPad, and a composer already in a window.
+    var popOut: ((ComposerState) async -> Bool)?
 
     /// The composer's recipient autosuggest.
     private var recipientSuggestions: (String) async -> [RecipientMatch] {
@@ -57,6 +60,10 @@ struct ComposeHost: View {
 
     var body: some View {
         let opening = context.opening
+        // A moved composer offers the signature picker exactly when the one it left did; nothing
+        // is seeded either way, because its document already carries what it had.
+        let offersSignatures = opening.seedsSignature
+            || (opening.moved.map { $0.signature != .untouched } ?? false)
         RichComposeView(
             title: context.title,
             mode: context.mode,
@@ -79,9 +86,12 @@ struct ComposeHost: View {
             suggestionsFor: recipientSuggestions,
             // A stored message carries the signature it was written with, and an assistant's
             // draft its author's own sign-off: neither is seeded one, offered the picker, or has
-            // its signature region touched on a From change (`ComposeOpening.seedsSignature`).
-            signatures: opening.seedsSignature ? signatures : nil,
-            drafts: drafts
+            // its signature region touched on a From change (`ComposeOpening.seedsSignature`). A
+            // moved composer is offered what the one it left was (`offersSignatures`).
+            signatures: offersSignatures ? signatures : nil,
+            drafts: drafts,
+            moved: opening.moved,
+            popOut: popOut
         ) { submission in
             submitted(model.submitComposition(submission))
         } cancel: { dismiss() }

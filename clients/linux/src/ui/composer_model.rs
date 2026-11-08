@@ -3,11 +3,11 @@
 //! [`super::composer_quote`].
 
 pub(crate) use mailcal_bindings::ComposeKind;
-use mailcal_bindings::{ComposeOpening, QuoteStyleKind};
+use mailcal_bindings::{ComposeOpening, MovedComposer, MovedSignature, QuoteStyleKind};
 use serde_json::json;
 
 use super::{
-    composer_quote::{attribution_completion, quote_seed, quote_words},
+    composer_quote::{attribution_completion, quote_seed, quote_style_of, quote_words},
     reader::ComposerHost,
     timestamps::{self, MailClock},
 };
@@ -54,6 +54,10 @@ pub(crate) struct ComposeContext {
     pub(crate) opening_files: usize,
     /// Whether a forward's originals could not be staged, so the composer opens saying so.
     pub(crate) attachments_failed: bool,
+    /// What a composer moved from another view brings besides its fields and files: the editor's
+    /// document, whether it was written in, and its signature choice. `None` for every other
+    /// opening (`docs/reading-window.md`, "Popping a composer out").
+    pub(crate) moved: Option<MovedComposer>,
 }
 
 impl ComposeContext {
@@ -81,7 +85,12 @@ impl ComposeContext {
         let quote_attribution = words
             .as_ref()
             .and_then(|words| attribution_completion(&opening, words));
-        let has_quote = opening.quote.is_some();
+        // A moved composer's quote is in its document, in the style it was left in.
+        let has_quote = opening.quote.is_some()
+            || opening
+                .moved
+                .as_ref()
+                .is_some_and(|moved| quote_style_of(&moved.document_json).is_some());
         let ComposeOpening {
             composition,
             kind,
@@ -95,6 +104,7 @@ impl ComposeContext {
             attachments,
             attachments_failed,
             seeds_signature,
+            moved,
             ..
         } = opening;
         let files: Vec<PickedFile> = attachments
@@ -123,7 +133,25 @@ impl ComposeContext {
             opening_files: files.len(),
             files,
             attachments_failed,
+            moved,
         }
+    }
+
+    /// Whether this composer offers the signature picker and swaps the signature on a From
+    /// change: one that seeds the account's, and a moved one whose predecessor did. A moved one is
+    /// never seeded: its document already carries the signature it had.
+    pub(crate) fn manages_signature(&self) -> bool {
+        self.seeds_signature
+            || self
+                .moved
+                .as_ref()
+                .is_some_and(|moved| moved.signature != MovedSignature::Untouched)
+    }
+
+    /// Whether anything was written in the composer this one was moved from: then this one has
+    /// been written in too, whatever it opened holding.
+    pub(crate) fn opened_written(&self) -> bool {
+        self.moved.as_ref().is_some_and(|moved| moved.written)
     }
 
     /// Whether this composer opens with the caret in the message body rather than in To.
@@ -152,9 +180,16 @@ pub(crate) fn new_composition() -> String {
     )
 }
 
-/// The one editor call that seeds the body, encoded as JavaScript data rather than code: a
-/// reopened message's HTML, else a fresh quote, else the text a prefill brought.
+/// The one editor call that seeds the body, encoded as JavaScript data rather than code: a moved
+/// composer's document, else a reopened message's HTML, else a fresh quote, else the text a
+/// prefill brought.
 pub(crate) fn body_seed_script(request: &ComposeContext) -> Option<String> {
+    if let Some(moved) = &request.moved {
+        return Some(format!(
+            "window.setComposerDocument({});",
+            json!(moved.document_json)
+        ));
+    }
     let text = request.initial_body.as_deref().unwrap_or_default();
     if let Some(html) = request
         .stored_html
