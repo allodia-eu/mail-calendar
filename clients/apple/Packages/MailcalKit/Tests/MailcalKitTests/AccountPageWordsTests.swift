@@ -75,6 +75,8 @@ private func toggle(
         let missed = AccountSettingsLabels.changeFailed(
             .sharedMailboxNotFound(address: "typo@example.org"))
         #expect(missed.title == L10n.settings_account_shared_not_found())
+        let gone = AccountSettingsLabels.changeFailed(.sharedMailboxFailed(refusal: .noLongerShared))
+        #expect(gone.detail == L10n.settings_account_shared_withdrawn())
     }
 
     @Test func whatTheServersLeaveOutNamesTheField() {

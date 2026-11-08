@@ -141,7 +141,6 @@ enum AccountSettingsLabels {
         let status: String? = switch toggle.status {
         case let .problem(problem): problemNote(problem, calendar: toggle.capability == .calendar)
         case .withheld: L10n.settings_account_use_withheld()
-        case .noLongerShared: L10n.settings_account_shared_withdrawn()
         case nil: nil
         }
         let blocked = toggle.blocked.map(blockNote)
@@ -201,6 +200,7 @@ enum AccountSettingsLabels {
             useNotConnectedMessage(capability, problem)
         case let .blocked(block): blockNote(block)
         case .withheld: L10n.settings_account_use_withheld()
+        case .noLongerShared: L10n.settings_account_shared_withdrawn()
         case let .other(detail): detail
         }
     }
