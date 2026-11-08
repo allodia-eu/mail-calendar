@@ -288,6 +288,13 @@ apart and hands one the other's binaries, so a suite passes for code this tree d
 job, set up once per machine ([`docs/debugging.md`](docs/debugging.md), "Share the compile work
 with kache").
 
+**Make a worktree with Claude Code's own worktree**, never `git worktree add`. Claude Code puts it
+under `.claude/worktrees/` and copies in what [`.worktreeinclude`](.worktreeinclude) lists, `.env`
+and the signing and brand files among them. A plain `git worktree add` copies none of them, so its
+build drops Google, Microsoft and Allodia sign-in and misses the cache for our own crates; the
+core's build warns when that happens. A copy made by hand afterwards keeps the original's time,
+which cargo reads as unchanged, so touch it too.
+
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 
 **Run `cargo xtask gate` before the first push of a branch**: `--clients` adds every client this
