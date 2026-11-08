@@ -208,6 +208,14 @@ fn a_server_the_account_has_keeps_an_address() {
     ));
 
     let mut edit = config.endpoints();
+    edit.smtp_host = Some(":12465".to_owned());
+    assert_eq!(
+        edit.gap(&config),
+        Some(EndpointGap::Smtp),
+        "a cleared host joined with the port still in its field is no address"
+    );
+
+    let mut edit = config.endpoints();
     edit.password = Some(String::new());
     assert_eq!(edit.gap(&config), Some(EndpointGap::Password));
     assert_eq!(config.endpoints().gap(&config), None);
