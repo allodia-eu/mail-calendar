@@ -29,9 +29,19 @@ public sealed class SettingsTypingTests(ImapHarnessApp harness)
         harness.Case(nameof(AChangeSignalledWhileANameIsHalfTypedLeavesTheFieldAndSendsNothing), app =>
         {
             var dialog = new SetupFlow(app).OpenAccount(Harness.Alice);
+            // Opening the page asks the server which mailboxes it shares, and its answer draws the
+            // page again: a field clicked before that is replaced under the cursor, with nothing in
+            // it yet to hold the redraw. Typed into once the page has its answer.
+            Assert.True(App.Eventually(() => app.Agent.FindAll(new Filter { Under = dialog })
+                .Any(e => e.Id.StartsWith("SharedMailbox_", StringComparison.Ordinal)), TimeSpan.FromSeconds(30)),
+                "the server's shared mailboxes reach alice's page");
+            app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(500), floor: TimeSpan.FromMilliseconds(500));
             was = app.Agent.Read(Find(app, dialog, Name)).Value ?? "";
             folderWas = app.Agent.Read(Find(app, dialog, Folder)).Toggle;
-            app.TypeInto(Find(app, dialog, Name), "Half typ");
+            // Never what is stored already: typing that leaves nothing unsent, and nothing holds the
+            // redraw.
+            var typed = was == "Half typ" ? "Half typing" : "Half typ";
+            app.TypeInto(Find(app, dialog, Name), typed);
             Assert.True(app.Agent.Focused()?.Id == Name, $"the keyboard is in the name field, not #{app.Agent.Focused()?.Id}");
 
             app.Agent.Toggle(Find(app, dialog, Folder));
@@ -39,22 +49,36 @@ public sealed class SettingsTypingTests(ImapHarnessApp harness)
             // Drawn again, the field would have gone, sending what it held, and the keyboard with it.
             Assert.True(app.Agent.Focused()?.Id == Name,
                 $"a change signalled while a name is being typed leaves the field where it is; the keyboard is on #{app.Agent.Focused()?.Id}");
-            Assert.Equal("Half typ", app.Agent.Read(Find(app, dialog, Name)).Value);
+            Assert.Equal(typed, app.Agent.Read(Find(app, dialog, Name)).Value);
 
             // Leaving the field sends it, and the page is drawn with both changes.
             Input.Press(Input.Tab);
             Assert.True(App.Eventually(() => app.Agent.Read(Find(app, dialog, Folder)).Toggle != folderWas, TimeSpan.FromSeconds(10)),
                 "the folder's change lands once the page is drawn");
-            Assert.True(App.Eventually(() => app.Agent.Read(Find(app, dialog, Name)).Value == "Half typ", TimeSpan.FromSeconds(10)),
+            Assert.True(App.Eventually(() => app.Agent.Read(Find(app, dialog, Name)).Value == typed, TimeSpan.FromSeconds(10)),
                 "and so does the name, sent as the field was left");
 
-            // Put back: the IMAP store is shared by every suite in its collection.
-            app.Agent.Toggle(Find(app, dialog, Folder));
+        }, app =>
+        {
+            // Put back, however the case ended: the IMAP store is shared by every suite in its
+            // collection, and a name left behind would be the next run's starting point.
+            app.CloseDialogs();
+            if (was is null)
+            {
+                return;
+            }
+            var dialog = new SetupFlow(app).OpenAccount(Harness.Alice);
+            if (folderWas is not null && app.Agent.Read(Find(app, dialog, Folder)).Toggle != folderWas)
+            {
+                app.Agent.Toggle(Find(app, dialog, Folder));
+                app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+            }
             var box = Find(app, dialog, Name);
             app.Agent.Focus(box);
             app.Agent.SetValue(box, was);
             app.Agent.Focus(Find(app, dialog, Folder));
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
-        }, app => app.CloseDialogs());
+            app.CloseDialogs();
+        });
     }
 }
