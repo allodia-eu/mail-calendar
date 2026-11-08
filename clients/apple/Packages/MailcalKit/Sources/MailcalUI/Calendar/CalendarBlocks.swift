@@ -7,11 +7,13 @@
 import MailcalBindings
 import SwiftUI
 
-private let blockGap: CGFloat = 1
+let blockGap: CGFloat = 1
 private let blockPadding: CGFloat = 1
-private let blockCorner: CGFloat = 4
+let blockCorner: CGFloat = 4
+/// The bar of the calendar's colour down an event's leading edge.
+let eventBarWidth: CGFloat = 3
 
-private func blockInset(minutes: Int) -> CGFloat {
+func blockInset(minutes: Int) -> CGFloat {
     minutes < 30 ? blockGap : blockGap + blockPadding
 }
 
@@ -41,6 +43,20 @@ func blockShowsLabel(minutes: Int, hourHeight: CGFloat) -> Bool {
 func blockShowsTime(minutes: Int, hourHeight: CGFloat) -> Bool {
     blockLabelSpace(minutes: minutes, hourHeight: hourHeight)
         >= blockLabelLineHeight(minutes: minutes) * 2
+}
+
+/// How many lines the grid's title may wrap over: every whole line the block has room for, less the
+/// one its start time takes when it draws one. As Apple's Calendar does, a long title wraps rather
+/// than stopping at the first line, and the last line drawn is always whole. Zero where there is no
+/// room for a label.
+func blockTitleLines(minutes: Int, hourHeight: CGFloat, withTime: Bool = true) -> Int {
+    guard blockShowsLabel(minutes: minutes, hourHeight: hourHeight) else { return 0 }
+    let whole = Int(
+        (blockLabelSpace(minutes: minutes, hourHeight: hourHeight)
+            / blockLabelLineHeight(minutes: minutes)).rounded(.down)
+    )
+    let time = withTime && blockShowsTime(minutes: minutes, hourHeight: hourHeight)
+    return max(whole - (time ? 1 : 0), 1)
 }
 
 /// One event, inside one day column.
@@ -76,7 +92,7 @@ struct CalendarTimedBlock: View {
 
     var body: some View {
         let calendar = calendars.row(account: segment.account, calendar: segment.calendar)
-        let swatch = calendar.swatchOrFallback(dark: dark)
+        let colors = calendar.eventColorsOrFallback(dark: dark)
         let title = segment.title.isEmpty ? L10n.event_no_title() : segment.title
         let columnWidth = dayWidth / CGFloat(segment.columns)
 
@@ -85,40 +101,31 @@ struct CalendarTimedBlock: View {
                 EventTitleLine(
                     title: title,
                     hasConference: segment.hasConference,
-                    lineLimit: withTime || minutes < 30 ? 1 : 2
+                    lineLimit: max(
+                        blockTitleLines(minutes: minutes, hourHeight: hourHeight, withTime: showsTime),
+                        1
+                    )
                 )
-                .font(.system(size: blockLabelFontSize(minutes: minutes)))
-                .foregroundStyle(parseHexColor(swatch.text))
+                .font(.system(size: blockLabelFontSize(minutes: minutes), weight: .semibold))
+                .foregroundStyle(colors.text)
                 if withTime {
                     Text(clockTime(start, use24Hour: use24Hour))
                         .font(.system(size: blockLabelFontSize(minutes: minutes)))
                         .lineLimit(1)
-                        .foregroundStyle(parseHexColor(swatch.text))
+                        .foregroundStyle(colors.text)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 4)
+        .padding(.leading, eventBarWidth + 4)
+        .padding(.trailing, 4)
         .padding(.vertical, blockInset(minutes: minutes) - blockGap)
         .frame(
             width: max(columnWidth - blockGap * 2, 0),
             height: max(hourHeight * (CGFloat(minutes) / 60) - blockGap * 2, 0),
             alignment: .topLeading
         )
-        .participationFill(segment.participation, color: parseHexColor(swatch.background))
-        .clipShape(RoundedRectangle(cornerRadius: blockCorner))
-        .holdHatch(
-            segment.participation,
-            color: parseHexColor(swatch.border),
-            cornerRadius: blockCorner
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: blockCorner)
-                .strokeBorder(
-                    parseHexColor(swatch.border),
-                    style: participationStroke(segment.participation)
-                )
-        )
+        .eventBlockStyle(segment.participation, colors: colors, cornerRadius: blockCorner)
         .offset(
             x: dayWidth * CGFloat(segment.day) + columnWidth * CGFloat(segment.column) + blockGap,
             y: hourHeight * (CGFloat(start) / 60) + blockGap
@@ -132,7 +139,8 @@ struct CalendarTimedBlock: View {
                 time: timeRange(start, end, use24Hour: use24Hour),
                 calendar: calendar?.name ?? "",
                 participation: segment.participation,
-                hasConference: segment.hasConference
+                hasConference: segment.hasConference,
+                repeats: !segment.occurrenceStart.isEmpty
             )
         )
     }
@@ -149,30 +157,20 @@ struct CalendarAllDayChip: View {
 
     var body: some View {
         let calendar = calendars.row(account: band.account, calendar: band.calendar)
-        let swatch = calendar.swatchOrFallback(dark: dark)
+        let colors = calendar.eventColorsOrFallback(dark: dark)
         let title = band.title.isEmpty ? L10n.event_no_title() : band.title
 
         EventTitleLine(title: title, hasConference: band.hasConference)
-            .font(.system(size: 10))
-            .foregroundStyle(parseHexColor(swatch.text))
-            .padding(.horizontal, 5)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(colors.text)
+            .padding(.leading, eventBarWidth + 4)
+            .padding(.trailing, 5)
             .frame(
                 width: max(dayWidth * CGFloat(band.days) - blockGap * 2, 0),
                 height: calendarLaneHeight - blockGap * 2,
                 alignment: .leading
             )
-            .participationFill(band.participation, color: parseHexColor(swatch.background))
-            .clipShape(RoundedRectangle(cornerRadius: blockCorner))
-            .holdHatch(
-                band.participation,
-                color: parseHexColor(swatch.border),
-                cornerRadius: blockCorner
-            )
-            .holdBorder(
-                band.participation,
-                color: parseHexColor(swatch.border),
-                cornerRadius: blockCorner
-            )
+            .eventBlockStyle(band.participation, colors: colors, cornerRadius: blockCorner)
             .offset(
                 x: dayWidth * CGFloat(band.day) + blockGap,
                 y: calendarLaneHeight * CGFloat(band.lane) + blockGap
@@ -184,8 +182,30 @@ struct CalendarAllDayChip: View {
                     time: L10n.calendar_all_day(),
                     calendar: calendar?.name ?? "",
                     participation: band.participation,
-                    hasConference: band.hasConference
+                    hasConference: band.hasConference,
+                    repeats: !band.occurrenceStart.isEmpty
                 )
             )
+    }
+}
+
+extension View {
+    /// An event's block, as the drawn grid draws it: a tint of its calendar's colour, the colour
+    /// itself down the leading edge, and for an unanswered hold a fainter tint, a hatched edge and a
+    /// dashed border instead (`CalendarWeekContent.draw`).
+    func eventBlockStyle(
+        _ participation: ResponseStatus, colors: EventColors, cornerRadius: CGFloat
+    ) -> some View {
+        let hold = isAwaitingResponse(participation)
+        return background(colors.fill.opacity(hold ? holdFillOpacity : 1))
+            .overlay(alignment: .leading) {
+                if hold {
+                    ParticipationHatch(color: colors.accent).frame(width: eventBarWidth + 1)
+                } else {
+                    colors.accent.frame(width: eventBarWidth)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .holdBorder(participation, color: colors.accent, cornerRadius: cornerRadius)
     }
 }

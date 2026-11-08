@@ -164,6 +164,8 @@ public struct ContentView: View {
             }
             #endif
             #endif
+            // The frame trace's scripted motion runs on the calendar, in any build.
+            if CalendarFrameTrace.shared.drives { showCalendar() }
             #if DEBUG
             // Verification: open the calendar / contacts on launch (for simulator screenshots). The
             // composer waits for the core instead (`autoComposeIfRequested`).

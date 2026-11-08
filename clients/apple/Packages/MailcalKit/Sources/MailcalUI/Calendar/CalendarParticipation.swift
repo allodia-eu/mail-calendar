@@ -34,48 +34,28 @@ struct ParticipationHatch: View {
 
     var body: some View {
         Canvas { context, size in
-            var path = Path()
-            // Start a full height to the left so the first stripe already crosses the strip; step by
-            // 4pt so the pattern stays legible at any block height.
-            var x = -size.height
-            while x < size.width + size.height {
-                path.move(to: CGPoint(x: x, y: size.height))
-                path.addLine(to: CGPoint(x: x + size.height, y: 0))
-                x += 4
-            }
-            context.stroke(path, with: .color(color), lineWidth: 1)
+            context.stroke(holdHatchPath(size: size), with: .color(color), lineWidth: 1)
         }
     }
 }
 
+/// The hatch's stripes across a strip of `size`, shared by this view and the drawn grid.
+func holdHatchPath(size: CGSize) -> Path {
+    var path = Path()
+    // Start a full height to the left so the first stripe already crosses the strip; step by 4pt so
+    // the pattern stays legible at any block height.
+    var x = -size.height
+    while x < size.width + size.height {
+        path.move(to: CGPoint(x: x, y: size.height))
+        path.addLine(to: CGPoint(x: x + size.height, y: 0))
+        x += 4
+    }
+    return path
+}
+
 extension View {
-    /// The fill a record gets: full for a commitment, faded for an unanswered hold.
-    func participationFill(_ participation: ResponseStatus, color: Color) -> some View {
-        background(color.opacity(isAwaitingResponse(participation) ? holdFillOpacity : 1))
-    }
-
-    /// The hatched leading gutter, on a hold only. Clipped to the record's own corner radius so the
-    /// stripes stop where its edge does.
-    @ViewBuilder
-    func holdHatch(
-        _ participation: ResponseStatus,
-        color: Color,
-        cornerRadius: CGFloat,
-        width: CGFloat = 4
-    ) -> some View {
-        if isAwaitingResponse(participation) {
-            overlay(alignment: .leading) {
-                ParticipationHatch(color: color).frame(width: width)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        } else {
-            self
-        }
-    }
-
-    /// A dashed border, on a hold only, for surfaces that carry no border of their own (the all-day
-    /// bar, the month chip). A record with its own border strokes it with `participationStroke`
-    /// instead, so it never ends up with two.
+    /// A dashed border, on a hold only (`eventBlockStyle`); the drawn grid strokes the same dashes
+    /// itself.
     @ViewBuilder
     func holdBorder(
         _ participation: ResponseStatus,

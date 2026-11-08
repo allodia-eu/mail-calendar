@@ -169,3 +169,58 @@ fn every_palette_hue_carries_a_white_label_in_light_mode() {
         );
     }
 }
+
+#[test]
+fn an_event_blocks_title_is_legible_on_its_tint_for_every_colour_in_both_themes() {
+    // The tinted block is the grid's whole look, so its title clearing AA is not a nicety: a
+    // pale olive title on a pale olive fill is an event nobody can read.
+    for hex in PALETTE {
+        for dark in [false, true] {
+            let swatch = event_swatch(hex, dark);
+            let ratio = contrast(rgb(&swatch.text), rgb(&swatch.fill));
+            assert!(
+                ratio >= AA,
+                "{hex} (dark: {dark}): title at {ratio:.2}:1 on its fill"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_event_blocks_title_keeps_its_calendars_hue() {
+    // Not black on a tint: the title is a shade of the calendar's own colour, which is what makes
+    // a block read as belonging to its calendar at a glance.
+    for hex in PALETTE {
+        let text = event_swatch(hex, false).text;
+        assert_ne!(text, "#000000", "{hex}: the title lost its hue");
+        assert_ne!(
+            event_swatch(hex, true).text,
+            "#ffffff",
+            "{hex}: the dark title lost its hue"
+        );
+    }
+}
+
+#[test]
+fn an_event_block_is_a_light_tint_with_the_colour_itself_down_its_edge() {
+    let swatch = event_swatch("#2f6fa8", false);
+    assert_eq!(swatch.accent, "#2f6fa8");
+    assert!(
+        rgb(&swatch.fill).luminance() > 0.7,
+        "the light fill is a tint, not the colour"
+    );
+    let dark = event_swatch("#2f6fa8", true);
+    assert!(
+        rgb(&dark.fill).luminance() < 0.05,
+        "the dark fill sits low on a dark surface"
+    );
+    assert!(rgb(&dark.accent).luminance() > rgb(&dark.fill).luminance());
+}
+
+#[test]
+fn an_event_colour_that_does_not_parse_still_draws() {
+    assert_eq!(
+        event_swatch("not a colour", false),
+        event_swatch(PALETTE[0], false)
+    );
+}

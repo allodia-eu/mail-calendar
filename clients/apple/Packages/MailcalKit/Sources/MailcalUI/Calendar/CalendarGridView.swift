@@ -88,6 +88,8 @@ struct CalendarGridView: View, Animatable {
     /// Not `private`: CalendarGridView.Gesture.swift reads and sets both.
     @State var drag: CalendarDragState?
     @State var dragWeek: Int?
+    /// What each week on screen wears, built once per page rather than once per frame.
+    @State private var paints = CalendarWeekPaints()
 
     nonisolated var animatableData: CGFloat {
         get { strip.weeks }
@@ -116,6 +118,7 @@ struct CalendarGridView: View, Animatable {
         let weeks = strip.visibleWeeks(dayViewport: dayViewport, dayWidth: dayWidth)
             .compactMap(weekAt)
         let lanes = bannerLanes(weeks)
+        CalendarFrameTrace.shared.gridRedrawn()
 
         return VStack(spacing: 0) {
             CalendarDayHeader(
@@ -197,46 +200,21 @@ struct CalendarGridView: View, Animatable {
     }
 
     /// One week's content, in its own coordinates: the strip decides where that lands.
-    @ViewBuilder
     private func weekBody(_ week: CalendarStripWeek) -> some View {
-        let todayColumn = week.days.firstIndex { calendar.isDate($0, inSameDayAs: today) }
-        ZStack(alignment: .topLeading) {
-            CalendarGridLines(
-                dayCount: week.days.count, dayWidth: dayWidth, hourHeight: hourHeight
-            )
-            ForEach(week.page.timed, id: \.rowID) { segment in
-                // The block being dragged is drawn once, by `CalendarDragBlock`, where the pointer
-                // has it, never twice. Leaving the original in place reads as a duplicate event.
-                if !isHeld(segment, in: week.index) {
-                    CalendarTimedBlock(
-                        segment: segment,
-                        calendars: week.page.calendars,
-                        dayWidth: dayWidth,
-                        hourHeight: hourHeight,
-                        use24Hour: use24Hour,
-                        dark: dark,
-                        onOpen: {
-                            onOpen(
-                                EventRefID(
-                                    account: segment.account,
-                                    key: segment.event,
-                                    occurrence: segment.occurrenceStart
-                                )
-                            )
-                        }
-                    )
-                }
-            }
-            if let todayColumn {
-                CalendarNowLine(
-                    nowMinutes: nowMinutes,
-                    todayIndex: todayColumn,
-                    dayWidth: dayWidth,
-                    hourHeight: hourHeight,
-                    weekWidth: weekWidth
-                )
-            }
-        }
+        CalendarWeekContent(
+            index: week.index,
+            paint: paints.paint(
+                for: week, version: calendarVersion, dark: dark, use24Hour: use24Hour
+            ),
+            dayCount: week.days.count,
+            todayColumn: week.days.firstIndex { calendar.isDate($0, inSameDayAs: today) },
+            nowMinutes: nowMinutes,
+            held: dragWeek == week.index ? drag?.subject : nil,
+            dayWidth: dayWidth,
+            hourHeight: hourHeight,
+            onOpen: onOpen
+        )
+        .equatable()
     }
 }
 

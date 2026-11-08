@@ -10,11 +10,13 @@
 use mailcal_account::DefaultCalendar;
 use mailcal_app::MonthPage as AppMonthPage;
 use mailcal_viewmodel::calendar::{
-    color::PALETTE,
+    color::{PALETTE, event_swatch},
     month::{MonthCell as AppMonthCell, MonthChip as AppMonthChip},
 };
 
-use crate::{CalendarRow, MailcalApp, MonthCell, MonthChip, MonthPage, app_calendar::today};
+use crate::{
+    CalendarRow, EventSwatch, MailcalApp, MonthCell, MonthChip, MonthPage, app_calendar::today,
+};
 
 #[uniffi::export]
 impl MailcalApp {
@@ -79,6 +81,20 @@ impl MailcalApp {
 #[uniffi::export]
 pub fn calendar_palette() -> Vec<String> {
     PALETTE.iter().map(|hex| (*hex).to_owned()).collect()
+}
+
+/// How an event block on the time grid wears the calendar colour `hex` (a `CalendarColor::hex`) in
+/// a light or dark theme: a tint to fill it, a bar of the colour down its leading edge, and a title
+/// that clears WCAG AA on the tint. A colour that does not parse draws in the palette's first.
+#[uniffi::export]
+#[must_use]
+pub fn calendar_event_swatch(hex: String, dark: bool) -> EventSwatch {
+    let swatch = event_swatch(&hex, dark);
+    EventSwatch {
+        fill: swatch.fill,
+        accent: swatch.accent,
+        text: swatch.text,
+    }
 }
 
 impl From<AppMonthPage> for MonthPage {
