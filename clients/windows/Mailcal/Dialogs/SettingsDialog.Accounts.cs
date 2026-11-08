@@ -9,6 +9,7 @@
 // again from the next snapshot and page record; a core signal that changed nothing the page shows
 // leaves it, and whatever is being typed on it, alone.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -22,6 +23,8 @@ public sealed partial class SettingsDialog
 {
     // The account whose page is open; null for the list.
     private string? _accountPage;
+    // The open picker or the field holding unsent text that the page's next redraw waits on.
+    private Control? _redrawWaitsOn;
 
     // What the list or the page last said, kept across the redraw a change ends with.
     private AccountNotice? _accountNotice;
@@ -160,6 +163,10 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(BuildSyncModePicker(entry.Id, mode));
         }
+        if (page.SenderName is { } name)
+        {
+            panel.Children.Add(SenderNameGroup(entry, name));
+        }
         panel.Children.Add(UsesGroup(entry, page));
         if (page.Links.Length > 0)
         {
@@ -183,9 +190,9 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(ServersGroup(entry, endpoints, expired));
         }
-        if (MailGroup(entry, expired) is { } mail)
+        if (page.Mail is { } mail)
         {
-            panel.Children.Add(mail);
+            panel.Children.Add(MailGroup(entry, mail, expired));
         }
         panel.Children.Add(RemoveGroup(entry, page.Remove));
     }
@@ -324,6 +331,20 @@ public sealed partial class SettingsDialog
         }
         if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {
+            // Drawn again now, a picker whose list is open would close under the pointer and the
+            // pick would be lost, and a field holding what is still being typed would send it half
+            // finished as it goes. The page is drawn once the list closes or the field is left,
+            // which sends what it holds; either change is queued in the core behind this one.
+            if (OpenPicker() is { } open)
+            {
+                WhenClosed(open);
+                return;
+            }
+            if (UnsentField() is { } field)
+            {
+                WhenLeft(field);
+                return;
+            }
             ShowCategory("accounts");
         }
         else if (_accountNoticeBar is { } bar)
@@ -332,13 +353,74 @@ public sealed partial class SettingsDialog
         }
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, which
-    /// accounts have a mailbox listed and how each is shared, the notices about accounts, and the
-    /// open page's record, which the page draws from calls of their own.</summary>
+    /// <summary>The picker on the page whose list is open, if any.</summary>
+    private ComboBox? OpenPicker()
+    {
+        var pending = new Stack<DependencyObject>([_detail]);
+        while (pending.TryPop(out var node))
+        {
+            if (node is ComboBox { IsDropDownOpen: true } open)
+            {
+                return open;
+            }
+            for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(node); i++)
+            {
+                pending.Push(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(node, i));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The text field with the keyboard, if it holds text it has not sent.</summary>
+    private TextBox? UnsentField() =>
+        XamlRoot is { } root
+        && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) is TextBox box
+        && ControlComponents.HoldsUnsentText(box)
+            ? box
+            : null;
+
+    /// <summary>Asks for the page again once <paramref name="picker"/>'s list closes, once
+    /// however many signals arrive while it is open.</summary>
+    private void WhenClosed(ComboBox picker)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, picker))
+        {
+            return;
+        }
+        _redrawWaitsOn = picker;
+        void Closed(object? sender, object args)
+        {
+            picker.DropDownClosed -= Closed;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        picker.DropDownClosed += Closed;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="field"/> loses the keyboard, after it
+    /// has sent what it holds, once however many signals arrive meanwhile.</summary>
+    private void WhenLeft(TextBox field)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, field))
+        {
+            return;
+        }
+        _redrawWaitsOn = field;
+        void Left(object sender, RoutedEventArgs args)
+        {
+            field.LostFocus -= Left;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        field.LostFocus += Left;
+    }
+
+    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, how
+    /// each account is shared, the notices about accounts, and the open page's record, which the
+    /// page draws from calls of their own.</summary>
     private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page)
     {
-        var beside = (_model.GetSyncSettings()?.Accounts.Select(account => "mail:" + account.AccountId) ?? [])
-            .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"))
+        var beside = _model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}")
             .Concat(AccountNoticesFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));
         return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);

@@ -54,12 +54,11 @@ extension MailboxModel {
             }
             return
         }
-        // A settings signal only updates the settings surfaces (the timezone prompt, the
-        // per-account sync behaviour, and the app-level composing/swipe preferences); it doesn't
-        // change the mailbox/calendar projection.
+        // A settings signal only updates the settings surfaces (the timezone prompt, the accounts
+        // and the page open, and the app-level composing/swipe preferences); it doesn't change the
+        // mailbox/calendar projection.
         if case .settings = surface {
             timezone = app?.timezoneSettings()
-            syncSettings = app?.syncSettings()
             quoteSettings = app?.quoteSettings() ?? QuoteSettings(style: .indented, perMessage: false)
             defaultSendAccount = app?.defaultSendAccount()
             swipeSettings = app?.swipeSettings() ?? SwipeSettings(left: .delete, right: .delete)

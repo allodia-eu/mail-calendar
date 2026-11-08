@@ -30,8 +30,6 @@ import uniffi.mailcal_bindings.SignatureSlotKind
 import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
-import uniffi.mailcal_bindings.SyncSettingsSnapshot
-import uniffi.mailcal_bindings.SyncStrategyKind
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.TimeZoneSnapshot
 import uniffi.mailcal_bindings.ViewMode
@@ -99,13 +97,6 @@ internal fun CategoryDetail(
     onAllodiaKeepLocal: (String) -> Unit,
     accountsSyncMode: Map<String, AllodiaAccountSyncMode>,
     onSetAccountSyncMode: (account: String, mode: AllodiaAccountSyncMode) -> Unit,
-    settings: SyncSettingsSnapshot?,
-    onSetSyncDepth: (account: String, months: UShort) -> Unit,
-    onSetMessageSize: (account: String, megabytes: UShort) -> Unit,
-    onSetStrategy: (account: String, strategy: SyncStrategyKind) -> Unit,
-    onSetPollInterval: (account: String, minutes: UShort) -> Unit,
-    onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
-    onSetSenderName: (account: String, name: String) -> Unit,
     onRequestReset: () -> Unit,
     accountsUi: AccountsSettingsUi,
     // Videoconferencing's account rows open that account's page under Accounts.
@@ -315,25 +306,7 @@ internal fun CategoryDetail(
                 ui = accountsUi,
                 syncMode = accountsSyncMode[entry.id],
                 onSetSyncMode = { mode -> onSetAccountSyncMode(entry.id, mode) },
-            ) {
-                // While it is used for mail and the core lists its mailbox.
-                val mail = settings?.accounts?.firstOrNull { it.accountId == entry.id }
-                if (settings != null && mail != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    SettingsGroupCard(L10n.nav_mail(ctx), L10n.settings_sync_description(ctx)) {
-                        AccountSyncCard(
-                            account = mail,
-                            settings = settings,
-                            onSetSyncDepth = onSetSyncDepth,
-                            onSetMessageSize = onSetMessageSize,
-                            onSetStrategy = onSetStrategy,
-                            onSetPollInterval = onSetPollInterval,
-                            onSetPushFolder = onSetPushFolder,
-                            onSetSenderName = onSetSenderName,
-                        )
-                    }
-                }
-            }
+            )
         }
 
         // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen).

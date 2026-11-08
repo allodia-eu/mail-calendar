@@ -12,7 +12,6 @@
 // the ruler belongs to it: turning the week slides the ruler out with its own days.
 package eu.allodia.mailcal
 
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -202,8 +201,8 @@ private fun DrawScope.drawBanner(
                 val rect = m.bandRect(band.span)
                 if (rect.right <= dayX || rect.left >= dayX + m.dayViewport) return@forEach
                 drawChip(
-                    rect, shapeWidth * band.span.days, band.background, band.title,
-                    band.titleStyle, measurer, band.awaitingResponse, band.border,
+                    rect, shapeWidth * band.span.days, band.fill, band.title,
+                    band.titleStyle, measurer, band.awaitingResponse, band.accent,
                     camera = theme.camera.takeIf { band.hasConference },
                 )
             }
@@ -219,9 +218,8 @@ private fun DrawScope.drawBanner(
     }
 }
 
-// One all-day bar (or "+N" chip): a rounded fill with a single line of text inside it. A bar for an
-// unanswered invitation gains the hold treatment, a dashed edge and a hatched leading gutter, which
-// it has none of otherwise (a commitment's bar carries no border at all).
+// One all-day bar (or "+N" chip): a rounded fill with a single line of text inside it. A bar wears its
+// calendar's colour as a block does (CalendarEventDraw.kt); a "+N" chip has no fill and no bar.
 @Suppress("LongParameterList")
 private fun DrawScope.drawChip(
     rect: Rect,
@@ -231,36 +229,23 @@ private fun DrawScope.drawChip(
     style: TextStyle,
     measurer: TextMeasurer,
     awaiting: Boolean = false,
-    edge: Color = Color.Transparent,
+    accent: Color = Color.Transparent,
     /** The camera after the text, for a bar whose event has a video meeting. */
     camera: Painter? = null,
 ) {
     val pad = 1.dp.toPx()
-    val inner = 5.dp.toPx()
-    if (fill != Color.Transparent) {
-        drawRoundRect(
-            color = fill,
-            topLeft = Offset(rect.left + pad, rect.top + pad),
-            size = Size(rect.width - pad * 2, rect.height - pad * 2),
-            cornerRadius = CornerRadius(CORNER_RADIUS.toPx()),
-        )
-    }
-    drawHold(
-        rect = Rect(rect.left + pad, rect.top + pad, rect.right - pad, rect.bottom - pad),
-        color = edge,
-        corner = CORNER_RADIUS.toPx(),
-        awaiting = awaiting,
-    )
-    val room = shapeWidth - pad * 2 - inner * 2
+    val event = fill != Color.Transparent
+    val start = if (event) EVENT_LABEL_START.toPx() else 5.dp.toPx()
+    val end = if (event) EVENT_LABEL_PAD.toPx() else 5.dp.toPx()
+    val body = Rect(rect.left + pad, rect.top + pad, rect.right - pad, rect.bottom - pad)
+    if (event) drawEventShape(body, fill, accent, awaiting, CORNER_RADIUS.toPx())
+    val room = shapeWidth - pad * 2 - start - end
     if (room <= 0f) return
     val line = titleLine(measurer, text, style, room, camera = camera)
-    clipRect(rect.left + pad, rect.top + pad, rect.right - pad, rect.bottom - pad) {
+    clipRect(body.left, body.top, body.right, body.bottom) {
         drawTitleLine(
             line,
-            topLeft = Offset(
-                rect.left + pad + inner,
-                rect.top + (rect.height - line.layout.size.height) / 2f,
-            ),
+            topLeft = Offset(body.left + start, rect.top + (rect.height - line.layout.size.height) / 2f),
         )
     }
 }
@@ -309,106 +294,6 @@ private fun DrawScope.drawGridLines(days: Int, m: SurfaceMetrics, theme: Surface
         val x = m.dayWidth * day
         drawLine(theme.outlineVariant, Offset(x, 0f), Offset(x, m.gridHeight), strokeWidth = 1f)
     }
-}
-
-// The events. `column`/`columns` are the core's overlap solution: an event in a cluster of three sits
-// in lane `column` of `columns`, so its width is that share of the day. The client never re-packs:
-// if it did, two clients could column identical data differently.
-@Suppress("LongParameterList")
-private fun DrawScope.drawBlocks(
-    page: PagePaint,
-    m: SurfaceMetrics,
-    theme: SurfaceTheme,
-    measurer: TextMeasurer,
-    scroll: SurfaceScroll,
-    contentTop: Float,
-    shapeWidth: Float,
-    drag: CalendarDragState?,
-) {
-    // The block being dragged is drawn once, by `drawDrag`, at the time the finger is over, never
-    // twice. Leaving the original in place as a ghost was tried and reads as a duplicate event.
-    val held = drag?.subject
-    val hourHeightDp = m.hourHeight.toDp()
-    val top = scroll.scrollY
-    val bottom = scroll.scrollY + (m.height - contentTop)
-    val left = scroll.dayX
-    val right = scroll.dayX + m.dayViewport
-    val started = if (CalendarTrace.on) System.nanoTime() else 0L
-    var drawn = 0
-    var culled = 0
-
-    page.blocks.forEach { block ->
-        if (held != null && block.account == held.account && block.event == held.event &&
-            block.day == held.day
-        ) {
-            return@forEach
-        }
-        val rect = m.blockRect(block)
-        if (rect.bottom <= top || rect.top >= bottom) {
-            culled++
-            return@forEach
-        }
-        if (rect.right <= left || rect.left >= right) {
-            culled++
-            return@forEach
-        }
-        drawn++
-
-        val x = rect.left
-        val y = rect.top
-        val gap = 1.dp.toPx()
-        val inset = blockInset(block.minutes).toPx()
-        val w = rect.width - gap * 2
-        val h = rect.height - gap * 2
-        if (w <= 0f || h <= 0f) return@forEach
-
-        val corner = CornerRadius(CORNER_RADIUS.toPx())
-        drawRoundRect(block.background, Offset(x + gap, y + gap), Size(w, h), corner)
-        // An unanswered hold is dashed and hatched instead of hairlined, one call, shared with the
-        // all-day bar, the month chip and the invitation card's preview so they cannot diverge.
-        drawRoundRect(
-            color = block.border,
-            topLeft = Offset(x + gap, y + gap),
-            size = Size(w, h),
-            cornerRadius = corner,
-            style = participationStroke(block.awaitingResponse),
-        )
-        drawHoldHatch(
-            rect = Rect(x + gap, y + gap, x + gap + w, y + gap + h),
-            color = block.border,
-            awaiting = block.awaitingResponse,
-        )
-
-        // Zoomed out, the block is a few pixels tall and simply cannot hold text. Drawing a title it
-        // has no room for is what sliced every standup's name in half; drawing none is honest, and
-        // pinching in brings it back. The block keeps its full spoken label either way.
-        if (!blockShowsLabel(block.minutes, hourHeightDp)) return@forEach
-        // Shaped against the frozen width, drawn and CLIPPED against the live one. Mid-pinch those
-        // differ, and that is the whole point: the rectangle tracks the fingers, the shaper sleeps.
-        val room = shapeWidth / block.columns - gap * 2 - 4.dp.toPx() * 2
-        if (room <= 0f) return@forEach
-        val showsTime = blockShowsTime(block.minutes, hourHeightDp)
-
-        clipRect(x + gap, y + gap, x + gap + w, y + gap + h) {
-            val textLeft = x + gap + 4.dp.toPx()
-            var textTop = y + gap + inset
-            val title = titleLine(
-                measurer,
-                text = block.title,
-                style = block.titleStyle,
-                room = room,
-                maxLines = if (showsTime || block.minutes < 30) 1 else 2,
-                camera = theme.camera.takeIf { block.hasConference },
-            )
-            drawTitleLine(title, topLeft = Offset(textLeft, textTop))
-            if (showsTime) {
-                textTop += title.layout.size.height
-                val clock = measurer.line(block.clock, block.clockStyle, room)
-                drawText(clock, topLeft = Offset(textLeft, textTop))
-            }
-        }
-    }
-    if (CalendarTrace.on) CalendarTrace.frame(drawn, culled, System.nanoTime() - started)
 }
 
 // The red now line, across the whole week with a dot on today's column, the standard affordance, and
@@ -493,4 +378,4 @@ internal fun TextMeasurer.line(
     )
 }
 
-private const val MEASURE_BUCKET = 8f
+private const val MEASURE_BUCKET = LABEL_STEP

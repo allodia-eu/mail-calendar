@@ -113,10 +113,11 @@ mod tests {
             end_minutes: 11 * 60,
             column: 0,
             columns: 1,
-            background: Rgb::new(0.2, 0.3, 0.4),
-            foreground: Rgb::new(1.0, 1.0, 1.0),
-            border: Rgb::new(0.1, 0.2, 0.3),
+            colors: crate::ui::calendar::paint::event_colors("#2f6fa8", false),
             awaiting: false,
+            repeats: false,
+            time: "10:00".to_owned(),
+            range: "10:00–11:00".to_owned(),
         });
         assert!(!scene.begin_create(80.0, 10.5 * 60.0, 168.0));
         assert!(scene.drag().is_none());

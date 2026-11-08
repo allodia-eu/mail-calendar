@@ -33,10 +33,10 @@ pub(crate) fn page(
         .map(|use_| {
             let capability = use_.capability;
             let on = use_.state == CapabilityState::On;
-            let going = match &hold.own {
-                Some(PageWork::Use { capability: at, on }) if *at == capability => Some(*on),
+            let going = hold.going(|work| match work {
+                PageWork::Use { capability: at, on } if *at == capability => Some(*on),
                 _ => None,
-            };
+            });
             let pressing = toggle(capability, !on);
             let blocked = match pressing {
                 Toggle::Refused(block) => Some(block),
@@ -59,10 +59,10 @@ pub(crate) fn page(
             }
         })
         .collect();
-    let linking = match &hold.own {
-        Some(PageWork::Link { slot, target }) => Some((*slot, target.as_deref())),
+    let linking = hold.going(|work| match work {
+        PageWork::Link { slot, target } => Some((*slot, target.as_deref())),
         _ => None,
-    };
+    });
     AccountPage {
         account: entry.id.clone(),
         uses,
@@ -80,7 +80,9 @@ pub(crate) fn page(
                 picker
             })
             .collect(),
-        remove: control(hold.own == Some(PageWork::Remove), true),
+        remove: control(hold.own.contains(&PageWork::Remove), true),
+        sender_name: None,
+        mail: None,
         reply_fallback: entry
             .uses
             .iter()
@@ -88,10 +90,10 @@ pub(crate) fn page(
                 use_.capability == AccountCapability::Calendar && use_.state == CapabilityState::On
             })
             .then(|| {
-                let going = match &hold.own {
-                    Some(PageWork::ReplyFallback { choice }) => Some(*choice),
+                let going = hold.going(|work| match work {
+                    PageWork::ReplyFallback { choice } => Some(*choice),
                     _ => None,
-                };
+                });
                 AccountReplyFallback {
                     choice: going.unwrap_or(reply_fallback),
                     control: control(going.is_some(), true),

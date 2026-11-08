@@ -40,4 +40,41 @@ pub enum AccountPageIntent {
         /// The account's id.
         account: String,
     },
+    /// Send the account's mail under `name`; empty for none. Its provider is told afterwards,
+    /// where it keeps one, without the page waiting on it.
+    SetSenderName { account: String, name: String },
+    /// Keep `months` of the account's mail, from the depth choice's options. The mail is
+    /// reconciled afterwards, as sync progress, without the page waiting on it.
+    SetSyncDepth { account: String, months: u16 },
+    /// Download messages up to `megabytes` in full in the background, from the size choice's
+    /// options. Reconciled afterwards, without the page waiting on it.
+    SetMessageSizeLimit { account: String, megabytes: u16 },
+    /// Have mail arrive as it comes (`on`) or on a timer.
+    SetPush { account: String, on: bool },
+    /// Check every `minutes`, from the interval choice's options.
+    SetPollInterval { account: String, minutes: u16 },
+    /// Watch the folder `key` for mail as it arrives, or stop.
+    SetWatchedFolder {
+        account: String,
+        key: String,
+        on: bool,
+    },
+}
+
+impl AccountPageIntent {
+    /// The account the change is to.
+    pub(crate) fn account(&self) -> &str {
+        match self {
+            Self::SetUse { account, .. }
+            | Self::SetLink { account, .. }
+            | Self::SetReplyFallback { account, .. }
+            | Self::Remove { account }
+            | Self::SetSenderName { account, .. }
+            | Self::SetSyncDepth { account, .. }
+            | Self::SetMessageSizeLimit { account, .. }
+            | Self::SetPush { account, .. }
+            | Self::SetPollInterval { account, .. }
+            | Self::SetWatchedFolder { account, .. } => account,
+        }
+    }
 }

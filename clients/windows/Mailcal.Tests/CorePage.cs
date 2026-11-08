@@ -16,6 +16,8 @@ internal static class CorePage
         [.. entry.Uses.Select(use => new AccountUseSwitch(
             use.Capability, use.State == CapabilityState.On, Free, null, null, false, true, false))],
         [],
+        null,
+        null,
         Free,
         null);
 

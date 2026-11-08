@@ -11,11 +11,14 @@ use gtk::accessible::Property as AccessibleProperty;
 use super::{super::AppInput, model::CalendarModel};
 use crate::l10n;
 
-mod camera;
 mod create;
 mod draw;
 mod geometry;
+mod glyphs;
 mod hits;
+mod labels;
+#[cfg(test)]
+pub(crate) mod labels_widget_tests;
 #[cfg(feature = "dev-harness")]
 mod perf;
 mod scene;
@@ -37,6 +40,8 @@ pub(super) struct GridSurface {
     drawing: gtk::DrawingArea,
     hits: gtk::Fixed,
     scene: Rc<RefCell<GridScene>>,
+    /// The page's event labels, laid out as each is first drawn and cleared with the page.
+    labels: Rc<RefCell<labels::Labels>>,
     /// Whether `render` has laid a page out yet: until it has, the empty scene is not a page.
     rendered: Cell<bool>,
     framing: Rc<Framing>,
@@ -63,17 +68,22 @@ impl GridSurface {
 
         let scene = Rc::new(RefCell::new(GridScene::empty()));
         let framing = Rc::new(Framing::default());
+        let labels = Rc::new(RefCell::new(labels::Labels::default()));
         let draw_scene = Rc::clone(&scene);
+        let draw_labels = Rc::clone(&labels);
         drawing.set_draw_func(move |area, context, width, _| {
-            let camera = camera::Camera::of(area);
-            draw::draw_hours(&draw_scene.borrow(), context, f64::from(width), &camera);
+            let mut labels = draw_labels.borrow_mut();
+            let mut ink = labels::Ink::of(area, &mut labels);
+            draw::draw_hours(&draw_scene.borrow(), context, f64::from(width), &mut ink);
         });
         let header_scene = Rc::clone(&scene);
+        let header_labels = Rc::clone(&labels);
         let header_width = drawing.clone();
         header.set_draw_func(move |area, context, _, _| {
             let width = f64::from(header_width.width());
-            let camera = camera::Camera::of(area);
-            draw::draw_header(&header_scene.borrow(), context, width, &camera);
+            let mut labels = header_labels.borrow_mut();
+            let mut ink = labels::Ink::of(area, &mut labels);
+            draw::draw_header(&header_scene.borrow(), context, width, &mut ink);
         });
         install_create_gesture(&hits, &drawing, &scene, &sender);
         install_event_click(&hits, &drawing, &scene, &sender, Surface::Hours);
@@ -165,6 +175,7 @@ impl GridSurface {
             drawing,
             hits,
             scene,
+            labels,
             rendered: Cell::new(false),
             framing,
             _accessibility_settings: accessibility_settings,
@@ -186,6 +197,8 @@ impl GridSurface {
         scene.set_viewport_top(adjustment.value());
         let header_height = pixel_size(scene.header_height().ceil());
         *self.scene.borrow_mut() = scene;
+        // Labels are kept by each event's place in the page, so a new page lays them out afresh.
+        self.labels.borrow_mut().clear();
         self.header.set_content_height(header_height);
         self.header_hits.set_size_request(-1, header_height);
         let width = f64::from(self.drawing.width());

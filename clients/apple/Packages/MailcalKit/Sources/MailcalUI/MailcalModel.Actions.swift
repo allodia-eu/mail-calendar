@@ -23,44 +23,13 @@ extension MailboxModel {
     /// Accepts the missing Sent copy, which answers its notice.
     func dismissUnfiledCopy() { app?.dispatch(intent: .dismissUnfiledCopy) }
 
-    /// Sets one account's **per-account** sync depth (a month count; `0` = all mail) and
-    /// reconnects that account with the new window (widening fetches older mail, narrowing stops
-    /// fetching it). The settings surface re-signals with the new state.
-    func setAccountSyncDepth(_ account: String, _ months: UInt16) {
-        app?.setAccountSyncDepth(account: account, months: months)
-    }
-
-    /// Sets the name one account's outgoing mail is sent under; empty clears it.
+    /// Sets the name one account's outgoing mail is sent under; empty clears it. Setup's name step
+    /// asks this; an account's page asks the core through its own change.
     ///
     /// Passed through unchanged: the core sanitises it, and a second opinion here about what a
     /// `From` header may contain would only drift from the first (docs/sending.md).
     func setAccountSenderName(_ account: String, _ name: String) {
         app?.setAccountSenderName(account: account, name: name)
-    }
-
-    /// Sets one account's **per-account** message-size cap (a megabyte count; `0` = no limit).
-    /// Raising it downloads what the lower cap skipped; lowering it forgets the cached copies it
-    /// may no longer keep, which needs no server. The mail itself is never removed either way:
-    /// only its offline copy. The settings surface re-signals with the new state.
-    func setAccountMessageSizeLimit(_ account: String, _ megabytes: UInt16) {
-        app?.setAccountMessageSizeLimit(account: account, megabytes: megabytes)
-    }
-
-    /// Choose how an account receives new mail: push (IMAP IDLE, only when the server
-    /// supports it) or interval polling. The core persists it and restarts the account's
-    /// background sync; the settings surface re-signals with the new state.
-    func setSyncStrategy(_ account: String, _ strategy: SyncStrategyKind) {
-        app?.setSyncStrategy(account: account, strategy: strategy)
-    }
-
-    /// Set an account's background-poll interval (minutes; snapped to the allowed set).
-    func setPollInterval(_ account: String, _ minutes: UInt16) {
-        app?.setPollInterval(account: account, minutes: minutes)
-    }
-
-    /// Subscribe or unsubscribe one folder for push on an account (capped in the core).
-    func setPushFolder(_ account: String, _ folder: String, _ subscribed: Bool) {
-        app?.setPushFolder(account: account, folder: folder, subscribed: subscribed)
     }
 
     /// Switch the list between flat and threaded, a dispatched intent, so the Rust app

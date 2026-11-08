@@ -40,6 +40,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
             status,
         ));
     }
+    if let Some(name) = &account.sender_name {
+        content.append(&super::sender_name::group(&entry.id, name, &ctx.sender));
+    }
     content.append(&uses_group(ctx, entry, &account.uses));
     if !account.links.is_empty() {
         content.append(&links_group(ctx, entry, &account.links));
@@ -66,7 +69,7 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
             signin_expired(ctx, entry),
         ));
     }
-    if let Some(mail) = mail_group(ctx, entry) {
+    if let Some(mail) = mail_group(ctx, entry, account) {
         content.append(&mail);
     }
     content.append(&remove_group(ctx, entry, account.remove));
@@ -74,7 +77,7 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
 }
 
 /// Asks the core for a change on the page; it returns at once, and the page says it runs.
-fn change(sender: &relm4::Sender<AppInput>, intent: AccountPageIntent) {
+pub(super) fn change(sender: &relm4::Sender<AppInput>, intent: AccountPageIntent) {
     sender.emit(AppInput::Accounts(AccountsInput::Change(intent)));
 }
 
@@ -274,22 +277,22 @@ fn signin_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGrou
     section
 }
 
-/// The mail settings, while the account is used for mail and the core lists its mailbox.
-fn mail_group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::PreferencesGroup> {
-    let snapshot = ctx.app.sync_settings();
-    let account = snapshot
-        .accounts
-        .iter()
-        .find(|account| account.account_id == entry.id)?;
+/// The mail settings, while the account is used for mail.
+fn mail_group(
+    ctx: &PageContext,
+    entry: &AccountEntry,
+    account: &AccountPage,
+) -> Option<adw::PreferencesGroup> {
+    let mail = account.mail.as_ref()?;
     // An account whose servers are editable takes its new password in that section, so the mail
     // settings offer it only to one that has no such section.
     let expired = signin_expired(ctx, entry) && entry.endpoints.is_none();
     let provider = ctx.app.account_provider(entry.id.clone());
     Some(account_mail::mail_group(
         ctx,
-        account,
+        &entry.id,
+        mail,
         &super::account_names::entry_name(entry),
-        &snapshot,
         expired,
         provider.as_ref(),
     ))

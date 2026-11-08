@@ -67,10 +67,10 @@ fn mailbox_only() -> AccountEntry {
 }
 
 /// The hold of a page whose own change is `work`.
-const fn own(work: PageWork) -> Hold {
+fn own(work: PageWork) -> Hold {
     Hold {
         busy: true,
-        own: Some(work),
+        own: vec![work],
     }
 }
 
@@ -374,7 +374,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         &account,
         Hold {
             busy: true,
-            own: None,
+            own: Vec::new(),
         },
         None,
         Ask,

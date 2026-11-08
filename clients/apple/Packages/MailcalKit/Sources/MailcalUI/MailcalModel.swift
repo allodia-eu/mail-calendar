@@ -161,9 +161,6 @@ final class MailboxModel {
     /// Background mail-download progress (pulled on a `Surface::SyncProgress` signal): drives
     /// the "downloading Y of X" bar while a sync fills in; `nil`/inactive hides it.
     var syncProgress: SyncProgressSnapshot?
-    /// The per-account synchronisation-behaviour settings (push vs. poll, watched folders),
-    /// pulled on a `Surface::Settings` signal. Drives the "New mail" settings screen.
-    var syncSettings: SyncSettingsSnapshot?
     /// The reply/forward quoting settings, the default style, and whether the composer offers a
     /// per-message override of it, pulled on a `Surface::Settings` signal. The style seeds a new
     /// reply's composer; both drive the settings screen.

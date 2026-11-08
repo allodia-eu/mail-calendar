@@ -1,7 +1,6 @@
 // Public, render-ready types for the reply/forward quote-style setting, the Windows mirror of the
 // core's QuoteStyleKind / QuoteSettings. The generated UniFFI types are internal, so MailboxModel
-// projects them into these public ones, keeping the FFI types confined to the service layer
-// (mirroring SyncStrategyChoice in SyncSettingsViewModels.cs).
+// projects them into these public ones, keeping the FFI types confined to the service layer.
 
 namespace Allodia.Mailcal.ViewModels;
 

@@ -9,10 +9,7 @@
 //! job; it reads this snapshot to decide what to run; this module only owns the
 //! **configuration** and its defaulting.
 
-use std::{
-    collections::{BTreeMap, HashSet},
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, path::PathBuf};
 
 use engine_api::{AccountId, Mailbox, MailboxRole, Provider};
 use mailcal_account::{
@@ -20,12 +17,20 @@ use mailcal_account::{
     POLL_INTERVALS, SYNC_DEPTHS, SyncDepth, SyncStrategy, cap_push_folders, effective,
     load_preferences, save_preferences, snap_poll_interval,
 };
-use mailcal_viewmodel::{
-    AccountSyncRow, EmptyReason, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
-    folder_paths, sorted_folder_rows,
-};
+use mailcal_viewmodel::{EmptyReason, SyncSettingsSnapshot, SyncStrategyKind};
 
-use crate::{App, Surface, message_size::default_size_limit_mb, sync::sync_window};
+use crate::{App, Surface, sync::sync_window};
+
+#[path = "sync_settings_row.rs"]
+mod row;
+
+/// A stored sync-depth change the account's mail is still to be reconciled to.
+#[derive(Debug)]
+pub struct DepthChange {
+    account: AccountId,
+    before: SyncDepth,
+    after: SyncDepth,
+}
 
 /// The persisted per-account sync settings + where to write them. Holds the stored
 /// (customised) per-account choices. An account absent from `stored` uses the [`effective`]
@@ -49,7 +54,7 @@ impl SyncSettingsState {
     }
 
     /// The stored (customised) settings for an account, if it has any.
-    fn get(&self, id: &str) -> Option<AccountSyncSettings> {
+    pub(crate) fn get(&self, id: &str) -> Option<AccountSyncSettings> {
         self.stored.get(id).cloned()
     }
 
@@ -60,7 +65,7 @@ impl SyncSettingsState {
     }
 
     /// The sync depth **in effect** for an account: its override, else the product default.
-    fn effective_depth(&self, id: &str) -> SyncDepth {
+    pub(crate) fn effective_depth(&self, id: &str) -> SyncDepth {
         self.depth_override(id).unwrap_or_default()
     }
 
@@ -154,69 +159,7 @@ impl<P: Provider> App<P> {
         let mut rows = Vec::with_capacity(accounts.len());
         // How mail syncs, so only for an account that has mail.
         for account in accounts.iter().filter(|account| account.uses_mail) {
-            // IDLE is a server property, so any provider's capability answers for the
-            // account; checking all is cheap and robust to which folder bound first.
-            let idle_supported = account
-                .providers
-                .iter()
-                .any(|p| p.connection_info().capabilities.idle());
-            let mailboxes = self.engine.mailboxes(&account.id).await.unwrap_or_default();
-            let (stored, sync_depth_months) = {
-                let guard = self
-                    .sync_settings
-                    .lock()
-                    .expect("sync-settings mutex poisoned");
-                (
-                    guard.get(account.id.as_str()),
-                    u16::from(guard.effective_depth(account.id.as_str())),
-                )
-            };
-            let eff = resolve(stored.as_ref(), idle_supported, &mailboxes);
-            let subscribed: HashSet<&str> = eff.push_folders.iter().map(String::as_str).collect();
-            let is_push = matches!(eff.strategy, SyncStrategy::Push);
-            // The pane's own rows, so this list is in the pane's order rather than the
-            // provider's, and each name carries the folders it sits inside: the list is flat, so
-            // two folders called `2024` would otherwise read as one word each.
-            let tree = sorted_folder_rows(&mailboxes);
-            // A level of the tree holds no mail and refuses to be selected, so it cannot be
-            // watched. Left out after the paths are built, so a folder inside it still says so.
-            let containers: HashSet<&str> = mailboxes
-                .iter()
-                .filter(|mailbox| !mailbox.selectable)
-                .map(|mailbox| mailbox.id.key().as_str())
-                .collect();
-            let folders = tree
-                .iter()
-                .zip(folder_paths(&tree))
-                .filter(|(row, _)| !containers.contains(row.key.as_str()))
-                .map(|(row, path)| SyncFolderRow {
-                    subscribed: is_push && subscribed.contains(row.key.as_str()),
-                    name: path,
-                    role: row.role,
-                    key: row.key.clone(),
-                })
-                .collect();
-            // Read from the same capability every other client-visible answer comes from,
-            // so no screen decides editability from the account's kind.
-            let sender_name_editable = !account.providers.iter().any(|p| {
-                p.connection_info().capabilities.sender_identities()
-                    == Some(engine_api::IdentityControls::ReadOnly)
-            });
-            rows.push(AccountSyncRow {
-                account_id: account.id.as_str().to_owned(),
-                email: account.identity.email.clone(),
-                sender_name: self.sender_name(account.id.as_str()).unwrap_or_default(),
-                sender_name_editable,
-                idle_supported,
-                strategy: kind(eff.strategy),
-                poll_interval_mins: eff.poll_interval_mins,
-                sync_depth_months,
-                message_size_limit_mb: self
-                    .stored_size_override(account.id.as_str())
-                    .map_or_else(default_size_limit_mb, u16::from),
-                at_push_limit: eff.push_folders.len() >= MAX_PUSH_FOLDERS,
-                folders,
-            });
+            rows.push(self.sync_row(account, None).await);
         }
         SyncSettingsSnapshot {
             accounts: rows,
@@ -251,19 +194,26 @@ impl<P: Provider> App<P> {
     /// re-picking. Persists and signals [`Surface::Settings`]. The bindings restart the
     /// account's background work after this.
     pub async fn set_sync_strategy(&self, id: &str, strategy: SyncStrategyKind) {
-        let Some(eff) = self.effective_for(id).await else {
-            return;
-        };
-        self.store_entry(
-            id,
-            AccountSyncSettings {
-                strategy: to_strategy(strategy),
-                push_folders: eff.push_folders,
-                poll_interval_mins: eff.poll_interval_mins,
-                sync_depth: self.stored_depth_override(id),
-                message_size_limit: self.stored_size_override(id),
-            },
-        );
+        if let Some(entry) = self.strategy_entry(id, strategy).await {
+            self.store_entry(id, entry);
+        }
+    }
+
+    /// What switching `id` to `strategy` stores, which the account's page also draws while the
+    /// switch runs.
+    async fn strategy_entry(
+        &self,
+        id: &str,
+        strategy: SyncStrategyKind,
+    ) -> Option<AccountSyncSettings> {
+        let eff = self.effective_for(id).await?;
+        Some(AccountSyncSettings {
+            strategy: to_strategy(strategy),
+            push_folders: eff.push_folders,
+            poll_interval_mins: eff.poll_interval_mins,
+            sync_depth: self.stored_depth_override(id),
+            message_size_limit: self.stored_size_override(id),
+        })
     }
 
     /// Sets an account's poll interval (snapped to the allowed set), leaving its strategy
@@ -284,10 +234,11 @@ impl<P: Provider> App<P> {
         );
     }
 
-    /// Subscribes or unsubscribes one folder for push. Subscribing past
-    /// [`MAX_PUSH_FOLDERS`] is ignored (clients also disable the control at the limit via
-    /// [`AccountSyncRow::at_push_limit`]). Toggling implies push, so the account is set to
-    /// push (a no-op if it already is). Persists and signals [`Surface::Settings`].
+    /// Subscribes or unsubscribes one folder for push. Subscribing past [`MAX_PUSH_FOLDERS`] is
+    /// ignored; the account's page holds an unwatched folder at the limit as well
+    /// ([`mailcal_viewmodel::AccountSyncRow::at_push_limit`]). Toggling implies push, so the
+    /// account is set to push (a no-op if it already is). Persists and signals
+    /// [`Surface::Settings`].
     pub async fn set_push_folder(&self, id: &str, folder: &str, subscribed: bool) {
         let Some(eff) = self.effective_for(id).await else {
             return;
@@ -335,22 +286,38 @@ impl<P: Provider> App<P> {
     }
 
     /// Applies a user-facing sync-depth change and immediately reconciles the account's mail under
-    /// the new window. Clearing mail cursors is required both ways: widening must backfill older
-    /// mail rather than taking a delta, and narrowing must produce a fresh snapshot that tombstones
-    /// rows now outside the window.
+    /// the new window: [`store_account_sync_depth`](Self::store_account_sync_depth), then
+    /// [`reconcile_sync_depth`](Self::reconcile_sync_depth).
     pub async fn update_account_sync_depth(&self, id: &str, months: u16) {
-        let Ok(account_id) = AccountId::try_from(id) else {
-            return;
-        };
-        if self.account_handle(&account_id).await.is_none() {
-            return;
+        if let Some(change) = self.store_account_sync_depth(id, months).await {
+            self.reconcile_sync_depth(change).await;
         }
+    }
+
+    /// Stores a user-facing sync-depth change, answering what the mail must be reconciled to, or
+    /// `None` for an unknown account or a depth that did not move.
+    pub async fn store_account_sync_depth(&self, id: &str, months: u16) -> Option<DepthChange> {
+        let account = AccountId::try_from(id).ok()?;
+        self.account_handle(&account).await?;
         let before = self.effective_sync_depth(id);
         self.set_account_sync_depth(id, months).await;
         let after = self.effective_sync_depth(id);
-        if before == after {
-            return;
-        }
+        (before != after).then_some(DepthChange {
+            account,
+            before,
+            after,
+        })
+    }
+
+    /// Reconciles the account's mail under a stored depth change. Clearing mail cursors is
+    /// required both ways: widening must backfill older mail rather than taking a delta, and
+    /// narrowing must produce a fresh snapshot that tombstones rows now outside the window.
+    pub async fn reconcile_sync_depth(&self, change: DepthChange) {
+        let DepthChange {
+            account,
+            before,
+            after,
+        } = change;
         log::info!(
             "sync-depth: changed from {} to {}; starting account resnapshot",
             depth_label(before),
@@ -364,9 +331,9 @@ impl<P: Provider> App<P> {
             // depth to free space on a plane must not have to wait for a network to get it.
             // The re-snapshot below reaches the same state when it can; this is what makes
             // that a reconciliation rather than the only path.
-            self.prune_account_to_depth(&account_id, after).await;
+            self.prune_account_to_depth(&account, after).await;
         }
-        self.resync_account_after_depth_change(&account_id).await;
+        self.resync_account_after_depth_change(&account).await;
         if narrowed {
             self.reclaim_freed_space("sync-depth").await;
         }

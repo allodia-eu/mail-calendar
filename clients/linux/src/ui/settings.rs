@@ -153,6 +153,8 @@ struct PageContext {
     sign_in: super::account_sign_in::SignInSwitchState,
     /// What each account's server said of its shared mailboxes.
     shared: super::account_shared::SharedState,
+    /// The page of the account Accounts shows, read once for the redraw.
+    page: Option<mailcal_bindings::AccountPage>,
 }
 
 #[derive(Debug, Default)]
@@ -166,6 +168,8 @@ pub(super) struct SettingsWindow {
     drawn: Option<redraw::Drawn>,
     /// Whether a field was edited since the window was drawn.
     edited: std::rc::Rc<std::cell::Cell<bool>>,
+    /// The open list a redraw waits for, asking again once it closes.
+    waiting_on: Option<gtk::glib::WeakRef<gtk::Popover>>,
     /// Where toasts are shown: above the pages, which every redraw replaces.
     toasts: Option<adw::ToastOverlay>,
     /// The last notice shown.
@@ -209,7 +213,11 @@ impl SettingsWindow {
         let Some(app) = app.cloned() else {
             return;
         };
+        let mut read = None;
         if state.redraw == Redraw::Signalled {
+            if redraw::wait_for_open_list(self.window.as_ref(), &mut self.waiting_on, &sender) {
+                return;
+            }
             let typing = self
                 .window
                 .as_ref()
@@ -217,7 +225,7 @@ impl SettingsWindow {
             match redraw::signalled(typing, self.drawn.as_ref(), || {
                 redraw::drawn(&app, state.account)
             }) {
-                redraw::Signalled::Draw => {}
+                redraw::Signalled::Draw(drawn) => read = Some(drawn),
                 redraw::Signalled::Skip => {
                     self.rendered_generation = state.generation;
                     return;
@@ -274,7 +282,7 @@ impl SettingsWindow {
         let navigation = gtk::Stack::new();
         navigation.set_hexpand(true);
         navigation.set_vexpand(true);
-        let ctx = PageContext {
+        let mut ctx = PageContext {
             app,
             preferences,
             sender,
@@ -289,10 +297,13 @@ impl SettingsWindow {
             account: state.account.map(str::to_owned),
             sign_in: state.sign_in.clone(),
             shared: state.shared.clone(),
+            page: None,
         };
-        // Read before the pages read theirs: a change landing in between then reads as one the
-        // window has not drawn, and the next signal draws it.
-        let drawn = redraw::drawn(&ctx.app, state.account);
+        // Read before the pages are built, which draw the account's page from it: a change
+        // landing in between then reads as one the window has not drawn, and the next signal
+        // draws it.
+        let drawn = read.unwrap_or_else(|| redraw::drawn(&ctx.app, state.account));
+        ctx.page.clone_from(&drawn.1);
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");

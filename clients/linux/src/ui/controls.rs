@@ -1,6 +1,6 @@
 //! The controls a page draws from the core's `ControlState` (`docs/waiting.md`): a switch row, a
-//! button, a picker row and a confirmation. Each is held while it cannot be used and shows a
-//! spinner beside itself while work it started runs, so every page waits the same way.
+//! button, a text row, a picker row and a confirmation. Each is held while it cannot be used and
+//! shows a spinner beside itself while work it started runs, so every page waits the same way.
 
 use adw::prelude::*;
 use mailcal_bindings::ControlState;
@@ -14,6 +14,13 @@ fn spinner(control: ControlState) -> Option<adw::Spinner> {
         spinner.set_valign(gtk::Align::Center);
         spinner
     })
+}
+
+/// An action row titled `title` in plain text: a translated title may hold a bare ampersand.
+fn plain_row(title: &str) -> adw::ActionRow {
+    let row = super::mailbox::plain_text_row();
+    row.set_title(title);
+    row
 }
 
 /// A switch row. `changed` is told when the person moves it from where it was drawn; putting it
@@ -86,6 +93,74 @@ pub(super) fn button_row(
     row
 }
 
+/// Marks a field that sends what was typed itself, so a redraw of the page does not wait on it
+/// once it has.
+const SENDS_ITSELF: &str = "sends-itself";
+/// Marks such a field while it holds text it has not sent.
+const UNSENT: &str = "unsent";
+
+/// Whether `widget` sits in a field that sends what was typed itself, and if so, whether that
+/// field holds text it has not sent yet.
+pub(super) fn unsent(widget: &gtk::Widget) -> Option<bool> {
+    std::iter::successors(Some(widget.clone()), gtk::Widget::parent)
+        .find(|widget| widget.has_css_class(SENDS_ITSELF))
+        .map(|field| field.has_css_class(UNSENT))
+}
+
+/// A row with a text field, which tells `committed` what was typed on Return and when it loses
+/// focus, and only when it differs from what it last told, starting from `text`: never on every
+/// keystroke, which would store a half-typed value and redraw the page under the cursor, and never
+/// twice for one edit, as Return and then the focus leaving would.
+pub(super) fn text_row(
+    title: &str,
+    subtitle: &str,
+    text: &str,
+    control: ControlState,
+    committed: impl Fn(String) + 'static,
+) -> adw::ActionRow {
+    let row = plain_row(title);
+    row.set_subtitle(subtitle);
+    if let Some(spinner) = spinner(control) {
+        row.add_suffix(&spinner);
+    }
+    let entry = gtk::Entry::new();
+    entry.set_placeholder_text(Some(title));
+    entry.set_text(text);
+    entry.set_valign(gtk::Align::Center);
+    entry.set_width_chars(24);
+    entry.set_sensitive(control.enabled);
+    entry.add_css_class(SENDS_ITSELF);
+    let sent = std::rc::Rc::new(std::cell::RefCell::new(text.to_owned()));
+    let unsent_now = sent.clone();
+    entry.connect_changed(move |entry| {
+        if entry.text() == unsent_now.borrow().as_str() {
+            entry.remove_css_class(UNSENT);
+        } else {
+            entry.add_css_class(UNSENT);
+        }
+    });
+    let commit = std::rc::Rc::new(move |entry: &gtk::Entry| {
+        let typed = entry.text().to_string();
+        if typed != *sent.borrow() {
+            sent.replace(typed.clone());
+            entry.remove_css_class(UNSENT);
+            committed(typed);
+        }
+    });
+    let on_activate = commit.clone();
+    entry.connect_activate(move |entry| on_activate(entry));
+    let focus = gtk::EventControllerFocus::new();
+    let left = entry.downgrade();
+    focus.connect_leave(move |_| {
+        if let Some(entry) = left.upgrade() {
+            commit(&entry);
+        }
+    });
+    entry.add_controller(focus);
+    row.add_suffix(&entry);
+    row
+}
+
 /// A row that picks one of `labels`. `picked` is told the position the person picked, and never
 /// the one it was drawn with.
 pub(super) fn picker_row(
@@ -95,10 +170,7 @@ pub(super) fn picker_row(
     control: ControlState,
     picked: impl Fn(u32) + 'static,
 ) -> (adw::ActionRow, gtk::DropDown) {
-    let row = adw::ActionRow::builder()
-        .use_markup(false)
-        .title(title)
-        .build();
+    let row = plain_row(title);
     if let Some(spinner) = spinner(control) {
         row.add_suffix(&spinner);
     }

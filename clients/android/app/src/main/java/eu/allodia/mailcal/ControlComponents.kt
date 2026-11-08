@@ -23,6 +23,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -128,8 +133,51 @@ internal fun ControlTextButton(
 }
 
 /**
- * A dropdown: [labels] listed, [selected] shown. [onPick] is told the position the person picked,
- * and only when it differs from [selected].
+ * A text field under its title, which tells [onCommit] what was typed on Done and when it loses
+ * focus, and only when it differs from what it last told, starting from [text]: never on every
+ * keystroke, which would store a half-typed value and redraw the page under the cursor, and never
+ * twice for one edit, as Done and then the focus leaving would. The focus leaving includes another
+ * change holding the field; the core runs what was typed once that change ends.
+ */
+@Composable
+internal fun ControlTextField(
+    title: String,
+    text: String,
+    control: ControlState,
+    tag: String,
+    onCommit: (String) -> Unit,
+) {
+    // Seeded again whenever the core draws another value, so a field never carries what an older
+    // page said.
+    var draft by remember(text) { mutableStateOf(text) }
+    var sent by remember(text) { mutableStateOf(text) }
+    val commit = {
+        if (draft != sent) {
+            sent = draft
+            onCommit(draft)
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        OutlinedTextField(
+            value = draft,
+            onValueChange = { draft = it },
+            singleLine = true,
+            enabled = control.enabled,
+            label = { Text(title) },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { commit() }),
+            modifier = Modifier
+                .weight(1f)
+                .testTag(tag)
+                .onFocusChanged { focus -> if (!focus.isFocused) commit() },
+        )
+        Running(control, tag)
+    }
+}
+
+/**
+ * A dropdown under its title, and [note] when there is one: [labels] listed, [selected] shown.
+ * [onPick] is told the position the person picked, and only when it differs from [selected].
  */
 @Composable
 internal fun ControlDropdown(
@@ -138,10 +186,14 @@ internal fun ControlDropdown(
     selected: Int,
     control: ControlState,
     tag: String,
+    note: String? = null,
     onPick: (Int) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Text(title, style = MaterialTheme.typography.labelLarge)
+    note?.let {
+        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box {
             TextButton(

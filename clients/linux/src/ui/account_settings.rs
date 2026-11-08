@@ -195,9 +195,15 @@ impl AppModel {
             return;
         };
         if let Some(account) = self.settings.account.clone() {
-            match app.account_page(account) {
-                Some(page) => self.say_account_notice(page.notice),
-                None => self.account_removed(),
+            if app
+                .accounts_snapshot()
+                .accounts
+                .iter()
+                .any(|entry| entry.id == account)
+            {
+                self.say_account_notice(app.account_page_notice(account));
+            } else {
+                self.account_removed();
             }
         }
         self.say_account_notice(app.accounts_notice());
@@ -225,8 +231,7 @@ impl AppModel {
         });
     }
 
-    /// Makes setup's links one after another: the page's own changes run one at a time, and a
-    /// second would be turned away while the first ran.
+    /// Makes the links setup's link step chose, one after another.
     fn link_from_setup(
         &self,
         account: String,

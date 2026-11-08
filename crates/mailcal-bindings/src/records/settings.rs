@@ -11,7 +11,7 @@
 use crate::FolderRole;
 
 /// How an account receives new mail (pulled in [`SyncSettingsSnapshot`]).
-#[derive(uniffi::Enum)]
+#[derive(uniffi::Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SyncStrategyKind {
     /// Receive mail as it arrives via IMAP `IDLE`; offered only when
     /// [`AccountSyncRow::idle_supported`].
@@ -133,7 +133,7 @@ pub struct SwipeSettings {
 /// One folder of an account in the sync-settings screen, with its push-subscription state.
 #[derive(uniffi::Record)]
 pub struct SyncFolderRow {
-    /// The mailbox's provider key (passed back to `set_push_folder`).
+    /// The mailbox's provider key.
     pub key: String,
     /// The folder's **server** name; show your own word for a role-bearing folder, as the
     /// folder pane does (`docs/folder-pane.md`).
@@ -153,8 +153,8 @@ pub struct AccountSyncRow {
     /// The account's email address (display label).
     pub email: String,
     /// The name this account's outgoing mail is sent under; empty when nobody has set one.
-    /// What the card's "your name" field shows; change it with
-    /// `Intent::SetAccountSenderName`.
+    /// What the page's "your name" field shows; the page changes it with
+    /// `AccountPageIntent::SetSenderName`.
     pub sender_name: String,
     /// Whether the card may offer to **change** that name; when `false`, show the name and
     /// leave out the field. `false` only where the provider holds the name and the account
@@ -170,15 +170,16 @@ pub struct AccountSyncRow {
     pub poll_interval_mins: u16,
     /// How far back this account syncs mail, as a month count (`0` = all mail); one of
     /// [`SyncSettingsSnapshot::sync_depths`]. Per-account: an account with no override shows the
-    /// product default here. Set via `MailcalApp::set_account_sync_depth`.
+    /// product default here. The page changes it with `AccountPageIntent::SetSyncDepth`.
     pub sync_depth_months: u16,
     /// The largest message this account downloads in full in the background, as a megabyte
     /// count (`0` = no limit); one of [`SyncSettingsSnapshot::message_size_limits_mb`].
     /// Per-account: an account with no override shows the product default here, which differs
-    /// between a computer and a phone. Set via `MailcalApp::set_account_message_size_limit`.
+    /// between a computer and a phone. The page changes it with
+    /// `AccountPageIntent::SetMessageSizeLimit`.
     pub message_size_limit_mb: u16,
-    /// Whether the max push folders are already subscribed: a client disables further
-    /// (unchecked) folder toggles when `true`.
+    /// Whether the max push folders are already subscribed: the account's page then holds every
+    /// folder not yet watched.
     pub at_push_limit: bool,
     /// Every folder of the account, with its push-subscription state.
     pub folders: Vec<SyncFolderRow>,

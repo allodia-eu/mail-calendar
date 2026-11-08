@@ -151,6 +151,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::widget_tests::a_resized_window_keeps_the_hour_the_reader_was_looking_at();
     crate::ui::calendar::widget_tests::a_scroll_repaints_the_hours_it_reveals();
     crate::ui::calendar::widget_tests::the_day_names_stay_on_screen_when_the_hours_scroll();
+    crate::ui::calendar::labels_widget_tests::
+        a_title_wraps_by_word_and_a_word_wider_than_the_block_is_one_line();
+    crate::ui::calendar::labels_widget_tests::
+        a_label_is_laid_out_once_per_page_however_often_it_is_drawn();
     crate::ui::calendar::widget_tests::
         an_unchanged_page_keeps_its_hit_targets_and_a_new_one_replaces_them();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
@@ -244,8 +248,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         a_meeting_account_row_names_the_service_and_account_and_opens_its_page();
     crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
     crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
-    crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(
-    );
+    crate::ui::settings::sender_name::tests::the_field_is_held_while_a_change_runs();
     crate::ui::setup_widgets::sender_name_tests::
         the_step_opens_seeded_and_continue_asks_for_the_field();
     crate::ui::setup_widgets::sender_name_tests::a_provider_with_no_name_opens_the_step_empty();

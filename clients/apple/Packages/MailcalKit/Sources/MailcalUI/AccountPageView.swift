@@ -1,6 +1,7 @@
 // One account's page in Settings → Accounts, in the order docs/settings.md gives: how it is shared,
-// what it is used for, the accounts it relies on, its shared mailboxes, how it signs in, its own
-// servers and password, its mail settings while it is used for mail, and its removal, last.
+// the name it sends under, what it is used for, the accounts it relies on, its shared mailboxes,
+// how it signs in, its own servers and password, its mail settings while it is used for mail, and
+// its removal, last.
 
 import MailcalBindings
 import SwiftUI
@@ -63,6 +64,9 @@ struct AccountPageView: View {
                         .padding(6)
                 }
             }
+            if let name = page.senderName {
+                SenderNameSection(model: model, accountId: entry.id, name: name)
+            }
             AccountUsesSection(model: model, entry: entry, uses: page.uses, signIn: signIn)
             if !page.links.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: page.links)
@@ -88,8 +92,8 @@ struct AccountPageView: View {
                     expired: model.signInExpired(entry.id), alert: $alert
                 )
             }
-            if let account = model.syncSettings?.accounts.first(where: { $0.accountId == entry.id }) {
-                AccountMailSection(model: model, entry: entry, account: account, alert: $alert)
+            if let mail = page.mail {
+                AccountMailSection(model: model, entry: entry, mail: mail, alert: $alert)
             }
             removeSection
         }
