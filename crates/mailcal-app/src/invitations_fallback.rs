@@ -466,3 +466,6 @@ fn strip_mailto(address: &str) -> &str {
         .or_else(|| address.strip_prefix("MAILTO:"))
         .unwrap_or(address)
 }
+
+#[path = "showcase_questions.rs"]
+mod showcase_questions;

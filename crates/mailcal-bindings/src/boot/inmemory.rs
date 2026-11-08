@@ -235,15 +235,15 @@ pub(crate) fn build_showcase(
     });
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
-        pause_for_a_server_change(&app, &primary_identity);
+        super::showcase_staging::pause_for_a_server_change(&app, &primary_identity);
     }
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
-        ask_for_reconsent(&app, &primary_identity);
+        super::showcase_staging::ask_for_reconsent(&app, &primary_identity);
     }
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_QUESTIONS").is_some_and(|value| !value.is_empty()) {
-        ask_the_questions(
+        super::showcase_staging::ask_the_questions(
             &app,
             &runtime,
             &primary_identity,
@@ -262,62 +262,6 @@ pub(crate) fn build_showcase(
         ),
     ];
     finish_showcase(app, runtime, device_tz, registered)
-}
-
-/// The account `id`'s calendar waiting on a server found on another site, for
-/// `MAILCAL_SHOWCASE_SERVER_CHANGE`, which puts the question in front of the UI suites
-/// (`docs/account-autodetect.md` rule 14). Allowing it is refused, because a showcase account has
-/// no servers to change.
-#[cfg(any(debug_assertions, feature = "dev-harness"))]
-pub(crate) fn pause_for_a_server_change<P>(app: &App<P>, id: &str) {
-    let id = AccountId::try_from(id).expect("valid account id");
-    app.note_server_change(
-        &id,
-        mailcal_app::ServerChange {
-            previous_site: "example.com".to_owned(),
-            proposed_site: "example.net".to_owned(),
-            calendar_url: Some("https://dav.example.net/".to_owned()),
-            contacts_url: None,
-        },
-    );
-}
-
-/// The account `id` asked to sign in again for mail and for its calendar, for
-/// `MAILCAL_SHOWCASE_REAUTH`: the two notices only a narrowed Microsoft grant raises otherwise
-/// (`docs/provider-oauth.md` rule 11), staged for the UI suites and the help screenshots. Signing
-/// in again opens the account's page, as for any account without a browser sign-in.
-#[cfg(any(debug_assertions, feature = "dev-harness"))]
-pub(crate) fn ask_for_reconsent<P: Provider>(app: &App<P>, id: &str) {
-    let id = AccountId::try_from(id).expect("valid account id");
-    app.note_calendar_reauth_required(&id);
-    app.note_mail_reauth_required(&id);
-}
-
-/// `MAILCAL_SHOWCASE_QUESTIONS`: every question the core can ask as a notice (`docs/notices.md`
-/// rule 8), staged for the UI suites and the help screenshots. The calendar is moved to a zone
-/// other than the device's, so the device's own report at launch keeps the time zone question
-/// standing rather than settling it.
-#[cfg(any(debug_assertions, feature = "dev-harness"))]
-pub(crate) fn ask_the_questions<P: Provider>(
-    app: &App<P>,
-    runtime: &FfiRuntime,
-    id: &str,
-    address: &str,
-    device: &TimeZoneId,
-) {
-    let id = AccountId::try_from(id).expect("valid account id");
-    app.stage_showcase_questions(&id, address);
-    let elsewhere = if device.as_str() == "Asia/Tokyo" {
-        "Europe/Lisbon"
-    } else {
-        "Asia/Tokyo"
-    };
-    runtime.block_on(|| async {
-        app.dispatch(AppIntent::SetTimeZone(elsewhere.to_owned()))
-            .await;
-        app.dispatch(AppIntent::ReportDeviceTimeZone(device.as_str().to_owned()))
-            .await;
-    });
 }
 
 /// The registry entry that lists the showcase account `id` in Settings → Accounts, used for
