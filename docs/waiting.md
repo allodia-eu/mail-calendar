@@ -117,6 +117,10 @@ record, not a state the client keeps.
   [`AccountPageWordsTests.swift`](../clients/apple/Packages/MailcalKit/Tests/MailcalKitTests/AccountPageWordsTests.swift);
   Windows redraws the page whenever a change starts or ends
   ([`AccountSettingsRulesTests.cs`](../clients/windows/Mailcal.Tests/AccountSettingsRulesTests.cs)),
-  and its UI suite
-  ([`SettingsAccountsTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SettingsAccountsTests.cs))
-  drives the switches, the suggested link and the removal against the running app.
+  and its UI suites drive the switches, the suggested link and the removal
+  ([`SettingsAccountsTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SettingsAccountsTests.cs)),
+  the name sent once with a pick made meanwhile landing too
+  ([`SenderNameTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SenderNameTests.cs)), and a
+  redraw waiting on a field until it has sent
+  ([`SettingsTypingTests.cs`](../clients/windows/Mailcal.UiTests/Suites/SettingsTypingTests.cs))
+  against the running app.

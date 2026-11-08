@@ -9,6 +9,7 @@
 // again from the next snapshot and page record; a core signal that changed nothing the page shows
 // leaves it, and whatever is being typed on it, alone.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -22,8 +23,8 @@ public sealed partial class SettingsDialog
 {
     // The account whose page is open; null for the list.
     private string? _accountPage;
-    // The picker whose list was open when the page was due to be drawn again.
-    private ComboBox? _redrawWhenClosed;
+    // The open picker or the field holding unsent text that the page's next redraw waits on.
+    private Control? _redrawWaitsOn;
 
     // What the list or the page last said, kept across the redraw a change ends with.
     private AccountNotice? _accountNotice;
@@ -331,10 +332,17 @@ public sealed partial class SettingsDialog
         if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {
             // Drawn again now, a picker whose list is open would close under the pointer and the
-            // pick would be lost; it is drawn once the list closes, the pick queued in the core.
+            // pick would be lost, and a field holding what is still being typed would send it half
+            // finished as it goes. The page is drawn once the list closes or the field is left,
+            // which sends what it holds; either change is queued in the core behind this one.
             if (OpenPicker() is { } open)
             {
                 WhenClosed(open);
+                return;
+            }
+            if (UnsentField() is { } field)
+            {
+                WhenLeft(field);
                 return;
             }
             ShowCategory("accounts");
@@ -363,22 +371,48 @@ public sealed partial class SettingsDialog
         return null;
     }
 
+    /// <summary>The text field with the keyboard, if it holds text it has not sent.</summary>
+    private TextBox? UnsentField() =>
+        XamlRoot is { } root
+        && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) is TextBox box
+        && ControlComponents.HoldsUnsentText(box)
+            ? box
+            : null;
+
     /// <summary>Asks for the page again once <paramref name="picker"/>'s list closes, once
     /// however many signals arrive while it is open.</summary>
     private void WhenClosed(ComboBox picker)
     {
-        if (ReferenceEquals(_redrawWhenClosed, picker))
+        if (ReferenceEquals(_redrawWaitsOn, picker))
         {
             return;
         }
-        _redrawWhenClosed = picker;
+        _redrawWaitsOn = picker;
         void Closed(object? sender, object args)
         {
             picker.DropDownClosed -= Closed;
-            _redrawWhenClosed = null;
+            _redrawWaitsOn = null;
             OnAccountsChanged();
         }
         picker.DropDownClosed += Closed;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="field"/> loses the keyboard, after it
+    /// has sent what it holds, once however many signals arrive meanwhile.</summary>
+    private void WhenLeft(TextBox field)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, field))
+        {
+            return;
+        }
+        _redrawWaitsOn = field;
+        void Left(object sender, RoutedEventArgs args)
+        {
+            field.LostFocus -= Left;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        field.LostFocus += Left;
     }
 
     /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, how

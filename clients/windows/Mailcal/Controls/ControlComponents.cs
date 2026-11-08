@@ -73,13 +73,14 @@ internal static class ControlComponents
         };
         AutomationProperties.SetName(box, name);
         AutomationProperties.SetAutomationId(box, automationId);
-        var sent = text;
+        var sent = new SentText { Text = text };
+        box.Tag = sent;
         void Send()
         {
-            if (box.Text != sent)
+            if (box.Text != sent.Text)
             {
-                sent = box.Text;
-                commit(sent);
+                sent.Text = box.Text;
+                commit(sent.Text);
             }
         }
         box.LostFocus += (_, _) => Send();
@@ -95,6 +96,17 @@ internal static class ControlComponents
             }
         };
         return Beside(box, control, automationId);
+    }
+
+    /// <summary>Whether <paramref name="box"/>, a text box drawn here, holds text it has not sent,
+    /// which a redraw of its page would take away.</summary>
+    internal static bool HoldsUnsentText(Microsoft.UI.Xaml.Controls.TextBox box) =>
+        box.Tag is SentText sent && box.Text != sent.Text;
+
+    /// <summary>What a text box last told its page, kept on the box so the page can ask.</summary>
+    private sealed class SentText
+    {
+        internal required string Text { get; set; }
     }
 
     /// <summary>
