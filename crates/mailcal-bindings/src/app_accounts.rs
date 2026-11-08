@@ -257,7 +257,6 @@ impl MailcalApp {
             }
         };
         let account = outcome.account;
-        let calendar_error = outcome.calendar_error;
         // Write the credential. For anything with a grant the bytes come from the **registry**, not
         // from `config_toml`: a rotation during the dial has already advanced the registered
         // config, and the caller's string still carries the token it replaced. A password IMAP
@@ -287,12 +286,6 @@ impl MailcalApp {
         self.app
             .track(mailcal_app::Event::SetupCompleted { protocol });
         self.refresh_analytics_accounts();
-        if let Some(error) = calendar_error {
-            self.calendar_connect_errors
-                .lock()
-                .expect("calendar-errors mutex poisoned")
-                .push(error);
-        }
         connection_log::log_account_connection_info("new-account", account_type, &account);
         // Register the connected account WITHOUT syncing (`add_new_account_deferred`) so it appears
         // in the switcher and the setup modal can dismiss at once, with the product default

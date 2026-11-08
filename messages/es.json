@@ -41,8 +41,6 @@
 	"folder_delete_message": "Sus subcarpetas y mensajes también se moverán a la papelera.",
 	"folder_delete_permanent_title": "¿Eliminar «{name}» definitivamente?",
 	"folder_delete_permanent_message": "La carpeta, sus subcarpetas y sus mensajes se eliminarán definitivamente. Esta acción no se puede deshacer.",
-	"folder_notice_changed": "«{name}» se modificó en otro lugar antes de que tu cambio llegara al servidor, así que no se aplicó.",
-	"folder_notice_refused": "El servidor no aceptó tu cambio en «{name}».",
 	"folder_pending": "Pendiente de sincronizar",
 	"mailbox_new_mail": "Correo nuevo",
 

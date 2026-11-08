@@ -21,9 +21,6 @@ pub enum Surface {
     /// Background mail-download progress; drives a "downloading Y of X" bar (pulled via
     /// `MailcalApp::sync_progress`).
     SyncProgress,
-    /// Connectivity: the device-offline flag and per-account outage list (pulled via
-    /// `MailcalApp::connectivity`); drives the offline banner and per-account warning badges.
-    Connectivity,
     /// Calendar write status: the outcome of the most recent create/edit/delete (pulled via
     /// `MailcalApp::calendar_write_status`); drives a small in-calendar spinner and warning.
     CalendarStatus,
@@ -49,8 +46,9 @@ pub enum Surface {
     /// Draft save status: how the most recent save of the message being composed ended
     /// (pulled via `MailcalApp::draft_status`); drives the composer's quiet "saved" hint.
     DraftStatus,
-    /// The notices (pulled via `MailcalApp::notices`; `docs/notices.md`). Signalled with every
-    /// `Connectivity` signal, and whenever a notice is raised, closed or marked otherwise.
+    /// The notices (pulled via `MailcalApp::notices`; `docs/notices.md`). Signalled whenever
+    /// what the app can reach changes, and whenever a notice is raised, closed or marked
+    /// otherwise.
     Notices,
 }
 

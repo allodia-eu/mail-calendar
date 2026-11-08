@@ -6,9 +6,13 @@ import MailcalBindings
 
 extension MailboxModel {
     func reload(_ surface: Surface) {
-        // Notices touch nothing else, and returning keeps the signal from the mailbox reload below.
+        // Notices touch nothing else but Settings → Accounts, which says when a provider refused a
+        // use, a sign-in expired, or a calendar or address book did not connect; the accounts
+        // snapshot is published only when it changed. Returning keeps the signal from the
+        // mailbox reload below.
         if case .notices = surface {
             reloadNotices()
+            refreshAccountsSnapshot()
             return
         }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
@@ -30,16 +34,6 @@ extension MailboxModel {
         // their own MailboxList signal, so it doesn't touch the projection.
         if case .syncProgress = surface {
             syncProgress = app?.syncProgress()
-            return
-        }
-        // A connectivity signal only updates the offline banner + per-account outage badges, and
-        // Settings → Accounts, which says when a provider refused a use, a sign-in expired, or a
-        // calendar or address book did not connect. The last is not in the connectivity
-        // snapshot, so the accounts snapshot is pulled on every such signal; it is published
-        // only when it changed.
-        if case .connectivity = surface {
-            connectivity = app?.connectivity()
-            refreshAccountsSnapshot()
             return
         }
         // A calendar-write-status signal only moves the small header badge (spinner → check /

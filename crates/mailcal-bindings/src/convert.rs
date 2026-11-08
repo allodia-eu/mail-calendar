@@ -41,7 +41,8 @@ impl From<AppSurface> for Surface {
             AppSurface::Reading => Self::Reading,
             AppSurface::Sending => Self::Sending,
             AppSurface::SyncProgress => Self::SyncProgress,
-            AppSurface::Connectivity => Self::Connectivity,
+            // Every connectivity fact reaches a host as a notice.
+            AppSurface::Connectivity | AppSurface::Notices => Self::Notices,
             AppSurface::CalendarStatus => Self::CalendarStatus,
             AppSurface::ComposeRequest => Self::ComposeRequest,
             AppSurface::DraftStatus => Self::DraftStatus,
@@ -49,7 +50,6 @@ impl From<AppSurface> for Surface {
             AppSurface::ContactsStatus => Self::ContactsStatus,
             AppSurface::InvitationReply => Self::InvitationReply,
             AppSurface::UnfiledCopy => Self::UnfiledCopy,
-            AppSurface::Notices => Self::Notices,
         }
     }
 }

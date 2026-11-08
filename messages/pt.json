@@ -41,8 +41,6 @@
 	"folder_delete_message": "As subpastas e as mensagens também são movidas para o lixo.",
 	"folder_delete_permanent_title": "Eliminar «{name}» definitivamente?",
 	"folder_delete_permanent_message": "A pasta, as subpastas e as respetivas mensagens serão eliminadas definitivamente. Esta ação não pode ser anulada.",
-	"folder_notice_changed": "«{name}» foi alterada noutro local antes de a sua alteração chegar ao servidor, por isso não foi aplicada.",
-	"folder_notice_refused": "O servidor não aceitou a sua alteração a «{name}».",
 	"folder_pending": "A aguardar sincronização",
 	"mailbox_new_mail": "Correio novo",
 

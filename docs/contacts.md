@@ -190,8 +190,7 @@ that did not happen is the outcome it costs most to lose.
 
 An address book the account is used for can fail while the account connects
 ([`accounts.md`](accounts.md) rule 16). Its cards stay listed, and the contacts screen says what
-they are: one notice per account ([`notices.md`](notices.md)), raised from
-`ConnectivitySnapshot.contacts_outages`, "The address book for {address} isn't connected." with the
+they are: one notice per account ([`notices.md`](notices.md)), `ContactsOutage`, "The address book for {address} isn't connected." with the
 reason the account's page gives and "You're seeing what was last synced" beneath it, and the same
 action a calendar's has ([`calendar.md`](calendar.md) §4). Its
 cards offer no edit and its books are not offered for a new contact (above), so nothing on screen

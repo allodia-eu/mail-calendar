@@ -41,8 +41,6 @@
 	"folder_delete_message": "De submappen en berichten gaan ook naar de prullenbak.",
 	"folder_delete_permanent_title": "“{name}” definitief verwijderen?",
 	"folder_delete_permanent_message": "De map, de submappen en de berichten worden definitief verwijderd. Dit kan niet ongedaan worden gemaakt.",
-	"folder_notice_changed": "“{name}” is elders gewijzigd voordat je wijziging de server bereikte, dus je wijziging is niet doorgevoerd.",
-	"folder_notice_refused": "De server heeft je wijziging aan “{name}” niet geaccepteerd.",
 	"folder_pending": "Wacht op synchronisatie",
 	"mailbox_new_mail": "Nieuwe e-mail",
 

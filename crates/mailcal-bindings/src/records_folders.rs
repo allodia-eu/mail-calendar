@@ -123,18 +123,18 @@ pub enum FolderNameCheck {
     Taken,
 }
 
-/// A folder change the server refused. Show it beside the pane until the user dismisses it
-/// (`FolderIntent::DismissNotice`); a later change replaces it.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
-pub struct FolderNotice {
+/// A folder change the server refused, held until dismissed; it reaches a host as the
+/// `FolderChangeRefused` notice. A later change replaces it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct FolderNotice {
     /// The account whose folder it was.
-    pub account: String,
+    pub(crate) account: String,
     /// The folder's name as the user last saw it; the name asked for, for a new folder.
-    pub folder: String,
+    pub(crate) folder: String,
     /// What the user asked for.
-    pub action: FolderAction,
+    pub(crate) action: FolderAction,
     /// Why it did not happen.
-    pub problem: FolderProblem,
+    pub(crate) problem: FolderProblem,
 }
 
 /// A change to the folder tree, as the user thinks of it.
