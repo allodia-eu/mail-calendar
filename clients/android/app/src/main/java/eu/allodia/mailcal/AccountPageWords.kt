@@ -89,6 +89,14 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
         L10n.settings_account_servers_failed(ctx),
         refusalSaid(ctx, notice.refusal),
     )
+    is AccountChangeNotice.SharedMailboxFailed -> AccountNotice(
+        NoticeKind.FAILURE,
+        L10n.settings_account_change_failed_title(ctx),
+        refusalSaid(ctx, notice.refusal),
+    )
+    // Not a failure of the app: the address is the person's to check.
+    is AccountChangeNotice.SharedMailboxNotFound ->
+        AccountNotice(NoticeKind.WARNING, "", L10n.settings_account_shared_not_found(ctx))
 }
 
 /**
@@ -103,5 +111,6 @@ internal fun refusalSaid(ctx: Context, refusal: AccountChangeRefusal): String = 
     is AccountChangeRefusal.UseNotConnected -> useNotConnectedSaid(refusal.capability, refusal.problem, ctx)
     is AccountChangeRefusal.Blocked -> blockSaid(ctx, refusal.block)
     AccountChangeRefusal.Withheld -> L10n.settings_account_use_withheld(ctx)
+    AccountChangeRefusal.NoLongerShared -> L10n.settings_account_shared_withdrawn(ctx)
     is AccountChangeRefusal.Other -> refusal.detail
 }

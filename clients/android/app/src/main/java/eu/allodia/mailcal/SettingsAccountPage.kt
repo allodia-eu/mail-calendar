@@ -101,7 +101,7 @@ internal fun AccountPage(
         Spacer(modifier = Modifier.height(8.dp))
         ReplyFallbackGroup(entry, picker, ui)
     }
-    SharedMailboxesGroup(entry, ui)
+    page.shared?.let { SharedMailboxesGroup(entry, it, ui) }
     val expired = entry.id in ui.expired
     if (AccountSettingsRules.signsInAtProvider(entry.kind)) {
         Spacer(modifier = Modifier.height(8.dp))

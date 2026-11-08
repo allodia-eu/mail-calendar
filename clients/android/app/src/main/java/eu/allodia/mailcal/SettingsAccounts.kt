@@ -43,7 +43,6 @@ import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.Notice
-import uniffi.mailcal_bindings.SharedMailboxEntry
 import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
@@ -87,11 +86,6 @@ internal class AccountsSettingsUi(
     // A calendar or address book whose server was found on another site: the question that
     // allows it (docs/account-autodetect.md rule 14).
     val onReviewServerChange: (accountId: String) -> Unit = {},
-    // The mailboxes the account's sign-in opens besides its own (docs/shared-mailboxes.md): which,
-    // asked as its page opens; switching one on or off; and one added by its address.
-    val onAskSharedMailboxes: (accountId: String) -> Unit = {},
-    val onSetSharedMailbox: (accountId: String, SharedMailboxEntry, on: Boolean) -> Unit = { _, _, _ -> },
-    val onAddSharedMailbox: (accountId: String, address: String) -> Unit = { _, _ -> },
     val onDismissNotice: () -> Unit = { state.notice = null },
 )
 

@@ -45,6 +45,11 @@ pub(crate) enum PageWork {
         on: bool,
     },
     Servers(Box<crate::AccountEndpoints>),
+    Shared {
+        handle: String,
+        on: bool,
+    },
+    AddShared(String),
 }
 
 impl PageWork {
@@ -75,6 +80,11 @@ impl PageWork {
             AccountPageIntent::SaveServers { endpoints, .. } => {
                 Self::Servers(Box::new(endpoints.clone()))
             }
+            AccountPageIntent::SetSharedMailbox { handle, on, .. } => Self::Shared {
+                handle: handle.clone(),
+                on: *on,
+            },
+            AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
         }
     }
 }
@@ -124,6 +134,8 @@ pub(crate) struct AccountWork {
     list_notice: Mutex<Option<AccountChangeNoticeRaised>>,
     /// The edit of each account's servers its last save refused, which its form is drawn with.
     refused_servers: Mutex<HashMap<String, crate::AccountEndpoints>>,
+    /// What each account's server last said of the mailboxes its sign-in opens.
+    pub(crate) shared: crate::account_page::shared::SharedAnswers,
     raised: AtomicU64,
 }
 
@@ -201,6 +213,7 @@ impl AccountWork {
             .expect("account notice mutex poisoned")
             .remove(account);
         self.servers_saved(account, None);
+        self.shared.forget(account);
     }
 
     /// What `account`'s last save of its servers came to: `refused` is the edit it did not keep,

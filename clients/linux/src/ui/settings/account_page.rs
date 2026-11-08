@@ -50,8 +50,8 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     if let Some(picker) = account.reply_fallback {
         content.append(&super::account_reply_fallback::group(ctx, entry, picker));
     }
-    if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
-        content.append(&shared);
+    if let Some(shared) = &account.shared {
+        content.append(&super::shared_mailboxes::section(ctx, entry, shared));
     }
     if account_rows::signs_in_at_provider(entry.kind) {
         content.append(&signin_group(ctx, entry));

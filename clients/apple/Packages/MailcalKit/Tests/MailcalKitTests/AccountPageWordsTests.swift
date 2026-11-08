@@ -67,6 +67,18 @@ private func toggle(
         #expect(servers.detail == L10n.signin_refused())
     }
 
+    @Test func theSharedMailboxesSayWhatTheServerAnsweredInWords() {
+        #expect(AccountSettingsLabels.sharedNote(.noneShared) == L10n.settings_account_shared_none())
+        #expect(
+            AccountSettingsLabels.sharedNote(.unreachable)
+                == L10n.settings_account_shared_unreachable())
+        let missed = AccountSettingsLabels.changeFailed(
+            .sharedMailboxNotFound(address: "typo@example.org"))
+        #expect(missed.title == L10n.settings_account_shared_not_found())
+        let gone = AccountSettingsLabels.changeFailed(.sharedMailboxFailed(refusal: .noLongerShared))
+        #expect(gone.detail == L10n.settings_account_shared_withdrawn())
+    }
+
     @Test func whatTheServersLeaveOutNamesTheField() {
         #expect(
             AccountSettingsLabels.endpointsGap(.smtp)

@@ -61,8 +61,6 @@ pub(crate) enum AccountsInput {
     },
     /// Allowing it failed, asked from outside Settings: the account's page says so.
     ServerChangeFailed(String),
-    /// The shared mailboxes on an account's page (`super::account_shared`).
-    Shared(super::account_shared::SharedInput),
 }
 
 /// A change the account's page could not make, and why.
@@ -111,7 +109,10 @@ impl AppModel {
                 }
                 if let Some(account) = &account {
                     self.ask_sign_in_options(account, sender.clone());
-                    self.ask_shared_mailboxes(account, sender);
+                    // Its server is asked again which mailboxes the account's sign-in opens.
+                    if let Some(app) = &self.app {
+                        app.account_page_opened(account.clone());
+                    }
                 }
                 self.settings.account = account;
                 self.settings.refresh_in_place();
@@ -150,7 +151,6 @@ impl AppModel {
                 self.settings
                     .open_on_account(account, super::server_change::failed());
             }
-            AccountsInput::Shared(input) => self.shared_input(input, sender),
         }
     }
 

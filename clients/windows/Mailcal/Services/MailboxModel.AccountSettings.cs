@@ -140,6 +140,11 @@ public sealed partial class MailboxModel
         }
     }
 
+    /// <summary>An account's page opened: its server is asked again, on the core's own thread,
+    /// which mailboxes its sign-in opens besides its own, and the page is signalled once it
+    /// answers.</summary>
+    internal void AccountPageOpened(string accountId) => _app?.AccountPageOpened(accountId);
+
     /// <summary>What <paramref name="endpoints"/> leaves out of an account's servers, as its save
     /// would refuse it. Reads only what is stored, so the page asks it as the person types.</summary>
     internal AccountEndpointsGap? EndpointsGap(string accountId, AccountEndpoints endpoints) =>

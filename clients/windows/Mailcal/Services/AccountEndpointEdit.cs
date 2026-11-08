@@ -1,7 +1,7 @@
 // An account's servers and sign-in as Settings edits them (docs/accounts.md rule 14): what the
 // fields show for a stored address, and what is sent back. WinUI-free so the rules are reachable
-// from Mailcal.Tests; saving tries the servers first (update_account_endpoints), so a typo never
-// costs a working account.
+// from Mailcal.Tests; the core tries the servers before it keeps them, so a typo never costs a
+// working account.
 
 using uniffi.mailcal_bindings;
 

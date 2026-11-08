@@ -29,7 +29,7 @@ impl AppModel {
             }
             AppInput::SurfaceChanged(surface) => {
                 let collect_new_mail = matches!(surface, Surface::MailboxList);
-                self.pull(&surface, sender.input_sender());
+                self.pull(&surface);
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
                     // After the pull, so the rows this snapshot brought are the ones searched.

@@ -180,7 +180,10 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(ReplyFallbackGroup(entry, replies));
         }
-        panel.Children.Add(SharedMailboxesSlot(entry));
+        if (page.Shared is { } shared)
+        {
+            panel.Children.Add(SharedGroup(entry, shared));
+        }
         var expired = _model.SignInExpiredIds.Contains(entry.Id);
         if (AccountSettingsRules.SignsInAtProvider(entry.Kind))
         {
@@ -230,7 +233,10 @@ public sealed partial class SettingsDialog
         // A page opened again asks its server again: what it takes, and which mailboxes it shares
         // with the account, can have changed meanwhile.
         _signInOptions.Clear();
-        _sharedAnswers.Clear();
+        if (accountId is not null)
+        {
+            _model.AccountPageOpened(accountId);
+        }
         ShowCategory("accounts");
     }
 
@@ -289,6 +295,10 @@ public sealed partial class SettingsDialog
         AccountChangeNotice.RemoveFailed removal => RemovalFailed(L10n.RemoveAccountFailed(removal.Detail)),
         AccountChangeNotice.ServersFailed servers => new(
             InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), AccountUseText.Refused(servers.Refusal)),
+        AccountChangeNotice.SharedMailboxFailed shared => ChangeFailed(AccountUseText.Refused(shared.Refusal)),
+        // Not a failure of the app: the address is the person's to check.
+        AccountChangeNotice.SharedMailboxNotFound => new(
+            InfoBarSeverity.Warning, L10n.SettingsAccountSharedNotFound(), string.Empty),
         _ => ChangeFailed(L10n.ErrorUnknown()),
     };
 
@@ -326,7 +336,6 @@ public sealed partial class SettingsDialog
             return;
         }
         var snapshot = _model.AccountsSnapshot();
-        AskSharedAgain(snapshot);
         var any = snapshot.Accounts.Length > 0;
         if (!any && _hadAccounts)
         {

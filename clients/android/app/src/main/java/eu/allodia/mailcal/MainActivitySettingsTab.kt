@@ -193,6 +193,8 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onOpenPage = { id ->
         accountSettings.notice = null
         accountSettings.page = id
+        // Its server is asked again which mailboxes the account's sign-in opens.
+        id?.let { app?.accountPageOpened(it) }
         refreshAccountPage()
     },
     onChange = { intent -> changeAccount(intent) },
@@ -207,7 +209,4 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onSeparateFormShown = { askSeparateSignIn(accountSettings.separate) },
     onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },
     onReviewServerChange = { id -> reviewServerChange(id) },
-    onAskSharedMailboxes = { id -> askSharedMailboxes(id) },
-    onSetSharedMailbox = { id, mailbox, on -> setSharedMailbox(id, mailbox, on) },
-    onAddSharedMailbox = { id, address -> addSharedMailbox(id, address) },
 )

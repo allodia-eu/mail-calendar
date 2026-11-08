@@ -170,6 +170,21 @@ enum AccountSettingsLabels {
         case let .serversFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_servers_failed(), detail: refused(refusal))
+        case let .sharedMailboxFailed(refusal):
+            AccountPageAlert(
+                title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
+        case .sharedMailboxNotFound:
+            AccountPageAlert(title: L10n.settings_account_shared_not_found(), detail: "")
+        }
+    }
+
+    /// The line under an account's shared mailboxes.
+    static func sharedNote(_ note: SharedMailboxesNote) -> String {
+        switch note {
+        case .noneShared: L10n.settings_account_shared_none()
+        case .byAddress: L10n.settings_account_shared_by_address()
+        case .notConnected: L10n.settings_account_shared_not_connected()
+        case .unreachable: L10n.settings_account_shared_unreachable()
         }
     }
 
@@ -185,6 +200,7 @@ enum AccountSettingsLabels {
             useNotConnectedMessage(capability, problem)
         case let .blocked(block): blockNote(block)
         case .withheld: L10n.settings_account_use_withheld()
+        case .noLongerShared: L10n.settings_account_shared_withdrawn()
         case let .other(detail): detail
         }
     }
