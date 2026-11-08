@@ -27,7 +27,8 @@ before the work does.
 4. **Nothing that can reach the network or the host's store is called from a UI thread.** Work a
    press starts is dispatched and returns at once.
 5. **What a change came to is the core's to decide and the client's to word.** A change that
-   worked says nothing: the page shows its result. One that did not leaves a notice, raised once.
+   worked says nothing: the page shows its result. One that did not leaves a notice, raised once,
+   which stands until it is closed or the page's next change starts.
 6. **What a control will need is said before it is pressed, by the decision that would refuse
    it.** A switch that would go to the provider's sign-in, or that cannot work until a server is
    given, says so on the page rather than failing when pressed, and what the page predicts is

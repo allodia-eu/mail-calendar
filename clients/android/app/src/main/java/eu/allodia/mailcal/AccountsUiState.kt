@@ -57,6 +57,9 @@ internal class AccountsUiState {
     /** The last of the core's change notices said, so each is said once. */
     var coreNotice: ULong = 0u
 
+    /** The notice a change on the page left, which the core withdraws when the next one starts. */
+    var changeNotice: AccountNotice? = null
+
     /** The account whose pasted secret is being tried. */
     var replacingSecret by mutableStateOf<String?>(null)
 
