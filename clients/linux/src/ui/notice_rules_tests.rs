@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 
 use mailcal_bindings::{
-    AccountProvider, Notice, NoticeAction, NoticeIntent, NoticeKind, NoticeScreens, NoticeSeverity,
-    NoticeText, UseProblem,
+    AccountProvider, Intent, InvitationResponse, Notice, NoticeAction, NoticeIntent, NoticeKind,
+    NoticeScreens, NoticeSeverity, NoticeText, UseProblem,
 };
 
 use super::{
-    Announcements, SignInFlow, about, belongs, beneath, core_remedy, glyph, marks, more, offers,
-    prominent, screen_of, sign_in_flow, words,
+    Announcements, SignInFlow, about, allodia_sign_in_ended, answer, asks, belongs, beneath,
+    core_remedy, glyph, marks, more, offers, prominent, screen_of, sign_in_expired, sign_in_flow,
+    words,
 };
 use crate::{
     l10n,
@@ -43,6 +44,9 @@ fn notice(
         action_label: Some(text("notice_action_retry", None)),
         dismissible: false,
         remedy_failed: false,
+        second_action: None,
+        second_action_label: None,
+        running: false,
     }
 }
 
@@ -188,6 +192,49 @@ fn the_account_page_lists_its_own_notices_in_order() {
 }
 
 #[test]
+fn an_expired_sign_in_is_the_accounts_own_notice() {
+    let of = |id: &str, kind: NoticeKind, account: &str| Notice {
+        kind,
+        ..notice(
+            id,
+            NoticeScreens::Everywhere,
+            NoticeSeverity::Blocked,
+            Some(account),
+        )
+    };
+    let notices = [
+        of("a-expired", NoticeKind::SignInExpired, "a"),
+        of("b-mail", NoticeKind::MailReauth, "b"),
+    ];
+
+    assert!(sign_in_expired(&notices, "a"));
+    assert!(
+        !sign_in_expired(&notices, "b"),
+        "a narrower grant is not a dead sign-in"
+    );
+    assert!(!sign_in_expired(&notices, "c"));
+}
+
+#[test]
+fn the_allodia_card_follows_its_notice() {
+    let offline = notice(
+        "offline",
+        NoticeScreens::Everywhere,
+        NoticeSeverity::Degraded,
+        None,
+    );
+    let ended = Notice {
+        kind: NoticeKind::AllodiaSignInEnded {
+            address: "anna@example.org".to_owned(),
+        },
+        ..offline.clone()
+    };
+
+    assert!(allodia_sign_in_ended(&[offline.clone(), ended]));
+    assert!(!allodia_sign_in_ended(&[offline]));
+}
+
+#[test]
 fn a_failed_remedy_is_said_beneath_in_place_of_the_detail() {
     let mut outage = notice(
         "o",
@@ -268,7 +315,7 @@ fn only_a_retry_is_run_by_the_core() {
     );
     assert!(offers(&retry));
     assert_eq!(
-        core_remedy(&retry),
+        core_remedy(&retry, NoticeAction::Retry),
         Some(NoticeIntent::Retry { id: "r".to_owned() })
     );
     for action in [
@@ -279,7 +326,7 @@ fn only_a_retry_is_run_by_the_core() {
     ] {
         retry.action = Some(action);
         assert_eq!(
-            core_remedy(&retry),
+            core_remedy(&retry, action),
             None,
             "{action:?} is a flow this client runs"
         );
@@ -329,4 +376,121 @@ fn signing_in_again_runs_the_flow_the_account_signs_in_by() {
         Settings
     );
     assert_eq!(sign_in_flow(&expired, None, false), Settings);
+}
+
+/// A question's notice: `kind` with its two answers.
+fn question(kind: NoticeKind, action: NoticeAction, second: NoticeAction) -> Notice {
+    Notice {
+        kind,
+        action: Some(action),
+        action_label: Some(text("notice_action_send_reply", None)),
+        second_action: Some(second),
+        second_action_label: Some(text("notice_action_dont_send_reply", None)),
+        ..notice(
+            "q",
+            NoticeScreens::Everywhere,
+            NoticeSeverity::Informational,
+            Some("a"),
+        )
+    }
+}
+
+fn reply() -> Notice {
+    question(
+        NoticeKind::ReplyNotDelivered {
+            summary: "Sprint planning".to_owned(),
+            organizer: "bob@example.org".to_owned(),
+            response: InvitationResponse::Decline,
+        },
+        NoticeAction::SendReply,
+        NoticeAction::DontSendReply,
+    )
+}
+
+#[test]
+fn a_question_carries_its_other_answer_beside_its_action() {
+    let reply = reply();
+    assert!(asks(&reply));
+    let plain = notice(
+        "p",
+        NoticeScreens::Mail,
+        NoticeSeverity::Degraded,
+        Some("a"),
+    );
+    assert!(!asks(&plain), "one action is no question");
+    let unlabelled = Notice {
+        second_action_label: None,
+        ..reply
+    };
+    assert!(!asks(&unlabelled), "a button needs its words");
+}
+
+#[test]
+fn each_answer_sends_the_intent_its_question_stands_for() {
+    let reply = reply();
+    let Some(Intent::AnswerReplyPrompt {
+        send: true,
+        remember: false,
+        reply_subject,
+    }) = answer(&reply, NoticeAction::SendReply)
+    else {
+        panic!("Send the email sends the reply, never remembered");
+    };
+    assert_eq!(
+        reply_subject,
+        Some(l10n::invitation_reply_subject_declined("Sprint planning")),
+        "the reply's subject is composed as the invitation's own answer composes it"
+    );
+    assert!(matches!(
+        answer(&reply, NoticeAction::DontSendReply),
+        Some(Intent::AnswerReplyPrompt {
+            send: false,
+            remember: false,
+            reply_subject: None
+        })
+    ));
+
+    let copy = question(
+        NoticeKind::SentNotFiled {
+            subject: "Quarterly figures".to_owned(),
+        },
+        NoticeAction::FileSentCopy,
+        NoticeAction::LeaveSentCopy,
+    );
+    assert!(matches!(
+        answer(&copy, NoticeAction::FileSentCopy),
+        Some(Intent::RetryUnfiledCopy)
+    ));
+    assert!(matches!(
+        answer(&copy, NoticeAction::LeaveSentCopy),
+        Some(Intent::DismissUnfiledCopy)
+    ));
+
+    let zone = question(
+        NoticeKind::TimeZoneChanged {
+            zone: "Pacific/Auckland".to_owned(),
+        },
+        NoticeAction::UseDeviceTimeZone,
+        NoticeAction::KeepTimeZone,
+    );
+    assert!(matches!(
+        answer(&zone, NoticeAction::UseDeviceTimeZone),
+        Some(Intent::AcceptTimeZoneChange)
+    ));
+    assert!(matches!(
+        answer(&zone, NoticeAction::KeepTimeZone),
+        Some(Intent::DismissTimeZoneChange)
+    ));
+
+    for action in [
+        NoticeAction::Retry,
+        NoticeAction::SignInAgain,
+        NoticeAction::OpenAccountSettings,
+        NoticeAction::Review,
+    ] {
+        assert!(
+            answer(&zone, action).is_none(),
+            "{action:?} answers no question"
+        );
+    }
 }

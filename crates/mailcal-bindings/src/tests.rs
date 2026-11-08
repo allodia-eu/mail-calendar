@@ -108,15 +108,13 @@ pub(super) fn wait_until(timeout: Duration, mut pred: impl FnMut() -> bool) -> b
 }
 
 #[test]
-fn launch_diagnostics_keep_disconnected_accounts_and_split_from_caldav_failures() {
-    // Four launch outcomes over the shared classifier: a disconnected account (mail connect
+fn launch_diagnostics_keep_disconnected_accounts() {
+    // Three launch outcomes over the shared classifier: a disconnected account (mail connect
     // failed → kept as a placeholder so it still lists, badged unreachable), an account whose
-    // credential the server *refused* (kept the same way, but prompted rather than badged), an
-    // account that came up but whose CalDAV failed, and a clean connect. The account stand-in is a
-    // `&str` (the classification is provider-agnostic).
+    // credential the server *refused* (kept the same way, but prompted rather than badged), and a
+    // clean connect. The account stand-in is a `&str` (the classification is provider-agnostic).
     let mut accounts: Vec<&str> = Vec::new();
     let mut account_errors = Vec::new();
-    let mut calendar_errors = Vec::new();
     let mut failed: Vec<FailedDial> = Vec::new();
 
     record_dial_outcome(
@@ -128,7 +126,6 @@ fn launch_diagnostics_keep_disconnected_accounts_and_split_from_caldav_failures(
         }),
         &mut accounts,
         &mut account_errors,
-        &mut calendar_errors,
         &mut failed,
     );
     record_dial_outcome(
@@ -140,18 +137,6 @@ fn launch_diagnostics_keep_disconnected_accounts_and_split_from_caldav_failures(
         }),
         &mut accounts,
         &mut account_errors,
-        &mut calendar_errors,
-        &mut failed,
-    );
-    record_dial_outcome(
-        "bob-account",
-        "bob@host".to_owned(),
-        Some(DialFailure::CalendarOnly(
-            "bob@host: caldav unreachable".to_owned(),
-        )),
-        &mut accounts,
-        &mut account_errors,
-        &mut calendar_errors,
         &mut failed,
     );
     record_dial_outcome(
@@ -160,16 +145,12 @@ fn launch_diagnostics_keep_disconnected_accounts_and_split_from_caldav_failures(
         None,
         &mut accounts,
         &mut account_errors,
-        &mut calendar_errors,
         &mut failed,
     );
 
     // EVERY account is kept now; even the one whose mail connect failed. It lists as a
     // placeholder with an outage badge (the old behaviour dropped it entirely).
-    assert_eq!(
-        accounts,
-        vec!["ann-account", "dee-account", "bob-account", "cy-account"]
-    );
+    assert_eq!(accounts, vec!["ann-account", "dee-account", "cy-account"]);
 
     // Both mail failures are queued for reconnect, carrying their labelled detail, and the verdict
     // that decides whether the user sees an outage badge or is asked to sign in again.
@@ -195,20 +176,8 @@ fn launch_diagnostics_keep_disconnected_accounts_and_split_from_caldav_failures(
         ],
     );
 
-    // The disconnected mail account's error is in the account channel, NOT the calendar one.
-    let account_channel = joined(&Mutex::new(account_errors)).expect("an account error");
-    assert!(account_channel.contains("ann@host"));
-    assert!(account_channel.contains("connection refused"));
-    assert!(!account_channel.contains("caldav"));
-
-    // The CalDAV-only failure is in the calendar channel, NOT the account one.
-    let calendar_channel = joined(&Mutex::new(calendar_errors)).expect("a calendar error");
-    assert!(calendar_channel.contains("bob@host"));
-    assert!(calendar_channel.contains("caldav unreachable"));
-    assert!(!calendar_channel.contains("connection refused"));
-
-    // An all-clean launch surfaces nothing in either channel.
-    assert!(joined(&Mutex::new(Vec::new())).is_none());
+    // Both mail failures are counted for the launch's skipped-accounts notice.
+    assert_eq!(account_errors.len(), 2);
 }
 
 #[test]

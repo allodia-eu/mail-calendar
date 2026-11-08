@@ -9,10 +9,10 @@ extension MailboxModel {
     /// Set the active display time zone (an IANA id) via the selector.
     func setTimeZone(_ id: String) { app?.dispatch(intent: .setTimeZone(id: id)) }
 
-    /// Adopt the device's reported time zone (the user accepted the change prompt).
+    /// Adopt the device's reported time zone (the time zone notice's Update).
     func acceptTimeZoneChange() { app?.dispatch(intent: .acceptTimeZoneChange) }
 
-    /// Keep the current zone (the user dismissed the change prompt).
+    /// Keep the current zone (the time zone notice's Keep current).
     func dismissTimeZoneChange() { app?.dispatch(intent: .dismissTimeZoneChange) }
 
     func refresh() { app?.dispatch(intent: .refreshMail) }
@@ -20,7 +20,7 @@ extension MailboxModel {
     /// Files the Sent copy of a message that went out without one. Sends nothing.
     func retryUnfiledCopy() { app?.dispatch(intent: .retryUnfiledCopy) }
 
-    /// Accepts the missing Sent copy and closes the question.
+    /// Accepts the missing Sent copy, which answers its notice.
     func dismissUnfiledCopy() { app?.dispatch(intent: .dismissUnfiledCopy) }
 
     /// Sets the name one account's outgoing mail is sent under; empty clears it. Setup's name step

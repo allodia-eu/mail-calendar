@@ -21,6 +21,7 @@ internal static class CorePage
         null,
         null,
         Free,
+        null,
         null);
 
     /// <summary>One picker per slot with candidates and nothing linked, the suggestion marked, as

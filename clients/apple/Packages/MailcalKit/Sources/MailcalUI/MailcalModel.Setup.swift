@@ -78,9 +78,6 @@ extension MailboxModel {
                 let added = try await Task.detached(priority: .userInitiated) {
                     try app.addAccount(configToml: configToml)
                 }.value
-                if let calendarError = app.calendarConnectError() {
-                    print("[Mailcal] calendar (CalDAV) failed to connect: \(calendarError)")
-                }
                 self.accountWasAdded(added)
             } catch {
                 self.showSetupFailure(error)

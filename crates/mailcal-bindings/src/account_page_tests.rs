@@ -5,13 +5,14 @@
 
 use AccountCapability::{Calendar, Contacts, Mail, Meetings};
 use CapabilityState::{NeedsPermission, NotOffered, Off, On};
+use ReplyFallbackChoice::{Always, Ask, Never};
 use mailcal_account::Capabilities;
 
 use super::page;
 use crate::{
     AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountPage, AccountUse,
     AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
-    LinkCandidates, LinkSlot, LinkedAccount, SignInMethod, UseProblem,
+    LinkCandidates, LinkSlot, LinkedAccount, ReplyFallbackChoice, SignInMethod, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
 };
@@ -81,7 +82,7 @@ fn applies(_: AccountCapability, _: bool) -> Toggle {
 }
 
 fn idle(entry: &AccountEntry) -> AccountPage {
-    page(entry, Hold::default(), None, None, applies)
+    page(entry, Hold::default(), None, None, Ask, applies)
 }
 
 fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
@@ -99,6 +100,7 @@ fn a_switch_the_core_would_refuse_is_held_and_says_why_and_one_it_would_make_is_
         Hold::default(),
         None,
         None,
+        Ask,
         |capability, on| match (capability, on) {
             (Mail, false) => Toggle::Refused(AccountUseBlock::LastUse),
             (Contacts, true) => Toggle::Refused(AccountUseBlock::NeedsServer),
@@ -142,6 +144,7 @@ fn a_switch_whose_grant_lacks_it_asks_the_provider_and_one_waiting_on_it_says_so
         Hold::default(),
         None,
         None,
+        Ask,
         |capability, on| match (capability, on) {
             (Calendar | Contacts, true) => Toggle::AsksProvider,
             _ => applies(capability, on),
@@ -177,6 +180,7 @@ fn what_is_wrong_with_a_use_is_said_beside_why_it_cannot_be_pressed() {
         Hold::default(),
         None,
         None,
+        Ask,
         |capability, on| match (capability, on) {
             (Calendar, false) => Toggle::Refused(AccountUseBlock::LastUse),
             _ => applies(capability, on),
@@ -200,6 +204,7 @@ fn a_use_the_server_does_not_offer_is_asked_about_switching_on() {
         Hold::default(),
         None,
         None,
+        Ask,
         |capability, on| match (capability, on) {
             (Calendar, true) => Toggle::Refused(AccountUseBlock::NotOffered),
             _ => applies(capability, on),
@@ -324,6 +329,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         }),
         None,
         None,
+        Ask,
         applies,
     );
     assert_eq!(
@@ -349,6 +355,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         }),
         None,
         None,
+        Ask,
         applies,
     );
     assert!(linking.links[0].control.running && !linking.links[0].control.enabled);
@@ -364,7 +371,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             .all(|switch| !switch.control.enabled && !switch.control.running)
     );
 
-    let removing = page(&account, own(PageWork::Remove), None, None, applies);
+    let removing = page(&account, own(PageWork::Remove), None, None, Ask, applies);
     assert!(removing.remove.running && !removing.remove.enabled);
 
     // A change running on another account holds this page too, and marks nothing here running:
@@ -377,10 +384,44 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         },
         None,
         None,
+        Ask,
         applies,
     );
     assert!(elsewhere.uses.iter().all(|switch| switch.control == HELD));
     assert_eq!((elsewhere.links[0].control, elsewhere.remove), (HELD, HELD));
 
     assert_eq!(idle(&account).remove, IDLE);
+}
+
+#[test]
+fn an_account_used_for_its_calendar_says_what_happens_to_a_reply_its_server_cannot_pass_on() {
+    assert_eq!(
+        idle(&mailbox_only()).reply_fallback,
+        None,
+        "no calendar, no choice"
+    );
+
+    let calendar = entry(AccountKind::Imap, &[(Mail, On), (Calendar, On)]);
+    let chosen = page(&calendar, Hold::default(), None, None, Never, applies);
+    assert_eq!(
+        chosen
+            .reply_fallback
+            .map(|picker| (picker.choice, picker.control)),
+        Some((Never, IDLE))
+    );
+
+    let changing = page(
+        &calendar,
+        own(PageWork::ReplyFallback { choice: Always }),
+        None,
+        None,
+        Ask,
+        applies,
+    );
+    let picker = changing.reply_fallback.expect("a picker");
+    assert_eq!(
+        picker.choice, Always,
+        "a running picker shows where it is going"
+    );
+    assert!(picker.control.running && !picker.control.enabled);
 }

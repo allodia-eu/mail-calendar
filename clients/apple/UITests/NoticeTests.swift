@@ -2,7 +2,7 @@
 // the first notice that tab has, and a sheet with each notice and its own button.
 //
 // The two reauth notices are staged by MAILCAL_SHOWCASE_REAUTH, which the core reads, so everything
-// from the connectivity snapshot to the row is real. Mail's belongs to the mail tab and the
+// from the core's facts to the row is real. Mail's belongs to the mail tab and the
 // calendar's to the calendar tab, so each tab shows its own.
 
 import XCTest

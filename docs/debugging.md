@@ -701,6 +701,14 @@ MAILCAL_SHOWCASE_SERVER_CHANGE=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 # Signing in again opens the account's page, since a showcase account has no browser sign-in.
 MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
+# Every platform, showcase only: every question the core can ask, each a notice with two answers
+# (docs/notices.md rule 8): a sent message whose copy is not in Sent and an invitation reply the
+# server did not pass on, both on the first account, and a changed time zone (the calendar is moved
+# to a zone other than the device's, so the device's own report keeps the question standing).
+# Reads in the CORE, like the two above. Answering the first two does nothing visible: their
+# message and meeting are not in the store.
+MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
+
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the
 # machine's own setting back on). It pins how the run STARTS; a pick in Settings still wins for
 # the rest of the session, and nothing is persisted. Android has no env vars, so build-and-run.sh
@@ -1259,7 +1267,8 @@ Three things decide whether a worktree hits:
 
 - **The same gitignored inputs.** A worktree without `.env` or the brand files builds a different
   app, so our own crates miss, correctly. [`.worktreeinclude`](../.worktreeinclude) copies them into
-  every worktree Claude Code creates; a plain `git worktree add` copies nothing.
+  every worktree Claude Code creates; a plain `git worktree add` copies nothing, and
+  `mailcal-oauth`'s build warns when a worktree has no `.env` while its main checkout has one.
 - **The same cargo configuration.** A worktree under `.claude/worktrees/` also reads the main
   checkout's `.cargo/config.toml`, so an array there is passed twice and no hash matches;
   [`.cargo/config.toml`](../.cargo/config.toml) keeps every value a string for that reason.

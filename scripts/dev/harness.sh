@@ -172,6 +172,9 @@ case "$cmd" in
       cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
+      cargo test -p mailcal-bindings --test live_account_servers -- --nocapture
+    MAILCAL_EXTRA_CA="$HARNESS_CA" \
+      MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
       cargo test -p mailcal-account --test live_imap_auth -- --nocapture
     MAILCAL_EXTRA_CA="$HARNESS_CA" \

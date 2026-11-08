@@ -21,9 +21,6 @@ pub enum Surface {
     /// Background mail-download progress; drives a "downloading Y of X" bar (pulled via
     /// `MailcalApp::sync_progress`).
     SyncProgress,
-    /// Connectivity: the device-offline flag and per-account outage list (pulled via
-    /// `MailcalApp::connectivity`); drives the offline banner and per-account warning badges.
-    Connectivity,
     /// Calendar write status: the outcome of the most recent create/edit/delete (pulled via
     /// `MailcalApp::calendar_write_status`); drives a small in-calendar spinner and warning.
     CalendarStatus,
@@ -33,24 +30,17 @@ pub enum Surface {
     /// `MailcalApp::contact_write_status`); drives the editor's "saving…" state and the
     /// message a refused or unconfirmed write earns.
     ContactsStatus,
-    /// A pending question about an invitation reply the calendar server could not deliver
-    /// (pulled via `MailcalApp::reply_prompt`); drives the modal offering to email the
-    /// organiser ourselves. `None` means there is nothing to ask.
-    InvitationReply,
-    /// A message that was sent but whose copy is not in the account's Sent folder (pulled via
-    /// `MailcalApp::unfiled_copy`); drives the modal offering to file it. Unlike `Sending`
-    /// this does **not** auto-clear; it stands until the user answers.
-    UnfiledCopy,
     /// A queued send the user asked to edit, waiting to be opened in the host's composer
-    /// (pulled via `MailcalApp::compose_request`). Like `UnfiledCopy` it does **not**
-    /// auto-clear: the message has already left the Outbox, so this is the only copy of it,
-    /// and the host clears it once its composer holds it.
+    /// (pulled via `MailcalApp::compose_request`). It does **not** auto-clear: the message has
+    /// already left the Outbox, so this is the only copy of it, and the host clears it once its
+    /// composer holds it.
     ComposeRequest,
     /// Draft save status: how the most recent save of the message being composed ended
     /// (pulled via `MailcalApp::draft_status`); drives the composer's quiet "saved" hint.
     DraftStatus,
-    /// The notices (pulled via `MailcalApp::notices`; `docs/notices.md`). Signalled with every
-    /// `Connectivity` signal, and whenever a notice is raised, closed or marked otherwise.
+    /// The notices (pulled via `MailcalApp::notices`; `docs/notices.md`). Signalled whenever
+    /// what the app can reach changes, whenever the core raises or settles a question, and
+    /// whenever a notice is raised, closed or marked otherwise.
     Notices,
 }
 

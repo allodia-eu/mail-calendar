@@ -3,9 +3,9 @@
 // switched on is a mail account of its own in the folder pane with its own mail, a new message from
 // it is from its address, and switching it off is asked first and takes it away again.
 //
-// WHY HERE. The rules are pinned in Mailcal.Tests (SharedMailboxRulesTests), but whether the page
-// asks the server off the UI thread, draws the answer into the page it opened and hands the press
-// to the core, which only the next snapshot shows, is WinUI and the core together.
+// WHY HERE. The core decides the section and its tests pin it, but whether the page draws the
+// server's answer, hands a press to the core and shows what the next snapshot brings is WinUI and
+// the core together.
 //
 // The launch is stalwart: alice over JMAP, a member of the harness's `support` group, so her
 // server lists support@test.local. Each case starts from the mailbox switched off and its cleanup

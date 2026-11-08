@@ -303,6 +303,10 @@ internal static class AccountSettingsRules
                 yield return $"shared-address:{address.Text}/{Control(address.Add)}";
             }
         }
+        if (page.ReplyFallback is { } replies)
+        {
+            yield return $"replies:{replies.Choice}/{Control(replies.Control)}";
+        }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
     }

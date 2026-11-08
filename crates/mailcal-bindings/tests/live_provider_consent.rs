@@ -152,17 +152,17 @@ fn report(app: &MailcalApp, store: &RecordingStore, heading: &str) {
             }
         }
     }
-    let connectivity = app.connectivity();
+    let notices: Vec<_> = app
+        .notices()
+        .notices
+        .into_iter()
+        .map(|notice| notice.kind)
+        .collect();
     eprintln!(
-        "    calendar events: {}, contacts: {}, calendar re-consent: {:?}, mail re-consent: {:?}",
+        "    calendar events: {}, contacts: {}, notices: {notices:?}",
         app.calendar_list().events.len(),
         app.contact_list().rows.len(),
-        connectivity.calendar_reauth_accounts,
-        connectivity.mail_reauth_accounts,
     );
-    if let Some(error) = app.calendar_connect_error() {
-        eprintln!("    calendar connect error: {error}");
-    }
 }
 
 #[test]

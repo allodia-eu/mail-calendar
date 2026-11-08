@@ -91,6 +91,8 @@ impl MailcalApp {
                 self.drop_shared_mailbox(&child);
             }
         }
+        // Whichever path kept them, the stored servers are what the page's form is drawn from now.
+        self.account_work.servers_saved(&account_id, None);
         self.app.accounts_changed();
         Ok(())
     }

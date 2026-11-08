@@ -68,10 +68,12 @@ public sealed partial class EventDetailDialog : ContentDialog
         Rebuild();
         FocusManager.GettingFocus += KeepInitialFocusOffTheContent;
         model.PropertyChanged += OnModelChanged;
+        model.NoticesChanged += ShowReplyQuestion;
         Closed += (_, _) =>
         {
             FocusManager.GettingFocus -= KeepInitialFocusOffTheContent;
             model.PropertyChanged -= OnModelChanged;
+            model.NoticesChanged -= ShowReplyQuestion;
         };
     }
 

@@ -7,10 +7,11 @@
 // asks first, and WinUI shows one ContentDialog at a time, so the detail closes with Declining set
 // and the caller asks, reopening the detail if the user backs out.
 //
-// The "organiser wasn't told" question about an answer given here is put from here while the detail
-// is open. The window's own bar sits under this dialog's overlay, where nobody can reach it until
-// the detail is closed. A question left standing from an earlier answer, the invitation card's
-// included, stays the window's: it is about another meeting.
+// The "organiser wasn't told" question about an answer given here is drawn here too while the
+// detail is open: it is a notice (docs/notices.md rule 8), and the window's notice bar sits under
+// this dialog's overlay, where nobody can reach it until the detail is closed. A question left
+// standing from an earlier answer, the invitation card's included, stays the window's: it is about
+// another meeting.
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -33,7 +34,6 @@ public sealed partial class EventDetailDialog
         Margin = new Thickness(0, 0, 0, 8),
     };
 
-    private readonly CheckBox _rememberReply = new();
 
     // The answer buttons on screen, by the answer each sends.
     private readonly Dictionary<InvitationResponse, Button> _answerButtons = [];
@@ -51,57 +51,67 @@ public sealed partial class EventDetailDialog
     /// dialog has closed, and sends the answer only on a yes.</summary>
     internal bool Declining { get; private set; }
 
-    // The reply question's bar, built once; its message and visibility follow the core.
+    private readonly Button _sendReply = new() { Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+
+    private readonly Button _dontSendReply = new();
+
+    private readonly ProgressRing _replyRunning = new() { Width = 16, Height = 16 };
+
+    // The reply question's bar, built once; what it says and whether it shows follow the notice.
     private void BuildReplyBar()
     {
-        _replyBar.Title = L10n.InvitationReplyUndeliveredTitle();
-        _rememberReply.Content = L10n.InvitationReplyUndeliveredRemember();
-        var send = new Button
-        {
-            Content = L10n.InvitationReplyUndeliveredSend(),
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-        };
-        send.Click += (_, _) => AnswerReply(send: true);
-        var dismiss = new Button { Content = L10n.InvitationReplyUndeliveredDismiss() };
-        dismiss.Click += (_, _) => AnswerReply(send: false);
+        _sendReply.Click += (_, _) => AnswerReply(notice => notice.Action);
+        _dontSendReply.Click += (_, _) => AnswerReply(notice => notice.SecondAction);
+        AutomationProperties.SetAutomationId(_sendReply, "EventReplySend");
+        AutomationProperties.SetAutomationId(_dontSendReply, "EventReplyDontSend");
         _replyBar.Content = new StackPanel
         {
+            Orientation = Orientation.Horizontal,
             Spacing = 8,
             Margin = new Thickness(0, 0, 0, 12),
-            Children =
-            {
-                _rememberReply,
-                new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { send, dismiss } },
-            },
+            Children = { _sendReply, _dontSendReply, _replyRunning },
         };
         AutomationProperties.SetAutomationId(_replyBar, "EventReplyPrompt");
-        ShowReplyPrompt();
+        ShowReplyQuestion();
     }
 
-    private void ShowReplyPrompt()
+    // The question about an answer given here, while it stands.
+    private Notice? ReplyQuestion() =>
+        _answered && _model.Notices.FirstOrDefault(n => n.Kind is NoticeKind.ReplyNotDelivered) is { } notice
+            && NoticeRules.OffersSecond(notice)
+            ? notice
+            : null;
+
+    private void ShowReplyQuestion()
     {
-        var shown = _answered && _model.HasReplyPrompt;
-        _replyBar.Message = _model.ReplyPromptText;
-        _replyBar.IsOpen = shown;
-        _replyBar.Visibility = shown ? Visibility.Visible : Visibility.Collapsed;
+        var notice = ReplyQuestion();
+        if (notice is not null)
+        {
+            _replyBar.Title = MailboxModel.Words(notice.Title);
+            _replyBar.Message = NoticeBar.Beneath(notice) ?? string.Empty;
+            _replyBar.Severity = NoticeBar.SeverityOf(notice.Severity);
+            _sendReply.Content = MailboxModel.Words(notice.ActionLabel!);
+            _dontSendReply.Content = MailboxModel.Words(notice.SecondActionLabel!);
+            // An answer the core is carrying out holds both, the spinner beside them.
+            _sendReply.IsEnabled = _dontSendReply.IsEnabled = !notice.Running;
+            _replyRunning.IsActive = notice.Running;
+            _replyRunning.Visibility = notice.Running ? Visibility.Visible : Visibility.Collapsed;
+        }
+        _replyBar.IsOpen = notice is not null;
+        _replyBar.Visibility = notice is not null ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    // The tick applies to whichever way the user went, and is reset for the next question, as the
-    // window's bar does.
-    private void AnswerReply(bool send)
+    private void AnswerReply(Func<Notice, NoticeAction?> which)
     {
-        var remember = _rememberReply.IsChecked == true;
-        _rememberReply.IsChecked = false;
-        var prompt = _model.ReplyPrompt;
-        _model.AnswerReplyPrompt(
-            send,
-            remember,
-            prompt is null ? null : InvitationText.ReplySubject(prompt.Response, prompt.Summary));
+        if (ReplyQuestion() is { } notice && which(notice) is { } action)
+        {
+            _model.RunNoticeAction(notice, action);
+        }
     }
 
-    // The model's signals, while the dialog is open: a calendar change re-reads the event, a write
-    // status holds or frees the buttons, and the reply question comes and goes. The version moves
-    // on every calendar refresh, so the body is redrawn only when what it shows changed.
+    // The model's signals, while the dialog is open: a calendar change re-reads the event, and a
+    // write status holds or frees the buttons. The version moves on every calendar refresh, so the
+    // body is redrawn only when what it shows changed.
     private void OnModelChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
@@ -124,9 +134,6 @@ public sealed partial class EventDetailDialog
                 break;
             case nameof(MailboxModel.CalendarWrite):
                 HoldAnswers();
-                break;
-            case nameof(MailboxModel.ReplyPrompt):
-                ShowReplyPrompt();
                 break;
         }
     }

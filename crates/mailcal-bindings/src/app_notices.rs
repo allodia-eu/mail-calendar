@@ -27,12 +27,14 @@ impl MailcalApp {
                 .cloned()
                 .unwrap_or_else(|| account.to_owned())
         };
+        let questions = self.questions();
         let facts = NoticeFacts {
             connectivity: &connectivity,
             skipped_at_launch,
             folder_notice: self.app.folder_notice().map(Into::into),
             provider: &provider,
             address: &address,
+            questions: &questions,
         };
         let raised = raise(&facts);
         self.notice_book
@@ -43,6 +45,29 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// The questions the core is holding, for the notices that ask them.
+    fn questions(&self) -> crate::notices::Questions {
+        use crate::notices::{Questions, ReplyQuestion, UnfiledQuestion};
+        Questions {
+            unfiled: self.app.unfiled_copy().map(|unfiled| UnfiledQuestion {
+                account: unfiled.account.as_str().to_owned(),
+                subject: unfiled.subject,
+                retrying: unfiled.retrying,
+            }),
+            reply: self.app.reply_prompt().map(|prompt| ReplyQuestion {
+                account: prompt.account.as_str().to_owned(),
+                summary: prompt.summary,
+                organizer: prompt.organizer,
+                response: prompt.response.into(),
+            }),
+            time_zone: self
+                .app
+                .timezone_settings()
+                .pending_device
+                .map(|zone| zone.as_str().to_owned()),
+        }
+    }
+
     /// Handles an `Intent::Notices`, on the host's thread like the other intents the binding layer
     /// answers itself.
     pub(crate) fn dispatch_notice(&self, intent: NoticeIntent) {

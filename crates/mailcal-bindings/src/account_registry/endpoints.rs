@@ -6,14 +6,6 @@ use super::AccountRegistry;
 use crate::{ConnectedAccount, MailcalError};
 
 impl AccountRegistry {
-    /// `id`'s config with `edit` applied, serialized for a dial and the host's store, and the uses
-    /// whose server moved to another host. Nothing in the registry changes.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Config`] for an unknown account, one that signs in through its
-    /// provider, or an edit the account cannot take, and [`MailcalError::AlreadySetUp`] for one
-    /// that would make it the same account as another already set up.
     /// What `edit` leaves out of `id`'s servers, as [`Self::edited_endpoints`] would refuse it;
     /// `None` for an account whose servers cannot be edited, which refuses for another reason.
     pub(crate) fn endpoint_gap(&self, id: &str, edit: &EndpointEdit) -> Option<EndpointGap> {
@@ -28,6 +20,14 @@ impl AccountRegistry {
         }
     }
 
+    /// `id`'s config with `edit` applied, serialized for a dial and the host's store, and the uses
+    /// whose server moved to another host. Nothing in the registry changes.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] for an unknown account, one that signs in through its
+    /// provider, or an edit the account cannot take, and [`MailcalError::AlreadySetUp`] for one
+    /// that would make it the same account as another already set up.
     pub(crate) fn edited_endpoints(
         &self,
         id: &str,

@@ -31,6 +31,9 @@ pub(crate) enum PageWork {
         slot: LinkSlot,
         target: Option<String>,
     },
+    ReplyFallback {
+        choice: crate::ReplyFallbackChoice,
+    },
     Remove,
     SenderName(String),
     Depth(u16),
@@ -61,6 +64,9 @@ impl PageWork {
                 slot: *slot,
                 target: target.clone(),
             },
+            AccountPageIntent::SetReplyFallback { choice, .. } => {
+                Self::ReplyFallback { choice: *choice }
+            }
             AccountPageIntent::Remove { .. } => Self::Remove,
             AccountPageIntent::SetSenderName { name, .. } => Self::SenderName(name.clone()),
             AccountPageIntent::SetSyncDepth { months, .. } => Self::Depth(*months),

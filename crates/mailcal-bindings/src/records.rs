@@ -22,9 +22,6 @@ use crate::{
 pub struct TimeZoneSnapshot {
     /// The active display zone's IANA id (what the agenda is shown in).
     pub active: String,
-    /// A different zone the device reported, awaiting the user's choice to adopt or
-    /// dismiss it; `None` when the device matches the active zone.
-    pub pending_device: Option<String>,
 }
 
 /// An immutable reading-view snapshot for a host to render: the open message's body.
@@ -177,42 +174,6 @@ pub enum ViewMode {
     Threaded,
 }
 
-/// A message that was **sent** but whose copy is not in the account's Sent folder (pulled
-/// after a `Surface::UnfiledCopy` signal).
-///
-/// A host shows this as a **modal**, not a banner. A Sent copy is how a person checks that a
-/// message really left, so a missing one is worth interrupting for, and unlike the transient
-/// send hint, this does not clear itself: it stands until the user files the copy
-/// (`Intent::RetryUnfiledCopy`) or dismisses it (`Intent::DismissUnfiledCopy`).
-///
-/// The copy says what is true and no more: the message **was sent** and the recipients have
-/// it. Only the sender's own record of it is missing. Never word this as a failed send; the
-/// user's next move would be to send it again.
-///
-/// There is no id to pass back: the core holds the one message it is asking about and clears
-/// it the moment it is filed, so a double-tap cannot file two copies.
-#[derive(uniffi::Record)]
-pub struct UnfiledCopy {
-    /// The sent message's subject, so the modal names which message is missing its copy.
-    pub subject: String,
-    /// The failure class and protocol detail. **Not for the modal**: the copy a user reads
-    /// is plain language. Carried for the diagnostics screen and support.
-    pub detail: String,
-    /// Whether a retry is already running, so a host disables its button instead of letting
-    /// the user queue five of them.
-    pub retrying: bool,
-}
-
-impl From<mailcal_app::UnfiledCopy> for UnfiledCopy {
-    fn from(unfiled: mailcal_app::UnfiledCopy) -> Self {
-        Self {
-            subject: unfiled.subject,
-            detail: unfiled.detail,
-            retrying: unfiled.retrying,
-        }
-    }
-}
-
 /// The state of the most recent calendar write (create/edit/delete) pulled after a
 /// `Surface::CalendarStatus` signal. A host shows a small in-calendar spinner while `Saving`
 /// and, briefly, the terminal state.
@@ -324,9 +285,6 @@ pub struct MailboxListSnapshot {
     /// `OutsideSyncDepth`: the badge beside the folder is the server's count over all time,
     /// so an empty list that does not say why contradicts it (`docs/folder-pane.md`).
     pub empty_reason: Option<EmptyReason>,
-    /// A folder change the server refused, until dismissed. Render it beside the pane in every
-    /// view mode (`docs/folder-pane.md`, "Changing the tree").
-    pub folder_notice: Option<crate::FolderNotice>,
 }
 
 /// Why a mailbox list holds no rows.

@@ -191,12 +191,8 @@ struct CalendarScreenView: View {
                         if response == .decline { openEvent = nil }
                         model.respondToEvent(detail.account, detail.key, response, replySubject: subject)
                     },
-                    saving: model.calendarWriteStatus == .saving,
-                    replyPrompt: model.replyPrompt,
-                    onReplyPrompt: { send, remember in model.answerReplyPrompt(send: send, remember: remember) }
+                    saving: model.calendarWriteStatus == .saving
                 )
-                .onAppear { model.eventDetailOpen = true }
-                .onDisappear { model.eventDetailOpen = false }
             }
         }
         // The create/edit editor. One form, both jobs.

@@ -142,7 +142,7 @@ Rules 22 and 27 to 29 are core-side, and a client gets them by rendering the sna
 flags and draw the queued changes over the stored tree, which is the engine's outbox read
 ([`folder_tree.rs`](../crates/mailcal-app/src/mail_ops/folder_tree.rs)). Rules 23 to 26 are the
 client's to draw, from one catalog: `folder_action_*`, `folder_*_title`, `folder_name_*`,
-`folder_delete_*`, `folder_notice_*`. The end-to-end cases, offline and on, are
+`folder_delete_*`; a refused change is the `FolderChangeRefused` notice's words. The end-to-end cases, offline and on, are
 `tests_folder_ops.rs` (`mailcal-app`).
 
 ## Per-platform

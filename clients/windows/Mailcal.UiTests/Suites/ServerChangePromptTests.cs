@@ -4,7 +4,7 @@
 //
 // WHY THE SHOWCASE. MAILCAL_SHOWCASE_SERVER_CHANGE (debug builds, read in the core) pauses the first
 // account's calendar for a move from example.com to example.net, so everything from the
-// connectivity snapshot to the question is real, and CI runs it. A showcase account has no servers
+// core's facts to the question is real, and CI runs it. A showcase account has no servers
 // to change, so the core refuses the allow, and that refusal being said is what proves Allow
 // reached it. ServerChangeTests drives the allow that moves an account on the harness; the
 // calendar's notice is out of its reach, and this is where it is asserted.

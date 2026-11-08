@@ -67,15 +67,27 @@ public sealed partial class NoticeBar : UserControl
         Bar.Title = MailboxModel.Words(notice.Title);
         Bar.Message = Beneath(notice) ?? string.Empty;
         Bar.IsClosable = notice.Dismissible;
-        if (NoticeRules.Offers(notice))
+        var question = NoticeRules.OffersSecond(notice);
+        if (NoticeRules.Offers(notice) && !question)
         {
             ActionButton.Content = MailboxModel.Words(notice.ActionLabel!);
+            ActionButton.IsEnabled = !notice.Running;
             Bar.ActionButton = ActionButton;
         }
         else
         {
             Bar.ActionButton = null;
         }
+        if (question)
+        {
+            FirstAnswer.Content = MailboxModel.Words(notice.ActionLabel!);
+            SecondAnswer.Content = MailboxModel.Words(notice.SecondActionLabel!);
+            // An answer the core is carrying out holds both, the spinner beside the first.
+            FirstAnswer.IsEnabled = SecondAnswer.IsEnabled = !notice.Running;
+            AnswerRunning.IsActive = notice.Running;
+            AnswerRunning.Visibility = notice.Running ? Visibility.Visible : Visibility.Collapsed;
+        }
+        Answers.Visibility = question ? Visibility.Visible : Visibility.Collapsed;
         var more = NoticeRules.More(notices, screen);
         MoreButton.Content = L10n.NoticesMore(more);
         MoreButton.Visibility = more > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -121,11 +133,17 @@ public sealed partial class NoticeBar : UserControl
         }
     }
 
-    private void OnAction(object sender, RoutedEventArgs e)
+    private void OnAction(object sender, RoutedEventArgs e) => Run(notice => notice.Action);
+
+    private void OnFirstAnswer(object sender, RoutedEventArgs e) => Run(notice => notice.Action);
+
+    private void OnSecondAnswer(object sender, RoutedEventArgs e) => Run(notice => notice.SecondAction);
+
+    private void Run(Func<Notice, NoticeAction?> which)
     {
-        if (_shown is { } notice)
+        if (_shown is { } notice && which(notice) is { } action)
         {
-            _model?.RunNoticeAction(notice);
+            _model?.RunNoticeAction(notice, action);
         }
     }
 
@@ -176,15 +194,19 @@ public sealed partial class NoticeBar : UserControl
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         if (NoticeRules.Offers(notice))
         {
-            var action = new Button { Content = MailboxModel.Words(notice.ActionLabel!) };
-            AutomationProperties.SetAutomationId(action, "NoticeListAction");
-            AutomationProperties.SetName(action, $"{MailboxModel.Words(notice.ActionLabel!)}: {title}");
-            action.Click += (_, _) =>
-            {
-                MoreFlyout.Hide();
-                _model?.RunNoticeAction(notice);
-            };
-            buttons.Children.Add(action);
+            buttons.Children.Add(ListAnswer(
+                notice, notice.Action!.Value, notice.ActionLabel!, title, "NoticeListAction", first: NoticeRules.OffersSecond(notice)));
+        }
+        if (NoticeRules.OffersSecond(notice))
+        {
+            buttons.Children.Add(ListAnswer(
+                notice, notice.SecondAction!.Value, notice.SecondActionLabel!, title, "NoticeListSecondAction", first: false));
+        }
+        if (notice.Running)
+        {
+            var ring = new ProgressRing { IsActive = true, Width = 16, Height = 16 };
+            AutomationProperties.SetAutomationId(ring, "NoticeListAction_Running");
+            buttons.Children.Add(ring);
         }
         if (notice.Dismissible)
         {
@@ -210,6 +232,26 @@ public sealed partial class NoticeBar : UserControl
         row.Children.Add(text);
         AutomationProperties.SetAutomationId(row, "NoticeListRow");
         return row;
+    }
+
+    /// <summary>One of a listed notice's buttons, named with the notice it acts on, held while an
+    /// answer runs. A question's first answer is the accent one, as in the bar.</summary>
+    private Button ListAnswer(Notice notice, NoticeAction action, NoticeText label, string title, string automationId, bool first)
+    {
+        var words = MailboxModel.Words(label);
+        var button = new Button { Content = words, IsEnabled = !notice.Running };
+        if (first)
+        {
+            button.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+        }
+        AutomationProperties.SetAutomationId(button, automationId);
+        AutomationProperties.SetName(button, $"{words}: {title}");
+        button.Click += (_, _) =>
+        {
+            MoreFlyout.Hide();
+            _model?.RunNoticeAction(notice, action);
+        };
+        return button;
     }
 
     /// <summary>The colour of a notice's glyph: the system's critical, caution and neutral fills,

@@ -119,9 +119,9 @@ struct AllodiaAccountSettings: View {
         }
     }
 
-    /// Whether the service refused the sign-in: the same field the mailbox banner reads, so the two
-    /// cannot disagree, and redrawn on the same connectivity signal.
-    private var ended: Bool { model.connectivity?.allodiaSignInEnded != nil }
+    /// Whether the service refused the sign-in: drawn while the Allodia notice is in force, so the
+    /// card and the notice cannot disagree.
+    private var ended: Bool { NoticeRules.allodiaSignInEnded(model.notices ?? []) }
 
     private func signIn() { begin(create: false) }
 

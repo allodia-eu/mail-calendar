@@ -28,7 +28,6 @@ impl From<AppTimeZoneSnapshot> for TimeZoneSnapshot {
     fn from(snapshot: AppTimeZoneSnapshot) -> Self {
         Self {
             active: snapshot.active,
-            pending_device: snapshot.pending_device,
         }
     }
 }

@@ -461,95 +461,12 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <!-- The shell's banner strip. Every bar here carries BOTH IsOpen and Visibility
-                     off the same flag, and the pair is load-bearing: a closed InfoBar does not
-                     collapse itself, it stays visible at zero size, so its 12px top margin is
-                     still reserved, and three silent bars cost 36px across the top of every detail
-                     surface. IsOpen alone leaves that hole; Visibility alone would announce all
-                     three to a screen reader at launch and never again.
-
-                     Shown() rather than the BoolToVisibility converter below: an x:Bind converter
-                     needs a FrameworkElement to resolve the resource against, and this file's root
-                     is a Window, the generated code fails to compile, naming a line in
-                     MainWindow.g.cs. An x:Bind FUNCTION has no such constraint. -->
+                <!-- The shell's banner strip: the notice bar, which collapses itself when it has
+                     nothing to say (NoticeBar.xaml). -->
                 <StackPanel Grid.Row="0" x:Name="ContentBanners">
                     <!-- The core's notices (docs/notices.md): one bar, the first notice that belongs to
                          the screen on show, and the rest behind its "more" button, never stacked. -->
                     <views:NoticeBar x:Name="NoticeStrip" />
-
-                    <!-- The device moved to a different zone than the active one: offer to switch. -->
-                    <InfoBar
-                        Margin="12,12,12,0"
-                        IsOpen="{x:Bind Model.HasPendingZone, Mode=OneWay}"
-                        Visibility="{x:Bind Shown(Model.HasPendingZone), Mode=OneWay}"
-                        IsClosable="False"
-                        Severity="Informational"
-                        Title="{x:Bind l10n:L10n.TzChangedTitle(), Mode=OneTime}"
-                        Message="{x:Bind Model.ZonePromptText, Mode=OneWay}">
-                        <InfoBar.Content>
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,12">
-                                <Button Content="{x:Bind l10n:L10n.ActionUpdate(), Mode=OneTime}" Click="OnAcceptZone" />
-                                <Button Content="{x:Bind Model.KeepZoneText, Mode=OneWay}" Click="OnDismissZone" />
-                            </StackPanel>
-                        </InfoBar.Content>
-                    </InfoBar>
-
-                    <!-- The calendar server stored the answer and then reported it could not tell
-                         the organiser (RFC 6638 §3.2.9): offer to email it ourselves. A bar rather
-                         than the modal macOS and Android raise, the same two decisions, in this
-                         shell's chrome. It is also the safer surface here: WinUI allows exactly one
-                         ContentDialog at a time and silently drops a second, so a question arriving
-                         while another dialog was open would have been thrown away while the core
-                         went on holding it. IsClosable is off because the core owns both edges, it
-                         clears the question itself, and a bar the user could close would leave one
-                         standing that nobody can answer. -->
-                    <InfoBar
-                        AutomationProperties.AutomationId="InvitationReplyPrompt"
-                        Margin="12,12,12,0"
-                        IsOpen="{x:Bind Model.HasReplyPrompt, Mode=OneWay}"
-                        Visibility="{x:Bind Shown(Model.HasReplyPrompt), Mode=OneWay}"
-                        IsClosable="False"
-                        Severity="Warning"
-                        Title="{x:Bind l10n:L10n.InvitationReplyUndeliveredTitle(), Mode=OneTime}"
-                        Message="{x:Bind Model.ReplyPromptText, Mode=OneWay}">
-                        <InfoBar.Content>
-                            <StackPanel Spacing="8" Margin="0,8,0,12">
-                                <CheckBox x:Name="RememberReplyChoice"
-                                          Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredRemember(), Mode=OneTime}" />
-                                <StackPanel Orientation="Horizontal" Spacing="8">
-                                    <Button Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredSend(), Mode=OneTime}"
-                                            Style="{StaticResource AccentButtonStyle}"
-                                            Click="OnSendUndeliveredReply" />
-                                    <Button Content="{x:Bind l10n:L10n.InvitationReplyUndeliveredDismiss(), Mode=OneTime}"
-                                            Click="OnDismissUndeliveredReply" />
-                                </StackPanel>
-                            </StackPanel>
-                        </InfoBar.Content>
-                    </InfoBar>
-                    <!-- The message went out; only the sender's copy is missing. Warning, never
-                         Error: an error severity reads as "not sent" and invites a re-send of mail
-                         the recipients already have. IsClosable is off for the same reason as
-                         above, the core owns both edges of the question. -->
-                    <InfoBar
-                        Margin="12,12,12,0"
-                        IsOpen="{x:Bind Model.HasUnfiledCopy, Mode=OneWay}"
-                        Visibility="{x:Bind Shown(Model.HasUnfiledCopy), Mode=OneWay}"
-                        IsClosable="False"
-                        Severity="Warning"
-                        Title="{x:Bind l10n:L10n.UnfiledCopyTitle(), Mode=OneTime}"
-                        Message="{x:Bind Model.UnfiledCopyText, Mode=OneWay}">
-                        <InfoBar.Content>
-                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,12">
-                                <Button Content="{x:Bind l10n:L10n.UnfiledCopyRetry(), Mode=OneTime}"
-                                        Style="{StaticResource AccentButtonStyle}"
-                                        IsEnabled="{x:Bind Model.UnfiledCopyActionable, Mode=OneWay}"
-                                        Click="OnRetryUnfiledCopy" />
-                                <Button Content="{x:Bind l10n:L10n.UnfiledCopyDismiss(), Mode=OneTime}"
-                                        IsEnabled="{x:Bind Model.UnfiledCopyActionable, Mode=OneWay}"
-                                        Click="OnDismissUnfiledCopy" />
-                            </StackPanel>
-                        </InfoBar.Content>
-                    </InfoBar>
                 </StackPanel>
 
                 <!-- The detail area: the calendar agenda, or the three-pane mail view, the

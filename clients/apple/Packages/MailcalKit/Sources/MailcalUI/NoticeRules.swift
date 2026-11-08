@@ -34,6 +34,23 @@ enum NoticeRules {
         return about.first?.mark.map(text)
     }
 
+    /// Whether the server refuses `account`'s stored sign-in, which its page in Settings draws its
+    /// sign-in section for.
+    static func signInExpired(_ account: String, in notices: [Notice]) -> Bool {
+        notices.contains { notice in
+            guard case .signInExpired = notice.kind else { return false }
+            return notice.account == account
+        }
+    }
+
+    /// Whether the account service refused the Allodia sign-in, which the Allodia card draws.
+    static func allodiaSignInEnded(_ notices: [Notice]) -> Bool {
+        notices.contains { notice in
+            if case .allodiaSignInEnded = notice.kind { return true }
+            return false
+        }
+    }
+
     /// The notices in `current` that were not in force before: the ones to announce (rule 12).
     static func raised(_ current: [Notice], since previous: [Notice]) -> [Notice] {
         let before = Set(previous.map(\.id))

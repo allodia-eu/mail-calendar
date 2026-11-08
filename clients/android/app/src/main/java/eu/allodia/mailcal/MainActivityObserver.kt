@@ -33,14 +33,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A write-status signal only moves the small header badge (spinner → check /
         // warning); the grid/agenda arrive on their own CALENDAR signal.
         CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()
-        // The answer is already saved; what failed is the message to the organiser.
-        CoreSurface.INVITATION_REPLY -> replyPrompt = app.replyPrompt()
-        // The message went out; its copy did not reach Sent, and nothing later
-        // will find it. The user is offered the one repair there is.
-        CoreSurface.UNFILED_COPY -> unfiledCopy = app.unfiledCopy()
         // A settings change refreshes the per-account sync-behaviour screen and the
-        // default quote style (the timezone snapshot the caller took already covers
-        // the pending-zone prompt).
+        // default quote style.
         CoreSurface.SETTINGS -> {
             syncSettings = app.syncSettings()
             quoteSettings = app.quoteSettings()
@@ -59,15 +53,15 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A sync-progress signal only updates the download bar; the rows it commits
         // arrive on their own MAILBOX_LIST signal.
         CoreSurface.SYNC_PROGRESS -> syncProgress = app.syncProgress()
-        // A provider refusing a calendar changes a use's state on the account's page. What it
-        // says as a notice follows on its own NOTICES signal.
-        CoreSurface.CONNECTIVITY -> {
-            refreshAccountsSnapshot()
-        }
         // A composition's save moved. The signal names none, so there is nothing to publish
         // but the fact that one did: every open composer re-pulls its own off this counter
         // (docs/drafts.md).
         CoreSurface.DRAFT_STATUS -> drafts.draftStatusVersion += 1
-        CoreSurface.NOTICES -> pullNotices()
+        // A provider refusing a calendar, or an account connecting, also changes a use's state on
+        // the account's page, so the accounts snapshot is read again beside the notices.
+        CoreSurface.NOTICES -> {
+            pullNotices()
+            refreshAccountsSnapshot()
+        }
     }
 }

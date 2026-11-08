@@ -23,6 +23,7 @@ mod account_page;
 pub(super) mod account_rows;
 pub(super) mod sign_in_section;
 pub(super) use account_rows::{link_labels, link_title, suggested_name, use_name};
+mod account_reply_fallback;
 mod account_servers;
 pub(super) mod account_sync_mode;
 mod account_sync_technology;

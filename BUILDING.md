@@ -95,8 +95,8 @@ MAILCAL_MS_CLIENT_ID=…
 MAILCAL_ALLODIA_CLIENT_ID=…
 ```
 
-`chmod 600 .env`. It is listed in [`.worktreeinclude`](.worktreeinclude), so a new worktree comes up
-with a copy.
+`chmod 600 .env`. It is listed in [`.worktreeinclude`](.worktreeinclude), so a worktree Claude Code
+makes comes up with a copy; one made with `git worktree add` does not, and the build warns about it.
 
 Every client builds the core through a different front door (Gradle, `xcodebuild`, MSBuild, the
 GNOME SDK, plain `cargo`), so the file is read by the core's own build script

@@ -74,8 +74,8 @@ pub enum MailSyncTechnology {
     /// Complete but slower: over the Gmail API, because Gmail refused this account IMAP.
     Fallback,
     /// Not arriving: reads in a row could not reach Gmail's IMAP side, which a network that
-    /// blocks IMAP does while the rest of Google still answers. The account is badged as
-    /// unreachable too (`ConnectivitySnapshot::unreachable_accounts`).
+    /// blocks IMAP does while the rest of Google still answers. The account carries the
+    /// `Unreachable` notice too.
     Unreachable,
 }
 
@@ -288,7 +288,8 @@ pub struct AccountEndpoints {
     /// The login every server takes.
     pub username: String,
     /// A new password for every server, or `None` to keep the stored one. Always `None` in the
-    /// snapshot: a password is never handed back.
+    /// snapshot: a stored password is never handed back, and only an edit a save refused carries
+    /// the one the person typed ([`crate::AccountServers::form`]).
     pub password: Option<String>,
 }
 
