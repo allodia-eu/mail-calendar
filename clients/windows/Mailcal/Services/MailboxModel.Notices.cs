@@ -42,6 +42,11 @@ public sealed partial class MailboxModel
             return;
         }
         var notices = _app.Notices().Notices;
+        UpdateConnectionStatus(notices);
+        // Settings → Accounts on every signal, not only when a notice's words moved: an account's
+        // page says when a use did not connect, from the accounts snapshot, and redraws only what
+        // changed. Its top carries the account's notices.
+        RaiseAccountsChanged();
         var drawn = NoticeRules.Fingerprint(notices);
         if (drawn == _noticesDrawn)
         {
@@ -52,8 +57,6 @@ public sealed partial class MailboxModel
         Log.Info($"notices: {notices.Length} in force");
         _marks = NoticeRules.Marks(notices, Words, L10n.NoticesAccountCount);
         NoticesChanged?.Invoke();
-        // An account's page in Settings carries the account's notices at its top.
-        RaiseAccountsChanged();
     }
 
     /// <summary>Closes a notice the core offered to close.</summary>

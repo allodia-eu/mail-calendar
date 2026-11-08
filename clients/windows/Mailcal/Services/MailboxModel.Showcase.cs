@@ -48,7 +48,6 @@ public sealed partial class MailboxModel
                 NeedsSetup = firstRun;
                 SetupError = null;
                 Reload();
-                UpdateConnectivity(_app.Connectivity());
                 PullNotices();
                 ObserveSystemTimeZone();
                 if (firstRun)
