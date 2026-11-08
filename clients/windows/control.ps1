@@ -84,8 +84,15 @@ function Invoke-Relaunch([string] $Hook, [string] $HookValue = '1') {
   # mode refuses rather than relaunch into an opaque TLS failure.
   if (-not $env:MAILCAL_EXTRA_CA) {
     $ca = Join-Path $here '../../docker/stalwart/tls/harness-ca.pem'
-    if (Test-Path -LiteralPath $ca -PathType Leaf) {
-      $env:MAILCAL_EXTRA_CA = (Resolve-Path -LiteralPath $ca).Path
+    # harness.sh writes the bundle into the checkout it runs from, so a git worktree has none of
+    # its own, or an older one: the newer of this checkout's and its main checkout's is current.
+    $common = git -C $here rev-parse --path-format=absolute --git-common-dir 2>$null
+    $candidates = @($ca)
+    if ($common) { $candidates += Join-Path (Split-Path $common -Parent) 'docker/stalwart/tls/harness-ca.pem' }
+    $newest = $candidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+      Sort-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc } -Descending | Select-Object -First 1
+    if ($newest) {
+      $env:MAILCAL_EXTRA_CA = (Resolve-Path -LiteralPath $newest).Path
     }
     elseif ($env:MAILCAL_DEV_ACCOUNT -in 'stalwart-imap', 'stalwart-linked') {
       throw "MAILCAL_DEV_ACCOUNT=$env:MAILCAL_DEV_ACCOUNT needs the harness certificates, and there are none at $ca, run scripts/dev/harness.sh up."
