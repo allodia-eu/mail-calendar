@@ -64,10 +64,16 @@ impl AppModel {
             return;
         }
         log::info!("notices: {} in force", notices.len());
+        let allodia_moved = notice_rules::allodia_sign_in_ended(&notices)
+            != notice_rules::allodia_sign_in_ended(&self.notices.notices);
         self.notices.marks = notice_rules::marks(&notices);
         self.notices.notices = notices;
         // An account's page in Settings carries the account's notices at its top.
         self.settings.signalled();
+        // The Allodia card says whether its sign-in ended, on a page the signal above leaves be.
+        if allodia_moved {
+            self.refresh_settings_in_place();
+        }
     }
 
     pub(super) fn notice_input(&mut self, input: NoticeInput, sender: relm4::Sender<AppInput>) {
