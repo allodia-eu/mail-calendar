@@ -26,7 +26,7 @@ internal object SecureStore {
     fun save(context: Context, id: String, config: String) = vault(context).save(id, config)
 
     // Removes account [id], so a later launch no longer loads it. The account's runtime removal
-    // is the core's job (`MailcalApp.removeAccount`).
+    // is the core's job (`AccountPageIntent.Remove`).
     @Synchronized
     fun remove(context: Context, id: String) = vault(context).remove(id)
 
