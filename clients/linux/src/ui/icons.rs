@@ -80,6 +80,9 @@ icons! {
     VIDEO_MEETING = "camera-video-symbolic";
     COPY = "edit-copy-symbolic";
     DIAL_IN = "call-start-symbolic";
+    /// The mark in the corner of an occurrence of a repeating event on the grid
+    /// (docs/calendar.md §4): Adwaita's repeat arrows, the same artwork its media players use.
+    REPEATS = "media-playlist-repeat-symbolic";
 
     // General controls.
     ADD = "list-add-symbolic";

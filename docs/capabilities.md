@@ -108,7 +108,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: **time grid** (day / 3-day / work-week / week), now line, week numbers, jump-to-today | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Calendar: events drawn as Apple's Calendar draws them: a tint of the calendar's colour, the colour down the leading edge, a long title wrapped over the lines the block has room for, and the repeat and meeting glyphs in its corner ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
+| Calendar: events drawn as Apple's Calendar draws them: a tint of the calendar's colour, the colour down the leading edge, a long title wrapped over the lines the block has room for, and the repeat and meeting glyphs in its corner ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
 | Calendar: the month grid turns by a sideways **swipe** on a phone or tablet; a desktop turns it by the header arrows | — | — | ✅ | — | ✅ | — |
 | The toolbar's actions are also **keyboard commands** with Mail's and Calendar's shortcuts (⌘N, ⌥⌘N, ⌘1 to ⌘6, ⌘T, ⇧⌘N, and ⌘← ⌘→ on the Mac): in the Mac's menu bar, and on iPad and iPhone with a hardware keyboard, as Apple's guidelines ask | — | ✅ | ✅ | — | — | — |
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

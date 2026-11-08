@@ -56,7 +56,7 @@ class SettingsSharedMailboxesTest {
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
-                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {})
                 }
             }
         }
@@ -142,7 +142,7 @@ class SettingsSharedMailboxesTest {
         val ui = AccountsSettingsUi(state = state)
         compose.setContent {
             AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
-                AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
+                AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {})
             }
         }
         compose.onNodeWithTag("account-use-SHARED_MAILBOXES").assertIsOff().assertIsNotEnabled()

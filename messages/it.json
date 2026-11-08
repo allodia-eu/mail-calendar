@@ -721,13 +721,11 @@
 
 	"settings_sync_depth_heading": "Profondità di sincronizzazione",
 	"settings_sync_depth_description": "Quanto indietro nel tempo scaricare la posta. I messaggi più vecchi restano sul server finché non amplii questo periodo.",
-	"settings_sync_depth_label": "Scarica",
 	"sync_depth_months": "Ultimi {count} mesi",
 	"sync_depth_all": "Tutto lo storico",
 
 	"settings_message_size_heading": "Dimensione dei messaggi",
 	"settings_message_size_description": "Il messaggio più grande da scaricare in background. Quelli più grandi restano sul server e si scaricano quando li apri.",
-	"settings_message_size_label": "Scarica fino a",
 	"message_size_megabytes": "{count} MB",
 	"message_size_unlimited": "Qualsiasi dimensione",
 	"sync_downloading": "Download di {fetched} su {total}…",

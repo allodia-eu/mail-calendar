@@ -13,8 +13,6 @@
 // "Awaiting your response" (docs/calendar.md §4, the spoken-grid rule).
 package eu.allodia.mailcal
 
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -24,7 +22,6 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
@@ -36,8 +33,11 @@ import androidx.compose.ui.unit.dp
  */
 internal const val HOLD_FILL_ALPHA = 0.4f
 
-/** The stripe width of the hatched gutter, and how far apart the diagonals sit. */
-private val HOLD_GUTTER = 4.dp
+/**
+ * The stripe width of the hatched gutter, the width of the bar it stands in for, and how far apart
+ * the diagonals sit.
+ */
+private val HOLD_GUTTER = EVENT_BAR
 private val HOLD_HATCH_STEP = 4.dp
 
 /** The dash the hold's border is stroked with, on, then off. */
@@ -109,20 +109,3 @@ internal fun DrawScope.drawHold(rect: Rect, color: Color, corner: Float, awaitin
         style = participationStroke(awaiting = true),
     )
 }
-
-/**
- * The same treatment for a composed surface rather than a canvas, the month grid's chips, which are
- * `Text`s with a background rather than draw calls.
- *
- * A no-op on a commitment, so a month cell of ordinary appointments is byte-for-byte what it was.
- */
-internal fun Modifier.holdChip(awaiting: Boolean, edge: Color, cornerRadius: Dp): Modifier =
-    if (!awaiting) {
-        this
-    } else {
-        drawWithContent {
-            drawContent()
-            // The same call the canvas grid makes, so the two surfaces cannot draw a hold differently.
-            drawHold(Rect(Offset.Zero, size), edge, cornerRadius.toPx(), awaiting = true)
-        }
-    }

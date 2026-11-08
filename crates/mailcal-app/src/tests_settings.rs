@@ -296,6 +296,37 @@ async fn sync_settings_defaults_to_pushing_the_inbox_when_idle_supported() {
 }
 
 #[tokio::test]
+async fn a_switch_to_push_is_drawn_with_the_folders_it_will_watch() {
+    // While the switch runs, the page draws the row it will store, not the timer's empty one.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        vec![account("acct", FakeProvider::with_idle(vec![]))],
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.set_sync_strategy("acct", mailcal_viewmodel::SyncStrategyKind::Poll)
+        .await;
+
+    let stored = app
+        .sync_settings_row("acct", None)
+        .await
+        .expect("a mail account");
+    assert!(stored.folders.iter().all(|f| !f.subscribed));
+    let going = app
+        .sync_settings_row("acct", Some(mailcal_viewmodel::SyncStrategyKind::Push))
+        .await
+        .expect("a mail account");
+    assert_eq!(going.strategy, mailcal_viewmodel::SyncStrategyKind::Push);
+    assert!(
+        going.folders.iter().any(|f| f.key == "a" && f.subscribed),
+        "the Inbox is drawn watched, as the switch stores it"
+    );
+    app.set_sync_strategy("acct", mailcal_viewmodel::SyncStrategyKind::Push)
+        .await;
+    assert_eq!(app.sync_settings_row("acct", None).await, Some(going));
+}
+
+#[tokio::test]
 async fn a_push_choice_saved_under_the_servers_spelling_still_watches_the_inbox() {
     // Yahoo lists its inbox as `Inbox`, and the engine once used that as its id, so changing
     // any sync setting stored `Inbox` as the folder to push. The engine now lists every inbox

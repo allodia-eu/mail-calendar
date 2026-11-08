@@ -186,7 +186,7 @@ pub(super) fn render_month(
             let label = if chip.all_day {
                 title.clone()
             } else {
-                format!("● {} {title}", clock(chip.start_minutes, model.use_24_hour))
+                format!("{} {title}", clock(chip.start_minutes, model.use_24_hour))
             };
             let button = gtk::Button::new();
             if chip.has_conference {
@@ -252,58 +252,45 @@ fn apply_month_style(
     calendar: &str,
     awaiting: bool,
 ) {
-    let Some(row) = model
+    let hex = model
         .month
         .calendars
         .iter()
         .find(|row| row.account == account && row.id == calendar)
-    else {
-        return;
-    };
-    let swatch = if adw::StyleManager::default().is_dark() {
-        &row.color.dark
-    } else {
-        &row.color.light
-    };
-    let (Some(background), Some(text), Some(border)) = (
-        css_hex(&swatch.background),
-        css_hex(&swatch.text),
-        css_hex(&swatch.border),
-    ) else {
-        return;
-    };
+        .map_or(paint::NEUTRAL_HEX, |row| row.color.hex.as_str());
+    let colors = paint::event_colors(hex, adw::StyleManager::default().is_dark());
+    let (fill, accent, text) = (colors.fill.hex(), colors.accent.hex(), colors.text.hex());
     let class = format!(
         "calendar-chip-{}-{}-{}{}",
-        &background[1..],
+        &fill[1..],
+        &accent[1..],
         &text[1..],
-        &border[1..],
         if awaiting { "-hold" } else { "" }
     );
     button.add_css_class(&class);
-    install_chip_style(&class, background, text, border, awaiting);
+    install_chip_style(&class, &fill, &accent, &text, awaiting);
 }
 
 thread_local! {
     static CHIP_STYLES: RefCell<HashSet<String>> = RefCell::new(HashSet::new());
 }
 
-fn install_chip_style(class: &str, background: &str, text: &str, border: &str, awaiting: bool) {
+/// The grid's block in miniature, so an event looks the same in every view: the tint, the
+/// calendar's colour down the leading edge, and a semibold title in the deep shade.
+fn install_chip_style(class: &str, fill: &str, accent: &str, text: &str, awaiting: bool) {
     CHIP_STYLES.with(|styles| {
         if !styles.borrow_mut().insert(class.to_owned()) {
             return;
         }
-        let fill = if awaiting {
-            faded(background)
-        } else {
-            background.to_owned()
-        };
         let treatment = if awaiting {
-            paint::hold_css(&fill, border)
+            paint::hold_css(&faded(fill), accent)
         } else {
-            format!("background: {fill}; border-color: {border};")
+            paint::commitment_css(fill, accent)
         };
         let provider = gtk::CssProvider::new();
-        provider.load_from_string(&format!(".{class} {{ {treatment} color: {text}; }}"));
+        provider.load_from_string(&format!(
+            ".{class} {{ {treatment} color: {text}; font-weight: 600; }}"
+        ));
         if let Some(display) = gtk::gdk::Display::default() {
             gtk::style_context_add_provider_for_display(
                 &display,
@@ -330,13 +317,6 @@ fn faded(background: &str) -> String {
         component(5..7),
         paint::HOLD_FILL_ALPHA
     )
-}
-
-fn css_hex(value: &str) -> Option<&str> {
-    (value.len() == 7
-        && value.starts_with('#')
-        && value[1..].bytes().all(|byte| byte.is_ascii_hexdigit()))
-    .then_some(value)
 }
 
 pub(super) const fn month_visible_count(total: usize, capacity: usize) -> usize {

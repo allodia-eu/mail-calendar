@@ -50,10 +50,14 @@ internal fun DrawScope.drawDrag(
     val body = Rect(rect.left + gap, rect.top + gap, rect.right - gap, rect.bottom - gap)
     if (body.width <= 0f || body.height <= 0f) return
 
-    // A new slot wears the calendar it would be filed on; a held one keeps its own colours.
-    val fill = held?.background ?: theme.dragFill
-    val edge = held?.border ?: theme.dragBorder
-    drawRoundRect(fill, Offset(body.left, body.top), Size(body.width, body.height), corner)
+    // A new slot wears the calendar it would be filed on; a held one keeps its own colours, bar
+    // and all.
+    val edge = held?.accent ?: theme.dragBorder
+    if (held != null) {
+        drawEventShape(body, held.fill, held.accent, held.awaitingResponse, corner.x)
+    } else {
+        drawRoundRect(theme.dragFill, Offset(body.left, body.top), Size(body.width, body.height), corner)
+    }
     drawRoundRect(
         color = edge,
         topLeft = Offset(body.left, body.top),
