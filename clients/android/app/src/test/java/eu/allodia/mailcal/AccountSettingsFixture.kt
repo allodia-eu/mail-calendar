@@ -11,6 +11,7 @@ import uniffi.mailcal_bindings.AccountLinksView
 import uniffi.mailcal_bindings.AccountMailSettings
 import uniffi.mailcal_bindings.AccountPage
 import uniffi.mailcal_bindings.AccountSenderName
+import uniffi.mailcal_bindings.AccountServers
 import uniffi.mailcal_bindings.AccountUse
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
@@ -122,12 +123,14 @@ internal fun pageOf(
     remove: ControlState = FREE,
     senderName: AccountSenderName? = null,
     mail: AccountMailSettings? = null,
+    servers: AccountServers? = entry.endpoints?.let { AccountServers(form = it, save = FREE) },
 ) = AccountPage(
     account = entry.id,
     uses = uses,
     links = links,
     senderName = senderName,
     mail = mail,
+    servers = servers,
     remove = remove,
     notice = null,
 )

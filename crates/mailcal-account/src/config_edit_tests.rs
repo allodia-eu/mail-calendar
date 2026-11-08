@@ -1,4 +1,4 @@
-use crate::{Capability, ConfigError, ConnectionSecurity, load_str};
+use crate::{Capability, ConfigError, ConnectionSecurity, EndpointGap, load_str};
 
 const STANDARDS: &str = r#"
 [imap]
@@ -100,7 +100,7 @@ fn a_use_cannot_lose_its_server_and_an_oauth_account_takes_no_password() {
     edit.caldav_url = None;
     assert!(matches!(
         config.with_endpoints(&edit),
-        Err(ConfigError::Refused(_))
+        Err(ConfigError::Incomplete("calendar server"))
     ));
 
     let mut blank = config.endpoints();
@@ -190,4 +190,46 @@ fn a_mail_server_on_another_host_keeps_no_shared_mailbox_the_old_one_opened() {
     edit.imap_host = Some("mail.example.net".to_owned());
     let moved = config.with_endpoints(&edit).unwrap();
     assert_eq!(moved.config.shape.shared_mailboxes, []);
+}
+
+#[test]
+fn a_server_the_account_has_keeps_an_address() {
+    let config = load_str(STANDARDS).unwrap();
+    let mut edit = config.endpoints();
+    edit.smtp_host = Some("  ".to_owned());
+    assert_eq!(
+        edit.gap(&config),
+        Some(EndpointGap::Smtp),
+        "mail could no longer be sent"
+    );
+    assert!(matches!(
+        config.with_endpoints(&edit),
+        Err(ConfigError::Incomplete("sending server"))
+    ));
+
+    let mut edit = config.endpoints();
+    edit.password = Some(String::new());
+    assert_eq!(edit.gap(&config), Some(EndpointGap::Password));
+    assert_eq!(config.endpoints().gap(&config), None);
+}
+
+#[test]
+fn contacts_fall_back_to_the_calendar_server_when_their_own_is_cleared() {
+    let both = load_str(&format!(
+        "{STANDARDS}\n[carddav]\nbase_url = \"https://cards.example.org/\"\nusername = \"alice@example.org\"\npassword = \"old\"\n"
+    ))
+    .unwrap();
+    let mut edit = both.endpoints();
+    edit.carddav_url = None;
+    assert_eq!(edit.gap(&both), None);
+    edit.caldav_url = None;
+    assert_eq!(edit.gap(&both), Some(EndpointGap::CalDav));
+}
+
+#[test]
+fn an_edit_never_prints_its_password() {
+    let config = load_str(STANDARDS).unwrap();
+    let mut edit = config.endpoints();
+    edit.password = Some("hunter2".to_owned());
+    assert!(!format!("{edit:?}").contains("hunter2"));
 }

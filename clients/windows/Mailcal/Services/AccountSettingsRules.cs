@@ -282,6 +282,14 @@ internal static class AccountSettingsRules
                 yield return $"folder:{folder.Key}={folder.Name}/{folder.Role}/{folder.On}/{Control(folder.Control)}";
             }
         }
+        if (page.Servers is { } servers)
+        {
+            // The form, password included: a refused edit is drawn as it was typed.
+            var form = servers.Form;
+            yield return string.Join('/', "servers", form.ImapHost, form.ImapSecurity, form.SmtpHost,
+                form.SmtpSecurity, form.CaldavUrl, form.CarddavUrl, form.Username, form.Password,
+                Control(servers.Save));
+        }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
     }

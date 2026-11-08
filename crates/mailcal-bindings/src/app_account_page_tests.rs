@@ -129,7 +129,9 @@ fn a_change_the_core_refuses_leaves_a_notice_and_a_missing_server_is_said_first(
         AccountChangeNotice::UseFailed {
             capability: AccountCapability::Mail,
             on: false,
-            ..
+            refusal: crate::AccountChangeRefusal::Blocked {
+                block: AccountUseBlock::LastUse
+            },
         }
     ));
 
@@ -162,7 +164,7 @@ fn a_calendar_the_provider_refused_asks_it_again_on_the_page_and_in_the_change()
         AccountChangeNotice::UseFailed {
             capability: AccountCapability::Calendar,
             on: true,
-            ..
+            refusal: crate::AccountChangeRefusal::Withheld,
         }
     ));
 }

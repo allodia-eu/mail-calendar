@@ -143,26 +143,63 @@ enum AccountSettingsLabels {
         case .withheld: L10n.settings_account_use_withheld()
         case nil: nil
         }
-        let blocked: String? = switch toggle.blocked {
+        let blocked = toggle.blocked.map(blockNote)
+        let lines = [status, blocked].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// Why a use's switch cannot be pressed.
+    static func blockNote(_ block: AccountUseBlock) -> String {
+        switch block {
         case .lastUse: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
         case .needsMail: L10n.settings_account_shared_needs_mail()
         case .notOffered: L10n.settings_account_use_not_offered()
         case .needsServer: L10n.settings_account_use_needs_endpoint()
-        case nil: nil
         }
-        let lines = [status, blocked].compactMap { $0 }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     /// What a change on an account's page came to, when the core says it needs saying.
     static func changeFailed(_ notice: AccountChangeNotice) -> AccountPageAlert {
         switch notice {
-        case let .useFailed(_, _, detail), let .linkFailed(_, detail):
-            AccountPageAlert(title: L10n.settings_account_change_failed_title(), detail: detail)
+        case let .useFailed(_, _, refusal), let .linkFailed(_, refusal):
+            AccountPageAlert(
+                title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
         case let .removeFailed(detail):
             AccountPageAlert(title: L10n.remove_account_failed(error: detail), detail: "")
+        case let .serversFailed(refusal):
+            AccountPageAlert(
+                title: L10n.settings_account_servers_failed(), detail: refused(refusal))
         }
+    }
+
+    /// Why a change did not take, in the person's language where the core names the reason, as
+    /// `coreMessage` words a refusal; anything else as the core renders it.
+    static func refused(_ refusal: AccountChangeRefusal) -> String {
+        switch refusal {
+        case .signInRefused: L10n.signin_refused()
+        case .alreadySetUp: L10n.account_already_set_up()
+        case .differentAccount: L10n.signin_different_account()
+        case .staleSignIn: L10n.signin_stale()
+        case let .useNotConnected(capability, problem):
+            useNotConnectedMessage(capability, problem)
+        case let .blocked(block): blockNote(block)
+        case .withheld: L10n.settings_account_use_withheld()
+        case let .other(detail): detail
+        }
+    }
+
+    /// What Save says the server fields leave out, naming the field as the form labels it.
+    static func endpointsGap(_ gap: AccountEndpointsGap) -> String {
+        let field = switch gap {
+        case .imap: L10n.settings_account_field_imap()
+        case .smtp: L10n.setup_field_smtp()
+        case .calDav: L10n.setup_field_caldav()
+        case .cardDav: L10n.settings_account_field_carddav()
+        case .username: L10n.settings_account_field_login()
+        case .password: L10n.settings_account_field_new_password()
+        }
+        return L10n.settings_account_servers_gap(field: field)
     }
 
     /// The line under a calendar or an address book that did not connect, which its outage line

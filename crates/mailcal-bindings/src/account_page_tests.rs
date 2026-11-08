@@ -81,7 +81,7 @@ fn applies(_: AccountCapability, _: bool) -> Toggle {
 }
 
 fn idle(entry: &AccountEntry) -> AccountPage {
-    page(entry, Hold::default(), None, applies)
+    page(entry, Hold::default(), None, None, applies)
 }
 
 fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
@@ -94,13 +94,17 @@ fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitc
 #[test]
 fn a_switch_the_core_would_refuse_is_held_and_says_why_and_one_it_would_make_is_free() {
     let account = mailbox_only();
-    let page = page(&account, Hold::default(), None, |capability, on| {
-        match (capability, on) {
+    let page = page(
+        &account,
+        Hold::default(),
+        None,
+        None,
+        |capability, on| match (capability, on) {
             (Mail, false) => Toggle::Refused(AccountUseBlock::LastUse),
             (Contacts, true) => Toggle::Refused(AccountUseBlock::NeedsServer),
             _ => applies(capability, on),
-        }
-    });
+        },
+    );
     assert_eq!(
         switch(&page, Mail),
         &AccountUseSwitch {
@@ -133,12 +137,16 @@ fn a_switch_whose_grant_lacks_it_asks_the_provider_and_one_waiting_on_it_says_so
         AccountKind::Google,
         &[(Mail, On), (Calendar, NeedsPermission), (Contacts, Off)],
     );
-    let page = page(&account, Hold::default(), None, |capability, on| {
-        match (capability, on) {
+    let page = page(
+        &account,
+        Hold::default(),
+        None,
+        None,
+        |capability, on| match (capability, on) {
             (Calendar | Contacts, true) => Toggle::AsksProvider,
             _ => applies(capability, on),
-        }
-    });
+        },
+    );
     let calendar = switch(&page, Calendar);
     assert!(
         !calendar.on,
@@ -164,12 +172,16 @@ fn what_is_wrong_with_a_use_is_said_beside_why_it_cannot_be_pressed() {
     // last use, and the page says both, rather than one hiding the other.
     let mut account = entry(AccountKind::Dav, &[(Calendar, On), (Contacts, Off)]);
     account.uses[0].problem = Some(UseProblem::Unreachable);
-    let page = page(&account, Hold::default(), None, |capability, on| {
-        match (capability, on) {
+    let page = page(
+        &account,
+        Hold::default(),
+        None,
+        None,
+        |capability, on| match (capability, on) {
             (Calendar, false) => Toggle::Refused(AccountUseBlock::LastUse),
             _ => applies(capability, on),
-        }
-    });
+        },
+    );
     let calendar = switch(&page, Calendar);
     assert_eq!(calendar.blocked, Some(AccountUseBlock::LastUse));
     assert_eq!(
@@ -183,12 +195,16 @@ fn what_is_wrong_with_a_use_is_said_beside_why_it_cannot_be_pressed() {
 #[test]
 fn a_use_the_server_does_not_offer_is_asked_about_switching_on() {
     let account = entry(AccountKind::Jmap, &[(Mail, On), (Calendar, NotOffered)]);
-    let page = page(&account, Hold::default(), None, |capability, on| {
-        match (capability, on) {
+    let page = page(
+        &account,
+        Hold::default(),
+        None,
+        None,
+        |capability, on| match (capability, on) {
             (Calendar, true) => Toggle::Refused(AccountUseBlock::NotOffered),
             _ => applies(capability, on),
-        }
-    });
+        },
+    );
     let calendar = switch(&page, Calendar);
     assert_eq!((calendar.on, calendar.control), (false, HELD));
     assert_eq!(calendar.blocked, Some(AccountUseBlock::NotOffered));
@@ -307,6 +323,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             on: false,
         }),
         None,
+        None,
         applies,
     );
     assert_eq!(
@@ -331,6 +348,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             target: Some("cal@cloud.example".to_owned()),
         }),
         None,
+        None,
         applies,
     );
     assert!(linking.links[0].control.running && !linking.links[0].control.enabled);
@@ -346,7 +364,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             .all(|switch| !switch.control.enabled && !switch.control.running)
     );
 
-    let removing = page(&account, own(PageWork::Remove), None, applies);
+    let removing = page(&account, own(PageWork::Remove), None, None, applies);
     assert!(removing.remove.running && !removing.remove.enabled);
 
     // A change running on another account holds this page too, and marks nothing here running:
@@ -357,6 +375,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             busy: true,
             own: Vec::new(),
         },
+        None,
         None,
         applies,
     );

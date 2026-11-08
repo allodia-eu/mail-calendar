@@ -1,7 +1,7 @@
 // An account's servers and sign-in, on its page: for an account that signs in with a password,
-// whose servers are its own to change. Saving tries them first (`update_account_endpoints`), so a
-// typo never costs a working account, and an expired password is replaced here too
-// (docs/accounts.md rule 14).
+// whose servers are its own to change. Saving tries them first (`SaveServers`), so a typo never
+// costs a working account, and an expired password is replaced here too (docs/accounts.md rule
+// 14).
 
 import MailcalBindings
 import SwiftUI
@@ -9,30 +9,25 @@ import SwiftUI
 struct AccountServersSection: View {
     var model: MailboxModel
     let entry: AccountEntry
-    let endpoints: AccountEndpoints
+    let servers: AccountServers
     let expired: Bool
-    @Binding var alert: AccountPageAlert?
 
-    /// The fields as the person is leaving them. Seeded once, from what is stored: a signal that
-    /// redraws the page while somebody types must not take their typing away.
+    /// The fields as the person is leaving them, seeded from the page's form: the edit being saved
+    /// while a save runs, the one the last save refused, and otherwise what is stored. Seeded again
+    /// only when that changes, so a signal that redraws the page leaves typing alone.
     @State private var fields: EndpointFields
-    @State private var saving = false
-    /// The fields as they were last saved, so "Saved." stands only while nothing has changed since.
-    @State private var savedAs: EndpointFields?
 
-    init(
-        model: MailboxModel, entry: AccountEntry, endpoints: AccountEndpoints, expired: Bool,
-        alert: Binding<AccountPageAlert?>
-    ) {
+    init(model: MailboxModel, entry: AccountEntry, servers: AccountServers, expired: Bool) {
         self.model = model
         self.entry = entry
-        self.endpoints = endpoints
+        self.servers = servers
         self.expired = expired
-        _alert = alert
-        _fields = State(initialValue: EndpointFields(endpoints))
+        _fields = State(initialValue: EndpointFields(servers.form))
     }
 
     var body: some View {
+        let edited = fields.edited(from: servers.form)
+        let gap = model.endpointsGap(entry.id, edited)
         SettingsGroup(
             heading: L10n.settings_account_servers_heading(),
             description: expired
@@ -72,21 +67,21 @@ struct AccountServersSection: View {
                     SecureField(L10n.settings_account_field_new_password(), text: $fields.password)
                         .setupField(.password)
                 }
-                HStack(spacing: 10) {
-                    Button(L10n.action_save(), action: save)
-                        .buttonStyle(.borderedProminent)
-                        .disabled(saving || fields.incomplete)
-                    if saving {
-                        progress(L10n.settings_account_servers_trying())
-                    } else if savedAs == fields {
-                        Text(L10n.settings_account_servers_saved())
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                    }
+                if let gap {
+                    Text(AccountSettingsLabels.endpointsGap(gap))
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
+                ControlButton(
+                    title: L10n.action_save(), control: servers.save, ready: gap == nil
+                ) {
+                    model.changeAccount(.saveServers(account: entry.id, endpoints: edited))
+                }
+                .buttonStyle(.borderedProminent)
             }
             .frame(maxWidth: 420, alignment: .leading)
         }
+        .onChange(of: servers.form) { _, form in fields = EndpointFields(form) }
     }
 
     private func labelled<Content: View>(
@@ -112,23 +107,4 @@ struct AccountServersSection: View {
         Binding(get: { fields[keyPath: path] ?? "" }, set: { fields[keyPath: path] = $0 })
     }
 
-    /// Tries the edited servers, which connects to each of them. A refusal leaves the form as the
-    /// person typed it, the password included, so they correct one field rather than retype them
-    /// all.
-    private func save() {
-        let edited = fields.edited(from: endpoints)
-        let id = entry.id
-        saving = true
-        Task {
-            let failure = await model.saveAccountEndpoints(id, edited)
-            saving = false
-            if let failure {
-                alert = AccountPageAlert(
-                    title: L10n.settings_account_servers_failed(), detail: failure)
-            } else {
-                fields.password = ""
-                savedAs = fields
-            }
-        }
-    }
 }

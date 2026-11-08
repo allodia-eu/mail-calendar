@@ -1,18 +1,17 @@
 //! An account's servers and sign-in, on its page: for an account that signs in with a password,
-//! whose servers are its own to change. Saving tries them first (`update_account_endpoints`), so a
-//! typo never costs a working account, and an expired password is replaced here too.
+//! whose servers are its own to change. Saving tries them first (`SaveServers`), so a typo never
+//! costs a working account, and an expired password is replaced here too.
+
+use std::rc::Rc;
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountEndpoints, AccountEntry, ConnectionSecurity};
+use mailcal_bindings::{
+    AccountEndpoints, AccountEndpointsGap, AccountEntry, AccountPageIntent, AccountServers,
+    ConnectionSecurity, MailServerKind, standard_port,
+};
 
 use super::{PageContext, group};
-use crate::{
-    l10n,
-    ui::{
-        AppInput,
-        account_settings::{AccountsInput, EndpointsEdit},
-    },
-};
+use crate::{l10n, ui::controls};
 
 /// What the section says beneath its heading: the expired sign-in when there is one, otherwise
 /// how saving works.
@@ -22,6 +21,18 @@ pub(super) fn description(address: &str, expired: bool) -> String {
     } else {
         l10n::settings_account_servers_description().to_owned()
     }
+}
+
+/// What Save says the fields leave out, naming the field as the form labels it.
+pub(super) fn gap_said(gap: AccountEndpointsGap) -> String {
+    l10n::settings_account_servers_gap(match gap {
+        AccountEndpointsGap::Imap => l10n::settings_account_field_imap(),
+        AccountEndpointsGap::Smtp => l10n::setup_field_smtp(),
+        AccountEndpointsGap::CalDav => l10n::setup_field_caldav(),
+        AccountEndpointsGap::CardDav => l10n::settings_account_field_carddav(),
+        AccountEndpointsGap::Username => l10n::settings_account_field_login(),
+        AccountEndpointsGap::Password => l10n::settings_account_field_new_password(),
+    })
 }
 
 /// The fields as the person left them.
@@ -56,82 +67,127 @@ pub(super) fn edited(original: &AccountEndpoints, fields: Fields) -> AccountEndp
     }
 }
 
-/// The section, for an account whose servers can be edited.
+/// The section, for an account whose servers can be edited, drawn from the page's `servers`.
 pub(super) fn server_group(
     ctx: &PageContext,
     entry: &AccountEntry,
-    endpoints: &AccountEndpoints,
+    servers: &AccountServers,
     expired: bool,
 ) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_account_servers_heading(),
         &description(&super::account_names::entry_name(entry), expired),
     );
-    let imap = endpoints.imap_host.as_deref().map(|address| {
+    let form = &servers.form;
+    let imap = form.imap_host.as_deref().map(|address| {
         server_rows(
             &section,
             l10n::settings_account_field_imap(),
             address,
-            endpoints.imap_security,
-            Server::Imap,
+            form.imap_security,
+            MailServerKind::Imap,
         )
     });
-    let smtp = endpoints.smtp_host.as_deref().map(|address| {
+    let smtp = form.smtp_host.as_deref().map(|address| {
         server_rows(
             &section,
             l10n::setup_field_smtp(),
             address,
-            endpoints.smtp_security,
-            Server::Smtp,
+            form.smtp_security,
+            MailServerKind::Smtp,
         )
     });
-    let caldav = endpoints
+    let caldav = form
         .caldav_url
         .as_deref()
         .map(|url| entry_row(&section, l10n::setup_field_caldav(), url));
-    let carddav = endpoints
+    let carddav = form
         .carddav_url
         .as_deref()
         .map(|url| entry_row(&section, l10n::settings_account_field_carddav(), url));
     let username = entry_row(
         &section,
         l10n::settings_account_field_login(),
-        &endpoints.username,
+        &form.username,
     );
     let password = adw::PasswordEntryRow::builder()
         .title(l10n::settings_account_field_new_password())
         .use_markup(false)
         .build();
+    password.set_text(form.password.as_deref().unwrap_or_default());
     section.add(&password);
 
-    let save = adw::ButtonRow::builder()
-        .title(l10n::action_save())
-        .use_markup(false)
-        .build();
-    save.add_css_class("suggested-action");
-    let sender = ctx.sender.clone();
-    let account = entry.id.clone();
-    let original = endpoints.clone();
-    save.connect_activated(move |_| {
-        let fields = Fields {
-            imap_host: imap.as_ref().map(ServerRows::address),
-            imap_security: imap.as_ref().map(ServerRows::security),
-            smtp_host: smtp.as_ref().map(ServerRows::address),
-            smtp_security: smtp.as_ref().map(ServerRows::security),
-            caldav_url: caldav.as_ref().map(|row| row.text().to_string()),
-            carddav_url: carddav.as_ref().map(|row| row.text().to_string()),
-            username: username.text().to_string(),
-            password: password.text().to_string(),
-        };
-        sender.emit(AppInput::Accounts(AccountsInput::SaveEndpoints(Box::new(
-            EndpointsEdit {
-                account: account.clone(),
-                endpoints: edited(&original, fields),
+    let original = form.clone();
+    let read = Rc::new(move || {
+        edited(
+            &original,
+            Fields {
+                imap_host: imap.as_ref().map(ServerRows::address),
+                imap_security: imap.as_ref().map(ServerRows::security),
+                smtp_host: smtp.as_ref().map(ServerRows::address),
+                smtp_security: smtp.as_ref().map(ServerRows::security),
+                caldav_url: caldav.as_ref().map(|row| row.text().to_string()),
+                carddav_url: carddav.as_ref().map(|row| row.text().to_string()),
+                username: username.text().to_string(),
+                password: password.text().to_string(),
             },
-        ))));
+        )
     });
-    section.add(&save);
+    let drawn = Rc::new(std::cell::RefCell::new(read()));
+    let sender = ctx.sender.clone();
+    let (account, reading, last, group) = (
+        entry.id.clone(),
+        Rc::clone(&read),
+        Rc::clone(&drawn),
+        section.clone(),
+    );
+    let save = Rc::new(controls::FormSend::new(
+        l10n::action_save(),
+        servers.save,
+        move || {
+            let endpoints = reading();
+            last.replace(endpoints.clone());
+            controls::form_unsent(&group, false);
+            super::account_page::change(
+                &sender,
+                AccountPageIntent::SaveServers {
+                    account: account.clone(),
+                    endpoints,
+                },
+            );
+        },
+    ));
+    section.add(save.row());
+    let (app, account) = (ctx.app.clone(), entry.id.clone());
+    let follow = {
+        let (section, save) = (section.clone(), Rc::clone(&save));
+        move || {
+            let now = read();
+            controls::form_unsent(&section, now != *drawn.borrow());
+            let gap = app.account_endpoints_gap(account.clone(), now);
+            save.ready(gap.map(gap_said).as_deref());
+        }
+    };
+    follow();
+    let follow: Rc<dyn Fn()> = Rc::new(follow);
+    watch(&section, &follow);
     section
+}
+
+/// Calls `changed` whenever a field or picker under `root` changes.
+fn watch(root: &impl IsA<gtk::Widget>, changed: &Rc<dyn Fn()>) {
+    let mut child = root.as_ref().first_child();
+    while let Some(widget) = child {
+        if let Some(editable) = widget.dynamic_cast_ref::<gtk::Editable>() {
+            let changed = Rc::clone(changed);
+            editable.connect_changed(move |_| changed());
+        } else if let Some(picker) = widget.dynamic_cast_ref::<adw::ComboRow>() {
+            let changed = Rc::clone(changed);
+            picker.connect_selected_notify(move |_| changed());
+        }
+        watch(&widget, changed);
+        child = widget.next_sibling();
+    }
 }
 
 fn entry_row(section: &adw::PreferencesGroup, title: &str, text: &str) -> adw::EntryRow {
@@ -144,30 +200,11 @@ fn entry_row(section: &adw::PreferencesGroup, title: &str, text: &str) -> adw::E
     row
 }
 
-/// Which server a row edits, for the port it takes by default.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Server {
-    Imap,
-    Smtp,
-}
-
-impl Server {
-    /// The standard port for `security`, which a stored address leaves out.
-    pub(super) const fn default_port(self, security: ConnectionSecurity) -> u16 {
-        match (self, security) {
-            (Self::Imap, ConnectionSecurity::ImplicitTls) => 993,
-            (Self::Imap, ConnectionSecurity::StartTls) => 143,
-            (Self::Smtp, ConnectionSecurity::ImplicitTls) => 465,
-            (Self::Smtp, ConnectionSecurity::StartTls) => 587,
-        }
-    }
-}
-
 /// A stored address, `host` or `host:port`, as its host and its port, the default one when it
 /// names none.
 pub(super) fn split(
     address: &str,
-    server: Server,
+    server: MailServerKind,
     security: ConnectionSecurity,
 ) -> (String, String) {
     let named = address.rsplit_once(':').filter(|(host, port)| {
@@ -177,7 +214,7 @@ pub(super) fn split(
         Some((host, port)) => (host.to_owned(), port.to_owned()),
         None => (
             address.to_owned(),
-            server.default_port(security).to_string(),
+            standard_port(server, security).to_string(),
         ),
     }
 }
@@ -187,11 +224,11 @@ pub(super) fn split(
 pub(super) fn joined(
     host: &str,
     port: &str,
-    server: Server,
+    server: MailServerKind,
     security: ConnectionSecurity,
 ) -> String {
     let (host, port) = (host.trim(), port.trim());
-    if port.is_empty() || port == server.default_port(security).to_string() {
+    if port.is_empty() || port == standard_port(server, security).to_string() {
         host.to_owned()
     } else {
         format!("{host}:{port}")
@@ -203,7 +240,7 @@ struct ServerRows {
     host: adw::EntryRow,
     port: adw::EntryRow,
     picker: adw::ComboRow,
-    server: Server,
+    server: MailServerKind,
 }
 
 impl ServerRows {
@@ -230,7 +267,7 @@ fn server_rows(
     title: &str,
     address: &str,
     security: ConnectionSecurity,
-    server: Server,
+    server: MailServerKind,
 ) -> ServerRows {
     let (host, port) = split(address, server, security);
     let host = entry_row(section, title, &host);
@@ -258,9 +295,9 @@ fn server_rows(
             ConnectionSecurity::ImplicitTls
         };
         if let Some(port) = following.upgrade()
-            && port.text().trim() == server.default_port(previous.get()).to_string()
+            && port.text().trim() == standard_port(server, previous.get()).to_string()
         {
-            port.set_text(&server.default_port(now).to_string());
+            port.set_text(&standard_port(server, now).to_string());
         }
         previous.set(now);
     });
@@ -274,9 +311,9 @@ fn server_rows(
 
 #[cfg(test)]
 mod tests {
-    use mailcal_bindings::{AccountEndpoints, ConnectionSecurity};
+    use mailcal_bindings::{AccountEndpoints, ConnectionSecurity, MailServerKind as Server};
 
-    use super::{Fields, Server, description, edited, joined, split};
+    use super::{Fields, description, edited, joined, split};
     use crate::l10n;
 
     fn mailbox() -> AccountEndpoints {

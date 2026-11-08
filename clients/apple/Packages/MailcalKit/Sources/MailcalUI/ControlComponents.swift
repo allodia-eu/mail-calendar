@@ -62,6 +62,8 @@ struct ControlButton: View {
     var systemImage: String?
     var role: ButtonRole?
     let control: ControlState
+    /// For a button that sends a form: held, too, while the form is not ready to send.
+    var ready = true
     let action: () -> Void
 
     var body: some View {
@@ -73,7 +75,7 @@ struct ControlButton: View {
                     Text(title)
                 }
             }
-            .disabled(!control.enabled)
+            .disabled(!control.enabled || !ready)
             Running(control: control)
         }
     }

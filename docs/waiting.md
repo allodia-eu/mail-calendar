@@ -51,7 +51,11 @@ page holds its controls without a spinner. While the account is used for mail th
 its `sender_name` and its `mail` settings too (fetch depth, message size, push or poll, the
 interval, the watched folders), each a control of its own, a switch to push drawn with the
 folders it will watch: a change to one is stored before it ends, and what follows from it (telling the provider the name, reconciling the mail to a new depth
-or size) runs on afterwards as sync work the page does not wait on. The page's `notice` carries
+or size) runs on afterwards as sync work the page does not wait on. For an account whose servers
+can be edited the page carries its `servers`: the form, drawn from the edit being saved while a
+save runs, from the edit the last save refused (its password included, so one field is corrected
+rather than all retyped), and otherwise from what is stored; and Save, held too while
+`account_endpoints_gap` says the fields leave something out, which the page says beside it. The page's `notice` carries
 an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -65,7 +69,8 @@ on macOS, iOS and iPadOS, and
 [`ControlComponents.cs`](../clients/windows/Mailcal/Controls/ControlComponents.cs) on Windows, whose
 confirmation is drawn inline because Settings is itself a dialog and a nested one is not allowed.
 A text field sends what was typed on Return and when it loses focus, once for each edit, and a
-redraw waits on it only while it holds text it has not sent; a redraw also waits while a picker's
+redraw waits on it only while it holds text it has not sent; a form whose fields a button sends
+together holds a redraw while it differs from what it was drawn with, wherever the caret is; a redraw also waits while a picker's
 list is open, which it would close under the pointer, and comes once the list closes. Every control on a page the core draws goes through them, one that only opens something (a
 question, a form) included: it is given a state that never runs, so it is held while a change runs
 on the page and the spinner stays with the control that started it. A platform control of the
@@ -78,6 +83,7 @@ record, not a state the client keeps.
 |---|:---:|:---:|:---:|:---:|:---:|
 | An account's page: uses, links and removal drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its name and mail settings drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An account's page: its servers drawn from `account_page`, saved as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -97,6 +103,11 @@ record, not a state the client keeps.
   the page's mail half: a name the provider holds falls back to the address, a server that cannot
   push offers only the interval, a folder past the watch limit is held, and a running change is
   drawn where it goes.
+- [`app_accounts_endpoints_tests.rs`](../crates/mailcal-bindings/src/app_accounts_endpoints_tests.rs)
+  pins the servers on the page: what an edit leaves out is said by the rule its save refuses with,
+  and a refused save says why and draws the form as it was typed. What the rule refuses is in
+  [`config_edit_tests.rs`](../crates/mailcal-account/src/config_edit_tests.rs): a server the account
+  has keeps an address, the address book's falling back to the calendar's.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
@@ -107,7 +118,7 @@ record, not a state the client keeps.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
   ([`controls.rs`](../clients/linux/src/ui/controls.rs), the name's row in
   [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs), and a redraw
-  waiting on a field only until it has sent in
+  waiting on a field only until it has sent, and on a form until its button sent it, in
   [`redraw_tests.rs`](../clients/linux/src/ui/settings/redraw_tests.rs)), Android's in
   [`SettingsAccountsTest.kt`](../clients/android/app/src/test/java/eu/allodia/mailcal/SettingsAccountsTest.kt)
   and

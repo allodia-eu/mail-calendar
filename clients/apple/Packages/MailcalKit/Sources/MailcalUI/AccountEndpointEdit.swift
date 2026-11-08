@@ -1,5 +1,5 @@
 // An account's servers and sign-in as its page edits them (docs/accounts.md rule 14). Saving tries
-// them first (`update_account_endpoints`), so a typo never costs a working account. Renderer-free
+// them first (`SaveServers`), so a typo never costs a working account. Renderer-free
 // so the arithmetic is tested without a view.
 
 import Foundation
@@ -37,7 +37,7 @@ struct EndpointFields: Equatable {
     var username: String
     var password = ""
 
-    /// The fields for `endpoints`, as stored.
+    /// The fields for `endpoints`: what is stored, or an edit with the password it was given.
     init(_ endpoints: AccountEndpoints) {
         imap = endpoints.imapHost.map {
             EndpointServerFields(.imap, stored: $0, security: endpoints.imapSecurity)
@@ -48,16 +48,7 @@ struct EndpointFields: Equatable {
         caldav = endpoints.caldavUrl
         carddav = endpoints.carddavUrl
         username = endpoints.username
-    }
-
-    /// Whether a field the account has is empty. Saving waits: an empty server would leave its use
-    /// without one, which the core refuses only after the person has been made to wait for it.
-    var incomplete: Bool {
-        let blank = { (text: String?) in
-            text.map { $0.trimmingCharacters(in: .whitespaces).isEmpty } ?? false
-        }
-        return blank(imap?.host) || blank(smtp?.host) || blank(caldav) || blank(carddav)
-            || blank(username)
+        password = endpoints.password ?? ""
     }
 
     /// The servers to save: `original` with what the fields changed. A server the account does

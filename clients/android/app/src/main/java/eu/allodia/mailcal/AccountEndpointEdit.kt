@@ -1,7 +1,7 @@
 // An account's servers and sign-in as Settings edits them (docs/accounts.md rule 14): what the
 // fields show for a stored address, and what is sent back. Compose-free so the JVM suite reaches
-// the rules; saving tries the servers first (update_account_endpoints), so a typo never costs a
-// working account.
+// the rules; saving tries the servers first (SaveServers), so a typo never costs a working
+// account.
 package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.AccountEndpoints
@@ -57,13 +57,4 @@ internal object AccountEndpointEdit {
         return if (barePort.isEmpty() || barePort == standard) bareHost else "$bareHost:$barePort"
     }
 
-    /** Whether every server the account has still names one: the core refuses an empty one. */
-    fun complete(original: AccountEndpoints, fields: EndpointFields): Boolean {
-        fun filled(old: String?, typed: String?) = old == null || typed == null || typed.isNotBlank()
-        return fields.username.isNotBlank() &&
-            filled(original.imapHost, fields.imapHost) &&
-            filled(original.smtpHost, fields.smtpHost) &&
-            filled(original.caldavUrl, fields.caldavUrl) &&
-            filled(original.carddavUrl, fields.carddavUrl)
-    }
 }

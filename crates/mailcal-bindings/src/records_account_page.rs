@@ -124,6 +124,51 @@ pub struct AccountWatchedFolder {
     pub control: ControlState,
 }
 
+/// An account's servers and login, for an account whose servers can be edited
+/// (`docs/accounts.md` rule 14): what is stored, which the form is drawn with, and its Save.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountServers {
+    /// What the form is drawn with: the edit being saved while a save runs, the edit the last
+    /// save refused (its password included) so one field is corrected rather than all retyped,
+    /// and otherwise what is stored, with no password.
+    pub form: crate::AccountEndpoints,
+    /// Save, running while the new servers are tried. The fields are the person's own until
+    /// Save is pressed; [`crate::MailcalApp::account_endpoints_gap`] says what they leave out.
+    pub save: ControlState,
+}
+
+/// What an edit of an account's servers leaves out, which its save refuses and the page says
+/// before Save is pressed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AccountEndpointsGap {
+    /// No login.
+    Username,
+    /// A new password given empty.
+    Password,
+    /// The IMAP server has no address.
+    Imap,
+    /// The SMTP server has no address: mail could no longer be sent.
+    Smtp,
+    /// The calendar server has no address.
+    CalDav,
+    /// The address book server has no address, and no calendar server serves contacts instead.
+    CardDav,
+}
+
+impl From<mailcal_account::EndpointGap> for AccountEndpointsGap {
+    fn from(gap: mailcal_account::EndpointGap) -> Self {
+        use mailcal_account::EndpointGap;
+        match gap {
+            EndpointGap::Username => Self::Username,
+            EndpointGap::Password => Self::Password,
+            EndpointGap::Imap => Self::Imap,
+            EndpointGap::Smtp => Self::Smtp,
+            EndpointGap::CalDav => Self::CalDav,
+            EndpointGap::CardDav => Self::CardDav,
+        }
+    }
+}
+
 /// How an account's mail arrives and how much of it this device keeps (`docs/settings.md`).
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountMailSettings {
@@ -157,13 +202,66 @@ pub enum AccountChangeNotice {
     UseFailed {
         capability: AccountCapability,
         on: bool,
-        detail: String,
+        refusal: AccountChangeRefusal,
     },
     /// Linking `slot` did not take.
-    LinkFailed { slot: LinkSlot, detail: String },
+    LinkFailed {
+        slot: LinkSlot,
+        refusal: AccountChangeRefusal,
+    },
     /// The account was removed, and its stored credential could not be erased: it comes back at
     /// the next launch unless the store lets it go.
     RemoveFailed { detail: String },
+    /// The edited servers were not kept: they did not connect, refused the login, or are another
+    /// account's. The account is as it was.
+    ServersFailed { refusal: AccountChangeRefusal },
+}
+
+/// Why a change did not take, for a client to say in the person's language: the reasons it can
+/// name, and anything else as the core puts it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum AccountChangeRefusal {
+    /// The server refused the sign-in: a wrong password, or a grant it no longer accepts.
+    SignInRefused,
+    /// The servers are another account's, already set up.
+    AlreadySetUp,
+    /// The sign-in was for a different account than this one.
+    DifferentAccount,
+    /// The browser returned from another sign-in.
+    StaleSignIn,
+    /// A use of a server of its own did not connect, for `problem`.
+    UseNotConnected {
+        capability: AccountCapability,
+        problem: crate::UseProblem,
+    },
+    /// The switch is refused for `block`, as its page says beside it.
+    Blocked { block: AccountUseBlock },
+    /// The provider has not granted the use.
+    Withheld,
+    /// Anything else, as the core renders it.
+    Other { detail: String },
+}
+
+impl From<&crate::MailcalError> for AccountChangeRefusal {
+    fn from(error: &crate::MailcalError) -> Self {
+        use crate::MailcalError;
+        match error {
+            MailcalError::SignInRefused { .. } => Self::SignInRefused,
+            MailcalError::AlreadySetUp { .. } => Self::AlreadySetUp,
+            MailcalError::DifferentAccount => Self::DifferentAccount,
+            MailcalError::StaleSignIn => Self::StaleSignIn,
+            MailcalError::UseNotConnected {
+                capability,
+                problem,
+            } => Self::UseNotConnected {
+                capability: *capability,
+                problem: *problem,
+            },
+            other => Self::Other {
+                detail: other.to_string(),
+            },
+        }
+    }
 }
 
 /// An account's page: what [`crate::MailcalApp::account_page`] answers for the page on screen.
@@ -176,6 +274,9 @@ pub struct AccountPage {
     pub sender_name: Option<AccountSenderName>,
     /// While the account is used for mail.
     pub mail: Option<AccountMailSettings>,
+    /// For an account whose servers can be edited: a standards account that signs in with a
+    /// password.
+    pub servers: Option<AccountServers>,
     pub remove: ControlState,
     /// What the last change came to, when it needs saying; `id` grows with each, so a client
     /// says each one once.

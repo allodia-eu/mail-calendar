@@ -244,9 +244,10 @@ pub use records::{
     },
 };
 pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountCountChoice, AccountLinkPicker,
-    AccountMailSettings, AccountPage, AccountSenderName, AccountToggle, AccountUseBlock,
-    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState,
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
+    AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountSenderName,
+    AccountServers, AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
+    AccountWatchedFolder, ControlState,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

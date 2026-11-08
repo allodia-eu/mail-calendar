@@ -228,17 +228,11 @@ private func mailboxOnly() -> AccountEntry {
         #expect(other.stored == "imap.example.org")
     }
 
-    @Test func savingWaitsWhileAServerTheAccountHasIsEmpty() {
-        var fields = EndpointFields(mailbox())
-        #expect(!fields.incomplete)
-        fields.smtp?.host = "  "
-        #expect(fields.incomplete)
-        fields.smtp?.host = "smtp.example.org"
-        fields.username = ""
-        #expect(fields.incomplete)
-        // A server the account does not have has no field, and is never what holds Save.
-        fields.username = "alice"
-        #expect(fields.caldav == nil && !fields.incomplete)
+    @Test func aRefusedEditIsDrawnWithThePasswordItWasGiven() {
+        var refused = mailbox()
+        refused.password = "hunter2"
+        #expect(EndpointFields(refused).password == "hunter2")
+        #expect(EndpointFields(mailbox()).password.isEmpty)
     }
 
     @Test func aPortWrittenIntoTheHostWins() {

@@ -51,6 +51,12 @@ pub enum AccountPageIntent {
         key: String,
         on: bool,
     },
+    /// Try `endpoints` and keep them once they connect, from the page's servers with what the
+    /// person typed; `password: None` keeps the stored one.
+    SaveServers {
+        account: String,
+        endpoints: crate::AccountEndpoints,
+    },
 }
 
 impl AccountPageIntent {
@@ -65,7 +71,8 @@ impl AccountPageIntent {
             | Self::SetMessageSizeLimit { account, .. }
             | Self::SetPush { account, .. }
             | Self::SetPollInterval { account, .. }
-            | Self::SetWatchedFolder { account, .. } => account,
+            | Self::SetWatchedFolder { account, .. }
+            | Self::SaveServers { account, .. } => account,
         }
     }
 }

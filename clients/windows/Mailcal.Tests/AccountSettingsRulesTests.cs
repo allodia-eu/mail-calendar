@@ -131,7 +131,7 @@ public class AccountSettingsRulesTests
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(running));
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Remove = new ControlState(false, true) }));
         // And a notice raised, which the page says once.
-        var notice = new AccountChangeNoticeRaised(1, new AccountChangeNotice.LinkFailed(LinkSlot.Calendar, "gone"));
+        var notice = new AccountChangeNoticeRaised(1, new AccountChangeNotice.LinkFailed(LinkSlot.Calendar, new AccountChangeRefusal.Other("gone")));
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Notice = notice }));
         Assert.Empty(AccountSettingsRules.PageFingerprint(null));
     }

@@ -199,7 +199,7 @@ fn the_page_draws_what_the_registry_decides() {
     let entry =
         crate::accounts_view::entries(&registry.facts(), &BTreeMap::new(), &BTreeMap::new())
             .remove(0);
-    let page = crate::account_page::page(&entry, Hold::default(), None, |capability, on| {
+    let page = crate::account_page::page(&entry, Hold::default(), None, None, |capability, on| {
         toggle(&registry, MICROSOFT_ID, Capability::from(capability), on)
     });
     let switch = |capability| {

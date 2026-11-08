@@ -88,7 +88,10 @@ internal fun ControlSwitchRow(
     }
 }
 
-/** A button. A destructive one is drawn in the error colour. */
+/**
+ * A button. A destructive one is drawn in the error colour. One that sends a form is also held
+ * while the form is not [ready] to send.
+ */
 @Composable
 internal fun ControlButton(
     label: String,
@@ -96,6 +99,7 @@ internal fun ControlButton(
     tag: String,
     modifier: Modifier = Modifier,
     destructive: Boolean = false,
+    ready: Boolean = true,
     onClick: () -> Unit,
 ) {
     val colors = if (destructive) {
@@ -108,7 +112,7 @@ internal fun ControlButton(
     }
     Button(
         onClick = onClick,
-        enabled = control.enabled,
+        enabled = control.enabled && ready,
         colors = colors,
         modifier = modifier.testTag(tag),
     ) {

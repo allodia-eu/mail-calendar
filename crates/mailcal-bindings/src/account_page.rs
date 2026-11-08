@@ -4,19 +4,22 @@
 //! decision. Every client draws the [`AccountPage`] this makes and decides none of it.
 
 use crate::{
-    AccountCapability, AccountChangeNoticeRaised, AccountEntry, AccountLinkPicker, AccountPage,
-    AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState, LinkSlot, UseProblem,
+    AccountCapability, AccountChangeNoticeRaised, AccountEndpoints, AccountEntry,
+    AccountLinkPicker, AccountPage, AccountServers, AccountUseStatus, AccountUseSwitch,
+    CapabilityState, ControlState, LinkSlot, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
     app_accounts_uses::domain_of,
 };
 
-/// `entry`'s page. `hold` says which change runs, and `toggle` what switching a use on (`true`)
-/// or off comes to. The control a running change started is drawn at the value it is moving to.
+/// `entry`'s page. `hold` says which change runs, `refused_servers` is the edit its last save of
+/// servers refused, and `toggle` what switching a use on (`true`) or off comes to. The control a
+/// running change started is drawn at the value it is moving to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
+    refused_servers: Option<AccountEndpoints>,
     toggle: impl Fn(AccountCapability, bool) -> Toggle,
 ) -> AccountPage {
     let control = |running: bool, free: bool| ControlState {
@@ -80,6 +83,16 @@ pub(crate) fn page(
         remove: control(hold.own.contains(&PageWork::Remove), true),
         sender_name: None,
         mail: None,
+        servers: entry.endpoints.clone().map(|stored| {
+            let saving = hold.going(|work| match work {
+                PageWork::Servers(edit) => Some(edit.as_ref().clone()),
+                _ => None,
+            });
+            AccountServers {
+                save: control(saving.is_some(), true),
+                form: saving.or(refused_servers).unwrap_or(stored),
+            }
+        }),
         notice,
     }
 }

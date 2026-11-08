@@ -37,6 +37,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEndpoints
+import uniffi.mailcal_bindings.AccountEndpointsGap
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ConnectionSecurity
@@ -59,13 +60,14 @@ internal class AccountsSettingsUi(
     val notices: List<Notice> = emptyList(),
     val noticeHandlers: NoticeHandlers = NoticeHandlers(),
     val standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
+    // What an edit of an account's servers leaves out, asked of the core as the person types.
+    val endpointsGap: (accountId: String, AccountEndpoints) -> AccountEndpointsGap? = { _, _ -> null },
     val onAddAccount: () -> Unit = {},
     val onOpenPage: (String?) -> Unit = { state.page = it },
     // A use, a link or the removal, for the core to run: it answers at once, and the page says
     // it runs (docs/waiting.md).
     val onChange: (AccountPageIntent) -> Unit = {},
     val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
-    val onSaveServers: (accountId: String, AccountEndpoints) -> Unit = { _, _ -> },
     val onReplaceSecret: (accountId: String, secret: String) -> Unit = { _, _ -> },
     // An IMAP or JMAP account's sign-in (docs/accounts.md rule 17): what its server takes, asked
     // as its page opens; a browser sign-in, again or in place of a password ([switching]); and a

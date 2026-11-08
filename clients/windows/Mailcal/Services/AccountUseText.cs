@@ -17,18 +17,41 @@ internal static class AccountUseText
             AccountUseStatus.Withheld => L10n.SettingsAccountUseWithheld(),
             _ => null,
         };
-        var blocked = use.Blocked switch
-        {
-            AccountUseBlock.LastUse => L10n.SettingsAccountUseLast(),
-            AccountUseBlock.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
-            AccountUseBlock.NeedsMail => L10n.SettingsAccountSharedNeedsMail(),
-            AccountUseBlock.NotOffered => L10n.SettingsAccountUseNotOffered(),
-            AccountUseBlock.NeedsServer => L10n.SettingsAccountUseNeedsEndpoint(),
-            _ => null,
-        };
+        var blocked = use.Blocked is { } block ? BlockNote(block) : null;
         string[] lines = [.. new[] { status, blocked }.OfType<string>()];
         return lines.Length == 0 ? null : string.Join("\n", lines);
     }
+
+    /// <summary>Why a use's switch cannot be pressed.</summary>
+    internal static string BlockNote(AccountUseBlock block) => block switch
+    {
+        AccountUseBlock.LastUse => L10n.SettingsAccountUseLast(),
+        AccountUseBlock.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
+        AccountUseBlock.NeedsMail => L10n.SettingsAccountSharedNeedsMail(),
+        AccountUseBlock.NotOffered => L10n.SettingsAccountUseNotOffered(),
+        _ => L10n.SettingsAccountUseNeedsEndpoint(),
+    };
+
+    /// <summary>Why a change on an account's page did not take: a refused switch as the switch
+    /// says it beside itself, and the rest as <see cref="CoreError.Refused"/> words them.</summary>
+    internal static string Refused(AccountChangeRefusal refusal) => refusal switch
+    {
+        AccountChangeRefusal.Blocked blocked => BlockNote(blocked.Block),
+        AccountChangeRefusal.Withheld => L10n.SettingsAccountUseWithheld(),
+        _ => CoreError.Refused(refusal, CoreErrorCopy.Words()),
+    };
+
+    /// <summary>What Save says the server fields leave out, naming the field as the form labels
+    /// it.</summary>
+    internal static string EndpointsGap(AccountEndpointsGap gap) => L10n.SettingsAccountServersGap(gap switch
+    {
+        AccountEndpointsGap.Imap => L10n.SettingsAccountFieldImap(),
+        AccountEndpointsGap.Smtp => L10n.SetupFieldSmtp(),
+        AccountEndpointsGap.CalDav => L10n.SetupFieldCaldav(),
+        AccountEndpointsGap.CardDav => L10n.SettingsAccountFieldCarddav(),
+        AccountEndpointsGap.Username => L10n.SettingsAccountFieldLogin(),
+        _ => L10n.SettingsAccountFieldNewPassword(),
+    });
 
     /// <summary>What a calendar or an address book that did not connect says. Only these fail on
     /// their own; mail decides whether the account connected at all.</summary>

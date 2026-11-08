@@ -1,6 +1,6 @@
 //! A standards account's edited servers, checked against the registry before anything dials them.
 
-use mailcal_account::{Capabilities, EndpointEdit};
+use mailcal_account::{Capabilities, EndpointEdit, EndpointGap};
 
 use super::AccountRegistry;
 use crate::{ConnectedAccount, MailcalError};
@@ -14,6 +14,20 @@ impl AccountRegistry {
     /// Returns [`MailcalError::Config`] for an unknown account, one that signs in through its
     /// provider, or an edit the account cannot take, and [`MailcalError::AlreadySetUp`] for one
     /// that would make it the same account as another already set up.
+    /// What `edit` leaves out of `id`'s servers, as [`Self::edited_endpoints`] would refuse it;
+    /// `None` for an account whose servers cannot be edited, which refuses for another reason.
+    pub(crate) fn endpoint_gap(&self, id: &str, edit: &EndpointEdit) -> Option<EndpointGap> {
+        match self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+        {
+            Some(ConnectedAccount::Imap { config, .. }) if !config.is_oauth() => edit.gap(config),
+            _ => None,
+        }
+    }
+
     pub(crate) fn edited_endpoints(
         &self,
         id: &str,

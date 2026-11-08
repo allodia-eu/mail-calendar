@@ -58,11 +58,11 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     if let Some(technology) = entry.mail_sync {
         content.append(&super::account_sync_technology::group(technology));
     }
-    if let Some(endpoints) = &entry.endpoints {
+    if let Some(servers) = &account.servers {
         content.append(&account_servers::server_group(
             ctx,
             entry,
-            endpoints,
+            servers,
             signin_expired(ctx, entry),
         ));
     }

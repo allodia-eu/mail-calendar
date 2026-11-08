@@ -99,6 +99,60 @@ const SENDS_ITSELF: &str = "sends-itself";
 /// Marks such a field while it holds text it has not sent.
 const UNSENT: &str = "unsent";
 
+/// Marks `form`, whose fields are sent together by a button, as holding edits it has not sent
+/// (`unsent`) or not. A redraw waits while it does, wherever the caret is: the fields are the
+/// person's until the button sends them.
+pub(super) fn form_unsent(form: &impl IsA<gtk::Widget>, unsent: bool) {
+    form.add_css_class(SENDS_ITSELF);
+    if unsent {
+        form.add_css_class(UNSENT);
+    } else {
+        form.remove_css_class(UNSENT);
+    }
+}
+
+/// Whether anything under `root` holds edits it has not sent.
+pub(super) fn holds_unsent(root: &gtk::Widget) -> bool {
+    root.has_css_class(UNSENT)
+        || std::iter::successors(root.first_child(), gtk::Widget::next_sibling)
+            .any(|child| holds_unsent(&child))
+}
+
+/// A form's button that sends its fields, in a row whose title says what the fields still leave
+/// out. Held while `control` is, or while the fields leave something out ([`FormSend::ready`]);
+/// a spinner beside it while the work it started runs.
+pub(super) struct FormSend {
+    row: adw::ActionRow,
+    button: gtk::Button,
+    control: ControlState,
+}
+
+impl FormSend {
+    pub(super) fn new(label: &str, control: ControlState, pressed: impl Fn() + 'static) -> Self {
+        let row = plain_row("");
+        let button = button(label, control, false, pressed);
+        button.add_css_class("suggested-action");
+        row.add_suffix(&button);
+        Self {
+            row,
+            button,
+            control,
+        }
+    }
+
+    pub(super) fn row(&self) -> &adw::ActionRow {
+        &self.row
+    }
+
+    /// The fields as they stand: `missing` says what they leave out, `None` when they can be
+    /// sent.
+    pub(super) fn ready(&self, missing: Option<&str>) {
+        self.row.set_title(missing.unwrap_or_default());
+        self.button
+            .set_sensitive(self.control.enabled && missing.is_none());
+    }
+}
+
 /// Whether `widget` sits in a field that sends what was typed itself, and if so, whether that
 /// field holds text it has not sent yet.
 pub(super) fn unsent(widget: &gtk::Widget) -> Option<bool> {
