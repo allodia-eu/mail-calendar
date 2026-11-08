@@ -67,6 +67,9 @@ struct AccountPageView: View {
             if !page.links.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: page.links)
             }
+            if let replies = page.replyFallback {
+                AccountReplyFallbackSection(model: model, entry: entry, picker: replies)
+            }
             AccountSharedMailboxesSection(
                 model: model, entry: entry, answer: $sharedMailboxes, alert: $alert)
             if AccountSettingsRules.signsInAtProvider(entry.kind) {
@@ -320,6 +323,36 @@ struct AccountLinksSection: View {
                             .setLink(account: entry.id, slot: picker.slot, target: target))
                     }
                 }
+            }
+        }
+    }
+}
+
+/// What happens to an invitation answer the account's calendar server cannot pass on: asked each
+/// time with a notice, emailed, or not (docs/invitations.md).
+struct AccountReplyFallbackSection: View {
+    var model: MailboxModel
+    let entry: AccountEntry
+    let picker: AccountReplyFallback
+
+    private static let choices: [ReplyFallbackChoice] = [.ask, .always, .never]
+
+    var body: some View {
+        SettingsGroup(
+            heading: L10n.settings_reply_fallback_heading(),
+            description: L10n.settings_reply_fallback_description()
+        ) {
+            ControlPicker(
+                title: L10n.settings_reply_fallback_label(),
+                labels: [
+                    L10n.settings_reply_fallback_ask(),
+                    L10n.settings_reply_fallback_always(),
+                    L10n.settings_reply_fallback_never(),
+                ],
+                selected: Self.choices.firstIndex(of: picker.choice) ?? 0,
+                control: picker.control
+            ) { at in
+                model.changeAccount(.setReplyFallback(account: entry.id, choice: Self.choices[at]))
             }
         }
     }
