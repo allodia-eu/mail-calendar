@@ -116,6 +116,10 @@ Write-Host "==> Cleaned prior build outputs (bin, obj, AppPackages, BundleArtifa
 #    with the other's parallel work and compiles host build-deps/proc-macros once, whereas two
 #    processes oversubscribe the cores, duplicate host work, and fight over the target-dir lock.
 $triples = @('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc')
+# From this checkout's root, as build-and-run.ps1 says why: cargo builds the workspace it finds
+# there, and rustup and cargo read rust-toolchain.toml and .cargo/config.toml from it too.
+Push-Location $root
+try {
 foreach ($triple in $triples) {
   rustup target add $triple | Out-Null
   if ($LASTEXITCODE -ne 0) { throw "rustup target add $triple failed" }
@@ -145,6 +149,10 @@ Write-Host "==> Generating C# bindings" -ForegroundColor Cyan
 $anyLib = Join-Path $root 'target/x86_64-pc-windows-msvc/release/mailcal_bindings.dll'
 & cargo run -p mailcal-bindgen-cs -- --library $anyLib --out-dir (Join-Path $here 'Generated')
 if ($LASTEXITCODE -ne 0) { throw "binding generation failed" }
+}
+finally {
+  Pop-Location
+}
 
 # 2b. Generate the localised WinUI resources (.resw) + the typed L10n.cs from the shared inlang
 #     catalog (messages/*.json), the l10n twin of build-and-run.ps1's step. WITHOUT this the Store

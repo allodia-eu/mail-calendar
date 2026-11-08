@@ -138,6 +138,12 @@ Write-Host "==> Target: $Arch ($triple -> $rid), $Configuration" -ForegroundColo
 # 1. Build the Rust cdylib for the chosen arch (always under target/<triple>/ for a
 #    uniform path whether native or cross-compiled). Add the target on demand.
 Write-Host "==> Building the Rust cdylib ($triple)" -ForegroundColor Cyan
+# From this checkout's root, whatever directory the script was started from: cargo builds the
+# workspace it finds there, and rustup and cargo read rust-toolchain.toml and .cargo/config.toml
+# from it too. Started from another checkout, a worktree say, cargo built that checkout's code into
+# that checkout's target/ and reported success, while the steps below read this one's.
+Push-Location $root
+try {
 rustup target add $triple | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "rustup target add $triple failed" }
 #    The MCP stdio relay (docs/mcp.md) rides along in the same invocation: it is a separate
@@ -166,6 +172,10 @@ if (-not (Test-Path -LiteralPath $mcpRelay)) {
 Write-Host "==> Generating C# bindings" -ForegroundColor Cyan
 & cargo run -p mailcal-bindgen-cs -- --library $nativeLib --out-dir (Join-Path $here 'Generated')
 if ($LASTEXITCODE -ne 0) { throw "binding generation failed" }
+}
+finally {
+  Pop-Location
+}
 
 # 3. The headless gate (the deterministic check): drive the demo loop and assert the
 #    seeded rows cross the FFI into C#. Run it only when building for the host arch, so it
