@@ -37,7 +37,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{gate_exec::Timings, gate_steps, prune, shared_build};
+use crate::{compiler_cache, gate_exec::Timings, gate_steps};
 
 /// What became of one step.
 #[derive(Debug)]
@@ -110,10 +110,6 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
         }
     }
 
-    // Before anything is judged, so no step reports on a build another checkout left behind, and
-    // held until the gate exits, so no other gate builds there in between.
-    let _claim = shared_build::claim(root);
-
     let palette = Palette::detect();
     let started = Instant::now();
     let (results, timings) = gate_steps::all(root, clients, keep_going, &palette);
@@ -123,9 +119,14 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
 
     summary(&results, &timings, &palette);
     println!("      {:>6}  in all", seconds(started.elapsed()));
+    if let Some(note) = compiler_cache::note(root) {
+        println!(
+            "
+{}note:{} {note}",
+            palette.bold, palette.reset
+        );
+    }
     if failed {
-        // The cache is left warm on purpose: a red gate means you are still iterating, and that is
-        // exactly when it is worth its disk.
         println!(
             "\n{}The gate is RED.{} Fix the above before pushing. The pipeline is not the place to \
              find this.",
@@ -133,7 +134,6 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
         );
         return ExitCode::FAILURE;
     }
-    prune::incremental(root);
     println!("\n{}The gate is GREEN.{}", palette.green, palette.reset);
     ExitCode::SUCCESS
 }

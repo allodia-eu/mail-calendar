@@ -27,6 +27,7 @@ mod automation_ids_tests;
 mod branding;
 mod british_english;
 mod british_english_words;
+mod compiler_cache;
 mod composer_labels;
 mod control_components;
 mod dash_hygiene;
@@ -48,10 +49,8 @@ mod log_hygiene;
 mod notification_registration;
 mod portal_runtime;
 mod prose;
-mod prune;
 mod public_hygiene;
 mod report;
-mod shared_build;
 mod showcase_flag;
 mod showcase_lists;
 mod store_sandbox;
@@ -274,11 +273,10 @@ fn list() {
 
 /// The repository root, so a task behaves the same from any working directory.
 ///
-/// ⚠️ `env!("CARGO_MANIFEST_DIR")` is the wrong answer here, and wrong in a way that is invisible.
-/// `.cargo/config.toml` points the build directory outside the checkout so worktrees share the
-/// compile work, and the cache key does not carry the worktree: the binary one checkout compiled is
-/// the binary the next one runs. A path baked in at compile time would send every check in worktree
-/// B over worktree A's files, silently, and pass.
+/// ⚠️ `env!("CARGO_MANIFEST_DIR")` is the wrong answer here, and wrong in a way that is invisible:
+/// a binary is not always run from the checkout that compiled it (a compiler cache shared between
+/// worktrees, a checkout that was moved), and a path baked in at compile time would then send every
+/// check over another tree's files, silently, and pass.
 ///
 /// So the variable is read at run time, where cargo sets it for the run that is actually happening.
 /// Outside cargo there is no variable, and the answer is found by walking up from the working
@@ -335,25 +333,5 @@ mod tests {
     fn a_directory_that_is_not_the_root_is_not_mistaken_for_it() {
         let dir = std::env::temp_dir();
         assert!(!is_workspace_root(&dir));
-    }
-
-    #[test]
-    fn the_alias_builds_this_checkout_s_own_xtask() {
-        // Every checkout shares one build directory, and cargo names an artifact, and the
-        // fingerprint guarding it, from the workspace-relative path, so it cannot tell them apart.
-        // Without a build directory of its own in the alias, `cargo xtask` is whichever `xtask`
-        // another worktree compiled last, running against this tree's files. `.cargo/config.toml`
-        // carries the rest, including why the alias stays a string.
-        let root = super::repo_root().expect("these tests run from inside the workspace");
-        let config = root.join(".cargo").join("config.toml");
-        let text = std::fs::read_to_string(&config).expect("the tracked cargo config is readable");
-        let alias = text
-            .lines()
-            .find(|line| line.starts_with("xtask = "))
-            .expect("the tracked cargo config declares the xtask alias on one line");
-        assert!(
-            alias.contains(r#"--config build.build-dir="{workspace-root}/target""#),
-            "the xtask alias must name a build directory of its own: {alias}"
-        );
     }
 }

@@ -26,58 +26,86 @@ BRAND_DIR="$(cd "$BRAND_SH_DIR/../../branding" && pwd)"
 BRAND_DEFAULT_FILE="$BRAND_DIR/default.env"
 BRAND_OVERRIDE_FILES=("$BRAND_DIR/brand.env" "$BRAND_DIR/allodia.env")
 
-# `KEY=value` lines with the comments, blanks, `export ` and surrounding space taken off. Not a
-# parser for anything else: no interpolation, no continuation, no command substitution.
-_brand_pairs() { # <file>
+# Nearly every script here sources this file, so reading the brand starts no process: under Git
+# Bash each one costs tens of milliseconds, and a pipeline per key made sourcing it take seconds.
+# Builtins only from here to `brand_load`; `$(…)` forks too, so values travel through namerefs.
+
+# `KEY=value` lines with the comments, blanks, `export ` and surrounding space taken off, into
+# the associative array named <map>; a later line for a key replaces an earlier one. Not a parser
+# for anything else: no interpolation, no continuation, no command substitution.
+_brand_read() { # <file> <name of an associative array>
+  local -n _brand_pairs="$2"
+  local _brand_line
   [ -f "$1" ] || return 0
-  sed -n '
-    s/^[[:space:]]*//
-    s/^export[[:space:]]\{1,\}//
-    /^#/d
-    /^$/d
-    s/^\([A-Za-z_][A-Za-z0-9_]*\)[[:space:]]*=[[:space:]]*/\1=/p
-  ' "$1"
+  while IFS= read -r _brand_line || [ -n "$_brand_line" ]; do
+    _brand_line="${_brand_line#"${_brand_line%%[![:space:]]*}"}"
+    [[ $_brand_line =~ ^export[[:space:]]+(.*)$ ]] && _brand_line="${BASH_REMATCH[1]}"
+    [[ $_brand_line =~ ^([A-Za-z_][A-Za-z0-9_]*)[[:space:]]*=[[:space:]]*(.*)$ ]] || continue
+    _brand_pairs[${BASH_REMATCH[1]}]="${BASH_REMATCH[2]}"
+  done <"$1"
 }
 
-# One pair of enclosing quotes, and any trailing space, removed.
-_brand_unquote() { # <raw value>
-  local value="$1"
-  value="${value%"${value##*[![:space:]]}"}"
-  case "$value" in
-    \"*\") value="${value#\"}"; value="${value%\"}" ;;
-    \'*\') value="${value#\'}"; value="${value%\'}" ;;
+# Every key the files name, with the value the first file naming it gives, as written there.
+_brand_files() { # <name of an associative array>
+  local -n _brand_merged="$1"
+  local _brand_file _brand_key
+  local -A _brand_one
+  for _brand_file in "${BRAND_OVERRIDE_FILES[@]}" "$BRAND_DEFAULT_FILE"; do
+    _brand_one=()
+    _brand_read "$_brand_file" _brand_one
+    for _brand_key in "${!_brand_one[@]}"; do
+      [[ -v _brand_merged[$_brand_key] ]] || _brand_merged[$_brand_key]="${_brand_one[$_brand_key]}"
+    done
+  done
+}
+
+# <raw value> with any trailing space and one pair of enclosing quotes removed, into <variable>.
+_brand_unquote() { # <variable to set> <raw value>
+  local -n _brand_out="$1"
+  local _brand_raw="$2"
+  _brand_raw="${_brand_raw%"${_brand_raw##*[![:space:]]}"}"
+  case "$_brand_raw" in
+    \"*\") _brand_raw="${_brand_raw#\"}"; _brand_raw="${_brand_raw%\"}" ;;
+    \'*\') _brand_raw="${_brand_raw#\'}"; _brand_raw="${_brand_raw%\'}" ;;
   esac
-  printf '%s\n' "$value"
+  _brand_out="$_brand_raw"
+}
+
+# <key>'s value into <variable>: the environment's when it is set and not empty, else the files'.
+_brand_resolve() { # <variable to set> <key> <name of the array `_brand_files` filled>
+  local -n _brand_into="$1" _brand_from="$3"
+  local _brand_env="${!2-}"
+  if [ -n "$_brand_env" ]; then
+    _brand_into="$_brand_env"
+  elif [[ -v _brand_from[$2] ]]; then
+    _brand_unquote _brand_into "${_brand_from[$2]}"
+  else
+    _brand_into=""
+  fi
 }
 
 # Every name either file gives a value to, so a key added to the files needs no change here.
 brand_keys() {
-  {
-    local file
-    for file in "$BRAND_DEFAULT_FILE" "${BRAND_OVERRIDE_FILES[@]}"; do _brand_pairs "$file"; done
-  } | sed 's/=.*//' | sort -u
+  local -A _brand_all=()
+  _brand_files _brand_all
+  [ "${#_brand_all[@]}" -eq 0 ] || printf '%s\n' "${!_brand_all[@]}" | sort -u
 }
 
 brand_value() { # <key>
-  local key="$1" line value
-  value="${!key-}"
-  if [ -n "$value" ]; then printf '%s\n' "$value"; return 0; fi
-  local file
-  for file in "${BRAND_OVERRIDE_FILES[@]}" "$BRAND_DEFAULT_FILE"; do
-    # `|| true` on every grep here and below: these are sourced into scripts running under
-    # `set -e -o pipefail`, where a grep that simply finds nothing is a failed pipeline that kills
-    # the caller. Not finding a key is the ordinary case; it is how a checkout without
-    # a brand file resolves every value.
-    line="$(_brand_pairs "$file" | { grep "^$key=" || true; } | tail -n 1)"
-    if [ -n "$line" ]; then _brand_unquote "${line#*=}"; return 0; fi
-  done
-  printf '\n'
+  local -A _brand_all=()
+  local _brand_value
+  _brand_files _brand_all
+  _brand_resolve _brand_value "$1" _brand_all
+  printf '%s\n' "$_brand_value"
 }
 
 brand_load() {
-  local key
-  for key in $(brand_keys); do
-    export "$key=$(brand_value "$key")"
+  local -A _brand_all=()
+  local _brand_key _brand_value
+  _brand_files _brand_all
+  for _brand_key in "${!_brand_all[@]}"; do
+    _brand_resolve _brand_value "$_brand_key" _brand_all
+    export "$_brand_key=$_brand_value"
   done
 }
 

@@ -280,30 +280,13 @@ a build given none drops those two routes from the setup wizard rather than fail
 `.env` looks exactly like a regression in whatever you are working on: check `oauth_routes()`
 before chasing one.
 
-**Every checkout shares one build directory, and [`.cargo/config.toml`](.cargo/config.toml) already
-sets it up.** Each worktree is its own Cargo workspace, so left alone each compiles this dependency
-tree into a `target/` of its own, several GB apiece: five worktrees and a main checkout reached
-**54 GB** on one machine. `build.build-dir` sends the intermediates to one shared directory and
-leaves binaries, cdylibs and test executables in each worktree's `target/`, so worktrees on
-different revisions share the compile work. That file carries the reasoning; three consequences
-are worth knowing before they surprise you:
-
-- ⚠️ **A nearly empty `target/` is the expected shape, not a broken build.**
-- Cargo locks the build directory for the length of a build, so a second worktree prints
-  `Blocking waiting for file lock on build directory` and waits. Builds serialise rather than
-  oversubscribe the cores. `CARGO_BUILD_BUILD_DIR` opts one build out, except the gate's own
-  build: a `--config` outranks the environment, and the alias carries one.
-- ⚠️ **The checkouts are not told apart, so a build can hand you another one's output.** Cargo
-  names an artifact, and the fingerprint guarding it, from the workspace-*relative* path, and then
-  decides freshness from mtimes against that relative file list. A checkout whose sources predate
-  the build another checkout last ran is declared fresh and is given that checkout's binary, so a
-  suite can report `1 passed` for an assertion this tree cannot satisfy, and a freshly created
-  worktree is exactly the shape that collects it. **The gate is held out of it**: its own binary is
-  built here by the alias, and a run claims the directory, rebuilding this repository's own crates
-  when another checkout claimed it last, and holds it until it exits, so a gate in a second
-  checkout waits for the first to finish rather than alternating steps with it. A `cargo test`
-  typed by hand claims nothing, holds nothing and is not covered, so when a result cannot be squared with the diff, run the gate, or re-run that step with
-  `CARGO_BUILD_BUILD_DIR` pointed somewhere private.
+**Every checkout builds in its own `target/`**, Cargo's default, so a new worktree's first build
+compiles the whole dependency tree and holds several GB of its own. ⚠️ Never point two checkouts at
+one build directory, a personal `build-dir` or `CARGO_TARGET_DIR` included: Cargo cannot tell them
+apart and hands one the other's binaries, so a suite passes for code this tree does not contain
+([`.cargo/config.toml`](.cargo/config.toml)). Sharing compile work between worktrees is kache's
+job, set up once per machine ([`docs/debugging.md`](docs/debugging.md), "Share the compile work
+with kache").
 
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 
