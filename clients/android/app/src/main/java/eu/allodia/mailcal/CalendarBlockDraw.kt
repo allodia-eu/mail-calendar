@@ -85,14 +85,16 @@ private fun DrawScope.drawBlockLabel(
     hourHeight: Dp,
     shapeWidth: Float,
 ) {
-    val lines = blockTitleLines(block.minutes, hourHeight)
+    // The line box as drawn, which the font scale grows past its nominal dp.
+    val line = blockLabelLineHeight(block.minutes).toDp()
+    val lines = blockTitleLines(block.minutes, hourHeight, line = line)
     if (lines == 0) return
     val start = EVENT_LABEL_START.toPx()
     val end = EVENT_LABEL_PAD.toPx()
     val room = shapeWidth / block.columns - (rect.width - body.width) - start - end
     val step = floor(room / LABEL_STEP).toInt()
     if (step <= 0) return
-    val withTime = blockShowsTime(block.minutes, hourHeight)
+    val withTime = blockShowsTime(block.minutes, hourHeight, line)
     val label = labels.held(index, step, lines, withTime)
         ?: layOutBlockLabel(block, measurer, step, lines, withTime).also { labels.hold(index, it) }
 

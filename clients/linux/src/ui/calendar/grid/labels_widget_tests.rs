@@ -36,6 +36,12 @@ pub(crate) fn a_title_wraps_by_word_and_a_word_wider_than_the_block_is_one_line(
     assert!((text.height_of(1) - line).abs() < 1.0);
     assert!(text.height_of(1) < text.height_of(2));
     assert!((text.height_of(99) - text.height).abs() < 1.0);
+    // A typeface taller than the pitch the block counted in keeps only the lines that end inside
+    // it, and never fewer than one.
+    let two = text.height_of(2);
+    assert!((text.fitting(99, two) - two).abs() < f64::EPSILON);
+    assert!((text.fitting(99, two - 0.5) - text.height_of(1)).abs() < f64::EPSILON);
+    assert!((text.fitting(99, 0.0) - text.height_of(1)).abs() < f64::EPSILON);
 
     let narrow = Label::new(&context, "Onboarding", 11.0, black);
     assert!(!blocks::wraps(

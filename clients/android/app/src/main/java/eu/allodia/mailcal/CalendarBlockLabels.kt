@@ -31,12 +31,15 @@ internal const val LABEL_STEP = 8f
  * How many lines a block's title may wrap over: every whole line it has room for, less the one its
  * time takes when it draws one. At least one wherever a label fits at all, zero where none does.
  */
-internal fun blockTitleLines(minutes: Int, hourHeight: Dp, withTime: Boolean = true): Int {
-    if (!blockShowsLabel(minutes, hourHeight)) return 0
-    val whole = floor(
-        blockLabelSpace(minutes, hourHeight).value / blockLabelLineHeight(minutes).value,
-    ).toInt()
-    val time = withTime && blockShowsTime(minutes, hourHeight)
+internal fun blockTitleLines(
+    minutes: Int,
+    hourHeight: Dp,
+    withTime: Boolean = true,
+    line: Dp = blockLabelLineHeight(minutes).value.dp,
+): Int {
+    if (!blockShowsLabel(minutes, hourHeight, line)) return 0
+    val whole = floor(blockLabelSpace(minutes, hourHeight) / line).toInt()
+    val time = withTime && blockShowsTime(minutes, hourHeight, line)
     return maxOf(whole - if (time) 1 else 0, 1)
 }
 

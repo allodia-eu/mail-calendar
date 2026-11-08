@@ -71,13 +71,22 @@ internal fun blockLabelFontSize(minutes: Int): TextUnit = if (minutes < 30) 9.sp
  * keeps its full spoken label for a screen reader, and reveals its title when the user pinches in.
  * This is what every good calendar does, and it is why the rule has to be a function of the zoom
  * rather than a constant.
+ *
+ * [line] is the line box in dp, which the font scale grows: the grid passes the one it draws with,
+ * so a large text setting earns fewer lines rather than lines cut at the block's edge.
  */
-internal fun blockShowsLabel(minutes: Int, hourHeight: Dp): Boolean =
-    blockLabelSpace(minutes, hourHeight).value >= blockLabelLineHeight(minutes).value
+internal fun blockShowsLabel(
+    minutes: Int,
+    hourHeight: Dp,
+    line: Dp = blockLabelLineHeight(minutes).value.dp,
+): Boolean = blockLabelSpace(minutes, hourHeight) >= line
 
 /** A block only earns a second line (its start time) once there is room for two. */
-internal fun blockShowsTime(minutes: Int, hourHeight: Dp): Boolean =
-    blockLabelSpace(minutes, hourHeight).value >= blockLabelLineHeight(minutes).value * 2f
+internal fun blockShowsTime(
+    minutes: Int,
+    hourHeight: Dp,
+    line: Dp = blockLabelLineHeight(minutes).value.dp,
+): Boolean = blockLabelSpace(minutes, hourHeight) >= line * 2f
 
 /**
  * A column heading: the weekday and the date, already localised.
@@ -156,7 +165,7 @@ internal data class BlockPaint(
     val repeats: Boolean get() = occurrenceStart.isNotEmpty()
 
     /** How many glyphs the block's corner holds: the meeting's, then the repeat's. */
-    val cornerGlyphs: Int = (if (hasConference) 1 else 0) + (if (occurrenceStart.isNotEmpty()) 1 else 0)
+    val cornerGlyphs: Int = (if (hasConference) 1 else 0) + (if (repeats) 1 else 0)
 
     /** The corner glyphs' tint, made once rather than per frame. */
     val glyphTint: ColorFilter? = titleStyle.color.takeIf { it.isSpecified }?.let { ColorFilter.tint(it) }

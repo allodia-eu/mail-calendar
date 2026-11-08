@@ -1,10 +1,10 @@
 //! How much of an event block's label the grid draws at a zoom, decided without a widget so a plain
 //! test can drive it (`docs/calendar.md` §4, "An event block's label").
 //!
-//! The twin of Apple's `CalendarBlocks.swift` and Android's block label rules, number for number:
-//! a block draws a title only where a whole line fits, wraps it by word over every whole line it
-//! has room for less the one its time takes, and keeps its corner glyphs only while the title keeps
-//! room of its own.
+//! The twin of Apple's `CalendarBlocks.swift`, number for number, and of Android's
+//! `CalendarBlockLabels.kt` in its rules: a block draws a title only where a whole line fits, wraps
+//! it by word over every whole line it has room for less the one its time takes, and keeps its
+//! corner glyphs only while the title keeps room of its own.
 
 /// The bar of the calendar's colour down an event's leading edge, and the width of a hold's hatch
 /// that replaces it.

@@ -24,6 +24,13 @@ class CalendarBlockLabelsTest {
     }
 
     @Test
+    fun a_larger_text_setting_earns_fewer_lines_rather_than_cut_ones() {
+        // The same hour's 52 dp at a 1.3 font scale, where a 14 sp line is 18.2 dp: two whole lines,
+        // one of them the time's.
+        assertEquals(1, blockTitleLines(minutes = 60, hourHeight = 56.dp, line = 18.2.dp))
+    }
+
+    @Test
     fun a_block_with_room_for_one_line_keeps_it_for_the_title() {
         // A quarter hour at 56 dp leaves 12 dp: one 10 dp line, and no room for a time beneath it.
         assertEquals(1, blockTitleLines(minutes = 15, hourHeight = 56.dp))

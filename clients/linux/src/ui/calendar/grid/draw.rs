@@ -73,7 +73,7 @@ pub(super) fn draw_header(
     context.line_to(width, height - 0.5);
     let _ = context.stroke();
     draw_labels(scene, context, geometry.day_width, foreground);
-    draw_bands(scene, context, geometry.day_width, foreground, ink);
+    draw_bands(scene, context, &geometry, foreground, ink);
 }
 
 fn day_lines(scene: &GridScene, context: &cairo::Context, day_width: f64, height: f64) {
@@ -125,23 +125,21 @@ fn draw_hour_labels(scene: &GridScene, context: &cairo::Context, foreground: Rgb
     }
 }
 
+/// Every all-day bar where its hit is (the bars lead `header_hits`), then the per-day "+N".
 fn draw_bands(
     scene: &GridScene,
     context: &cairo::Context,
-    day_width: f64,
+    geometry: &Geometry,
     foreground: Rgb,
     ink: &mut Ink<'_>,
 ) {
-    for (index, band) in scene.bands.iter().enumerate() {
-        let rect = Rect {
-            x: GUTTER + pixels(band.day) * day_width + 1.0,
-            y: HEADING_HEIGHT + f64::from(band.lane) * LANE_HEIGHT + 1.0,
-            width: pixels(band.days) * day_width - 2.0,
-            height: LANE_HEIGHT - 2.0,
-        };
-        paint::event_block(context, rect, band.colors, band.awaiting);
-        labels::draw_band(context, ink, index, band, rect);
+    for (index, (band, hit)) in scene.bands.iter().zip(&geometry.header_hits).enumerate() {
+        paint::event_block(context, hit.rect, band.colors, band.awaiting);
+        labels::draw_band(context, ink, index, band, hit.rect);
     }
+    let day_width = geometry.day_width;
+    // The bars' labels are Pango's, so the context still holds the day names' type: set its own.
+    select_font(context, 11.0, cairo::FontWeight::Bold);
     for (day, hidden) in scene.hidden_per_day.iter().copied().enumerate() {
         if hidden == 0 {
             continue;

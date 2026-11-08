@@ -63,6 +63,20 @@ impl Text {
             .unwrap_or(self.height)
     }
 
+    /// The height of the most whole lines, at most `lines` and never fewer than one, that end
+    /// within `room`: the pitch a block counts its lines in is nominal, and a typeface with taller
+    /// lines must not push the last line, or the time beneath it, through the block's edge.
+    pub(super) fn fitting(&self, lines: u32, room: f64) -> f64 {
+        let most = usize::try_from(lines).unwrap_or(usize::MAX).max(1);
+        self.line_bottoms
+            .iter()
+            .take(most)
+            .copied()
+            .take_while(|bottom| *bottom <= room)
+            .last()
+            .unwrap_or_else(|| self.height_of(1))
+    }
+
     fn draw(&self, context: &cairo::Context, x: f64, y: f64) {
         let Some(node) = &self.node else {
             return;
@@ -149,15 +163,27 @@ enum Key {
     Band(usize),
 }
 
-/// The labels of one page, cleared when the page changes.
+/// The labels of one page, cleared when the page or the surface's typeface changes.
 #[derive(Default)]
 pub(super) struct Labels {
     held: HashMap<Key, Label>,
+    /// The typeface the held labels were shaped in.
+    font: Option<pango::FontDescription>,
 }
 
 impl Labels {
     pub(super) fn clear(&mut self) {
         self.held.clear();
+    }
+
+    /// Drops what was shaped in another typeface: a change of the interface font redraws the grid
+    /// without changing its page.
+    fn follow(&mut self, context: &pango::Context) {
+        let font = context.font_description();
+        if self.font != font {
+            self.held.clear();
+            self.font = font;
+        }
     }
 
     /// How many labels have been laid out since the page last changed.
@@ -198,8 +224,10 @@ pub(super) struct Ink<'a> {
 
 impl<'a> Ink<'a> {
     pub(super) fn of(widget: &impl IsA<gtk::Widget>, labels: &'a mut Labels) -> Self {
+        let pango = widget.pango_context();
+        labels.follow(&pango);
         Self {
-            pango: widget.pango_context(),
+            pango,
             labels,
             glyphs: Glyphs::of(widget),
         }
@@ -223,6 +251,8 @@ pub(super) fn draw_event(
         return;
     }
     let size = blocks::font_size(minutes);
+    let space = blocks::label_space(minutes, hour_height);
+    let with_time = blocks::shows_time(minutes, hour_height);
     let top = rect.y + blocks::inset(minutes) - blocks::GAP;
     let left = rect.x + BAR_WIDTH + LABEL_PADDING;
     let width = (rect.x + rect.width - LABEL_PADDING - left).max(0.0);
@@ -252,11 +282,15 @@ pub(super) fn draw_event(
 
     let wrap = blocks::wrap_width(available);
     let line = label.line;
+    let time_height = match (&label.time, &label.range) {
+        (Some(time), Some(range)) if with_time => time.height.max(range.height),
+        _ => 0.0,
+    };
     let title_height = if blocks::wraps(label.widest, wrap) {
         let text = label.wrapped(wrap);
         // Cut after the last whole line there is room for, where Pango ended that line, so
         // nothing of the next line shows beneath it.
-        let height = text.height_of(lines);
+        let height = text.fitting(lines, space - time_height);
         clipped(
             context,
             Rect {
@@ -289,7 +323,9 @@ pub(super) fn draw_event(
         line
     };
 
-    if blocks::shows_time(minutes, hour_height)
+    // Only where it ends inside the block: a time cut through the middle reads as a broken grid.
+    if with_time
+        && title_height + time_height <= space
         && let (Some(time), Some(range)) = (&label.time, &label.range)
     {
         let shown = if blocks::shows_range(range.width, width) {
@@ -297,7 +333,7 @@ pub(super) fn draw_event(
         } else {
             time
         };
-        let height = blocks::line_height(minutes);
+        let height = shown.height;
         let y = top + title_height;
         clipped(
             context,
