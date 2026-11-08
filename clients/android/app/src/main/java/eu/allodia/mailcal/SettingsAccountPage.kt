@@ -16,7 +16,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -154,20 +153,21 @@ private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSe
     }
     // A calendar or address book the account's sign-in does not reach: one of its own (rule 18).
     if (UnreachedRules.offersSeparate(entry, capability)) {
-        TextButton(
-            onClick = { ui.onSeparateSignIn(entry.id) },
-            enabled = control.enabled,
-            modifier = Modifier.testTag("account-use-separate-${capability.name}"),
-        ) { Text(L10n.settings_account_use_separate_sign_in(ctx)) }
+        ControlTextButton(
+            L10n.settings_account_use_separate_sign_in(ctx),
+            control.copy(running = false),
+            "account-use-separate-${capability.name}",
+        ) { ui.onSeparateSignIn(entry.id) }
     }
     // Its server was found on another site: the question that allows it
-    // (docs/account-autodetect.md rule 14).
+    // (docs/account-autodetect.md rule 14). Like the button above, it opens something and starts
+    // nothing, so it is only held while a change runs.
     if (switch.reviewsServerChange) {
-        TextButton(
-            onClick = { ui.onReviewServerChange(entry.id) },
-            enabled = control.enabled,
-            modifier = Modifier.testTag("account-use-review-${capability.name}"),
-        ) { Text(L10n.server_changed_review(ctx)) }
+        ControlTextButton(
+            L10n.server_changed_review(ctx),
+            control.copy(running = false),
+            "account-use-review-${capability.name}",
+        ) { ui.onReviewServerChange(entry.id) }
     }
     if (confirmingOff) {
         ConfirmDialog(
@@ -213,11 +213,12 @@ private fun LinkRow(entry: AccountEntry, picker: AccountLinkPicker, ui: Accounts
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
-                onClick = { link(suggestion.id) },
-                enabled = picker.control.enabled,
-                modifier = Modifier.testTag("account-link-suggested-${picker.slot.name}"),
-            ) { Text(L10n.action_link(ctx)) }
+            // The picker above shows the link running.
+            ControlTextButton(
+                L10n.action_link(ctx),
+                picker.control.copy(running = false),
+                "account-link-suggested-${picker.slot.name}",
+            ) { link(suggestion.id) }
         }
     }
     Spacer(modifier = Modifier.height(8.dp))

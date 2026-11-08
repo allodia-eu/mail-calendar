@@ -4,7 +4,7 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AccountEntry, AccountLinkPicker, AccountPage, AccountPageIntent, AccountUseSwitch,
+    AccountEntry, AccountLinkPicker, AccountPage, AccountPageIntent, AccountUseSwitch, ControlState,
 };
 
 use super::{PageContext, account_mail, account_rows, account_servers, group, page_box};
@@ -143,13 +143,17 @@ fn uses_group(
         section.add(&row);
         // Under the note that says why: a sign-in of its own for the server that needs one.
         if crate::ui::separate_sign_in_view::action_after(entry) == Some(capability)
-            && let Some(action) = crate::ui::separate_sign_in_view::page_action(entry, &ctx.sender)
+            && let Some(action) = crate::ui::separate_sign_in_view::page_action(
+                entry,
+                switch.control.enabled,
+                &ctx.sender,
+            )
         {
             section.add(&action);
         }
         // Under the note that says it is paused: the question about the server found elsewhere.
         if switch.reviews_server_change
-            && let Some(action) = review_row(ctx, entry)
+            && let Some(action) = review_row(ctx, entry, switch.control.enabled)
         {
             section.add(&action);
         }
@@ -158,19 +162,17 @@ fn uses_group(
 }
 
 /// "Review", which asks whether to allow the server the calendar or contacts was found on.
-fn review_row(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::ButtonRow> {
+fn review_row(ctx: &PageContext, entry: &AccountEntry, enabled: bool) -> Option<adw::ButtonRow> {
     let review = Review {
         address: entry.address.clone(),
         change: ctx.app.pending_server_change(entry.id.clone())?,
     };
-    let row = adw::ButtonRow::new();
-    row.set_use_markup(false);
-    row.set_title(l10n::server_changed_review());
     let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
-    row.connect_activated(move |_| {
-        server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender);
-    });
-    Some(row)
+    Some(controls::button_row(
+        l10n::server_changed_review(),
+        enabled,
+        move || server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender),
+    ))
 }
 
 /// A picker per link slot the account can hold.
@@ -230,12 +232,14 @@ fn suggest(
     enabled: bool,
 ) {
     row.set_subtitle(&l10n::settings_account_link_suggested(address));
-    let link = gtk::Button::with_label(l10n::action_link());
-    link.set_valign(gtk::Align::Center);
-    link.set_sensitive(enabled);
     let dropdown = dropdown.downgrade();
     let position = index + 1;
-    link.connect_clicked(move |_| {
+    // The picker shows the link running, so this button never does.
+    let held = ControlState {
+        enabled,
+        running: false,
+    };
+    let link = controls::button(l10n::action_link(), held, false, move || {
         if let Some(dropdown) = dropdown.upgrade() {
             dropdown.set_selected(position);
         }
@@ -300,7 +304,7 @@ fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
 fn remove_group(
     ctx: &PageContext,
     entry: &AccountEntry,
-    control: mailcal_bindings::ControlState,
+    control: ControlState,
 ) -> adw::PreferencesGroup {
     let section = adw::PreferencesGroup::new();
     let row = adw::ActionRow::builder()

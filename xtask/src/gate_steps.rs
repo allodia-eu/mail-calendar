@@ -68,6 +68,7 @@ const LATE_CHECKS: &[&str] = &[
     "check-icons",
     "check-automation-ids",
     "check-test-agent",
+    "check-control-components",
     "check-log-hygiene",
     "check-british-english",
     "check-dash-hygiene",

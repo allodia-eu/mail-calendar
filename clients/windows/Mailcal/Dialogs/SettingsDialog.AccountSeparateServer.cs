@@ -6,9 +6,9 @@
 // while it connects (the core adds the new account before it knows the mailbox will take the
 // change) draws it again with what was typed and what went wrong.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
@@ -33,7 +33,7 @@ public sealed partial class SettingsDialog
 
     /// <summary>The action and its form under <paramref name="capability"/>'s row, when the core
     /// names a server that use needs a sign-in of its own at; null otherwise.</summary>
-    private StackPanel? SeparateServerAction(AccountEntry entry, AccountCapability capability)
+    private StackPanel? SeparateServerAction(AccountEntry entry, AccountCapability capability, ControlState control)
     {
         var step = UnreachedUsesRules.Step(entry);
         if (step is null || !UnreachedUsesRules.Offers(step, capability))
@@ -41,17 +41,16 @@ public sealed partial class SettingsDialog
             return null;
         }
         var panel = new StackPanel { Spacing = 8 };
-        var action = new Button { Content = L10n.SettingsAccountUseSeparateSignIn() };
-        AutomationProperties.SetAutomationId(action, $"AccountUseSeparateSignIn_{capability}");
+        var action = ControlComponents.Button(
+            L10n.SettingsAccountUseSeparateSignIn(), control, $"AccountUseSeparateSignIn_{capability}", () =>
+            {
+                RetireSeparateSignIn();
+                _separateOpen = new SeparateServerOpen(entry.Id, capability, step.Username, null, false);
+                NotifyAccounts(null);
+            });
         panel.Children.Add(action);
         var open = _separateOpen is { } kept && kept.AccountId == entry.Id && kept.Row == capability ? kept : null;
         action.Visibility = open is null ? Visibility.Visible : Visibility.Collapsed;
-        action.Click += (_, _) =>
-        {
-            RetireSeparateSignIn();
-            _separateOpen = new SeparateServerOpen(entry.Id, capability, step.Username, null, false);
-            NotifyAccounts(null);
-        };
         if (open is not null)
         {
             panel.Children.Add(SeparateServerFormFor(step, open));

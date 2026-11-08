@@ -208,23 +208,24 @@ pub(super) fn action_after(entry: &AccountEntry) -> Option<AccountCapability> {
     entry.separate_server.as_ref()?.uses.last().copied()
 }
 
-/// The account page's action, which opens the form.
+/// The account page's action, which opens the form, held while a change runs on the page.
 pub(super) fn page_action(
     entry: &AccountEntry,
+    enabled: bool,
     sender: &relm4::Sender<AppInput>,
 ) -> Option<adw::ButtonRow> {
     let server = entry.separate_server.clone()?;
-    let row = adw::ButtonRow::new();
-    row.set_use_markup(false);
-    row.set_title(l10n::settings_account_use_separate_sign_in());
     let (sender, account) = (sender.clone(), entry.id.clone());
-    row.connect_activated(move |_| {
-        sender.emit(input(SeparateInput::Open {
-            account: account.clone(),
-            server: server.clone(),
-        }));
-    });
-    Some(row)
+    Some(super::controls::button_row(
+        l10n::settings_account_use_separate_sign_in(),
+        enabled,
+        move || {
+            sender.emit(input(SeparateInput::Open {
+                account: account.clone(),
+                server: server.clone(),
+            }));
+        },
+    ))
 }
 
 /// The form on screen, and whether the model is the one closing it.

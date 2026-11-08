@@ -58,6 +58,11 @@ on Android,
 on macOS, iOS and iPadOS, and
 [`ControlComponents.cs`](../clients/windows/Mailcal/Controls/ControlComponents.cs) on Windows, whose
 confirmation is drawn inline because Settings is itself a dialog and a nested one is not allowed.
+Every control on a page the core draws goes through them, one that only opens something (a
+question, a form) included: it is given a state that never runs, so it is held while a change runs
+on the page and the spinner stays with the control that started it. A platform control of the
+client's own is drawn only where the core gives no state yet, and the fix there is the core's
+record, not a state the client keeps.
 
 ## Per-platform
 
@@ -66,6 +71,11 @@ confirmation is drawn inline because Settings is itself a dialog and a nested on
 | An account's page: uses, links and removal drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
+
+- `cargo xtask check-control-components`
+  ([`control_components.rs`](../xtask/src/control_components.rs)) refuses, outside each client's
+  components file, a platform control held from a `ControlState`'s `enabled`: held right, and never
+  showing its work running.
 
 - [`account_page_tests.rs`](../crates/mailcal-bindings/src/account_page_tests.rs) pins the account
   page as it is put together: a refused switch held and saying why, a status said beside it, one
