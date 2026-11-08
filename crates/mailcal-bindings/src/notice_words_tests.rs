@@ -5,7 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{action_label, detail, mark, title};
-use crate::{FolderAction, FolderProblem, NoticeAction, NoticeKind, NoticeText, UseProblem};
+use crate::{
+    FolderAction, FolderProblem, InvitationResponse, NoticeAction, NoticeKind, NoticeText,
+    UseProblem,
+};
 
 const CATALOG: &str = include_str!("../../../messages/en.json");
 
@@ -58,6 +61,17 @@ fn every_kind() -> Vec<NoticeKind> {
             NoticeKind::AccountsSkipped { count: 2 },
             folder(FolderProblem::ChangedElsewhere),
             folder(FolderProblem::Refused),
+            NoticeKind::SentNotFiled {
+                subject: "Quarterly figures".to_owned(),
+            },
+            NoticeKind::ReplyNotDelivered {
+                summary: "Planning".to_owned(),
+                organizer: "bo@example.org".to_owned(),
+                response: InvitationResponse::Accept,
+            },
+            NoticeKind::TimeZoneChanged {
+                zone: "Europe/Lisbon".to_owned(),
+            },
         ])
         .collect()
 }
@@ -69,6 +83,12 @@ fn every_text() -> Vec<NoticeText> {
         NoticeAction::SignInToAllodia,
         NoticeAction::Retry,
         NoticeAction::Review,
+        NoticeAction::FileSentCopy,
+        NoticeAction::LeaveSentCopy,
+        NoticeAction::SendReply,
+        NoticeAction::DontSendReply,
+        NoticeAction::UseDeviceTimeZone,
+        NoticeAction::KeepTimeZone,
     ];
     let kinds = every_kind();
     kinds
@@ -113,13 +133,18 @@ fn every_notice_message_in_the_catalog_is_one_the_core_names() {
 }
 
 #[test]
-fn only_an_outage_has_a_detail_and_each_problem_its_own() {
+fn an_outage_and_the_reply_question_have_a_detail_and_each_problem_its_own() {
     let details: BTreeSet<String> = every_kind()
         .iter()
         .filter_map(detail)
         .map(|text| text.key)
         .collect();
-    assert_eq!(details.len(), 10, "five problems for each of two uses");
+    assert_eq!(
+        details.len(),
+        11,
+        "five problems for each of two uses, and where a reply's next time is chosen"
+    );
+    assert!(details.contains("notice_detail_reply_not_delivered"));
     assert_eq!(detail(&NoticeKind::SignInExpired), None);
 }
 

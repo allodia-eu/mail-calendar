@@ -5,21 +5,23 @@
 
 use crate::{
     AccountCapability, AccountChangeNoticeRaised, AccountEndpoints, AccountEntry,
-    AccountLinkPicker, AccountPage, AccountServers, AccountUseStatus, AccountUseSwitch,
-    CapabilityState, ControlState, LinkSlot, UseProblem,
+    AccountLinkPicker, AccountPage, AccountReplyFallback, AccountServers, AccountUseStatus,
+    AccountUseSwitch, CapabilityState, ControlState, LinkSlot, ReplyFallbackChoice, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
     app_accounts_uses::domain_of,
 };
 
 /// `entry`'s page. `hold` says which change runs, `refused_servers` is the edit its last save of
-/// servers refused, and `toggle` what switching a use on (`true`) or off comes to. The control a
-/// running change started is drawn at the value it is moving to.
+/// servers refused, `reply_fallback` the account's standing answer about invitation replies, and
+/// `toggle` what switching a use on (`true`) or off comes to. The control a running change started
+/// is drawn at the value it is moving to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
     refused_servers: Option<AccountEndpoints>,
+    reply_fallback: ReplyFallbackChoice,
     toggle: impl Fn(AccountCapability, bool) -> Toggle,
 ) -> AccountPage {
     let control = |running: bool, free: bool| ControlState {
@@ -93,6 +95,22 @@ pub(crate) fn page(
                 form: saving.or(refused_servers).unwrap_or(stored),
             }
         }),
+        reply_fallback: entry
+            .uses
+            .iter()
+            .any(|use_| {
+                use_.capability == AccountCapability::Calendar && use_.state == CapabilityState::On
+            })
+            .then(|| {
+                let going = hold.going(|work| match work {
+                    PageWork::ReplyFallback { choice } => Some(*choice),
+                    _ => None,
+                });
+                AccountReplyFallback {
+                    choice: going.unwrap_or(reply_fallback),
+                    control: control(going.is_some(), true),
+                }
+            }),
         notice,
     }
 }

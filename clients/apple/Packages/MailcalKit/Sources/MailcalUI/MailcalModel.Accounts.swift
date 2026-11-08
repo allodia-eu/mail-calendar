@@ -183,7 +183,7 @@ extension MailboxModel {
 
     /// Whether the server refused `id`'s stored sign-in.
     func signInExpired(_ id: String) -> Bool {
-        connectivity?.signinExpiredAccounts.contains(id) ?? false
+        NoticeRules.signInExpired(id, in: notices ?? [])
     }
 
     /// Switches one of an account's uses on or off, for setup's own steps, which wait on the

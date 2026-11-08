@@ -1,6 +1,6 @@
 // What the folder pane offers and accepts when the user changes the tree (docs/folder-pane.md,
 // "Changing the tree"): which items a row's menu carries, where Move to… may send a folder or
-// Move to folder… a message, which drops a row takes, and the words each dialog and the notice say.
+// Move to folder… a message, which drops a row takes, and the words each dialog says.
 //
 // WinUI-free AND L10n-free on purpose, the same seam SidebarTree and EmptyMailboxLine use: the
 // words arrive as parameters, so Mailcal.Tests can link this file and fail on the rules. Every

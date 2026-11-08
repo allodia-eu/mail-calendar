@@ -266,6 +266,27 @@ impl From<&crate::MailcalError> for AccountChangeRefusal {
     }
 }
 
+/// What happens when the account's calendar server cannot pass an invitation answer on to the
+/// organiser (`docs/invitations.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ReplyFallbackChoice {
+    /// Ask each time, with the `ReplyNotDelivered` notice.
+    Ask,
+    /// Email the answer from the account without asking: standing permission to send mail as the
+    /// person.
+    Always,
+    /// Never email it. The card still says the organiser was not told.
+    Never,
+}
+
+/// The picker for [`ReplyFallbackChoice`], on the page of an account used for its calendar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct AccountReplyFallback {
+    /// What is chosen, or what a change running is moving it to.
+    pub choice: ReplyFallbackChoice,
+    pub control: ControlState,
+}
+
 /// An account's page: what [`crate::MailcalApp::account_page`] answers for the page on screen.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountPage {
@@ -280,6 +301,10 @@ pub struct AccountPage {
     /// password.
     pub servers: Option<AccountServers>,
     pub remove: ControlState,
+    /// What happens to an invitation answer its calendar server cannot pass on; `None` for an
+    /// account not used for its calendar.
+    #[uniffi(default = None)]
+    pub reply_fallback: Option<AccountReplyFallback>,
     /// What the last change came to, when it needs saying; `id` grows with each, so a client
     /// says each one once.
     pub notice: Option<AccountChangeNoticeRaised>,

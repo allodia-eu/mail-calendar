@@ -290,6 +290,10 @@ internal static class AccountSettingsRules
                 form.SmtpSecurity, form.CaldavUrl, form.CarddavUrl, form.Username, form.Password,
                 Control(servers.Save));
         }
+        if (page.ReplyFallback is { } replies)
+        {
+            yield return $"replies:{replies.Choice}/{Control(replies.Control)}";
+        }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
     }

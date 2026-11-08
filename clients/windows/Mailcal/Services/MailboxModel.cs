@@ -307,23 +307,7 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
     public string ActiveZone
     {
         get => _activeZone;
-        private set { if (Set(ref _activeZone, value)) { Raise(nameof(KeepZoneText)); } }
-    }
-
-    private string? _pendingDeviceZone;
-    /// <summary>A device zone awaiting the user's adopt/dismiss choice, or <c>null</c>.</summary>
-    public string? PendingDeviceZone
-    {
-        get => _pendingDeviceZone;
-        private set
-        {
-            if (Set(ref _pendingDeviceZone, value))
-            {
-                Raise(nameof(HasPendingZone));
-                Raise(nameof(ZonePromptText));
-                Raise(nameof(KeepZoneText));
-            }
-        }
+        private set => Set(ref _activeZone, value);
     }
 
     // The outgoing-send hint, pulled on a Surface.Sending change: Sending while a send is in

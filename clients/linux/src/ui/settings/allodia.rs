@@ -20,7 +20,7 @@ use gtk::accessible::Property as AccessibleProperty;
 use super::{PageContext, group, page_box};
 use crate::{
     l10n,
-    ui::{AppInput, mailbox::plain_text_row},
+    ui::{AppInput, mailbox::plain_text_row, notice_rules},
 };
 
 /// The category's page.
@@ -52,9 +52,9 @@ pub(super) fn allodia(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
     if ctx.allodia_signing_in {
         section.add(&signing_in_row(&ctx.sender));
     } else if let Some(account) = ctx.app.allodia_account() {
-        // The Allodia notice's own source, so the two never disagree; the core raises the
-        // connectivity signal when it moves, and that redraws this page.
-        if ctx.app.connectivity().allodia_sign_in_ended.is_some() {
+        // Drawn while the Allodia notice is in force, so the card and the notice never disagree;
+        // the notices signal redraws this page when it comes or goes.
+        if notice_rules::allodia_sign_in_ended(&ctx.app.notices().notices) {
             section.add(&session_ended_row(&ctx.sender, &account));
         } else {
             section.add(&signed_in_row(&ctx.sender, &account));

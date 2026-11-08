@@ -146,7 +146,7 @@ internal sealed partial class App : IDisposable
                 Dataset.Showcase => null,
                 _ => Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
             },
-            ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : Path.Combine(Repo, "docker", "stalwart", "tls", "harness-ca.pem"),
+            ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : HarnessCa.For(Repo),
             ["MAILCAL_TEST_AGENT"] = pipe,
         };
         if (dataset == Dataset.Showcase)

@@ -94,8 +94,6 @@ private fun TestMailbox(position: MailListPosition, search: SearchBarState) {
         swipe = SwipeSettings(SwipeActionKind.DELETE, SwipeActionKind.DELETE),
         onArchive = { _, _ -> },
         timeZone = null,
-        onAcceptTimeZoneChange = {},
-        onDismissTimeZoneChange = {},
         syncProgress = null,
         onOpenSettings = {},
     )

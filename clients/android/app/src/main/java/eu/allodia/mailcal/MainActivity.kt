@@ -45,10 +45,8 @@ import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.ReadingSnapshot
-import uniffi.mailcal_bindings.ReplyPrompt
 import uniffi.mailcal_bindings.SearchHorizon
 import uniffi.mailcal_bindings.SharePrefill
-import uniffi.mailcal_bindings.UnfiledCopy
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SnapshotRow
@@ -207,11 +205,6 @@ class MainActivity : AppCompatActivity() {
     // Drives the small header badge: a spinner while `Saving`, a check on `Saved`, a tap-to-retry
     // warning when it was not saved or could not be confirmed (see CalendarWriteIndicator).
     internal var calendarWriteStatus by mutableStateOf(CalendarWriteStatus.IDLE)
-    // The unanswered "your calendar server could not tell the organiser, shall we email them?"
-    // question, pulled on an INVITATION_REPLY signal. Null means there is nothing to ask, which is
-    // also how the core says "close the modal": it clears the prompt the moment it is answered.
-    internal var replyPrompt by mutableStateOf<ReplyPrompt?>(null)
-    internal var unfiledCopy by mutableStateOf<UnfiledCopy?>(null)
     // The calendar colours a user may pick from, the core's palette, fetched once. A client cannot
     // invent one, and Allodia Orange is deliberately absent: it means "action" in this product.
     internal val calendarPalette: List<String> by lazy { calendarPalette() }
@@ -390,7 +383,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // The OS broadcasts ACTION_TIMEZONE_CHANGED when the device zone changes at runtime;
-    // we report the new zone to the core so it can offer the change prompt. Registered at
+    // we report the new zone to the core, which asks about it as a notice. Registered at
     // runtime (onResume) and unregistered (onPause), never via the manifest. Detection is
     // shared Rust (deviceTimeZone()), region-aware and consistent across all clients.
     private val timeZoneChangeReceiver = object : BroadcastReceiver() {
@@ -406,9 +399,8 @@ class MainActivity : AppCompatActivity() {
         override fun surfaceChanged(surface: CoreSurface) {
             mainHandler.post {
                 val app = app ?: return@post
-                // A pending device-zone change can be signalled while the mailbox is
-                // showing (the prompt is an overlay), so refresh the timezone snapshot on
-                // every signal regardless of which surface changed.
+                // The active zone can move on any signal (a change accepted from its notice
+                // among them), so the timezone snapshot is refreshed on every one.
                 timeZone = app.timezoneSettings()
                 pullFor(surface, app)
             }

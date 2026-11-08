@@ -1,6 +1,7 @@
-// "The organiser wasn't told" when the answer came from the calendar: the question is put inside the
-// open event detail, because the window's own bar sits under the dialog's overlay where nobody can
-// reach it (docs/calendar.md, "Answering from the calendar"; docs/invitations.md).
+// "The organiser wasn't told" when the answer came from the calendar: the question's notice is drawn
+// inside the open event detail too, with its two answers, because the window's own bar sits under the
+// dialog's overlay where nobody can reach it (docs/calendar.md, "Answering from the calendar";
+// docs/invitations.md).
 //
 // The verdict is faked in the core, as in InvitationReplyPromptTests, on the same CalDAV half, the
 // only route that asks. Its own invitation: the seeded ones belong to other suites, so the suite
@@ -56,7 +57,7 @@ public sealed class EventAnswerReplyPromptTests(FakeReplyHarnessApp harness)
     public void AnsweringItFromTheDetailClosesIt() => harness.Case(nameof(AnsweringItFromTheDetailClosesIt), app =>
     {
         var bar = app.Agent.Find(Prompt) ?? throw new InvalidOperationException("the question is not on screen to answer; the case before this one did not raise it");
-        app.Agent.Invoke(ReplyPromptFlow.Button(app, bar, "invitation_reply_undelivered_dismiss")
+        app.Agent.Invoke(ReplyPromptFlow.Button(app, bar, "notice_action_dont_send_reply")
             ?? throw new InvalidOperationException("the question offers no way to decline sending"));
         Assert.True(app.Agent.WaitGone(Prompt, TimeSpan.FromSeconds(30)), "the core clears the question as it is answered, and the detail follows it");
         // The answer itself was stored; only telling the organiser failed.

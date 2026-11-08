@@ -130,6 +130,14 @@ public class AccountSettingsRulesTests
         };
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(running));
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Remove = new ControlState(false, true) }));
+        // The reply setting: drawn, chosen, and running on its own control.
+        var asks = free with { ReplyFallback = new AccountReplyFallback(ReplyFallbackChoice.Ask, new ControlState(true, false)) };
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(asks));
+        var never = asks with { ReplyFallback = asks.ReplyFallback! with { Choice = ReplyFallbackChoice.Never } };
+        Assert.NotEqual(AccountSettingsRules.PageFingerprint(asks), AccountSettingsRules.PageFingerprint(never));
+        Assert.NotEqual(
+            AccountSettingsRules.PageFingerprint(never),
+            AccountSettingsRules.PageFingerprint(never with { ReplyFallback = never.ReplyFallback! with { Control = new ControlState(false, true) } }));
         // And a notice raised, which the page says once.
         var notice = new AccountChangeNoticeRaised(1, new AccountChangeNotice.LinkFailed(LinkSlot.Calendar, new AccountChangeRefusal.Other("gone")));
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Notice = notice }));

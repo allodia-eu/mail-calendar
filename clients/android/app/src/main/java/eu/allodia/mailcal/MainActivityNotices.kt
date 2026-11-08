@@ -12,7 +12,6 @@ import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeIntent
-import uniffi.mailcal_bindings.NoticeKind
 
 /** The notices in force and what the activity derived from them. */
 internal class NoticesState {
@@ -34,11 +33,10 @@ internal class NoticesState {
     val announcements = NoticeAnnouncements()
 
     /** The accounts whose sign-in the server stopped accepting. */
-    val expired: Set<String>
-        get() = notices.filter { it.kind == NoticeKind.SignInExpired }.mapNotNull { it.account }.toSet()
+    val expired: Set<String> get() = NoticeRules.expired(notices)
 
     /** Whether the Allodia account's sign-in was refused. */
-    val allodiaSignInEnded: Boolean get() = notices.any { it.kind is NoticeKind.AllodiaSignInEnded }
+    val allodiaSignInEnded: Boolean get() = NoticeRules.allodiaSignInEnded(notices)
 }
 
 /** Pulls the notices in force; a pull that changed nothing redraws nothing. */
@@ -59,7 +57,7 @@ internal fun MainActivity.pullNotices() {
 /** What the notice views run, and the notice whose remedy is under way. */
 internal fun MainActivity.noticeHandlers() = NoticeHandlers(
     running = noticeRunning(),
-    onRun = { runNotice(it) },
+    onRun = { notice, action -> runNotice(notice, action) },
     onDismiss = { dismissNotice(it) },
 )
 
@@ -69,17 +67,22 @@ internal fun MainActivity.dismissNotice(notice: Notice) {
 }
 
 /**
- * Runs [notice]'s action: a Retry through the core, which judges it, and every other through the
- * flow this client already has (rule 7).
+ * Runs [action], one of [notice]'s answers: a Retry through the core, which judges it, a question's
+ * answer as the intent it always sent (rule 8), and every other through the flow this client
+ * already has (rule 7).
  */
-internal fun MainActivity.runNotice(notice: Notice) {
+internal fun MainActivity.runNotice(notice: Notice, action: NoticeAction) {
     val instance = app ?: return
-    NoticeRules.coreRemedy(notice)?.let {
+    NoticeRules.coreRemedy(notice, action)?.let {
         instance.dispatch(Intent.Notices(it))
         return
     }
+    NoticeRules.answer(notice, action) { response, summary -> invitationReplySubject(this, response, summary) }?.let {
+        instance.dispatch(it)
+        return
+    }
     val account = notice.account
-    when (notice.action) {
+    when (action) {
         NoticeAction.SIGN_IN_AGAIN -> account?.let { signInAgainFromNotice(notice, it) }
         NoticeAction.SIGN_IN_TO_ALLODIA -> if (!signingInAllodia) {
             notices.remedy = RunningRemedy(NoticeRemedy.ALLODIA, notice.id, null)
@@ -92,7 +95,15 @@ internal fun MainActivity.runNotice(notice: Notice) {
             showingSettings = true
         }
         NoticeAction.REVIEW -> account?.let { reviewServerChange(it) }
-        NoticeAction.RETRY, null -> Unit
+        // A Retry went to the core and an answer was sent as its intent, both above.
+        NoticeAction.RETRY,
+        NoticeAction.FILE_SENT_COPY,
+        NoticeAction.LEAVE_SENT_COPY,
+        NoticeAction.SEND_REPLY,
+        NoticeAction.DONT_SEND_REPLY,
+        NoticeAction.USE_DEVICE_TIME_ZONE,
+        NoticeAction.KEEP_TIME_ZONE,
+        -> Unit
     }
 }
 

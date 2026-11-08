@@ -74,8 +74,8 @@ pub enum MailSyncTechnology {
     /// Complete but slower: over the Gmail API, because Gmail refused this account IMAP.
     Fallback,
     /// Not arriving: reads in a row could not reach Gmail's IMAP side, which a network that
-    /// blocks IMAP does while the rest of Google still answers. The account is badged as
-    /// unreachable too (`ConnectivitySnapshot::unreachable_accounts`).
+    /// blocks IMAP does while the rest of Google still answers. The account carries the
+    /// `Unreachable` notice too.
     Unreachable,
 }
 

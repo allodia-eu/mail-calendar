@@ -17,7 +17,7 @@ mod live_oauth;
 
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, ImapLoginRequest, MailcalApp, SetupRecommendation,
+    AccountCapability, AccountEntry, ImapLoginRequest, MailcalApp, NoticeKind, SetupRecommendation,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
@@ -37,6 +37,20 @@ fn used_for(entry: &AccountEntry) -> Vec<AccountCapability> {
         .filter(|used| used.state == mailcal_bindings::CapabilityState::On)
         .map(|used| used.capability)
         .collect()
+}
+
+/// How many of the app's notices say a calendar, or an address book, did not connect.
+fn outages(app: &MailcalApp) -> (usize, usize) {
+    let notices = app.notices().notices;
+    let calendar = notices
+        .iter()
+        .filter(|notice| matches!(notice.kind, NoticeKind::CalendarOutage { .. }))
+        .count();
+    let contacts = notices
+        .iter()
+        .filter(|notice| matches!(notice.kind, NoticeKind::ContactsOutage { .. }))
+        .count();
+    (calendar, contacts)
 }
 
 #[test]
@@ -90,13 +104,7 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         .complete_imap_login(start.pending, callback)
         .expect("the code is exchanged");
     let mailbox = app.add_account(config).expect("the mailbox connects").id;
-    let outages = app.connectivity();
-    assert_eq!(
-        outages.calendar_outages.len(),
-        1,
-        "{:?}",
-        outages.calendar_outages
-    );
+    assert_eq!(outages(&app).0, 1, "{:?}", app.notices().notices);
 
     let calendar = app
         .add_linked_calendar_account(
@@ -129,8 +137,7 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         "{:?}",
         moved.uses
     );
-    let outages = app.connectivity();
-    assert!(outages.calendar_outages.is_empty() && outages.contacts_outages.is_empty());
+    assert_eq!(outages(&app), (0, 0));
 
     let refused = app.add_linked_calendar_account(
         calendar,

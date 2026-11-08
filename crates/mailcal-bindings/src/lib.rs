@@ -32,6 +32,8 @@ mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
+#[cfg(feature = "allodia-license")]
+mod allodia_entitlement;
 mod allodia_health;
 #[cfg(feature = "allodia-license")]
 mod allodia_pass;
@@ -77,6 +79,7 @@ mod composer_host;
 mod composer_open;
 mod connected_account;
 mod connection_log;
+mod connectivity_facts;
 mod connector;
 mod consent;
 mod convert;
@@ -209,6 +212,7 @@ pub use composer_host::{
 };
 pub use composer_open::{ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, QuoteSource};
 pub(crate) use connected_account::ConnectedAccount;
+pub(crate) use connectivity_facts::{ConnectivitySnapshot, UseOutage};
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
 pub use dav_oauth::SeparateServerSignInStart;
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
@@ -235,7 +239,7 @@ pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
     MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
-    ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, UnfiledCopy, ViewMode,
+    ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
@@ -245,9 +249,9 @@ pub use records::{
 };
 pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
-    AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountSenderName,
-    AccountServers, AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
-    AccountWatchedFolder, ControlState,
+    AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountReplyFallback,
+    AccountSenderName, AccountServers, AccountToggle, AccountUseBlock, AccountUseStatus,
+    AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
@@ -261,20 +265,18 @@ pub use records_calendar::{
     MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
 };
 pub use records_conference::{ConferenceDialIn, ConferenceState, EventConference};
-pub use records_connectivity::{
-    AccountProvider, ConnectionInfo, ConnectivitySnapshot, HttpVersion, TlsVersion, UseOutage,
-};
+pub use records_connectivity::{AccountProvider, ConnectionInfo, HttpVersion, TlsVersion};
 pub use records_contacts::{
     ContactCardRef, ContactDetail, ContactEdit, ContactRow, ContactTarget, ContactValue,
     ContactWriteStatus, ContactsSnapshot, RecipientMatch,
 };
 pub use records_event_detail::{EventAttendee, EventDetail};
+pub(crate) use records_folders::FolderNotice;
 pub use records_folders::{
-    AccountFolderRow, FolderAction, FolderNameCheck, FolderNotice, FolderProblem, FolderRole,
-    FolderRow,
+    AccountFolderRow, FolderAction, FolderNameCheck, FolderProblem, FolderRole, FolderRow,
 };
 pub use records_invitation::{
-    AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
+    AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ResponseStatus,
 };
 pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
 pub use records_notices::{
@@ -331,17 +333,9 @@ uniffi::setup_scaffolding!();
 pub struct MailcalApp {
     runtime: runtime::FfiRuntime,
     app: Arc<App<Box<dyn Provider>>>,
-    /// Non-fatal account-connect diagnostics: at launch, any stored account whose IMAP/mail
-    /// connect failed (a stale password, a server blip) and was skipped so the others come
-    /// up. Account-prefixed. Empty when every stored account connected. Distinct from
-    /// [`MailcalApp::calendar_connect_errors`] so a skipped *account* is never mislabeled a
-    /// calendar failure.
+    /// The stored accounts that could not be read or connected at launch, account-prefixed;
+    /// their count is the `AccountsSkipped` notice.
     account_connect_errors: Mutex<Vec<String>>,
-    /// Non-fatal calendar (CalDAV) connect diagnostics: an account whose mail is up but whose
-    /// configured calendar provider couldn't connect (so its calendar is empty rather than
-    /// missing by choice). Account-prefixed. Runtime additions (`add_account`) append here, so
-    /// it is behind a `Mutex`. Empty when every configured calendar connected.
-    calendar_connect_errors: Mutex<Vec<String>>,
     /// When each notice was first raised, and which were dismissed or reported as failed; see
     /// [`notices`].
     notice_book: Mutex<notices::NoticeBook>,
@@ -383,6 +377,9 @@ pub struct MailcalApp {
     /// Nothing in it is written down and nothing needs to be: the store is the durable copy.
     #[cfg(feature = "allodia-license")]
     allodia_purchases: Mutex<allodia_license::Ledger>,
+    /// The entitlement this device last read; see [`allodia_entitlement`].
+    #[cfg(feature = "allodia-license")]
+    allodia_entitlement: allodia_entitlement::EntitlementState,
     /// Where this device remembers what it has synced with the account service, once a host has
     /// installed somewhere to keep it. `None` until then, which is a wiring bug rather than a
     /// state a pass may quietly run in; see [`crate::app_allodia_sync`].
@@ -449,11 +446,6 @@ impl MailcalApp {
 
 /// Joins one diagnostic channel's account-prefixed messages into a single newline-separated
 /// string for a host to surface, or `None` when the channel is empty.
-fn joined(errors: &Mutex<Vec<String>>) -> Option<String> {
-    let errors = errors.lock().expect("diagnostics mutex poisoned");
-    (!errors.is_empty()).then(|| errors.join("\n"))
-}
-
 #[cfg(test)]
 mod tests;
 

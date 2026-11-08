@@ -150,3 +150,74 @@ fn showcase_can_ask_its_account_to_sign_in_again_for_mail_and_calendar() {
         "{kinds:?}"
     );
 }
+
+/// What `MAILCAL_SHOWCASE_QUESTIONS` puts in front of the UI suites: every question the core can
+/// ask, each a notice with two answers (`docs/notices.md` rule 8), and a device report at launch
+/// leaves the time zone question standing.
+#[cfg(debug_assertions)]
+#[test]
+fn showcase_can_ask_every_question_as_a_notice() {
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_showcase(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Europe/Amsterdam".to_owned(),
+        ShowcaseLocale::En,
+    );
+    let primary = app.accounts_snapshot().accounts[0].clone();
+    let device = engine_api::TimeZoneId::iana("Europe/Amsterdam").expect("a zone");
+    crate::boot::ask_the_questions(
+        &app.app,
+        &app.runtime,
+        &primary.id,
+        &primary.address,
+        &device,
+    );
+    app.dispatch(crate::Intent::ReportDeviceTimeZone {
+        id: "Europe/Amsterdam".to_owned(),
+    });
+
+    let notices = app.notices().notices;
+    let answers = |kind: fn(&crate::NoticeKind) -> bool| {
+        notices
+            .iter()
+            .find(|notice| kind(&notice.kind))
+            .map(|notice| (notice.action, notice.second_action))
+    };
+    use crate::NoticeAction::{
+        DontSendReply, FileSentCopy, KeepTimeZone, LeaveSentCopy, SendReply, UseDeviceTimeZone,
+    };
+    assert_eq!(
+        answers(|kind| matches!(kind, crate::NoticeKind::SentNotFiled { .. })),
+        Some((Some(FileSentCopy), Some(LeaveSentCopy)))
+    );
+    assert_eq!(
+        answers(|kind| matches!(kind, crate::NoticeKind::ReplyNotDelivered { .. })),
+        Some((Some(SendReply), Some(DontSendReply)))
+    );
+    assert_eq!(
+        answers(|kind| matches!(kind, crate::NoticeKind::TimeZoneChanged { .. })),
+        Some((Some(UseDeviceTimeZone), Some(KeepTimeZone)))
+    );
+
+    // An intent runs on the core's runtime, so the answer lands a moment after `dispatch` returns.
+    app.dispatch(crate::Intent::DismissTimeZoneChange);
+    app.dispatch(crate::Intent::DismissUnfiledCopy);
+    let answered = |kind: &crate::NoticeKind| {
+        matches!(
+            kind,
+            crate::NoticeKind::TimeZoneChanged { .. } | crate::NoticeKind::SentNotFiled { .. }
+        )
+    };
+    assert!(
+        crate::tests::wait_until(std::time::Duration::from_secs(5), || {
+            !app.notices()
+                .notices
+                .iter()
+                .any(|notice| answered(&notice.kind))
+        }),
+        "an answered question goes: {:?}",
+        app.notices().notices
+    );
+}

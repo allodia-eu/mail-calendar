@@ -18,8 +18,8 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | 4 | **Three severities, each with a meaning.** `Blocked`: something the person relies on has stopped. `Degraded`: part of it works. `Informational`: nothing is broken. Only Blocked uses the warning colour, and colour is never the only signal. | A permission gap and a dead sign-in drawn with the same triangle tell the person nothing about which to fix first. |
 | 5 | **One notice per account and fact.** Three expired sign-ins are three notices, each with its own button, ranked together; two facts about one account are two notices. | Text naming three accounts above one button that fixes the first is a button that lies. |
 | 6 | **The account carries its own notices.** Every notice with an `account` also marks that account's row in the sidebar: on one line under the address, never wrapping, the first notice's glyph and its `mark`, a few words with no address (the row already shows it), or `notices_account_count` ("2 issues") when there are several. The full sentences are for the notice itself, the Issues list, the account's Settings page, at whose top they all appear, and the screen reader. Never a tooltip only. | A touch screen has no hover, so a tooltip is text nobody can read; a sentence that repeats the address wraps over three lines of a narrow sidebar. |
-| 7 | **One action, typed.** A notice has at most one `NoticeAction`, a closed enum the client maps onto a flow it already has: `SignInAgain` (the account's browser sign-in, which also grants what a narrower grant withheld), `OpenAccountSettings`, `SignInToAllodia`, `Retry` (dispatched as `NoticeIntent::Retry`, for which the core refreshes the notice's screen, which dials the account again), `Review` (the question whether to allow an account's new server). The core picks it: a dead sign-in on a password or token account opens Settings, because there is no browser flow to run. | A client that picks the remedy itself picks a different one per platform. |
-| 8 | **A question is a notice, not a dialog.** A dialog is kept for a choice the person must make before they can continue. | A modal at an arbitrary moment interrupts whatever the person was doing, for something that can wait. |
+| 7 | **One action, typed.** A notice has at most one `NoticeAction`, and a question (rule 8) a second, its other answer (`second_action`); both come from a closed enum the client maps onto a flow it already has: `SignInAgain` (the account's browser sign-in, which also grants what a narrower grant withheld), `OpenAccountSettings`, `SignInToAllodia`, `Retry` (dispatched as `NoticeIntent::Retry`, for which the core refreshes the notice's screen, which dials the account again), `Review` (the question whether to allow an account's new server), and the questions' answers, each an intent the client already sends: `FileSentCopy` and `LeaveSentCopy` (`Intent::RetryUnfiledCopy`, `Intent::DismissUnfiledCopy`), `SendReply` and `DontSendReply` (`Intent::AnswerReplyPrompt`, never with `remember`; the subject composed from the notice's `response`), `UseDeviceTimeZone` and `KeepTimeZone` (`Intent::AcceptTimeZoneChange`, `Intent::DismissTimeZoneChange`). While `running` is set an answer is being carried out, and both buttons are held. The core picks the action: a dead sign-in on a password or token account opens Settings, because there is no browser flow to run. | A client that picks the remedy itself picks a different one per platform. |
+| 8 | **A question is a notice, not a dialog.** A dialog is kept for a choice the person must make before they can continue. A question is answered, never closed, and the button for its other answer is drawn as the lesser of the two. | A modal at an arbitrary moment interrupts whatever the person was doing, for something that can wait. |
 | 9 | **Dismissing is for what already happened.** A notice about a state that holds has `dismissible` false and goes when the state does. One about an event (accounts skipped at launch, a refused folder change) can be closed with `NoticeIntent::Dismiss`, and the core remembers it until the fact goes. | Closing "your sign-in no longer works" leaves the sign-in dead and the person without the button. |
 | 10 | **A failed remedy is said on the notice.** When the action does not complete, the client dispatches `NoticeIntent::RemedyFailed`; the core sets `remedy_failed` and every platform adds the same sentence beside the notice. It stands until the notice goes. A browser the person closed is not a failure and is not reported. A **Retry** is the core's to judge, because only the core knows when the dial it starts has ended: it marks the notice when that dial ends and the notice still stands. | A sign-in that failed and a sign-in nobody tried look the same otherwise. |
 | 11 | **Words come from the catalog, generated.** The core is locale-free, so it names each notice's words rather than writing them: `title`, `detail` (why, under the title, where there is room), `mark` (the account row's few words) and `action_label` are a `NoticeText`, a catalog key and its string arguments, the account named by its address. `mailcal-l10n` generates one `notice(key, args)` lookup per platform over every `notice_` key, so no client keeps a switch of its own. A `notice_` message takes strings only and has no plural form. The few fixed words around a notice (`notices_more`, `notices_account_count`, `notices_remedy_failed`, `notices_issues`, `notices_dismiss`) are ordinary typed accessors. | Seven locales times four clients is where a missing translation hides. |
@@ -37,18 +37,18 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | `unreachable_accounts` | `Unreachable` | Degraded | Mail | ✓ | `Retry` | No |
 | `offline` | `Offline` | Informational | Everywhere | | none | No |
 | `allodia_sign_in_ended` | `AllodiaSignInEnded { address }` | Degraded | Everywhere | | `SignInToAllodia` | No |
-| `account_connect_error` | `AccountsSkipped { count }` | Degraded | Mail | | none | Yes |
+| `account_connect_errors` | `AccountsSkipped { count }` | Degraded | Mail | | none | Yes |
 | `folder_notice` | `FolderChangeRefused { folder, action, problem }` | Degraded | Mail | ✓ | none | Yes |
+| `unfiled_copy` | `SentNotFiled { subject }` | Degraded | Mail | ✓ | `FileSentCopy`, or `LeaveSentCopy` | No |
+| `reply_prompt` | `ReplyNotDelivered { summary, organizer, response }` | Degraded | Everywhere | ✓ | `SendReply`, or `DontSendReply` | No |
+| `pending_device` | `TimeZoneChanged { zone }` | Informational | Everywhere | | `UseDeviceTimeZone`, or `KeepTimeZone` | No |
 
-- **`calendar_connect_error` raises nothing of its own.** Every calendar that did not connect is
-  already a `calendar_outages` entry with its account and its reason, which the free text lacks.
 - **`AccountsSkipped` counts stored accounts that could not be read**, which is what
-  `account_connect_error` holds in the app. Such an account has no id, so the notice is the whole
+  `account_connect_errors` holds in the app. Such an account has no id, so the notice is the whole
   app's and has no page to open. An account that was read and then failed to connect is an
   `Unreachable` or `SignInExpired` notice instead.
-- **A refused folder change is closed where it is held.** Dismissing it clears the pane's notice,
-  as `FolderIntent::DismissNotice` does, so the mailbox snapshot's `folder_notice` and this list
-  never disagree; but only while the pane still holds that refusal. A later refusal on the same
+- **A refused folder change is closed where it is held.** Dismissing it clears the refusal the app
+  holds, so the two never disagree; but only while the app still holds that refusal. A later refusal on the same
   account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves
   standing.
 - **A failed remedy belongs to the action that failed.** When a notice comes to offer another
@@ -56,25 +56,24 @@ where its platform puts it. Two platforms showing the same moment show the same 
 - **The Allodia notice is Degraded**: mail, calendar and contacts all work without the account.
   It becomes Blocked while a stored entitlement answer grants a paid capability whose grace ends
   within seven days ([`entitlement.md`](../allodia_license/entitlement.md)), because then signing
-  in again is what keeps that capability. That rise is read from the stored answer, so it arrives
-  with the entitlement read on the device.
+  in again is what keeps that capability. The core reads and stores the entitlement itself, and
+  the rise is read from the stored answer, so it holds while the grant is refused.
 
-**The questions move here next.** The unfiled Sent copy (`Surface::UnfiledCopy`), an invitation
-reply the server could not deliver (`Surface::InvitationReply`) and a changed time zone
-(`TimeZoneSnapshot`'s pending change) become notices with two actions under rule 8, and
-[`sending.md`](sending.md) changes with them. Until then each is answered through its own surface,
-as that surface's contract says.
-
-**The fields this list is built from stay.** `ConnectivitySnapshot`'s prompt fields,
-`account_connect_error`, `calendar_connect_error` and `folder_notice` are what every client draws
-today; they go once no client reads them, and every contract that names them moves in that change.
+**A question's notice is the only place it is asked.** The core no longer offers the questions
+through surfaces of their own: `Surface::UnfiledCopy` and `Surface::InvitationReply` reach a host
+as `Surface::Notices`, and a time zone change signals it too. A question raised again for something
+else (another message, another meeting, another zone) is a new notice and is announced. Whether an
+account's invitation replies are emailed without asking is no longer a tick on the question: it is
+the account's page in Settings ([`invitations.md`](invitations.md)).
 
 ## Signals
 
-`Surface::Notices` follows every `Surface::Connectivity` signal, because most notices are read
-from that snapshot, and is raised on its own when the folder pane's refusal changes, when a notice
-is dismissed and when a remedy is reported as failed. A client that does not draw notices yet
-ignores the signal and must not let it reach a heavier reload.
+`Surface::Notices` is signalled whenever what the app can reach changes, when the folder pane's
+refusal changes, when a notice is dismissed and when a remedy is reported as failed. It is the only
+signal for any of these: the facts the notices are read from are the core's own, and no client
+reads them, so a status a client draws from them (the Windows connection label, an account page's
+expired sign-in, the Allodia card) is drawn from the notices too. The signal must not reach a
+heavier reload.
 
 ## Per-platform
 
@@ -83,10 +82,10 @@ ignores the signal and must not let it reach a heavier reload.
 | The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The three questions as notices (rule 8) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The three questions as notices (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Announced once (rule 12) | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The Allodia notice raised to Blocked near a lapse | ⬜ | | | | | |
+| The Allodia notice raised to Blocked near a lapse | ✅ | | | | | |
 
 Where each platform puts the prominent notice: macOS and iPadOS, a card at the top of the sidebar,
 above the accounts it is about; iPhone, one row under the bar of the tab on show, opening a sheet
@@ -102,6 +101,11 @@ Windows: [`NoticeBar`](../clients/windows/Mailcal/Views/NoticeBar.xaml.cs) above
 [`MailboxModel.Notices.cs`](../clients/windows/Mailcal/Services/MailboxModel.Notices.cs), and the
 account's page in
 [`SettingsDialog.AccountNotices.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.AccountNotices.cs).
+An `InfoBar` holds one action button, so a question draws both answers in its content instead, the
+first in the accent style, held with a spinner beside them while `running`. The event detail is a
+`ContentDialog` whose overlay hides the bar, so it draws the reply question about an answer given
+there as well
+([`EventDetailDialog.Answer.cs`](../clients/windows/Mailcal/Dialogs/EventDetailDialog.Answer.cs)).
 
 Linux: [`NoticeBar`](../clients/linux/src/ui/notice_bar.rs) across the top of the window,
 [`notice_rules`](../clients/linux/src/ui/notice_rules.rs) (pinned by `notice_rules_tests.rs`),
@@ -109,12 +113,13 @@ each action in [`notices.rs`](../clients/linux/src/ui/notices.rs), and the accou
 [`account_notices.rs`](../clients/linux/src/ui/settings/account_notices.rs). An `AdwBanner` holds
 one sentence and one button, so the strip around it carries the severity's glyph, the spinner while
 the button's sign-in runs and the Issues button; the detail shares the banner's sentence, a line
-below the title. The account row's glyph sits at the row's end, the one place an `AdwActionRow`
+below the title. A question's banner draws neither answer: the strip draws both after the sentence,
+the lesser first, because a banner's own button can be neither held nor given a sibling. The account row's glyph sits at the row's end, the one place an `AdwActionRow`
 takes a widget, with the mark as its subtitle.
 
 Android: [`NoticeArea`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeViews.kt)
 under each screen's bar, [`NoticeRules`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeRules.kt)
-(pinned by `NoticeRulesTest` and `NoticeViewsTest`), each action in
+(pinned by `NoticeRulesTest`, `NoticeViewsTest` and, for the questions, `QuestionNoticesTest`), each action in
 [`MainActivityNotices.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/MainActivityNotices.kt),
 and the account's page through `AccountNoticesGroup`. The account's mark is a second line under its
 address in the folder drawer, and its glyph leads its entry in the account switcher. A notice is

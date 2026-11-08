@@ -1,14 +1,17 @@
 // Which of the core's notices this client draws where (docs/notices.md): the one prominent on the
 // screen on show, how many more stand behind it, the mark each account's row carries, and which
-// flow a notice's action runs. The core has already ranked them, so every rule here keeps its
+// flow a notice's answer runs. The core has already ranked them, so every rule here keeps its
 // order and decides nothing about rank. Compose-free and catalog-free: the words arrive as a
 // parameter, so the JVM suite reaches every rule.
 package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.AccountProvider
+import uniffi.mailcal_bindings.Intent
+import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeIntent
+import uniffi.mailcal_bindings.NoticeKind
 import uniffi.mailcal_bindings.NoticeScreens
 import uniffi.mailcal_bindings.NoticeSeverity
 import uniffi.mailcal_bindings.NoticeText
@@ -67,6 +70,16 @@ internal object NoticeRules {
     /** The notices about [account], in the core's order, which its page in Settings opens with. */
     fun about(notices: List<Notice>, account: String): List<Notice> = notices.filter { it.account == account }
 
+    /**
+     * The accounts whose stored sign-in the server refuses, which their pages in Settings offer a
+     * new password for. A grant too narrow for one use is a different notice: the sign-in works.
+     */
+    fun expired(notices: List<Notice>): Set<String> =
+        notices.filter { it.kind == NoticeKind.SignInExpired }.mapNotNull { it.account }.toSet()
+
+    /** Whether the account service refused the Allodia sign-in, which the Allodia card draws. */
+    fun allodiaSignInEnded(notices: List<Notice>): Boolean = notices.any { it.kind is NoticeKind.AllodiaSignInEnded }
+
     /** The mark each account with a notice carries; [count] words "N issues". */
     fun marks(
         notices: List<Notice>,
@@ -94,13 +107,43 @@ internal object NoticeRules {
     /** Whether a notice has something to run: the core sends an action and its label together. */
     fun offers(notice: Notice): Boolean = notice.action != null && notice.actionLabel != null
 
+    /** Whether a question offers its other answer, the lesser button beside the first (rule 8). */
+    fun offersSecond(notice: Notice): Boolean = notice.secondAction != null && notice.secondActionLabel != null
+
     /**
-     * What the core runs for a notice's action, or null for a flow this client runs itself. A
-     * Retry is the core's: only it can tell when the dial it starts has ended, so the client never
-     * reports one as failed.
+     * Whether a notice's buttons are held: an answer the core is carrying out, or a flow this
+     * client started from it ([running] names that notice), so neither can start a second one.
      */
-    fun coreRemedy(notice: Notice): NoticeIntent? =
-        if (notice.action == NoticeAction.RETRY) NoticeIntent.Retry(notice.id) else null
+    fun held(notice: Notice, running: String?): Boolean = notice.running || running == notice.id
+
+    /**
+     * What the core runs for [action], or null for a flow this client runs itself. A Retry is the
+     * core's: only it can tell when the dial it starts has ended, so the client never reports one
+     * as failed.
+     */
+    fun coreRemedy(notice: Notice, action: NoticeAction?): NoticeIntent? =
+        if (action == NoticeAction.RETRY) NoticeIntent.Retry(notice.id) else null
+
+    /**
+     * The intent a question's answer sends (rule 8), each one this client already sent before the
+     * question was a notice; null for an action that is not an answer. [subject] composes the
+     * emailed reply's subject the way the answer to the invitation composed it, because a stranger
+     * reads it and the core carries no locale.
+     */
+    fun answer(notice: Notice, action: NoticeAction, subject: (InvitationResponse, String) -> String): Intent? =
+        when (action) {
+            NoticeAction.FILE_SENT_COPY -> Intent.RetryUnfiledCopy
+            NoticeAction.LEAVE_SENT_COPY -> Intent.DismissUnfiledCopy
+            NoticeAction.SEND_REPLY -> (notice.kind as? NoticeKind.ReplyNotDelivered)?.let {
+                Intent.AnswerReplyPrompt(send = true, remember = false, replySubject = subject(it.response, it.summary))
+            }
+            NoticeAction.DONT_SEND_REPLY -> Intent.AnswerReplyPrompt(send = false, remember = false, replySubject = null)
+            NoticeAction.USE_DEVICE_TIME_ZONE -> Intent.AcceptTimeZoneChange
+            NoticeAction.KEEP_TIME_ZONE -> Intent.DismissTimeZoneChange
+            NoticeAction.SIGN_IN_AGAIN, NoticeAction.OPEN_ACCOUNT_SETTINGS, NoticeAction.SIGN_IN_TO_ALLODIA,
+            NoticeAction.RETRY, NoticeAction.REVIEW,
+            -> null
+        }
 
     /**
      * The flow Sign in again runs for an account of [provider]; [nextcloud] for one a Nextcloud

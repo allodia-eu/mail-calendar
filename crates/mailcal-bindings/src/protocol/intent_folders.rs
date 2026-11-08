@@ -62,6 +62,4 @@ pub enum FolderIntent {
         /// The folder's key.
         key: String,
     },
-    /// Take the standing folder notice off the pane.
-    DismissNotice,
 }

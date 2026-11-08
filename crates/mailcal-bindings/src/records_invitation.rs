@@ -8,17 +8,13 @@
 //! markup; on GTK that means `use_markup(false)`, the trap `AGENTS.md` records. See
 //! `docs/rendering-security.md`.
 
-use mailcal_app::InvitationResponse as AppInvitationResponse;
 use mailcal_viewmodel::{
     AttendeeTally as AppAttendeeTally, InvitationCard as AppInvitationCard,
     InvitationKind as AppInvitationKind, ResponseStatus as AppResponseStatus,
     calendar::grid::TimeGrid as AppTimeGrid,
 };
 
-use crate::{
-    protocol::InvitationResponse,
-    records_calendar::{AllDayBand, GridDay, TimedSegment},
-};
+use crate::records_calendar::{AllDayBand, GridDay, TimedSegment};
 
 /// What the invitation card offers: the outcome of the two-condition RSVP gate.
 ///
@@ -233,53 +229,6 @@ impl From<AppInvitationCard> for InvitationCard {
             can_respond: card.can_respond,
             can_comment: card.can_comment,
             can_choose_notify: card.can_choose_notify,
-        }
-    }
-}
-
-/// The question a host asks when a calendar server that promised to tell the organiser
-/// reported that it could not (RFC 6638 §3.2.9); offering to email them instead.
-///
-/// Raised **after** the answer is stored, because that is when the server says so. So the
-/// modal's first job is to be clear that the RSVP itself is fine: what failed is the message
-/// to the organiser, and the user is being asked whether we may send it as an ordinary email
-/// from their account.
-///
-/// Answered with `Intent::AnswerReplyPrompt`. There is no id to pass back: the core holds the
-/// question and clears it the moment it is answered, so a double-tap cannot send two replies.
-#[derive(uniffi::Record)]
-pub struct ReplyPrompt {
-    /// The account whose calendar server failed: the one a remembered choice applies to.
-    pub account: String,
-    /// The meeting's title, so the sentence names what is being confirmed.
-    pub summary: String,
-    /// The address the email would go to. A user authorising mail sent on their behalf is
-    /// entitled to see the recipient, so a host **shows this** rather than saying "the
-    /// organiser".
-    pub organizer: String,
-    /// The answer that was given. Carried because the reply's **subject** is the client's to
-    /// compose (`invitation_reply_subject_*`), and by the time this question is asked the
-    /// buttons that were pressed are long gone from the client's own state: a host that had
-    /// to remember which one would be a second source of truth for a fact the core already
-    /// holds.
-    pub response: InvitationResponse,
-    /// The RFC 6638 status the server reported (`5.2`, `3.7`, …). **Not for the prompt**; the
-    /// copy a user reads is plain language. Carried for the diagnostics screen and support.
-    pub status_code: String,
-}
-
-impl From<mailcal_app::ReplyPrompt> for ReplyPrompt {
-    fn from(prompt: mailcal_app::ReplyPrompt) -> Self {
-        Self {
-            account: prompt.account.to_string(),
-            summary: prompt.summary,
-            organizer: prompt.organizer,
-            response: match prompt.response {
-                AppInvitationResponse::Accept => InvitationResponse::Accept,
-                AppInvitationResponse::Tentative => InvitationResponse::Tentative,
-                AppInvitationResponse::Decline => InvitationResponse::Decline,
-            },
-            status_code: prompt.status_code,
         }
     }
 }

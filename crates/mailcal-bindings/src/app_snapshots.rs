@@ -11,9 +11,8 @@ use mailcal_app::{Intent as AppIntent, ReaderId as AppReaderId};
 
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeOpening, ConnectionInfo,
-    ConnectivitySnapshot, ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp,
-    QuoteSettings, QuoteStyleKind, ReadingSnapshot, ReplyPrompt, SendStatus, SyncProgressSnapshot,
-    TimeZoneSnapshot, UnfiledCopy, joined,
+    ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind,
+    ReadingSnapshot, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot,
 };
 
 #[uniffi::export]
@@ -39,6 +38,11 @@ impl MailcalApp {
         };
         if retry_disconnected {
             self.retry_connections();
+        }
+        // A refresh is also when the plan is read again, once the service's interval has passed.
+        #[cfg(feature = "allodia-license")]
+        if matches!(intent, Intent::RefreshMail) {
+            self.refresh_allodia_entitlement();
         }
         // Applied here, on the host's thread, rather than in the task below: tasks run in either
         // order, so reports made in order must take effect before `dispatch` returns.
@@ -101,8 +105,8 @@ impl MailcalApp {
     }
 
     /// The technical detail behind an account's outage (its connect error), or `None` when the
-    /// account is reachable: a host reveals this behind the connectivity banner's / status
-    /// label's "details" link. Pulled after a `Surface::Connectivity` signal.
+    /// account is reachable: a host reveals this behind its connection status's "details" link.
+    /// Pulled after a `Surface::Notices` signal.
     #[must_use]
     pub fn connection_detail(&self, account_id: String) -> Option<String> {
         let account_id = AccountId::try_from(account_id.as_str()).ok()?;
@@ -111,8 +115,7 @@ impl MailcalApp {
 
     /// Which sign-in `account_id` was connected with, or `None` when the account is unknown.
     ///
-    /// A host asks this when rendering the "your sign-in expired; reconnect" prompt for an
-    /// account in `ConnectivitySnapshot::signin_expired_accounts`, since the remedy differs by
+    /// A host asks this when running a notice's `SignInAgain`, since the remedy differs by
     /// family: `Microsoft` and `Google` re-run their browser sign-in with the address as a login
     /// hint, while `Password` and `Jmap` are re-entered in the account's settings. Reads the
     /// binding layer's own registry: the only layer that knows what a `dyn Provider` speaks.
@@ -182,44 +185,6 @@ impl MailcalApp {
         self.app.sync_progress().into()
     }
 
-    /// The current connectivity state (pulled after a `Surface::Connectivity` signal): the
-    /// device-offline flag (a host shows a global banner) and, while online, the ids of
-    /// accounts whose last sync couldn't reach their server (a host badges each in the
-    /// switcher), and the calendars and address books that did not connect beside a working
-    /// account. Dispatch `Intent::ReportNetworkReachable` to feed the OS reachability signal.
-    pub fn connectivity(&self) -> ConnectivitySnapshot {
-        let snapshot = crate::use_outages::with_outages(
-            self.app.connectivity().into(),
-            &self.app.every_use_problem(),
-        );
-        let mut snapshot = crate::gmail_unreachable::with_unreachable_gmail(
-            snapshot,
-            &self.registry.facts(),
-            mailcal_account::gmail_mail_route,
-        );
-        snapshot.allodia_sign_in_ended = self.allodia_sign_in_ended();
-        snapshot
-    }
-
-    /// The non-fatal account-connect diagnostics (account-prefixed, newline-joined), or
-    /// `None` when there are none: any stored account skipped at launch because its mail
-    /// connect failed (a stale password, a server blip). The host reads this after
-    /// construction to surface that some accounts couldn't connect and were skipped. Distinct
-    /// from [`MailcalApp::calendar_connect_error`], which reports CalDAV-only failures.
-    pub fn account_connect_error(&self) -> Option<String> {
-        joined(&self.account_connect_errors)
-    }
-
-    /// The non-fatal calendar (CalDAV) connect diagnostics (account-prefixed, newline-joined),
-    /// or `None` when there are none: an account whose mail is up but whose configured calendar
-    /// provider couldn't connect (so its calendar is empty, not missing by choice). The host
-    /// reads this after construction and after [`MailcalApp::add_account`] to explain an empty
-    /// calendar. Distinct from [`MailcalApp::account_connect_error`], which reports skipped
-    /// accounts whose mail connect failed.
-    pub fn calendar_connect_error(&self) -> Option<String> {
-        joined(&self.calendar_connect_errors)
-    }
-
     /// The current display-timezone setting (pulled after a `Surface::Settings` signal):
     /// the active zone and any pending device-zone change the host prompts on.
     pub fn timezone_settings(&self) -> TimeZoneSnapshot {
@@ -270,26 +235,6 @@ impl MailcalApp {
         self.app.contact_write_status().into()
     }
 
-    /// The unanswered question raised when a calendar server reported it could not deliver an
-    /// invitation reply (pulled after a `Surface::InvitationReply` signal), or `None` when
-    /// there is nothing to ask.
-    ///
-    /// A host shows this as a modal: the answer is already saved, but the organiser has not
-    /// been told, and we can email them instead. `None` also means *close the modal*: the core
-    /// clears the prompt the moment it is answered, so a stale one cannot be answered twice.
-    pub fn reply_prompt(&self) -> Option<ReplyPrompt> {
-        self.app.reply_prompt().map(Into::into)
-    }
-
-    /// The message that was sent without its copy reaching the account's Sent folder (pulled
-    /// after a `Surface::UnfiledCopy` signal), or `None` when there is nothing to ask.
-    ///
-    /// A host shows this as a modal offering to file the copy. `None` also means *close the
-    /// modal*: the core clears it the moment the copy lands or the user dismisses it.
-    pub fn unfiled_copy(&self) -> Option<UnfiledCopy> {
-        self.app.unfiled_copy().map(Into::into)
-    }
-
     /// The message the core is asking this host to open in its composer (pulled after a
     /// `Surface::ComposeRequest` signal), or `None` when there is nothing to open.
     ///
@@ -313,8 +258,8 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// The banner's address: see `ConnectivitySnapshot::allodia_sign_in_ended`.
-    fn allodia_sign_in_ended(&self) -> Option<String> {
+    /// The address of the Allodia account whose sign-in the account service refused.
+    pub(crate) fn allodia_sign_in_ended(&self) -> Option<String> {
         #[cfg(not(feature = "allodia-license"))]
         {
             None

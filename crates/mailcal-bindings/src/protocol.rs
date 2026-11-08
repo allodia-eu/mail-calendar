@@ -78,7 +78,7 @@ pub enum BulkAction {
 /// Three values because three is all there are: "no answer yet" is the *absence* of one, and
 /// delegating is a different act this release does not offer. A client shows exactly these
 /// buttons.
-#[derive(Debug, Clone, Copy, uniffi::Enum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum InvitationResponse {
     /// Yes.
     Accept,

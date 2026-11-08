@@ -31,6 +31,20 @@ fn main() {
     let injected = Injected::load();
     injected.export(CREDENTIAL_VARS);
 
+    // Said rather than refused: a build without registrations is legitimate, but this one only
+    // lacks them because the worktree was made without the file its main checkout has. A copy that
+    // keeps the original's modification time is older than this script's last run, which cargo
+    // reads as unchanged, so the file has to be touched as well.
+    if let Some(theirs) = mailcal_buildenv::main_checkout_env(&mailcal_buildenv::repo_root()) {
+        println!(
+            "cargo::warning=this git worktree has no .env, so it builds without Google, Microsoft \
+             and Allodia sign-in, while the checkout it was made from has one: {}. Copy it here \
+             and touch the copy, or make worktrees with Claude Code, which copies it before the \
+             first build (.worktreeinclude).",
+            theirs.display()
+        );
+    }
+
     if injected.is_required() {
         require_the_registrations_this_target_uses(&injected);
     }

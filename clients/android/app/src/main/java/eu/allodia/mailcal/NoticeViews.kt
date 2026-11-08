@@ -49,14 +49,18 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.Notice
+import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeScreens
 import uniffi.mailcal_bindings.NoticeSeverity
 import uniffi.mailcal_bindings.NoticeText
 
-/** What the notice views run: [running] names the notice whose remedy is under way. */
+/**
+ * What the notice views run: [running] names the notice whose remedy is under way, and [onRun] is
+ * told which of a notice's answers was pressed.
+ */
 internal class NoticeHandlers(
     val running: String? = null,
-    val onRun: (Notice) -> Unit = {},
+    val onRun: (Notice, NoticeAction) -> Unit = { _, _ -> },
     val onDismiss: (Notice) -> Unit = {},
 )
 
@@ -121,7 +125,7 @@ private fun NoticeCard(notice: Notice, more: Int, handlers: NoticeHandlers, onSh
                         TextButton(onClick = onShowIssues) { Text(L10n.notices_more(ctx, more)) }
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    NoticeActionButton(notice, handlers, describe = false)
+                    NoticeActionButtons(notice, handlers, describe = false)
                 }
             }
         }
@@ -163,21 +167,35 @@ private fun NoticeBody(notice: Notice, handlers: NoticeHandlers) {
 }
 
 /**
- * The notice's one action, held with a spinner while the sign-in it started runs (docs/waiting.md).
+ * The notice's action, with a question's other answer as the lesser text button before it (rule 8).
+ * Both are held while an answer runs, with the spinner on the action's (docs/waiting.md).
  * [describe] names the notice too, where several such buttons share a list.
  */
 @Composable
-private fun NoticeActionButton(notice: Notice, handlers: NoticeHandlers, describe: Boolean) {
+private fun NoticeActionButtons(notice: Notice, handlers: NoticeHandlers, describe: Boolean) {
     val ctx = LocalContext.current
-    val label = notice.actionLabel?.takeIf { NoticeRules.offers(notice) }?.let { noticeWords(ctx, it) } ?: return
-    val running = handlers.running == notice.id
+    val action = notice.action?.takeIf { NoticeRules.offers(notice) } ?: return
+    val label = noticeWords(ctx, notice.actionLabel ?: return)
+    val held = NoticeRules.held(notice, handlers.running)
     val title = noticeWords(ctx, notice.title)
+    fun described(label: String) = if (describe) Modifier.semantics { contentDescription = "$label: $title" } else Modifier
+    val second = notice.secondAction?.takeIf { NoticeRules.offersSecond(notice) }
+    if (second != null) {
+        val secondLabel = noticeWords(ctx, notice.secondActionLabel ?: return)
+        ControlTextButton(
+            label = secondLabel,
+            control = ControlState(enabled = !held, running = false),
+            tag = "notice-second-${notice.id}",
+            modifier = described(secondLabel),
+        ) { handlers.onRun(notice, second) }
+        Spacer(modifier = Modifier.width(8.dp))
+    }
     ControlButton(
         label = label,
-        control = ControlState(enabled = !running, running = running),
+        control = ControlState(enabled = !held, running = held),
         tag = "notice-action-${notice.id}",
-        modifier = if (describe) Modifier.semantics { contentDescription = "$label: $title" } else Modifier,
-        onClick = { handlers.onRun(notice) },
+        modifier = described(label),
+        onClick = { handlers.onRun(notice, action) },
     )
 }
 
@@ -198,8 +216,12 @@ private fun IssuesSheet(notices: List<Notice>, handlers: NoticeHandlers, onClose
                 Column(modifier = Modifier.padding(start = 24.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)) {
                     NoticeBody(notice, handlers)
                     if (NoticeRules.offers(notice)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            NoticeActionButton(notice, handlers, describe = true)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            NoticeActionButtons(notice, handlers, describe = true)
                         }
                     }
                 }

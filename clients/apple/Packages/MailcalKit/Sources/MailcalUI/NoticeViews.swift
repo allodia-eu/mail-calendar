@@ -16,14 +16,17 @@ struct NoticeGlyph: View {
     }
 }
 
-/// One notice: what it says, why, and its one action, with a close button when it may be closed.
+/// One notice: what it says, why, and its action, with a question's other answer as the lesser
+/// button beside it (rule 8), and a close button when it may be closed.
 struct NoticeEntry: View {
     var model: MailboxModel
     let notice: Notice
 
     @State private var serverChange: ServerChangeReview?
-    /// The action is running, so its button cannot start a second one.
+    /// An answer is running, so neither button can start a second one.
     @State private var running = false
+
+    private var held: Bool { running || notice.running }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -53,26 +56,34 @@ struct NoticeEntry: View {
                     .accessibilityLabel(L10n.notices_dismiss())
                 }
             }
-            if let label = notice.actionLabel {
-                HStack {
+            if let action = notice.action, let label = notice.actionLabel {
+                HStack(spacing: 8) {
                     Spacer(minLength: 0)
-                    Button(NoticeRules.text(label)) {
-                        Task {
-                            running = true
-                            await model.runNoticeAction(notice) { serverChange = $0 }
-                            running = false
-                        }
+                    if let second = notice.secondAction, let secondLabel = notice.secondActionLabel {
+                        Button(NoticeRules.text(secondLabel)) { run(second) }
+                            .buttonStyle(.borderless)
+                            .disabled(held)
                     }
-                    .buttonStyle(.bordered)
-                    .disabled(running)
-                    #if os(macOS)
-                    .controlSize(.small)
-                    #endif
+                    if held { ProgressView().controlSize(.small) }
+                    Button(NoticeRules.text(label)) { run(action) }
+                        .buttonStyle(.bordered)
+                        .disabled(held)
                 }
+                #if os(macOS)
+                .controlSize(.small)
+                #endif
             }
         }
         .accessibilityElement(children: .contain)
         .serverChangeReview(model, $serverChange)
+    }
+
+    private func run(_ action: NoticeAction) {
+        Task {
+            running = true
+            await model.runNoticeAction(notice, action) { serverChange = $0 }
+            running = false
+        }
     }
 }
 

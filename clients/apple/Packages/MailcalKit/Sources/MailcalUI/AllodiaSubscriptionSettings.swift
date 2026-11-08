@@ -43,7 +43,7 @@ struct AllodiaSubscriptionSettings: View {
     var body: some View {
         Group {
             // A refused sign-in is the account card's to say. The read can answer before the
-            // connectivity signal reaches the card, so the section hides itself rather than
+            // notices signal reaches the card, so the section hides itself rather than
             // drawing its heading over nothing in between.
             if state != .signedOut {
                 GroupBox {
@@ -293,8 +293,8 @@ struct AllodiaSubscriptionSettings: View {
         }
     }
 
-    /// Reads the section again. A refused sign-in raises the connectivity snapshot's field, which
-    /// the account card around this reads and takes this section away for.
+    /// Reads the section again. A refused sign-in raises the Allodia notice, which the account
+    /// card around this reads and takes this section away for.
     private func reload() async {
         state = await model.allodiaSubscriptionState()
     }

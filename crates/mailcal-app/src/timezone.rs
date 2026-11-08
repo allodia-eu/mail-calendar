@@ -165,8 +165,9 @@ impl<P: Provider> App<P> {
     }
 
     /// Records a device-reported OS zone (the host pushes this on launch and on the
-    /// OS's zone-change signal). Signals [`Surface::Settings`] when a pending change is
-    /// raised or cleared; never changes the active zone (only the user accepting does).
+    /// OS's zone-change signal). Signals [`Surface::Settings`] and [`Surface::Notices`], whose
+    /// notice asks the question, when a pending change is raised or cleared; never changes the
+    /// active zone (only the user accepting does).
     pub(crate) fn report_device_timezone(&self, id: &str) {
         let Some(zone) = supported_zone(id) else {
             return;
@@ -178,11 +179,13 @@ impl<P: Provider> App<P> {
             .report_device(zone);
         if raised {
             self.observer.surface_changed(Surface::Settings);
+            self.observer.surface_changed(Surface::Notices);
         }
     }
 
-    /// Sets the active zone via the selector. Signals [`Surface::Settings`] and
-    /// re-orders the agenda when the active zone actually changed.
+    /// Sets the active zone via the selector, which also settles a pending change. Signals
+    /// [`Surface::Settings`] and [`Surface::Notices`], and re-orders the agenda when the active
+    /// zone actually changed.
     pub(crate) async fn set_timezone(&self, id: String) {
         let Some(zone) = supported_zone(&id) else {
             return;
@@ -193,13 +196,15 @@ impl<P: Provider> App<P> {
             .expect("timezone mutex poisoned")
             .set(zone);
         self.observer.surface_changed(Surface::Settings);
+        self.observer.surface_changed(Surface::Notices);
         if changed {
             self.rebuild_calendar().await;
         }
     }
 
     /// Resolves a pending device-zone change: `accept` adopts it and re-orders the
-    /// agenda, otherwise it is dismissed. Signals [`Surface::Settings`] on any change.
+    /// agenda, otherwise it is dismissed. Signals [`Surface::Settings`] and [`Surface::Notices`]
+    /// on any change.
     pub(crate) async fn resolve_timezone_change(&self, accept: bool) {
         let changed = {
             let mut state = self.timezone.lock().expect("timezone mutex poisoned");
@@ -209,13 +214,12 @@ impl<P: Provider> App<P> {
                 state.dismiss()
             }
         };
-        if accept {
+        if accept || changed {
             self.observer.surface_changed(Surface::Settings);
-            if changed {
-                self.rebuild_calendar().await;
-            }
-        } else if changed {
-            self.observer.surface_changed(Surface::Settings);
+            self.observer.surface_changed(Surface::Notices);
+        }
+        if accept && changed {
+            self.rebuild_calendar().await;
         }
     }
 }

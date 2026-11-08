@@ -164,12 +164,6 @@ impl MailcalApp {
         self.registry
             .note_dav_dialled(account_id, std::time::Instant::now());
         self.app.note_use_problems(&id, outcome.use_problems);
-        if let Some(error) = outcome.calendar_error {
-            self.calendar_connect_errors
-                .lock()
-                .expect("calendar-errors mutex poisoned")
-                .push(error);
-        }
         // As a reconnect does: a calendar that came up retracts the prompt to re-consent for it,
         // and one the grant still withholds raises it.
         if outcome.account.calendar_provider.is_none() {

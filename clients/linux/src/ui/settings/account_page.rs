@@ -13,7 +13,7 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        controls,
+        controls, notice_rules,
         server_change::{self, Review, ReviewFrom},
     },
 };
@@ -46,6 +46,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     content.append(&uses_group(ctx, entry, &account.uses));
     if !account.links.is_empty() {
         content.append(&links_group(ctx, entry, &account.links));
+    }
+    if let Some(picker) = account.reply_fallback {
+        content.append(&super::account_reply_fallback::group(ctx, entry, picker));
     }
     if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
         content.append(&shared);
@@ -297,10 +300,7 @@ fn mail_group(
 
 /// Whether the server refused the account's stored sign-in.
 fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
-    ctx.app
-        .connectivity()
-        .signin_expired_accounts
-        .contains(&entry.id)
+    notice_rules::sign_in_expired(&ctx.app.notices().notices, &entry.id)
 }
 
 /// Removing the account, last, confirmed first.

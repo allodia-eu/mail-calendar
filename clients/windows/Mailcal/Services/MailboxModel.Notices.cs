@@ -42,6 +42,11 @@ public sealed partial class MailboxModel
             return;
         }
         var notices = _app.Notices().Notices;
+        UpdateConnectionStatus(notices);
+        // Settings → Accounts on every signal, not only when a notice's words moved: an account's
+        // page says when a use did not connect, from the accounts snapshot, and redraws only what
+        // changed. Its top carries the account's notices.
+        RaiseAccountsChanged();
         var drawn = NoticeRules.Fingerprint(notices);
         if (drawn == _noticesDrawn)
         {
@@ -52,8 +57,6 @@ public sealed partial class MailboxModel
         Log.Info($"notices: {notices.Length} in force");
         _marks = NoticeRules.Marks(notices, Words, L10n.NoticesAccountCount);
         NoticesChanged?.Invoke();
-        // An account's page in Settings carries the account's notices at its top.
-        RaiseAccountsChanged();
     }
 
     /// <summary>Closes a notice the core offered to close.</summary>
@@ -65,17 +68,25 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>Runs <paramref name="notice"/>'s action: a Retry through the core, which judges
-    /// it, and every other through the flow this client already has (rule 7), reporting one that
-    /// did not complete (rule 10).</summary>
-    internal void RunNoticeAction(Notice notice)
+    /// <summary>Runs <paramref name="action"/>, one of <paramref name="notice"/>'s: a Retry through
+    /// the core, which judges it, a question's answer as the intent this client already had for it
+    /// (rule 8), and every other through the flow this client already has (rule 7), reporting one
+    /// that did not complete (rule 10).</summary>
+    internal void RunNoticeAction(Notice notice, NoticeAction action)
     {
-        if (NoticeRules.CoreRemedy(notice) is { } core)
+        if (NoticeRules.CoreRemedy(notice, action) is { } core)
         {
             _app?.Dispatch(new Intent.Notices(core));
             return;
         }
-        switch (notice.Action)
+        if (NoticeRules.Answer(notice, action, Views.InvitationText.ReplySubject) is { } answer)
+        {
+            // The answer only: the reply's subject holds the meeting's title, which is content.
+            Log.Info($"notices: a question answered with {action}");
+            _app?.Dispatch(answer);
+            return;
+        }
+        switch (action)
         {
             case NoticeAction.SignInAgain when notice.Account is { } account:
                 _ = ReportUnlessDoneAsync(notice, SignInAgainFromNoticeAsync(notice.Kind, account));

@@ -363,8 +363,8 @@ capturing the redirect), because that is inherently platform-specific.
     mark-read / move / delete or a `sendMail` is classified **structurally** (walk the engine
     error's `source()` chain to the typed `ProviderError` and match the `ErrorAccessDenied` code, so
     a non-authorisation 403 such as the idempotent-re-delete `ErrorCannotDeleteObject` is *not*
-    mistaken for a permission gap) and raises `mail_reauth_accounts` on `Surface::Connectivity`.
-    Each client renders a banner naming the affected account(s); its **Reconnect** re-runs sign-in
+    mistaken for a permission gap) and raises the account's `MailReauth` notice
+    ([`notices.md`](notices.md)); its **Sign in again** re-runs sign-in
     with `login_hint` set to that address, re-requesting the whole `MICROSOFT_GRAPH_SCOPES` set by
     incremental consent, so a **single** re-auth clears **both** the calendar and mail prompts at
     once. The mail prompt self-clears when the next write/send succeeds. The whole re-request flow
@@ -395,7 +395,7 @@ capturing the redirect), because that is inherently platform-specific.
     token at all and **nothing** about the account syncs. It is classified **structurally**, on the
     engine's own `FailureClass::Authentication` rather than on error text, so every provider
     adapter's flavour of "your credential is no good" is covered the day it is added, including a
-    refused IMAP password, and raises `signin_expired_accounts` on `Surface::Connectivity`. Three
+    refused IMAP password, and raises the account's `SignInExpired` notice. Three
     consequences bind every client: an account listed there is **excluded** from
     `unreachable_accounts` (the server *was* reached and answered: "can't reach this account's
     server" would be a lie, and the two prompts would contradict each other); only a **successful**

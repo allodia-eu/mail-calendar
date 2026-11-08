@@ -142,10 +142,10 @@ path.
 
 ## The three surfaces
 
-| | `Surface::Sending` → `SendStatus` | `Surface::UnfiledCopy` → `UnfiledCopy` | `Surface::ComposeRequest` → `ComposeOpening` |
+| | `Surface::Sending` → `SendStatus` | The `SentNotFiled` notice | `Surface::ComposeRequest` → `ComposeOpening` |
 |---|---|---|---|
 | Lifetime | Transient; the core auto-clears it after 2.5s | **Standing**, until the user answers | **Standing**, until the host's composer holds it |
-| Shape | An inline hint | A modal, or the loudest thing the client has | The client's own composer, opened |
+| Shape | An inline hint | A notice with two answers ([`notices.md`](notices.md) rule 8) | The client's own composer, opened |
 | Answers | nothing: it is a status | "Save to Sent" / "Not now" | nothing: dismissing it acknowledges receipt |
 
 The Outbox itself is a fourth thing and not a surface at all: it rides the mailbox-list
@@ -156,8 +156,8 @@ every view.
 with its recipients, so "couldn't send" invites a second copy, and "waiting to send" promises an
 attempt that will not happen on its own. The hint points at the Outbox, where the question is.
 
-**`SendStatus::SentNotFiled` shows no hint of its own.** The standing question is already on
-screen and says the same thing with a button; two notices for one event is noise. What the
+**`SendStatus::SentNotFiled` shows no hint of its own.** The standing question is already the
+notice and says the same thing with a button; two notices for one event is noise. What the
 variant exists for is to stop a client rendering the plain "Message sent" over a send that did
 not leave a copy.
 
@@ -267,9 +267,10 @@ someone their own file back is noise that repeats on every turn of a long thread
    while the question it started from is still the one standing: a second send can fail to
    file while the first repair is out, and answering *its* question with the older message's
    result would lose the newer copy for good.
-4. **Disable the buttons while `retrying` is set** rather than letting the user queue attempts.
-5. **The provider detail is not user copy.** `UnfiledCopy::detail` is a failure class for the
-   log and the diagnostics screen; the modal says what happened in plain language.
+4. **Hold both answers while the notice is `running`** (a save to Sent is out) rather than
+   letting the user queue attempts.
+5. **The provider detail is not user copy.** The core keeps the failure class for the log; the
+   notice says what happened in plain language.
 6. **A composer that could have saved a draft names its composition on the submit**, so the
    copy in Drafts goes when the message is accepted and stays when the send fails
    ([`drafts.md`](drafts.md)). A submit that leaves it out sends correctly and files a
@@ -307,10 +308,10 @@ opens there and nothing of the user's is displaced.
 
 | Platform | Send hint | Unfiled-copy question | Retry | Dismiss | Name asked at setup, only where the provider holds none | Name in Settings | `Name <address>` in From |
 |---|---|---|---|---|---|---|---|
-| macOS / iOS / iPadOS | ✅ banner | ✅ sheet, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
-| Android | ✅ banner | ✅ `AlertDialog`, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
-| Windows | ✅ InfoBar | ✅ InfoBar, `IsClosable=False` | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
-| Linux | ✅ banner | ✅ modal, non-dismissible | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
+| macOS / iOS / iPadOS | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
+| Android | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ field and menu items |
+| Windows | ✅ InfoBar | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ picker and single-account row |
+| Linux | ✅ banner | ✅ notice | ✅ | ✅ | ✅ | ✅ | ✅ dropdown |
 
 | Platform | A forward opens holding the original's files | Removable | Failure said out loud | Not a draft on its own | Staged files deleted |
 |---|---|---|---|---|---|

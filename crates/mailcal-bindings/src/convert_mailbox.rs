@@ -164,7 +164,6 @@ impl From<AppSnapshot> for MailboxListSnapshot {
             total: snapshot.total as u64,
             search_horizon: snapshot.search_horizon.map(SearchHorizon::from),
             empty_reason: snapshot.empty_reason.map(EmptyReason::from),
-            folder_notice: snapshot.folder_notice.map(crate::FolderNotice::from),
         }
     }
 }

@@ -51,7 +51,6 @@ pub(crate) fn folder_intent(intent: FolderIntent) -> Result<AppFolderIntent, Str
                 .collect::<Result<Vec<_>, _>>()?,
             folder: folder(&account, key)?,
         },
-        FolderIntent::DismissNotice => AppFolderIntent::DismissNotice,
     })
 }
 
