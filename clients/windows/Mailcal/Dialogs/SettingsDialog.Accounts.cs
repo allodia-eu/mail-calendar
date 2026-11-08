@@ -29,6 +29,9 @@ public sealed partial class SettingsDialog
 
     // What the list or the page last said, kept across the redraw a change ends with.
     private AccountNotice? _accountNotice;
+    // The notice shown that a change on the page left, which the core withdraws when the page's
+    // next change starts.
+    private AccountNotice? _changeNotice;
     private InfoBar? _accountNoticeBar;
 
     // What the open list or page was drawn from, so a signal that changed none of it is ignored.
@@ -330,7 +333,13 @@ public sealed partial class SettingsDialog
         var page = OpenPage();
         if (_model.TakeChangeNotice(page) is { } notice)
         {
-            _accountNotice = ChangeFailed(notice);
+            _accountNotice = _changeNotice = ChangeFailed(notice);
+        }
+        else if (_changeNotice is not null && ReferenceEquals(_accountNotice, _changeNotice) && page?.Notice is null)
+        {
+            // A change since says nothing of the one that failed: a save that worked must not
+            // stand under "Couldn't save".
+            _accountNotice = _changeNotice = null;
         }
         if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {

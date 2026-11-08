@@ -59,6 +59,11 @@ internal fun MainActivity.refreshAccountPage() {
     val instance = app ?: return
     val page = accountSettings.page?.let { instance.accountPage(it) }
     accountSettings.accountPage = page
+    // The core withdraws what a change came to when the page's next change starts: a save that
+    // worked must not stand under the failure before it.
+    if (page != null && page.notice == null && accountSettings.notice === accountSettings.changeNotice) {
+        accountSettings.notice = null
+    }
     page?.notice?.let(::sayAccountNotice)
     instance.accountsNotice()?.let(::sayAccountNotice)
 }
@@ -67,7 +72,9 @@ private fun MainActivity.sayAccountNotice(raised: AccountChangeNoticeRaised) {
     if (raised.id <= accountSettings.coreNotice) return
     accountSettings.coreNotice = raised.id
     logUiWarn("accounts: a change on an account's page did not take")
-    say(changeNotice(this, raised.notice))
+    val said = changeNotice(this, raised.notice)
+    say(said)
+    accountSettings.changeNotice = said
 }
 
 /** Asks the core for a change on an account's page; it answers at once, and the page says it runs. */
