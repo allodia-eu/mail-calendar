@@ -215,14 +215,13 @@ impl MailcalApp {
             }
             // Tried before anything is kept; the page shows what was stored once it ends.
             AccountPageIntent::SaveServers { account, endpoints } => {
-                let result = self.update_account_endpoints(account.clone(), endpoints.clone());
-                self.account_work
-                    .servers_saved(&account, result.is_err().then_some(endpoints));
-                result
-                    .err()
-                    .map(|error| AccountChangeNotice::ServersFailed {
-                        refusal: AccountChangeRefusal::from(&error),
-                    })
+                let error = self
+                    .update_account_endpoints(account.clone(), endpoints.clone())
+                    .err()?;
+                self.account_work.servers_saved(&account, Some(endpoints));
+                Some(AccountChangeNotice::ServersFailed {
+                    refusal: AccountChangeRefusal::from(&error),
+                })
             }
         }
     }

@@ -288,7 +288,8 @@ pub struct AccountEndpoints {
     /// The login every server takes.
     pub username: String,
     /// A new password for every server, or `None` to keep the stored one. Always `None` in the
-    /// snapshot: a password is never handed back.
+    /// snapshot: a stored password is never handed back, and only an edit a save refused carries
+    /// the one the person typed ([`crate::AccountServers::form`]).
     pub password: Option<String>,
 }
 
