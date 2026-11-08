@@ -143,7 +143,11 @@ impl AccountWork {
         }
         queue.running = Some((account.clone(), work));
         drop(queue);
-        self.forget(&account);
+        // Only the notice: what the page is drawn from outlives a change.
+        self.notices
+            .lock()
+            .expect("account notice mutex poisoned")
+            .remove(&account);
         Start::Run(intent)
     }
 
