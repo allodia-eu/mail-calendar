@@ -21,7 +21,7 @@ val derivedVersionCode = verMajor * 10_000_000 + verMinor * 100_000 + verPatch *
 
 // `KEY=value` lines out of one of the repo's env-style files. Comments, blanks, `export ` and one
 // pair of quotes are tolerated; nothing is interpolated. The twin of `parse_env_file` in
-// scripts/dev/envfile.py and of the sed in scripts/dev/brand.sh.
+// scripts/dev/envfile.py and of `_brand_read` in scripts/dev/brand.sh.
 fun readEnvFile(file: File): Map<String, String> =
     file.readLines()
         .map { it.trim().removePrefix("export ") }
