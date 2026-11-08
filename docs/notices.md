@@ -53,8 +53,8 @@ where its platform puts it. Two platforms showing the same moment show the same 
 - **The Allodia notice is Degraded**: mail, calendar and contacts all work without the account.
   It becomes Blocked while a stored entitlement answer grants a paid capability whose grace ends
   within seven days ([`entitlement.md`](../allodia_license/entitlement.md)), because then signing
-  in again is what keeps that capability. That rise is read from the stored answer, so it arrives
-  with the entitlement read on the device.
+  in again is what keeps that capability. The core reads and stores the entitlement itself, and
+  the rise is read from the stored answer, so it holds while the grant is refused.
 
 **The questions move here next.** The unfiled Sent copy (`Surface::UnfiledCopy`), an invitation
 reply the server could not deliver (`Surface::InvitationReply`) and a changed time zone
@@ -81,7 +81,7 @@ heavier reload.
 | The three questions as notices (rule 8) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Announced once (rule 12) | | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The Allodia notice raised to Blocked near a lapse | ⬜ | | | | | |
+| The Allodia notice raised to Blocked near a lapse | ✅ | | | | | |
 
 Where each platform puts the prominent notice: macOS and iPadOS, a card at the top of the sidebar,
 above the accounts it is about; iPhone, one row under the bar of the tab on show, opening a sheet

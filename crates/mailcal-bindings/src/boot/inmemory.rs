@@ -98,6 +98,8 @@ pub(crate) fn build_demo(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        allodia_entitlement: crate::allodia_entitlement::EntitlementState::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
@@ -357,6 +359,8 @@ fn finish_showcase(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        allodia_entitlement: crate::allodia_entitlement::EntitlementState::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),

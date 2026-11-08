@@ -39,6 +39,11 @@ impl MailcalApp {
         if retry_disconnected {
             self.retry_connections();
         }
+        // A refresh is also when the plan is read again, once the service's interval has passed.
+        #[cfg(feature = "allodia-license")]
+        if matches!(intent, Intent::RefreshMail) {
+            self.refresh_allodia_entitlement();
+        }
         // Applied here, on the host's thread, rather than in the task below: tasks run in either
         // order, so reports made in order must take effect before `dispatch` returns.
         //

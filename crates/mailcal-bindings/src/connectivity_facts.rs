@@ -27,6 +27,9 @@ pub(crate) struct ConnectivitySnapshot {
     pub(crate) contacts_outages: Vec<UseOutage>,
     /// The address of the Allodia account whose sign-in the account service refused.
     pub(crate) allodia_sign_in_ended: Option<String>,
+    /// The stored entitlement grants a paid capability whose grace ends within a week
+    /// (`entitlement.md`), so signing in again is what keeps it.
+    pub(crate) allodia_lapses_soon: bool,
 }
 
 /// A calendar or address book that did not connect, on an account that did.
@@ -51,6 +54,12 @@ impl MailcalApp {
             mailcal_account::gmail_mail_route,
         );
         snapshot.allodia_sign_in_ended = self.allodia_sign_in_ended();
+        #[cfg(feature = "allodia-license")]
+        {
+            snapshot.allodia_lapses_soon = self
+                .allodia_entitlement
+                .lapses_soon(time::OffsetDateTime::now_utc().unix_timestamp());
+        }
         snapshot
     }
 }

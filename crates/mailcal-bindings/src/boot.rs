@@ -341,6 +341,8 @@ pub(crate) fn build_accounts(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        allodia_entitlement: crate::allodia_entitlement::EntitlementState::load(&base),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(allodia),
         credential_store,
@@ -358,6 +360,8 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
+    #[cfg(feature = "allodia-license")]
+    mailcal.refresh_allodia_entitlement();
     // A refresh that widens a grant opens a use the dial before it was planned without; dial it
     // again now. Off the runtime, whose thread must not drop the last handle on the app.
     let widened = Arc::downgrade(&mailcal);
