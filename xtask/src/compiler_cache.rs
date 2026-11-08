@@ -76,11 +76,17 @@ fn unquote(value: &str) -> String {
     value.to_owned()
 }
 
-/// Whether `wrapper` names a program called kache, by path or by bare name.
+/// Whether `wrapper` names a program called kache, by path or by bare name. Split on both
+/// separators by hand: `Path` splits on the host's only, so on Linux and macOS a Windows path is
+/// one file name.
 fn named_kache(wrapper: &str) -> bool {
-    Path::new(wrapper)
-        .file_stem()
-        .is_some_and(|stem| stem.eq_ignore_ascii_case("kache"))
+    let name = wrapper.rsplit(['/', '\\']).next().unwrap_or(wrapper);
+    let stem = name
+        .len()
+        .checked_sub(".exe".len())
+        .filter(|&at| name.is_char_boundary(at) && name[at..].eq_ignore_ascii_case(".exe"))
+        .map_or(name, |at| &name[..at]);
+    stem.eq_ignore_ascii_case("kache")
 }
 
 /// Whether the program says it is kache: a name is not evidence (AGENTS.md, "Identify a tool by
