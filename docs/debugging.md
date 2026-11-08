@@ -1259,7 +1259,8 @@ Three things decide whether a worktree hits:
 
 - **The same gitignored inputs.** A worktree without `.env` or the brand files builds a different
   app, so our own crates miss, correctly. [`.worktreeinclude`](../.worktreeinclude) copies them into
-  every worktree Claude Code creates; a plain `git worktree add` copies nothing.
+  every worktree Claude Code creates; a plain `git worktree add` copies nothing, and
+  `mailcal-oauth`'s build warns when a worktree has no `.env` while its main checkout has one.
 - **The same cargo configuration.** A worktree under `.claude/worktrees/` also reads the main
   checkout's `.cargo/config.toml`, so an array there is passed twice and no hash matches;
   [`.cargo/config.toml`](../.cargo/config.toml) keeps every value a string for that reason.

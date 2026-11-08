@@ -23,6 +23,10 @@
 
 use std::{env, fs, path::PathBuf};
 
+mod worktree;
+
+pub use worktree::main_checkout_env;
+
 /// Set this (to anything but `0`, `false`, `no` or empty) and a missing injected value fails the
 /// build instead of producing an artifact without it.
 ///
