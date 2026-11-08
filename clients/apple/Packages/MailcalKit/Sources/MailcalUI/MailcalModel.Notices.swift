@@ -33,11 +33,12 @@ extension MailboxModel {
         app?.dispatch(intent: .notices(intent: .dismiss(id: notice.id)))
     }
 
-    /// Runs `notice`'s action, returning once the remedy has settled, so the view can keep its
-    /// button from starting a second one meanwhile. `review` is how the view presents the
+    /// Runs `action`, one of `notice`'s answers, returning once the remedy has settled, so the view
+    /// can keep its buttons from starting a second one meanwhile. `review` is how the view presents the
     /// server-change question, which is a sheet of its own; every other action is run here.
-    func runNoticeAction(_ notice: Notice, review: (ServerChangeReview) -> Void) async {
-        guard let action = notice.action else { return }
+    func runNoticeAction(
+        _ notice: Notice, _ action: NoticeAction, review: (ServerChangeReview) -> Void
+    ) async {
         switch action {
         case .openAccountSettings:
             if let account = notice.account { openAccountPage(account) }
@@ -56,6 +57,13 @@ extension MailboxModel {
             }
         case .signInAgain:
             if await !signInAgain(fromNotice: notice) { remedyFailed(notice) }
+        // A question's answers (rule 8), each an intent this client already sends.
+        case .fileSentCopy: retryUnfiledCopy()
+        case .leaveSentCopy: dismissUnfiledCopy()
+        case .sendReply: answerReply(send: true, to: notice.kind)
+        case .dontSendReply: answerReply(send: false, to: notice.kind)
+        case .useDeviceTimeZone: acceptTimeZoneChange()
+        case .keepTimeZone: dismissTimeZoneChange()
         }
     }
 

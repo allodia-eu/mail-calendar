@@ -104,8 +104,6 @@ internal fun MailboxScreen(
     swipe: SwipeSettings,
     onArchive: (account: String, key: String) -> Unit,
     timeZone: TimeZoneSnapshot?,
-    onAcceptTimeZoneChange: () -> Unit,
-    onDismissTimeZoneChange: () -> Unit,
     syncProgress: SyncProgressSnapshot?,
     // Why the list has no rows, or null whenever it has some (`docs/folder-pane.md`, rule 20).
     emptyReason: EmptyReason? = null,
@@ -362,11 +360,4 @@ internal fun MailboxScreen(
             Snackbar(snackbarData = data)
         }
     }
-
-    // Shown (as an overlay) only when the core reports a pending device-zone change.
-    TimeZoneChangePrompt(
-        timeZone = timeZone,
-        onAccept = onAcceptTimeZoneChange,
-        onDismiss = onDismissTimeZoneChange,
-    )
 }

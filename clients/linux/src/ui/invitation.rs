@@ -19,7 +19,6 @@
 
 pub(super) mod card;
 mod preview;
-mod prompt;
 
 #[cfg(test)]
 mod tests;
@@ -30,7 +29,6 @@ pub(super) use card::{InvitationAnswer, InvitationCardView};
 use mailcal_bindings::{
     AttendeeTally, CalendarWriteStatus, InvitationKind, InvitationResponse, ResponseStatus,
 };
-pub(super) use prompt::ReplyPromptDialog;
 
 use super::calendar::date::{clock, instant_in, long_date};
 use crate::l10n;

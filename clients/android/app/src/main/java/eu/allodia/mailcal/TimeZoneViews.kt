@@ -1,9 +1,7 @@
-// The in-app display-timezone affordances for the Android client: the gear action
-// that opens an IANA-zone selector, the selector dialog itself, and the prompt shown when
-// the Rust core reports a device-zone change awaiting the user's choice. The active zone
-// and any pending change are owned by the Rust core (TimeZoneSnapshot); this file only
-// renders them and dispatches the matching intents. Kept in its own file so MainActivity
-// stays under the 500-line limit (gradle auto-globs the package, so no build-file change).
+// The in-app display-timezone affordances for the Android client: the Settings row that opens an
+// IANA-zone selector, and the selector dialog itself. The active zone is owned by the Rust core
+// (TimeZoneSnapshot); this file only renders it and dispatches the matching intent. A device-zone
+// change is asked as a notice (docs/notices.md rule 8), drawn with the rest.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.clickable
@@ -36,9 +34,8 @@ import uniffi.mailcal_bindings.TimeZoneSnapshot
 import uniffi.mailcal_bindings.availableTimeZones
 
 // The Settings-screen time-zone row: shows the active zone and opens the zone selector on tap.
-// The active zone and any pending device-zone change live in the snapshot (null until the first
-// settings pull); this only surfaces them. Selecting a zone dispatches Intent.SetTimeZone via
-// [onSelect]. (The pending-change prompt is a separate overlay, see TimeZoneChangePrompt.)
+// The active zone lives in the snapshot (null until the first settings pull); this only surfaces
+// it. Selecting a zone dispatches Intent.SetTimeZone via [onSelect].
 @androidx.compose.runtime.Composable
 internal fun TimeZoneSettingsRow(
     timeZone: TimeZoneSnapshot?,
@@ -147,30 +144,6 @@ private fun TimeZoneSelectorDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(L10n.action_close(ctx)) }
-        },
-    )
-}
-
-// Shown only when the core has a pending device-zone change (snapshot.pendingDevice != null):
-// the device moved to a new zone and the user must adopt it or keep the current one. Confirm
-// dispatches Intent.AcceptTimeZoneChange, dismiss dispatches Intent.DismissTimeZoneChange.
-@androidx.compose.runtime.Composable
-internal fun TimeZoneChangePrompt(
-    timeZone: TimeZoneSnapshot?,
-    onAccept: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val pending = timeZone?.pendingDevice ?: return
-    val ctx = LocalContext.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(L10n.tz_changed_title(ctx)) },
-        text = { Text(L10n.tz_changed_message(ctx, pending)) },
-        confirmButton = {
-            TextButton(onClick = onAccept) { Text(L10n.action_update(ctx)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(L10n.tz_keep(ctx, timeZone.active)) }
         },
     )
 }

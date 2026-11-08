@@ -68,21 +68,7 @@ public sealed partial class MailboxModel
             UpdateCalendarWriteStatus(_app.CalendarWriteStatus());
             return;
         }
-        // An invitation-reply signal only raises or clears the "the organiser wasn't told" prompt.
-        // It arrives in both directions, the core clears the question the moment it is answered,
-        // so this mirrors whatever it now holds rather than only setting it.
-        if (changed == Surface.InvitationReply)
-        {
-            PullReplyPrompt();
-            return;
-        }
-        // Likewise the missing-Sent-copy question: raised when a delivered message left no copy
-        // behind, cleared when the copy is filed or the user accepts its absence.
-        if (changed == Surface.UnfiledCopy)
-        {
-            PullUnfiledCopy();
-            return;
-        }
+
         // A queued message the user asked to edit. The core has already withdrawn it, so what is
         // waiting here is the only copy of it: open the composer with it and say so. It does not
         // touch the mailbox projection, which the withdrawal's own MailboxList signal carries.
@@ -110,9 +96,6 @@ public sealed partial class MailboxModel
         var reloadSw = System.Diagnostics.Stopwatch.StartNew();
         var tz = _app.TimezoneSettings();
         ActiveZone = tz.Active;
-        // Device detection is region-aware (shared Rust), so a pending change now means a
-        // genuine move, surfaced as a real prompt, no spurious-prompt workaround needed.
-        PendingDeviceZone = tz.PendingDevice;
         var zone = tz.Active;
         var use24Hour = Use24Hour;
 

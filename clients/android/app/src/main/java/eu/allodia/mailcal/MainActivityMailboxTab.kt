@@ -384,8 +384,6 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             // now lives in the Settings screen; the accept/dismiss of a device-zone
                             // change stays here as a prompt. State lives in Rust.
                             timeZone = timeZone,
-                            onAcceptTimeZoneChange = { instance.dispatch(Intent.AcceptTimeZoneChange) },
-                            onDismissTimeZoneChange = { instance.dispatch(Intent.DismissTimeZoneChange) },
                             // Background-download progress bar.
                             syncProgress = syncProgress,
                             emptyReason = emptyReason,

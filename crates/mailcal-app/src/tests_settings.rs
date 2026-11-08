@@ -197,8 +197,9 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
     assert_eq!(app.timezone_settings().active, "Etc/UTC");
     assert_eq!(app.timezone_settings().pending_device, None);
 
-    // The OS reports a move to Amsterdam: a pending change is raised + a Settings signal,
-    // but the active zone stays put until the user accepts.
+    // The OS reports a move to Amsterdam: a pending change is raised, with a Settings signal and
+    // a Notices one for the notice that asks, but the active zone stays put until the user
+    // accepts.
     app.dispatch(Intent::ReportDeviceTimeZone("Europe/Amsterdam".to_owned()))
         .await;
     assert_eq!(
@@ -206,7 +207,10 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
         Some("Europe/Amsterdam")
     );
     assert_eq!(app.timezone_settings().active, "Etc/UTC");
-    assert_eq!(*surfaces.lock().unwrap(), vec![Surface::Settings]);
+    assert_eq!(
+        *surfaces.lock().unwrap(),
+        vec![Surface::Settings, Surface::Notices]
+    );
 
     // Accepting adopts the zone and re-orders the agenda (Settings + Calendar signals).
     surfaces.lock().unwrap().clear();
@@ -215,6 +219,7 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
     assert_eq!(app.timezone_settings().pending_device, None);
     let seen = surfaces.lock().unwrap().clone();
     assert!(seen.contains(&Surface::Settings));
+    assert!(seen.contains(&Surface::Notices), "the question is settled");
     assert!(seen.contains(&Surface::Calendar));
 
     // The explicit selector switches the active zone (and re-orders) too.

@@ -22,6 +22,16 @@ use crate::{
     convert_events::event_intent, convert_folders::folder_intent,
 };
 
+impl From<AppInvitationResponse> for InvitationResponse {
+    fn from(response: AppInvitationResponse) -> Self {
+        match response {
+            AppInvitationResponse::Accept => Self::Accept,
+            AppInvitationResponse::Tentative => Self::Tentative,
+            AppInvitationResponse::Decline => Self::Decline,
+        }
+    }
+}
+
 impl From<InvitationResponse> for AppInvitationResponse {
     fn from(response: InvitationResponse) -> Self {
         match response {
@@ -41,15 +51,17 @@ impl From<AppSurface> for Surface {
             AppSurface::Reading => Self::Reading,
             AppSurface::Sending => Self::Sending,
             AppSurface::SyncProgress => Self::SyncProgress,
-            // Every connectivity fact reaches a host as a notice.
-            AppSurface::Connectivity | AppSurface::Notices => Self::Notices,
+            // Every connectivity fact, and every question the core holds, reaches a host as a
+            // notice.
+            AppSurface::Connectivity
+            | AppSurface::InvitationReply
+            | AppSurface::UnfiledCopy
+            | AppSurface::Notices => Self::Notices,
             AppSurface::CalendarStatus => Self::CalendarStatus,
             AppSurface::ComposeRequest => Self::ComposeRequest,
             AppSurface::DraftStatus => Self::DraftStatus,
             AppSurface::Contacts => Self::Contacts,
             AppSurface::ContactsStatus => Self::ContactsStatus,
-            AppSurface::InvitationReply => Self::InvitationReply,
-            AppSurface::UnfiledCopy => Self::UnfiledCopy,
         }
     }
 }
@@ -346,4 +358,24 @@ fn outbox_intent(intent: OutboxIntent) -> Result<AppOutboxIntent, String> {
             AppOutboxIntent::ConfirmNotSent(queued(&account, op)?)
         }
     })
+}
+
+impl From<mailcal_account::ReplyFallback> for crate::ReplyFallbackChoice {
+    fn from(choice: mailcal_account::ReplyFallback) -> Self {
+        match choice {
+            mailcal_account::ReplyFallback::Ask => Self::Ask,
+            mailcal_account::ReplyFallback::Always => Self::Always,
+            mailcal_account::ReplyFallback::Never => Self::Never,
+        }
+    }
+}
+
+impl From<crate::ReplyFallbackChoice> for mailcal_account::ReplyFallback {
+    fn from(choice: crate::ReplyFallbackChoice) -> Self {
+        match choice {
+            crate::ReplyFallbackChoice::Ask => Self::Ask,
+            crate::ReplyFallbackChoice::Always => Self::Always,
+            crate::ReplyFallbackChoice::Never => Self::Never,
+        }
+    }
 }

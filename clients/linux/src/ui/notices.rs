@@ -21,6 +21,8 @@ use super::{
 pub(crate) enum NoticeInput {
     /// Run the action of the notice with this id.
     Run(String),
+    /// Run the other answer of the question with this id (rule 8).
+    Second(String),
     /// Close the notice with this id, which the core offered to close.
     Dismiss(String),
 }
@@ -77,54 +79,82 @@ impl AppModel {
     }
 
     pub(super) fn notice_input(&mut self, input: NoticeInput, sender: relm4::Sender<AppInput>) {
-        let (id, run) = match input {
-            NoticeInput::Run(id) => (id, true),
-            NoticeInput::Dismiss(id) => (id, false),
+        let id = match &input {
+            NoticeInput::Run(id) | NoticeInput::Second(id) | NoticeInput::Dismiss(id) => id,
         };
         // Read from what is in force now: a button drawn a snapshot ago may name one that went.
         let Some(notice) = self
             .notices
             .notices
             .iter()
-            .find(|notice| notice.id == id)
+            .find(|notice| &notice.id == id)
             .cloned()
         else {
             return;
         };
-        if run {
-            self.run_notice(notice, sender);
-        } else if notice.dismissible {
-            self.dispatch(Intent::Notices {
-                intent: NoticeIntent::Dismiss { id },
-            });
+        match input {
+            NoticeInput::Run(_) => {
+                if let Some(action) = notice.action {
+                    self.run_notice(notice, action, sender);
+                }
+            }
+            NoticeInput::Second(_) => {
+                if let Some(action) = notice.second_action {
+                    self.run_notice(notice, action, sender);
+                }
+            }
+            NoticeInput::Dismiss(id) if notice.dismissible => {
+                self.dispatch(Intent::Notices {
+                    intent: NoticeIntent::Dismiss { id },
+                });
+            }
+            NoticeInput::Dismiss(_) => {}
         }
     }
 
-    /// Runs `notice`'s action: a Retry through the core, which judges it, and every other through
-    /// the flow this client already has (rule 7).
-    fn run_notice(&mut self, notice: Notice, sender: relm4::Sender<AppInput>) {
-        if let Some(intent) = notice_rules::core_remedy(&notice) {
+    /// Runs `action`, one of `notice`'s answers: a Retry through the core, which judges it, a
+    /// question's answer as the intent it stands for, and every other through the flow this client
+    /// already has (rules 7 and 8).
+    fn run_notice(
+        &mut self,
+        notice: Notice,
+        action: NoticeAction,
+        sender: relm4::Sender<AppInput>,
+    ) {
+        if let Some(intent) = notice_rules::core_remedy(&notice, action) {
             self.dispatch(Intent::Notices { intent });
             return;
         }
-        match (notice.action, notice.account.clone()) {
-            (Some(NoticeAction::SignInAgain), Some(account)) => {
+        // An answer already being carried out holds both; a press that raced the redraw is
+        // dropped rather than sent twice.
+        if notice.running {
+            return;
+        }
+        if let Some(intent) = notice_rules::answer(&notice, action) {
+            // The action only: a reply's subject holds the meeting's title, which is message
+            // content (`docs/logging.md`).
+            log::info!("notices: a question was answered with {action:?}");
+            self.dispatch(intent);
+            return;
+        }
+        match (action, notice.account.clone()) {
+            (NoticeAction::SignInAgain, Some(account)) => {
                 self.sign_in_again(&notice, account, sender);
             }
             // A hop already outstanding answers for it.
-            (Some(NoticeAction::SignInToAllodia), _) if !self.settings.allodia_signing_in => {
+            (NoticeAction::SignInToAllodia, _) if !self.settings.allodia_signing_in => {
                 self.notices.running = Some((Remedy::Allodia, notice.id));
                 if !self.resolve_allodia_sign_in_ended(sender) {
                     self.notice_remedy_ended(Remedy::Allodia, true);
                 }
             }
-            (Some(NoticeAction::OpenAccountSettings), Some(account)) => {
+            (NoticeAction::OpenAccountSettings, Some(account)) => {
                 self.settings.open_account(account);
             }
-            (Some(NoticeAction::OpenAccountSettings), None) => {
+            (NoticeAction::OpenAccountSettings, None) => {
                 self.settings.open(Some(settings::Category::Accounts));
             }
-            (Some(NoticeAction::Review), Some(account)) => self.review(account, &sender),
+            (NoticeAction::Review, Some(account)) => self.review(account, &sender),
             _ => {}
         }
     }

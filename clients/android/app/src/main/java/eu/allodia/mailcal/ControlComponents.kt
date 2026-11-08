@@ -123,9 +123,10 @@ internal fun ControlTextButton(
     label: String,
     control: ControlState,
     tag: String,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    TextButton(onClick = onClick, enabled = control.enabled, modifier = Modifier.testTag(tag)) {
+    TextButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
         Running(control, tag)
         Text(label)
     }

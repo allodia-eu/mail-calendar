@@ -42,21 +42,6 @@ extension MailboxModel {
             calendarWriteStatus = app?.calendarWriteStatus() ?? .idle
             return
         }
-        // An invitation-reply signal only raises or clears the "the organiser wasn't told"
-        // modal. It arrives in both directions, the core clears the question as soon as it is
-        // answered, so this assigns whatever the core now holds rather than only setting it.
-        if case .invitationReply = surface {
-            replyPrompt = app?.replyPrompt()
-            return
-        }
-        // The missing-Sent-copy question has its own surface, and the core signals it in both
-        // directions too, it clears the question the moment the copy is filed or the user
-        // dismisses it, so this assigns whatever the core now holds, and `nil` is what closes
-        // the sheet.
-        if case .unfiledCopy = surface {
-            unfiledCopy = app?.unfiledCopy()
-            return
-        }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
         // withdrawn it from the Outbox and joined it to the composition the opening names, so it
         // opens through the same context every composer does: the composer saves over that copy,

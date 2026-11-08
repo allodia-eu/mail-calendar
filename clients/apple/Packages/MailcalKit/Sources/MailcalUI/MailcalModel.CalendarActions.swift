@@ -133,18 +133,18 @@ extension MailboxModel {
         )
     }
 
-    /// Answer the "the organiser wasn't told" question: whether to email the reply ourselves after
-    /// the calendar server reported it could not.
+    /// Answers the `ReplyNotDelivered` notice: whether to email the reply ourselves after the
+    /// calendar server reported it could not. Never remembered: the account's page in Settings is
+    /// where that is chosen (docs/invitations.md).
     ///
     /// Carries no handle on the meeting, the core holds the question and clears it the moment
     /// this arrives, which is what stops a double-tap emailing the organiser twice. The subject is
     /// composed here for the same reason the RSVP's is: it is copy a stranger reads in their
     /// inbox, and the core has no locale.
-    func answerReplyPrompt(send: Bool, remember: Bool) {
-        let subject = replyPrompt.map { invitationReplySubject($0.response, $0.summary) }
-        app?.dispatch(
-            intent: .answerReplyPrompt(send: send, remember: remember, replySubject: subject)
-        )
+    func answerReply(send: Bool, to kind: NoticeKind) {
+        guard case let .replyNotDelivered(summary, _, response) = kind else { return }
+        let subject = send ? invitationReplySubject(response, summary) : nil
+        app?.dispatch(intent: .answerReplyPrompt(send: send, remember: false, replySubject: subject))
     }
 
     /// The full detail of one stored event, or `nil` if it is not in the store, the detail sheet

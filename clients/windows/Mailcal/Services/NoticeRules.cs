@@ -78,12 +78,36 @@ internal static class NoticeRules
     /// marks the notice when that dial ends with the notice still standing, which only it can tell
     /// (rules 7 and 10). So the client never reports a Retry as failed.
     /// </summary>
-    internal static NoticeIntent? CoreRemedy(Notice notice) =>
-        notice.Action == NoticeAction.Retry ? new NoticeIntent.Retry(notice.Id) : null;
+    internal static NoticeIntent? CoreRemedy(Notice notice, NoticeAction action) =>
+        action == NoticeAction.Retry ? new NoticeIntent.Retry(notice.Id) : null;
+
+    /// <summary>
+    /// The intent one of a question's answers sends (rule 8), each one this client already had
+    /// before the question was a notice, or null for an action that is not an answer. A reply's
+    /// subject is composed by <paramref name="replySubject"/> from the answer given and the
+    /// meeting, exactly as the answer's own email is: the core carries no locale.
+    /// </summary>
+    internal static Intent? Answer(
+        Notice notice, NoticeAction action, Func<InvitationResponse, string, string> replySubject) => action switch
+    {
+        NoticeAction.FileSentCopy => new Intent.RetryUnfiledCopy(),
+        NoticeAction.LeaveSentCopy => new Intent.DismissUnfiledCopy(),
+        NoticeAction.SendReply when notice.Kind is NoticeKind.ReplyNotDelivered reply =>
+            new Intent.AnswerReplyPrompt(true, false, replySubject(reply.Response, reply.Summary)),
+        NoticeAction.DontSendReply => new Intent.AnswerReplyPrompt(false, false, null),
+        NoticeAction.UseDeviceTimeZone => new Intent.AcceptTimeZoneChange(),
+        NoticeAction.KeepTimeZone => new Intent.DismissTimeZoneChange(),
+        _ => null,
+    };
 
     /// <summary>Whether a notice has something to run, which only an action label can say: the
     /// core sends both or neither.</summary>
     internal static bool Offers(Notice notice) => notice.Action is not null && notice.ActionLabel is not null;
+
+    /// <summary>Whether a notice is a question with a second answer beside its first (rule 8), the
+    /// lesser of the two buttons.</summary>
+    internal static bool OffersSecond(Notice notice) =>
+        Offers(notice) && notice.SecondAction is not null && notice.SecondActionLabel is not null;
 
     /// <summary>The accounts whose stored sign-in the server refuses, in the core's order, which an
     /// account's page in Settings draws its sign-in section for. A grant that is merely narrower
@@ -118,7 +142,7 @@ internal static class NoticeRules
     /// nothing redraws nothing.</summary>
     internal static string Fingerprint(IEnumerable<Notice> notices) =>
         string.Join("|", notices.Select(notice =>
-            $"{notice.Id}:{notice.RemedyFailed}:{notice.Action}:{Text(notice.Title)}:{Text(notice.Detail)}"));
+            $"{notice.Id}:{notice.RemedyFailed}:{notice.Running}:{notice.Action}:{notice.SecondAction}:{Text(notice.Title)}:{Text(notice.Detail)}"));
 
     private static string Text(NoticeText? text) => text is null
         ? string.Empty

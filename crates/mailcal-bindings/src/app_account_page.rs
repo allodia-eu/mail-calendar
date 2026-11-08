@@ -11,7 +11,7 @@ use mailcal_account::Capability;
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
     AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp, MailcalError,
-    SyncStrategyKind, account_page, account_page_mail,
+    ReplyFallbackChoice, SyncStrategyKind, account_page, account_page_mail,
     account_registry::Toggle,
     account_work::{PageWork, Start},
 };
@@ -41,11 +41,21 @@ impl MailcalApp {
         let mail = self
             .runtime
             .block_on(|| self.app.sync_settings_row(&account_id, pushing));
-        let mut page = account_page::page(&entry, hold.clone(), notice, |capability, on| {
-            self.registry
-                .toggle(&account_id, Capability::from(capability), on, &refused)
-                .unwrap_or(Toggle::Unchanged)
-        });
+        let reply_fallback = engine_api::AccountId::try_from(account_id.as_str())
+            .map_or(ReplyFallbackChoice::Ask, |id| {
+                self.app.reply_fallback(&id).into()
+            });
+        let mut page = account_page::page(
+            &entry,
+            hold.clone(),
+            notice,
+            reply_fallback,
+            |capability, on| {
+                self.registry
+                    .toggle(&account_id, Capability::from(capability), on, &refused)
+                    .unwrap_or(Toggle::Unchanged)
+            },
+        );
         if let Some(row) = mail {
             let (sender_name, mail) = account_page_mail::mail_half(row.into(), &hold);
             page.sender_name = Some(sender_name);
@@ -135,6 +145,13 @@ impl MailcalApp {
                 slot,
                 target,
             } => link_failed(slot, self.set_account_link(account, slot, target)),
+            // A preference written beside the store: nothing to say unless the id is not one.
+            AccountPageIntent::SetReplyFallback { account, choice } => {
+                if let Ok(id) = engine_api::AccountId::try_from(account.as_str()) {
+                    self.app.set_reply_fallback(&id, choice.into());
+                }
+                None
+            }
             // The account is gone whatever this answers: an error says its stored credential
             // could not be erased, which the accounts list says.
             AccountPageIntent::Remove { account } => {

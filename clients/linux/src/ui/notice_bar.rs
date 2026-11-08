@@ -7,12 +7,16 @@
 //! what the banner cannot: the severity's glyph before it, a spinner beside its button while that
 //! button's sign-in runs (`docs/waiting.md` rule 1), and the Issues button after it. The strip, not
 //! the banner, is tinted, so the three read as one bar.
+//!
+//! A question (rule 8) has two answers, and its banner draws neither: the strip draws both after
+//! the sentence, the lesser first, because a banner's own button can be neither held nor given a
+//! sibling. While the core carries an answer out, both are held and the primary's spins.
 
 use std::{cell::RefCell, rc::Rc, sync::Once};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{Notice, NoticeScreens, NoticeSeverity};
+use mailcal_bindings::{ControlState, Notice, NoticeScreens, NoticeSeverity};
 
 use super::{
     AppInput, PrimaryView,
@@ -39,6 +43,8 @@ pub(super) struct NoticeBar {
     root: gtk::Box,
     glyph: gtk::Image,
     banner: adw::Banner,
+    /// A question's two answers, in place of the banner's button.
+    answers: gtk::Box,
     spinner: adw::Spinner,
     issues: gtk::MenuButton,
     list: gtk::Box,
@@ -74,6 +80,10 @@ impl NoticeBar {
             }
         });
         root.append(&banner);
+        let answers = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        answers.set_margin_end(12);
+        answers.set_visible(false);
+        root.append(&answers);
         let spinner = adw::Spinner::new();
         spinner.set_visible(false);
         spinner.set_margin_end(12);
@@ -101,6 +111,7 @@ impl NoticeBar {
             root,
             glyph,
             banner,
+            answers,
             spinner,
             issues,
             list,
@@ -157,10 +168,12 @@ impl NoticeBar {
         self.glyph
             .set_icon_name(Some(notice_rules::glyph(notice.severity)));
         self.banner.set_title(&sentence(&notice));
-        self.banner
-            .set_button_label(button_label(&notice).as_deref());
         let running = drawn.running.as_deref() == Some(notice.id.as_str());
-        self.spinner.set_visible(running);
+        let asks = notice_rules::asks(&notice);
+        self.banner
+            .set_button_label(button_label(&notice).filter(|_| !asks).as_deref());
+        self.fill_answers(&notice, asks, running);
+        self.spinner.set_visible(running && !asks);
         let more = notice_rules::more(notices, drawn.screen);
         self.issues.set_visible(more > 0);
         let label = l10n::notices_more(i64::try_from(more).unwrap_or(i64::MAX));
@@ -169,6 +182,19 @@ impl NoticeBar {
             .update_property(&[AccessibleProperty::Label(&label)]);
         self.fill_list(notices, drawn.running.as_deref());
         self.root.set_visible(true);
+    }
+
+    /// The banner's question's answers, or nothing when the banner holds no question.
+    fn fill_answers(&self, notice: &Notice, asks: bool, running: bool) {
+        while let Some(child) = self.answers.first_child() {
+            self.answers.remove(&child);
+        }
+        self.answers.set_visible(asks);
+        if asks {
+            for button in answer_buttons(notice, running, None, &self.sender) {
+                self.answers.append(&button);
+            }
+        }
     }
 
     /// Every notice in force, each with its own action and, where it can be closed, a Close.
@@ -254,23 +280,43 @@ fn issue_row(
         text.append(&label);
     }
     let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    if let Some(label) = notice
+    if notice_rules::asks(notice) {
+        for button in answer_buttons(notice, running, Some(issues), sender) {
+            buttons.append(&button);
+        }
+    } else if let Some(label) = notice
         .action_label
         .as_ref()
         .filter(|_| notice_rules::offers(notice))
     {
         let label = notice_rules::words(label);
         let input = NoticeInput::Run(notice.id.clone());
-        buttons.append(&list_button(&label, &title, running, input, issues, sender));
+        let control = ControlState {
+            enabled: true,
+            running,
+        };
+        let about = Some(title.as_str());
+        buttons.append(&notice_button(
+            &label,
+            about,
+            control,
+            input,
+            Some(issues),
+            sender,
+        ));
     }
     if notice.dismissible {
         let input = NoticeInput::Dismiss(notice.id.clone());
-        let close = list_button(
+        let control = ControlState {
+            enabled: true,
+            running: false,
+        };
+        let close = notice_button(
             l10n::notices_dismiss(),
-            &title,
-            false,
+            Some(&title),
+            control,
             input,
-            issues,
+            Some(issues),
             sender,
         );
         buttons.append(&close);
@@ -290,28 +336,65 @@ fn wrapped(text: &str) -> gtk::Label {
     label
 }
 
-/// A button in the Issues list, named with its notice's sentence so a screen reader can tell two
-/// Sign in again buttons apart. A running one shows a spinner and stays pressable: a browser
-/// sign-in pressed again replaces the one still out (`docs/waiting.md` rule 2).
-fn list_button(
-    label: &str,
-    about: &str,
+/// A question's two answers, the lesser first. While one is carried out, by the core or by a flow
+/// this client started, both are held and the primary's spins (`docs/waiting.md`). In the Issues
+/// list (`issues`) each is named with the question and closes the list as it acts.
+fn answer_buttons(
+    notice: &Notice,
     running: bool,
+    issues: Option<&gtk::MenuButton>,
+    sender: &relm4::Sender<AppInput>,
+) -> Vec<gtk::Button> {
+    let held = running || notice.running;
+    let title = notice_rules::words(&notice.title);
+    let about = issues.map(|_| title.as_str());
+    let mut buttons = Vec::with_capacity(2);
+    if let Some(label) = &notice.second_action_label {
+        let control = ControlState {
+            enabled: !held,
+            running: false,
+        };
+        let input = NoticeInput::Second(notice.id.clone());
+        let label = notice_rules::words(label);
+        let second = notice_button(&label, about, control, input, issues, sender);
+        second.add_css_class("flat");
+        buttons.push(second);
+    }
+    if let Some(label) = &notice.action_label {
+        let control = ControlState {
+            enabled: !held,
+            running: held,
+        };
+        let input = NoticeInput::Run(notice.id.clone());
+        let label = notice_rules::words(label);
+        buttons.push(notice_button(&label, about, control, input, issues, sender));
+    }
+    buttons
+}
+
+/// A notice's button. In the Issues list it is named with its notice's sentence (`about`), so a
+/// screen reader can tell two Sign in again buttons apart, and closes the list as it acts. A
+/// running sign-in shows a spinner and stays pressable: a browser sign-in pressed again replaces
+/// the one still out (`docs/waiting.md` rule 2).
+fn notice_button(
+    label: &str,
+    about: Option<&str>,
+    control: ControlState,
     input: NoticeInput,
-    issues: &gtk::MenuButton,
+    issues: Option<&gtk::MenuButton>,
     sender: &relm4::Sender<AppInput>,
 ) -> gtk::Button {
-    let control = mailcal_bindings::ControlState {
-        enabled: true,
-        running,
-    };
-    let (sender, issues) = (sender.clone(), issues.clone());
+    let (sender, issues) = (sender.clone(), issues.cloned());
     let button = super::controls::button(label, control, false, move || {
-        issues.popdown();
+        if let Some(issues) = &issues {
+            issues.popdown();
+        }
         sender.emit(AppInput::Notice(input.clone()));
     });
     button.set_halign(gtk::Align::Start);
-    button.update_property(&[AccessibleProperty::Label(&format!("{label}: {about}"))]);
+    if let Some(about) = about {
+        button.update_property(&[AccessibleProperty::Label(&format!("{label}: {about}"))]);
+    }
     button
 }
 

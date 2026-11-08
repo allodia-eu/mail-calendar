@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use mailcal_bindings::{Intent, MailcalApp, ReplyPrompt, ViewMode};
+use mailcal_bindings::{Intent, MailcalApp, ViewMode};
 
 use crate::{
     l10n,
@@ -160,7 +160,6 @@ mod signature_image;
 mod sync_line;
 mod time_zone;
 mod timestamps;
-mod unfiled_copy;
 mod unreached;
 mod update;
 mod update_pull;
@@ -195,7 +194,6 @@ use reading_windows::DetachedDraft;
 use search::SearchState;
 use selection::Selection;
 use setup_state::SetupState;
-use unfiled_copy::UnfiledCopyNotice;
 
 pub(crate) struct AppModel {
     app: Option<Arc<MailcalApp>>,
@@ -279,13 +277,6 @@ pub(crate) struct AppModel {
     sync_status: Option<sync_line::SyncStatus>,
     /// The separate foreground-download row. It wins the shared bottom strip while active.
     sync_bar: Option<sync_line::SyncBar>,
-    unfiled_copy: Option<UnfiledCopyNotice>,
-    /// The standing "the organiser wasn't told" question, mirrored from the core. `None` is also
-    /// how the core says *close the modal*; it clears the question the moment it is answered.
-    reply_prompt: Option<ReplyPrompt>,
-    /// Which question the modal is showing. The core carries no id, so the host counts, exactly as
-    /// the calendar's dialogs are counted.
-    reply_prompt_generation: u64,
     boot_error: Option<String>,
     webview_available: bool,
     calendar_refresh: calendar_actions::CalendarRefreshGate,

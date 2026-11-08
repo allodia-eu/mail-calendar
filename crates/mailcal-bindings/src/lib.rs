@@ -239,7 +239,7 @@ pub use protocol_surface::{Observer, Surface};
 pub use records::{
     AccountRow, AccountSyncProgress, AttachmentRow, CalendarWriteStatus, EmptyReason, FlatRow,
     MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
-    ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, UnfiledCopy, ViewMode,
+    ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
         AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
         McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
@@ -249,8 +249,9 @@ pub use records::{
 };
 pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountCountChoice, AccountLinkPicker,
-    AccountMailSettings, AccountPage, AccountSenderName, AccountToggle, AccountUseBlock,
-    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState,
+    AccountMailSettings, AccountPage, AccountReplyFallback, AccountSenderName, AccountToggle,
+    AccountUseBlock, AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState,
+    ReplyFallbackChoice,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
@@ -275,7 +276,7 @@ pub use records_folders::{
     AccountFolderRow, FolderAction, FolderNameCheck, FolderProblem, FolderRole, FolderRow,
 };
 pub use records_invitation::{
-    AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ReplyPrompt, ResponseStatus,
+    AttendeeTally, InvitationCard, InvitationKind, InvitationPreview, ResponseStatus,
 };
 pub use records_meeting::{MeetingInvitee, MeetingInviteePatch, MeetingInviteeRole};
 pub use records_notices::{
