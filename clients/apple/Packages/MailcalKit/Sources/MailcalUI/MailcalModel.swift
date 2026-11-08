@@ -111,6 +111,7 @@ final class MailboxModel {
     /// to a cache-invalidation signal: THIS is what changes, and the views re-key their page pulls on
     /// it. See MailcalModel.Calendar.swift.
     var calendarVersion = 0
+    @ObservationIgnored let calendarPages = CalendarCache<CalendarPageKey, CalendarPage>()
     /// The persisted display preferences the core owns: first day of the week, the 12/24-hour clock
     /// (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Seeded
     /// with the core's own defaults so the very first frame agrees with it.

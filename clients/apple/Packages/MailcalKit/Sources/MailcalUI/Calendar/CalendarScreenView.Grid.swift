@@ -1,6 +1,6 @@
 // The time grid's half of the calendar screen: the geometry a zoom implies, the weeks the strip is
-// showing, and what a scroll does to it. Split out of CalendarScreenView.swift to keep it under 500
-// lines.
+// showing, and what a scroll does to it. A view of its own, reading the position from
+// `CalendarGridPosition`, so a frame of motion re-evaluates the grid and not the screen around it.
 //
 // **The screen owns the strip; the grid only reports what the pointer did.** One owner for the
 // pointer stream is the rule the whole gesture layer is built on (docs/calendar.md §6), and it is
@@ -10,53 +10,76 @@
 import MailcalBindings
 import SwiftUI
 
-extension CalendarScreenView {
+/// The height the hour grid gets once the headings and the banner have taken their share.
+///
+/// One function for the grid's layout and for its framing on today: two copies of it would be two
+/// chances for the hour clamp to disagree with the hours on screen.
+func calendarGridHeight(viewportHeight: CGFloat, lanes: Int) -> CGFloat {
+    let banner = lanes > 0
+        ? calendarLaneHeight * CGFloat(allDayBannerLanes(lanes: lanes, expanded: false))
+        : 0
+    return max(viewportHeight - calendarHeaderHeight - banner, 1)
+}
 
-    /// The grid, at the size the window currently gives it.
-    @ViewBuilder
-    func gridContent(pager: CalendarPager, calendar: Calendar, today: Date) -> some View {
+/// The grid, at the size the window currently gives it.
+struct CalendarGridContent: View {
+    let model: MailboxModel
+    let pager: CalendarPager
+    let calendar: Calendar
+    let today: Date
+    let nowMinutes: Int
+    @Bindable var position: CalendarGridPosition
+    /// Bumped whenever the grid should frame itself on today again.
+    let recentreToken: Int
+    let onOpen: (EventRefID) -> Void
+    let onDrop: (CalendarDragState, Int) -> Void
+    /// The fingers lifted off a pinch.
+    let onSettleZoom: () -> Void
+
+    /// The weeks this grid has looked up, so a frame of motion reuses them.
+    @State private var stripWeeks = CalendarCache<CalendarWeekKey, CalendarStripWeek>()
+
+    var body: some View {
         GeometryReader { geometry in
             let dayViewport = max(geometry.size.width - calendarGutter, 1)
-            let hourHeight = zoom.hourHeight(viewport: geometry.size.height)
-            let dayWidth = zoom.dayWidth(viewport: dayViewport)
-            let lanes = bannerLanes(
-                pager: pager, calendar: calendar, dayViewport: dayViewport, dayWidth: dayWidth
-            )
+            let hourHeight = position.zoom.hourHeight(viewport: geometry.size.height)
+            let dayWidth = position.zoom.dayWidth(viewport: dayViewport)
+            let lanes = bannerLanes(dayViewport: dayViewport, dayWidth: dayWidth)
             let maxHour = calendarMaxHourOffset(
                 hourHeight: hourHeight,
                 gridHeight: calendarGridHeight(viewportHeight: geometry.size.height, lanes: lanes)
             )
             CalendarGridView(
-                weekAt: { stripWeek($0, pager: pager, calendar: calendar) },
+                weekAt: { stripWeek($0) },
                 calendarVersion: model.calendarVersion,
-                strip: strip,
+                strip: position.strip,
                 today: today,
-                nowMinutes: nowMinutes(calendar: calendar),
+                nowMinutes: nowMinutes,
                 use24Hour: model.use24Hour,
                 hourHeight: hourHeight,
                 dayWidth: dayWidth,
                 calendar: calendar,
                 dayViewport: dayViewport,
                 viewportHeight: geometry.size.height,
-                hourOffset: hourOffset,
+                hourOffset: position.hourOffset,
                 onScroll: { dx, dy in scroll(dx, dy, dayWidth: dayWidth, maxHour: maxHour) },
                 onScrollEnded: { dx, dy in coast(dx, dy, dayWidth: dayWidth, maxHour: maxHour) },
-                onOpen: open,
+                onOpen: onOpen,
                 canCreateEvent: calendarSupportsNewEvent(
-                    currentCalendars(
-                        pager: pager, anchor: pager.anchor(forPage: strip.anchorWeek)
-                    )
+                    model.calendarPage(
+                        from: pager.anchor(forPage: position.anchorWeek), columns: daysInWeek
+                    )?.calendars ?? []
                 ),
-                onDrop: { week, drag in drop(drag, week: week, pager: pager) }
+                onDrop: { week, drag in onDrop(drag, week) }
             )
             .modifier(
                 CalendarZoomGesture(
-                    zoom: $zoom,
-                    strip: $strip,
-                    hourOffset: $hourOffset,
+                    zoom: $position.zoom,
+                    strip: $position.strip,
+                    hourOffset: $position.hourOffset,
                     viewportWidth: dayViewport,
                     viewportHeight: geometry.size.height,
-                    onSettled: settleZoom
+                    onSettled: onSettleZoom
                 )
             )
             // **The offsets have to be put back inside the content when the content changes size.**
@@ -75,7 +98,7 @@ extension CalendarScreenView {
             // The day axis needs no such net any more: a strip has no end to fall off, and its anchor
             // re-derives itself from its position. This is the Apple half of docs/calendar.md §1.
             .onChange(of: maxHour) { _, limit in
-                hourOffset = hourOffset.clamped(to: 0...limit)
+                position.hourOffset = position.hourOffset.clamped(to: 0...limit)
             }
             // **The grid keeps framing itself on now until the user moves it.**
             //
@@ -86,17 +109,14 @@ extension CalendarScreenView {
             // guess at a number only the window knows.
             //
             // So the seat is not a moment, it is a **state**: the grid belongs to the app until a
-            // hand takes it (`gridHeld`), and every layout before that re-frames. This is also what
+            // hand takes it (`position.held`), and every layout before that re-frames. This is also what
             // covers the zoom landing late, which the offsets contract names as its own trap: a
             // persisted horizon arriving after the first frame changes the hour height under an
             // offset measured against the old one.
             // A seat that earns a framing: a shape from the menu, a week-start change, and "back to
             // today". Never a zoom, and never a sync landing.
             .onChange(of: recentreToken) { _, _ in
-                recentre(
-                    pager: pager, calendar: calendar, today: today,
-                    dayWidth: dayWidth, hourHeight: hourHeight, maxHour: maxHour
-                )
+                recentre(dayWidth: dayWidth, hourHeight: hourHeight, maxHour: maxHour)
             }
         }
         // Measured on the `GeometryReader`'s own box, and by `onGeometryChange` rather than by an
@@ -111,25 +131,21 @@ extension CalendarScreenView {
         //   is laid out in (the hour ruler's natural height is a whole day: 1778pt against 827pt).
         //   Framing against that put the grid at the bottom of the day, at 17:00.
         .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
-            frameOnToday(pager: pager, calendar: calendar, today: today, size: size)
+            frameOnToday(size: size)
+        }
+        .task {
+            if CalendarFrameTrace.shared.drives { await driveCalendarForMeasurement(position) }
         }
     }
 
     /// Frames the grid on today, for as long as the grid is still the app's to frame.
-    private func frameOnToday(
-        pager: CalendarPager, calendar: Calendar, today: Date, size: CGSize
-    ) {
-        guard !gridHeld, size.width > calendarGutter, size.height > 1 else { return }
+    private func frameOnToday(size: CGSize) {
+        guard !position.held, size.width > calendarGutter, size.height > 1 else { return }
         let dayViewport = size.width - calendarGutter
-        let hourHeight = zoom.hourHeight(viewport: size.height)
-        let dayWidth = zoom.dayWidth(viewport: dayViewport)
-        let lanes = bannerLanes(
-            pager: pager, calendar: calendar, dayViewport: dayViewport, dayWidth: dayWidth
-        )
+        let hourHeight = position.zoom.hourHeight(viewport: size.height)
+        let dayWidth = position.zoom.dayWidth(viewport: dayViewport)
+        let lanes = bannerLanes(dayViewport: dayViewport, dayWidth: dayWidth)
         recentre(
-            pager: pager,
-            calendar: calendar,
-            today: today,
             dayWidth: dayWidth,
             hourHeight: hourHeight,
             maxHour: calendarMaxHourOffset(
@@ -140,8 +156,16 @@ extension CalendarScreenView {
     }
 
     /// The week at `index`, or nil when the core has no page for it.
-    func stripWeek(_ index: Int, pager: CalendarPager, calendar: Calendar) -> CalendarStripWeek? {
+    private func stripWeek(_ index: Int) -> CalendarStripWeek? {
         let anchor = pager.anchor(forPage: index)
+        return stripWeeks.value(
+            CalendarWeekKey(index: index, anchor: anchor),
+            version: model.calendarVersion,
+            zone: model.activeZone
+        ) { lookUpWeek(index, anchor: anchor) }
+    }
+
+    private func lookUpWeek(_ index: Int, anchor: Date) -> CalendarStripWeek? {
         guard let page = model.calendarPage(from: anchor, columns: daysInWeek) else { return nil }
         return CalendarStripWeek(
             index: index,
@@ -152,11 +176,9 @@ extension CalendarScreenView {
 
     /// The largest lane count across the weeks on screen, which is the banner's height for all of
     /// them: with the ruler pinned there is one content top for the whole surface.
-    private func bannerLanes(
-        pager: CalendarPager, calendar: Calendar, dayViewport: CGFloat, dayWidth: CGFloat
-    ) -> Int {
-        strip.visibleWeeks(dayViewport: dayViewport, dayWidth: dayWidth)
-            .compactMap { stripWeek($0, pager: pager, calendar: calendar) }
+    private func bannerLanes(dayViewport: CGFloat, dayWidth: CGFloat) -> Int {
+        position.strip.visibleWeeks(dayViewport: dayViewport, dayWidth: dayWidth)
+            .compactMap { stripWeek($0) }
             .map { Int($0.page.allDayLanes) }
             .max() ?? 0
     }
@@ -168,9 +190,15 @@ extension CalendarScreenView {
         guard dx != 0 || dy != 0 else { return }
         // The grid is the user's from here: a window resize must move the days they chose, not
         // re-frame the calendar on now underneath them.
-        gridHeld = true
-        if dx != 0 { strip.pan(dx, dayWidth: dayWidth) }
-        if dy != 0 { hourOffset = (hourOffset - dy).clamped(to: 0...maxHour) }
+        position.held = true
+        if dx != 0 {
+            CalendarFrameTrace.shared.moved(.days)
+            position.strip.pan(dx, dayWidth: dayWidth)
+        }
+        if dy != 0 {
+            CalendarFrameTrace.shared.moved(.hours)
+            position.hourOffset = (position.hourOffset - dy).clamped(to: 0...maxHour)
+        }
     }
 
     /// The pointer let go: spend what momentum is left, then land the day axis on a **day**.
@@ -180,17 +208,17 @@ extension CalendarScreenView {
     /// simply adds its own, which is what a hand expects, and there is no banked decision for a later
     /// event to disagree with.
     private func coast(_ dx: CGFloat, _ dy: CGFloat, dayWidth: CGFloat, maxHour: CGFloat) {
-        var landed = strip
+        var landed = position.strip
         landed.pan(dx, dayWidth: dayWidth)
         landed.weeks = landed.nearestDay
-        let hours = (hourOffset - dy).clamped(to: 0...maxHour)
+        let hours = (position.hourOffset - dy).clamped(to: 0...maxHour)
         let travel = max(
-            abs(landed.weeks - strip.weeks) * dayWidth * CGFloat(daysInWeek),
-            abs(hours - hourOffset)
+            abs(landed.weeks - position.strip.weeks) * dayWidth * CGFloat(daysInWeek),
+            abs(hours - position.hourOffset)
         )
         withAnimation(.easeOut(duration: calendarCoastDuration(points: travel))) {
-            strip = landed
-            hourOffset = hours
+            position.strip = landed
+            position.hourOffset = hours
         }
     }
 
@@ -208,41 +236,34 @@ extension CalendarScreenView {
     /// today is in the week being framed**; anywhere else there is no such column and the week opens
     /// on its first day. With the strip there is no clamp left to fix a wrong answer, so the helper
     /// has to be given the right question.
-    private func recentre(
-        pager: CalendarPager,
-        calendar: Calendar,
-        today: Date,
-        dayWidth: CGFloat,
-        hourHeight: CGFloat,
-        maxHour: CGFloat
-    ) {
+    private func recentre(dayWidth: CGFloat, hourHeight: CGFloat, maxHour: CGFloat) {
         guard dayWidth > 0 else { return }
         // A jump home hands the grid back: it frames itself again until the next hand takes it.
-        gridHeld = false
+        position.held = false
         let origin = pager.anchor(forPage: 0)
         let column = calendar.dateComponents(
             [.day], from: origin, to: calendar.startOfDay(for: today)
         ).day
-        var framed = strip
+        var framed = position.strip
         framed.frame(
             week: 0,
             column: calendarFramingColumn(
                 mode: pager.mode, todayColumn: calendarTodayColumn(daysFromWeekStart: column)
             )
         )
-        let hours = (CGFloat(max(nowMinutes(calendar: calendar) - 90, 0)) / 60 * hourHeight)
+        let hours = (CGFloat(max(nowMinutes - 90, 0)) / 60 * hourHeight)
             .clamped(to: 0...maxHour)
         // **A jump home that is a journey cuts; one that is a step slides.** The grid is animatable
         // on the strip position, so an animated jump draws every week in between: from three months
         // out that is a strobe, not a transition, and it pulls a page per frame to draw it. Sliding
         // is worth having only where the eye can follow, which is about a week.
-        if abs(framed.weeks - strip.weeks) > 1 {
-            strip = framed
-            hourOffset = hours
+        if abs(framed.weeks - position.strip.weeks) > 1 {
+            position.strip = framed
+            position.hourOffset = hours
         } else {
             withAnimation(.easeOut(duration: 0.2)) {
-                strip = framed
-                hourOffset = hours
+                position.strip = framed
+                position.hourOffset = hours
             }
         }
     }

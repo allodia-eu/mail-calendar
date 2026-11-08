@@ -31,10 +31,17 @@ extension MailboxModel {
     /// The page a grid renders: `columns` consecutive days starting at `from`.
     ///
     /// Consecutive from the anchor and snapped to nothing, that is what lets a zoom widen the day
-    /// axis without the grid relocating. Synchronous and cheap: it reads an in-memory cache and never
-    /// the store or the network, so it can be called freely while paging.
+    /// axis without the grid relocating. Held per calendar version (`CalendarCache`), so a frame
+    /// that asks again is a dictionary read rather than a layout and an FFI copy.
     func calendarPage(from: Date, columns: Int) -> CalendarPage? {
-        app?.calendarRange(from: isoDate(from, calendar: gridCalendar), columns: UInt32(columns))
+        guard let app else { return nil }
+        let zone = activeZone
+        let from = isoDate(from, calendar: displayCalendar(zone: zone))
+        return calendarPages.value(
+            CalendarPageKey(from: from, columns: columns), version: calendarVersion, zone: zone
+        ) {
+            app.calendarRange(from: from, columns: UInt32(columns))
+        }
     }
 
     /// The month containing `anchor`, laid out. A different query, and a different layout.

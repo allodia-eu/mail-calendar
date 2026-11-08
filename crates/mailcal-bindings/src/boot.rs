@@ -239,6 +239,7 @@ pub(crate) fn build_accounts(
     // see `analytics::relay_config`) gets a telemetry that records consent and sends nothing.
     // A Nextcloud server's refusal may be a remote wipe, which is asked once the app exists.
     let (refusals, refused) = std::sync::mpsc::channel();
+    let device_class = mailcal_app::DeviceClass::from(device_info.device_class);
     let telemetry = {
         let _guard = runtime.enter();
         analytics::build_telemetry(prefs_path.clone(), device_info)
@@ -262,6 +263,7 @@ pub(crate) fn build_accounts(
     // Render the persisted store's mail before returning, so the host paints cached rows
     // the instant it comes up instead of a blank list while the background sync runs. The
     // host then dispatches RefreshMail, which re-snapshots and re-renders in the background.
+    app.adopt_device_defaults(device_class);
     let app = Arc::new(app);
     app.set_links_source(registry.links_source());
     // Seed what every account's synchronous headless dial already found, so the state is there the

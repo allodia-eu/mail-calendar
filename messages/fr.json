@@ -1101,6 +1101,7 @@
 	"a11y_invitation_decline": "Refuser cette invitation",
 
 	"a11y_invitation_awaiting_response": "En attente de votre réponse",
+	"a11y_event_repeats": "Récurrent",
 	"a11y_invitation_card": "Invitation à une réunion de {organizer}",
 	"account_kind_dav": "CalDAV/CardDAV",
 	"account_use_colleagues": "Collègues",

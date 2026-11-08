@@ -105,19 +105,18 @@ struct CalendarMonthView: View {
 
             ForEach(cell.chips.prefix(shown), id: \.rowID) { chip in
                 let calendarRow = page.calendars.row(account: chip.account, calendar: chip.calendar)
-                let swatch = calendarRow.swatchOrFallback(dark: colorScheme == .dark)
+                let colors = calendarRow.eventColorsOrFallback(dark: colorScheme == .dark)
                 let title = chip.title.isEmpty ? L10n.event_no_title() : chip.title
+                // The grid's block in miniature, so an event looks the same in every view. A month
+                // chip is a few points tall, so the hatch does the work the dashes cannot at this
+                // size, and the spoken label says it either way.
                 EventTitleLine(title: title, hasConference: chip.hasConference)
-                    .font(.system(size: 9))
-                    .foregroundStyle(parseHexColor(swatch.text))
-                    .padding(.horizontal, 2)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(colors.text)
+                    .padding(.leading, eventBarWidth + 2)
+                    .padding(.trailing, 2)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .participationFill(chip.participation, color: parseHexColor(swatch.background))
-                    .clipShape(RoundedRectangle(cornerRadius: 2))
-                    // A month chip is a few points tall, so the hatch does the work the dashes cannot
-                    // at this size, and the spoken label says it either way.
-                    .holdHatch(chip.participation, color: parseHexColor(swatch.text), cornerRadius: 2, width: 3)
-                    .holdBorder(chip.participation, color: parseHexColor(swatch.text), cornerRadius: 2)
+                    .eventBlockStyle(chip.participation, colors: colors, cornerRadius: 2)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         onOpen(

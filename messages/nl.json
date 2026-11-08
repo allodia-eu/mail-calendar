@@ -1101,6 +1101,7 @@
 	"a11y_invitation_decline": "Deze uitnodiging afwijzen",
 
 	"a11y_invitation_awaiting_response": "Wacht op je antwoord",
+	"a11y_event_repeats": "Terugkerend",
 	"a11y_invitation_card": "Uitnodiging van {organizer}",
 	"account_kind_dav": "CalDAV/CardDAV",
 	"account_use_colleagues": "Collega’s",

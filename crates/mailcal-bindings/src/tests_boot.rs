@@ -249,3 +249,6 @@ fn a_stored_shared_mailbox_is_listed_once_under_its_own_id_after_a_relaunch() {
 
 #[path = "tests_boot_outbox.rs"]
 mod outbox;
+
+#[path = "tests_boot_layout.rs"]
+mod layout;

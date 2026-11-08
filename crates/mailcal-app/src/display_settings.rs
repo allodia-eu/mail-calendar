@@ -45,6 +45,9 @@ pub struct DisplaySettings {
 pub(crate) struct DisplaySettingsState {
     settings: DisplaySettings,
     prefs_path: Option<PathBuf>,
+    /// Whether the layout is one the user chose, rather than the device's default. Only a chosen
+    /// one is written back, so a default never hardens into a choice nobody made.
+    layout_chosen: bool,
 }
 
 impl DisplaySettingsState {
@@ -60,9 +63,23 @@ impl DisplaySettingsState {
                 appearance: prefs.appearance,
                 dark_message_background: prefs.dark_message_background,
                 visible_hours: prefs.visible_hours(),
-                layout: prefs.calendar_layout,
+                layout: prefs.calendar_layout.unwrap_or_default(),
             },
             prefs_path,
+            layout_chosen: prefs.calendar_layout.is_some(),
+        }
+    }
+
+    /// The user chose `layout`: a choice from here on, even where it equals the device default.
+    fn choose_layout(&mut self, layout: CalendarLayout) {
+        self.layout_chosen = true;
+        self.update(|settings| settings.layout = layout);
+    }
+
+    /// Opens a phone on three days when the user has not chosen a shape yet.
+    pub(crate) fn adopt_device_default(&mut self, phone: bool) {
+        if !self.layout_chosen {
+            self.settings.layout = CalendarLayout::default_for(phone);
         }
     }
 
@@ -81,7 +98,7 @@ impl DisplaySettingsState {
             prefs.appearance = self.settings.appearance;
             prefs.dark_message_background = self.settings.dark_message_background;
             prefs.calendar_visible_hours = self.settings.visible_hours;
-            prefs.calendar_layout = self.settings.layout;
+            prefs.calendar_layout = self.layout_chosen.then_some(self.settings.layout);
             let _ = save_preferences(path, &prefs);
         }
     }
@@ -155,13 +172,28 @@ impl<P: Provider> App<P> {
         self.edit_display(|settings| settings.visible_hours = hours);
     }
 
+    /// Opens the calendar in the device's default shape (three days on a phone), unless the user
+    /// has already chosen one. Applied while the app is built, before a host can read a setting,
+    /// so a phone never shows the week first.
+    pub fn adopt_device_defaults(&self, device: crate::DeviceClass) {
+        self.display_settings
+            .lock()
+            .expect("display-settings mutex poisoned")
+            .adopt_device_default(device.is_phone());
+    }
+
     /// Remembers the shape the calendar is being read in, so it opens that way next time.
     ///
     /// The other half of the horizon: between them, a pinch to a single day is fully restored on
     /// the next launch: the same columns, over the same hours.
     #[allow(clippy::unused_async)]
     pub async fn set_calendar_layout(&self, layout: CalendarLayout) {
-        self.edit_display(|settings| settings.layout = layout);
+        self.display_settings
+            .lock()
+            .expect("display-settings mutex poisoned")
+            .choose_layout(layout);
+        self.observer.surface_changed(Surface::Settings);
+        self.calendar.resignal();
     }
 
     /// Applies an edit, persists it, and tells the host that both settings and the grid are stale.
@@ -251,8 +283,7 @@ mod tests {
         // read back as off and turn dark message backgrounds off for everyone who upgraded.
         assert!(state.get().dark_message_background);
         assert_eq!(state.get().visible_hours, DEFAULT_VISIBLE_HOURS);
-        // The whole week, and not a subset of it: a narrower default leaves the rest of the page
-        // hanging off the screen as a scrollable overhang, which on a phone swallows the swipe.
+        // Nothing chosen and no device applied: the whole week (`CalendarLayout::default_for`).
         assert_eq!(state.get().layout, CalendarLayout::Week);
 
         state.update(|settings| settings.week_start = WeekStart::Sunday);
@@ -260,7 +291,7 @@ mod tests {
         state.update(|settings| settings.appearance = Appearance::Dark);
         state.update(|settings| settings.dark_message_background = false);
         state.update(|settings| settings.visible_hours = 6);
-        state.update(|settings| settings.layout = CalendarLayout::ThreeDay);
+        state.choose_layout(CalendarLayout::ThreeDay);
 
         // A fresh state reads back all three, and the siblings survived every write.
         let reloaded = DisplaySettingsState::new(Some(path.clone())).get();
@@ -280,5 +311,49 @@ mod tests {
         );
         assert_eq!(on_disk.message_grouping, MessageGrouping::Flat);
         assert_eq!(on_disk.quote_style, QuoteStyle::LineAndHeader);
+    }
+
+    #[test]
+    fn a_phone_opens_on_three_days_and_anything_else_on_the_week() {
+        // A product decision (docs/calendar.md §8): seven columns leave a phone too little room to
+        // read a title in, so a phone that has not been told otherwise opens on three days.
+        let mut phone = DisplaySettingsState::new(None);
+        phone.adopt_device_default(true);
+        assert_eq!(phone.get().layout, CalendarLayout::ThreeDay);
+        let mut desktop = DisplaySettingsState::new(None);
+        desktop.adopt_device_default(false);
+        assert_eq!(desktop.get().layout, CalendarLayout::Week);
+    }
+
+    #[test]
+    fn a_shape_the_user_chose_wins_over_the_phones_default() {
+        let dir = std::env::temp_dir().join("mailcal-display-phone-chosen-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("preferences.toml");
+        // Week is what this state already shows, and picking it is still a choice.
+        let mut chosen = DisplaySettingsState::new(Some(path.clone()));
+        chosen.choose_layout(CalendarLayout::Week);
+        let mut reopened = DisplaySettingsState::new(Some(path));
+        reopened.adopt_device_default(true);
+        assert_eq!(reopened.get().layout, CalendarLayout::Week);
+    }
+
+    #[test]
+    fn the_phones_default_is_never_written_down_as_a_choice() {
+        // Saving another setting must not persist the default as if the user had picked it: the
+        // same install moved to a tablet's class, or a later change to the default, would then be
+        // overruled by a choice nobody made.
+        let dir = std::env::temp_dir().join("mailcal-display-phone-default-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("preferences.toml");
+        let mut phone = DisplaySettingsState::new(Some(path.clone()));
+        phone.adopt_device_default(true);
+        phone.update(|settings| settings.time_format = TimeFormat::TwelveHour);
+        assert_eq!(load_preferences(&path).calendar_layout, None);
+        phone.choose_layout(CalendarLayout::Day);
+        assert_eq!(
+            load_preferences(&path).calendar_layout,
+            Some(CalendarLayout::Day)
+        );
     }
 }

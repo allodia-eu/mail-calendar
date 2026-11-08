@@ -5,12 +5,6 @@ import MailcalBindings
 import SwiftUI
 
 extension CalendarGridView {
-    /// Whether `segment`, in week `week`, is the one currently in the pointer's hand.
-    func isHeld(_ segment: TimedSegment, in week: Int) -> Bool {
-        guard let held = drag?.subject, dragWeek == week else { return false }
-        return segment.account == held.account && segment.event == held.event
-            && Int(segment.day) == held.day
-    }
 
     // MARK: - The pointer
 

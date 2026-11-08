@@ -184,6 +184,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Edit an event | `pencil` | `ic_edit` | — | — |
 | Delete an event | `trash` | `ic_delete` | `E74D` Delete | `user-trash-symbolic` |
 | A video meeting: its heading in the detail, and the mark on an event that has one ([`conferencing.md`](conferencing.md)) | `video` | `ic_videocam` | `E714` Video | `camera-video-symbolic` |
+| An occurrence of a repeating event: the mark in its block's corner on the grid ([`calendar.md`](calendar.md) §4) | `repeat` | — | — | — |
 | Copy a meeting's link | `doc.on.doc` | `ic_content_copy` | `E8C8` Copy | `edit-copy-symbolic` |
 | Dial in to a meeting | `phone` | `ic_call` | `E717` Phone | `call-start-symbolic` |
 | Remove an invitee | `xmark.circle.fill` | `ic_close` | `E711` Cancel | `window-close-symbolic` |

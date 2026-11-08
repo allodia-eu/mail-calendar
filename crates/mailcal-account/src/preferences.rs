@@ -103,10 +103,11 @@ pub struct Preferences {
     /// trusting it.
     #[serde(default = "display::default_visible_hours")]
     pub calendar_visible_hours: u8,
-    /// The shape the calendar opens in: the last one the user chose. Persisted so a pinch to the
+    /// The shape the calendar opens in: the last one the user chose, or `None` until they choose
+    /// one, when the device decides (`CalendarLayout::default_for`). Persisted so a pinch to the
     /// day view, or a switch to the month, survives the app being closed.
-    #[serde(default)]
-    pub calendar_layout: CalendarLayout,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub calendar_layout: Option<CalendarLayout>,
     /// What the user has decided about each calendar (shown/hidden, colour override), keyed by
     /// **account id, then calendar id**.
     ///
@@ -297,7 +298,7 @@ impl Default for Preferences {
             appearance: Appearance::default(),
             dark_message_background: true,
             calendar_visible_hours: DEFAULT_VISIBLE_HOURS,
-            calendar_layout: CalendarLayout::default(),
+            calendar_layout: None,
             calendars: BTreeMap::new(),
             default_calendar: None,
             jitsi_server: None,

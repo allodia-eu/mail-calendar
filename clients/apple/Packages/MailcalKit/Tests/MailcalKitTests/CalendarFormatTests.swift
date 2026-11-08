@@ -113,6 +113,29 @@ private func days(_ iso: [String]) -> [Date] {
         #expect(isoDate(inAmsterdam, calendar: amsterdam) == "2026-07-12")
         #expect(isoDate(inTokyo, calendar: tokyo) == "2026-07-12")
     }
+
+    @Test func aDateTheCoreNamedIsMidnightInTheDisplayZone() {
+        let amsterdam = calendar("Europe/Amsterdam")
+        let date = parseISODate("2026-03-29", calendar: amsterdam)!
+        #expect(amsterdam.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+            == DateComponents(year: 2026, month: 3, day: 29, hour: 0, minute: 0))
+    }
+
+    @Test func somethingThatIsNotACalendarDateIsNotParsed() {
+        for bad in ["", "2026-7-12", "2026-07-1", "2026/07/12", "2026-02-30", "2026-13-01", "26-07-12"] {
+            #expect(parseISODate(bad, calendar: calendar()) == nil, "\(bad)")
+        }
+    }
+
+    @Test func theCoresGregorianDateIsReadWhateverCalendarTheCallerReckonsIn() {
+        // The core's dates are Gregorian. A caller holding the device's calendar, which may be the
+        // Japanese or the Buddhist one, still means the same day.
+        var japanese = Calendar(identifier: .japanese)
+        japanese.timeZone = TimeZone(identifier: "Europe/Amsterdam")!
+        let date = parseISODate("2026-07-12", calendar: japanese)!
+        #expect(date == parseISODate("2026-07-12", calendar: calendar()))
+        #expect(isoDate(date, calendar: japanese) == "2026-07-12")
+    }
 }
 
 @Suite struct CalendarBlockLabelTests {
@@ -146,6 +169,42 @@ private func days(_ iso: [String]) -> [Date] {
         #expect(blockShowsLabel(minutes: 15, hourHeight: 200), "pinched in, a standup shows its name")
         #expect(!blockShowsLabel(minutes: 15, hourHeight: 20), "zoomed out to the whole day, it cannot")
         #expect(blockShowsLabel(minutes: 60, hourHeight: 48), "an hour-long meeting reads at any zoom")
+    }
+
+    @Test func aLongTitleWrapsOverEveryWholeLineTheBlockHasRoomFor() {
+        // As Apple's Calendar does: a two-hour meeting with a long name shows all of it, rather than
+        // its first line and an ellipsis. The start time keeps its own line beneath.
+        let pitch = blockLabelLineHeight(minutes: 120)
+        let space = blockLabelSpace(minutes: 120, hourHeight: 60)
+        #expect(blockTitleLines(minutes: 120, hourHeight: 60) == Int(space / pitch) - 1)
+        #expect(blockTitleLines(minutes: 120, hourHeight: 60) > 2)
+    }
+
+    @Test func aBlockThatDrawsNoTimeGivesItsLineToTheTitle() {
+        // The invitation card's preview draws titles only, so the line a time would take is the
+        // title's.
+        let withTime = blockTitleLines(minutes: 120, hourHeight: 60)
+        #expect(blockTitleLines(minutes: 120, hourHeight: 60, withTime: false) == withTime + 1)
+    }
+
+    @Test func theTitleAndItsTimeNeverClaimMoreRoomThanTheBlockHas() {
+        // The same sweep as above, for the wrapped title: its lines and the time line together must
+        // fit, or the last one drawn is cut through the middle.
+        for hourHeight in [20.0, 32.0, 48.0, 64.0, 120.0, 200.0] {
+            for minutes in [15, 20, 30, 45, 60, 120, 240] {
+                let lines = blockTitleLines(minutes: minutes, hourHeight: hourHeight)
+                guard lines > 0 else {
+                    #expect(!blockShowsLabel(minutes: minutes, hourHeight: hourHeight))
+                    continue
+                }
+                let withTime = blockShowsTime(minutes: minutes, hourHeight: hourHeight)
+                let needed = blockLabelLineHeight(minutes: minutes) * CGFloat(lines + (withTime ? 1 : 0))
+                #expect(
+                    needed <= blockLabelSpace(minutes: minutes, hourHeight: hourHeight),
+                    "at \(hourHeight)/hour a \(minutes)-minute block wraps past its own edge"
+                )
+            }
+        }
     }
 }
 

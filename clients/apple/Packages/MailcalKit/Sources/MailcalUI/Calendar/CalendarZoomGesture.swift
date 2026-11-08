@@ -65,6 +65,7 @@ struct CalendarZoomGesture: ViewModifier {
     /// every further frame of a pinch that has nowhere left to go, and would let an exhausted hour
     /// axis drag the day axis to a halt mid-diagonal.
     private func apply(xScale: CGFloat, yScale: CGFloat, focus: CGPoint) {
+        CalendarFrameTrace.shared.moved(.zoom)
         let vertical = zoom.pinchVertical(yScale)
         if vertical != 1 {
             let target = focalPreservingScroll(scroll: hourOffset, focus: focus.y, factor: vertical)

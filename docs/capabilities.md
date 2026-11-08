@@ -108,6 +108,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: **time grid** (day / 3-day / work-week / week), now line, week numbers, jump-to-today | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendar: events drawn as Apple's Calendar draws them: a tint of the calendar's colour, the colour down the leading edge, a long title wrapped over the lines the block has room for, and the repeat and meeting glyphs in its corner ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ⬜ | ⬜ | ⬜ |
 | Calendar: the month grid turns by a sideways **swipe** on a phone or tablet; a desktop turns it by the header arrows | — | — | ✅ | — | ✅ | — |
 | The toolbar's actions are also **keyboard commands** with Mail's and Calendar's shortcuts (⌘N, ⌥⌘N, ⌘1 to ⌘6, ⌘T, ⇧⌘N, and ⌘← ⌘→ on the Mac): in the Mac's menu bar, and on iPad and iPhone with a hardware keyboard, as Apple's guidelines ask | — | ✅ | ✅ | — | — | — |
 | Calendar manager: per-calendar visibility + colour override, persisted ("Agenda's beheren") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -117,6 +118,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar, scrolling the hours: trackpad, mouse wheel or finger (`Shift`+wheel reaches the days on a plain mouse) ([`docs/calendar.md`](docs/calendar.md)) | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: `< Today >` header navigation, stepping by the visible span (the work week steps a week) | — | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Calendar: the shape and horizon you left it in, restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendar: a phone opens on three days, a tablet or a computer on the whole week, until you choose a shape | ✅ | — | ✅ | — | ✅ | — |
 | Calendar: your diary on screen from the store at launch, filled without opening it, so it is there offline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: refreshes periodically while the app remains open, without requiring another visit to the tab | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Calendar: create with a **calendar picker** (grouped by account) · all-day · notes · location | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

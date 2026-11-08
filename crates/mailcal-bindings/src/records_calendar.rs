@@ -272,6 +272,20 @@ pub struct Swatch {
     pub border: String,
 }
 
+/// How an event block on the time grid wears a calendar colour, in one theme: a light tint fills
+/// it, the colour itself runs down its leading edge, and its title is a deep shade of it (a pale
+/// one on dark). Resolved in the core (`calendar_event_swatch`) so every client draws the same
+/// block.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct EventSwatch {
+    /// The block's fill, `#rrggbb`: opaque, already mixed over the grid's own surface.
+    pub fill: String,
+    /// The bar down the leading edge, `#rrggbb`.
+    pub accent: String,
+    /// The title and time; always at least 4.5:1 against `fill` (WCAG AA).
+    pub text: String,
+}
+
 /// A calendar colour, resolved for both themes.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct CalendarColor {

@@ -254,8 +254,8 @@ pub use records_accounts::{
 pub use records_avatar::Avatar;
 pub use records_calendar::{
     AllDayBand, Appearance, CalendarColor, CalendarLayout, CalendarPage, CalendarRow,
-    CalendarSnapshot, DisplaySettings, EventEdge, EventRow, GridDay, MonthCell, MonthChip,
-    MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
+    CalendarSnapshot, DisplaySettings, EventEdge, EventRow, EventSwatch, GridDay, MonthCell,
+    MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
 };
 pub use records_conference::{ConferenceDialIn, ConferenceState, EventConference};
 pub use records_connectivity::{
