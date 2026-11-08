@@ -284,8 +284,9 @@ before chasing one.
 compiles the whole dependency tree and holds several GB of its own. ⚠️ Never point two checkouts at
 one build directory, a personal `build-dir` or `CARGO_TARGET_DIR` included: Cargo cannot tell them
 apart and hands one the other's binaries, so a suite passes for code this tree does not contain
-([`.cargo/config.toml`](.cargo/config.toml)). Sharing compile work between worktrees is a compiler
-cache's job ([`docs/debugging.md`](docs/debugging.md), "Worktrees").
+([`.cargo/config.toml`](.cargo/config.toml)). Sharing compile work between worktrees is kache's
+job, set up once per machine ([`docs/debugging.md`](docs/debugging.md), "Share the compile work
+with kache").
 
 Anything else your machine needs goes in [`AGENTS.local.md`](AGENTS.local.md), untracked.
 

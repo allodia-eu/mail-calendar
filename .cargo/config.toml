@@ -14,7 +14,8 @@ xtask = 'run --package xtask --quiet --'
 # the fingerprint guarding it, from its workspace-*relative* path, and judges freshness by mtime,
 # so a checkout sharing a directory with another is handed that checkout's binary: `cargo test`
 # reports `1 passed` for an assertion this tree cannot satisfy. Sharing compile work between
-# worktrees is a compiler cache's job, keyed on content (docs/debugging.md, "Worktrees").
+# worktrees is a compiler cache's job, keyed on content (docs/debugging.md, "Share the compile
+# work with kache").
 #
 # ⚠️ **Never bake an absolute path into a compiled artifact.** A compiler cache can hand this
 # checkout a crate compiled in another one, and anything `env!` resolved at compile time travels

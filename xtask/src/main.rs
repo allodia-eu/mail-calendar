@@ -27,6 +27,7 @@ mod automation_ids_tests;
 mod branding;
 mod british_english;
 mod british_english_words;
+mod compiler_cache;
 mod composer_labels;
 mod dash_hygiene;
 mod desktop_handoff;

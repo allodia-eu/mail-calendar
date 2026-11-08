@@ -37,7 +37,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{gate_exec::Timings, gate_steps};
+use crate::{compiler_cache, gate_exec::Timings, gate_steps};
 
 /// What became of one step.
 #[derive(Debug)]
@@ -119,6 +119,13 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
 
     summary(&results, &timings, &palette);
     println!("      {:>6}  in all", seconds(started.elapsed()));
+    if let Some(note) = compiler_cache::note(root) {
+        println!(
+            "
+{}note:{} {note}",
+            palette.bold, palette.reset
+        );
+    }
     if failed {
         println!(
             "\n{}The gate is RED.{} Fix the above before pushing. The pipeline is not the place to \

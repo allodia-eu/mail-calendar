@@ -1224,12 +1224,51 @@ against a relative file list: a checkout whose sources predate another checkout'
 handed that checkout's binary. Reduced to two workspaces sharing one build directory, `cargo test`
 in the one whose only test asserts `2 + 2 == 5` reports `1 passed`.
 
-Sharing the work is a compiler cache's job, and only one that maps each checkout's paths away
-helps. sccache keys on absolute paths, and every rustc call names the build directory, so it misses
-across worktrees: a cold `cargo build -p mailcal-bindings` in a second build directory, with the
-first one's build already in the cache, took 254 s with **0 hits** of 230, its base-directory
-setting included. In the same directory it hit 85% and still took 195 s against 240 s cold, since
-our own crates, proc macros, build scripts and links are not cached.
+### Share the compile work with kache
+
+Sharing the work between worktrees is a compiler cache's job, and only one that keys on content
+with each checkout's paths mapped away helps. [kache](https://github.com/kunobi-ninja/kache) does:
+it maps the workspace, target directory and Cargo home to placeholders before hashing and has rustc
+emit the same placeholders. Set it up once per machine; `kache init` writes the `rustc-wrapper` into
+your own `~/.cargo/config.toml`, which is where it belongs, since a tracked one would break every
+build without it, CI and the Flatpak SDK sandbox included:
+
+```sh
+cargo install kache --locked
+kache init
+kache doctor --probe        # compiles a throwaway crate and proves a local hit
+```
+
+`cargo xtask gate` prints a note when cargo is not using it. Nothing depends on it: a build without
+it is the same build, only slower.
+
+A cold `cargo build -p mailcal-bindings` into an empty build directory, on Windows arm64:
+
+| | |
+|---|---|
+| no cache | 233 to 267 s |
+| kache, filled from the main checkout, in a `.claude/worktrees/*` worktree | 102 s |
+| kache, filled from the same checkout, in a second build directory | 87 s |
+| sccache, filled from the same checkout, in a second build directory | 254 s, 0 hits |
+
+sccache keys on absolute paths, and every rustc call names the build directory, so it misses across
+worktrees, its base-directory setting included.
+
+Three things decide whether a worktree hits:
+
+- **The same gitignored inputs.** A worktree without `.env` or the brand files builds a different
+  app, so our own crates miss, correctly. [`.worktreeinclude`](../.worktreeinclude) copies them into
+  every worktree Claude Code creates; a plain `git worktree add` copies nothing.
+- **The same cargo configuration.** A worktree under `.claude/worktrees/` also reads the main
+  checkout's `.cargo/config.toml`, so an array there is passed twice and no hash matches;
+  [`.cargo/config.toml`](../.cargo/config.toml) keeps every value a string for that reason.
+- **What kache can cache at all.** On Windows it does not cache a link: the `mailcal-bindings`
+  cdylib (about a minute, most of the 102 s), test binaries and executables are built in every
+  worktree. MSVC's `cl.exe` passes through too, so `ring`'s C is compiled every time. macOS and
+  Linux cache executables and build scripts as well.
+
+When a result cannot be squared with the diff, rule the cache out by running that build with
+`RUSTC_WRAPPER=` set to nothing. `kache explain <crate>` says why a crate missed.
 
 ## Known gaps / follow-ups
 
