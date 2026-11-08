@@ -134,6 +134,28 @@ public sealed class EventRepeatTests(HarnessApp harness)
     });
 
     [HarnessFact]
+    public void AGridBlockSaysItRepeatsWhereItDrawsTheRepeatGlyph() => Case(nameof(AGridBlockSaysItRepeatsWhereItDrawsTheRepeatGlyph), (app, flow) =>
+    {
+        // The glyph in a block's corner is hidden from a screen reader, so the block's name says it
+        // (docs/calendar.md §4). The page is the Monday week or the seven days from today, as the
+        // pager decides, so the case reads whichever blocks it draws: every occurrence of a seeded
+        // series says it repeats, and a block that does not is what stops a name that always says
+        // it passing.
+        flow.SetShape(Filter.ById("CalendarViewWeek", "MenuItem"));
+        var words = Catalog.Everywhere("a11y_event_repeats");
+        bool Says(string name) => words.Any(w => name.EndsWith(", " + w, StringComparison.Ordinal));
+        IReadOnlyList<string> names = [];
+        App.Eventually(() => (names = GridBlockNames(app)).Count > 0, TimeSpan.FromSeconds(20));
+        var series = names.Where(n => new[] { Weekly, Fortnightly, MonthlyNth, Counted }.Any(t => n.StartsWith(t + ",", StringComparison.Ordinal))).ToList();
+        Assert.True(series.Count > 0, "the week draws no occurrence of a seeded series: " + string.Join(" | ", names));
+        Assert.True(series.All(Says), "an occurrence of a series does not say it repeats: " + string.Join(" | ", series.Where(n => !Says(n))));
+        Assert.True(names.Any(n => !Says(n)), "every block on the week says it repeats, one-off events included: " + string.Join(" | ", names));
+    });
+
+    /// <summary>The spoken names of the blocks the week grid draws.</summary>
+    private static IReadOnlyList<string> GridBlockNames(App app) =>
+        app.Agent.FindAll(new Filter { Window = app.Mailbox.Hwnd, NameLike = "*" }).Where(e => e.Class == "CalendarItem").Select(e => e.Name).ToList();
+    [HarnessFact]
     public void TheEditorOpensTheRuleAsControlsNotAsTheSentenceTheDetailShows() => Case(nameof(TheEditorOpensTheRuleAsControlsNotAsTheSentenceTheDetailShows), (app, flow) =>
     {
         // The detail reads a rule and the editor sets one: a reader who can only be told "every 2

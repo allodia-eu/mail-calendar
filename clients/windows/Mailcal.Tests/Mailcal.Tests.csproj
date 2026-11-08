@@ -79,6 +79,7 @@
          needed here. -->
     <Compile Include="..\Mailcal\Calendar\EventMeeting.cs" Link="Calendar\EventMeeting.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarHitTest.cs" Link="Calendar\CalendarHitTest.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarBlocks.cs" Link="Calendar\CalendarBlocks.cs" />
     <!-- What a tap yielded, and so which question a write from it owes the user. WinUI-free and
          L10n-free on purpose: the rule is which occurrence was drawn, and getting it wrong deletes
          a whole series in place of one Tuesday, the one outcome nobody can undo. -->

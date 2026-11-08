@@ -1667,9 +1667,9 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Horizontal **touch** pan across weeks, landing on a day | — | — | ✅ ⁴ | ✅ | ⬜ | ⬜ |
 | `< Today >` header navigation (steps by the visible span ⁵) | — | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Drawn (canvas) grid, not composed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Events in the tinted style: a tint, the calendar's colour down the leading edge, a deep-shade title (§1) ¹⁸ | ✅ | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| A long title wraps over every whole line the block has room for (§4) ¹⁸ | — | ✅ | ✅ | ⬜ | ✅ | ✅ |
-| The repeat and meeting glyphs in a block's top-right corner, and spoken (§4) ¹⁸ | — | ✅ | ✅ | ⬜ | ✅ | ✅ |
+| Events in the tinted style: a tint, the calendar's colour down the leading edge, a deep-shade title (§1) ¹⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A long title wraps over every whole line the block has room for (§4) ¹⁸ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The repeat and meeting glyphs in a block's top-right corner, and spoken (§4) ¹⁸ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One owner for the pointer stream | — | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
 | The spoken **time** grid (a11y over a canvas): the month surface is its own question, see "Known gaps" | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Frame budget measured on a release build | — | ✅ ¹⁹ | ✅ ¹⁹ | ✅ ² | ✅ | ✅ ¹² |
@@ -1907,12 +1907,13 @@ over its window. ⚠️ It cannot be verified any other way: the simulator does 
 *synthetic* host scroll into the guest at all, as a real `UIScrollView` on the same screen proves by
 not moving either. A test that injects one passes while measuring nothing.
 
-¹⁸ **A product rule for every platform.** Apple, Android and Linux draw the tinted block, the
-wrapped title and the corner glyphs, in the grid, the all-day bars and the month chips alike, and
-each lays a page's labels out once rather than per frame (§7): Android keeps a block's layout per
-width step, line count and time line, against the width it freezes for a pinch; Linux keeps the
-shaped text per width step as a render node. Windows still owes them; the core already serves it
-the colours (`calendar_event_swatch`), so what it owes is drawing.
+¹⁸ **A product rule for every platform.** Every client draws the tinted block, the wrapped title
+and the corner glyphs, in the grid, the all-day bars and the month chips alike, from the colours
+the core resolves (`calendar_event_swatch`), and each lays a page's labels out once rather than per
+frame (§7): Android keeps a block's layout per width step, line count and time line, against the
+width it freezes for a pinch; Linux keeps the shaped text per width step as a render node; Windows
+keeps DirectWrite's layout of each run, and of a title per width step, against the width it
+freezes for a pinch.
 
 ¹⁹ **Measured with the scripted motion** (§9, "The same measurement, on Apple"), on a MacBook Air
 and an iPhone 13 Pro: at most 3.8% of in-motion frames dropped on any axis, the p90 gap one frame.

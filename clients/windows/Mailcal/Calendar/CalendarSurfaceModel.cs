@@ -13,7 +13,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using Windows.UI;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Calendar;
@@ -37,12 +36,14 @@ internal sealed record DayHeading(DateOnly Date, string Weekday, string DayOfMon
 internal sealed record BlockPaint(
     BlockSpan Span,
     string Title,
-    string Clock,
+    /// <summary>The start time, for a block too narrow for <see cref="Range"/>.</summary>
+    string Time,
+    /// <summary>"09:00–12:00", the line beneath the title a tall enough block earns.</summary>
+    string Range,
     /// <summary>Unconditional: a block too short to show its title still speaks it.</summary>
     string Spoken,
-    Color Background,
-    Color Border,
-    Color Text,
+    /// <summary>The calendar's tint, already faded for a hold, its colour, and the title's.</summary>
+    EventColors Colors,
     /// <summary>The owning account and the event's provider key, what a tap opens the detail for.
     /// Carried alongside the geometry so a hit maps straight back to an <c>EventRef</c> (§7).</summary>
     string Account,
@@ -60,9 +61,16 @@ internal sealed record BlockPaint(
     /// not re-derive what kind of record this is any more than it may re-parse a hex colour (§7).
     /// </remarks>
     bool Awaiting,
-    /// <summary>The event has a video meeting: the camera follows the title (docs/conferencing.md).</summary>
+    /// <summary>The event has a video meeting: the camera in the block's corner (docs/conferencing.md).</summary>
     bool Meeting)
 {
+    /// <summary>One occurrence of a series, which earns the repeat glyph in the block's corner.</summary>
+    internal bool Repeats => IsOccurrence(OccurrenceStart);
+
+    /// <summary>Whether <paramref name="occurrenceStart"/> names an occurrence of a series: the core
+    /// names one by its original start and leaves a one-off event's empty.</summary>
+    internal static bool IsOccurrence(string occurrenceStart) => occurrenceStart.Length > 0;
+
     internal int Minutes => Span.Minutes;
 }
 
@@ -71,17 +79,14 @@ internal sealed record BandPaint(
     BandSpan Span,
     string Title,
     string Spoken,
-    Color Background,
-    Color Text,
+    /// <summary>As <see cref="BlockPaint.Colors"/>.</summary>
+    EventColors Colors,
     /// <summary>The owning account and the event's provider key, what a tap opens the detail for.</summary>
     string Account,
     string Event,
     /// <summary>As <see cref="BlockPaint.OccurrenceStart"/>: this bar's own occurrence, and empty
     /// when the event does not recur.</summary>
     string OccurrenceStart,
-    /// <summary>The edge a hold is dashed and hatched with. A bar draws no border otherwise, so this
-    /// is used only when <see cref="Awaiting"/>.</summary>
-    Color Border,
     /// <summary>As <see cref="BlockPaint.Awaiting"/>: an unanswered hold.</summary>
     bool Awaiting,
     /// <summary>As <see cref="BlockPaint.Meeting"/>.</summary>
@@ -178,8 +183,7 @@ internal static class CalendarPaint
         var blocks = new List<BlockPaint>(page.Timed.Length);
         foreach (var seg in page.Timed)
         {
-            var swatch = SwatchFor(calendars, seg.Account, seg.Calendar, dark);
-            var clock = CalendarFormat.TimeRange(seg.StartMinutes, seg.EndMinutes, use24Hour, culture);
+            var range = CalendarFormat.TimeRange(seg.StartMinutes, seg.EndMinutes, use24Hour, culture);
             var awaiting = InvitationFormat.IsAwaitingResponse(seg.Participation);
             blocks.Add(new BlockPaint(
                 new BlockSpan(
@@ -189,16 +193,16 @@ internal static class CalendarPaint
                     (int)seg.StartMinutes,
                     (int)seg.EndMinutes),
                 seg.Title,
-                clock,
+                CalendarFormat.ClockTime((int)seg.StartMinutes, use24Hour, culture),
+                range,
                 Spoken(
                     seg.Title,
-                    clock,
+                    range,
                     CalendarName(calendars, seg.Account, seg.Calendar),
                     seg.Participation,
-                    seg.HasConference),
-                CalendarHold.Fade(Parse(swatch.Background), awaiting),
-                Parse(swatch.Border),
-                Parse(swatch.Text),
+                    seg.HasConference,
+                    repeats: BlockPaint.IsOccurrence(seg.OccurrenceStart)),
+                ColorsFor(calendars, seg.Account, seg.Calendar, dark, awaiting),
                 seg.Account,
                 seg.Event,
                 seg.OccurrenceStart,
@@ -210,7 +214,6 @@ internal static class CalendarPaint
         var spans = new List<BandSpan>(page.AllDay.Length);
         foreach (var band in page.AllDay)
         {
-            var swatch = SwatchFor(calendars, band.Account, band.Calendar, dark);
             var span = new BandSpan((int)band.Day, (int)Math.Max(band.Days, 1), (int)band.Lane);
             spans.Add(span);
             var awaiting = InvitationFormat.IsAwaitingResponse(band.Participation);
@@ -222,13 +225,12 @@ internal static class CalendarPaint
                     L10n.CalendarAllDay(),
                     CalendarName(calendars, band.Account, band.Calendar),
                     band.Participation,
-                    band.HasConference),
-                CalendarHold.Fade(Parse(swatch.Background), awaiting),
-                Parse(swatch.Text),
+                    band.HasConference,
+                    repeats: false),
+                ColorsFor(calendars, band.Account, band.Calendar, dark, awaiting),
                 band.Account,
                 band.Event,
                 band.OccurrenceStart,
-                Parse(swatch.Border),
                 awaiting,
                 band.HasConference));
         }
@@ -265,19 +267,20 @@ internal static class CalendarPaint
         ISOWeek.GetWeekOfYear(date.ToDateTime(TimeOnly.MinValue));
 
     /// <summary>
-    /// The event's spoken label: title, time, calendar, the hold when there is one, and the video
-    /// meeting when there is one. Never truncated by the zoom (§4).
+    /// The event's spoken label: title, time, calendar, then the hold, the video meeting and the
+    /// repeat when there are any. Never truncated by the zoom (§4).
     /// </summary>
     /// <remarks>
-    /// The dashed border and hatched gutter <see cref="CalendarHold"/> draws, and the camera, are
-    /// invisible to a screen reader, so the label has to carry the same facts in words. Assembled here, once per
-    /// page, like every other string on a <see cref="BlockPaint"/>.
+    /// The dashed border and hatched edge <see cref="CalendarHold"/> draws, and the corner glyphs, are
+    /// invisible to a screen reader, so the label has to carry the same facts in words. Assembled
+    /// here, once per page, like every other string on a <see cref="BlockPaint"/>.
     /// </remarks>
     private static string Spoken(
-        string title, string time, string calendar, ResponseStatus participation, bool meeting) =>
-        Dialogs.CalendarEventText.Spoken(L10n.CalendarEventA11y(title, time, calendar), participation, meeting);
+        string title, string time, string calendar, ResponseStatus participation, bool meeting, bool repeats) =>
+        Dialogs.CalendarEventText.Spoken(
+            L10n.CalendarEventA11y(title, time, calendar), participation, meeting, repeats);
 
-    private static string Key(string account, string calendar) => account + " " + calendar;
+    private static string Key(string account, string calendar) => account + " " + calendar;
 
     private static string CalendarName(
         Dictionary<string, CalendarRow> calendars,
@@ -286,37 +289,22 @@ internal static class CalendarPaint
         calendars.TryGetValue(Key(account, calendar), out var row) ? row.Name : string.Empty;
 
     /// <summary>
-    /// The calendar's swatch for the current theme, <b>resolved by the core</b>, which guarantees the
-    /// label reads at ≥ 4.5:1 against its fill. No client computes contrast, so none of them can
-    /// disagree about whether a chip is readable (§1).
+    /// An event's colours for the current theme, <b>resolved by the core</b>, which guarantees the
+    /// title reads at ≥ 4.5:1 against the tint (§1); the tint faded for an unanswered hold. Resolved
+    /// here, once per page, never inside a frame.
     /// </summary>
-    private static Swatch SwatchFor(
+    private static EventColors ColorsFor(
         Dictionary<string, CalendarRow> calendars,
         string account,
         string calendar,
-        bool dark)
+        bool dark,
+        bool awaiting)
     {
-        if (calendars.TryGetValue(Key(account, calendar), out var row))
-        {
-            return dark ? row.Color.Dark : row.Color.Light;
-        }
-        // A calendar the page did not name. Grey, and still legible, never an invisible event.
-        return new Swatch("#5a5a5a", "#ffffff", "#3c3c3c");
+        var colors = calendars.TryGetValue(Key(account, calendar), out var row)
+            ? CalendarColors.EventColorsOf(row.Color.Hex, dark)
+            : CalendarColors.EventColorsFor([], account, calendar, dark);
+        return colors with { Fill = CalendarHold.Fade(colors.Fill, awaiting) };
     }
-
-    /// <summary>Parses a <c>#rrggbb</c> from the core. Opaque: the core never sends an alpha.</summary>
-    private static Color Parse(string hex)
-    {
-        if (hex.Length != 7 || hex[0] != '#' ||
-            !byte.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-            !byte.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-            !byte.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-        {
-            return Color.FromArgb(255, 90, 90, 90);
-        }
-        return Color.FromArgb(255, r, g, b);
-    }
-
     /// <summary>
     /// Parses the core's <c>YYYY-MM-DD</c>.
     /// </summary>
