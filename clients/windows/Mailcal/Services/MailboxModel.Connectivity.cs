@@ -1,9 +1,9 @@
-// Connectivity: the device-wide offline state and the per-account "can't reach its server"
-// outages the core reports on Surface.Connectivity, plus the OS network-reachability watch that
-// feeds the core back. Split out of MailboxModel.cs to keep that file under the 500-line limit.
+// Connectivity: the folder pane's footer status, drawn from the notices (docs/notices.md,
+// "Signals"), plus the OS network-reachability watch that feeds the core back. Split out of
+// MailboxModel.cs to keep that file under the 500-line limit.
 //
-// What a person is told about either is a notice (MailboxModel.Notices.cs); what is kept here is
-// the folder pane's footer status, and which accounts have a sign-in Settings asks for again.
+// What a person is told is the notices themselves (MailboxModel.Notices.cs); what is kept here is
+// the footer status, and which accounts have a sign-in Settings asks for again.
 
 using Microsoft.UI.Xaml;
 using uniffi.mailcal_bindings;
@@ -17,26 +17,26 @@ public sealed partial class MailboxModel
     private List<ConnectionIssue> _connectionIssues = new();
     // Accounts whose stored sign-in the server has stopped accepting, which an account's page in
     // Settings draws its sign-in section for.
-    private List<string> _signInExpired = new();
+    private IReadOnlyList<string> _signInExpired = [];
 
     /// <summary>One account that can't reach its server: its id, display email, and the technical
     /// detail (its connect error) revealed behind the footer status.</summary>
     private sealed record ConnectionIssue(string Id, string Email, string? Detail);
 
-    /// <summary>Records the latest connectivity and refreshes the footer status, then raises
-    /// <see cref="AccountsChanged"/> for Settings, whose pages draw an expired sign-in.</summary>
-    private void UpdateConnectivity(ConnectivitySnapshot connectivity)
+    /// <summary>Reads the footer status, the expired sign-ins and the Allodia card's state from
+    /// <paramref name="notices"/>, on every notices signal: an account's connect error can move
+    /// while its notice says the same.</summary>
+    private void UpdateConnectionStatus(IReadOnlyList<Notice> notices)
     {
-        _offline = connectivity.Offline;
-        _connectionIssues = connectivity.UnreachableAccounts.Select(id =>
+        _offline = NoticeRules.Offline(notices);
+        _connectionIssues = NoticeRules.Unreachable(notices).Select(id =>
         {
             var email = Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id;
             return new ConnectionIssue(id, email, _app?.ConnectionDetail(id));
         }).ToList();
-        _signInExpired = connectivity.SigninExpiredAccounts.ToList();
-        UpdateAllodiaSignInEnded(connectivity);
+        _signInExpired = NoticeRules.SignInExpired(notices);
+        UpdateAllodiaSignInEnded(NoticeRules.AllodiaSignInEnded(notices));
         RaiseConnectionStatus();
-        RaiseAccountsChanged();
     }
 
     // The unreachable accounts within the current scope: the selected account only, or all of them
