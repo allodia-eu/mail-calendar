@@ -51,6 +51,19 @@ internal static class ControlComponents
         return Beside(button, control, automationId);
     }
 
+    /// <summary>Holds a form's <paramref name="fields"/> while <paramref name="control"/> is
+    /// held, without a ring: the ring is the form's send button's.</summary>
+    internal static void HoldFields(ControlState control, params Control?[] fields)
+    {
+        foreach (var field in fields)
+        {
+            if (field is not null)
+            {
+                field.IsEnabled = control.Enabled;
+            }
+        }
+    }
+
     /// <summary>
     /// The button that sends a form's fields together, under a line saying what the fields still
     /// leave out. Held while <paramref name="control"/> is, and while the fields leave something

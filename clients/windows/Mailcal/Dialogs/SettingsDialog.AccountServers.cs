@@ -45,6 +45,11 @@ public sealed partial class SettingsDialog
         };
         AutomationProperties.SetAutomationId(password, "AccountNewPassword");
         stack.Children.Add(password);
+        // Held with Save, so nothing typed during a save is drawn over when it ends.
+        ControlComponents.HoldFields(
+            servers.Save with { Running = false },
+            imap?.Host, imap?.Port, imap?.Picker, smtp?.Host, smtp?.Port, smtp?.Picker,
+            caldav, carddav, login, password);
 
         AccountEndpoints Read() => AccountEndpointEdit.Edited(form, new EndpointFields(
             imap?.Address(), imap?.Security(),

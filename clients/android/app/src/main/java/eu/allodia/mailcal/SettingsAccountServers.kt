@@ -104,36 +104,57 @@ internal fun ServersGroup(
     }
     SettingsGroupCard(L10n.settings_account_servers_heading(ctx), description) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            imap?.let { server ->
-                ServerRow(
-                    host = server.host,
-                    onHostChange = { imap = server.copy(host = it) },
-                    label = L10n.settings_account_field_imap(ctx),
-                    placeholder = null,
-                    field = server.field,
-                    onFieldChange = { imap = server.copy(field = it) },
-                    ctx = ctx,
+            HeldFields(servers.save) { enabled ->
+                imap?.let { server ->
+                    ServerRow(
+                        host = server.host,
+                        onHostChange = { imap = server.copy(host = it) },
+                        label = L10n.settings_account_field_imap(ctx),
+                        placeholder = null,
+                        field = server.field,
+                        onFieldChange = { imap = server.copy(field = it) },
+                        ctx = ctx,
+                        enabled = enabled,
+                    )
+                }
+                smtp?.let { server ->
+                    ServerRow(
+                        host = server.host,
+                        onHostChange = { smtp = server.copy(host = it) },
+                        label = L10n.setup_field_smtp(ctx),
+                        placeholder = null,
+                        field = server.field,
+                        onFieldChange = { smtp = server.copy(field = it) },
+                        ctx = ctx,
+                        enabled = enabled,
+                    )
+                }
+                caldav?.let { url ->
+                    SetupField(
+                        url,
+                        { caldav = it },
+                        L10n.setup_field_caldav(ctx),
+                        keyboardType = KeyboardType.Uri,
+                        enabled = enabled,
+                    )
+                }
+                carddav?.let { url ->
+                    SetupField(
+                        url,
+                        { carddav = it },
+                        L10n.settings_account_field_carddav(ctx),
+                        keyboardType = KeyboardType.Uri,
+                        enabled = enabled,
+                    )
+                }
+                SetupField(login, { login = it }, L10n.settings_account_field_login(ctx), enabled = enabled)
+                PasswordField(
+                    password,
+                    { password = it },
+                    L10n.settings_account_field_new_password(ctx),
+                    enabled = enabled,
                 )
             }
-            smtp?.let { server ->
-                ServerRow(
-                    host = server.host,
-                    onHostChange = { smtp = server.copy(host = it) },
-                    label = L10n.setup_field_smtp(ctx),
-                    placeholder = null,
-                    field = server.field,
-                    onFieldChange = { smtp = server.copy(field = it) },
-                    ctx = ctx,
-                )
-            }
-            caldav?.let { url ->
-                SetupField(url, { caldav = it }, L10n.setup_field_caldav(ctx), keyboardType = KeyboardType.Uri)
-            }
-            carddav?.let { url ->
-                SetupField(url, { carddav = it }, L10n.settings_account_field_carddav(ctx), keyboardType = KeyboardType.Uri)
-            }
-            SetupField(login, { login = it }, L10n.settings_account_field_login(ctx))
-            PasswordField(password, { password = it }, L10n.settings_account_field_new_password(ctx))
             gap?.let {
                 Text(
                     endpointsGapSaid(ctx, it),

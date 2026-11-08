@@ -35,37 +35,45 @@ struct AccountServersSection: View {
                 : L10n.settings_account_servers_description()
         ) {
             VStack(alignment: .leading, spacing: 12) {
-                if fields.imap != nil {
-                    labelled(L10n.settings_account_field_imap()) {
-                        ManualServerRow(
-                            placeholder: L10n.setup_hint_imap(),
-                            host: server(\.imap).host, field: server(\.imap).field)
+                HeldFields(control: servers.save) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if fields.imap != nil {
+                            labelled(L10n.settings_account_field_imap()) {
+                                ManualServerRow(
+                                    placeholder: L10n.setup_hint_imap(),
+                                    host: server(\.imap).host, field: server(\.imap).field)
+                            }
+                        }
+                        if fields.smtp != nil {
+                            labelled(L10n.setup_field_smtp()) {
+                                ManualServerRow(
+                                    placeholder: L10n.setup_hint_smtp(),
+                                    host: server(\.smtp).host, field: server(\.smtp).field)
+                            }
+                        }
+                        if fields.caldav != nil {
+                            labelled(L10n.setup_field_caldav()) {
+                                TextField(L10n.setup_hint_caldav(), text: url(\.caldav))
+                                    .setupField(.host)
+                            }
+                        }
+                        if fields.carddav != nil {
+                            labelled(L10n.settings_account_field_carddav()) {
+                                TextField(L10n.setup_hint_carddav(), text: url(\.carddav))
+                                    .setupField(.host)
+                            }
+                        }
+                        labelled(L10n.settings_account_field_login()) {
+                            TextField(L10n.settings_account_field_login(), text: $fields.username)
+                                .setupField(.email)
+                        }
+                        labelled(L10n.settings_account_field_new_password()) {
+                            SecureField(
+                                L10n.settings_account_field_new_password(), text: $fields.password
+                            )
+                            .setupField(.password)
+                        }
                     }
-                }
-                if fields.smtp != nil {
-                    labelled(L10n.setup_field_smtp()) {
-                        ManualServerRow(
-                            placeholder: L10n.setup_hint_smtp(),
-                            host: server(\.smtp).host, field: server(\.smtp).field)
-                    }
-                }
-                if fields.caldav != nil {
-                    labelled(L10n.setup_field_caldav()) {
-                        TextField(L10n.setup_hint_caldav(), text: url(\.caldav)).setupField(.host)
-                    }
-                }
-                if fields.carddav != nil {
-                    labelled(L10n.settings_account_field_carddav()) {
-                        TextField(L10n.setup_hint_carddav(), text: url(\.carddav)).setupField(.host)
-                    }
-                }
-                labelled(L10n.settings_account_field_login()) {
-                    TextField(L10n.settings_account_field_login(), text: $fields.username)
-                        .setupField(.email)
-                }
-                labelled(L10n.settings_account_field_new_password()) {
-                    SecureField(L10n.settings_account_field_new_password(), text: $fields.password)
-                        .setupField(.password)
                 }
                 if let gap {
                     Text(AccountSettingsLabels.endpointsGap(gap))

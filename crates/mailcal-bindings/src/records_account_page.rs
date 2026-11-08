@@ -132,8 +132,10 @@ pub struct AccountServers {
     /// save refused (its password included) so one field is corrected rather than all retyped,
     /// and otherwise what is stored, with no password.
     pub form: crate::AccountEndpoints,
-    /// Save, running while the new servers are tried. The fields are the person's own until
-    /// Save is pressed; [`crate::MailcalApp::account_endpoints_gap`] says what they leave out.
+    /// Save, running while the new servers are tried. The fields are held with it, without its
+    /// spinner, so nothing typed during a save is drawn over when it ends; until Save is pressed
+    /// they are the person's own, and [`crate::MailcalApp::account_endpoints_gap`] says what they
+    /// leave out.
     pub save: ControlState,
 }
 

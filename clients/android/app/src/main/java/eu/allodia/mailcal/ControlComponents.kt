@@ -89,6 +89,15 @@ internal fun ControlSwitchRow(
 }
 
 /**
+ * A form's fields, held while [control] is, without a spinner: the spinner is the form's send
+ * button's. [content] is told whether its fields take input.
+ */
+@Composable
+internal fun HeldFields(control: ControlState, content: @Composable (enabled: Boolean) -> Unit) {
+    content(control.enabled)
+}
+
+/**
  * A button. A destructive one is drawn in the error colour. One that sends a form is also held
  * while the form is not [ready] to send.
  */

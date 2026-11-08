@@ -81,6 +81,17 @@ struct ControlButton: View {
     }
 }
 
+/// A form's fields, held while `control` is, without a spinner: the spinner is the form's send
+/// button's.
+struct HeldFields<Content: View>: View {
+    let control: ControlState
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content.disabled(!control.enabled)
+    }
+}
+
 /// A menu picker under its title, and `note` when there is one: `labels` listed, `selected`
 /// shown. `pick` is told the position the person picked, and only when it differs from `selected`.
 struct ControlPicker: View {

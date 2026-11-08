@@ -99,6 +99,12 @@ const SENDS_ITSELF: &str = "sends-itself";
 /// Marks such a field while it holds text it has not sent.
 const UNSENT: &str = "unsent";
 
+/// Holds a form's `field` while `control` is held, without a spinner: the spinner is its send
+/// button's.
+pub(super) fn hold_field(field: &impl IsA<gtk::Widget>, control: ControlState) {
+    field.set_sensitive(control.enabled);
+}
+
 /// Marks `form`, whose fields are sent together by a button, as holding edits it has not sent
 /// (`unsent`) or not. A redraw waits while it does, wherever the caret is: the fields are the
 /// person's until the button sends them.

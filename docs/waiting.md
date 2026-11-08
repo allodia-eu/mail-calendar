@@ -55,7 +55,9 @@ or size) runs on afterwards as sync work the page does not wait on. For an accou
 can be edited the page carries its `servers`: the form, drawn from the edit being saved while a
 save runs, from the edit the last save refused (its password included, so one field is corrected
 rather than all retyped), and otherwise from what is stored; and Save, held too while
-`account_endpoints_gap` says the fields leave something out, which the page says beside it. The page's `notice` carries
+`account_endpoints_gap` says the fields leave something out, which the page says beside it. The
+fields are held with Save, without its spinner, so nothing typed during a save is drawn over when
+it ends. The page's `notice` carries
 an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 

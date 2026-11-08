@@ -116,6 +116,14 @@ pub(super) fn server_group(
         .build();
     password.set_text(form.password.as_deref().unwrap_or_default());
     section.add(&password);
+    // Held with Save, so nothing typed during a save is drawn over when it ends.
+    let held = mailcal_bindings::ControlState {
+        running: false,
+        ..servers.save
+    };
+    for field in rows(&section) {
+        controls::hold_field(&field, held);
+    }
 
     let original = form.clone();
     let read = Rc::new(move || {
@@ -172,6 +180,25 @@ pub(super) fn server_group(
     let follow: Rc<dyn Fn()> = Rc::new(follow);
     watch(&section, &follow);
     section
+}
+
+/// The rows `section` holds so far.
+fn rows(section: &adw::PreferencesGroup) -> Vec<gtk::Widget> {
+    let mut found = Vec::new();
+    collect_rows(section.upcast_ref(), &mut found);
+    found
+}
+
+fn collect_rows(root: &gtk::Widget, found: &mut Vec<gtk::Widget>) {
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if widget.is::<adw::PreferencesRow>() {
+            found.push(widget.clone());
+        } else {
+            collect_rows(&widget, found);
+        }
+        child = widget.next_sibling();
+    }
 }
 
 /// Calls `changed` whenever a field or picker under `root` changes.
