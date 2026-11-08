@@ -56,9 +56,8 @@ pub(super) fn signalled<T: PartialEq>(
 pub(super) fn typing(window: &gtk::Window, edited: bool) -> bool {
     edited
         || GtkWindowExt::focus(window).is_some_and(|focus| {
-            crate::ui::controls::unsent(&focus).unwrap_or_else(|| {
-                focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>()
-            })
+            crate::ui::controls::unsent(&focus)
+                .unwrap_or_else(|| focus.is::<gtk::Editable>() || focus.is::<gtk::TextView>())
         })
 }
 
@@ -93,7 +92,12 @@ pub(super) fn wait_for_open_list(
     let Some(open) = window.and_then(|window| open_popover(window.upcast_ref())) else {
         return false;
     };
-    if waiting_on.as_ref().and_then(glib::WeakRef::upgrade).as_ref() != Some(&open) {
+    if waiting_on
+        .as_ref()
+        .and_then(glib::WeakRef::upgrade)
+        .as_ref()
+        != Some(&open)
+    {
         let again = sender.clone();
         open.connect_closed(move |_| {
             again.emit(crate::ui::AppInput::SurfaceChanged(

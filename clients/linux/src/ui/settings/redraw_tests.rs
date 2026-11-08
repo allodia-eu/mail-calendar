@@ -157,14 +157,20 @@ fn a_field_that_sends_itself_holds_a_redraw_only_until_it_has() {
     );
 
     entry.set_text("Alice Example");
-    assert!(typing(&window, edited.get()), "what is typed is not sent yet");
+    assert!(
+        typing(&window, edited.get()),
+        "what is typed is not sent yet"
+    );
     entry.emit_activate();
     assert!(
         !typing(&window, edited.get()),
         "once sent, the page can be redrawn with the caret still there"
     );
     button.grab_focus();
-    assert!(!edited.get(), "a field that sends itself is no edit waiting for a button");
+    assert!(
+        !edited.get(),
+        "a field that sends itself is no edit waiting for a button"
+    );
     assert_eq!(
         *sent.borrow(),
         vec!["Alice Example".to_owned()],

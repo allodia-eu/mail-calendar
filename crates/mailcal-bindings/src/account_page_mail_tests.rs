@@ -154,7 +154,10 @@ fn a_running_change_is_drawn_where_it_goes_and_holds_the_rest() {
     // A change waiting behind the running one is drawn running too, where it goes.
     let queued = Hold {
         busy: true,
-        own: vec![PageWork::Depth(12), PageWork::SenderName("Alice".to_owned())],
+        own: vec![
+            PageWork::Depth(12),
+            PageWork::SenderName("Alice".to_owned()),
+        ],
     };
     let (name, mail) = mail_half(row(), &queued);
     assert_eq!((name.name.as_str(), name.control), ("Alice", RUNNING));

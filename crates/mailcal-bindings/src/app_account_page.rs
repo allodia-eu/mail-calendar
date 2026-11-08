@@ -11,7 +11,8 @@ use mailcal_account::Capability;
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPage,
     AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp, MailcalError,
-    SyncStrategyKind, account_page, account_page_mail, account_registry::Toggle,
+    SyncStrategyKind, account_page, account_page_mail,
+    account_registry::Toggle,
     account_work::{PageWork, Start},
 };
 

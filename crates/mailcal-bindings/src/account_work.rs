@@ -157,7 +157,7 @@ impl AccountWork {
             notice,
         });
         if removed {
-            queue.waiting.retain(|(id, _, _)| id != account);
+            queue.waiting.retain(|(id, ..)| id != account);
             self.forget(account);
             *self
                 .list_notice

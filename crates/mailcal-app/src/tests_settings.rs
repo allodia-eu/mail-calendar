@@ -307,7 +307,10 @@ async fn a_switch_to_push_is_drawn_with_the_folders_it_will_watch() {
     app.set_sync_strategy("acct", mailcal_viewmodel::SyncStrategyKind::Poll)
         .await;
 
-    let stored = app.sync_settings_row("acct", None).await.expect("a mail account");
+    let stored = app
+        .sync_settings_row("acct", None)
+        .await
+        .expect("a mail account");
     assert!(stored.folders.iter().all(|f| !f.subscribed));
     let going = app
         .sync_settings_row("acct", Some(mailcal_viewmodel::SyncStrategyKind::Push))
