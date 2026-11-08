@@ -22,6 +22,8 @@ public sealed partial class SettingsDialog
 {
     // The account whose page is open; null for the list.
     private string? _accountPage;
+    // The picker whose list was open when the page was due to be drawn again.
+    private ComboBox? _redrawWhenClosed;
 
     // What the list or the page last said, kept across the redraw a change ends with.
     private AccountNotice? _accountNotice;
@@ -328,12 +330,55 @@ public sealed partial class SettingsDialog
         }
         if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {
+            // Drawn again now, a picker whose list is open would close under the pointer and the
+            // pick would be lost; it is drawn once the list closes, the pick queued in the core.
+            if (OpenPicker() is { } open)
+            {
+                WhenClosed(open);
+                return;
+            }
             ShowCategory("accounts");
         }
         else if (_accountNoticeBar is { } bar)
         {
             ShowNotice(bar, _accountNotice);
         }
+    }
+
+    /// <summary>The picker on the page whose list is open, if any.</summary>
+    private ComboBox? OpenPicker()
+    {
+        var pending = new Stack<DependencyObject>([_detail]);
+        while (pending.TryPop(out var node))
+        {
+            if (node is ComboBox { IsDropDownOpen: true } open)
+            {
+                return open;
+            }
+            for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(node); i++)
+            {
+                pending.Push(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(node, i));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="picker"/>'s list closes, once
+    /// however many signals arrive while it is open.</summary>
+    private void WhenClosed(ComboBox picker)
+    {
+        if (ReferenceEquals(_redrawWhenClosed, picker))
+        {
+            return;
+        }
+        _redrawWhenClosed = picker;
+        void Closed(object? sender, object args)
+        {
+            picker.DropDownClosed -= Closed;
+            _redrawWhenClosed = null;
+            OnAccountsChanged();
+        }
+        picker.DropDownClosed += Closed;
     }
 
     /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, how

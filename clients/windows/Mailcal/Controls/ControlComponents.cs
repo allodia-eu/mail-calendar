@@ -88,6 +88,9 @@ internal static class ControlComponents
         {
             if (e.Key == Windows.System.VirtualKey.Enter)
             {
+                // Unhandled, Enter goes on to the dialog the page sits in and presses its default
+                // button, which closes Settings.
+                e.Handled = true;
                 Send();
             }
         };

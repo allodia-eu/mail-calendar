@@ -1,8 +1,8 @@
 // The name an account sends its mail under, on both surfaces that show it: the field on the account's
 // page in Settings → Accounts, and the composer's From (docs/sending.md, "The sender's name"). The
-// field is built in code-behind and commits on losing focus, so a page that wires it to nothing, or
-// to the wrong account, draws exactly like one that works; the From's label is a display path, and
-// one pointed at the wrong property misnames every account.
+// field is built in code-behind and commits on Enter or on losing focus, so a page that wires it to
+// nothing, or to the wrong account, draws exactly like one that works; the From's label is a display
+// path, and one pointed at the wrong property misnames every account.
 //
 // The showcase: two accounts, each seeded with the name it sends under, and no provider holding a
 // name of its own, so every page offers the field. The read-only card, where an organisation holds
@@ -60,6 +60,74 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
         app.Agent.Focus(app.Agent.Find(new Filter { Type = "ComboBox", Name = Depth, Under = dialog })
             ?? throw new InvalidOperationException($"the account page has no '{Depth}' picker to move focus to"));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+    }
+
+    private static Element DepthPicker(App app, Element dialog) =>
+        app.Agent.Find(new Filter { Type = "ComboBox", Name = Depth, Under = dialog })
+        ?? throw new InvalidOperationException($"the account page has no '{Depth}' picker");
+
+    /// <summary>
+    /// Opens the download picker and clicks the first entry of its open list that
+    /// <paramref name="wanted"/> accepts, as a person picks one; answers the entry clicked. The
+    /// combo also lists its entries under itself, which name the options and are not the ones drawn.
+    /// </summary>
+    private static string PickDepth(App app, Element dialog, Func<string, bool> wanted)
+    {
+        var picker = DepthPicker(app, dialog);
+        app.Agent.Expand(picker);
+        Element? item = null;
+        if (!App.Eventually(() =>
+            {
+                // Read once open: a closed combo may list nothing under itself.
+                var listed = app.Agent.FindAll(new Filter { Type = "ListItem", Under = picker }).ToList();
+                var options = listed.Select(e => e.Name).ToHashSet();
+                var under = listed.Select(e => e.Handle).ToHashSet();
+                return (item = app.Agent.FindAll(new Filter { Type = "ListItem" })
+                    .FirstOrDefault(e => !under.Contains(e.Handle) && options.Contains(e.Name) && wanted(e.Name) && e.Rendered)) is not null;
+            }, TimeSpan.FromSeconds(3)))
+        {
+            throw new InvalidOperationException($"clicking the '{Depth}' picker opened no list to pick from");
+        }
+        var label = item!.Name;
+        Input.Click(app.Steady(item));
+        app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+        return label;
+    }
+
+    [OfflineFact]
+    public void ADepthPickedWithTheMouseLands() => Case(nameof(ADepthPickedWithTheMouseLands), (app, settings) =>
+    {
+        var dialog = Page(settings, 0);
+        var depthWas = app.Agent.Read(DepthPicker(app, dialog)).Selection ?? "";
+        var picked = PickDepth(app, dialog, label => label != depthWas);
+        Assert.True(App.Eventually(() => app.Agent.Read(DepthPicker(app, dialog)).Selection == picked, TimeSpan.FromSeconds(5)),
+            $"the depth picked lands; the page reads [{app.Agent.Read(DepthPicker(app, dialog)).Selection}], not [{picked}]");
+        PickDepth(app, dialog, label => label == depthWas);
+    });
+
+    [OfflineFact]
+    public void ANameStillBeingTypedLandsWhenAnotherChangeOnThePageIsPicked()
+    {
+        string? was = null;
+        Case(nameof(ANameStillBeingTypedLandsWhenAnotherChangeOnThePageIsPicked), (app, settings) =>
+        {
+            var dialog = Page(settings, 0);
+            was = Value(app, Boxes(app, dialog)[0]);
+            var depthWas = app.Agent.Read(DepthPicker(app, dialog)).Selection ?? "";
+            // Typed and never sent: the click on the picker is what takes the keyboard away, and
+            // the page is redrawn for one change while the other is asked for.
+            app.TypeInto(Boxes(app, dialog)[0], "Ada Typed");
+            var picked = PickDepth(app, dialog, label => label != depthWas);
+            // Read from the page as redrawn, not from a reopened one: reopening takes the box away,
+            // which sends what it holds and would hide a name the click lost.
+            Assert.True(App.Eventually(() => Value(app, Boxes(app, dialog)[0]) == "Ada Typed", TimeSpan.FromSeconds(5)),
+                $"the typed name lands as well as the depth; the page reads [{Value(app, Boxes(app, dialog)[0])}]");
+            Assert.True(App.Eventually(() => app.Agent.Read(DepthPicker(app, dialog)).Selection == picked, TimeSpan.FromSeconds(5)),
+                $"the depth picked while a name was being typed lands; the page reads [{app.Agent.Read(DepthPicker(app, dialog)).Selection}], not [{picked}]");
+            // Put back: the launch is shared.
+            PickDepth(app, dialog, label => label == depthWas);
+            SetName(app, Page(settings, 0), was);
+        });
     }
 
     [OfflineFact]
@@ -122,6 +190,29 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
             // Per account: the other moving too means the setter was handed the wrong id.
             Assert.Equal(other, Value(app, Boxes(app, Page(settings, 1))[0]));
             // Put back: the launch is shared.
+            SetName(app, Page(settings, 0), was);
+        });
+    }
+
+    [OfflineFact]
+    public void EnterStoresTheNameAndLeavesSettingsOpen()
+    {
+        string? was = null;
+        Case(nameof(EnterStoresTheNameAndLeavesSettingsOpen), (app, settings) =>
+        {
+            var dialog = Page(settings, 0);
+            var box = Boxes(app, dialog)[0];
+            was = Value(app, box);
+            // Real keystrokes: a value set through the peer never reaches the dialog, whose
+            // default button is Done. And from the box, or the Enter proves nothing about it.
+            app.TypeInto(box, "Grace Hopper");
+            Assert.True(app.Agent.Focused()?.Id == "AccountSenderName",
+                $"the keyboard is in the name field before Enter, not #{app.Agent.Focused()?.Id}");
+            Input.Press(Input.Enter);
+            app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+            Assert.True(app.Agent.Find(Filter.ById("SettingsDetail")) is not null,
+                "Enter in the name field stores the name and leaves Settings open; it does not press Done");
+            Assert.Equal("Grace Hopper", Value(app, Boxes(app, Page(settings, 0))[0]));
             SetName(app, Page(settings, 0), was);
         });
     }
