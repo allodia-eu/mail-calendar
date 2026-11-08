@@ -75,10 +75,7 @@ internal fun MainActivity.changeAccount(intent: AccountPageIntent) {
     app?.dispatch(Intent.AccountPage(intent))
 }
 
-/**
- * Makes the links setup's link step chose, one after another: the page's own changes run one at a
- * time, and a second would be turned away while the first ran.
- */
+/** Makes the links setup's link step chose, one after another. */
 internal fun MainActivity.linkFromSetup(accountId: String, links: List<Pair<LinkSlot, String>>) {
     val instance = app ?: return
     thread(name = "mailcal-setup-links") {

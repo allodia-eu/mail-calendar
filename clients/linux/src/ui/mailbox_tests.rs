@@ -248,8 +248,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         a_meeting_account_row_names_the_service_and_account_and_opens_its_page();
     crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
     crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
-    crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(
-    );
+    crate::ui::settings::sender_name::tests::the_field_is_held_while_a_change_runs();
     crate::ui::setup_widgets::sender_name_tests::
         the_step_opens_seeded_and_continue_asks_for_the_field();
     crate::ui::setup_widgets::sender_name_tests::a_provider_with_no_name_opens_the_step_empty();

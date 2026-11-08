@@ -1,6 +1,6 @@
 // The controls a page draws from the core's ControlState (docs/waiting.md): a switch, a button, a
-// combo box and a confirmation. Each is held while it cannot be used and shows a ring beside it
-// while work it started runs, so every page waits the same way.
+// text box, a combo box and a confirmation. Each is held while it cannot be used and shows a ring
+// beside it while work it started runs, so every page waits the same way.
 //
 // The confirmation is inline, beneath what it asks about: Settings is a ContentDialog, and a nested
 // one is not allowed.
@@ -49,6 +49,64 @@ internal static class ControlComponents
         AutomationProperties.SetAutomationId(button, automationId);
         button.Click += (_, _) => click();
         return Beside(button, control, automationId);
+    }
+
+    /// <summary>
+    /// A text box named <paramref name="name"/>, which the page's own heading stands above, and
+    /// which tells <paramref name="commit"/> what was typed on Enter,
+    /// when it loses focus and when the page is redrawn without it, and only when it differs from
+    /// what it last told, starting from <paramref name="text"/>: never on every keystroke, which
+    /// would store a half-typed value and redraw the page under the cursor, and never twice for
+    /// one edit, as Enter and then the focus leaving would. A redraw for another change takes the
+    /// box away; the core runs what was typed once that change ends.
+    /// </summary>
+    internal static StackPanel TextBox(
+        string name, string text, ControlState control, string automationId, Action<string> commit)
+    {
+        var box = new TextBox
+        {
+            PlaceholderText = name,
+            Text = text,
+            MinWidth = 260,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            IsEnabled = control.Enabled,
+        };
+        AutomationProperties.SetName(box, name);
+        AutomationProperties.SetAutomationId(box, automationId);
+        var sent = new SentText { Text = text };
+        box.Tag = sent;
+        void Send()
+        {
+            if (box.Text != sent.Text)
+            {
+                sent.Text = box.Text;
+                commit(sent.Text);
+            }
+        }
+        box.LostFocus += (_, _) => Send();
+        box.Unloaded += (_, _) => Send();
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                // Unhandled, Enter goes on to the dialog the page sits in and presses its default
+                // button, which closes Settings.
+                e.Handled = true;
+                Send();
+            }
+        };
+        return Beside(box, control, automationId);
+    }
+
+    /// <summary>Whether <paramref name="box"/>, a text box drawn here, holds text it has not sent,
+    /// which a redraw of its page would take away.</summary>
+    internal static bool HoldsUnsentText(Microsoft.UI.Xaml.Controls.TextBox box) =>
+        box.Tag is SentText sent && box.Text != sent.Text;
+
+    /// <summary>What a text box last told its page, kept on the box so the page can ask.</summary>
+    private sealed class SentText
+    {
+        internal required string Text { get; set; }
     }
 
     /// <summary>

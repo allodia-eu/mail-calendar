@@ -22,6 +22,7 @@ use mailcal_app::{Account, App};
 mod about;
 mod account_capability;
 mod account_page;
+mod account_page_mail;
 mod account_registry;
 mod account_repair;
 mod account_sign_in;
@@ -243,8 +244,9 @@ pub use records::{
     },
 };
 pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountLinkPicker, AccountPage,
-    AccountUseBlock, AccountUseStatus, AccountUseSwitch, ControlState,
+    AccountChangeNotice, AccountChangeNoticeRaised, AccountCountChoice, AccountLinkPicker,
+    AccountMailSettings, AccountPage, AccountSenderName, AccountToggle, AccountUseBlock,
+    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

@@ -9,6 +9,14 @@ use mailcal_account::{AccountSyncSettings, MessageSizeLimit};
 
 use crate::{App, form_factor::FormFactor};
 
+/// A stored message-size change the cached bodies are still to be reconciled to.
+#[derive(Debug)]
+pub struct SizeChange {
+    account: AccountId,
+    before: Option<u64>,
+    after: Option<u64>,
+}
+
 impl<P: Provider> App<P> {
     /// Sets an account's message-size cap (its explicit per-account override) as a megabyte
     /// count (`0` = no limit), leaving its strategy / folders / interval / depth untouched.
@@ -40,23 +48,43 @@ impl<P: Provider> App<P> {
     /// before any network call; "keep less of my mail on this device" is a decision about
     /// this device, and a user freeing space on a plane must not have to wait for a server.
     pub async fn update_account_message_size_limit(&self, id: &str, megabytes: u16) {
-        let Ok(account_id) = AccountId::try_from(id) else {
-            return;
-        };
-        if self.account_handle(&account_id).await.is_none() {
-            return;
+        if let Some(change) = self.store_account_message_size_limit(id, megabytes).await {
+            self.reconcile_message_size_limit(change).await;
         }
+    }
+
+    /// Stores a message-size change, answering what the cached bodies must be reconciled to, or
+    /// `None` for an unknown account or a cap that did not move.
+    pub async fn store_account_message_size_limit(
+        &self,
+        id: &str,
+        megabytes: u16,
+    ) -> Option<SizeChange> {
+        let account = AccountId::try_from(id).ok()?;
+        self.account_handle(&account).await?;
         let before = self.effective_message_size_limit(id);
         self.set_account_message_size_limit(id, megabytes).await;
         let after = self.effective_message_size_limit(id);
-        if before == after {
-            return;
-        }
+        (before != after).then_some(SizeChange {
+            account,
+            before,
+            after,
+        })
+    }
+
+    /// Acts on a stored message-size change: forgets what a lower cap no longer keeps, or
+    /// downloads what a higher one now does.
+    pub async fn reconcile_message_size_limit(&self, change: SizeChange) {
+        let SizeChange {
+            account,
+            before,
+            after,
+        } = change;
         if is_smaller(after, before) {
-            self.drop_bodies_over(&account_id, after).await;
+            self.drop_bodies_over(&account, after).await;
             self.reclaim_freed_space("message-size").await;
         } else {
-            self.prefetch_account_bodies(&account_id).await;
+            self.prefetch_account_bodies(&account).await;
         }
     }
 
