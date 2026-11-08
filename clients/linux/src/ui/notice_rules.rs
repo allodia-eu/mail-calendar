@@ -67,6 +67,21 @@ pub(super) fn about<'a>(notices: &'a [Notice], account: &str) -> Vec<&'a Notice>
         .collect()
 }
 
+/// Whether the server refuses `account`'s stored sign-in, which its page in Settings offers a new
+/// password for. A grant too narrow for one use is a different notice: the sign-in still works.
+pub(super) fn sign_in_expired(notices: &[Notice], account: &str) -> bool {
+    notices.iter().any(|notice| {
+        notice.kind == NoticeKind::SignInExpired && notice.account.as_deref() == Some(account)
+    })
+}
+
+/// Whether the account service refused the Allodia sign-in, which the Allodia card draws.
+pub(super) fn allodia_sign_in_ended(notices: &[Notice]) -> bool {
+    notices
+        .iter()
+        .any(|notice| matches!(notice.kind, NoticeKind::AllodiaSignInEnded { .. }))
+}
+
 /// The mark an account's row carries while a notice is about it (rule 6).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AccountMark {

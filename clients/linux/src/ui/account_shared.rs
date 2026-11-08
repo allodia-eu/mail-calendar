@@ -197,7 +197,7 @@ impl AppModel {
     ) {
         if !matches!(
             surface,
-            Surface::MailboxList | Surface::Settings | Surface::Connectivity
+            Surface::MailboxList | Surface::Settings | Surface::Notices
         ) {
             return;
         }
