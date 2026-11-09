@@ -19,6 +19,15 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     // Physical pixels, slack for rounding rather than design.
     private const double Tolerance = 2;
 
+    // The bar is the mail surface's, and the launch is shared: a calendar suite before this one
+    // leaves the window on the grid, where there is no bar to find.
+    private void Case(string name, Action<App> body, Action<App>? cleanup = null) =>
+        showcase.Case(name, app =>
+        {
+            app.RowsList();
+            body(app);
+        }, cleanup);
+
     private static Element Find(App app, string id) =>
         app.Agent.Wait(new Filter { Id = id, Type = "Button", Window = app.Mailbox.Hwnd, OnScreen = true }, App.Patience) is { Rendered: true } button
             ? app.Steady(button)
@@ -40,7 +49,7 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     }
 
     [OfflineFact]
-    public void NewMailThenTheActionsInOutlooksOrderOnOneLine() => showcase.Case(nameof(NewMailThenTheActionsInOutlooksOrderOnOneLine), app =>
+    public void NewMailThenTheActionsInOutlooksOrderOnOneLine() => Case(nameof(NewMailThenTheActionsInOutlooksOrderOnOneLine), app =>
     {
         var bar = Bar(app);
         var order = bar.OrderBy(pair => pair.Value.X).Select(pair => pair.Key).ToList();
@@ -53,7 +62,7 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     /// <summary>Rule 2: the actions stand over the panes they act on, from the message list's leading
     /// edge.</summary>
     [OfflineFact]
-    public void TheActionsStartAtTheMessageListsLeadingEdge() => showcase.Case(nameof(TheActionsStartAtTheMessageListsLeadingEdge), app =>
+    public void TheActionsStartAtTheMessageListsLeadingEdge() => Case(nameof(TheActionsStartAtTheMessageListsLeadingEdge), app =>
     {
         var delete = Find(app, "CommandDelete");
         var list = app.RowsList();
@@ -65,18 +74,30 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     /// <summary>Rule 2: New Mail lives on the bar because a pane that can be shut cannot hold it, and
     /// the actions follow the pane rather than staying where it was.</summary>
     [OfflineFact]
-    public void ACollapsedFolderPaneKeepsNewMailAndTheActionsFollowIt() => showcase.Case(nameof(ACollapsedFolderPaneKeepsNewMailAndTheActionsFollowIt), app =>
+    public void ACollapsedFolderPaneKeepsNewMailAndTheActionsFollowIt()
+    {
+        var collapsed = false;
+        Case(nameof(ACollapsedFolderPaneKeepsNewMailAndTheActionsFollowIt), app =>
     {
         var open = Find(app, "CommandDelete").X;
         TogglePane(app);
+        collapsed = true;
         var compose = Find(app, "ComposeButton");
         var delete = Find(app, "CommandDelete");
         Assert.True(delete.X < open, $"Delete stayed at {delete.X:0} with the folder pane collapsed; it stood at {open:0} beside the open pane");
         Assert.True(delete.X >= compose.X + compose.Width, "and it still stands after New Mail");
-    }, TogglePane);
+    }, app =>
+    {
+        // Back as the suite found it, and only if this case shut it: the launch is shared.
+        if (collapsed)
+        {
+            TogglePane(app);
+        }
+    });
+    }
 
     [OfflineFact]
-    public void NewMailAndSyncNameNoSelectionAndTheActionsFollowIt() => showcase.Case(nameof(NewMailAndSyncNameNoSelectionAndTheActionsFollowIt), app =>
+    public void NewMailAndSyncNameNoSelectionAndTheActionsFollowIt() => Case(nameof(NewMailAndSyncNameNoSelectionAndTheActionsFollowIt), app =>
     {
         var bar = Bar(app);
         Assert.True(bar["ComposeButton"].Enabled, "New Mail stays live whatever is selected: it writes a message");
@@ -87,14 +108,15 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     /// <summary>Rule 3: Select all and Clear selection are the list's keys now, and a delete for good
     /// stands only in Delete's place.</summary>
     [OfflineFact]
-    public void TheBarCarriesNoSelectionButtonsAndNoSecondDelete() => showcase.Case(nameof(TheBarCarriesNoSelectionButtonsAndNoSecondDelete), app =>
+    public void TheBarCarriesNoSelectionButtonsAndNoSecondDelete() => Case(nameof(TheBarCarriesNoSelectionButtonsAndNoSecondDelete), app =>
     {
-        foreach (var gone in new[] { "SelectionSelectAll", "SelectionClear", "SelectionDeletePermanently" })
-        {
-            Assert.Null(app.Agent.Find(Filter.ById(gone)));
-        }
         // On the bar: the reading pane's own row carries a Delete of its own.
         var bar = app.Agent.Find(Filter.ById("MailCommandBar")) ?? throw new InvalidOperationException("no #MailCommandBar");
+        var named = app.Agent.FindAll(new Filter { Under = bar }).Select(e => e.Name).ToList();
+        foreach (var gone in new[] { "action_select_all", "action_clear_selection" })
+        {
+            Assert.DoesNotContain(Catalog.English(gone), named);
+        }
         var deletes = app.Agent.FindAll(new Filter { Type = "Button", Under = bar, OnScreen = true })
             .Count(button => button.Name == Catalog.English("action_delete") || button.Name == Catalog.English("action_delete_permanently"));
         Assert.Equal(1, deletes);
@@ -114,9 +136,12 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     /// pane, whose Delete is the bar's over the open message. The showcase's accounts have no Trash,
     /// so Delete is Delete permanently there, which is what this case needs.</summary>
     [OfflineFact]
-    public void ADeleteForGoodIsAskedFirstFromTheBarAndTheReadingPane() => showcase.Case(nameof(ADeleteForGoodIsAskedFirstFromTheBarAndTheReadingPane), app =>
+    public void ADeleteForGoodIsAskedFirstFromTheBarAndTheReadingPane() => Case(nameof(ADeleteForGoodIsAskedFirstFromTheBarAndTheReadingPane), app =>
     {
+        // A message open, so the bar and the reading pane both have one to delete.
+        app.Agent.Invoke(app.Rows()[0]);
         var delete = Find(app, "CommandDelete");
+        App.Eventually(() => (delete = Find(app, "CommandDelete")).Enabled, TimeSpan.FromSeconds(5));
         if (delete.Name != Catalog.English("action_delete_permanently") || !delete.Enabled)
         {
             throw new InvalidOperationException($"the bar's Delete reads '{delete.Name}' (enabled: {delete.Enabled}); this case needs a selection on an account with no Trash, which the showcase seeds");
@@ -132,7 +157,7 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
     /// <summary>Rule 4: a row too narrow for every item sends them from the end into "More actions",
     /// in bar order, ahead of what always stands there; what stays on the bar does not move.</summary>
     [OfflineFact]
-    public void ANarrowWindowSendsTheTrailingItemsIntoMoreInBarOrder() => showcase.Case(nameof(ANarrowWindowSendsTheTrailingItemsIntoMoreInBarOrder), app =>
+    public void ANarrowWindowSendsTheTrailingItemsIntoMoreInBarOrder() => Case(nameof(ANarrowWindowSendsTheTrailingItemsIntoMoreInBarOrder), app =>
     {
         var wide = Actions.ToDictionary(id => id, id => Find(app, id).X);
         using (Desktop.Resized(app.Mailbox.Hwnd, 760, 640))

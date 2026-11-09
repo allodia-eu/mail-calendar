@@ -31,10 +31,9 @@ public sealed partial class MainWindow
     /// selection.
     /// </summary>
     /// <remarks>
-    /// Mail first: the composer takes the reading pane's place, and that pane exists only on the
-    /// mail surface, so writing from the calendar has to bring the mailbox back with it or the
-    /// draft would open behind the grid. The draft already open is left first, as every other
-    /// route into the composer leaves it, so it is kept in Drafts.
+    /// The draft already open is left first, as every other route into the composer leaves it, so
+    /// it is kept in Drafts. The composer takes the reading pane's place, which exists only on the
+    /// mail surface, so the mailbox is shown before it opens.
     /// </remarks>
     private async void OnNewMail(object sender, RoutedEventArgs e)
     {

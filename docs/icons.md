@@ -128,7 +128,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Report as not junk | `tray.and.arrow.down` | — | `E715` Mail | — |
 | Move to folder… | `folder` | — | `E8DE` MoveToFolder | `folder-symbolic` |
 | Delete permanently | `trash.slash` | — | `E74D` Delete, in the critical colour | `edit-delete-symbolic` |
-| Select all | `checklist` | — | `E8B3` SelectAll | — |
+| Select all | `checklist` | — | — | — |
 | Clear the selection | `xmark` | `ic_close` | `E711` Cancel | `window-close-symbolic` |
 | Sync | `arrow.clockwise` | — | `E72C` Refresh | `view-refresh-symbolic` |
 | Swipe: archive | `archivebox` | `ic_archive` | `Symbol.MoveToFolder` | — |

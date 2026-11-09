@@ -73,7 +73,8 @@
              the actions follow it. New Mail names no selection, so it is never disabled, and a pane
              that can be shut cannot hold the one control that writes a message.
 
-             The actions are the core's answer, drawn in code as it arrives: a WinUI CommandBar,
+             The row is the mail surface's; the calendar and contacts draw their own. The actions
+             are the core's answer, drawn in code as it arrives: a WinUI CommandBar,
              whose dynamic overflow moves items from the end into its "More" menu in bar order when
              the row cannot hold them, so a label never wraps, truncates or scrolls. -->
         <Grid x:Name="CommandRow" Grid.Row="1"
@@ -83,10 +84,7 @@
                 <ColumnDefinition x:Name="NewMailColumn" Width="240" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <!-- It stays on the calendar and contacts surfaces too, so the row never changes shape
-                 as the user moves between them; the handler brings mail back before the draft
-                 opens, because the composer takes the reading pane's place and that pane exists
-                 only on mail. -->
+
             <Button x:Name="ComposeButton"
                     Margin="12,0,12,0"
                     VerticalAlignment="Center"

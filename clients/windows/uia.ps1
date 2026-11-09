@@ -61,7 +61,7 @@
 #     reaches nothing, a wait for that id can only time out, however long you give it. Measure the
 #     row through a CONTROL inside it (a ScrollViewer, a TextBlock), whose x:Name is already its
 #     AutomationId.
-#     ⚠️ The cost is invisible, which is why this is worth re-reading: #SelectionBar is on a Border,
+#     ⚠️ The cost is invisible, which is why this is worth re-reading: an id was on a Border,
 #     and a suite waited thirty seconds for it, twice a run, then DISCARDED the $null
 #     and passed on elements it found by other means. A whole minute of every run, and nothing on
 #     screen or in the summary said so. If a wait's result is not read, it is not a wait.
