@@ -1,6 +1,7 @@
 // The question before a permanent delete (docs/command-bar.md, rule 6), wherever it is asked from:
 // the command bar, a row menu, the Delete key on the list and the reading pane's Delete. It names
-// what the rows are and counts them when there are several.
+// what the rows are and counts them when there are several, and its button says Delete
+// permanently: Delete alone moves to Trash everywhere else.
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
@@ -21,7 +22,7 @@ internal static class PurgeQuestion
             PermanentDeleteWording.Conversations => L10n.DeletePermanentlyConversations(count),
             _ => L10n.DeletePermanentlyMessage(),
         };
-        var result = await DialogHelper.ConfirmAsync(root, L10n.DeletePermanentlyTitle(), message, L10n.ActionDelete());
+        var result = await DialogHelper.ConfirmAsync(root, L10n.DeletePermanentlyTitle(), message, L10n.ActionDeletePermanently());
         return result == ContentDialogResult.Primary;
     }
 }

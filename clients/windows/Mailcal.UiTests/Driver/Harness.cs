@@ -113,6 +113,34 @@ internal static class Harness
     });
 
     /// <summary>
+    /// Files a plain message titled <paramref name="title"/> straight into
+    /// <paramref name="address"/>'s Trash, read, as a message thrown away on another device arrives
+    /// there. A case that files one removes it again with <see cref="RemoveMail"/>.
+    /// </summary>
+    internal static void PutInTrash(string address, string title) => Run(async () =>
+    {
+        using var jmap = await Jmap.SignInAsync(address);
+        var trash = (string)(await jmap.CallAsync("Mailbox/query", new JsonObject { ["filter"] = new JsonObject { ["role"] = "trash" } }))["ids"]![0]!;
+        var raw = Encoding.UTF8.GetBytes(
+            $"From: Bob Tester <bob@test.local>\r\nTo: {address}\r\nSubject: {title}\r\nDate: {DateTime.UtcNow:R}\r\n"
+            + $"Message-ID: <{Guid.NewGuid():N}@test.local>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nThrown away elsewhere.\r\n");
+        var blob = await jmap.UploadAsync(raw, "message/rfc822");
+        await jmap.CallAsync("Email/import", new JsonObject
+        {
+            ["emails"] = new JsonObject
+            {
+                ["m"] = new JsonObject
+                {
+                    ["blobId"] = blob,
+                    ["mailboxIds"] = new JsonObject { [trash] = true },
+                    ["keywords"] = new JsonObject { ["$seen"] = true },
+                },
+            },
+        });
+        return 0;
+    });
+
+    /// <summary>
     /// Sets the password the server holds for a seeded user, the way a person changing it elsewhere
     /// does: the account's stored secret stops working on its next request. A case that changes it
     /// puts the seeded one back in its cleanup, because every other harness suite signs in with it;

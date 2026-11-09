@@ -122,38 +122,18 @@ public sealed class CommandBarTests(ShowcaseApp showcase)
         Assert.Equal(1, deletes);
     });
 
-    /// <summary>Answers the purge question with Cancel, having checked it is the purge question.</summary>
-    private static void CancelPurge(App app, string from)
-    {
-        var dialog = app.Dialog(Filter.ById("CloseButton", "Button"));
-        Assert.True(app.Agent.FindAll(new Filter { Under = dialog }).Any(e => e.Name == Catalog.English("delete_permanently_title")),
-            $"{from}'s Delete permanently opened something other than the question before a delete for good");
-        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "CloseButton", Type = "Button", Under = dialog })!);
-        app.CloseDialogs();
-    }
-
-    /// <summary>Rules 6 and 8: a delete for good is asked first, from the bar and from the reading
-    /// pane, whose Delete is the bar's over the open message. The showcase's accounts have no Trash,
-    /// so Delete is Delete permanently there, which is what this case needs.</summary>
+    /// <summary>Rule 6: outside Trash, on an account that has one, Delete moves to Trash and is
+    /// named Delete. In Trash it is Delete permanently, which CommandBarTrashTests asks about on the
+    /// harness.</summary>
     [OfflineFact]
-    public void ADeleteForGoodIsAskedFirstFromTheBarAndTheReadingPane() => Case(nameof(ADeleteForGoodIsAskedFirstFromTheBarAndTheReadingPane), app =>
+    public void OutsideTrashTheBarsDeleteIsDelete() => Case(nameof(OutsideTrashTheBarsDeleteIsDelete), app =>
     {
-        // A message open, so the bar and the reading pane both have one to delete.
         app.Agent.Invoke(app.Rows()[0]);
         var delete = Find(app, "CommandDelete");
         App.Eventually(() => (delete = Find(app, "CommandDelete")).Enabled, TimeSpan.FromSeconds(5));
-        if (delete.Name != Catalog.English("action_delete_permanently") || !delete.Enabled)
-        {
-            throw new InvalidOperationException($"the bar's Delete reads '{delete.Name}' (enabled: {delete.Enabled}); this case needs a selection on an account with no Trash, which the showcase seeds");
-        }
-        var rows = app.Rows().Count;
-        app.Agent.Invoke(delete);
-        CancelPurge(app, "the bar");
-        app.Agent.Invoke(Find(app, "ReadingDelete"));
-        CancelPurge(app, "the reading pane");
-        Assert.Equal(rows, app.Rows().Count);
+        Assert.True(delete.Enabled, "a selected Inbox message can be deleted");
+        Assert.Equal(Catalog.English("action_delete"), delete.Name);
     });
-
     /// <summary>Rule 4: a row too narrow for every item sends them from the end into "More actions",
     /// in bar order, ahead of what always stands there; what stays on the bar does not move.</summary>
     [OfflineFact]
