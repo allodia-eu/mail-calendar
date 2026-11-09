@@ -204,4 +204,23 @@ class SettingsAccountSignInTest {
         compose.onNodeWithTag("account-switch-to-provider").assertIsNotEnabled()
         compose.onNodeWithText("Continue in your browser to sign in as alice@example.org.").assertExists()
     }
+
+    @Test
+    fun a_password_is_not_tried_while_a_browser_sign_in_runs() {
+        val entry = account(CoreAccountKind.JMAP)
+        show(
+            entry,
+            section(
+                AccountSignInLine.REFUSED,
+                password = AccountPasswordField(AccountSecretKind.PASSWORD_OR_TOKEN, replaces = true, save = FREE),
+            ),
+        )
+        compose.onNodeWithText("Password or API token").performTextInput("token")
+        compose.onNodeWithTag("account-password-save").assertIsEnabled()
+
+        state.signIn.begin(entry.id, switching = false)
+        compose.waitForIdle()
+
+        compose.onNodeWithTag("account-password-save").assertIsNotEnabled()
+    }
 }

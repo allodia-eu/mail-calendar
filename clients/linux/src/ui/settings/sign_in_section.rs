@@ -161,10 +161,15 @@ fn password_field(
         AccountSecretKind::Password => l10n::setup_field_password(),
         AccountSecretKind::PasswordOrToken => l10n::setup_jmap_secret_placeholder(),
     };
+    // Held, too, while the core completes a browser sign-in of the account's (`enabled`).
+    let state = mailcal_bindings::ControlState {
+        enabled: field.save.enabled && enabled,
+        running: field.save.running,
+    };
     let entry = adw::PasswordEntryRow::new();
     entry.set_use_markup(false);
     entry.set_title(title);
-    controls::hold_field(&entry, field.save);
+    controls::hold_field(&entry, state);
     controls::form_unsent(&entry, false);
     let label = if field.replaces {
         l10n::action_save()
@@ -173,7 +178,7 @@ fn password_field(
     };
     let save = {
         let (entry, input, account) = (entry.clone(), sender.clone(), account.to_owned());
-        controls::FormSend::new(label, field.save, move || {
+        controls::FormSend::new(label, state, move || {
             let text = entry.text().to_string();
             if text.is_empty() {
                 return;

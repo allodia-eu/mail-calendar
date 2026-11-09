@@ -64,9 +64,10 @@ impl MailcalApp {
             page.mail = Some(mail);
         }
         page.shared = self.shared_section(&account_id, &hold);
-        page.sign_in = self.sign_in_section(&entry, &hold);
+        let sign_in_refused = self.sign_in_refused(&account_id);
+        page.sign_in = self.sign_in_section(&entry, sign_in_refused, &hold);
         if let Some(servers) = &mut page.servers {
-            servers.sign_in_refused = self.sign_in_refused(&account_id);
+            servers.sign_in_refused = sign_in_refused;
         }
         Some(page)
     }

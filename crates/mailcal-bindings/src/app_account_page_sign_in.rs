@@ -8,18 +8,19 @@ use crate::{
 };
 
 impl MailcalApp {
-    /// `entry`'s Sign-in section as its page draws it, asking its server first when it has not
-    /// answered.
+    /// `entry`'s Sign-in section as its page draws it, its server having `refused` the stored
+    /// sign-in or not, asking its server first when it has not answered.
     pub(crate) fn sign_in_section(
         &self,
         entry: &AccountEntry,
+        refused: bool,
         hold: &Hold,
     ) -> Option<AccountSignIn> {
         self.ask_sign_in_options(&entry.id, false);
         section(
             entry,
             self.account_work.sign_in.options(&entry.id).as_ref(),
-            self.sign_in_refused(&entry.id),
+            refused,
             hold,
         )
     }
@@ -37,7 +38,10 @@ impl MailcalApp {
     /// being asked, or has answered and is not asked `again`. An account whose sign-in Settings
     /// cannot switch is asked nothing: its section needs no answer.
     pub(crate) fn ask_sign_in_options(&self, account_id: &str, again: bool) {
-        if self.registry.sign_in_config(account_id).is_none() {
+        if matches!(
+            self.registry.provider(account_id),
+            None | Some(AccountProvider::Microsoft | AccountProvider::Google)
+        ) {
             return;
         }
         // The app first: a ticket taken with no thread to answer it would hold every later ask.
@@ -50,8 +54,10 @@ impl MailcalApp {
         let account = account_id.to_owned();
         std::thread::spawn(move || {
             let options = app.account_sign_in_options(account.clone());
-            app.account_work.sign_in.answered(&account, ticket, options);
-            app.app.accounts_changed();
+            // An answer the page already draws changes nothing on it.
+            if app.account_work.sign_in.answered(&account, ticket, options) {
+                app.app.accounts_changed();
+            }
         });
     }
 

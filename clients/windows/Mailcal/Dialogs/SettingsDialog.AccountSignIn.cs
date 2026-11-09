@@ -65,7 +65,7 @@ public sealed partial class SettingsDialog
         }
         if (section.Password is { } field)
         {
-            controls.Children.Add(PasswordEntry(entry, field));
+            controls.Children.Add(PasswordEntry(entry, field, all));
         }
         if (section.Switches)
         {
@@ -93,11 +93,14 @@ public sealed partial class SettingsDialog
 
     /// <summary>The password field. One that switches from the provider's sign-in waits behind
     /// "Use a password instead" until it runs; one that replaces a refused password is drawn at
-    /// once. It never shows the credential the account holds, and empties as it is sent.</summary>
-    private StackPanel PasswordEntry(AccountEntry entry, AccountPasswordField field)
+    /// once. It never shows the credential the account holds, and empties as it is sent; while it
+    /// holds text, a redraw waits. Its field and reveal join <paramref name="held"/>, which a
+    /// browser sign-in of the account's holds while the core works on it.</summary>
+    private StackPanel PasswordEntry(AccountEntry entry, AccountPasswordField field, List<Control> held)
     {
         var panel = new StackPanel { Spacing = 8 };
         var form = new StackPanel { Spacing = 8 };
+        var unsent = ControlComponents.Form(form);
         var password = new PasswordBox
         {
             Header = field.Kind == AccountSecretKind.PasswordOrToken
@@ -108,12 +111,14 @@ public sealed partial class SettingsDialog
         // Held, too, while the core works on a browser sign-in of the account's.
         var state = field.Save with { Enabled = field.Save.Enabled && _signInProgress.ControlsEnabled(entry.Id) };
         ControlComponents.HoldFields(state, password);
+        held.Add(password);
         var save = ControlComponents.FormButton(
             field.Replaces ? L10n.ActionSave() : L10n.SettingsAccountSwitchPasswordSave(),
             state, "AccountPasswordSave", AccentButton(), () =>
             {
                 var typed = password.Password;
-                if (typed.Length == 0)
+                // A browser sign-in that began after the field was drawn holds it from here.
+                if (typed.Length == 0 || !_signInProgress.ControlsEnabled(entry.Id))
                 {
                     return;
                 }
@@ -123,11 +128,15 @@ public sealed partial class SettingsDialog
                     _model.CancelAccountSignIn();
                 }
                 EndUnreachedQuestion();
-                password.Password = string.Empty;
                 _model.ChangeAccount(new AccountPageIntent.UsePassword(entry.Id, new TypedPassword(typed)));
+                password.Password = string.Empty;
             });
         save.Ready(string.Empty);
-        password.PasswordChanged += (_, _) => save.Ready(password.Password.Length == 0 ? string.Empty : null);
+        password.PasswordChanged += (_, _) =>
+        {
+            unsent.Unsent = password.Password.Length > 0;
+            save.Ready(password.Password.Length == 0 ? string.Empty : null);
+        };
         form.Children.Add(password);
         form.Children.Add(save.Element);
         if (field.Replaces || field.Save.Running)
@@ -147,6 +156,10 @@ public sealed partial class SettingsDialog
                 form.Visibility = Visibility.Visible;
                 password.Focus(FocusState.Programmatic);
             });
+        if (reveal.Children[0] is Control revealButton)
+        {
+            held.Add(revealButton);
+        }
         panel.Children.Add(reveal);
         panel.Children.Add(form);
         return panel;

@@ -50,15 +50,24 @@ impl SignInAnswers {
         Some(ticket)
     }
 
-    /// The server answered the ask `ticket`. An ask the account's sign-in changed under is
+    /// The server answered the ask `ticket`; `false` when what is kept is what it answered before,
+    /// so the page has nothing new to draw. An ask the account's sign-in changed under is
     /// dropped: it was about the way in the account no longer has.
-    pub(crate) fn answered(&self, account: &str, ticket: u64, options: AccountSignInOptions) {
-        if let Some(answer) = self.answers().get_mut(account)
-            && answer.asking == Some(ticket)
-        {
-            answer.asking = None;
-            answer.options = Some(options);
+    pub(crate) fn answered(
+        &self,
+        account: &str,
+        ticket: u64,
+        options: AccountSignInOptions,
+    ) -> bool {
+        let mut answers = self.answers();
+        let Some(answer) = answers.get_mut(account) else {
+            return true;
+        };
+        if answer.asking != Some(ticket) {
+            return true;
         }
+        answer.asking = None;
+        answer.options.replace(options.clone()) != Some(options)
     }
 
     /// What `account`'s server last answered.
@@ -140,7 +149,8 @@ pub(crate) fn section(
                         replaces: false,
                         save,
                     });
-                    let line = if refused && !routes.is_empty() {
+                    // A password in place of the refused grant is a remedy as much as a sign-in.
+                    let line = if refused && (!routes.is_empty() || password.is_some()) {
                         AccountSignInLine::Refused
                     } else {
                         AccountSignInLine::Provider

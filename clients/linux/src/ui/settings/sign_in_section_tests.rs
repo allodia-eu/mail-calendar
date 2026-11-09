@@ -290,8 +290,8 @@ pub(crate) fn a_running_change_holds_every_control() {
         },
     ));
     let group = draw(&trying, AccountKind::Imap, ACCOUNT, ACCOUNT, None, &sender);
-    let field = password_entry(&group);
-    assert!(field.is_visible() && !field.is_sensitive());
+    let entry = password_entry(&group);
+    assert!(entry.is_visible() && !entry.is_sensitive());
     assert_ne!(descendants::<adw::Spinner>(group.upcast_ref()).len(), 0);
 
     let group = draw(
@@ -308,6 +308,19 @@ pub(crate) fn a_running_change_holds_every_control() {
             .filter(|row| row.is_visible())
             .all(|row| !row.is_sensitive())
     );
+
+    // A password is not tried while the core completes a browser sign-in of the account's.
+    let mut refused = signed_in();
+    refused.password = Some(field(true, IDLE));
+    let group = draw(
+        &refused,
+        AccountKind::Imap,
+        ACCOUNT,
+        ACCOUNT,
+        Some(Stage::Core),
+        &sender,
+    );
+    assert!(!password_entry(&group).is_sensitive());
 }
 
 /// While the browser holds a change, nobody is stranded: every route stays live, so a fresh press

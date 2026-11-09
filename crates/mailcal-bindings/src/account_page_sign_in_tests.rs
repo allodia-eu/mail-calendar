@@ -112,6 +112,15 @@ fn a_provider_account_offers_nothing_until_its_server_answers() {
         Refused
     );
     assert!(!drawn(&account, Some(&options(true, false, false)), true).switches);
+    // A password in place of the refused grant is its remedy too.
+    assert_eq!(
+        drawn(&account, Some(&options(false, true, false)), true).line,
+        Refused
+    );
+    assert_eq!(
+        drawn(&account, Some(&options(false, false, false)), true).line,
+        Provider
+    );
 }
 
 #[test]
@@ -231,15 +240,18 @@ fn a_server_is_asked_once_and_an_answer_about_a_changed_sign_in_is_dropped() {
     let answers = SignInAnswers::default();
     let ticket = answers.ask("a", false).expect("asked");
     assert_eq!(answers.ask("a", true), None, "one ask at a time");
-    answers.answered("a", ticket, options(true, false, false));
+    assert!(answers.answered("a", ticket, options(true, false, false)));
     assert_eq!(answers.options("a"), Some(options(true, false, false)));
     assert_eq!(answers.ask("a", false), None, "answered");
 
     // The page opened again: asked again, and the answer it had is drawn meanwhile.
     let reopened = answers.ask("a", true).expect("asked again");
     assert_eq!(answers.options("a"), Some(options(true, false, false)));
-    answers.answered("a", reopened, options(false, true, false));
+    assert!(answers.answered("a", reopened, options(false, true, false)));
     assert_eq!(answers.options("a"), Some(options(false, true, false)));
+    // The same answer again leaves the page as it is drawn.
+    let same = answers.ask("a", true).expect("asked again");
+    assert!(!answers.answered("a", same, options(false, true, false)));
 
     // The account's way in changed while it was asked: the answer is about the old one.
     answers.forget("a");

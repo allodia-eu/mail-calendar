@@ -65,8 +65,8 @@ Its `sign_in` section is decided the same way: which ways in its server takes is
 as the page opens and kept, the section's line says how the account signs in or that its server
 refused the stored sign-in, and a password typed into its field is a change on the page
 (`UsePassword`), its Save running until the password has connected or been refused. A browser
-sign-in is still the client's to run, so its route's buttons are held by the client's own state
-while it completes one, on top of the section's control.
+sign-in is still the client's to run, so its route's buttons and the password field are held by
+the client's own state while it completes one, on top of the section's control.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 

@@ -123,10 +123,12 @@ private fun PasswordEntry(entry: AccountEntry, field: AccountPasswordField, enab
         AccountSecretKind.PASSWORD -> L10n.setup_field_password(ctx)
         AccountSecretKind.PASSWORD_OR_TOKEN -> L10n.setup_jmap_secret_placeholder(ctx)
     }
-    HeldFields(field.save) { open -> PasswordField(password, { password = it }, title, enabled = open) }
+    // Held, too, while a browser sign-in of the activity's runs ([enabled]).
+    val save = ControlState(enabled = field.save.enabled && enabled, running = field.save.running)
+    HeldFields(save) { open -> PasswordField(password, { password = it }, title, enabled = open) }
     ControlButton(
         label = if (field.replaces) L10n.action_save(ctx) else L10n.settings_account_switch_password_save(ctx),
-        control = field.save,
+        control = save,
         tag = "account-password-save",
         ready = password.isNotEmpty(),
     ) {
