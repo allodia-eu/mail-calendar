@@ -187,12 +187,27 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
         {
             return;
         }
+        // A page just opened is rebuilt by the snapshots that follow it, and a press on the Remove
+        // it replaced lands on a button no longer on screen, so the page never asks. Press the one
+        // on screen until it does.
         void Remove(Element dialog)
         {
-            app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountRemove", Under = dialog })
-                ?? throw new InvalidOperationException("the account's page has no Remove"));
-            app.Agent.Invoke(app.Agent.Wait(new Filter { Id = "AccountRemoveConfirm", Under = dialog }, TimeSpan.FromSeconds(10))
-                ?? throw new InvalidOperationException("Remove asked nothing before removing the account"));
+            app.Agent.Settle();
+            Element? confirm = null;
+            var asked = App.Eventually(() =>
+            {
+                if ((confirm = app.Agent.Find(new Filter { Id = "AccountRemoveConfirm", Under = dialog })) is not null)
+                {
+                    return true;
+                }
+                app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountRemove", Under = dialog })
+                    ?? throw new InvalidOperationException("the account's page has neither Remove nor its confirmation"));
+                app.Agent.Settle();
+                return false;
+            }, TimeSpan.FromSeconds(15));
+            app.Agent.Invoke(asked && confirm is not null
+                ? confirm
+                : throw new InvalidOperationException("Remove asked nothing before removing the account"));
             app.Agent.Settle();
         }
         while (flow.AccountRows().Count(row => row.Name == Address) > 1)

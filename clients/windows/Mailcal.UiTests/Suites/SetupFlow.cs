@@ -49,8 +49,15 @@ internal sealed class SetupFlow(App app)
                 continue;
             }
             var offer = Agent.Find(Filter.ById("DefaultMailAppOffer"));
-            if (offer is not null || Agent.Find(Filter.ById("SenderNamePrompt")) is not null)
+            var prompt = offer is null ? Agent.Find(Filter.ById("SenderNamePrompt")) : null;
+            if (offer is not null || prompt is not null)
             {
+                // The prompt is found the moment it opens, before its buttons are in the tree, and
+                // closing dialogs then finds nothing to press.
+                if (prompt is not null)
+                {
+                    Agent.Wait(Filter.ById("CloseButton", "Button") with { Under = prompt }, TimeSpan.FromSeconds(5));
+                }
                 app.CloseDialogs();
                 if (offer is not null)
                 {
