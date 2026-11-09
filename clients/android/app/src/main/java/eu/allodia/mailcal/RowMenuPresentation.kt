@@ -127,8 +127,8 @@ internal fun purgeMessage(ctx: Context, rows: List<SelectedRow>): String {
     return when {
         rows.size == 1 && threads == 1 -> L10n.delete_permanently_conversation(ctx)
         rows.size == 1 -> L10n.delete_permanently_message(ctx)
-        threads == 0 -> L10n.delete_permanently_message_many(ctx, rows.size.toLong())
-        else -> L10n.delete_permanently_conversations(ctx, rows.size.toLong())
+        threads == 0 -> L10n.delete_permanently_message_many(ctx, rows.size)
+        else -> L10n.delete_permanently_conversations(ctx, rows.size)
     }
 }
 
