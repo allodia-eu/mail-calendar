@@ -28,6 +28,9 @@ struct WindowButtonsLeading: NSViewRepresentable {
         @available(*, unavailable)
         required init?(coder: NSCoder) { nil }
 
+        // It only measures, so a click goes to whatever is under it, the window included.
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
         private var watched: NSObjectProtocol?
 
         // The buttons move after the window first appears: a window gains its toolbar after its

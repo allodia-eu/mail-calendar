@@ -62,7 +62,7 @@ private struct PinnedRowLabelStyle: LabelStyle {
 /// behind a desktop picture.
 struct SidebarMaterial: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
+        let view = ClickThroughEffectView()
         view.material = .sidebar
         view.blendingMode = .behindWindow
         // Vibrancy follows the window, as the tree above does: a bar that stayed lit under an
@@ -72,6 +72,13 @@ struct SidebarMaterial: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+/// A material that takes no clicks: it is a backdrop, so a click on it belongs to what is drawn
+/// over it, or, where the command bar runs it up under the title row, to the window.
+private final class ClickThroughEffectView: NSVisualEffectView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override var mouseDownCanMoveWindow: Bool { true }
 }
 #endif
 

@@ -274,9 +274,12 @@ public struct ContentView: View {
             // Attached here rather than to the `WindowGroup`, for the reason the mail-link
             // routing below is: both need this view's model.
             .toolbar { windowToolbar }
-            // The toolbar draws no background of its own: on mail the command bar's material runs
-            // up under it, so the title row and the bar are one band (Mailcal.CommandBar.swift).
-            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+            // The toolbar paints nothing: on mail the command bar's material runs up under it, so
+            // the title row and the bar are one band (Mailcal.CommandBar.swift). Clear rather than
+            // hidden: a hidden background makes the title bar transparent to AppKit, which then
+            // hands its clicks to the content beneath, and double-clicking it no longer zooms.
+            .toolbarBackground(Color.clear, for: .windowToolbar)
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         #else
         // Each navigation stack carries the banners under its own bar (`bannered`).
         baseLayout

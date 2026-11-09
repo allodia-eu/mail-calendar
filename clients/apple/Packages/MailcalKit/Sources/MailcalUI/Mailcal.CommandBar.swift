@@ -97,7 +97,10 @@ extension ContentView {
             CommandOverflowRow(bar: currentCommandBar, run: runBarItem)
                 .padding(.horizontal, 12)
         }
-        .padding(.vertical, 7)
+        // Little above, because the title row over it already has its own air; the room under
+        // the buttons is what separates the band from the panes.
+        .padding(.top, 1)
+        .padding(.bottom, 8)
         // The sidebar's own material, run up under the title row: the title row, the bar and the
         // sidebar are one grey frame of window chrome around the white panes, as in Outlook, and
         // it follows dark mode and the desktop's tint as the sidebar does. A colour cannot: the
