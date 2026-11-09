@@ -400,9 +400,11 @@ capturing the redirect), because that is inherently platform-specific.
     `unreachable_accounts` (the server *was* reached and answered: "can't reach this account's
     server" would be a lie, and the two prompts would contradict each other); only a **successful**
     sync retracts the prompt, never a transport failure or a concurrent-sync skip, since neither is
-    evidence the credential works; and the button asks `MailcalApp::account_provider` which sign-in
-    to launch, because unlike rule 11 this can hit a Microsoft, Google, JMAP **or** password
-    account: the ones without a browser flow are pointed at Settings instead. Like the re-consent
+    evidence the credential works; and the core decides which sign-in the button runs, because
+    unlike rule 11 this can hit a Microsoft, Google, JMAP **or** password account: one with a
+    browser flow is offered `SignInAgain`, which a client sends as `AccountPageIntent::SignIn` and
+    the core runs as that account's sign-in ([`waiting.md`](waiting.md)), and one without is
+    pointed at Settings (`OpenAccountSettings`). Like the re-consent
     prompts it is **not** suppressed while offline, and the raise/clear is logged for support with
     a count and a reason, **never** the address.
 
@@ -487,6 +489,14 @@ capturing the redirect), because that is inherently platform-specific.
     JMAP flows), so starting before the old flow releases it would orphan one of the two. A form
     that disables its own buttons while submitting is **not** a substitute: the prompt that
     needs this is on another screen entirely.
+
+    **An existing account's sign-in is superseded in the core.** From its page, a use that asks
+    its provider or a prompt, a client sends `AccountPageIntent::SignIn`, which replaces the
+    attempt still out (`MailcalApp::browser_sign_in`, [`waiting.md`](waiting.md)); it opens the
+    browser for the attempt the core holds and hands back its return naming that attempt, so a
+    return from one the core no longer holds is dropped there, and it keeps no attempt of its own.
+    The cancel-then-wait above binds what a client still runs itself: setup's sign-ins, and its own
+    redirect listener when the attempt it listened for is over.
 
 14. **Re-authorising an existing OAuth JMAP account replays its persisted grant; it never
     re-discovers or re-registers.** `begin_jmap_reauth(account_id)` reads that account's own
@@ -685,8 +695,8 @@ single provider's table):
 | Gate | Shared core | Apple (macOS/iOS/iPadOS) | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|
 | Expired sign-in prompt (`signin_expired_accounts`, classified on `FailureClass::Authentication`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Prompt routes to the right sign-in via `MailcalApp::account_provider` (Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
-| A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded; a sign-in in place ends the one before it | ✅ `SignInFlight` | ✅ never guarded | ✅ `AttemptSlot` |
+| Prompt runs the account's own sign-in through the core (`SignInAgain` → `AccountPageIntent::SignIn`; Settings where there is no browser flow) | ✅ | ✅ | ✅ Google · OAuth JMAP · Microsoft untested | ✅ | ✅ Microsoft · Google · OAuth JMAP runtime-verified; stored-secret repair code-complete |
+| A second sign-in request supersedes one abandoned in the browser (rule 13) | ✅ an existing account's (`browser_sign_in`) | ✅ the core's for an existing account; a setup sign-in in place ends the one before it | ✅ the core's for an existing account; `SignInFlight` for setup's | ✅ the core's for an existing account | ✅ the core's for an existing account; `AttemptSlot` for setup's |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`UsePassword`) | ✅ | ✅ | ✅ | ✅ | ✅ |

@@ -19,8 +19,9 @@ before the work does.
    write another's (a link is stored on both ends). A change that still arrives meanwhile, as a
    text field sends what was typed when the held page takes its focus, waits and runs next, drawn
    running from then; the same work asked for again is dropped. The exception is a browser
-   sign-in, where a fresh press supersedes the attempt still out
-   ([`provider-oauth.md`](provider-oauth.md) rule 13).
+   sign-in waiting on the person, where a fresh press supersedes the attempt still out
+   ([`provider-oauth.md`](provider-oauth.md) rule 13); once the browser has returned, its
+   completion is a change like any other.
 3. **When the surface the control sat on closes, the progress goes on where the person lands.** A
    dialog that closes on Save hands its progress to the surface beneath it (the calendar's write
    badge, the send banner, the contacts list's "Saving…" line) on every surface it can close onto.
@@ -64,9 +65,19 @@ or adding one is a change on the page, and the server's answer is the core's to 
 Its `sign_in` section is decided the same way: which ways in its server takes is asked by the core
 as the page opens and kept, the section's line says how the account signs in or that its server
 refused the stored sign-in, and a password typed into its field is a change on the page
-(`UsePassword`), its Save running until the password has connected or been refused. A browser
-sign-in is still the client's to run, so its route's buttons and the password field are held by
-the client's own state while it completes one, on top of the section's control.
+(`UsePassword`), its Save running until the password has connected or been refused.
+An account's browser sign-in is the core's too (`MailcalApp::browser_sign_in`), from the press
+to the account it changes, whether its page's route, a use that asks its provider or a notice
+started it: `SignIn` starts it in place of any still out, and the core asks the server to start
+it, asks the question a switch would raise (`Asking`, [`accounts.md`](accounts.md) rule 18), waits
+on the browser (`InBrowser`) for at most five minutes, asks a Nextcloud server itself whether the
+person has finished, and completes it as a change on the page (`Completing`). A client opens the
+browser once for each attempt, listens where it returns and hands back what came
+(`SignInBrowserEnded`); it keeps no step, timer or handle of its own. The page draws it from the
+section's `browser`: the control that started it running while the core starts or completes it,
+a line saying it waits on the browser with its Cancel (`CancelSignIn`), and the password field
+held while it is out. What it came to is the page's notice, a failure or a use the provider still
+withholds, and a notice it answers is drawn running while it is out and says when it failed.
 The question that allows a calendar or address book onto a server found on another site is the
 core's too (`account_server_change`), whichever surface opened it: Allow is a change on the page
 (`AllowServerChange`), the question stays open while it runs with "Not now" waiting for it, says
@@ -105,6 +116,7 @@ record, not a state the client keeps.
 | An account's page: its Sign-in section drawn from `account_page`, a typed password sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A server found on another site: the question drawn from `account_server_change`, Allow sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -151,6 +163,16 @@ record, not a state the client keeps.
   [`app_account_page_separate_tests.rs`](../crates/mailcal-bindings/src/app_account_page_separate_tests.rs)
   drives both through `dispatch`: placed under the use that needs it, a refused Connect said on
   the form with the login tried, and Skip switching the use off.
+- [`account_page_browser_tests.rs`](../crates/mailcal-bindings/src/account_page_browser_tests.rs)
+  pins the browser sign-in's steps: a fresh one superseding the one out and its server's late
+  answer dropped, the question before the browser carrying its answer, a completion nothing
+  supersedes or cancels, a wait ending on its cap only if nothing moved it, and a Nextcloud grant
+  kept for its account's next sign-in and withdrawn by another's;
+  [`app_account_page_browser_tests.rs`](../crates/mailcal-bindings/src/app_account_page_browser_tests.rs)
+  drives one through `dispatch`: the browser returning where the stored grant was registered, a
+  return from another request, a superseded attempt's return dropped, a cancel, a browser that
+  did not open, one left until the cap, and the notice it answers running and then saying it
+  failed.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
