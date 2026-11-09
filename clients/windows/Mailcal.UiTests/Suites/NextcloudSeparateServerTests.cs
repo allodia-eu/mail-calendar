@@ -12,7 +12,8 @@
 // Nextcloud fixture (docker/nextcloud in email-calendar-sync-engine, 127.0.0.1:18082), which refuses
 // the harness password, as any separate server would. The sign-in opens the default browser on the
 // fixture's login page, and Driver/NextcloudBrowser.cs does in its place what the person does there.
-// The cases run in the order written; the last removes both accounts.
+// The cases run in the order written; the last removes both accounts. The fixture slows and then
+// refuses sign-ins as the refused ones mount up, so the case that needs a password it takes runs first.
 
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
@@ -23,6 +24,9 @@ namespace Allodia.Mailcal.UiTests.Suites;
 public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : IClassFixture<SetupHarnessApp>
 {
     private const string Address = "alice@test.local";
+
+    // The fixture's own login for alice, which the form is given.
+    private const string SeparateLogin = "alice";
 
     private void Case(string name, Action<App, SetupFlow> body) =>
         harness.Case(name, app => body(app, new SetupFlow(app)), app => app.CloseDialogs(), reset: false);
@@ -71,6 +75,50 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
     }
 
     [NextcloudFixtureFact(NeedsHarness = true)]
+    public void AWrongPasswordIsHeldThenRefusedOnTheStepAndThePageAndARightOneClosesThePagesForm() =>
+        harness.Case(nameof(AWrongPasswordIsHeldThenRefusedOnTheStepAndThePageAndARightOneClosesThePagesForm), app =>
+        {
+            var flow = new SetupFlow(app);
+            ConnectToTheSeparateServerStep(app, flow);
+            AssertAWrongPasswordIsHeldThenRefused(app, null, "the setup step");
+
+            // Skip stops using the calendar, as a change on the page, and the step gives way to the
+            // link step. It touches no server, so it ends before a ring could be sampled.
+            var skip = app.Agent.Find(Filter.ById("SeparateServerSecondary", "Button"))
+                ?? throw new InvalidOperationException("the separate-server step offers no Skip");
+            app.Agent.Invoke(skip);
+            Assert.True(app.Agent.WaitGone(Filter.ById("SeparateServerConnect", "Button"), TimeSpan.FromSeconds(30)),
+                "Skip leaves the separate-server step");
+            flow.CompleteSetupPrompts();
+
+            var dialog = flow.OpenAccount(Address);
+            app.Agent.SetToggle(InPage(app, dialog, "AccountUse_Calendar")
+                ?? throw new InvalidOperationException("the account page has no calendar switch"), true);
+            Element? action = null;
+            Assert.True(App.Eventually(() => (action = InPage(app, dialog, "AccountUseSeparateSignIn_Calendar")) is { Enabled: true }, TimeSpan.FromSeconds(60)),
+                "the calendar, refused again, offers a sign-in of its own on its row");
+            // The calendar is the one use the fixture's server holds, so the action is under its row
+            // and under no other. Read off the rows rather than the screen: the page lays its rows
+            // out below the fold, where a rectangle reads empty.
+            Assert.Null(InPage(app, dialog, "AccountUseSeparateSignIn_Contacts"));
+            Assert.Null(InPage(app, dialog, "AccountUseSeparateSignIn_Mail"));
+            // Looked up again: the page is drawn afresh while the switch lands.
+            app.Agent.Invoke(InPage(app, dialog, "AccountUseSeparateSignIn_Calendar") ?? action!);
+            if (app.Agent.Wait(new Filter { Id = "SeparateServerConnect", Under = dialog }, TimeSpan.FromSeconds(10)) is null)
+            {
+                throw new InvalidOperationException("the action opened no form");
+            }
+            AssertAWrongPasswordIsHeldThenRefused(app, dialog, "the account's page");
+
+            app.Agent.SetValue(InPage(app, dialog, "SeparateServerPassword")!, "nextcloud-alice-pw");
+            app.Agent.Invoke(InPage(app, dialog, "SeparateServerConnect")!);
+            Assert.True(app.Agent.WaitGone(new Filter { Id = "SeparateServerConnect", Under = dialog }, TimeSpan.FromSeconds(60)),
+                "a password the server takes moves the calendar to an account of its own, and the form closes");
+            Assert.True(App.Eventually(() => InPage(app, dialog, "AccountUseSeparateSignIn_Calendar") is null, TimeSpan.FromSeconds(10)),
+                "and the action does not come back: nothing waits on a sign-in any more");
+        }, app => RemoveAll(app, new SetupFlow(app)), reset: false);
+
+    [NextcloudFixtureFact(NeedsHarness = true)]
     public void AUseSwitchedBackOnOffersItsOwnSignInFromItsRowAndItsFormTakesTheActionsPlace() =>
         Removing(nameof(AUseSwitchedBackOnOffersItsOwnSignInFromItsRowAndItsFormTakesTheActionsPlace), (app, flow) =>
         {
@@ -97,6 +145,82 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
                 && InPage(app, dialog, "SeparateServerConnect") is null, TimeSpan.FromSeconds(10)),
                 "Cancel closes the form and puts the action back");
         });
+
+    /// <summary>
+    /// Connects the form under <paramref name="root"/> (the window, or the account's page) with a
+    /// password the fixture refuses, and asserts what docs/waiting.md asks of it: Connect's ring and
+    /// the fields held while it runs, then the refusal under the fields with the login kept.
+    /// </summary>
+    private static void AssertAWrongPasswordIsHeldThenRefused(App app, Element? root, string where)
+    {
+        Element InForm(string id) =>
+            app.Agent.Find(new Filter { Id = id, Under = root }) ?? throw new InvalidOperationException($"{where}'s form has no #{id}");
+        app.Agent.SetValue(InForm("SeparateServerUsername"), SeparateLogin);
+        app.Agent.SetValue(InForm("SeparateServerPassword"), "not-alices-password");
+        Element? connect = null;
+        App.Eventually(() => (connect = InForm("SeparateServerConnect")) is { Enabled: true }, TimeSpan.FromSeconds(5));
+        app.Agent.Invoke(connect!);
+
+        // Sampled until the answer is drawn: the fixture takes a moment to refuse a password.
+        var held = false;
+        // Read off the tree rather than the screen: the account's page lays the form out below the
+        // fold, where every rectangle reads empty.
+        bool Refused() => app.Agent.Find(new Filter { Id = "SeparateServerError", Under = root }) is { } error
+            && app.Agent.FindAll(new Filter { Under = error }).Any(e => e.Name.Length > 0);
+        Assert.True(App.Eventually(() =>
+        {
+            // Connect's ring is read where the form is on screen (setup's step): below the fold, a
+            // ring and a collapsed one both read empty. The fields held are read on both.
+            held |= (root is not null || app.Agent.Find(new Filter { Id = "SeparateServerConnect_Running" }) is { Rendered: true })
+                && app.Agent.Find(new Filter { Id = "SeparateServerPassword", Under = root }) is { Enabled: false }
+                && app.Agent.Find(new Filter { Id = "SeparateServerConnect", Under = root }) is { Enabled: false };
+            return Refused();
+        }, TimeSpan.FromSeconds(60)), $"{where}: a password the server refuses is said under the fields; the error holds: "
+            + string.Join(" | ", app.Agent.Find(new Filter { Id = "SeparateServerError", Under = root }) is { } shown
+                ? app.Agent.FindAll(new Filter { Under = shown }).Select(e => $"{e.Type} '{e.Name}'")
+                : ["no error element"]));
+        Assert.True(held, $"{where}: while Connect ran, the fields and Connect were held{(root is null ? ", with Connect's ring showing" : "")} (docs/waiting.md)");
+        Assert.Equal(SeparateLogin, app.Agent.Read(InForm("SeparateServerUsername")).Value);
+        Assert.True(InForm("SeparateServerPassword").Enabled, $"{where}: the fields are handed back for another try");
+    }
+
+    /// <summary>Removes every account of <paramref name="address"/>, the linked calendar account
+    /// first, and waits for the first-run screen.</summary>
+    private static void RemoveAll(App app, SetupFlow flow)
+    {
+        app.CloseDialogs();
+        if (app.Agent.Find(Filter.ById("DetectEmail", "Edit") with { OnScreen = true }) is not null)
+        {
+            return;
+        }
+        void Remove(Element dialog)
+        {
+            app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountRemove", Under = dialog })!);
+            app.Agent.Invoke(app.Agent.Wait(new Filter { Id = "AccountRemoveConfirm", Under = dialog }, TimeSpan.FromSeconds(10))!);
+            app.Agent.Settle();
+        }
+        while (flow.AccountRows().Count(row => row.Name == Address) > 1)
+        {
+            Remove(flow.OpenAccount(Address));
+        }
+        // The calendar account a password made is named by the login typed, which is no address,
+        // so the list's own lookup does not see it.
+        flow.AccountRows();
+        var settings = flow.Settings();
+        if (app.Agent.Find(new Filter { Type = "Button", Name = SeparateLogin, Under = settings }) is { } linked)
+        {
+            app.Agent.Invoke(linked);
+            if (app.Agent.Wait(new Filter { Id = "AccountRemove", Under = settings }, TimeSpan.FromSeconds(10)) is not null)
+            {
+                Remove(settings);
+            }
+        }
+        app.CloseDialogs();
+        if (flow.AccountRows().Any(row => row.Name == Address))
+        {
+            flow.RemoveOnlyAccount(Address);
+        }
+    }
 
     [NextcloudFixtureFact(NeedsHarness = true)]
     public void AMailboxWhoseCalendarServerIsNextcloudIsOfferedItsSignInOnTheSeparateServerStep() =>
