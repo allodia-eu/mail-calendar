@@ -85,6 +85,14 @@ struct ServerChangeDialog: View {
             #else
                 words(question)
             #endif
+            // Outside the scrolled text, so the answer to the press sits beside the buttons rather
+            // than below a half-height sheet's fold.
+            if question.failed {
+                Text(L10n.server_changed_failed())
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack(spacing: 10) {
                 Spacer()
                 ControlButton(
@@ -127,11 +135,6 @@ struct ServerChangeDialog: View {
             .padding(.leading, 12)
             Text(L10n.server_changed_advice())
             Text(ServerChangeLabels.unsure(change))
-            if question.failed {
-                Text(L10n.server_changed_failed())
-                    .font(.callout)
-                    .foregroundStyle(.red)
-            }
         }
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: .infinity, alignment: .leading)
