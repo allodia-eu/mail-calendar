@@ -123,15 +123,15 @@ struct Issuer {
     resource: Option<String>,
 }
 
-#[uniffi::export]
 impl MailcalApp {
     /// Whether the separate server holding `uses` of `account_id` can be signed in to through
     /// its own provider: it names an authorization server whose tokens may be sent to it, that
     /// offers its scopes and registers this app. Decides whether the form offers the sign-in
-    /// beside its password field.
+    /// beside its password field; the core asks it for the account's page, and it is public for
+    /// the integration tests.
     ///
-    /// **Blocking** (a few metadata requests); call it off the UI thread. Never an error: a
-    /// server that cannot be asked offers the password, which is what works everywhere.
+    /// **Blocking** (a few metadata requests). Never an error: a server that cannot be asked
+    /// offers the password, which is what works everywhere.
     pub fn separate_server_offers_sign_in(
         &self,
         account_id: String,
@@ -147,7 +147,10 @@ impl MailcalApp {
             })
             .is_ok()
     }
+}
 
+#[uniffi::export]
+impl MailcalApp {
     /// Starts signing `uses` of `account_id` in at their server's own provider: discovers the
     /// issuer, registers this app with it, and returns the authorization URL.
     ///

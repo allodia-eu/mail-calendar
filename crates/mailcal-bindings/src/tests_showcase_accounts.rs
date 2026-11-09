@@ -175,8 +175,12 @@ fn showcase_can_ask_every_question_as_a_notice() {
         &primary.address,
         &device,
     );
-    app.dispatch(crate::Intent::ReportDeviceTimeZone {
-        id: "Europe/Amsterdam".to_owned(),
+    // The launch's own report, awaited: through `dispatch` it is a task of its own, which may run
+    // after the dismiss below and raise the question again.
+    app.runtime.block_on(|| {
+        app.app.dispatch(mailcal_app::Intent::ReportDeviceTimeZone(
+            "Europe/Amsterdam".to_owned(),
+        ))
     });
 
     let notices = app.notices().notices;

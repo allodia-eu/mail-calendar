@@ -110,10 +110,6 @@ pub(crate) fn entries(
                     suggested: suggested(facts, &links, index),
                 }
             },
-            separate_server: separate_server(
-                account,
-                problems.get(&account.id).copied().unwrap_or_default(),
-            ),
             distinction: told[index].clone(),
             mail_sync: None,
             nextcloud: account.nextcloud,
@@ -127,43 +123,6 @@ pub(crate) struct DavServer {
     pub(crate) capability: Capability,
     pub(crate) base_url: String,
     pub(crate) username: String,
-}
-
-/// The server `account`'s calendar or contacts need a sign-in of their own at: those it is used
-/// for whose server needs one or refused the account's.
-fn separate_server(
-    account: &AccountFacts,
-    problems: mailcal_app::UseProblems,
-) -> Option<crate::SeparateServer> {
-    let needs = |capability| {
-        let problem = match capability {
-            Capability::Calendar => problems.calendar,
-            Capability::Contacts => problems.contacts,
-            _ => None,
-        };
-        account.chosen.contains(capability)
-            && matches!(
-                problem,
-                Some(
-                    mailcal_app::UseProblem::NeedsOwnSignIn
-                        | mailcal_app::UseProblem::SignInRefused
-                )
-            )
-    };
-    let servers: Vec<&DavServer> = account
-        .dav_servers
-        .iter()
-        .filter(|server| needs(server.capability))
-        .collect();
-    let first = servers.first()?;
-    Some(crate::SeparateServer {
-        uses: servers
-            .iter()
-            .map(|server| server.capability.into())
-            .collect(),
-        host: host_of(&first.base_url)?,
-        username: first.username.clone(),
-    })
 }
 
 /// The host of `base_url`, with its port when it names one.

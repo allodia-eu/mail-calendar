@@ -51,7 +51,6 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         links: AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
-        separate_server: None,
         distinction: None,
         mail_sync: None,
         nextcloud: false,
@@ -118,6 +117,7 @@ fn a_switch_the_core_would_refuse_is_held_and_says_why_and_one_it_would_make_is_
             asks_provider: false,
             confirms_off: true,
             reviews_server_change: false,
+            signs_in_separately: false,
         },
         "an on switch is asked what switching it off would do"
     );

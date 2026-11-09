@@ -89,3 +89,40 @@ impl std::fmt::Debug for TypedPassword {
         f.write_str("TypedPassword(..)")
     }
 }
+
+/// A mailbox's calendar and contacts on a server its sign-in does not reach, or that refused it
+/// (`docs/accounts.md` rule 18): the form that gives them a sign-in of their own, as an account
+/// linked to the mailbox. Drawn on the account's page and as setup's step after the add.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountSeparateServer {
+    /// The uses that move to the account the sign-in makes, calendar before contacts.
+    pub uses: Vec<crate::AccountCapability>,
+    /// The server's host, with its port when it names one: what the form says the sign-in is
+    /// for. Never a path, which can carry the person's address.
+    pub host: String,
+    /// The login the form is drawn with: the one being tried while Connect runs, else the one the
+    /// last connect was refused with, else the login the mailbox holds there, else its address.
+    pub username: String,
+    /// The way in the server offers above the password, once it has said so; the core asks it
+    /// when the page opens. `None` while it takes only a password.
+    pub sign_in: Option<AccountSeparateSignIn>,
+    /// Connect, sent as `AccountPageIntent::ConnectSeparateServer` with what was typed, running
+    /// while the password is tried.
+    pub connect: ControlState,
+    /// Setup's Skip, sent as `AccountPageIntent::StopUsingSeparateServer`: the account stops
+    /// being used for `uses`, running while they are switched off.
+    pub stop_using: ControlState,
+    /// Why the last Connect or Skip left the uses where they are, until another is pressed. One
+    /// that worked leaves no form to draw.
+    pub failed: Option<crate::AccountChangeRefusal>,
+}
+
+/// The way in a separate server offers besides its password. Signing in through it is still the
+/// client's to run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AccountSeparateSignIn {
+    /// At the server's own provider, in the browser (`docs/mail-oauth.md` rule 13).
+    Provider,
+    /// With Nextcloud, in the browser (`docs/nextcloud-sign-in.md`).
+    Nextcloud,
+}

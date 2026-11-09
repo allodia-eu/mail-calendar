@@ -36,7 +36,6 @@ fn jmap(calendar: CapabilityState, candidates: Vec<LinkedAccount>) -> AccountsSn
                 calendar: candidates,
                 ..LinkCandidates::default()
             },
-            separate_server: None,
             distinction: None,
             mail_sync: None,
             nextcloud: false,

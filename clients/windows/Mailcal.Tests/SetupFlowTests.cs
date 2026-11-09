@@ -109,11 +109,19 @@ public class SetupFlowTests
     {
         var steps = StepsOf(Snapshot());
         var separate = new SeparateServerStep(
-            "alice@imap", [AccountCapability.Calendar], UnreachedTitle.Calendar, "dav.example.org", "alice@example.org");
+            "alice@imap", UnreachedUsesRulesTests.Section(AccountCapability.Calendar), UnreachedTitle.Calendar);
         var flow = new SetupFlow();
         Assert.True(flow.AccountAdded("alice@imap", steps, separate));
         Assert.Same(separate, flow.SeparateServer);
         Assert.Null(flow.Links);
+
+        // The core drew it again: the step on screen follows, and another account's does not
+        // replace it.
+        var redrawn = separate with { Section = separate.Section with { Username = "alice2" } };
+        flow.Redraw(redrawn);
+        Assert.Same(redrawn, flow.SeparateServer);
+        flow.Redraw(separate with { AccountId = "bob@imap" });
+        Assert.Same(redrawn, flow.SeparateServer);
 
         // Connected or skipped, the account's own link step follows.
         Assert.True(flow.SeparateServerDone(steps));
@@ -136,7 +144,7 @@ public class SetupFlowTests
         flow.AccountAdded("alice@imap", steps);
         flow.AddLinked();
         var separate = new SeparateServerStep(
-            "alice@dav", [AccountCapability.Contacts], UnreachedTitle.Contacts, "dav.example.org", "alice");
+            "alice@dav", UnreachedUsesRulesTests.Section(AccountCapability.Contacts), UnreachedTitle.Contacts);
         Assert.True(flow.AccountAdded("alice@dav", steps, separate));
         Assert.Null(flow.ReturningTo);
         Assert.True(flow.SeparateServerDone(steps));

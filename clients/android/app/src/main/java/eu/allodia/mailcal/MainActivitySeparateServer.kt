@@ -1,37 +1,13 @@
 // A calendar or address book given a sign-in of its own (docs/accounts.md rule 18), from setup's
-// step after a sign-in that did not reach them and from the account page. The connect blocks (two
-// connects), and Skip's switching off deletes, so both run off the main thread.
+// step after a sign-in that did not reach them and from the account page. Connect and Skip are
+// changes on the account's page, which the core runs off this thread and draws on its section;
+// the form ends once the core draws none.
 package eu.allodia.mailcal
 
-import kotlin.concurrent.thread
-import uniffi.mailcal_bindings.CapabilityChange
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.TypedPassword
 
-/**
- * Moves the uses [state]'s form names to an account of their own signing in as [username] with
- * [password], then goes on as [separateLinked] says; a failure is said under the fields.
- */
-private fun MainActivity.connectSeparate(state: SeparateSignIn, username: String, password: String) {
-    val instance = app ?: return
-    val form = state.form ?: return
-    if (!state.start()) return
-    thread(name = "mailcal-separate-server") {
-        val answer = runCatching {
-            instance.addLinkedCalendarAccount(form.accountId, form.uses, username, password)
-        }
-        mainHandler.post {
-            answer.onSuccess {
-                logUiInfo("accounts: a calendar or address book now signs in on its own")
-                separateLinked(state)
-            }
-            answer.onFailure {
-                logUiWarn("accounts: a calendar or address book did not connect on its own: ${coreErrorText(it)}")
-                state.failed(coreErrorSaid(it, this) ?: L10n.error_unknown(this))
-            }
-        }
-    }
-}
-
-/** The uses moved to an account of their own, by a password or a sign-in: the lists redraw. */
+/** The uses moved to an account of their own, or were switched off: the lists redraw. */
 internal fun MainActivity.separateAccountAdded() {
     refreshAccountsSnapshot()
     pullNotices()
@@ -41,11 +17,11 @@ internal fun MainActivity.separateAccountAdded() {
 }
 
 /**
- * Where a form goes once its uses have an account of their own, however they got it: setup's step
- * on to the link step, whose pickers already show the new link, and the page's dialog closed, the
- * page redrawing from the next snapshot.
+ * Where a form goes once nothing needs it, however that came about: setup's step on to the link
+ * step, whose pickers already show the new link, and the page's dialog closed.
  */
 internal fun MainActivity.separateLinked(state: SeparateSignIn) {
+    // First, so the link step is drawn from the accounts as they are now.
     separateAccountAdded()
     if (state !== setupFlow.separate) {
         state.close()
@@ -54,41 +30,36 @@ internal fun MainActivity.separateLinked(state: SeparateSignIn) {
     if (!setupFlow.separateDone(::linkStepFor)) finishSetup()
 }
 
-/** Setup's step: Connect. */
-internal fun MainActivity.connectSetupSeparate(username: String, password: String) {
-    connectSeparate(setupFlow.separate, username, password)
+/** Draws each open form again from the core, after a signal that may have moved it. */
+internal fun MainActivity.refreshSeparate() {
+    val instance = app ?: return
+    listOf(setupFlow.separate, accountSettings.separate).forEach { state ->
+        val form = state.form ?: return@forEach
+        if (!state.redraw(instance.accountPage(form.accountId)?.separateServer)) separateLinked(state)
+    }
+}
+
+/** Connect: what was typed, tried by the core as a change on the account's page. */
+internal fun MainActivity.connectSeparate(state: SeparateSignIn, username: String, password: String) {
+    val form = state.form ?: return
+    if (!state.sending()) return
+    changeAccount(AccountPageIntent.ConnectSeparateServer(form.accountId, username, TypedPassword(password)))
 }
 
 /** Setup's step: Skip switches off exactly the uses the sign-in did not reach, then goes on. */
 internal fun MainActivity.skipSetupSeparate() {
     val state = setupFlow.separate
     val form = state.form ?: return
-    val instance = app
-    if (instance == null) {
+    if (app == null) {
         if (!setupFlow.separateDone(::linkStepFor)) finishSetup()
         return
     }
-    if (!state.start()) return
-    thread(name = "mailcal-separate-skip") {
-        UnreachedRules.skipChanges(form.uses).forEach { (capability, on) ->
-            runCatching { instance.setAccountCapability(form.accountId, capability, on) }
-                .onSuccess { if (it != CapabilityChange.APPLIED) logUiWarn("setup: a use was not switched off: $it") }
-                .onFailure { logUiWarn("setup: a use could not be switched off: ${coreErrorText(it)}") }
-        }
-        mainHandler.post {
-            refreshAccountsSnapshot()
-            if (!setupFlow.separateDone(::linkStepFor)) finishSetup()
-        }
-    }
+    if (!state.sending(skip = true)) return
+    changeAccount(AccountPageIntent.StopUsingSeparateServer(form.accountId))
 }
 
 /** The account page's action: the form for every use of [accountId] that needs this. */
 internal fun MainActivity.openPageSeparate(accountId: String) {
-    val entry = accountSettings.entry(accountId) ?: return
-    UnreachedRules.form(entry)?.let { accountSettings.separate.open(it) }
-}
-
-/** The account page's Connect. */
-internal fun MainActivity.connectPageSeparate(username: String, password: String) {
-    connectSeparate(accountSettings.separate, username, password)
+    val section = app?.accountPage(accountId)?.separateServer ?: return
+    UnreachedRules.form(accountId, section)?.let { accountSettings.separate.open(it) }
 }

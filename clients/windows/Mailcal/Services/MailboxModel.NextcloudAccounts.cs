@@ -76,25 +76,6 @@ public sealed partial class MailboxModel
     /// <summary>Withdraws the grant an account's page held for another try: Settings closed.</summary>
     internal void ReleaseAccountNextcloudGrant() => AbandonNextcloudGrant(_accountNextcloud.Release());
 
-    /// <summary>Whether <paramref name="step"/>'s server is Nextcloud. Blocking in the core, so off
-    /// the UI thread; never throws, and anything that goes wrong reads as "no".</summary>
-    internal async Task<bool> SeparateServerOffersNextcloudSignInAsync(SeparateServerStep step)
-    {
-        if (_app is not { } app)
-        {
-            return false;
-        }
-        try
-        {
-            return await Task.Run(() => app.SeparateServerOffersNextcloudSignIn(step.AccountId, step.Uses.ToArray()));
-        }
-        catch (Exception ex)
-        {
-            Log.Warn($"asking whether a calendar server is Nextcloud failed: {CoreError.Describe(ex)}");
-            return false;
-        }
-    }
-
     /// <summary>
     /// The separate-server step's sign-in when its server is Nextcloud: a grant the form held from
     /// the last press goes straight to the core; otherwise the browser is asked for one. The uses

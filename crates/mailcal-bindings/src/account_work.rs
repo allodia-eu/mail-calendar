@@ -54,6 +54,12 @@ pub(crate) enum PageWork {
     Password,
     /// Allowing the new servers the question showed.
     ServerChange(crate::ServerChange),
+    /// Signing the separate server in as this login; the password is never kept.
+    SeparateServer {
+        username: String,
+    },
+    /// Switching off the uses the separate server holds.
+    StopSeparate,
 }
 
 impl PageWork {
@@ -91,6 +97,10 @@ impl PageWork {
             AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
             AccountPageIntent::UsePassword { .. } => Self::Password,
             AccountPageIntent::AllowServerChange { shown, .. } => Self::ServerChange(shown.clone()),
+            AccountPageIntent::ConnectSeparateServer { username, .. } => Self::SeparateServer {
+                username: username.clone(),
+            },
+            AccountPageIntent::StopUsingSeparateServer { .. } => Self::StopSeparate,
         }
     }
 }
@@ -146,6 +156,9 @@ pub(crate) struct AccountWork {
     pub(crate) sign_in: crate::account_page::sign_in::SignInAnswers,
     /// The server change each account's last allow did not move it onto.
     server_change_failed: Mutex<HashMap<String, crate::ServerChange>>,
+    /// What each account's separate server last said of the ways in it takes besides a password,
+    /// and what its last Connect or Skip came to.
+    pub(crate) separate: crate::account_page::separate::SeparateState,
     raised: AtomicU64,
 }
 
@@ -226,6 +239,7 @@ impl AccountWork {
         self.shared.forget(account);
         self.sign_in.forget(account);
         self.server_change_tried(account, None);
+        self.separate.forget(account);
     }
 
     /// What `account`'s last allow of a server change came to: `failed` is the change it did not

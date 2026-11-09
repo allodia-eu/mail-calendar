@@ -21,12 +21,12 @@ public sealed partial class SettingsDialog
         var stack = new StackPanel { Spacing = 8 };
         foreach (var use in page.Uses)
         {
-            stack.Children.Add(UseRow(entry, use));
+            stack.Children.Add(UseRow(entry, use, page));
         }
         return Group(L10n.SettingsAccountUsesHeading(), L10n.SettingsAccountUsesDescription(), stack);
     }
 
-    private StackPanel UseRow(AccountEntry entry, AccountUseSwitch use)
+    private StackPanel UseRow(AccountEntry entry, AccountUseSwitch use, AccountPage page)
     {
         var capability = use.Capability;
         var row = new StackPanel { Spacing = 2 };
@@ -90,7 +90,7 @@ public sealed partial class SettingsDialog
         row.Children.Add(toggle.Element);
         // Both open something and start nothing, so they are only held while a change runs.
         var held = use.Control with { Running = false };
-        if (SeparateServerAction(entry, capability, held) is { } separate)
+        if (SeparateServerAction(entry, use, page, held) is { } separate)
         {
             row.Children.Add(separate);
         }

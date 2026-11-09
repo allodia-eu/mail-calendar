@@ -1,8 +1,10 @@
 // The sign-in a calendar or address book server of its own is asked for (docs/accounts.md rule
 // 18): a step of setup after the mail sign-in (docs/onboarding.md, "After the connect: a calendar
 // on a server of its own"), and an inline form on the account's page under the use that needs it.
-// One set of fields for both, so the two cannot drift. Where that server's own provider may sign
-// it in (docs/mail-oauth.md rule 13), the sign-in leads and the password waits behind it.
+// One set of fields for both, so the two cannot drift. Both draw the core's section, which the
+// model reads again on every signal; the form ends once the core draws none. Where that server's
+// own provider may sign it in (docs/mail-oauth.md rule 13), the sign-in leads and the password
+// waits behind it.
 
 import MailcalBindings
 import SwiftUI
@@ -34,7 +36,7 @@ private struct SeparateServerFields: View {
                 ) {
                     form.startNextcloud(model, ask, done: done)
                 }
-                .disabled(form.busy)
+                .disabled(form.holding)
             }
             if form.signIn.showsPasswordFields(ask) {
                 TextField(L10n.setup_field_username(), text: $form.username)
@@ -43,20 +45,20 @@ private struct SeparateServerFields: View {
                 SecureField(L10n.setup_field_password(), text: $form.password)
                     .setupField(.password)
                     .disabled(form.holding)
-                    .onTouchKeyboardSubmit { form.connect(model, ask, done: done) }
+                    .onTouchKeyboardSubmit { form.connect(model, ask) }
             }
-            if let failure = form.failure {
-                Text(failure).font(.callout).foregroundStyle(.red)
+            if let said = form.said {
+                Text(said).font(.callout).foregroundStyle(.red)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        // Asked once the form is drawn; until it answers, the form is the password form.
-        .task(id: ask) { await form.askOffer(model, ask) }
+        .onChange(of: ask, initial: true) { _, drawn in form.drawn(drawn) }
     }
 }
 
 /// The setup step: Skip switches the uses off, Connect or the sign-in moves them to an account of
-/// their own. Either way setup goes on to the link step, whose pickers already show the new link.
+/// their own. Either way the core draws no section after it, and setup goes on to the link step,
+/// whose pickers already show the new link.
 struct SeparateServerStepView: View {
     var model: MailboxModel
     let ask: SeparateServerAsk
@@ -81,39 +83,29 @@ struct SeparateServerStepView: View {
                     done: { model.setupSeparateServerDone() })
             }
             SetupFooter {
-                Button(L10n.separate_server_skip(), action: skip)
-                    .keyboardShortcut(.cancelAction)
-                    .disabled(!form.canLeave)
-                if form.busy {
-                    ProgressView().controlSize(.small)
-                } else if form.signIn.showsPasswordFields(ask) {
-                    Button(L10n.action_connect()) {
-                        form.connect(model, ask) { model.setupSeparateServerDone() }
-                    }
+                ControlButton(
+                    title: L10n.separate_server_skip(), control: form.skipControl,
+                    shortcut: .cancelAction
+                ) { form.skip(model, ask) }
+                if form.signIn.showsPasswordFields(ask) {
+                    ControlButton(
+                        title: L10n.action_connect(), control: form.connectControl,
+                        ready: form.canConnect, shortcut: .defaultAction
+                    ) { form.connect(model, ask) }
                     .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!form.canConnect)
                 }
             }
             .setupActionsInView()
         }
-        .onDisappear { form.leave(model) }
-    }
-
-    private func skip() {
-        guard form.canLeave else { return }
-        form.retire()
-        form.busy = true
-        Task {
-            await model.skipSeparateServer(ask)
-            form.busy = false
-            model.setupSeparateServerDone()
+        .onDisappear {
+            form.leave(model)
+            model.separateServers[.setup] = nil
         }
     }
 }
 
-/// The account page's form, opened under the use that needs it. Cancel folds it away; Connect or
-/// the sign-in moves the uses, and the page then redraws without them and with the link.
+/// The account page's form, opened under the use the core names. Cancel folds it away; Connect or
+/// the sign-in moves the uses, and the page then redraws without the form and with the link.
 struct AccountSeparateServerForm: View {
     var model: MailboxModel
     let ask: SeparateServerAsk
@@ -140,24 +132,26 @@ struct AccountSeparateServerForm: View {
                     .frame(maxWidth: 320, alignment: .leading)
                 HStack(spacing: 10) {
                     if form.signIn.showsPasswordFields(ask) {
-                        Button(L10n.action_connect()) { form.connect(model, ask, done: moved) }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!form.canConnect)
+                        ControlButton(
+                            title: L10n.action_connect(), control: form.connectControl,
+                            ready: form.canConnect
+                        ) { form.connect(model, ask) }
+                        .buttonStyle(.borderedProminent)
                     }
                     Button(L10n.action_cancel()) {
                         form.retire()
                         close()
                     }
                     .disabled(!form.canLeave)
-                    if form.busy {
-                        ProgressView().controlSize(.small)
-                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(6)
         }
-        .onDisappear { form.leave(model) }
+        .onDisappear {
+            form.leave(model)
+            close()
+        }
     }
 
     private func moved() {

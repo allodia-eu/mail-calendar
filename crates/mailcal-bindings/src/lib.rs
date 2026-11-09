@@ -261,13 +261,13 @@ pub use records_account_page::{
     AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
 };
 pub use records_account_sign_in::{
-    AccountPasswordField, AccountSecretKind, AccountSignIn, AccountSignInLine, AccountSignInRoute,
-    TypedPassword,
+    AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,
+    AccountSignIn, AccountSignInLine, AccountSignInRoute, TypedPassword,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,
     AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
-    MailSyncTechnology, SeparateServer, SignInMethod, UseProblem,
+    MailSyncTechnology, SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
 pub use records_calendar::{

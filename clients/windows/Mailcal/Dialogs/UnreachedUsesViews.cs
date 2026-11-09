@@ -4,6 +4,7 @@
 // surface that asks it, the form is drawn inline. The decisions are UnreachedUsesRules', which the
 // unit suite drives.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -17,34 +18,54 @@ using Windows.UI;
 
 namespace Allodia.Mailcal.Dialogs;
 
-/// <summary>The separate-server form's controls, for the caller that wires its buttons.</summary>
+/// <summary>The separate-server form's controls. Connect and the other way out are drawn from the
+/// core's section each time it changes (<see cref="Show"/>); the fields are the person's.</summary>
 internal sealed record SeparateServerForm(
-    SeparateServerStep Step, StackPanel Panel, TextBlock Title, TextBox Username, PasswordBox Password, InfoBar Error, Button Connect, Button Secondary,
-    SeparateServerSignInRow SignIn, ProgressRing Working)
+    StackPanel Panel, TextBlock Title, TextBox Username, PasswordBox Password, InfoBar Error, StackPanel Buttons,
+    SeparateServerSignInRow SignIn)
 {
-    // Whether a password's connect is running, which an offer answering meanwhile leaves disabled.
-    private bool _connecting;
+    // What the buttons were last drawn from, so a draw that changes nothing keeps them.
+    private string? _buttonsDrawn;
 
-    /// <summary>Disables the form while a connect or a skip runs, turning the ring beside its
-    /// buttons, and enables it again after. A connect can take a while: the mailbox's calendar
-    /// and contacts move to the new account and the mailbox is dialled again.</summary>
-    internal void Busy(bool busy)
-    {
-        _connecting = busy;
-        Username.IsEnabled = Password.IsEnabled = Connect.IsEnabled = Secondary.IsEnabled = !busy;
-        SignIn.Button.IsEnabled = !busy;
-        Working.IsActive = busy;
-        Working.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-    }
+    // Connect as drawn, which a password typed or cleared readies.
+    private ControlComponents.FormSend? _connect;
 
-    /// <summary>Draws the sign-in at the server's own provider as <paramref name="signIn"/> has
-    /// it: offered or not for the form's step, and where its attempt stands.
+    /// <summary>
+    /// Draws the form for <paramref name="step"/> as the core drew it and as
+    /// <paramref name="signIn"/> stands: Connect and <paramref name="secondary"/> (Skip in setup,
+    /// Cancel on the account's page) from the core's controls, held as well while the sign-in's
+    /// own core call runs, the fields with Connect, and the sign-in once offered.
     /// <paramref name="cancelOwn"/> is whether the attempt draws a Cancel of its own, which the
-    /// account's page does not, its form's Cancel being that way back.</summary>
-    internal void Draw(SeparateServerSignIn signIn, bool cancelOwn)
+    /// account's page does not, its form's Cancel being that way back. Setup's Skip is the core's
+    /// <c>StopUsing</c>; the page's Cancel only closes, so it waits for a connect it would not stop.
+    /// </summary>
+    internal void Show(
+        SeparateServerStep step, SeparateServerSignIn signIn, bool cancelOwn, string secondary,
+        Action connect, Action other)
     {
-        var offer = signIn.Offer(Step);
+        var section = step.Section;
+        var offer = SeparateServerSignIn.Offer(step);
         var offered = offer != SeparateSignInOffer.None;
+        // The sign-in's own blocking core calls hold what the core does not know is held.
+        var browsing = !signIn.FormEnabled;
+        var connectState = section.Connect with { Enabled = section.Connect.Enabled && !browsing };
+        var otherState = cancelOwn
+            ? section.StopUsing with { Enabled = section.StopUsing.Enabled && !browsing }
+            : new ControlState(
+                !section.Connect.Running && signIn.Phase != SeparateSignInPhase.Completing, false);
+        ControlComponents.HoldFields(connectState, Username, Password);
+        var key = $"{connectState}/{otherState}/{offered}";
+        if (key != _buttonsDrawn)
+        {
+            _buttonsDrawn = key;
+            Buttons.Children.Clear();
+            // One primary action: the sign-in where it is offered, Connect otherwise.
+            var style = offered ? null : (Style)Application.Current.Resources["AccentButtonStyle"];
+            _connect = ControlComponents.FormButton(L10n.ActionConnect(), connectState, "SeparateServerConnect", style, connect);
+            Buttons.Children.Add(_connect.Element);
+            Buttons.Children.Add(ControlComponents.Button(secondary, otherState, "SeparateServerSecondary", other));
+        }
+        Readied();
         SignIn.Panel.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
         // Nextcloud's sign-in is named as itself, and says where the person is while the browser
         // holds it (docs/nextcloud-sign-in.md rule 5).
@@ -53,26 +74,14 @@ internal sealed record SeparateServerForm(
         SignIn.Note.Text = !nextcloud ? L10n.SetupImapSigninNote()
             : signIn.Phase == SeparateSignInPhase.Waiting ? L10n.NextcloudSignInWaiting()
             : L10n.NextcloudSignInNote();
-        // One primary action: the sign-in where it is offered, Connect otherwise.
-        var style = (Style)Application.Current.Resources[offered ? "DefaultButtonStyle" : "AccentButtonStyle"];
-        if (!ReferenceEquals(Connect.Style, style))
-        {
-            Connect.Style = style;
-        }
-        if (!offered)
-        {
-            return;
-        }
-        var live = signIn.FormEnabled && !_connecting;
-        SignIn.Button.IsEnabled = signIn.ButtonEnabled && !_connecting;
-        Username.IsEnabled = Password.IsEnabled = live;
-        // Where the form's own Cancel is the way back, it stays live through the begin.
-        Secondary.IsEnabled = live || (!cancelOwn && !_connecting && signIn.CancelShown);
-        Connect.IsEnabled = live && Password.Password.Length > 0;
+        SignIn.Button.IsEnabled = signIn.ButtonEnabled && section.Connect.Enabled;
         SignIn.Cancel.Visibility = cancelOwn && signIn.CancelShown ? Visibility.Visible : Visibility.Collapsed;
         SignIn.Ring.IsActive = signIn.Busy;
         SignIn.Ring.Visibility = signIn.Busy ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    /// <summary>Holds Connect while there is no password to send.</summary>
+    internal void Readied() => _connect?.Ready(Password.Password.Length > 0 ? null : string.Empty);
 
     /// <summary>Says <paramref name="error"/> under the fields, or takes the last one away.</summary>
     internal void Say(string? error)
@@ -204,10 +213,10 @@ internal static class UnreachedUsesViews
 
     /// <summary>
     /// The form that gives <paramref name="step"/>'s uses a sign-in of their own: the title, the
-    /// server it names, the login and password, Connect and <paramref name="secondary"/> (Skip
-    /// in setup, Cancel on the account's page). The caller wires both buttons.
+    /// server it names, the login and password, and the row its buttons are drawn into
+    /// (<see cref="SeparateServerForm.Show"/>).
     /// </summary>
-    internal static SeparateServerForm Form(SeparateServerStep step, string secondary, string? username = null)
+    internal static SeparateServerForm Form(SeparateServerStep step, string? username = null)
     {
         var panel = new StackPanel { Spacing = 8 };
         AutomationProperties.SetAutomationId(panel, "SeparateServerForm");
@@ -232,28 +241,10 @@ internal static class UnreachedUsesViews
         panel.Children.Add(password);
         panel.Children.Add(error);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var connect = new Button
-        {
-            Content = L10n.ActionConnect(),
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-        };
-        AutomationProperties.SetAutomationId(connect, "SeparateServerConnect");
-        var other = new Button { Content = secondary };
-        AutomationProperties.SetAutomationId(other, "SeparateServerSecondary");
-        var working = new ProgressRing
-        {
-            Width = 20,
-            Height = 20,
-            IsActive = false,
-            Visibility = Visibility.Collapsed,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        AutomationProperties.SetAutomationId(working, "SeparateServerWorking");
-        buttons.Children.Add(connect);
-        buttons.Children.Add(other);
-        buttons.Children.Add(working);
         panel.Children.Add(buttons);
-        return new SeparateServerForm(step, panel, title, login, password, error, connect, other, signIn, working);
+        var form = new SeparateServerForm(panel, title, login, password, error, buttons, signIn);
+        password.PasswordChanged += (_, _) => form.Readied();
+        return form;
     }
 
     private static SeparateServerSignInRow SignInRow()

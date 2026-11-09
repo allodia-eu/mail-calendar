@@ -1,98 +1,67 @@
-//! When setup shows the step for a sign-in of its own, what it starts from, and what Skip
-//! switches.
+//! When setup shows the step for a sign-in of its own, and what the form says and holds from the
+//! core's section.
 
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, AccountKind, AccountUse, AccountsSnapshot, CapabilityState,
-    SeparateServer, UseProblem,
+    AccountCapability, AccountChangeRefusal, AccountSeparateServer, ControlState,
 };
 
-use super::{SeparateForm, server_of, skip_changes};
-use crate::ui::setup_state::{Phase, SetupState};
+use super::SeparateForm;
+use crate::{
+    l10n,
+    ui::setup_state::{Phase, SetupState},
+};
 
 const MAILBOX: &str = "alice@example.test@imap.example.test";
 
-pub(crate) fn server(uses: Vec<AccountCapability>) -> SeparateServer {
-    SeparateServer {
+const FREE: ControlState = ControlState {
+    enabled: true,
+    running: false,
+};
+
+/// The section the core draws for `uses`, nothing running and nothing offered but a password.
+pub(crate) fn section(uses: Vec<AccountCapability>) -> AccountSeparateServer {
+    AccountSeparateServer {
         uses,
         host: "dav.example.test".to_owned(),
         username: "alice".to_owned(),
-    }
-}
-
-/// A mailbox whose calendar and contacts are on, with `problem` on the calendar, and the server
-/// the core names for it when it has one.
-pub(crate) fn mailbox(problem: Option<UseProblem>, server: Option<SeparateServer>) -> AccountEntry {
-    let used = |capability, problem| AccountUse {
-        capability,
-        state: CapabilityState::On,
-        problem,
-    };
-    AccountEntry {
-        id: MAILBOX.to_owned(),
-        address: "alice@example.test".to_owned(),
-        kind: AccountKind::Imap,
-        sign_in: mailcal_bindings::SignInMethod::Provider,
-        uses: vec![
-            used(AccountCapability::Mail, None),
-            used(AccountCapability::Calendar, problem),
-            used(AccountCapability::Contacts, None),
-        ],
-        links: mailcal_bindings::AccountLinksView::default(),
-        linked_from: Vec::new(),
-        link_candidates: mailcal_bindings::LinkCandidates::default(),
-        separate_server: server,
-        distinction: None,
-        mail_sync: None,
-        nextcloud: false,
+        sign_in: None,
+        connect: FREE,
+        stop_using: FREE,
+        failed: None,
     }
 }
 
 pub(crate) fn form(uses: Vec<AccountCapability>) -> SeparateForm {
-    SeparateForm::new(1, MAILBOX.to_owned(), server(uses), MAILBOX.to_owned())
+    SeparateForm::new(1, MAILBOX.to_owned(), section(uses), MAILBOX.to_owned())
 }
 
 #[test]
-fn skip_switches_off_exactly_what_needs_the_sign_in() {
+fn the_form_says_a_browser_failure_before_the_cores_and_nothing_otherwise() {
+    let mut form = form(vec![AccountCapability::Contacts]);
+    assert_eq!(form.said(), None);
+    form.section.failed = Some(AccountChangeRefusal::SignInRefused);
+    assert_eq!(form.said().as_deref(), Some(l10n::signin_refused()));
+    form.failed(l10n::setup_imap_signin_failed().to_owned());
     assert_eq!(
-        skip_changes(&server(vec![AccountCapability::Calendar])),
-        [(AccountCapability::Calendar, false)]
-    );
-    assert_eq!(
-        skip_changes(&server(vec![
-            AccountCapability::Calendar,
-            AccountCapability::Contacts
-        ])),
-        [
-            (AccountCapability::Calendar, false),
-            (AccountCapability::Contacts, false)
-        ]
+        form.said().as_deref(),
+        Some(l10n::setup_imap_signin_failed())
     );
 }
 
 #[test]
-fn the_form_starts_from_the_login_the_core_holds_for_that_server() {
-    let form = form(vec![AccountCapability::Contacts]);
-    assert_eq!(form.username, "alice");
-    assert!(!form.busy);
-    assert!(form.error.is_none());
-}
-
-#[test]
-fn the_server_is_read_from_the_account_it_is_for() {
-    let mut snapshot = AccountsSnapshot {
-        meeting_accounts: Vec::new(),
-        accounts: vec![mailbox(None, None)],
+fn the_form_is_held_while_the_core_holds_connect() {
+    let mut form = form(vec![AccountCapability::Calendar]);
+    assert!(!form.held());
+    form.section.connect = ControlState {
+        enabled: false,
+        running: true,
     };
-    assert_eq!(server_of(&snapshot, MAILBOX), None);
-    snapshot.accounts = vec![mailbox(
-        Some(UseProblem::NeedsOwnSignIn),
-        Some(server(vec![AccountCapability::Calendar])),
-    )];
-    assert_eq!(
-        server_of(&snapshot, MAILBOX),
-        Some(server(vec![AccountCapability::Calendar]))
-    );
-    assert_eq!(server_of(&snapshot, "someone-else"), None);
+    assert!(form.held(), "its own connect runs");
+    form.section.connect = ControlState {
+        enabled: false,
+        running: false,
+    };
+    assert!(form.held(), "a change runs elsewhere");
 }
 
 #[test]
@@ -104,7 +73,7 @@ fn setup_shows_the_step_before_the_link_step_only_for_the_account_it_was_held_fo
         "an add whose calendar connected asks nothing"
     );
 
-    state.hold_separate(MAILBOX, server(vec![AccountCapability::Calendar]));
+    state.hold_separate(MAILBOX, section(vec![AccountCapability::Calendar]));
     assert!(!state.show_separate("another@example.test", MAILBOX));
     assert!(state.show_separate(MAILBOX, "first@example.test"));
     assert_eq!(state.phase, Phase::Separate);
@@ -128,30 +97,7 @@ fn setup_shows_the_step_before_the_link_step_only_for_the_account_it_was_held_fo
 fn a_new_flow_forgets_a_step_held_for_the_last_one() {
     let mut state = SetupState::closed();
     state.open(false);
-    state.hold_separate(MAILBOX, server(vec![AccountCapability::Calendar]));
+    state.hold_separate(MAILBOX, section(vec![AccountCapability::Calendar]));
     state.open(false);
     assert!(!state.show_separate(MAILBOX, MAILBOX));
-}
-
-#[test]
-fn the_page_offers_its_action_under_the_last_use_that_needs_the_sign_in() {
-    use crate::ui::separate_sign_in_view::action_after;
-    assert_eq!(action_after(&mailbox(None, None)), None);
-    assert_eq!(
-        action_after(&mailbox(
-            Some(UseProblem::SignInRefused),
-            Some(server(vec![AccountCapability::Calendar]))
-        )),
-        Some(AccountCapability::Calendar)
-    );
-    assert_eq!(
-        action_after(&mailbox(
-            Some(UseProblem::NeedsOwnSignIn),
-            Some(server(vec![
-                AccountCapability::Calendar,
-                AccountCapability::Contacts
-            ]))
-        )),
-        Some(AccountCapability::Contacts)
-    );
 }

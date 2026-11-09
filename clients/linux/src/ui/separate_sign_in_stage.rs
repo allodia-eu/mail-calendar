@@ -1,8 +1,6 @@
 //! Where a separate server's sign-in stands on its form: which attempt the form is on, and the
 //! steps it may take from there, so a superseded or retired attempt cannot move it.
 
-use mailcal_bindings::AccountCapability;
-
 use crate::ui::separate_sign_in::SeparateForm;
 
 /// Where a sign-in at the server's own provider stands, by the attempt it is for.
@@ -19,39 +17,20 @@ pub(crate) enum SignInStage {
 }
 
 impl SeparateForm {
-    /// Whether every control is held: a connect, a skip or one of the sign-in's blocking core
-    /// calls is running. The browser's wait holds nothing.
+    /// Whether every control is held: the core holds Connect (a change runs on a page), or one
+    /// of the sign-in's blocking core calls is running. The browser's wait holds nothing.
     pub(in crate::ui) const fn held(&self) -> bool {
-        self.busy
+        !self.section.connect.enabled
             || matches!(
                 self.stage,
                 SignInStage::Starting(_) | SignInStage::Finishing(_)
             )
     }
 
-    /// The server answered whether it signs in at its own provider, or with Nextcloud, for
-    /// `uses`. Only an answer for the uses this form moves is its answer.
-    pub(in crate::ui) fn offer_answered(
-        &mut self,
-        uses: &[AccountCapability],
-        offered: bool,
-        nextcloud: bool,
-    ) {
-        if uses == self.server.uses.as_slice() {
-            self.offers_sign_in = offered;
-            self.nextcloud = nextcloud && !offered;
-        }
-    }
-
-    /// Whether a sign-in is offered, at the provider or with Nextcloud.
-    pub(in crate::ui) const fn offers(&self) -> bool {
-        self.offers_sign_in || self.nextcloud
-    }
-
     /// Starts `attempt`, superseding the one in the browser. `false` while there is nothing to
     /// start: no offer, or a core call running.
     pub(in crate::ui) fn begin_sign_in(&mut self, attempt: u64) -> bool {
-        if !self.offers() || self.held() {
+        if self.offers().is_none() || self.held() {
             return false;
         }
         self.stage = SignInStage::Starting(attempt);

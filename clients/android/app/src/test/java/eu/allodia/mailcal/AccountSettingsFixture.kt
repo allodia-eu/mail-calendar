@@ -3,6 +3,7 @@
 package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountChangeRefusal
 import uniffi.mailcal_bindings.AccountDistinction
 import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
@@ -11,6 +12,8 @@ import uniffi.mailcal_bindings.AccountLinksView
 import uniffi.mailcal_bindings.AccountMailSettings
 import uniffi.mailcal_bindings.AccountPage
 import uniffi.mailcal_bindings.AccountSenderName
+import uniffi.mailcal_bindings.AccountSeparateServer
+import uniffi.mailcal_bindings.AccountSeparateSignIn
 import uniffi.mailcal_bindings.AccountServers
 import uniffi.mailcal_bindings.AccountSharedMailboxes
 import uniffi.mailcal_bindings.AccountSignIn
@@ -91,6 +94,7 @@ internal fun useSwitch(
     status: AccountUseStatus? = null,
     asksProvider: Boolean = false,
     reviews: Boolean = false,
+    separately: Boolean = false,
 ) = AccountUseSwitch(
     capability,
     on,
@@ -100,7 +104,20 @@ internal fun useSwitch(
     asksProvider,
     confirmsOff = true,
     reviewsServerChange = reviews,
+    signsInSeparately = separately,
 )
+
+/** The core's section for a server [uses] need a sign-in of their own at, nothing running. */
+internal fun separateSection(
+    vararg uses: AccountCapability,
+    signIn: AccountSeparateSignIn? = null,
+    connect: ControlState = FREE,
+    stopUsing: ControlState = FREE,
+    failed: AccountChangeRefusal? = null,
+) = AccountSeparateServer(uses.toList(), "dav.example.org", "alice", signIn, connect, stopUsing, failed)
+
+/** The form for [section], for the mailbox `alice@imap`. */
+internal fun separateForm(section: AccountSeparateServer) = UnreachedRules.form("alice@imap", section)!!
 
 /** A link slot's picker as the core would answer it. */
 internal fun linkPicker(
@@ -124,6 +141,7 @@ internal fun pageOf(
     servers: AccountServers? = null,
     shared: AccountSharedMailboxes? = null,
     signIn: AccountSignIn? = null,
+    separate: AccountSeparateServer? = null,
 ) = AccountPage(
     account = entry.id,
     uses = uses,
@@ -133,6 +151,7 @@ internal fun pageOf(
     servers = servers,
     shared = shared,
     signIn = signIn,
+    separateServer = separate,
     remove = remove,
     notice = null,
 )

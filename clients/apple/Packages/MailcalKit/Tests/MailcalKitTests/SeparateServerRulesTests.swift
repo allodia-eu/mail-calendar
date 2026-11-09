@@ -1,36 +1,40 @@
 // A calendar or address book the account's sign-in does not reach (docs/accounts.md rule 18): the
-// title each set of uses gets, whether a switch asks and what each answer hands the core, when
-// setup shows the separate-server step and where it goes next, which uses the account's page
-// offers a sign-in of their own for, and that Skip switches off exactly the uses it was for.
+// title each set of uses gets, whether a switch asks and what each answer hands the core, and when
+// setup shows the separate-server step and where it goes next.
 
 import MailcalBindings
 import Testing
 
 @testable import MailcalUI
 
-private func entry(
-    _ uses: [(AccountCapability, UseProblem?)],
-    separate: SeparateServer? = nil,
-    candidates: [LinkedAccount] = []
-) -> AccountEntry {
+/// The core's section for a server `uses` need a sign-in of their own at, nothing running.
+func separateSection(
+    _ uses: [AccountCapability], host: String = "dav.example.org",
+    signIn: AccountSeparateSignIn? = nil
+) -> AccountSeparateServer {
+    AccountSeparateServer(
+        uses: uses, host: host, username: "alice", signIn: signIn, connect: .free(),
+        stopUsing: .free(), failed: nil)
+}
+
+/// The form for `uses` of the mailbox `alice@imap`.
+func separateAsk(
+    _ uses: [AccountCapability], signIn: AccountSeparateSignIn? = nil
+) -> SeparateServerAsk {
+    SeparateServerAsk(account: "alice@imap", section: separateSection(uses, signIn: signIn))
+}
+
+private func entry(candidates: [LinkedAccount] = []) -> AccountEntry {
     AccountEntry(
         id: "alice@imap",
         address: "alice@example.org",
         kind: .imap,
         signIn: .provider,
-        uses: [AccountUse(capability: .mail, state: .on)]
-            + uses.map { AccountUse(capability: $0.0, state: .on, problem: $0.1) },
+        uses: [AccountUse(capability: .mail, state: .on), AccountUse(capability: .calendar, state: .on)],
         links: AccountLinksView(calendar: nil, contacts: nil, mail: nil),
         linkedFrom: [],
         linkCandidates: LinkCandidates(
-            calendar: candidates, contacts: [], mail: [], suggested: []),
-        separateServer: separate)
-}
-
-private func server(
-    _ uses: [AccountCapability], host: String = "dav.example.org", username: String = "alice"
-) -> SeparateServer {
-    SeparateServer(uses: uses, host: host, username: username)
+            calendar: candidates, contacts: [], mail: [], suggested: []))
 }
 
 @Suite struct SeparateServerRulesTests {
@@ -69,53 +73,24 @@ private func server(
         #expect(SeparateServerRules.decision(unreached, answer: nil) == .abandon)
     }
 
-    @Test func theFormIsOfferedExactlyWhenTheCoreNamesTheServer() throws {
-        let both = entry(
-            [(.calendar, .needsOwnSignIn), (.contacts, .signInRefused)],
-            separate: server([.calendar, .contacts], host: "dav.example.org:8443"))
-        let ask = try #require(SeparateServerRules.ask(both))
+    @Test func theFormIsTheSectionTheCoreDrawsForCalendarOrContacts() throws {
+        let both = separateSection([.calendar, .contacts], host: "dav.example.org:8443")
+        let ask = try #require(SeparateServerRules.ask("alice@imap", both))
         #expect(ask.account == "alice@imap")
         #expect(ask.uses == [.calendar, .contacts])
         #expect(ask.set == .both)
         #expect(ask.host == "dav.example.org:8443")
         #expect(ask.username == "alice")
         #expect(SeparateServerLabels.formBody(ask) == L10n.separate_server_body(host: "dav.example.org:8443"))
-        #expect(SeparateServerRules.offered(both, .calendar))
-        #expect(SeparateServerRules.offered(both, .contacts))
-        #expect(!SeparateServerRules.offered(both, .mail))
-
-        let contacts = entry(
-            [(.calendar, nil), (.contacts, .needsOwnSignIn)], separate: server([.contacts]))
-        #expect(!SeparateServerRules.offered(contacts, .calendar))
-        #expect(SeparateServerRules.offered(contacts, .contacts))
-        #expect(SeparateServerRules.ask(contacts)?.set == .contacts)
-
-        // An unreachable server is waited for, not signed in to, and the core names no server.
-        let unreachable = entry([(.calendar, .unreachable)])
-        #expect(SeparateServerRules.ask(unreachable) == nil)
-        #expect(!SeparateServerRules.offered(unreachable, .calendar))
-    }
-
-    @Test func aLoginTheServerDoesNotHoldStartsFromTheAddress() {
-        let blank = entry([(.calendar, .needsOwnSignIn)], separate: server([.calendar], username: " "))
-        #expect(SeparateServerRules.ask(blank)?.username == "alice@example.org")
+        #expect(SeparateServerRules.ask("alice@imap", separateSection([.contacts]))?.set == .contacts)
+        #expect(SeparateServerRules.ask("alice@imap", nil) == nil)
+        #expect(SeparateServerRules.ask("alice@imap", separateSection([.mail])) == nil)
     }
 
     @Test func connectWantsALoginAndAPassword() {
-        #expect(SeparateServerRules.canConnect("alice", "secret", busy: false))
-        #expect(!SeparateServerRules.canConnect("alice", "", busy: false))
-        #expect(!SeparateServerRules.canConnect("  ", "secret", busy: false))
-        #expect(!SeparateServerRules.canConnect("alice", "secret", busy: true))
-    }
-
-    @Test func skipSwitchesOffExactlyTheUsesItWasFor() {
-        let ask = SeparateServerAsk(
-            account: "alice@imap", uses: [.contacts], host: "dav.example.org", username: "alice")
-        #expect(SeparateServerRules.skipped(ask) == [.contacts])
-        let both = SeparateServerAsk(
-            account: "alice@imap", uses: [.calendar, .contacts], host: "dav.example.org",
-            username: "alice")
-        #expect(SeparateServerRules.skipped(both) == [.calendar, .contacts])
+        #expect(SeparateServerRules.canConnect("alice", "secret"))
+        #expect(!SeparateServerRules.canConnect("alice", ""))
+        #expect(!SeparateServerRules.canConnect("  ", "secret"))
     }
 
     @Test func theRefusalOfAnAccountAlreadySetUpKeepsWhatItsSignInDidNotReach() throws {
@@ -133,9 +108,7 @@ private func server(
 }
 
 @Suite struct SeparateServerStepTests {
-    private let linkable = entry(
-        [(.calendar, .needsOwnSignIn)], separate: server([.calendar]),
-        candidates: [LinkedAccount(id: "alice@dav", address: "alice@dav")])
+    private let linkable = entry(candidates: [LinkedAccount(id: "alice@dav", address: "alice@dav")])
 
     private func steps(_ account: AccountEntry) -> (String) -> SetupLinkStep? {
         { id in
@@ -145,17 +118,14 @@ private func server(
     }
 
     @Test func setupShowsTheStepOnlyWhenTheAddSaidSo() {
-        #expect(SeparateServerRules.ask(entry([(.calendar, nil)])) == nil)
-        #expect(SeparateServerRules.ask(linkable) != nil)
-
         var plain = SetupFlow()
         let shown = plain.accountAdded("alice@imap", separateServer: nil, stepFor: { _ in nil })
         #expect(!shown)
         #expect(plain.separateServer == nil)
     }
 
-    @Test func theStepComesBeforeTheLinkStepAndHandsOnToIt() throws {
-        let ask = try #require(SeparateServerRules.ask(linkable))
+    @Test func theStepComesBeforeTheLinkStepAndHandsOnToIt() {
+        let ask = separateAsk([.calendar])
         var flow = SetupFlow()
         let asked = flow.accountAdded("alice@imap", separateServer: ask, stepFor: steps(linkable))
         #expect(asked)
@@ -170,8 +140,8 @@ private func server(
         #expect(flow.links?.account == "alice@imap")
     }
 
-    @Test func withNothingToLinkTheStepEndsSetup() throws {
-        let ask = try #require(SeparateServerRules.ask(linkable))
+    @Test func withNothingToLinkTheStepEndsSetup() {
+        let ask = separateAsk([.calendar])
         var flow = SetupFlow()
         let asked = flow.accountAdded("alice@imap", separateServer: ask, stepFor: { _ in nil })
         #expect(asked)

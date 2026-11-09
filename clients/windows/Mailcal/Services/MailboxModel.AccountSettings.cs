@@ -59,6 +59,7 @@ public sealed partial class MailboxModel
         }
         AccountsChanged?.Invoke();
         RefreshSetupLinks();
+        RefreshSetupSeparateServer();
     }
 
     /// <summary>The page for <paramref name="accountId"/> as the core decided it: its uses, links

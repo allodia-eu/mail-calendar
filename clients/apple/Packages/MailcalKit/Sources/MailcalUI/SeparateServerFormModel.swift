@@ -1,6 +1,8 @@
 // What one separate-server form holds while it is on screen, in setup and on the account's page
 // alike, so the two cannot drift: the login and password, the sign-in at the server's own provider,
-// and what each answer does. The decisions are `SeparateServerRules` and `SeparateServerSignIn`.
+// and what each answer does. Connect and Skip are changes on the account's page, which the core
+// runs and draws on its section; the form ends once the core draws none. The decisions are
+// `SeparateServerRules` and `SeparateServerSignIn`.
 
 import Foundation
 import MailcalBindings
@@ -11,59 +13,78 @@ import Observation
 final class SeparateServerFormModel {
     var username: String
     var password = ""
+    /// Why the last sign-in in the browser failed; a Connect's failure is the section's.
     var failure: String?
-    /// A Connect or a Skip is running in the core.
-    var busy = false
     var signIn = SeparateServerSignIn()
     /// The sign-in with Nextcloud, where the server is Nextcloud.
     let nextcloud = NextcloudSignIn()
+    /// The section as the core last drew it.
+    private(set) var section: AccountSeparateServer
     /// The sign-in in flight, held so it can be retired.
     @ObservationIgnored private var task: Task<Void, Never>?
 
     init(_ ask: SeparateServerAsk) {
         username = ask.username
+        section = ask.section
     }
 
-    /// Whether a core call that nothing interrupts is running, so the form holds its controls.
-    var holding: Bool { busy || signIn.completing || nextcloud.completing }
+    /// A sign-in's own core call is running, which nothing interrupts.
+    var completing: Bool { signIn.completing || nextcloud.completing }
 
-    var canConnect: Bool {
-        SeparateServerRules.canConnect(username, password, busy: holding)
+    /// Whether the form holds its fields: the core holds Connect, or a sign-in completes.
+    var holding: Bool { !section.connect.enabled || completing }
+
+    /// Connect, as the core draws it, held as well while a sign-in completes.
+    var connectControl: ControlState { section.connect.held(completing) }
+
+    /// Setup's Skip, likewise.
+    var skipControl: ControlState { section.stopUsing.held(completing) }
+
+    var canConnect: Bool { SeparateServerRules.canConnect(username, password) }
+
+    /// Skip and Cancel: live while the browser is out, since each retires the attempt, and held
+    /// while a change the form started runs.
+    var canLeave: Bool {
+        !completing && !section.connect.running && !section.stopUsing.running
     }
 
-    /// Skip and Cancel: live while the browser is out, since each retires the attempt.
-    var canLeave: Bool { !holding }
+    /// What is said under the fields: the sign-in's failure, else the core's.
+    var said: String? {
+        failure ?? section.failed.map(AccountSettingsLabels.refused)
+    }
 
-    /// Asks the server whether it can be signed in to at its own provider. The answer is dropped
-    /// when the form has moved on (the task was cancelled) and kept only for the form it was for.
-    func askOffer(_ model: MailboxModel, _ ask: SeparateServerAsk) async {
-        let offers = await model.separateServerOffersSignIn(ask)
-        // Asked only where the provider's sign-in is not offered.
-        let nextcloud = offers ? false : await model.separateServerOffersNextcloudSignIn(ask)
-        guard !Task.isCancelled else { return }
-        signIn.answered(
-            SeparateServerOffer(ask, offers: offers, nextcloud: nextcloud),
-            started: SeparateServerRules.passwordStarted(
-                ask, username: username, password: password))
+    /// The core drew the section again. A way in it now offers never takes away a password route
+    /// somebody has begun.
+    func drawn(_ ask: SeparateServerAsk) {
+        if section.signIn == nil, ask.section.signIn != nil {
+            signIn.offered(
+                started: SeparateServerRules.passwordStarted(
+                    ask, username: username, password: password))
+        }
+        section = ask.section
     }
 
     func choosePassword() {
         signIn.choosePassword()
     }
 
-    /// Connect: moves the uses with the typed password, retiring a sign-in still out.
-    func connect(_ model: MailboxModel, _ ask: SeparateServerAsk, done: @escaping () -> Void) {
-        guard canConnect else { return }
+    /// Connect: the typed password, tried by the core, retiring a sign-in still out.
+    func connect(_ model: MailboxModel, _ ask: SeparateServerAsk) {
+        guard connectControl.enabled, canConnect else { return }
         retire()
-        busy = true
         failure = nil
-        let (login, typed) = (username.trimmingCharacters(in: .whitespaces), password)
-        Task {
-            let refused = await model.addLinkedCalendarAccount(
-                ask, username: login, password: typed)
-            busy = false
-            settle(SeparateServerRules.afterConnect(refused), done)
-        }
+        model.changeAccount(
+            .connectSeparateServer(
+                account: ask.account, username: username.trimmingCharacters(in: .whitespaces),
+                password: TypedPassword(text: password)))
+    }
+
+    /// Setup's Skip: the account stops being used for what needs the sign-in.
+    func skip(_ model: MailboxModel, _ ask: SeparateServerAsk) {
+        guard skipControl.enabled else { return }
+        retire()
+        failure = nil
+        model.changeAccount(.stopUsingSeparateServer(account: ask.account))
     }
 
     /// Starts a sign-in at the server's own provider, superseding any still out
@@ -88,7 +109,7 @@ final class SeparateServerFormModel {
     func startNextcloud(
         _ model: MailboxModel, _ ask: SeparateServerAsk, done: @escaping () -> Void
     ) {
-        guard !busy, !signIn.completing else { return }
+        guard section.connect.enabled, !signIn.completing else { return }
         retireProviderSignIn()
         failure = nil
         nextcloud.start(

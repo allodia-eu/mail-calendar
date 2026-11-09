@@ -195,6 +195,9 @@ final class MailboxModel {
     var accountPageState = AccountPageState()
     /// The server-change questions open, by account, as the core drew each last.
     var serverChanges: [String: AccountServerChange] = [:]
+    /// The separate-server form open in setup and on an account's page, as the core last drew
+    /// each.
+    var separateServers: [SeparateServerPlace: SeparateServerAsk] = [:]
     /// A removal whose stored sign-in could not be erased, until the person has read it.
     var removalFailure: String?
     /// The account a sign-in in place is waiting on the browser for, or `nil`.

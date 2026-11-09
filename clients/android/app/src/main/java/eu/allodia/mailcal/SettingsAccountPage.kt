@@ -79,12 +79,11 @@ internal fun AccountPage(
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(
             form = form,
-            controls = ui.state.separate.controls,
-            error = ui.state.separate.error,
+            controls = SeparateControls.of(form.section, ui.state.separate.browser.step),
+            error = ui.state.separate.error ?: form.section.failed?.let { refusalSaid(ctx, it) },
             onConnect = ui.onConnectSeparate,
             onDismiss = { ui.state.separate.close() },
             onSignIn = ui.onSeparateProviderSignIn,
-            onShown = ui.onSeparateFormShown,
             onLeave = { ui.state.separate.left() },
         )
     }
@@ -150,7 +149,7 @@ private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSe
         }
     }
     // A calendar or address book the account's sign-in does not reach: one of its own (rule 18).
-    if (UnreachedRules.offersSeparate(entry, capability)) {
+    if (switch.signsInSeparately) {
         ControlTextButton(
             L10n.settings_account_use_separate_sign_in(ctx),
             control.copy(running = false),

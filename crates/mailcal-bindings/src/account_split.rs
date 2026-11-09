@@ -24,13 +24,13 @@ pub enum UnreachedUses {
     StopUsing,
 }
 
-#[uniffi::export]
 impl MailcalApp {
     /// Moves `uses` (calendar, contacts or both) of `account_id` to an account of their own at the
     /// same servers, signing in as `username` with `password`, and links the two: what a person
-    /// is asked for when the account's own sign-in does not reach that server.
+    /// is asked for when the account's own sign-in does not reach that server. A client sends
+    /// `AccountPageIntent::ConnectSeparateServer`; public for the integration tests.
     ///
-    /// Returns the new account's id. **Blocking** (two connects); call it off the UI thread.
+    /// Returns the new account's id. **Blocking** (two connects).
     ///
     /// # Errors
     ///

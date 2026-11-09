@@ -64,6 +64,8 @@ struct ControlButton: View {
     let control: ControlState
     /// For a button that sends a form: held, too, while the form is not ready to send.
     var ready = true
+    /// The key that presses it, for a step's default or cancel action.
+    var shortcut: KeyboardShortcut?
     let action: () -> Void
 
     var body: some View {
@@ -75,6 +77,7 @@ struct ControlButton: View {
                     Text(title)
                 }
             }
+            .keyboardShortcut(shortcut)
             .disabled(!control.enabled || !ready)
             Running(control: control)
         }

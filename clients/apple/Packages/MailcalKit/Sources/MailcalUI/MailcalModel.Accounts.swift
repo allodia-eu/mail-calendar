@@ -149,6 +149,7 @@ extension MailboxModel {
         }
         refreshAccountPage()
         refreshServerChanges()
+        refreshSeparateServers()
         refreshSetupLinks()
     }
 

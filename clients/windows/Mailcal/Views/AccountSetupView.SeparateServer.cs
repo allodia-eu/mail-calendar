@@ -1,7 +1,7 @@
 // The setup form's answers to a calendar and contacts the account's sign-in does not reach
 // (docs/accounts.md rule 18, docs/onboarding.md "After the connect"): the step after the connect
-// that gives them a sign-in of their own, and the question the refusal's "Update the existing
-// account" asks first. Both are drawn in the form, because adding another account puts the form in
+// that gives them a sign-in of their own, drawn from the core's section, and the question the
+// refusal's "Update the existing account" asks first. Both are drawn in the form, because adding another account puts the form in
 // a ContentDialog and WinUI allows one at a time. What they decide is UnreachedUsesRules' and
 // SetupFlow's, which the unit suite drives.
 
@@ -17,8 +17,14 @@ public sealed partial class AccountSetupView
 {
     private ThemeBrushes? _brushes;
 
-    // The step drawn, so a flow signal that leaves it on screen does not wipe what is typed.
+    // The step drawn and its form, so a redraw of the same step updates it in place and what is
+    // typed stands.
     private SeparateServerStep? _separateDrawn;
+    private SeparateServerForm? _separateForm;
+
+    // Why the step's last sign-in in the browser failed; a Connect's or Skip's failure is the
+    // core's.
+    private string? _separateError;
 
     // Whether the separate-server step was on screen, which its end leaves for the address.
     private bool _separateShown;
@@ -26,7 +32,7 @@ public sealed partial class AccountSetupView
     // The update question waiting, answered as Cancel when the form moves on without it.
     private UnreachedPrompt? _updateAsking;
 
-    // The step's sign-in at its server's own provider: what was offered, and the attempt out.
+    // The step's sign-in at its server's own provider: the attempt out.
     private readonly SeparateServerSignIn _separateSignIn = new();
 
     private void DrawSeparateServer(SeparateServerStep step)
@@ -36,81 +42,69 @@ public sealed partial class AccountSetupView
         {
             return;
         }
+        var same = _separateDrawn?.AccountId == step.AccountId && _separateForm is not null;
         _separateDrawn = step;
-        RetireSeparateSignIn();
-        SeparatePanel.Children.Clear();
-        var form = UnreachedUsesViews.Form(step, L10n.SeparateServerSkip());
-        // A step of the form, titled as the link step is.
-        form.Title.Style = (Style)Application.Current.Resources["TitleTextBlockStyle"];
-        AutomationProperties.SetHeadingLevel(form.Title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level1);
-        form.Connect.IsEnabled = false;
-        form.Password.PasswordChanged += (_, _) =>
-            form.Connect.IsEnabled = form.Password.Password.Length > 0 && _separateSignIn.FormEnabled;
-        form.Connect.Click += async (_, _) =>
+        if (!same)
         {
-            if (Model is not { } model)
-            {
-                return;
-            }
             RetireSeparateSignIn();
-            form.Say(null);
-            form.Busy(true);
-            var error = await model.SetupSeparateServerConnectAsync(form.Username.Text.Trim(), form.Password.Password);
-            if (error is not null)
+            _separateError = null;
+            SeparatePanel.Children.Clear();
+            var form = UnreachedUsesViews.Form(step);
+            _separateForm = form;
+            // A step of the form, titled as the link step is.
+            form.Title.Style = (Style)Application.Current.Resources["TitleTextBlockStyle"];
+            AutomationProperties.SetHeadingLevel(form.Title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level1);
+            form.SignIn.Button.Click += async (_, _) =>
             {
-                form.Busy(false);
-                form.Connect.IsEnabled = form.Password.Password.Length > 0;
-                form.Draw(_separateSignIn, cancelOwn: true);
-                form.Say(error);
+                if (Model is not { } model)
+                {
+                    return;
+                }
+                _separateError = null;
+                ShowSeparate();
+                var next = await model.SetupSeparateServerSignInAsync(_separateSignIn, _ => ShowSeparate());
+                if (next is { GoesOn: false, Error: { } error } && ReferenceEquals(_separateForm, form))
+                {
+                    _separateError = error;
+                    ShowSeparate();
+                }
+            };
+            form.SignIn.Cancel.Click += (_, _) =>
+            {
+                RetireSeparateSignIn();
+                ShowSeparate();
+            };
+            SeparatePanel.Children.Add(form.Panel);
+            form.Password.Loaded += (_, _) => form.Password.Focus(FocusState.Programmatic);
+        }
+        ShowSeparate();
+    }
+
+    // Draws the step as the core last drew it, its buttons from the core's controls.
+    private void ShowSeparate()
+    {
+        if (_separateForm is not { } form || _separateDrawn is not { } step)
+        {
+            return;
+        }
+        form.Show(step, _separateSignIn, cancelOwn: true, L10n.SeparateServerSkip(), () =>
+        {
+            if (Model is { } model && form.Password.Password.Length > 0)
+            {
+                RetireSeparateSignIn();
+                _separateError = null;
+                model.ConnectSeparateServer(step.AccountId, form.Username.Text.Trim(), form.Password.Password);
             }
-        };
-        form.Secondary.Click += async (_, _) =>
+        }, () =>
         {
             if (Model is { } model)
             {
                 RetireSeparateSignIn();
-                form.Busy(true);
-                await model.SetupSeparateServerSkipAsync();
+                _separateError = null;
+                model.SkipSeparateServer(step.AccountId);
             }
-        };
-        form.SignIn.Button.Click += async (_, _) =>
-        {
-            if (Model is not { } model)
-            {
-                return;
-            }
-            form.Say(null);
-            var next = await model.SetupSeparateServerSignInAsync(
-                _separateSignIn, _ => form.Draw(_separateSignIn, cancelOwn: true));
-            if (next is { GoesOn: false, Error: { } error } && ReferenceEquals(_separateDrawn, step))
-            {
-                form.Say(error);
-            }
-        };
-        form.SignIn.Cancel.Click += (_, _) =>
-        {
-            RetireSeparateSignIn();
-            form.Draw(_separateSignIn, cancelOwn: true);
-        };
-        SeparatePanel.Children.Add(form.Panel);
-        form.Password.Loaded += (_, _) => form.Password.Focus(FocusState.Programmatic);
-        _ = OfferSeparateSignInAsync(step, form);
-    }
-
-    // Asks once, off the UI thread, whether the step's server signs in at its own provider. The
-    // row is added above the login without taking focus, so the answer moves nothing being typed.
-    private async Task OfferSeparateSignInAsync(SeparateServerStep step, SeparateServerForm form)
-    {
-        if (Model is not { } model || !_separateSignIn.Asks(step))
-        {
-            form.Draw(_separateSignIn, cancelOwn: true);
-            return;
-        }
-        _separateSignIn.Answered(step, await model.SeparateServerSignInOfferAsync(step));
-        if (ReferenceEquals(_separateDrawn, step))
-        {
-            form.Draw(_separateSignIn, cancelOwn: true);
-        }
+        });
+        form.Say(_separateError ?? (step.Section.Failed is { } failed ? AccountUseText.Refused(failed) : null));
     }
 
     // The way back from the step's sign-in: the attempt out opens no browser and adds no account,

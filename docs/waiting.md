@@ -104,6 +104,7 @@ record, not a state the client keeps.
 | An account's page: its shared mailboxes drawn from `account_page`, switched and added as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its Sign-in section drawn from `account_page`, a typed password sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A server found on another site: the question drawn from `account_server_change`, Allow sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -143,6 +144,13 @@ record, not a state the client keeps.
   the server-change question: an allow under way drawn with the change it allows and pressed once,
   a refused one said by the question with the account where it was, and one a lookup replaced
   moving nothing and asking the new change.
+- [`account_page_separate_tests.rs`](../crates/mailcal-bindings/src/account_page_separate_tests.rs)
+  pins the separate server's form: which uses need it and the login it starts from, the server's
+  way in offered only for the uses it was asked about, and a Connect or Skip running drawn with its
+  own control while the last failure waits;
+  [`app_account_page_separate_tests.rs`](../crates/mailcal-bindings/src/app_account_page_separate_tests.rs)
+  drives both through `dispatch`: placed under the use that needs it, a refused Connect said on
+  the form with the login tried, and Skip switching the use off.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

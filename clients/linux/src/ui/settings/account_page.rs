@@ -136,14 +136,12 @@ fn uses_group(
         );
         section.add(&row);
         // Under the note that says why: a sign-in of its own for the server that needs one.
-        if crate::ui::separate_sign_in_view::action_after(entry) == Some(capability)
-            && let Some(action) = crate::ui::separate_sign_in_view::page_action(
-                entry,
+        if switch.signs_in_separately {
+            section.add(&crate::ui::separate_sign_in_view::page_action(
+                &entry.id,
                 switch.control.enabled,
                 &ctx.sender,
-            )
-        {
-            section.add(&action);
+            ));
         }
         // Under the note that says it is paused: the question about the server found elsewhere.
         if switch.reviews_server_change {
@@ -306,7 +304,6 @@ mod tests {
             links: mailcal_bindings::AccountLinksView::default(),
             linked_from: Vec::new(),
             link_candidates: mailcal_bindings::LinkCandidates::default(),
-            separate_server: None,
             distinction: None,
             mail_sync: None,
             nextcloud: false,

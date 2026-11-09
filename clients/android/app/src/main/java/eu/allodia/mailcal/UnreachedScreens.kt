@@ -10,21 +10,17 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -129,7 +125,7 @@ private fun SeparateServerBody(
 ) {
     val ctx = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(L10n.separate_server_body(ctx, form.host), style = MaterialTheme.typography.bodyMedium)
+        Text(L10n.separate_server_body(ctx, form.section.host), style = MaterialTheme.typography.bodyMedium)
         SeparateSignInOffer(controls, onSignIn)
         SetupField(
             fields.username,
@@ -149,26 +145,10 @@ private fun SeparateServerBody(
     }
 }
 
-/**
- * Asks once, when the form is drawn, whether its server offers the sign-in, and retires a sign-in
- * still out for it when the form leaves the screen.
- */
+/** Retires a sign-in still out for the form when it leaves the screen. */
 @Composable
-private fun SeparateFormEffects(form: SeparateServerForm, onShown: () -> Unit, onLeave: () -> Unit) {
-    LaunchedEffect(form) { onShown() }
-    DisposableEffect(form) { onDispose(onLeave) }
-}
-
-@Composable
-private fun ConnectLabel(busy: Boolean) {
-    val ctx = LocalContext.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        if (busy) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-        }
-        Text(L10n.action_connect(ctx))
-    }
+private fun SeparateFormEffects(form: SeparateServerForm, onLeave: () -> Unit) {
+    DisposableEffect(form.accountId) { onDispose(onLeave) }
 }
 
 /**
@@ -183,27 +163,31 @@ internal fun SeparateServerStepScreen(
     onConnect: (username: String, password: String) -> Unit,
     onSkip: () -> Unit,
     onSignIn: () -> Unit = {},
-    onShown: () -> Unit = {},
     onLeave: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    val fields = remember(form) { SeparateFields(form.username) }
-    SeparateFormEffects(form, onShown, onLeave)
+    // Kept across the core's redraws of the form, which change its section.
+    val fields = remember(form.accountId) { SeparateFields(form.section.username) }
+    SeparateFormEffects(form, onLeave)
     BackHandler(enabled = controls.leavable) { onSkip() }
     StepColumn {
         Text(separateServerTitle(ctx, form.set), style = MaterialTheme.typography.headlineSmall)
         SeparateServerBody(form, fields, controls, error, onSignIn)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(
+            ControlTextButton(
+                L10n.separate_server_skip(ctx),
+                controls.skip,
+                "separate-server-skip",
+                modifier = Modifier.weight(1f),
                 onClick = onSkip,
-                enabled = controls.leavable,
-                modifier = Modifier.weight(1f).testTag("separate-server-skip"),
-            ) { Text(L10n.separate_server_skip(ctx)) }
-            Button(
-                onClick = { onConnect(fields.username.trim(), fields.password) },
-                enabled = controls.editable && fields.ready,
-                modifier = Modifier.weight(1f).testTag("separate-server-connect"),
-            ) { ConnectLabel(controls.connecting) }
+            )
+            ControlButton(
+                L10n.action_connect(ctx),
+                controls.connect,
+                "separate-server-connect",
+                modifier = Modifier.weight(1f),
+                ready = fields.ready,
+            ) { onConnect(fields.username.trim(), fields.password) }
         }
     }
 }
@@ -217,22 +201,21 @@ internal fun SeparateServerDialog(
     onConnect: (username: String, password: String) -> Unit,
     onDismiss: () -> Unit,
     onSignIn: () -> Unit = {},
-    onShown: () -> Unit = {},
     onLeave: () -> Unit = {},
 ) {
     val ctx = LocalContext.current
-    val fields = remember(form) { SeparateFields(form.username) }
-    SeparateFormEffects(form, onShown, onLeave)
+    val fields = remember(form.accountId) { SeparateFields(form.section.username) }
+    SeparateFormEffects(form, onLeave)
     AlertDialog(
         onDismissRequest = { if (controls.leavable) onDismiss() },
         title = { Text(separateServerTitle(ctx, form.set)) },
         text = { SeparateServerBody(form, fields, controls, error, onSignIn) },
         confirmButton = {
-            TextButton(
-                onClick = { onConnect(fields.username.trim(), fields.password) },
-                enabled = controls.editable && fields.ready,
-                modifier = Modifier.testTag("separate-server-connect"),
-            ) { ConnectLabel(controls.connecting) }
+            ControlTextButton(
+                L10n.action_connect(ctx),
+                controls.connect.copy(enabled = controls.connect.enabled && fields.ready),
+                "separate-server-connect",
+            ) { onConnect(fields.username.trim(), fields.password) }
         },
         dismissButton = {
             TextButton(

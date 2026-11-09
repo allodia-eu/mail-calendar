@@ -49,8 +49,8 @@ extension MailboxModel {
             }
         }
         // The add's own dial has said whether the calendar or contacts need a sign-in of their
-        // own, so the step before the link step is read from the same snapshot.
-        let separateServer = entry.flatMap(SeparateServerRules.ask)
+        // own, so the step before the link step is read from the core's page now.
+        let separateServer = separateServerAsk(account.id)
         // Empty unless a JMAP session offers more than one use, which only it could say.
         let choices = app?.signedInSetupChoices(accountId: account.id) ?? []
         if !setupFlow.accountAdded(
@@ -58,6 +58,7 @@ extension MailboxModel {
         {
             finishSetup()
         }
+        separateServers[.setup] = setupFlow.separateServer
     }
 
     /// The uses step answered: what was chosen is switched on, then what was not is switched off,
@@ -75,14 +76,18 @@ extension MailboxModel {
         }
         savingSetupUses = false
         refreshAccountsSnapshot()
-        let separateServer = accountEntry(step.account).flatMap(SeparateServerRules.ask)
+        let separateServer = separateServerAsk(step.account)
         if !setupFlow.usesDone(separateServer: separateServer, stepFor: setupLinkStep) {
             finishSetup()
         }
+        separateServers[.setup] = setupFlow.separateServer
     }
 
-    /// The separate-server step answered: on to the link step, or the end of setup.
+    /// The separate-server step is over: on to the link step, or the end of setup. A sign-in that
+    /// ended it and the core no longer drawing its section both reach here; the second is a no-op.
     func setupSeparateServerDone() {
+        guard setupFlow.separateServer != nil else { return }
+        separateServers[.setup] = nil
         refreshAccountsSnapshot()
         if !setupFlow.separateServerDone(stepFor: setupLinkStep) {
             finishSetup()

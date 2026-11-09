@@ -2,7 +2,9 @@
 //! from the crate's single GTK test.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountCapability, UseProblem};
+use mailcal_bindings::{
+    AccountCapability, AccountChangeRefusal, AccountSeparateSignIn, ControlState,
+};
 
 use super::{Prompts, page_action};
 use crate::{
@@ -10,11 +12,12 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
+        controls::tests::spins,
         mailbox::tests::rendered_labels,
         separate_server_sign_in::ProviderInput,
         separate_sign_in::{
             SeparateFrom, SeparateInput,
-            tests::{form, mailbox, server},
+            tests::{form, section},
         },
         setup::SetupWindow,
         setup_state::SetupState,
@@ -37,6 +40,20 @@ fn sent(
     }
 }
 
+/// A button the control components drew, by the label they put inside it: a button of its own
+/// label is not one.
+fn button(root: &gtk::Widget, label: &str) -> gtk::Button {
+    descendants::<gtk::Button>(root)
+        .into_iter()
+        .find(|button| {
+            button.label().is_none()
+                && descendants::<gtk::Label>(button.upcast_ref())
+                    .iter()
+                    .any(|text| text.label() == label)
+        })
+        .unwrap_or_else(|| panic!("a {label} button"))
+}
+
 fn entry_for<'a>(fields: &'a [gtk::Entry], placeholder: &str) -> &'a gtk::Entry {
     fields
         .iter()
@@ -52,7 +69,7 @@ pub(crate) fn the_setup_step_asks_for_the_servers_password(window: &adw::Applica
     let mut setup = SetupWindow::default();
     state.open(false);
     let account = "alice@example.test@imap.example.test";
-    state.hold_separate(account, server(vec![AccountCapability::Calendar]));
+    state.hold_separate(account, section(vec![AccountCapability::Calendar]));
     assert!(state.show_separate(account, account));
     setup.render(&state, window, &sender);
     let child = setup
@@ -78,7 +95,7 @@ pub(crate) fn the_setup_step_asks_for_the_servers_password(window: &adw::Applica
         "the password is hidden"
     );
 
-    let connect = descendant_button(&child, l10n::action_connect());
+    let connect = button(&child, l10n::action_connect());
     connect.emit_clicked();
     assert!(
         sent(&sender, &receiver).is_none(),
@@ -94,7 +111,7 @@ pub(crate) fn the_setup_step_asks_for_the_servers_password(window: &adw::Applica
             password,
         }))) if username == "alice" && password.0 == "secret"
     ));
-    descendant_button(&child, l10n::separate_server_skip()).emit_clicked();
+    button(&child, l10n::separate_server_skip()).emit_clicked();
     assert!(matches!(
         sent(&sender, &receiver),
         Some(AppInput::Accounts(AccountsInput::Separate(
@@ -108,11 +125,8 @@ pub(crate) fn the_setup_step_asks_for_the_servers_password(window: &adw::Applica
 /// model lets it go. Closing it by hand says so.
 pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let entry = mailbox(
-        Some(UseProblem::NeedsOwnSignIn),
-        Some(server(vec![AccountCapability::Calendar])),
-    );
-    let action = page_action(&entry, true, &sender).expect("the action");
+    let account = "alice@example.test@imap.example.test";
+    let action = page_action(account, true, &sender);
     assert_eq!(
         action.title().as_str(),
         l10n::settings_account_use_separate_sign_in()
@@ -120,13 +134,11 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
     action.emit_by_name::<()>("activated", &[]);
     assert!(matches!(
         sent(&sender, &receiver),
-        Some(AppInput::Accounts(AccountsInput::Separate(SeparateInput::Open { account, .. })))
-            if account == entry.id
+        Some(AppInput::Accounts(AccountsInput::Separate(SeparateInput::Open { account: opened })))
+            if opened == account
     ));
-    assert!(page_action(&mailbox(None, None), true, &sender).is_none());
     // Held while a change runs on the page, as every control on it is.
-    let held = page_action(&entry, false, &sender).expect("the action");
-    assert!(!held.is_sensitive());
+    assert!(!page_action(account, false, &sender).is_sensitive());
 
     let parent = gtk::Window::new();
     let mut prompts = Prompts::default();
@@ -144,7 +156,10 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
     let password = entry_for(&fields, l10n::setup_field_password()).clone();
     password.set_text("typed");
 
-    shown.busy = true;
+    shown.section.connect = ControlState {
+        enabled: false,
+        running: true,
+    };
     prompts.sync(None, Some(&shown), &parent, &sender);
     assert_eq!(
         prompts.form_window().as_ref(),
@@ -152,22 +167,21 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
         "redrawn in place"
     );
     assert!(!password.is_sensitive(), "held while the connect runs");
-    let busy = crate::ui::setup_widget_tests::descendants::<gtk::Spinner>(
-        child.upcast_ref::<gtk::Widget>(),
-    )
-    .into_iter()
-    .find(gtk::Spinner::is_spinning)
-    .expect("a spinner turns while the connect runs");
-    assert!(self::shown(&busy), "and is on screen");
+    let connect = button(&child, l10n::action_connect());
+    assert!(spins(&connect), "Connect spins while it runs");
+    assert!(
+        !button(&child, l10n::action_cancel()).is_sensitive(),
+        "and Cancel waits for it"
+    );
 
-    shown.busy = false;
-    shown.error = Some(l10n::signin_refused().to_owned());
+    shown.section.connect = ControlState {
+        enabled: true,
+        running: false,
+    };
+    shown.section.failed = Some(AccountChangeRefusal::SignInRefused);
     prompts.sync(None, Some(&shown), &parent, &sender);
     assert!(password.is_sensitive());
-    assert!(
-        !self::shown(&busy) && !busy.is_spinning(),
-        "and is gone once it has answered"
-    );
+    assert!(!spins(&button(&child, l10n::action_connect())));
     assert_eq!(password.text(), "typed", "what was typed stands");
     assert!(
         rendered_labels(&child)
@@ -192,6 +206,30 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
             SeparateInput::Close
         )))
     ));
+}
+
+/// Setup's Skip spins while the core switches the uses off, and holds Connect.
+pub(crate) fn the_setup_steps_skip_spins_while_it_runs(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut state = SetupState::closed();
+    let mut setup = SetupWindow::default();
+    state.open(false);
+    let account = "alice@example.test@imap.example.test";
+    let mut skipping = section(vec![AccountCapability::Calendar]);
+    skipping.stop_using = ControlState {
+        enabled: false,
+        running: true,
+    };
+    skipping.connect.enabled = false;
+    state.hold_separate(account, skipping);
+    assert!(state.show_separate(account, account));
+    setup.render(&state, window, &sender);
+    let child = setup
+        .current_window()
+        .and_then(|window| window.child())
+        .expect("the step");
+    assert!(spins(&button(&child, l10n::separate_server_skip())));
+    assert!(!button(&child, l10n::action_connect()).is_sensitive());
 }
 
 /// Whether `widget` and everything it sits in are shown.
@@ -234,7 +272,7 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
     let mut setup = SetupWindow::default();
     state.open(false);
     let account = "alice@example.test@imap.example.test";
-    state.hold_separate(account, server(vec![AccountCapability::Calendar]));
+    state.hold_separate(account, section(vec![AccountCapability::Calendar]));
     assert!(state.show_separate(account, account));
     setup.render(&state, window, &sender);
     let child = setup
@@ -249,7 +287,7 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
     password.set_text("half typed");
 
     let step = state.separate.as_mut().expect("the step");
-    step.offer_answered(&[AccountCapability::Calendar], true, false);
+    step.section.sign_in = Some(AccountSeparateSignIn::Provider);
     state.report();
     setup.render(&state, window, &sender);
     assert_eq!(
@@ -273,7 +311,10 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
             .iter()
             .any(|text| text == l10n::setup_imap_signin_note())
     );
-    let cancel = descendant_button(&child, l10n::action_cancel());
+    let cancel = descendants::<gtk::Button>(&child)
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(l10n::action_cancel()))
+        .expect("the sign-in's Cancel");
     assert!(!shown(&cancel), "nothing to cancel yet");
     sign_in.emit_clicked();
     assert!(matches!(
@@ -324,18 +365,14 @@ pub(crate) fn the_page_form_offers_the_sign_in_in_place() {
     let sign_in = descendant_button(&child, l10n::setup_imap_signin_button());
     assert!(!shown(&sign_in));
 
-    shown_form.offer_answered(&[AccountCapability::Calendar], true, false);
+    shown_form.section.sign_in = Some(AccountSeparateSignIn::Provider);
     prompts.sync(None, Some(&shown_form), &parent, &sender);
     assert_eq!(prompts.form_window().as_ref(), Some(&window));
     assert!(shown(&sign_in));
-    let connect = descendant_button(&child, l10n::action_connect());
+    let connect = button(&child, l10n::action_connect());
     assert!(shown(&connect) && !connect.has_css_class("suggested-action"));
     assert!(
-        descendants::<gtk::Button>(&child)
-            .iter()
-            .any(
-                |button| button.label().as_deref() == Some(l10n::action_cancel()) && shown(button)
-            ),
+        shown(&button(&child, l10n::action_cancel())),
         "the form's own Cancel stays"
     );
     sign_in.emit_clicked();
@@ -360,7 +397,7 @@ pub(crate) fn the_setup_step_offers_nextcloud_in_place(window: &adw::Application
     let mut setup = SetupWindow::default();
     state.open(false);
     let account = "alice@example.test@imap.example.test";
-    state.hold_separate(account, server(vec![AccountCapability::Calendar]));
+    state.hold_separate(account, section(vec![AccountCapability::Calendar]));
     assert!(state.show_separate(account, account));
     setup.render(&state, window, &sender);
     let child = setup
@@ -371,7 +408,7 @@ pub(crate) fn the_setup_step_offers_nextcloud_in_place(window: &adw::Application
     password.set_text("half typed");
 
     let step = state.separate.as_mut().expect("the step");
-    step.offer_answered(&[AccountCapability::Calendar], false, true);
+    step.section.sign_in = Some(AccountSeparateSignIn::Nextcloud);
     state.report();
     setup.render(&state, window, &sender);
     assert_eq!(password.text(), "half typed", "what was typed stands");

@@ -26,7 +26,8 @@ import uniffi.mailcal_bindings.AccountSignIn
 import uniffi.mailcal_bindings.AccountSignInLine
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
-import uniffi.mailcal_bindings.SeparateServer
+import uniffi.mailcal_bindings.AccountSeparateServer
+import uniffi.mailcal_bindings.AccountSeparateSignIn
 import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
@@ -39,10 +40,9 @@ class SettingsSeparateServerTest {
     private val state = AccountsUiState()
     private val opened = mutableListOf<String>()
     private val choices = mutableListOf<UnreachedChoice>()
-    private var asked = 0
     private var signIns = 0
 
-    private fun mailbox(server: SeparateServer?): AccountEntry {
+    private fun mailbox(server: AccountSeparateServer?): AccountEntry {
         val base = accountEntry(
             CoreAccountKind.IMAP,
             MAIL to CapabilityState.ON,
@@ -52,9 +52,10 @@ class SettingsSeparateServerTest {
         val problem = UseProblem.NEEDS_OWN_SIGN_IN.takeIf { server != null }
         return base.copy(
             uses = base.uses.map { if (it.capability == CALENDAR) it.copy(problem = problem) else it },
-            separateServer = server,
         )
     }
+
+    private var section: AccountSeparateServer? = null
 
     private fun show(entry: AccountEntry) {
         state.snapshot = AccountsSnapshot(listOf(entry))
@@ -62,13 +63,16 @@ class SettingsSeparateServerTest {
         // A mailbox always has a Sign-in section, which the switch's question is asked from.
         state.accountPage = pageOf(
             entry,
+            uses = entry.uses.map {
+                useSwitch(it.capability, it.state == CapabilityState.ON, separately = section?.uses?.last() == it.capability)
+            },
             signIn = AccountSignIn(AccountSignInLine.PASSWORD, emptyList(), FREE, null, switches = false),
+            separate = section,
         )
         val ui = AccountsSettingsUi(
             state = state,
             onSeparateSignIn = { opened += it },
             onUnreachedChoice = { choices += it },
-            onSeparateFormShown = { asked++ },
             onSeparateProviderSignIn = { signIns++ },
         )
         compose.setContent {
@@ -81,11 +85,12 @@ class SettingsSeparateServerTest {
         compose.waitForIdle()
     }
 
-    private val calendar = SeparateServer(listOf(CALENDAR), "dav.example.org", "alice")
+    private val calendar = separateSection(CALENDAR)
 
     @Test
     fun the_action_sits_under_exactly_the_use_the_core_names() {
         val entry = mailbox(calendar)
+        section = calendar
         show(entry)
 
         compose.onNodeWithTag("account-use-separate-CALENDAR").performScrollTo().performClick()
@@ -104,7 +109,8 @@ class SettingsSeparateServerTest {
     @Test
     fun the_form_opened_names_the_server_and_its_login() {
         val entry = mailbox(calendar)
-        state.separate.open(UnreachedRules.form(entry)!!)
+        section = calendar
+        state.separate.open(UnreachedRules.form(entry.id, calendar)!!)
         show(entry)
 
         compose.onNodeWithText(L10n.separate_server_title_calendar(ctx())).assertExists()
@@ -132,14 +138,12 @@ class SettingsSeparateServerTest {
     @Test
     fun the_pages_form_offers_a_sign_in_once_its_server_does() {
         val entry = mailbox(calendar)
-        val form = UnreachedRules.form(entry)!!
-        state.separate.open(form)
+        section = calendar
+        state.separate.open(UnreachedRules.form(entry.id, calendar)!!)
         show(entry)
-        assertEquals(1, asked)
         compose.onNodeWithTag("separate-server-sign-in").assertDoesNotExist()
 
-        state.separate.startAsking(form)
-        state.separate.answered(form, true)
+        state.separate.redraw(separateSection(CALENDAR, signIn = AccountSeparateSignIn.PROVIDER))
         compose.waitForIdle()
         compose.onNodeWithTag("separate-server-sign-in").performClick()
 

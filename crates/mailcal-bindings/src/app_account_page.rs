@@ -72,6 +72,14 @@ impl MailcalApp {
         if let Some(servers) = &mut page.servers {
             servers.sign_in_refused = sign_in_refused;
         }
+        page.separate_server = self.separate_section(&account_id, &hold);
+        let separate_after = page
+            .separate_server
+            .as_ref()
+            .and_then(|separate| separate.uses.last().copied());
+        for switch in &mut page.uses {
+            switch.signs_in_separately = separate_after == Some(switch.capability);
+        }
         Some(page)
     }
 
@@ -243,6 +251,19 @@ impl MailcalApp {
                 self.allow_server_change(&account, &shown);
                 None
             }
+            // Said by the section itself, which setup's step draws too.
+            AccountPageIntent::ConnectSeparateServer {
+                account,
+                username,
+                password,
+            } => {
+                self.connect_separate_server(&account, username, password.text);
+                None
+            }
+            AccountPageIntent::StopUsingSeparateServer { account } => {
+                self.stop_using_separate_server(&account);
+                None
+            }
             // Tried before anything is kept; the page shows what was stored once it ends.
             AccountPageIntent::SaveServers { account, endpoints } => {
                 let error = self
@@ -296,3 +317,6 @@ mod shared;
 
 #[path = "app_account_page_sign_in.rs"]
 mod sign_in;
+
+#[path = "app_account_page_separate.rs"]
+mod separate;

@@ -22,6 +22,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.ControlState
 
 @RunWith(RobolectricTestRunner::class)
 class UnreachedScreensTest {
@@ -34,18 +35,10 @@ class UnreachedScreensTest {
     private var skips = 0
     private var dismissed = 0
     private var signIns = 0
-    private var shown = 0
     private var left = 0
-    private var controls by mutableStateOf(SeparateControls())
+    private val form = separateForm(separateSection(AccountCapability.CALENDAR, AccountCapability.CONTACTS))
+    private var controls by mutableStateOf(SeparateControls.of(form.section, null))
     private var error by mutableStateOf<String?>(null)
-
-    private val form = SeparateServerForm(
-        accountId = "alice@imap",
-        uses = listOf(AccountCapability.CALENDAR, AccountCapability.CONTACTS),
-        set = UnreachedSet.BOTH,
-        host = "dav.example.org",
-        username = "alice@example.org",
-    )
 
     private fun question(set: UnreachedSet) {
         compose.setContent { SignInUnreachedDialog(set) { choices += it } }
@@ -61,7 +54,6 @@ class UnreachedScreensTest {
                 { u, p -> connects += u to p },
                 { skips++ },
                 onSignIn = { signIns++ },
-                onShown = { shown++ },
                 onLeave = { left++ },
             )
         }
@@ -108,7 +100,7 @@ class UnreachedScreensTest {
 
         compose.onNodeWithText(L10n.separate_server_title_both(ctx())).assertExists()
         compose.onNodeWithText(L10n.separate_server_body(ctx(), "dav.example.org")).assertExists()
-        compose.onNodeWithText("alice@example.org").assertExists()
+        compose.onNodeWithText("alice").assertExists()
         compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
     }
 
@@ -119,7 +111,7 @@ class UnreachedScreensTest {
         compose.onNodeWithText(L10n.setup_field_password(ctx())).performTextInput("secret")
         compose.onNodeWithTag("separate-server-connect").assertIsEnabled().performClick()
 
-        assertEquals(listOf("alice@example.org" to "secret"), connects)
+        assertEquals(listOf("alice" to "secret"), connects)
         assertEquals(0, skips)
     }
 
@@ -141,10 +133,28 @@ class UnreachedScreensTest {
         compose.onNodeWithTag("separate-server-error").assertExists()
         compose.onNodeWithText(L10n.signin_refused(ctx())).assertExists()
 
-        controls = SeparateControls.of(busy = true, offersSignIn = false, step = null)
+        val connecting = ControlState(enabled = false, running = true)
+        controls = SeparateControls.of(
+            separateSection(AccountCapability.CALENDAR, connect = connecting, stopUsing = connecting.copy(running = false)),
+            null,
+        )
         compose.waitForIdle()
         compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
+        compose.onNodeWithTag("separate-server-connect-running").assertExists()
         compose.onNodeWithTag("separate-server-skip").assertIsNotEnabled()
+    }
+
+    @Test
+    fun skip_spins_while_the_core_switches_the_uses_off() {
+        step()
+        val held = ControlState(enabled = false, running = false)
+        controls = SeparateControls.of(
+            separateSection(AccountCapability.CALENDAR, connect = held, stopUsing = ControlState(false, true)),
+            null,
+        )
+        compose.waitForIdle()
+        compose.onNodeWithTag("separate-server-skip-running").assertExists()
+        compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
     }
 
     @Test
@@ -159,7 +169,7 @@ class UnreachedScreensTest {
         compose.onNodeWithTag("separate-server-connect").performClick()
         compose.onNodeWithTag("separate-server-cancel").performClick()
 
-        assertEquals(listOf("alice@example.org" to "secret"), connects)
+        assertEquals(listOf("alice" to "secret"), connects)
         assertEquals(1, dismissed)
     }
 }

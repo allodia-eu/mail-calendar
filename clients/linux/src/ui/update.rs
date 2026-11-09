@@ -30,6 +30,11 @@ impl AppModel {
             AppInput::SurfaceChanged(surface) => {
                 let collect_new_mail = matches!(surface, Surface::MailboxList);
                 self.pull(&surface);
+                // A separate server's form follows the core's section, and goes on once it is
+                // over; going on may need to send.
+                if matches!(surface, Surface::Settings | Surface::Notices) {
+                    self.separate_signalled(sender.input_sender());
+                }
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
                     // After the pull, so the rows this snapshot brought are the ones searched.

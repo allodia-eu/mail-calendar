@@ -1,44 +1,51 @@
 // A mailbox's calendar and contacts on a server its sign-in does not reach (docs/accounts.md rule
 // 18): moved to an account of their own with a password typed for that server, or signed in at
-// that server's own provider (docs/mail-oauth.md rule 13), or switched off.
-// The core adds and connects the calendar account before the mailbox changes, so a refusal leaves
-// both as they were. Every call blocks in the core, so each runs off the main actor.
+// that server's own provider (docs/mail-oauth.md rule 13), or switched off. The form draws the
+// core's section, and the password and Skip are changes on the account's page. The core adds and
+// connects the calendar account before the mailbox changes, so a refusal leaves both as they were.
+// Every sign-in call blocks in the core, so each runs off the main actor.
 
 import Foundation
 import MailcalBindings
 
+/// Where a separate-server form is open.
+enum SeparateServerPlace: Hashable {
+    /// Setup's step after the add.
+    case setup
+    /// The form on an account's page.
+    case page
+}
+
 extension MailboxModel {
-    /// Moves `ask`'s uses to an account of their own at the same server, signing in as
-    /// `username` with `password`, and links it to the mailbox. Answers why not, or `nil` once
-    /// moved; the page and the link step then redraw from the next snapshot.
-    func addLinkedCalendarAccount(
-        _ ask: SeparateServerAsk, username: String, password: String
-    ) async -> String? {
-        guard let app else { return L10n.app_unavailable() }
-        do {
-            _ = try await Task.detached(priority: .userInitiated) {
-                try app.addLinkedCalendarAccount(
-                    accountId: ask.account, uses: ask.uses, username: username, password: password)
-            }.value
-            // An account was added, so it travels as every added account does.
-            syncAfterAccountChange()
-            refreshAccountsSnapshot()
-            return nil
-        } catch {
-            // Never the login or the password.
-            logAppleLifecycle(
-                "accounts: the calendar server's own sign-in failed (\(coreMessage(error)))")
-            return coreMessage(error)
-        }
+    /// The form for `account`'s separate server, from the core's page; `nil` when nothing needs
+    /// one.
+    func separateServerAsk(_ account: String) -> SeparateServerAsk? {
+        SeparateServerRules.ask(account, app?.accountPage(accountId: account)?.separateServer)
     }
 
-    /// Whether the server holding `ask`'s uses can be signed in to at its own provider. Never
-    /// fails: anything short of a usable answer is the password form.
-    func separateServerOffersSignIn(_ ask: SeparateServerAsk) async -> Bool {
-        guard let app else { return false }
-        return await Task.detached(priority: .userInitiated) {
-            app.separateServerOffersSignIn(accountId: ask.account, uses: ask.uses)
-        }.value
+    /// Opens the page's form for `account`.
+    func openSeparateServer(_ account: String) {
+        separateServers[.page] = separateServerAsk(account)
+    }
+
+    /// The form open on `account`'s page, as the core last drew it.
+    func pageSeparateServer(_ account: String) -> SeparateServerAsk? {
+        separateServers[.page].flatMap { $0.account == account ? $0 : nil }
+    }
+
+    /// Reads every open form again: a Connect or Skip starting or ending, or the server's answer
+    /// about its ways in. One the core draws no section for is over: the uses have an account of
+    /// their own, or were switched off, so the person's other devices hear of it and setup goes on.
+    func refreshSeparateServers() {
+        for (place, shown) in separateServers {
+            let fresh = separateServerAsk(shown.account)
+            guard fresh != shown else { continue }
+            separateServers[place] = fresh
+            if fresh == nil {
+                syncAfterAccountChange()
+                if place == .setup { setupSeparateServerDone() }
+            }
+        }
     }
 
     /// Moves `ask`'s uses to an account of their own signed in at their server's own provider.
@@ -84,15 +91,6 @@ extension MailboxModel {
             // The core's messages name server configuration, never the login or a secret.
             logBrowserSignIn("calendar", "signing in did not complete (\(coreMessage(error)))")
             return .failed(SeparateServerRules.signInFailure(error))
-        }
-    }
-
-    /// Skip on the setup step: the uses the sign-in did not reach are switched off, so the account
-    /// does not open on a calendar that cannot connect. Its page offers the same form later.
-    func skipSeparateServer(_ ask: SeparateServerAsk) async {
-        // A failure is logged by the switch itself, and setup goes on: the page still offers it.
-        for use in SeparateServerRules.skipped(ask) {
-            _ = await setAccountUse(ask.account, use, on: false)
         }
     }
 }

@@ -5,7 +5,7 @@
 //! a fresh press supersedes the attempt still out and a way back retires it
 //! (`docs/provider-oauth.md` rule 13).
 
-use mailcal_bindings::{AccountCapability, MailcalApp, MailcalError};
+use mailcal_bindings::{AccountCapability, AccountSeparateSignIn, MailcalApp, MailcalError};
 
 use super::{
     AppInput, AppModel,
@@ -56,14 +56,6 @@ impl std::fmt::Debug for Redirect {
 /// The sign-in's traffic, for the form it was asked from.
 #[derive(Debug)]
 pub(crate) enum ProviderInput {
-    /// Whether the server signs in at its own provider, or with Nextcloud, for the uses it was
-    /// asked about.
-    Offered {
-        account: String,
-        uses: Vec<AccountCapability>,
-        offered: bool,
-        nextcloud: bool,
-    },
     /// Sign in at the server's own provider.
     Start,
     Prepared {
@@ -150,36 +142,6 @@ fn prepare(
 }
 
 impl AppModel {
-    /// Asks, off the main thread, whether the form's server signs in at its own provider. Until
-    /// it answers the form stands as it is.
-    pub(super) fn ask_separate_offer(
-        &mut self,
-        from: SeparateFrom,
-        sender: relm4::Sender<AppInput>,
-    ) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        let Some(form) = self.separate_form(from) else {
-            return;
-        };
-        let (account, uses) = (form.account.clone(), form.server.uses.clone());
-        std::thread::spawn(move || {
-            let offered = app.separate_server_offers_sign_in(account.clone(), uses.clone());
-            let nextcloud = !offered
-                && app.separate_server_offers_nextcloud_sign_in(account.clone(), uses.clone());
-            sender.emit(provider(
-                from,
-                ProviderInput::Offered {
-                    account,
-                    uses,
-                    offered,
-                    nextcloud,
-                },
-            ));
-        });
-    }
-
     pub(super) fn provider_input(
         &mut self,
         from: SeparateFrom,
@@ -187,20 +149,6 @@ impl AppModel {
         sender: relm4::Sender<AppInput>,
     ) {
         match input {
-            ProviderInput::Offered {
-                account,
-                uses,
-                offered,
-                nextcloud,
-            } => {
-                if let Some(form) = self
-                    .separate_form(from)
-                    .filter(|form| form.account == account)
-                {
-                    form.offer_answered(&uses, offered, nextcloud);
-                    self.redraw_separate(from);
-                }
-            }
             ProviderInput::Start => self.start_provider_sign_in(from, sender),
             ProviderInput::Prepared { attempt, prepared } => {
                 self.provider_prepared(from, attempt, prepared, sender);
@@ -234,12 +182,12 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
-        if self.separate_form(from).is_some_and(|form| form.nextcloud) {
+        let offers = self.separate_form(from).and_then(|form| form.offers());
+        if offers == Some(AccountSeparateSignIn::Nextcloud) {
             return self.start_separate_nextcloud(from, sender);
         }
-        if !self
-            .separate_form(from)
-            .is_some_and(|form| form.offers_sign_in && !form.held())
+        if offers != Some(AccountSeparateSignIn::Provider)
+            || self.separate_form(from).is_none_or(|form| form.held())
         {
             return;
         }
@@ -260,7 +208,7 @@ impl AppModel {
         else {
             return;
         };
-        let (account, uses) = (form.account.clone(), form.server.uses.clone());
+        let (account, uses) = (form.account.clone(), form.section.uses.clone());
         self.redraw_separate(from);
         std::thread::spawn(move || {
             let prepared = prepare(&app, loopback, account, uses);
@@ -404,7 +352,14 @@ impl AppModel {
             return;
         }
         match as_connected(end) {
-            Some(result) => self.separate_connected(from, account, result, sender),
+            // The account was made: the core draws no section any more.
+            Some(Ok(())) => self.separate_redrawn(from, &sender),
+            Some(Err(error)) => {
+                if let Some(form) = self.separate_form(from) {
+                    form.failed(error);
+                }
+                self.redraw_separate(from);
+            }
             None => self.redraw_separate(from),
         }
     }

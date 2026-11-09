@@ -1,6 +1,6 @@
 // A separate server's form and its sign-in at the server's own provider (docs/mail-oauth.md
 // rule 13): when the sign-in is offered, what a superseded or retired attempt's answer does, what
-// the form's controls allow meanwhile, and that a success goes where Connect's does.
+// the form's controls allow meanwhile, and that a form the core draws no section for is over.
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -12,65 +12,40 @@ import org.junit.Test
 import uniffi.mailcal_bindings.AccountCapability.CALENDAR
 import uniffi.mailcal_bindings.AccountCapability.CONTACTS
 import uniffi.mailcal_bindings.AccountCapability.MAIL
+import uniffi.mailcal_bindings.AccountSeparateSignIn
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
+import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.LinkCandidates
-import uniffi.mailcal_bindings.SeparateServer
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 class SeparateSignInTest {
-    private fun mailbox(server: SeparateServer) = accountEntry(
-        CoreAccountKind.IMAP,
-        MAIL to CapabilityState.ON,
-        CALENDAR to CapabilityState.ON,
-        CONTACTS to CapabilityState.ON,
-        id = "alice@imap",
-    ).copy(separateServer = server)
+    private val both = separateSection(CALENDAR, CONTACTS)
+    private val offering = separateSection(CALENDAR, CONTACTS, signIn = AccountSeparateSignIn.PROVIDER)
 
-    private val both = UnreachedRules.form(mailbox(SeparateServer(listOf(CALENDAR, CONTACTS), "dav.example.org", "alice")))!!
-    private val calendar = UnreachedRules.form(mailbox(SeparateServer(listOf(CALENDAR), "dav.example.org", "alice")))!!
-
-    private fun offered(form: SeparateServerForm = both): SeparateSignIn {
+    private fun offered(): SeparateSignIn {
         val state = SeparateSignIn()
-        state.open(form)
-        assertTrue(state.startAsking(form))
-        state.answered(form, true)
+        state.open(separateForm(offering))
         return state
     }
 
     @Test
-    fun the_sign_in_is_offered_only_after_the_core_says_so_for_the_forms_uses() {
+    fun the_sign_in_is_offered_once_the_core_draws_it() {
         val state = SeparateSignIn()
-        state.open(both)
-        assertFalse(state.offersSignIn)
+        state.open(separateForm(both))
+        assertFalse(state.controls!!.offersSignIn)
         assertNull("nothing offered yet", state.beginSignIn())
 
-        assertTrue(state.startAsking(both))
-        assertFalse("asked once for each opening", state.startAsking(both))
-        assertFalse("not a form on screen", state.startAsking(calendar))
-
-        state.answered(calendar, true)
-        assertFalse("an answer for other uses", state.offersSignIn)
-        state.answered(both, false)
-        assertFalse(state.offersSignIn)
-        state.answered(both, true)
-        assertTrue(state.offersSignIn)
-        assertTrue(state.controls.offersSignIn)
+        assertTrue(state.redraw(offering))
+        assertTrue(state.controls!!.offersSignIn)
+        assertNotNull(state.beginSignIn())
     }
 
     @Test
-    fun an_answer_after_the_form_closed_or_another_opened_is_dropped() {
-        val state = SeparateSignIn()
-        state.open(both)
-        state.startAsking(both)
-        state.close()
-        state.answered(both, true)
-        assertFalse(state.offersSignIn)
-
-        state.open(calendar)
-        state.answered(both, true)
-        assertFalse(state.offersSignIn)
-        assertTrue("the new opening asks again", state.startAsking(calendar))
+    fun a_form_the_core_draws_no_section_for_is_over() {
+        val state = offered()
+        assertFalse(state.redraw(null))
+        assertTrue("nothing open has nothing to end", SeparateSignIn().redraw(null))
     }
 
     @Test
@@ -91,7 +66,7 @@ class SeparateSignInTest {
     fun cancel_retires_the_attempt_so_its_start_opens_no_browser() {
         val state = offered()
         val attempt = state.beginSignIn()!!
-        assertTrue("the way back stays while it starts", state.controls.leavable)
+        assertTrue("the way back stays while it starts", state.controls!!.leavable)
 
         state.close()
 
@@ -106,7 +81,7 @@ class SeparateSignInTest {
         val attempt = state.beginSignIn()!!
         state.browser.opening(attempt, "handle")
 
-        assertTrue(state.start())
+        assertTrue(state.sending())
 
         assertNull("its redirect adds nothing", state.browser.redirected())
     }
@@ -127,38 +102,50 @@ class SeparateSignInTest {
     }
 
     @Test
-    fun only_the_blocking_calls_hold_the_controls() {
-        assertEquals(SeparateControls(), SeparateControls.of(busy = false, offersSignIn = false, step = null))
+    fun the_core_holds_connect_and_skip_and_the_blocking_calls_hold_the_rest() {
+        val free = SeparateControls.of(both, null)
+        assertTrue(free.connect.enabled && free.skip.enabled && free.editable && free.leavable)
 
-        val connecting = SeparateControls.of(busy = true, offersSignIn = true, step = null)
-        assertTrue(connecting.connecting)
+        val connecting = SeparateControls.of(
+            separateSection(CALENDAR, connect = ControlState(false, true), stopUsing = ControlState(false, false)),
+            null,
+        )
+        assertTrue(connecting.connect.running)
         assertFalse(connecting.editable)
         assertFalse(connecting.leavable)
 
-        val starting = SeparateControls.of(busy = false, offersSignIn = true, step = SeparateSignInStep.STARTING)
+        val starting = SeparateControls.of(offering, SeparateSignInStep.STARTING)
         assertTrue(starting.signingIn)
         assertFalse(starting.editable)
+        assertFalse(starting.connect.enabled)
         assertTrue(starting.leavable)
 
-        val browser = SeparateControls.of(busy = false, offersSignIn = true, step = SeparateSignInStep.BROWSER)
+        val browser = SeparateControls.of(offering, SeparateSignInStep.BROWSER)
         assertTrue(browser.signingIn)
         assertTrue("a fresh press supersedes it", browser.editable)
         assertTrue(browser.leavable)
 
-        val completing = SeparateControls.of(busy = false, offersSignIn = true, step = SeparateSignInStep.COMPLETING)
+        val completing = SeparateControls.of(offering, SeparateSignInStep.COMPLETING)
         assertFalse(completing.editable)
         assertFalse(completing.leavable)
+        assertFalse(completing.skip.enabled)
     }
 
     @Test
-    fun a_connect_or_skip_waits_while_a_sign_in_completes() {
+    fun a_connect_or_skip_waits_while_a_sign_in_completes_or_the_core_holds_it() {
         val state = offered()
         val attempt = state.beginSignIn()!!
         state.browser.opening(attempt, "handle")
         state.browser.redirected()
 
-        assertFalse(state.start())
+        assertFalse(state.sending())
+        assertFalse(state.sending(skip = true))
         assertNull(state.beginSignIn())
+
+        val held = SeparateSignIn()
+        held.open(separateForm(separateSection(CALENDAR, connect = ControlState(false, false))))
+        assertFalse(held.sending())
+        assertFalse("nothing open", SeparateSignIn().sending())
     }
 
     @Test
@@ -171,29 +158,27 @@ class SeparateSignInTest {
 
         assertEquals("refused", state.error)
         assertNotNull(state.form)
-        assertTrue(state.offersSignIn)
         assertNotNull(state.beginSignIn())
         assertNull("a fresh press clears it", state.error)
     }
 
     @Test
-    fun a_sign_in_that_completes_goes_on_to_the_link_step_as_connect_does() {
-        val entry = mailbox(SeparateServer(listOf(CALENDAR, CONTACTS), "dav.example.org", "alice")).copy(
-            linkCandidates = LinkCandidates(listOf(linked("bob@dav")), emptyList(), emptyList(), emptyList()),
+    fun a_form_that_is_over_goes_on_to_the_link_step() {
+        val entry = accountEntry(
+            CoreAccountKind.IMAP,
+            MAIL to CapabilityState.ON,
+            CALENDAR to CapabilityState.ON,
+            CONTACTS to CapabilityState.ON,
+            id = "alice@imap",
+            candidates = LinkCandidates(listOf(linked("bob@dav")), emptyList(), emptyList(), emptyList()),
         )
         val snapshot = AccountsSnapshot(listOf(entry))
         val stepFor: (String) -> SetupLinkStep? = { SetupLinkStep.of(snapshot, it, { true }, ::setupPickers) }
         val flow = SetupFlow()
-        flow.accountAdded("alice@imap", false, emptyList(), stepFor, UnreachedRules.form(entry))
-        val form = flow.separate.form!!
-        flow.separate.startAsking(form)
-        flow.separate.answered(form, true)
+        flow.accountAdded("alice@imap", false, emptyList(), stepFor, separateForm(offering))
 
-        val attempt = flow.separate.beginSignIn()!!
-        flow.separate.browser.opening(attempt, "handle")
-        flow.separate.browser.redirected()
-        assertTrue(flow.separate.browser.settled(attempt))
-        // MainActivity.separateLinked, which Connect's success runs too.
+        assertFalse(flow.separate.redraw(null))
+        // MainActivity.separateLinked, which a form the core no longer draws runs.
         assertTrue(flow.separateDone(stepFor))
 
         assertNull(flow.separate.form)

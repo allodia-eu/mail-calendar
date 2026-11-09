@@ -1,6 +1,6 @@
 // The separate-server form's sign-in at the server's own provider (docs/mail-oauth.md rule 13):
-// offered only after the core has said yes for the form's uses, an answer from an attempt that was
-// superseded or retired does nothing, and success goes where Connect's success goes.
+// offered once the core's section says so, an answer from an attempt that was superseded or
+// retired does nothing, and success ends the form.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -10,49 +10,22 @@ namespace Allodia.Mailcal.Tests;
 
 public class SeparateServerSignInTests
 {
-    private static SeparateServerStep Step(params AccountCapability[] uses) => new(
-        "alice@imap", uses, UnreachedUsesRules.Title(uses) ?? UnreachedTitle.Both, "dav.example.org", "alice@example.org");
+    private static SeparateServerStep Step(params AccountCapability[] uses) =>
+        new("alice@imap", UnreachedUsesRulesTests.Section(uses), UnreachedUsesRules.Title(uses) ?? UnreachedTitle.Both);
 
     [Fact]
-    public void TheSignInIsOfferedOnlyAfterTheCoreSaysYesForTheFormsUses()
+    public void TheSignInIsOfferedOnceTheCoreDrawsIt()
     {
-        var signIn = new SeparateServerSignIn();
         var both = Step(AccountCapability.Calendar, AccountCapability.Contacts);
-
         // Unanswered, the form stays as it is: the password path alone.
-        Assert.True(signIn.Asks(both));
-        Assert.False(signIn.Offers(both));
-        // A redraw does not ask again.
-        Assert.False(signIn.Asks(both));
+        Assert.False(SeparateServerSignIn.Offers(both));
+        Assert.False(SeparateServerSignIn.Offers(null));
 
-        signIn.Answered(both, true);
-        Assert.True(signIn.Offers(both));
-        // The same uses in another order are the same form.
-        Assert.True(signIn.Offers(Step(AccountCapability.Contacts, AccountCapability.Calendar)));
-        // Other uses, or another account, have not been asked about.
-        Assert.False(signIn.Offers(Step(AccountCapability.Calendar)));
-        Assert.False(signIn.Offers(both with { AccountId = "bob@imap" }));
-        Assert.False(signIn.Offers(null));
-
-        var calendar = Step(AccountCapability.Calendar);
-        Assert.True(signIn.Asks(calendar));
-        signIn.Answered(calendar, false);
-        Assert.False(signIn.Offers(calendar));
-    }
-
-    [Fact]
-    public void AServerThatIsNextcloudOffersItsOwnSignInAboveThePassword()
-    {
-        var signIn = new SeparateServerSignIn();
-        var both = Step(AccountCapability.Calendar, AccountCapability.Contacts);
-        Assert.Equal(SeparateSignInOffer.None, signIn.Offer(both));
-        signIn.Asks(both);
-        signIn.Answered(both, SeparateSignInOffer.Nextcloud);
-        Assert.Equal(SeparateSignInOffer.Nextcloud, signIn.Offer(both));
-        Assert.True(signIn.Offers(both));
-        // The provider's answer keeps its own meaning.
-        signIn.Answered(both, true);
-        Assert.Equal(SeparateSignInOffer.Provider, signIn.Offer(both));
+        var provider = both with { Section = both.Section with { SignIn = AccountSeparateSignIn.Provider } };
+        Assert.Equal(SeparateSignInOffer.Provider, SeparateServerSignIn.Offer(provider));
+        var nextcloud = both with { Section = both.Section with { SignIn = AccountSeparateSignIn.Nextcloud } };
+        Assert.Equal(SeparateSignInOffer.Nextcloud, SeparateServerSignIn.Offer(nextcloud));
+        Assert.True(SeparateServerSignIn.Offers(nextcloud));
     }
 
     [Fact]
@@ -153,7 +126,7 @@ public class SeparateServerSignInTests
     }
 
     [Fact]
-    public void SuccessGoesWhereConnectsSuccessGoes()
+    public void SuccessEndsTheFormAndAFailureKeepsIt()
     {
         var signIn = new SeparateServerSignIn();
         var attempt = signIn.Start();
@@ -161,11 +134,11 @@ public class SeparateServerSignInTests
         signIn.Advanced(attempt, SeparateSignInPhase.Completing);
         var next = signIn.Ended(attempt, SeparateSignInEnd.Added("alice@dav"));
 
-        Assert.Equal(SeparateServerNext.AfterConnect(null), next);
+        Assert.Equal(new SeparateServerNext(null), next);
         Assert.True(next?.GoesOn);
         // A failure stays on the form, as a refused password does.
         var failed = signIn.Ended(signIn.Start(), SeparateSignInEnd.Failed("no"));
-        Assert.Equal(SeparateServerNext.AfterConnect("no"), failed);
+        Assert.Equal(new SeparateServerNext("no"), failed);
         Assert.False(failed?.GoesOn);
     }
 

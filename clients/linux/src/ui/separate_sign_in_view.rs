@@ -1,21 +1,22 @@
 //! The widgets of a sign-in of its own ([`super::separate_sign_in`]): setup's step, the action
 //! the account's page offers, and the form that action opens over Settings. Each is drawn from
-//! the model's state; the form is a modal that a redraw of the page leaves open and updates in
-//! place, so what was typed stands while a connect runs and after it fails, and setup's step is
-//! updated in place the same way (`super::setup`).
+//! the core's section and the browser sign-in's state; the form is a modal that a redraw of the
+//! page leaves open and updates in place, so what was typed stands while a connect runs and after
+//! it fails, and setup's step is updated in place the same way (`super::setup`).
 
 use std::{cell::Cell, rc::Rc};
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountCapability, AccountEntry};
+use mailcal_bindings::{AccountCapability, AccountSeparateSignIn, ControlState};
 
 use super::{
     AppInput,
     account_settings::AccountsInput,
     account_sign_in::{Password, SignInInput},
+    controls,
     separate_server_sign_in::{ProviderInput, SignInStage},
     separate_sign_in::{SeparateForm, SeparateFrom, SeparateInput},
-    setup_widgets::{body, entry, heading, page, primary},
+    setup_widgets::{body, entry, heading, page},
     unreached,
 };
 use crate::l10n;
@@ -25,10 +26,13 @@ fn input(input: SeparateInput) -> AppInput {
 }
 
 /// What the step and the form both draw: the server, the sign-in at its own provider once it
-/// says it has one, the login, the password, why the last connect failed, Connect, and the
-/// other way out.
+/// says it has one, the login, the password, why the last attempt failed, and the other way out
+/// beside Connect.
 #[derive(Debug)]
 pub(super) struct Fields {
+    window: gtk::Window,
+    from: SeparateFrom,
+    sender: relm4::Sender<AppInput>,
     sign_in_area: gtk::Box,
     sign_in: gtk::Button,
     /// The line under the sign-in, which says whose it is.
@@ -41,16 +45,20 @@ pub(super) struct Fields {
     username: gtk::Entry,
     password: gtk::Entry,
     error: gtk::Label,
-    /// Beside the buttons while a connect or a skip runs. A connect can take a while: the
-    /// mailbox's calendar and contacts move to the new account and the mailbox is dialled again.
-    busy: gtk::Spinner,
-    connect: gtk::Button,
-    other: gtk::Button,
+    /// The other way out, then Connect, drawn from the core's controls each time they change.
+    actions: gtk::Box,
+    drawn: Cell<Option<(ControlState, ControlState, bool)>>,
 }
 
 impl Fields {
-    fn append(content: &gtk::Box, window: &gtk::Window, form: &SeparateForm, other: &str) -> Self {
-        content.append(&body(&l10n::separate_server_body(&form.server.host)));
+    fn append(
+        content: &gtk::Box,
+        window: &gtk::Window,
+        form: &SeparateForm,
+        from: SeparateFrom,
+        sender: &relm4::Sender<AppInput>,
+    ) -> Self {
+        content.append(&body(&l10n::separate_server_body(&form.section.host)));
         // Drawn now and shown when the server answers, above the fields and without taking
         // the focus from one being typed in.
         let sign_in_area = gtk::Box::new(gtk::Orientation::Vertical, 8);
@@ -66,7 +74,7 @@ impl Fields {
         waiting.append(&cancel);
         sign_in_area.append(&waiting);
         content.append(&sign_in_area);
-        let username = entry(l10n::setup_field_username(), &form.username, false);
+        let username = entry(l10n::setup_field_username(), &form.section.username, false);
         content.append(&username);
         let password = entry(l10n::setup_field_password(), "", true);
         password.set_input_purpose(gtk::InputPurpose::Password);
@@ -77,14 +85,11 @@ impl Fields {
         content.append(&error);
         let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         actions.set_halign(gtk::Align::End);
-        let busy = gtk::Spinner::new();
-        actions.append(&busy);
-        let other = gtk::Button::with_label(other);
-        actions.append(&other);
-        let connect = primary(l10n::action_connect(), window);
-        actions.append(&connect);
         content.append(&actions);
         let fields = Self {
+            window: window.clone(),
+            from,
+            sender: sender.clone(),
             sign_in_area,
             sign_in,
             note,
@@ -94,30 +99,30 @@ impl Fields {
             username,
             password,
             error,
-            busy,
-            connect,
-            other,
+            actions,
+            drawn: Cell::new(None),
         };
+        fields.connect_sign_in();
         fields.show(form);
         fields
     }
 
-    /// Holds every control while a core call runs, shows the sign-in once it is offered, and
-    /// says why the last attempt failed. The browser's wait holds nothing: a fresh press
-    /// supersedes it, and Cancel beside it retires it.
+    /// Holds every control while the core or a blocking sign-in call holds the form, shows the
+    /// sign-in once it is offered, and says why the last attempt failed. The browser's wait holds
+    /// nothing: a fresh press supersedes it, and Cancel beside it retires it.
     pub(super) fn show(&self, form: &SeparateForm) {
+        let held = form.held();
         for control in [
             self.sign_in.upcast_ref::<gtk::Widget>(),
             self.username.upcast_ref(),
             self.password.upcast_ref(),
-            self.connect.upcast_ref(),
-            self.other.upcast_ref(),
         ] {
-            control.set_sensitive(!form.held());
+            control.set_sensitive(!held);
         }
-        self.sign_in_area.set_visible(form.offers());
+        let offers = form.offers();
+        self.sign_in_area.set_visible(offers.is_some());
         let waiting = matches!(form.stage, SignInStage::Waiting(_));
-        let (button, note) = if form.nextcloud {
+        let (button, note) = if offers == Some(AccountSeparateSignIn::Nextcloud) {
             let note = if waiting {
                 l10n::nextcloud_sign_in_waiting()
             } else {
@@ -132,30 +137,90 @@ impl Fields {
         };
         self.sign_in.set_label(button);
         self.note.set_text(note);
-        // The sign-in leads where it is offered; Enter in the password field still connects.
-        let (lead, follow) = if form.offers() {
-            (&self.sign_in, &self.connect)
-        } else {
-            (&self.connect, &self.sign_in)
-        };
-        lead.add_css_class("suggested-action");
-        follow.remove_css_class("suggested-action");
         let out = form.stage != SignInStage::Idle;
         self.waiting.set_visible(out);
         self.spinner.set_spinning(out);
         self.cancel.set_visible(waiting);
-        self.error
-            .set_text(form.error.as_deref().unwrap_or_default());
-        self.error.set_visible(form.error.is_some());
-        self.busy.set_visible(form.busy);
-        self.busy.set_spinning(form.busy);
+        let said = form.said();
+        self.error.set_text(said.as_deref().unwrap_or_default());
+        self.error.set_visible(said.is_some());
+        // A browser sign-in's own core call holds the buttons the core does not know about.
+        let browsing = held && form.section.connect.enabled;
+        let free = |control: ControlState| ControlState {
+            enabled: control.enabled && !browsing,
+            ..control
+        };
+        let connect = free(form.section.connect);
+        let other = match self.from {
+            SeparateFrom::Setup => free(form.section.stop_using),
+            // The form's own Cancel waits for a connect it would not stop.
+            SeparateFrom::Page => ControlState {
+                enabled: !form.section.connect.running,
+                running: false,
+            },
+        };
+        let key = (connect, other, offers.is_some());
+        if self.drawn.replace(Some(key)) != Some(key) {
+            self.draw_actions(connect, other, offers.is_some());
+        }
+        // The sign-in leads where it is offered; Enter in the password field still connects.
+        if offers.is_some() {
+            self.sign_in.add_css_class("suggested-action");
+        } else {
+            self.sign_in.remove_css_class("suggested-action");
+        }
     }
 
-    /// Connect sends what was typed, once there is a password to send; the sign-in and its
-    /// Cancel send themselves.
-    fn connect_sends(&self, from: SeparateFrom, sender: &relm4::Sender<AppInput>) {
+    /// The other way out and Connect, from the core's controls.
+    fn draw_actions(&self, connect: ControlState, other: ControlState, offers: bool) {
+        while let Some(child) = self.actions.first_child() {
+            self.actions.remove(&child);
+        }
+        let (label, sender, window) = match self.from {
+            SeparateFrom::Setup => (l10n::separate_server_skip(), self.sender.clone(), None),
+            SeparateFrom::Page => (
+                l10n::action_cancel(),
+                self.sender.clone(),
+                Some(self.window.clone()),
+            ),
+        };
+        self.actions.append(&controls::button(
+            label,
+            other,
+            false,
+            move || match &window {
+                Some(window) => window.close(),
+                None => sender.emit(input(SeparateInput::Skip)),
+            },
+        ));
+        let (from, username, password, sender) = (
+            self.from,
+            self.username.clone(),
+            self.password.clone(),
+            self.sender.clone(),
+        );
+        let button = controls::button(l10n::action_connect(), connect, false, move || {
+            let typed = password.text().to_string();
+            if typed.is_empty() {
+                return;
+            }
+            sender.emit(input(SeparateInput::Connect {
+                from,
+                username: username.text().trim().to_owned(),
+                password: Password(typed),
+            }));
+        });
+        if !offers {
+            button.add_css_class("suggested-action");
+        }
+        self.actions.append(&button);
+        self.window.set_default_widget(Some(&button));
+    }
+
+    /// The sign-in and its Cancel send themselves.
+    fn connect_sign_in(&self) {
         for (button, starts) in [(&self.sign_in, true), (&self.cancel, false)] {
-            let sender = sender.clone();
+            let (sender, from) = (self.sender.clone(), self.from);
             button.connect_clicked(move |_| {
                 let pressed = if starts {
                     ProviderInput::Start
@@ -168,19 +233,6 @@ impl Fields {
                 }));
             });
         }
-        let (username, password, sender) =
-            (self.username.clone(), self.password.clone(), sender.clone());
-        self.connect.connect_clicked(move |_| {
-            let typed = password.text().to_string();
-            if typed.is_empty() {
-                return;
-            }
-            sender.emit(input(SeparateInput::Connect {
-                from,
-                username: username.text().trim().to_owned(),
-                password: Password(typed),
-            }));
-        });
     }
 }
 
@@ -192,40 +244,27 @@ pub(super) fn setup_step(
     sender: &relm4::Sender<AppInput>,
 ) -> (gtk::Box, Fields) {
     let content = page();
-    content.append(&heading(unreached::separate_title(&step.server.uses)));
-    let fields = Fields::append(&content, window, step, l10n::separate_server_skip());
-    fields.connect_sends(SeparateFrom::Setup, sender);
-    let skip = sender.clone();
-    fields
-        .other
-        .connect_clicked(move |_| skip.emit(input(SeparateInput::Skip)));
+    content.append(&heading(unreached::separate_title(&step.section.uses)));
+    let fields = Fields::append(&content, window, step, SeparateFrom::Setup, sender);
     (content, fields)
-}
-
-/// The use whose row the account page's action sits under: the last of those that need the
-/// sign-in, so it follows every note that says why. `None` when nothing needs one.
-pub(super) fn action_after(entry: &AccountEntry) -> Option<AccountCapability> {
-    entry.separate_server.as_ref()?.uses.last().copied()
 }
 
 /// The account page's action, which opens the form, held while a change runs on the page.
 pub(super) fn page_action(
-    entry: &AccountEntry,
+    account: &str,
     enabled: bool,
     sender: &relm4::Sender<AppInput>,
-) -> Option<adw::ButtonRow> {
-    let server = entry.separate_server.clone()?;
-    let (sender, account) = (sender.clone(), entry.id.clone());
-    Some(super::controls::button_row(
+) -> adw::ButtonRow {
+    let (sender, account) = (sender.clone(), account.to_owned());
+    super::controls::button_row(
         l10n::settings_account_use_separate_sign_in(),
         enabled,
         move || {
             sender.emit(input(SeparateInput::Open {
                 account: account.clone(),
-                server: server.clone(),
             }));
         },
-    ))
+    )
 }
 
 /// The form on screen, and whether the model is the one closing it.
@@ -293,13 +332,10 @@ impl Prompts {
 }
 
 fn open(form: &SeparateForm, parent: &gtk::Window, sender: &relm4::Sender<AppInput>) -> Drawn {
-    let title = unreached::separate_title(&form.server.uses);
+    let title = unreached::separate_title(&form.section.uses);
     let (window, _) = crate::ui::modal::new(parent, title, 440, None);
     let content = page();
-    let fields = Fields::append(&content, &window, form, l10n::action_cancel());
-    fields.connect_sends(SeparateFrom::Page, sender);
-    let dismiss = window.clone();
-    fields.other.connect_clicked(move |_| dismiss.close());
+    let fields = Fields::append(&content, &window, form, SeparateFrom::Page, sender);
     let closing = Rc::new(Cell::new(false));
     let (closed, sender) = (closing.clone(), sender.clone());
     window.connect_close_request(move |_| {

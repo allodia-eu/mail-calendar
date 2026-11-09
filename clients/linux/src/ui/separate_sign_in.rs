@@ -1,17 +1,17 @@
 //! A sign-in of its own for a mailbox's calendar and contacts, when the mailbox's sign-in does
 //! not reach their server (`docs/accounts.md` rule 18, `docs/onboarding.md`): setup's step after
-//! the add, and the form the account's page opens. Either connects them as an account of their
-//! own linked to the mailbox (`add_linked_calendar_account`), a blocking call off the main
-//! thread, or signs in at the server's own provider where it offers that
+//! the add, and the form the account's page opens. Both draw the core's section
+//! (`AccountPage::separate_server`) and send Connect and Skip to the core as changes on the page;
+//! the form ends once the core draws no section, whichever way the sign-in was given. Signing in
+//! at the server's own provider, or with Nextcloud, is still run here
 //! ([`super::separate_server_sign_in`]). The widgets are [`super::separate_sign_in_view`].
 
-use mailcal_bindings::{AccountCapability, SeparateServer};
+use mailcal_bindings::{
+    AccountPageIntent, AccountSeparateServer, AccountSeparateSignIn, Intent, TypedPassword,
+};
 
 use super::{
-    AppInput, AppModel,
-    account_settings::AccountsInput,
-    account_sign_in::Password,
-    separate_server_sign_in::{ProviderInput, SignInStage},
+    AppInput, AppModel, account_sign_in::Password, separate_server_sign_in::SignInStage,
     setup_state::Phase,
 };
 
@@ -28,10 +28,7 @@ pub(crate) enum SeparateFrom {
 #[derive(Debug)]
 pub(crate) enum SeparateInput {
     /// Open the account page's form for `account`.
-    Open {
-        account: String,
-        server: SeparateServer,
-    },
+    Open { account: String },
     /// The page's form closed without connecting.
     Close,
     /// Connect with what was typed.
@@ -40,59 +37,45 @@ pub(crate) enum SeparateInput {
         username: String,
         password: Password,
     },
-    /// That connect answered, for the mailbox it was asked for.
-    Connected {
-        from: SeparateFrom,
-        account: String,
-        result: Result<(), String>,
-    },
     /// Setup's step was skipped: the mailbox stops being used for what needs the sign-in.
     Skip,
-    /// Those uses are off.
-    Skipped { account: String },
     /// The sign-in at the server's own provider, for the form `from` names.
     Provider {
         from: SeparateFrom,
-        input: ProviderInput,
+        input: super::separate_server_sign_in::ProviderInput,
     },
 }
 
-/// The form for one mailbox: its server, the login last typed, and how its connect stands.
+/// The form for one mailbox: the core's section, and the browser sign-in this client runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SeparateForm {
     /// Which form this is, so a window drawing it can tell a new one from a redraw.
     pub(super) id: u64,
     pub(super) account: String,
-    pub(super) server: SeparateServer,
-    pub(super) username: String,
-    /// A connect is running, which holds every control.
-    pub(super) busy: bool,
-    /// The server answered that it signs in at its own provider.
-    pub(super) offers_sign_in: bool,
-    /// The server answered that it is Nextcloud, whose own sign-in is offered instead
-    /// (`docs/nextcloud-sign-in.md`).
-    pub(super) nextcloud: bool,
+    /// The section as the core last drew it.
+    pub(super) section: AccountSeparateServer,
     /// A Nextcloud grant no account was made from yet, kept so the next press tries it again
     /// without the browser; the server hands it out once.
     pub(super) grant: Option<super::nextcloud_flight::Grant>,
     /// Where that sign-in stands.
     pub(super) stage: SignInStage,
-    /// Why the last connect failed, said under the fields.
+    /// Why the last sign-in in the browser failed; a Connect's failure is the section's.
     pub(super) error: Option<String>,
     /// The account whose link step comes after setup's step.
     pub(super) next: String,
 }
 
 impl SeparateForm {
-    fn new(id: u64, account: String, server: SeparateServer, next: String) -> Self {
+    pub(super) fn new(
+        id: u64,
+        account: String,
+        section: AccountSeparateServer,
+        next: String,
+    ) -> Self {
         Self {
             id,
-            username: server.username.clone(),
             account,
-            server,
-            busy: false,
-            offers_sign_in: false,
-            nextcloud: false,
+            section,
             grant: None,
             stage: SignInStage::Idle,
             error: None,
@@ -100,63 +83,33 @@ impl SeparateForm {
         }
     }
 
-    fn connecting(&mut self, username: String) {
-        self.username = username;
-        self.busy = true;
-        self.error = None;
-    }
-
     pub(super) fn failed(&mut self, error: String) {
-        self.busy = false;
         self.error = Some(error);
     }
-}
 
-/// Where a connect's answer leads, whichever way the form connected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Landing {
-    /// Setup goes on to the link step.
-    LinkStep,
-    /// The page's form closes and the page redraws from the snapshot.
-    Page,
-    /// The form stays, saying why.
-    Form,
-}
-
-pub(super) const fn landing(from: SeparateFrom, result: &Result<(), String>) -> Landing {
-    match (from, result) {
-        (SeparateFrom::Setup, Ok(())) => Landing::LinkStep,
-        (SeparateFrom::Page, Ok(())) => Landing::Page,
-        (_, Err(_)) => Landing::Form,
+    /// What the form says under its fields: the browser sign-in's failure, else the core's.
+    pub(super) fn said(&self) -> Option<String> {
+        self.error.clone().or_else(|| {
+            self.section
+                .failed
+                .as_ref()
+                .map(super::core_error::refusal_said)
+        })
     }
-}
 
-/// What Skip switches: each use the server is needed for, off, and nothing else.
-pub(super) fn skip_changes(server: &SeparateServer) -> Vec<(AccountCapability, bool)> {
-    server.uses.iter().map(|&use_| (use_, false)).collect()
-}
-
-/// The server `account`'s calendar and contacts need a sign-in of their own at, read from the
-/// accounts the core lists.
-pub(super) fn server_of(
-    snapshot: &mailcal_bindings::AccountsSnapshot,
-    account: &str,
-) -> Option<SeparateServer> {
-    snapshot
-        .accounts
-        .iter()
-        .find(|entry| entry.id == account)?
-        .separate_server
-        .clone()
+    /// The sign-in the server offers in the browser, when it has said so.
+    pub(super) const fn offers(&self) -> Option<AccountSeparateSignIn> {
+        self.section.sign_in
+    }
 }
 
 impl super::setup_state::SetupState {
     /// Holds the step for `account`, just added, until its link step would be shown.
-    pub(super) fn hold_separate(&mut self, account: &str, server: SeparateServer) {
+    pub(super) fn hold_separate(&mut self, account: &str, section: AccountSeparateServer) {
         self.separate = Some(SeparateForm::new(
             0,
             account.to_owned(),
-            server,
+            section,
             String::new(),
         ));
     }
@@ -211,15 +164,25 @@ impl AppModel {
         }
     }
 
+    /// The section `account`'s page draws, or `None` once nothing needs the sign-in.
+    fn separate_section(&self, account: &str) -> Option<AccountSeparateServer> {
+        self.app
+            .as_ref()?
+            .account_page(account.to_owned())?
+            .separate_server
+    }
+
     pub(super) fn separate_input(&mut self, input: SeparateInput, sender: relm4::Sender<AppInput>) {
         match input {
-            SeparateInput::Open { account, server } => {
+            SeparateInput::Open { account } => {
                 self.retire_provider_sign_in(SeparateFrom::Page);
+                let Some(section) = self.separate_section(&account) else {
+                    return;
+                };
                 self.settings.separate_forms = self.settings.separate_forms.wrapping_add(1);
                 let id = self.settings.separate_forms;
                 self.settings.separate =
-                    Some(SeparateForm::new(id, account, server, String::new()));
-                self.ask_separate_offer(SeparateFrom::Page, sender);
+                    Some(SeparateForm::new(id, account, section, String::new()));
             }
             SeparateInput::Close => {
                 self.retire_provider_sign_in(SeparateFrom::Page);
@@ -230,37 +193,23 @@ impl AppModel {
                 from,
                 username,
                 password,
-            } => self.connect_separate(from, username, password, sender),
-            SeparateInput::Connected {
-                from,
+            } => self.send_separate(from, |account| AccountPageIntent::ConnectSeparateServer {
                 account,
-                result,
-            } => self.separate_connected(from, &account, result, sender),
-            SeparateInput::Skip => self.skip_separate(sender),
-            SeparateInput::Skipped { account } => {
-                if self
-                    .setup
-                    .separate
-                    .as_ref()
-                    .map(|step| step.account.as_str())
-                    == Some(account.as_str())
-                {
-                    self.leave_separate_step(sender);
-                }
-            }
+                username,
+                password: TypedPassword { text: password.0 },
+            }),
+            SeparateInput::Skip => self.send_separate(SeparateFrom::Setup, |account| {
+                AccountPageIntent::StopUsingSeparateServer { account }
+            }),
         }
     }
 
-    fn connect_separate(
+    /// Sends the form's Connect or Skip to the core, which draws it running on the section.
+    fn send_separate(
         &mut self,
         from: SeparateFrom,
-        username: String,
-        password: Password,
-        sender: relm4::Sender<AppInput>,
+        change: impl FnOnce(String) -> AccountPageIntent,
     ) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
         if self.separate_form(from).is_none_or(|form| form.held()) {
             return;
         }
@@ -269,94 +218,64 @@ impl AppModel {
         let Some(form) = self.separate_form(from) else {
             return;
         };
-        form.connecting(username);
-        let (account, uses, username) = (
-            form.account.clone(),
-            form.server.uses.clone(),
-            form.username.clone(),
-        );
-        self.redraw_separate(from);
-        std::thread::spawn(move || {
-            let result = app
-                .add_linked_calendar_account(account.clone(), uses, username, password.0)
-                .map(|_| ())
-                .map_err(|error| super::core_error::said(&error));
-            sender.emit(AppInput::Accounts(AccountsInput::Separate(
-                SeparateInput::Connected {
-                    from,
-                    account,
-                    result,
-                },
-            )));
-        });
+        form.error = None;
+        let intent = change(form.account.clone());
+        self.dispatch(Intent::AccountPage { intent });
     }
 
-    pub(super) fn separate_connected(
+    /// Draws each open form again from the core, after a signal that may have moved it. One the
+    /// core draws no section for is over: the sign-in was given, or the uses switched off.
+    pub(super) fn separate_signalled(&mut self, sender: &relm4::Sender<AppInput>) {
+        for from in [SeparateFrom::Setup, SeparateFrom::Page] {
+            self.separate_redrawn(from, sender);
+        }
+    }
+
+    /// Draws the form `from` names again from the core, and goes on from it once it is over.
+    pub(super) fn separate_redrawn(
         &mut self,
         from: SeparateFrom,
-        account: &str,
-        result: Result<(), String>,
-        sender: relm4::Sender<AppInput>,
+        sender: &relm4::Sender<AppInput>,
     ) {
-        if result.is_ok() {
-            self.accounts_changed(sender.clone());
-        }
-        let Some(form) = self
-            .separate_form(from)
-            .filter(|form| form.account == account)
-        else {
+        let Some(account) = self.separate_form(from).map(|form| form.account.clone()) else {
             return;
         };
-        match (landing(from, &result), result) {
-            (Landing::LinkStep, _) => self.leave_separate_step(sender),
-            (Landing::Page, _) => {
+        let section = self.separate_section(&account);
+        let Some(form) = self.separate_form(from) else {
+            return;
+        };
+        match section {
+            Some(section) if section == form.section => {}
+            Some(section) => {
+                form.section = section;
+                self.redraw_separate(from);
+            }
+            None => self.separate_over(from, sender.clone()),
+        }
+    }
+
+    /// The form `from` names is over: setup goes on to its link step and the page's form closes.
+    /// The mailbox gave its uses to an account of their own, or stopped using them, so the
+    /// accounts are read again.
+    fn separate_over(&mut self, from: SeparateFrom, sender: relm4::Sender<AppInput>) {
+        self.accounts_changed(sender.clone());
+        match from {
+            SeparateFrom::Setup => self.leave_separate_step(sender),
+            SeparateFrom::Page => {
+                self.retire_provider_sign_in(from);
                 self.settings.separate = None;
                 self.settings.refresh_in_place();
             }
-            (Landing::Form, result) => {
-                if let Err(error) = result {
-                    form.failed(error);
-                }
-                self.redraw_separate(from);
-            }
         }
     }
 
-    /// The mailbox gave uses to an account of its own: the accounts are read again.
+    /// The mailbox gave uses to an account of their own: the accounts are read again.
     pub(super) fn accounts_changed(&mut self, sender: relm4::Sender<AppInput>) {
         if let Some(app) = &self.app {
             self.snapshot.replace(app.mailbox_list());
         }
         self.pull_notices();
         self.sync_after_account_change(sender);
-    }
-
-    /// Switches off what the step was for, off the main thread: it deletes what the device holds
-    /// of those uses.
-    fn skip_separate(&mut self, sender: relm4::Sender<AppInput>) {
-        if self.setup.separate_step().is_none_or(|step| step.held()) {
-            return;
-        }
-        self.retire_provider_sign_in(SeparateFrom::Setup);
-        let Some(step) = self.setup.separate_step() else {
-            return;
-        };
-        step.busy = true;
-        let (account, changes) = (step.account.clone(), skip_changes(&step.server));
-        self.setup.report();
-        let Some(app) = self.app.clone() else {
-            return self.leave_separate_step(sender);
-        };
-        std::thread::spawn(move || {
-            for (capability, on) in changes {
-                if let Err(error) = app.set_account_capability(account.clone(), capability, on) {
-                    log::warn!("setup: a use could not be switched off ({error})");
-                }
-            }
-            sender.emit(AppInput::Accounts(AccountsInput::Separate(
-                SeparateInput::Skipped { account },
-            )));
-        });
     }
 
     /// On from setup's step, when it is on screen, to the link step that comes after it.

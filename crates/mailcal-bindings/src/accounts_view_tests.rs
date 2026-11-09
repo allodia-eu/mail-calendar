@@ -6,7 +6,8 @@ use mailcal_account::{AccountLinks, Capabilities, Capability};
 use super::{AccountFacts, entries};
 use crate::{AccountCapability, AccountKind, CapabilityState};
 
-const STANDARDS: [Capability; 3] = [Capability::Mail, Capability::Calendar, Capability::Contacts];
+pub(crate) const STANDARDS: [Capability; 3] =
+    [Capability::Mail, Capability::Calendar, Capability::Contacts];
 
 pub(crate) fn set(capabilities: &[Capability]) -> Capabilities {
     capabilities.iter().copied().collect()
@@ -365,53 +366,6 @@ fn a_use_that_did_not_connect_says_why_while_it_is_on() {
         problem(AccountCapability::Contacts),
         None,
         "a use switched off since has nothing left to fix"
-    );
-}
-
-/// A mailbox that signs in through its provider, with calendar and contacts at a server the
-/// grant does not reach: its page names that server's host, never its path, and the login it
-/// holds there.
-#[test]
-fn a_calendar_that_needs_a_sign_in_of_its_own_names_its_server() {
-    let mut signed_in = mailbox(AccountLinks::default());
-    signed_in.chosen = set(&STANDARDS);
-    signed_in.dav_servers = [Capability::Calendar, Capability::Contacts]
-        .into_iter()
-        .map(|capability| super::DavServer {
-            capability,
-            base_url: "https://dav.example.org:8443/alice@example.org/".to_owned(),
-            username: "alice@example.org".to_owned(),
-        })
-        .collect();
-    let needs = mailcal_app::UseProblems {
-        calendar: Some(mailcal_app::UseProblem::NeedsOwnSignIn),
-        contacts: Some(mailcal_app::UseProblem::NeedsOwnSignIn),
-    };
-    let problems = BTreeMap::from([(signed_in.id.clone(), needs)]);
-
-    let entry = entries(
-        std::slice::from_ref(&signed_in),
-        &BTreeMap::new(),
-        &problems,
-    )
-    .remove(0);
-    let server = entry.separate_server.expect("the page offers the sign-in");
-    assert_eq!(
-        server.uses,
-        [AccountCapability::Calendar, AccountCapability::Contacts]
-    );
-    assert_eq!(server.host, "dav.example.org:8443");
-    assert_eq!(server.username, "alice@example.org");
-
-    let unreachable = mailcal_app::UseProblems {
-        calendar: Some(mailcal_app::UseProblem::Unreachable),
-        contacts: None,
-    };
-    let problems = BTreeMap::from([(signed_in.id.clone(), unreachable)]);
-    let entry = entries(&[signed_in], &BTreeMap::new(), &problems).remove(0);
-    assert!(
-        entry.separate_server.is_none(),
-        "a server that could not be reached is tried again, not signed in to separately"
     );
 }
 

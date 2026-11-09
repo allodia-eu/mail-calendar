@@ -218,8 +218,6 @@ struct AccountUsesSection: View {
     let signIn: ([AccountCapability]) -> Void
 
     @State private var confirmingOff: AccountCapability?
-    /// The use under which the sign-in of its own is open.
-    @State private var separateServerUnder: AccountCapability?
     @State private var serverChange: ServerChangeReview?
 
     init(
@@ -279,29 +277,27 @@ struct AccountUsesSection: View {
                 }
                 .controlSize(.small)
             }
-            separateServer(capability, enabled: control.enabled)
+            if toggle.signsInSeparately {
+                separateServer(enabled: control.enabled)
+            }
         }
     }
 
-    /// A sign-in of its own, under a use whose server needs one or refused the account's
-    /// (docs/accounts.md rule 18): a button, then the form it opens.
+    /// A sign-in of its own, under the use the core names (docs/accounts.md rule 18): a button,
+    /// then the form it opens, which closes once the core draws no section.
     @ViewBuilder
-    private func separateServer(_ capability: AccountCapability, enabled: Bool) -> some View {
-        if SeparateServerRules.offered(entry, capability),
-           let ask = SeparateServerRules.ask(entry)
-        {
-            if separateServerUnder == capability {
-                AccountSeparateServerForm(model: model, ask: ask) { separateServerUnder = nil }
-                    .padding(.top, 4)
-            } else {
-                ControlButton(
-                    title: L10n.settings_account_use_separate_sign_in(),
-                    control: .free(enabled && separateServerUnder == nil)
-                ) {
-                    separateServerUnder = capability
-                }
-                .controlSize(.small)
+    private func separateServer(enabled: Bool) -> some View {
+        if let ask = model.pageSeparateServer(entry.id) {
+            AccountSeparateServerForm(model: model, ask: ask) { model.separateServers[.page] = nil }
+                .padding(.top, 4)
+        } else {
+            // It opens a form and starts nothing, so it is only held while a change runs.
+            ControlButton(
+                title: L10n.settings_account_use_separate_sign_in(), control: .free(enabled)
+            ) {
+                model.openSeparateServer(entry.id)
             }
+            .controlSize(.small)
         }
     }
 

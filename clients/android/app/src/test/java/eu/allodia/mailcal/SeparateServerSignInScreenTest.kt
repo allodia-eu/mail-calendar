@@ -24,6 +24,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountSeparateSignIn
 
 @RunWith(RobolectricTestRunner::class)
 class SeparateServerSignInScreenTest {
@@ -31,24 +32,18 @@ class SeparateServerSignInScreenTest {
 
     private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
-    private var controls by mutableStateOf(SeparateControls())
+    private val form = separateForm(separateSection(AccountCapability.CALENDAR))
+    private var controls by mutableStateOf(SeparateControls.of(form.section, null))
     private var showing by mutableStateOf(true)
     private var signIns = 0
     private var skips = 0
     private var dismissed = 0
-    private var shown = 0
     private var left = 0
 
-    private val form = SeparateServerForm(
-        accountId = "alice@imap",
-        uses = listOf(AccountCapability.CALENDAR),
-        set = UnreachedSet.CALENDAR,
-        host = "dav.example.org",
-        username = "alice@example.org",
+    private fun offered(step: SeparateSignInStep? = null) = SeparateControls.of(
+        separateSection(AccountCapability.CALENDAR, signIn = AccountSeparateSignIn.PROVIDER),
+        step,
     )
-
-    private fun offered(step: SeparateSignInStep? = null) =
-        SeparateControls.of(busy = false, offersSignIn = true, step = step)
 
     private fun step() {
         compose.setContent {
@@ -60,7 +55,6 @@ class SeparateServerSignInScreenTest {
                     { _, _ -> },
                     { skips++ },
                     onSignIn = { signIns++ },
-                    onShown = { shown++ },
                     onLeave = { left++ },
                 )
             }
@@ -77,19 +71,17 @@ class SeparateServerSignInScreenTest {
                 { _, _ -> },
                 { dismissed++ },
                 onSignIn = { signIns++ },
-                onShown = { shown++ },
             )
         }
         compose.waitForIdle()
     }
 
     @Test
-    fun nothing_is_offered_until_the_core_answers_and_the_form_asks_once() {
+    fun nothing_is_offered_until_the_core_does() {
         step()
 
         compose.onNodeWithTag("separate-server-sign-in").assertDoesNotExist()
         compose.onNodeWithText(L10n.setup_imap_signin_note(ctx())).assertDoesNotExist()
-        assertEquals(1, shown)
     }
 
     @Test
@@ -171,7 +163,6 @@ class SeparateServerSignInScreenTest {
         dialog()
         compose.onNodeWithTag("separate-server-sign-in").performClick()
         assertEquals(1, signIns)
-        assertEquals(1, shown)
 
         controls = offered(SeparateSignInStep.STARTING)
         compose.waitForIdle()
