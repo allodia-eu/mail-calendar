@@ -90,6 +90,15 @@ internal static class Harness
     internal static bool HasSchedulingMail(string address, string prefix, string title) =>
         SchedulingSubjects(address).Any(subject => subject.StartsWith(prefix, StringComparison.Ordinal) && subject.Contains(title, StringComparison.Ordinal));
 
+    /// <summary>How many messages in <paramref name="address"/>'s mailbox have a subject naming
+    /// <paramref name="title"/>, as the server counts them: a list row can stand for a whole
+    /// conversation.</summary>
+    internal static int CountMail(string address, string title) => Run(async () =>
+    {
+        using var jmap = await Jmap.SignInAsync(address);
+        return (await jmap.CallAsync("Email/query", new JsonObject { ["filter"] = new JsonObject { ["subject"] = title } }))["ids"]!.AsArray().Count;
+    });
+
     /// <summary>
     /// Destroys every message in <paramref name="address"/>'s mailbox whose subject names
     /// <paramref name="title"/>. Other suites find their rows by sight, and a reply left at the top
