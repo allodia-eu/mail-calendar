@@ -100,7 +100,8 @@ public sealed partial class MailListView
         return menuItem;
     }
 
-    private static string Label(RowAction action) => action switch
+    /// <summary>An action's words, in the row menu and on the bar.</summary>
+    internal static string Label(RowAction action) => action switch
     {
         RowAction.Open => L10n.ActionOpen(),
         RowAction.OpenInWindow => L10n.ActionOpenInWindow(),
@@ -115,15 +116,44 @@ public sealed partial class MailListView
         RowAction.MarkAsNotSpam => L10n.ActionMarkAsNotSpam(),
         RowAction.MoveToFolder => L10n.ActionMoveToFolder(),
         RowAction.Archive => L10n.ActionArchive(),
-        RowAction.Delete => L10n.ActionMoveToTrash(),
+        RowAction.Delete => L10n.ActionDelete(),
         RowAction.PermanentlyDelete => L10n.ActionDeletePermanently(),
         _ => action.ToString(),
     };
 
+    /// <summary>
+    /// Runs a pick from the command bar over the selection, exactly as the same item in a row menu
+    /// over the selection runs (docs/command-bar.md, rule 1). Sync is the window's own.
+    /// </summary>
+    internal async Task RunCommandAsync(CommandItem item)
+    {
+        if (Model is { } model && CanRun(item) && CommandBarPresentation.MenuItem(item) is { } menuItem)
+        {
+            await PerformAsync(menuItem, SelectionSubject(model));
+        }
+    }
+
+    /// <summary>
+    /// Whether a bar item responds: when the core says so, and for Move when there is a folder to
+    /// offer, which is this client's to know, as it is in the row menu.
+    /// </summary>
+    internal bool CanRun(CommandItem item) =>
+        item.Enabled
+        && (item.Command is not Command.Act { Action: RowAction.MoveToFolder }
+            || (Model is { } model && MoveToFolderPlan(SelectionActions.Rows(model.SelectedRows)) is not null));
+
+    private static MenuSubject SelectionSubject(MailboxModel model) =>
+        new(SelectionActions.Rows(model.SelectedRows), model.SelectedRows, IsSelection: true);
+
     /// <summary>Runs <paramref name="item"/>: on its one message when it names one, otherwise over
-    /// the rows the menu was raised on.</summary>
+    /// the rows the menu was raised on. An item the core marks <c>confirm</c> asks first, naming
+    /// what is going.</summary>
     private async Task PerformAsync(RowMenuItem item, MenuSubject subject)
     {
+        if (item.Confirm && !await ConfirmAsync(item, subject))
+        {
+            return;
+        }
         if (item.Action == RowAction.MoveToFolder)
         {
             await MoveToFolderAsync(subject.Rows);
@@ -182,10 +212,7 @@ public sealed partial class MailListView
                 Remove(action, message, subject);
                 break;
             case RowAction.PermanentlyDelete:
-                if (await ConfirmPermanentDeleteAsync(PermanentDeleteWording.Message, count: 1))
-                {
-                    Leaving(message, () => model.PermanentlyDelete(account, key));
-                }
+                Leaving(message, () => model.PermanentlyDelete(account, key));
                 break;
         }
     }
@@ -236,10 +263,7 @@ public sealed partial class MailListView
         {
             return;
         }
-        if (action == BulkAction.PermanentlyDelete && !await ConfirmPermanentDeleteAsync(subject.Listed))
-        {
-            return;
-        }
+
         if (subject.IsSelection)
         {
             model.ActOnSelection(action);
@@ -250,25 +274,13 @@ public sealed partial class MailListView
         }
     }
 
-    // The one irreversible item on the menu and the bar, so it asks first whichever set it is
-    // about, naming what the rows are and counting them when there are several.
-    private Task<bool> ConfirmPermanentDeleteAsync(IReadOnlyList<MailRow> rows) =>
-        ConfirmPermanentDeleteAsync(SelectionActions.DeleteWording(rows), rows.Count);
-
-    private async Task<bool> ConfirmPermanentDeleteAsync(PermanentDeleteWording wording, int count)
-    {
-        var message = wording switch
-        {
-            PermanentDeleteWording.Messages => L10n.DeletePermanentlyMessageMany(count),
-            PermanentDeleteWording.Conversation => L10n.DeletePermanentlyConversation(),
-            PermanentDeleteWording.Conversations => L10n.DeletePermanentlyConversations(count),
-            _ => L10n.DeletePermanentlyMessage(),
-        };
-        var result = await DialogHelper.ConfirmAsync(
-            XamlRoot, L10n.DeletePermanentlyTitle(), message, L10n.ActionDelete());
-        return result == ContentDialogResult.Primary;
-    }
-
+    // What the core marks to be asked first is the permanent delete, so the question is the purge's:
+    // one message when the item names one, otherwise what the rows are, counted when there are
+    // several (docs/command-bar.md, rule 6).
+    private Task<bool> ConfirmAsync(RowMenuItem item, MenuSubject subject) =>
+        item.Target is not null || subject.Listed.Count == 0
+            ? PurgeQuestion.AskAsync(XamlRoot, PermanentDeleteWording.Message, 1)
+            : PurgeQuestion.AskAsync(XamlRoot, SelectionActions.DeleteWording(subject.Listed), subject.Listed.Count);
     /// <summary>
     /// Opens the message an item names: a flat row as itself, a conversation's message by expanding
     /// its conversation onto it, as selecting the conversation would. A draft opens its composer.

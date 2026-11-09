@@ -109,11 +109,18 @@ fi
 # reason: suites refuse sign-ins on purpose (a changed password, a wrong one typed), the default bans
 # the Docker gateway for good after 100 in a day, and a banned address is answered with a closed
 # connection, which every client reads as the server being down.
+#
+# Nothing leaves the box. Every recipient is routed to local delivery, so a message to any domain
+# but test.local bounces inside the container with "Mailbox not found", and the server never looks
+# up an MX or opens a connection to one. A reply to a seeded fixture is addressed to its sender
+# (news@example.com, organiser@example.org, ahmed.elamrani@example.eu), and the default `mx` route
+# would really try to deliver it, from the developer's own IP address.
 apply <<'EOF'
 {"@type":"upsert","object":"Domain","matchOn":["name"],"value":{"domain":{"name":"test.local"}}}
 {"@type":"upsert","object":"Account","matchOn":["name"],"value":{"alice":{"@type":"User","name":"alice","domainId":"#domain","description":"Alice Tester","credentials":{"0":{"@type":"Password","secret":"harness-alice-pw"}},"roles":{"@type":"User"}}}}
 {"@type":"update","object":"Http","value":{"rateLimitAnonymous":null}}
 {"@type":"update","object":"Security","value":{"authBanRate":null}}
+{"@type":"update","object":"MtaOutboundStrategy","value":{"route":{"else":"'local'","match":{}}}}
 EOF
 
 # The shared-mailbox fixture's first half: `support`, a group mailbox with no sign-in of its own,

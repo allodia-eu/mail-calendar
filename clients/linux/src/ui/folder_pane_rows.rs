@@ -42,20 +42,35 @@ pub(super) fn role_icon(role: Option<&FolderRole>) -> &'static str {
 }
 
 pub(super) fn unified_inbox_row(unread: u32, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
-    let row = pane_row(icons::INBOX, sender, &SidebarTarget::AllInboxes);
-    row.set_title(l10n::folder_inbox());
-    row.set_margin_start(INDENT);
+    let row = pane_row(
+        icons::INBOX,
+        l10n::folder_inbox(),
+        &disclosure_slot(),
+        sender,
+        &SidebarTarget::AllInboxes,
+    );
     add_badge(&row, unread);
     row
 }
+
+/// Draws `row` heavier than the rows beneath it: the account and All Accounts rows title their
+/// groups by weight, not by indenting what they hold (`docs/folder-pane.md`, rule 32).
+fn titles_group(row: &adw::ActionRow) {
+    row.add_css_class(GROUP_TITLE);
+}
+
+/// The style class [`titles_group`] adds, which the pane's stylesheet draws semibold.
+pub(super) const GROUP_TITLE: &str = "mailcal-group-title";
 
 pub(super) fn unified_group_row(
     expanded: bool,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
     let row = mailbox::plain_text_row();
+    row.add_css_class(ROW);
     row.set_title(l10n::sidebar_all_accounts());
     row.set_title_lines(1);
+    titles_group(&row);
     row.set_activatable(true);
     let button = gtk::Button::from_icon_name(if expanded {
         icons::EXPANDED
@@ -75,6 +90,7 @@ pub(super) fn unified_group_row(
     button.connect_clicked(move |_| {
         input.emit(AppInput::ActivateSidebar(SidebarTarget::UnifiedGroup));
     });
+    in_disclosure_column(&button);
     row.add_prefix(&button);
     row.set_activatable_widget(Some(&button));
     row
@@ -94,10 +110,13 @@ pub(super) fn account_row(
 ) -> adw::ActionRow {
     let row = pane_row(
         icons::ACCOUNT,
+        &account.email,
+        &chevron(account, sender),
         sender,
         &SidebarTarget::Account(account.id.clone()),
     );
-    row.set_title(&account.email);
+    titles_group(&row);
+    row.add_css_class(ACCOUNT);
     // An address is as long as it is, and the pane has a floor: the row that gets truncated is
     // precisely the one the user needs to read.
     row.set_tooltip_text(Some(&account.email));
@@ -114,7 +133,6 @@ pub(super) fn account_row(
         glyph.set_accessible_role(gtk::AccessibleRole::Presentation);
         row.add_suffix(&glyph);
     }
-    row.add_suffix(&chevron(account, sender));
     row
 }
 
@@ -138,6 +156,7 @@ fn chevron(account: &AccountRow, sender: &relm4::Sender<AppInput>) -> gtk::Butto
     };
     button.set_tooltip_text(Some(spoken));
     button.update_property(&[AccessibleProperty::Label(spoken)]);
+    in_disclosure_column(&button);
     let input = sender.clone();
     let id = account.id.clone();
     let expanded = account.expanded;
@@ -155,31 +174,84 @@ pub(super) fn folder_row(
     folder: &FolderRow,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::ActionRow {
+    // Only where there is a tree to open: a chevron beside a folder holding nothing but mail
+    // promises one that is not there, so that row keeps the column empty.
+    let disclosure: gtk::Widget = if folder.has_children {
+        folder_chevron(account, folder, sender).upcast()
+    } else {
+        disclosure_slot().upcast()
+    };
     let row = pane_row(
         role_icon(folder.role.as_ref()),
+        &folder_label(folder.role.as_ref(), &folder.name),
+        &disclosure,
         sender,
         &SidebarTarget::Folder {
             account: account.to_owned(),
             key: folder.key.clone(),
         },
     );
-    row.set_title(&folder_label(folder.role.as_ref(), &folder.name));
-    // Under its account, and one step further per folder it is filed inside, so the tree reads
-    // as a tree. A margin rather than a nested list: the rows stay siblings, which is what keeps
-    // one keyboard traversal over the whole pane.
-    row.set_margin_start(INDENT * (1 + i32::try_from(folder.depth).unwrap_or(1)));
+    // In its account's columns, and one step in per folder it is filed inside, so the tree reads
+    // as a tree while the account row's weight titles it (`docs/folder-pane.md`, rule 32). A
+    // margin rather than a nested list: the rows stay siblings, which is what keeps one keyboard
+    // traversal over the whole pane.
+    row.set_margin_start(TREE_STEP * i32::try_from(folder.depth).unwrap_or(0));
     add_badge(&row, folder.unread);
-    // Only where there is a tree to open: a chevron beside a folder holding nothing but mail
-    // promises one that is not there.
-    if folder.has_children {
-        row.add_suffix(&folder_chevron(account, folder, sender));
-    }
     row
 }
 
-/// One step of the pane's indent: what an account's own rows are moved by, and what each level of
-/// folders inside folders adds again. The destination pickers indent by it too.
+/// One step of the destination pickers' indent, per level of folders inside folders.
 pub(super) const INDENT: i32 = 18;
+
+/// The width of the pane's disclosure column, a chevron's target.
+const DISCLOSURE_WIDTH: i32 = 24;
+
+/// The gap between the disclosure column, the icon and the name.
+const GAP: i32 = 6;
+
+/// One step of the pane's own indent: a disclosure column and its gap, so a folder inside a folder
+/// has its chevron under its parent's icon and the branch hangs from the row that opened it.
+const TREE_STEP: i32 = DISCLOSURE_WIDTH + GAP;
+
+/// The pane's rows, set closer than a list row's defaults: a sidebar is scanned rather than read,
+/// and the generic 50 px row and two full-size buttons before every name spent a third of the
+/// pane's width and height on padding. Sizes only; every colour stays the theme's.
+fn pane_css() -> String {
+    format!(
+        ".navigation-sidebar > row.{ROW} {{ min-height: 32px; padding: 0 4px; }}
+row.{ROW} > box.header {{ margin-left: 4px; margin-right: 4px; min-height: 32px; border-spacing: {GAP}px; }}
+row.{ROW} > box.header > box.title {{ margin-top: 2px; margin-bottom: 2px; }}
+row.{ROW} > box.header > .prefixes {{ border-spacing: {GAP}px; margin-right: {GAP}px; }}
+row.{ROW} > box.header > .prefixes:dir(rtl) {{ margin-right: 0; margin-left: {GAP}px; }}
+button.{DISCLOSURE} {{ min-width: {DISCLOSURE_WIDTH}px; min-height: {DISCLOSURE_WIDTH}px; padding: 0; }}
+.navigation-sidebar > row.{ACCOUNT} {{ margin-top: 10px; }}
+row.{GROUP_TITLE} .title {{ font-weight: 600; }}"
+    )
+}
+
+/// Every pane row's style class.
+pub(super) const ROW: &str = "mailcal-pane-row";
+/// A chevron's style class.
+const DISCLOSURE: &str = "mailcal-pane-disclosure";
+/// An account row's style class: a little space above it, so each account's tree reads as a
+/// group of its own.
+const ACCOUNT: &str = "mailcal-pane-account";
+
+/// Installs the pane's stylesheet once per display.
+pub(super) fn install_styles() {
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    if let Some(display) = gtk::gdk::Display::default() {
+        INSTALLED.call_once(|| {
+            let provider = gtk::CssProvider::new();
+            provider.load_from_string(&pane_css());
+            gtk::style_context_add_provider_for_display(
+                &display,
+                &provider,
+                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        });
+    }
+}
 
 /// The disclosure control on a folder that holds folders: a button of its own, for the reason the
 /// account row's chevron is one.
@@ -206,6 +278,7 @@ fn folder_chevron(
     };
     button.set_tooltip_text(Some(spoken));
     button.update_property(&[AccessibleProperty::Label(spoken)]);
+    in_disclosure_column(&button);
     let input = sender.clone();
     let account = account.to_owned();
     let key = folder.key.clone();
@@ -220,24 +293,54 @@ fn folder_chevron(
     button
 }
 
-/// The shared skeleton: one line, an icon, the whole row activatable.
+/// The shared skeleton: `disclosure` leading, then the icon carrying the row's action, then one
+/// line under `title`, the whole row activatable. No arrow: the only chevron in this pane opens
+/// or shuts a tree, and it leads the row, so what a tree holds stands under it.
 pub(super) fn pane_row(
     icon: &str,
+    title: &str,
+    disclosure: &impl IsA<gtk::Widget>,
     sender: &relm4::Sender<AppInput>,
     target: &SidebarTarget,
 ) -> adw::ActionRow {
     // A folder's name and an account's address are the server's text: a bare ampersand must not
     // be read as an entity, and a markup-shaped name must render as itself.
     let row = mailbox::plain_text_row();
+    row.add_css_class(ROW);
+    row.set_title(title);
     row.set_title_lines(1);
     row.set_activatable(true);
-    row.add_prefix(&gtk::Image::from_icon_name(icon));
     let input = sender.clone();
     let target = target.clone();
-    row_action::action_row(&row, move || {
+    row_action::icon_action_row(&row, icon, title, move || {
         input.emit(AppInput::ActivateSidebar(target.clone()));
     });
+    // After the icon, because `AdwActionRow` puts each new prefix before the ones it holds.
+    row.add_prefix(disclosure);
     row
+}
+
+thread_local! {
+    /// Every chevron in the pane and every empty slot standing in for one: the toolkit gives them
+    /// all the width of the widest, so an icon stands in the same column whether its row can open
+    /// or not (`docs/folder-pane.md`, rule 32).
+    static DISCLOSURE_COLUMN: gtk::SizeGroup = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
+}
+
+fn in_disclosure_column(widget: &impl IsA<gtk::Widget>) {
+    if let Some(button) = widget.dynamic_cast_ref::<gtk::Button>() {
+        button.add_css_class(DISCLOSURE);
+    }
+    DISCLOSURE_COLUMN.with(|group| group.add_widget(widget));
+}
+
+/// The disclosure column of a row with nothing to open: empty, and as wide as a chevron.
+pub(super) fn disclosure_slot() -> gtk::Box {
+    let slot = gtk::Box::builder()
+        .accessible_role(gtk::AccessibleRole::Presentation)
+        .build();
+    in_disclosure_column(&slot);
+    slot
 }
 
 /// The unread count at the trailing edge; **nothing at zero**, which also covers a provider that

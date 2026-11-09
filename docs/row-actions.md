@@ -42,7 +42,7 @@ user should never have to expand a conversation to do something to it.
    | **The newest received message**, else the newest message | Flag | |
    | **The newest received message** | Report as junk, Report as not junk | Block sender |
    | **Every received message** | Mark read, Mark unread | |
-   | **The whole conversation** | Move to folder…, Archive, Delete, Delete permanently; Unflag reaches every flagged message | Categorise |
+   | **The whole conversation** | Move to folder…, Archive, Delete (Delete permanently in Trash); Unflag reaches every flagged message | Categorise |
    | **The row itself, never a message inside it** | | Pin |
 
    Marking read reaches only what was received because the owner's own messages carry no read
@@ -68,21 +68,22 @@ user should never have to expand a conversation to do something to it.
 6. **What cannot be done is drawn disabled, not left out.** Reply, Reply all and Forward are
    disabled when the newest message is a draft, which is not yet a message anyone sent; selecting
    another message in the conversation offers them for that one. Report as junk is disabled with
-   nothing received to report. A move is disabled when it would take nothing: Archive in Archive,
-   Delete in Trash, either on an account with no such folder, and every move on a conversation
-   whose members all stay put. A disabled item keeps its place, so the menu has the same shape
+   nothing received to report. A move is disabled when it would take nothing: Archive in Archive or
+   on an account with no Archive, and every move on a conversation whose members all stay put. A disabled item keeps its place, so the menu has the same shape
    from one row to the next.
 
    An item for something the conversation is not is left out rather than disabled: Report as not
    junk replaces Report as junk once the message it is about is in Junk, and a toggle (read,
-   flag) shows the one state it would change to. Recall and Resend, when built, appear only when
+   flag) shows the one state it would change to, and Delete is Delete permanently once there is
+   nowhere left to move it (rule 7). Recall and Resend, when built, appear only when
    the newest message is Sent.
 
 7. **The order is fixed, and the same everywhere.** Open and Open in new window; Reply, Reply all,
-   Forward; the read toggle and the flag toggle; the report; Move to folder…, Archive, Delete,
-   Delete permanently. Open in new window is a desktop's only
-   ([`reading-window.md`](reading-window.md)). Delete permanently keeps whatever confirmation that
-   platform's single-row path already has ([`list-selection.md`](list-selection.md), rule 6).
+   Forward; the read toggle and the flag toggle; the report; Move to folder…, Archive, Delete. Open
+   in new window is a desktop's only ([`reading-window.md`](reading-window.md)). Delete is
+   **Delete permanently** in its place where everything it takes is in Trash already, or the
+   account has no Trash, and then it asks first on every platform
+   ([`command-bar.md`](command-bar.md), rule 6); no menu offers both.
 
 8. **One conversation is expanded: the one holding the selection.** Selecting a collapsed
    conversation expands it and opens its newest message (rule 2), the way

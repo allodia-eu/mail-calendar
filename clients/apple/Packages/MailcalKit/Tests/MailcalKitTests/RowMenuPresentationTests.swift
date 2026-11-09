@@ -42,31 +42,37 @@ import Testing
     }
 
     private func item(_ action: RowAction, enabled: Bool = true) -> RowMenuItem {
-        RowMenuItem(action: action, enabled: enabled, target: nil)
+        RowMenuItem(action: action, enabled: enabled, target: nil, confirm: false)
     }
 
-    // MARK: The bar
+    // MARK: The command bar
 
-    @Test func theBarOffersTheHalfOfEachToggleTheCoreNamed() {
-        let menu = RowMenu(sections: [
-            RowMenuSection(items: [item(.markUnread), item(.unflag)]),
-            RowMenuSection(items: [item(.archive, enabled: false), item(.delete)]),
-        ])
-        let bar = SelectionBarActions(menu)
-        #expect(bar.read.action == .markUnread)
-        #expect(bar.flag.action == .unflag)
-        #expect(!bar.archive.enabled, "a move that would take nothing is disabled on the bar too")
-        #expect(bar.delete.enabled)
+    @Test func aBarItemRunsAsTheMenusOwnItem() {
+        let item = CommandItem(
+            command: .act(action: .permanentlyDelete), enabled: true, target: nil, confirm: true)
+        #expect(item.menuItem == RowMenuItem(
+            action: .permanentlyDelete, enabled: true, target: nil, confirm: true))
+        let sync = CommandItem(command: .sync, enabled: true, target: nil, confirm: false)
+        #expect(sync.menuItem == nil, "Sync names no selection")
     }
 
-    /// The desktop bar stands with nothing picked, and the core answers no menu over no rows.
-    /// "Mark as unread" over nothing is the wrong sentence to leave on screen.
-    @Test func anEmptySelectionNamesTheAffirmativeActionsDisabled() {
-        let bar = SelectionBarActions(RowMenu(sections: []))
-        #expect(bar.read.action == .markRead)
-        #expect(bar.flag.action == .flag)
-        let buttons = [bar.read, bar.flag, bar.archive, bar.delete, bar.permanentlyDelete]
-        #expect(buttons.allSatisfy { !$0.enabled })
+    @Test func moveIsShortOnTheBarAndDeleteSaysDelete() {
+        let move = CommandItem(
+            command: .act(action: .moveToFolder), enabled: true, target: nil, confirm: false)
+        #expect(move.title == L10n.action_move())
+        #expect(RowAction.moveToFolder.title == L10n.action_move_to_folder())
+        #expect(RowAction.delete.title == L10n.action_delete())
+    }
+
+    @Test func theQuestionNamesWhatGoes() {
+        let message = SelectedRow.message(account: "a", key: "m")
+        let thread = SelectedRow.thread(account: "a", threadId: "t")
+        #expect(PurgeWording.message(for: [message]) == L10n.delete_permanently_message())
+        #expect(PurgeWording.message(for: [thread]) == L10n.delete_permanently_conversation())
+        #expect(PurgeWording.message(for: [message, message])
+            == L10n.delete_permanently_message_many(count: 2))
+        #expect(PurgeWording.message(for: [thread, message])
+            == L10n.delete_permanently_conversations(count: 2))
     }
 
     @Test func onlyAnItemWithoutAMessageRunsTheBatch() {

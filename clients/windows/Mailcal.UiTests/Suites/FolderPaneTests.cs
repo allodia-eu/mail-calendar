@@ -91,6 +91,27 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         Assert.Equal(3, PaneRows(app, Inbox).Count);
     });
 
+    /// <summary>A row's label. Its icon is hidden from assistive technology and so from the agent,
+    /// and the label stands a fixed step after it.</summary>
+    private static Element Label(App app, Element row) =>
+        app.Agent.Find(Filter.Named(row.Name, "Text") with { Under = row })
+        ?? throw new InvalidOperationException($"the row '{row.Name}' draws no label");
+
+    [OfflineFact]
+    public void EveryTreeRowLeadsWithItsDisclosureColumn() => Case(nameof(EveryTreeRowLeadsWithItsDisclosureColumn), app =>
+    {
+        // Rule 32. The footer destinations belong to no tree and keep the framework's columns, so
+        // a folder level with them means the chevrons went back to the trailing end, where nothing
+        // on the leading edge says the folder belongs to the account above it.
+        var account = PaneRow(app, First);
+        var folder = app.Agent.Find(Filter.Named(Catalog.English("folder_drafts"), "ListItem") with { Under = account })
+            ?? throw new InvalidOperationException("the first account shows no Drafts");
+        var destination = Label(app, PaneRow(app, Catalog.English("nav_contacts"))).X;
+        var label = Label(app, folder).X;
+        Assert.True(label >= destination + 8, $"a folder stands a column in from the destinations (folder {label}, Contacts {destination})");
+        Assert.InRange(Label(app, account).X, label - 1, label + 1);
+    });
+
     [OfflineFact]
     public void BothAccountsShowTheirFoldersWhileNeitherIsSelected() => Case(nameof(BothAccountsShowTheirFoldersWhileNeitherIsSelected), app =>
     {

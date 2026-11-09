@@ -3,9 +3,9 @@
 use std::path::PathBuf;
 
 use mailcal_bindings::{
-    AccountCapability, AgentDraft, BulkAction, ContactDetail, ContactEdit, ContactTarget,
-    DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SelectedRow, SharePrefill,
-    Surface,
+    AccountCapability, AgentDraft, BulkAction, CommandItem, ContactDetail, ContactEdit,
+    ContactTarget, DetectedSetup, ImapAuthOffer, Intent, MailtoPrefill, SearchScope, SelectedRow,
+    SharePrefill, Surface,
 };
 
 use super::{
@@ -135,9 +135,12 @@ pub(crate) enum AppInput {
     /// folder (`docs/list-selection.md`, rule 10).
     SelectAllRows,
     ClearSelection,
-    /// Run one action over every selected row, as a single batch in the core. A permanent delete
-    /// asks first and arrives back as [`Self::PerformRowsAction`].
-    ActOnSelection(BulkAction),
+    /// A command bar item picked, run over the selection as the same row menu item would be
+    /// (`docs/command-bar.md`, rule 1). A permanent delete asks first and arrives back as
+    /// [`Self::PerformRowsAction`].
+    BarPick(Box<CommandItem>),
+    /// The list's Delete key: the bar's Delete over the selection, whatever it is there.
+    DeleteSelection,
     /// Run one action the user has already confirmed over the rows it named. Emitted only by the
     /// permanent-delete confirmation, so a pending dialog can never be mistaken for consent.
     PerformRowsAction {

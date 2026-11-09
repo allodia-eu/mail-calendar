@@ -38,14 +38,14 @@ class ConversationRowMenuTest {
 
     private val menu = RowMenu(
         sections = listOf(
-            RowMenuSection(items = listOf(RowMenuItem(action = RowAction.OPEN, enabled = true, target = draft))),
+            RowMenuSection(items = listOf(RowMenuItem(action = RowAction.OPEN, enabled = true, target = draft, confirm = false))),
             RowMenuSection(
                 items = listOf(
-                    RowMenuItem(action = RowAction.REPLY, enabled = false, target = draft),
-                    RowMenuItem(action = RowAction.FORWARD, enabled = false, target = draft),
+                    RowMenuItem(action = RowAction.REPLY, enabled = false, target = draft, confirm = false),
+                    RowMenuItem(action = RowAction.FORWARD, enabled = false, target = draft, confirm = false),
                 ),
             ),
-            RowMenuSection(items = listOf(RowMenuItem(action = RowAction.UNFLAG, enabled = true, target = null))),
+            RowMenuSection(items = listOf(RowMenuItem(action = RowAction.UNFLAG, enabled = true, target = null, confirm = false))),
         ),
     )
 

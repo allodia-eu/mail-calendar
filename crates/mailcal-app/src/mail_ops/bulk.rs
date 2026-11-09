@@ -12,7 +12,7 @@
 
 use std::collections::HashSet;
 
-use engine_api::{AccountId, MailEdit, MailListRow, MailboxRole, Provider, ProviderKey};
+use engine_api::{AccountId, MailEdit, MailListRow, MailboxId, MailboxRole, Provider, ProviderKey};
 use mailcal_viewmodel::{Member, MessageKind, RowAction, conversation_reach, stays_put};
 
 use super::folders::{resolve_move_target, sent_keys};
@@ -239,18 +239,24 @@ impl<P: Provider> App<P> {
             }
         }
         let mut keys = deduplicated(keys);
-        // Named or not, a message already in the destination has nowhere to go.
-        if let Some(destination) = &destination {
-            let already: HashSet<String> = self
-                .engine
-                .mail_by_keys(account, &keys)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|row| row.mailboxes.iter().any(|id| id.key() == destination.key()))
-                .map(|row| row.mail.key.as_str().to_owned())
-                .collect();
-            keys.retain(|key| !already.contains(key.as_str()));
+        match &destination {
+            // Named or not, a message already in the destination has nowhere to go.
+            Some(destination) => {
+                let already = self.filed_in(account, &keys, destination).await;
+                keys.retain(|key| !already.contains(key.as_str()));
+            }
+            // A purge takes only what is in Trash already, or anything on an account with no
+            // Trash, so no route to it can lose mail that was never thrown away
+            // (`docs/row-actions.md`, rule 6).
+            None => match resolve_move_target(&mailboxes, &MailboxRole::Trash) {
+                Some(trash) => {
+                    let thrown = self.filed_in(account, &keys, &trash.id).await;
+                    keys.retain(|key| thrown.contains(key.as_str()));
+                }
+                // No folders known yet says nothing about a Trash being absent.
+                None if mailboxes.is_empty() => keys.clear(),
+                None => {}
+            },
         }
         if keys.is_empty() {
             return;
@@ -272,6 +278,25 @@ impl<P: Provider> App<P> {
             }
         }
         self.refresh_after_write(account).await;
+    }
+}
+
+impl<P: Provider> App<P> {
+    /// Which of `keys` are filed in `folder`, by the store's own record of each message.
+    async fn filed_in(
+        &self,
+        account: &AccountId,
+        keys: &[ProviderKey],
+        folder: &MailboxId,
+    ) -> HashSet<String> {
+        self.engine
+            .mail_by_keys(account, keys)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|row| row.mailboxes.iter().any(|id| id.key() == folder.key()))
+            .map(|row| row.mail.key.as_str().to_owned())
+            .collect()
     }
 }
 

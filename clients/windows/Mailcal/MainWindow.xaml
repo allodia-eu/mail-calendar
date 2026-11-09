@@ -62,145 +62,54 @@
                             TextChanged="OnSearchChanged" />
         </Grid>
 
-        <!-- The mail actions, across the WHOLE window rather than inside the list column or
-             even inside the two panes: the buttons are as wide as the words on them, and a
-             column the user can drag to 320 px made the last of them something to scroll
-             sideways for. Spanning the folder pane as well fixes their position for good, so
-             neither widening the list nor collapsing the sidebar walks the delete button
-             across the screen, and New Mail at the head of the row stays on screen when the
-             pane is shut.
+        <!-- The mail command bar (docs/command-bar.md), across the whole window under the
+             caption, and with it one band of window chrome on the window's Mica, as the folder
+             pane is: no separator between the two rows and no fill of its own, so the band and the
+             pane frame the list and the reading pane, which keep the content layer.
 
-             It stands whether or not anything is selected, with the actions merely disabled
-             (docs/list-selection.md, rule 5). A bar that arrives with the first click moves
-             the rows under the pointer and the message being read, which is the jump
-             Outlook's own toolbar does not have. Select all is the one action of the
-             selection's own that stays live: it is how a pointer starts a selection without
-             touching a modifier. The read and flag buttons are single toggles whose labels
-             come from the selection.
+             New Mail heads it in a slot as wide as the folder pane, open or compact
+             (MainWindow.CommandBar.cs), so the actions start at the message list's leading edge and
+             follow the pane's divider; a compact pane narrows the slot to New Mail's own width and
+             the actions follow it. New Mail names no selection, so it is never disabled, and a pane
+             that can be shut cannot hold the one control that writes a message.
 
-             Two things on the row name no selection and so are never disabled: New Mail at
-             the start and Sync at the end, each past a divider. Both act on the mailbox
-             rather than on what is picked. -->
-        <Border Grid.Row="1"
-                Padding="16,10"
-                Visibility="{x:Bind MailChromeShown(Model.MainVisibility, Model.MailVisibility), Mode=OneWay}"
-                BorderThickness="0,0,0,1"
-                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"
-                AutomationProperties.AutomationId="SelectionBar">
-            <!-- Horizontal scrolling rather than a squeeze, for the narrowest
-                 window the app allows: a row of buttons that vanishes takes the
-                 delete the user was reaching for with it. -->
-            <ScrollViewer HorizontalScrollMode="Auto" HorizontalScrollBarVisibility="Auto"
-                          VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled">
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                    <!-- It stays on the calendar and contacts surfaces too, so the row
-                         never changes shape as the user moves between them; the handler
-                         brings mail back before the draft opens, because the composer takes
-                         the reading pane's place and that pane exists only on mail. -->
-                    <Button x:Name="ComposeButton"
-                            Style="{StaticResource AccentButtonStyle}"
-                            AutomationProperties.AutomationId="ComposeButton"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionCompose(), Mode=OneTime}"
-                            Click="OnNewMail">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE70F;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionCompose(), Mode=OneTime}" />
-                        </StackPanel>
-                    </Button>
-                    <Border Width="1" Margin="4"
-                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                    <Button AutomationProperties.AutomationId="SelectionMarkRead"
-                            IsEnabled="{x:Bind Model.SelectionReadEnabled, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind Model.SelectionReadText, Mode=OneWay}"
-                            Click="OnSelectionToggleRead">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE715;" FontSize="14" />
-                            <TextBlock Text="{x:Bind Model.SelectionReadText, Mode=OneWay}" />
-                        </StackPanel>
-                    </Button>
-                    <Button AutomationProperties.AutomationId="SelectionFlag"
-                            IsEnabled="{x:Bind Model.SelectionFlagEnabled, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind Model.SelectionFlagText, Mode=OneWay}"
-                            Click="OnSelectionToggleFlag">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE7C1;" FontSize="14" />
-                            <TextBlock Text="{x:Bind Model.SelectionFlagText, Mode=OneWay}" />
-                        </StackPanel>
-                    </Button>
-                    <Button AutomationProperties.AutomationId="SelectionArchive"
-                            IsEnabled="{x:Bind Model.SelectionArchiveEnabled, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}"
-                            Click="OnSelectionArchive">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE7B8;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionArchive(), Mode=OneTime}" />
-                        </StackPanel>
-                    </Button>
-                    <Button AutomationProperties.AutomationId="SelectionDelete"
-                            IsEnabled="{x:Bind Model.SelectionDeleteEnabled, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}"
-                            Click="OnSelectionDelete">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE74D;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionMoveToTrash(), Mode=OneTime}" />
-                        </StackPanel>
-                    </Button>
-                    <!-- The same trash glyph as the button beside it, in the
-                         critical colour: Segoe has no second bin, and a
-                         borrowed glyph that means something else would be
-                         worse than the colour and the label saying it. -->
-                    <Button AutomationProperties.AutomationId="SelectionDeletePermanently"
-                            IsEnabled="{x:Bind Model.SelectionPermanentlyDeleteEnabled, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}"
-                            Click="OnSelectionPermanentlyDelete">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE74D;" FontSize="14"
-                                      Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionDeletePermanently(), Mode=OneTime}" />
-                        </StackPanel>
-                    </Button>
-                    <Button AutomationProperties.AutomationId="SelectionSelectAll"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionSelectAll(), Mode=OneTime}"
-                            Click="OnSelectAll">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE8B3;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionSelectAll(), Mode=OneTime}" />
-                        </StackPanel>
-                    </Button>
-                    <!-- Stretched, unlike its siblings: the default button style
-                         centres its content, so this one, alone in carrying no
-                         label, would stand at the glyph's height rather than the
-                         row's. Stretch ties it to the tallest button, which text
-                         scaling moves. -->
-                    <Button AutomationProperties.AutomationId="SelectionClear"
-                            VerticalAlignment="Stretch"
-                            IsEnabled="{x:Bind Model.HasSelection, Mode=OneWay}"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionClearSelection(), Mode=OneTime}"
-                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionClearSelection(), Mode=OneTime}"
-                            Click="OnClearSelection">
-                        <FontIcon Glyph="&#xE711;" FontSize="14" />
-                    </Button>
-                    <!-- Sync is not a selection action: it acts on the mailbox, so
-                         it is never disabled, and it sits past a divider rather
-                         than among the buttons that name what is picked
-                         (docs/list-selection.md, rule 5). It is here because this
-                         is where a user reaches for it, beside Archive and Delete,
-                         the way Outlook's own toolbar carries it; the footer it
-                         left is a status line alone. -->
-                    <Border Width="1" Margin="4"
-                            Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
-                    <Button AutomationProperties.AutomationId="SelectionSync"
-                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}"
-                            Click="OnSelectionSync">
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE72C;" FontSize="14" />
-                            <TextBlock Text="{x:Bind l10n:L10n.ActionRefresh(), Mode=OneTime}" />
-                        </StackPanel>
-                    </Button>
+             The row is the mail surface's; the calendar and contacts draw their own. The actions
+             are the core's answer, drawn in code as it arrives: a WinUI CommandBar,
+             whose dynamic overflow moves items from the end into its "More" menu in bar order when
+             the row cannot hold them, so a label never wraps, truncates or scrolls. -->
+        <Grid x:Name="CommandRow" Grid.Row="1"
+              Padding="0,0,8,6"
+              Visibility="{x:Bind MailChromeShown(Model.MainVisibility, Model.MailVisibility), Mode=OneWay}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="NewMailColumn" Width="240" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="ComposeButton"
+                    Margin="12,0,12,0"
+                    VerticalAlignment="Center"
+                    Style="{StaticResource AccentButtonStyle}"
+                    AutomationProperties.AutomationId="ComposeButton"
+                    AutomationProperties.Name="{x:Bind l10n:L10n.ActionCompose(), Mode=OneTime}"
+                    Click="OnNewMail">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE70F;" FontSize="14" />
+                    <TextBlock Text="{x:Bind l10n:L10n.ActionCompose(), Mode=OneTime}" TextWrapping="NoWrap" />
                 </StackPanel>
-            </ScrollViewer>
-        </Border>
-        <!-- The launch view and the three top-level surfaces are mutually exclusive and all share
+            </Button>
+            <!-- Left-aligned, so the actions start at the list's edge rather than the bar's end; the
+                 column still bounds it, which is the width its dynamic overflow measures against. -->
+            <CommandBar x:Name="MailCommands" Grid.Column="1"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Background="Transparent"
+                        IsOpen="False"
+                        IsDynamicOverflowEnabled="True"
+                        DefaultLabelPosition="Right"
+                        OverflowButtonVisibility="Auto"
+                        AutomationProperties.AutomationId="MailCommandBar"
+                        Loaded="OnMailCommandsLoaded" />
+        </Grid>        <!-- The launch view and the three top-level surfaces are mutually exclusive and all share
              row 2, under the caption and the actions bar, they overlap deliberately (only one is
              ever Visible), so they are siblings rather than a nested Grid. -->
 
@@ -331,6 +240,7 @@
                                 Drop="OnSidebarDrop"
                                 DragStarting="OnSidebarDragStarting"
                                 DropCompleted="OnSidebarDropCompleted"
+                                Loaded="OnSidebarRowLoaded"
                                 AutomationProperties.Name="{Binding Content}"
                                 AutomationProperties.HelpText="{Binding PendingLabel}"
                                 AutomationProperties.AutomationId="{Binding AutomationId}">
@@ -397,12 +307,13 @@
                                 AllowDrop="True"
                                 DragOver="OnSidebarDragOver"
                                 Drop="OnSidebarDrop"
+                                Loaded="OnSidebarRowLoaded"
                                 MenuItemsSource="{Binding Children}">
                                 <NavigationViewItem.Icon>
                                     <FontIcon Glyph="{Binding Glyph}" />
                                 </NavigationViewItem.Icon>
                                 <StackPanel Padding="0,4">
-                                    <TextBlock Text="{Binding Content}" TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Content}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
                                     <Grid ColumnSpacing="6"
                                           Visibility="{Binding HasMark, Converter={StaticResource BoolToVisibility}}">
                                         <Grid.ColumnDefinitions>
@@ -440,15 +351,19 @@
                                  which is what a heading should do and what an account row, being a
                                  destination, needs a separate chevron for.
 
-                                 No Icon, deliberately: the framework's own trailing chevron is the
-                                 state, and a glyph beside the account rows' would make this read as
-                                 one more account. IsExpanded is TwoWay for the same reason the
-                                 account template's is. -->
+                                 No Icon, deliberately: the chevron leading the row is the state, and
+                                 a glyph beside the account rows' would make this read as one more
+                                 account. IsExpanded is TwoWay for the same reason the account
+                                 template's is. SemiBold, as the account rows are: the weight is
+                                 what titles a group whose folders stand in its own columns
+                                 (docs/folder-pane.md, rule 32). -->
                             <NavigationViewItem
                                 Content="{Binding Content}"
                                 Tag="{Binding Tag}"
                                 SelectsOnInvoked="False"
+                                FontWeight="SemiBold"
                                 IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                Loaded="OnSidebarRowLoaded"
                                 MenuItemsSource="{Binding Children}" />
                         </DataTemplate>
                     </views:SidebarItemTemplateSelector.Group>

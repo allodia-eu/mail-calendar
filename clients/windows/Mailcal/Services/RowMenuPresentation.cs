@@ -1,7 +1,7 @@
 // What the core's row menu looks like on Windows, and the rules about expanding a conversation
 // (docs/row-actions.md). The core decides which items a menu holds, which respond and which message
-// each is about; this file gives each action its glyph and its batch, reads the selection bar off
-// the same answer, and keeps no rule of its own about either.
+// each is about; this file gives each action its glyph and its batch, draws the command bar off
+// the same answer (docs/command-bar.md), and keeps no rule of its own about either.
 //
 // WinUI-free, so Mailcal.Tests links it. The labels are the view's (MailListView.RowMenu.cs),
 // because L10n needs a Windows TFM that assembly does not have.
@@ -56,49 +56,56 @@ internal static class RowMenuPresentation
 }
 
 /// <summary>
-/// The selection bar's buttons, read off the core's menu over the selection
-/// (docs/list-selection.md, rule 5): each toggle names the half that changes something, and a
-/// button the menu would draw disabled is disabled on the bar too.
+/// How the core's command bar is drawn and run on Windows (docs/command-bar.md). The core decides
+/// which items stand on it, in which order, which respond and which message each is about; this
+/// gives each its slot and its glyph, and runs a pick through the row menu's own path.
 /// </summary>
-/// <remarks>
-/// With nothing selected the core answers no menu, and the bar names the affirmative halves, all
-/// disabled: "Mark as unread" over nothing describes an action nobody asked for.
-/// </remarks>
-internal sealed record SelectionBarActions(
-    RowMenuItem Read,
-    RowMenuItem Flag,
-    RowMenuItem Archive,
-    RowMenuItem Delete,
-    RowMenuItem PermanentlyDelete)
+internal static class CommandBarPresentation
 {
-    /// <summary>The bar over nothing.</summary>
-    public static SelectionBarActions None { get; } = Of(new RowMenu([]));
-
-    /// <summary>The bar <paramref name="menu"/> describes.</summary>
-    public static SelectionBarActions Of(RowMenu menu)
+    /// <summary>
+    /// The automation id of the slot an item stands in: one per slot, so a toggle keeps its id
+    /// whichever half it offers and Delete keeps it in Trash.
+    /// </summary>
+    public static string AutomationId(Command command) => command switch
     {
-        var items = menu.Sections.SelectMany(section => section.Items).ToList();
-        // The first item doing one of `actions`, which for a toggle is the half on offer.
-        RowMenuItem Find(params RowAction[] actions) =>
-            items.FirstOrDefault(item => actions.Contains(item.Action))
-            ?? new RowMenuItem(actions[0], false, null);
-        return new SelectionBarActions(
-            Find(RowAction.MarkRead, RowAction.MarkUnread),
-            Find(RowAction.Flag, RowAction.Unflag),
-            Find(RowAction.Archive),
-            Find(RowAction.Delete),
-            Find(RowAction.PermanentlyDelete));
-    }
+        Command.Sync => "CommandSync",
+        Command.Act { Action: RowAction.Delete or RowAction.PermanentlyDelete } => "CommandDelete",
+        Command.Act { Action: RowAction.Archive } => "CommandArchive",
+        Command.Act { Action: RowAction.MoveToFolder } => "CommandMove",
+        Command.Act { Action: RowAction.Flag or RowAction.Unflag } => "CommandFlag",
+        Command.Act { Action: RowAction.MarkRead or RowAction.MarkUnread } => "CommandRead",
+        Command.Act { Action: RowAction.MarkAsSpam or RowAction.MarkAsNotSpam } => "CommandReport",
+        Command.Act act => $"Command{act.Action}",
+        _ => "Command",
+    };
 
-    /// <summary>What the read button runs, which is what its label says.</summary>
-    public BulkAction ReadAction =>
-        Read.Action == RowAction.MarkUnread ? BulkAction.MarkUnread : BulkAction.MarkRead;
+    /// <summary>The Segoe Fluent Icons glyph an item is drawn with: its action's, as in the row
+    /// menu, and Sync's own.</summary>
+    public static string Glyph(Command command) =>
+        command is Command.Act act ? RowMenuPresentation.Glyph(act.Action) : "";
 
-    /// <summary>What the flag button runs, which is what its label says.</summary>
-    public BulkAction FlagAction =>
-        Flag.Action == RowAction.Unflag ? BulkAction.Unflag : BulkAction.Flag;
+    /// <summary>
+    /// The item as the row menu names it, so a pick from the bar runs exactly as the same pick in
+    /// a row menu over the selection does; <c>null</c> for Sync, which acts on the mailbox.
+    /// </summary>
+    public static RowMenuItem? MenuItem(CommandItem item) =>
+        item.Command is Command.Act act ? new RowMenuItem(act.Action, item.Enabled, item.Target, item.Confirm) : null;
+
+    /// <summary>
+    /// The item standing in Delete's place: Delete, or in Trash Delete permanently
+    /// (docs/command-bar.md, rule 6). What the Delete key and the reading pane's Delete run.
+    /// </summary>
+    public static CommandItem? Delete(CommandBar bar) =>
+        bar.Sections.SelectMany(section => section.Items).FirstOrDefault(item =>
+            item.Command is Command.Act { Action: RowAction.Delete or RowAction.PermanentlyDelete });
+
+    /// <summary>Whether two answers draw the same bar. The generated records hold arrays, which a
+    /// record compares by reference.</summary>
+    public static bool Same(CommandBar a, CommandBar b) =>
+        a.Sections.Length == b.Sections.Length
+        && a.Sections.Zip(b.Sections).All(pair => pair.First.Items.SequenceEqual(pair.Second.Items))
+        && a.Menu.SequenceEqual(b.Menu);
 }
-
 /// <summary>Which conversations are expanded, and what selecting one opens (docs/row-actions.md,
 /// rules 2 and 8).</summary>
 internal static class ConversationExpansion

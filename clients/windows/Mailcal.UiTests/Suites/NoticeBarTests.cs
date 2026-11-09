@@ -101,7 +101,7 @@ public sealed class NoticeCloseTests(SkippedAccountHarnessApp harness) : IClassF
         Assert.True(App.Eventually(() => app.NoticeBar() is not { } shown || !app.Says(shown, sentence), TimeSpan.FromSeconds(10)),
             "closing it takes it away");
         // The core remembers the dismissal until the fact goes, so a later snapshot does not bring it back.
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button"))!);
+        app.Agent.Invoke(app.Agent.Find(Filter.ById("CommandSync", "Button"))!);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(500), cap: TimeSpan.FromSeconds(5));
         Assert.True(app.NoticeBar() is not { } again || !app.Says(again, sentence), "and a refresh does not raise it again");
     }, _ => StoredAccounts.Remove(SkippedAccountHarnessApp.Namespace, SkippedAccountHarnessApp.Unreadable));

@@ -14,6 +14,7 @@ use crate::{
     ui::{
         AppInput,
         mail_actions_menu::{RowMenus, fill},
+        reader::ReadingSource,
         row_menu::RowPick,
     },
 };
@@ -110,6 +111,7 @@ fn item(action: RowAction, enabled: bool, target: Option<MenuMessage>) -> RowMen
     RowMenuItem {
         action,
         enabled,
+        confirm: action == RowAction::PermanentlyDelete,
         target,
     }
 }
@@ -168,8 +170,8 @@ pub(crate) fn a_row_menu_draws_the_cores_answer_and_runs_what_is_picked() {
             RowMenuSection {
                 items: vec![
                     item(RowAction::MoveToFolder, true, None),
-                    item(RowAction::Archive, true, None),
-                    item(RowAction::Delete, false, None),
+                    item(RowAction::Archive, false, None),
+                    // In Trash, Delete is Delete permanently in its place, never beside it.
                     item(RowAction::PermanentlyDelete, true, None),
                 ],
             },
@@ -209,7 +211,6 @@ pub(crate) fn a_row_menu_draws_the_cores_answer_and_runs_what_is_picked() {
             "—",
             l10n::action_move_to_folder(),
             l10n::action_archive(),
-            l10n::action_move_to_trash(),
             l10n::action_delete_permanently(),
         ]
     );
@@ -225,7 +226,7 @@ pub(crate) fn a_row_menu_draws_the_cores_answer_and_runs_what_is_picked() {
     };
 
     // Disabled, but still there: the menu keeps its shape from one row to the next.
-    for label in [l10n::action_reply(), l10n::action_move_to_trash()] {
+    for label in [l10n::action_reply(), l10n::action_archive()] {
         assert!(
             !button(root, label).expect("drawn").is_sensitive(),
             "{label}"
@@ -334,6 +335,35 @@ pub(crate) fn permanent_delete_is_confirmed_before_it_dispatches() {
         receiver.recv_sync(),
         Some(AppInput::PerformRowsAction { rows: asked, action: BulkAction::PermanentlyDelete })
             if asked == rows
+    ));
+
+    // A reading view's own Delete, where the bar over its message deletes for good: confirmed,
+    // it goes back to that view, which then moves on as its Delete to Trash would.
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let mut confirmation = PermanentDeleteDialog::default();
+    let opened = DeleteTarget::Opened {
+        source: ReadingSource::Window("window-a".to_owned()),
+        message: target(),
+    };
+    confirmation.render(Some(&opened), &parent, &sender);
+    let window = confirmation.window.as_ref().expect("confirmation window");
+    assert!(
+        labels(window.upcast_ref::<gtk::Widget>())
+            .iter()
+            .any(|label| label == l10n::delete_permanently_message())
+    );
+    button(
+        window.upcast_ref::<gtk::Widget>(),
+        l10n::action_delete_permanently(),
+    )
+    .expect("confirmed delete action")
+    .emit_clicked();
+    assert!(matches!(
+        receiver.recv_sync(),
+        Some(AppInput::PerformOpenedMailAction {
+            source: ReadingSource::Window(window),
+            action: ActionKind::PermanentlyDelete,
+        }) if window == "window-a"
     ));
     parent.close();
 }

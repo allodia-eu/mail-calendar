@@ -1,9 +1,8 @@
 // How the Windows list reads the core's row menu, and the rules for which conversation stays
 // expanded and what selecting one opens (docs/row-actions.md), without a window. All of them fail
-// silently in the running app: a bar naming the half of a toggle that changes nothing does nothing
-// when clicked, a conversation left open after the user moved on keeps its messages in a list they
-// are no longer reading, and a conversation opened on its newest message in the folder rather than
-// its newest message shows the reader something other than what Reply answers.
+// silently in the running app: a conversation left open after the user moved on keeps its messages
+// in a list they are no longer reading, and a conversation opened on its newest message in the
+// folder rather than its newest message shows the reader something other than what Reply answers.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -13,37 +12,6 @@ namespace Allodia.Mailcal.Tests;
 
 public class RowMenuPresentationTests
 {
-    private static RowMenuItem Item(RowAction action, bool enabled = true) => new(action, enabled, null);
-
-    [Fact]
-    public void TheBarOffersTheHalfOfEachToggleTheCoreNamed()
-    {
-        var menu = new RowMenu([
-            new RowMenuSection([Item(RowAction.MarkUnread), Item(RowAction.Unflag)]),
-            new RowMenuSection([Item(RowAction.Archive, enabled: false), Item(RowAction.Delete)]),
-        ]);
-        var bar = SelectionBarActions.Of(menu);
-        Assert.Equal(BulkAction.MarkUnread, bar.ReadAction);
-        Assert.Equal(BulkAction.Unflag, bar.FlagAction);
-        Assert.False(bar.Archive.Enabled, "a move that would take nothing is disabled on the bar too");
-        Assert.True(bar.Delete.Enabled);
-        Assert.False(bar.PermanentlyDelete.Enabled, "an action the core did not offer is not on offer");
-    }
-
-    /// <summary>The bar stands with nothing picked, and the core answers no menu over no rows.
-    /// "Mark as unread" over nothing is the wrong sentence to leave on screen.</summary>
-    [Fact]
-    public void AnEmptySelectionNamesTheAffirmativeActionsDisabled()
-    {
-        var bar = SelectionBarActions.Of(new RowMenu([]));
-        Assert.Equal(BulkAction.MarkRead, bar.ReadAction);
-        Assert.Equal(BulkAction.Flag, bar.FlagAction);
-        Assert.All(
-            new[] { bar.Read, bar.Flag, bar.Archive, bar.Delete, bar.PermanentlyDelete },
-            button => Assert.False(button.Enabled));
-        Assert.Equal(SelectionBarActions.None, bar);
-    }
-
     [Fact]
     public void OnlyAnItemWithoutAMessageRunsTheBatch()
     {
@@ -57,7 +25,7 @@ public class RowMenuPresentationTests
     }
 
     /// <summary>Rule 1: every action is drawn under its icon, and the one irreversible one stands
-    /// out from Move to Trash beside it.</summary>
+    /// out from Delete, whose place it takes in Trash.</summary>
     [Fact]
     public void EveryActionHasAGlyphAndOnlyPermanentDeleteIsCritical()
     {

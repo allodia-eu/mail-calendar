@@ -45,11 +45,7 @@ extension ContentView {
                 model.archive(opened.account, opened.key)
                 settleReadingPane(next)
             },
-            onDelete: {
-                let next = stopAfterRemoving(opened)
-                model.delete(opened.account, opened.key)
-                settleReadingPane(next)
-            }
+            onDelete: { deleteOpened(opened) }
         )
     }
 

@@ -64,8 +64,8 @@ pub(crate) enum SelectMode {
     Range,
 }
 
-/// How many rows are picked. Which of the paired actions the bar offers is the core's, read off
-/// its menu over the selection ([`super::row_menu::BarActions`]).
+/// How many rows are picked. What the command bar offers over them is the core's
+/// (`docs/command-bar.md`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct SelectionSummary {
     pub(crate) count: usize,

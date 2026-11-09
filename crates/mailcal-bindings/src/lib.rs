@@ -144,6 +144,7 @@ mod retry;
 pub mod sync_state;
 mod talk_offer;
 // The meeting-invitation card: its own file, since `records.rs` is at the 500-line limit.
+mod command_bar;
 mod meeting_editor;
 mod records_invitation;
 mod records_meeting;
@@ -202,6 +203,7 @@ pub use autodetect::{
 };
 use background::BackgroundManager;
 pub use background_sync::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
+pub use command_bar::{Command, CommandBar, CommandItem, CommandSection};
 pub use composer::{ComposerBlob, Recipients, render_composer_document_json, reply_subject};
 pub use composer_files::{
     ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_clipboard_html,

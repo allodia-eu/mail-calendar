@@ -47,9 +47,8 @@ pub(super) fn action_row(
         header.set_title_widget(None::<&gtk::Widget>);
     } else {
         header.set_show_start_title_buttons(false);
-        // The selection bar above this pane is the mail surface's top row and carries the
-        // window's controls; a second set here would sit a row short of the window's own
-        // corner.
+        // The header bar spanning the window carries its controls; a second set here would sit
+        // two rows short of the window's own corner.
         header.set_show_end_title_buttons(false);
         // An empty title, or the header falls back to the window's, standing the application's
         // own name over the message being read.
@@ -59,7 +58,7 @@ pub(super) fn action_row(
     let reply_all = action_button(icons::REPLY_ALL, l10n::action_reply_all());
     let forward = action_button(icons::FORWARD, l10n::action_forward());
     let archive = action_button(icons::ARCHIVE, l10n::action_archive());
-    let trash = action_button(icons::TRASH, l10n::action_move_to_trash());
+    let trash = action_button(icons::TRASH, l10n::action_delete());
     let input_sender = sender.clone();
     let reader = source.clone();
     reply.connect_clicked(move |_| {

@@ -24,6 +24,7 @@ pub(super) fn primary(now: OffsetDateTime) -> AccountSeed {
         mailbox("sent", "Verzonden", MailboxRole::Sent),
         mailbox("archive", "Archief", MailboxRole::Archive),
         mailbox("drafts", "Concepten", MailboxRole::Drafts),
+        mailbox("trash", "Prullenbak", MailboxRole::Trash),
     ];
     let messages: Vec<Message> = vec![
         msg("p-welcome", "inbox").from("Allodia", "hello@allodia.eu").to(me.0, me.1)
@@ -89,6 +90,7 @@ pub(super) fn secondary(now: OffsetDateTime) -> AccountSeed {
     let mailboxes: Vec<Mailbox> = vec![
         mailbox("inbox", "Postvak IN", MailboxRole::Inbox),
         mailbox("sent", "Verzonden", MailboxRole::Sent),
+        mailbox("trash", "Prullenbak", MailboxRole::Trash),
     ];
     let messages: Vec<Message> = vec![
         msg("w-welcome", "inbox").from("Northwind People", "hr@northwind.example").to(me.0, me.1)

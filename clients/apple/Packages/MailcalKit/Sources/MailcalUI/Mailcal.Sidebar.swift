@@ -89,14 +89,20 @@ struct SidebarFolder: Identifiable {
 
 /// How wide the account row's expand/collapse target is: a pointer's width on macOS, a fingertip's
 /// on iPadOS.
+///
+/// On the Mac the glyph sits at the target's leading edge, which is where the window's close
+/// button starts (Mailcal.PaneAlignment.swift); a fingertip's target keeps it centred.
 #if os(macOS)
 let chevronTargetWidth: CGFloat = 16
+let chevronAlignment = Alignment.leading
 #else
 let chevronTargetWidth: CGFloat = 32
+let chevronAlignment = Alignment.center
 #endif
 
-/// One step of the pane's indent: what an account's own rows are moved by, and what each level
-/// of folders inside a folder adds again.
+/// One step of the pane's indent: what each level of folders inside a folder adds. An account's
+/// own folders take the account's columns, chevron under chevron and icon under icon, as
+/// Outlook's do; the account row's weight is what titles the group.
 let indentWidth: CGFloat = 16
 
 /// How tall a pane row is drawn: the height its disclosure slot holds it to.
@@ -156,7 +162,7 @@ extension ContentView {
     /// The accounts and their folders, as the pane's scrolling list.
     private var sidebarTree: some View {
         List {
-            Section(L10n.sidebar_accounts()) {
+            Section {
                 outboxRow
                 allAccountsGroup
                 ForEach(model.accounts, id: \.id) { account in
@@ -178,9 +184,11 @@ extension ContentView {
                         )
                         sidebarRow(
                             title: account.email,
-                            icon: accountIcon
+                            icon: accountIcon,
+                            titlesGroup: true
                         ) { selectAccount(account.id) }
                     }
+                    .padding(.leading, paneRowShift)
                     // No highlight on the account row itself, exactly as the All Accounts group
                     // above carries none: what it opens is its **All Mail** row, and that row is
                     // the one lit. A tree shut over it takes the highlight off screen with it,
@@ -213,7 +221,7 @@ extension ContentView {
                         }
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .padding(.leading, 28)
+                        .padding(.leading, paneRowShift + 28)
                         .accessibilityElement(children: .combine)
                         .accessibilityLabel(about.map { NoticeRules.text($0.title) }.joined(separator: " "))
                     }
@@ -230,7 +238,7 @@ extension ContentView {
                                 icon: "tray.full"
                             ) { selectAccount(account.id) }
                         }
-                        .padding(.leading, indentWidth)
+                        .padding(.leading, paneRowShift)
                         .sidebarRowHighlight(
                             showingMail
                                 && model.selectedAccount == account.id
@@ -251,10 +259,10 @@ extension ContentView {
                                 dragEnabled: hasReadingPane,
                                 sheet: $folderSheet, deleting: $folderToDelete
                             ))
-                            // One step per level, plus the account's own. The indent is on the
-                            // stack rather than inside the row so the chevrons line up down a
-                            // branch, the way the account chevrons line up down the pane.
-                            .padding(.leading, indentWidth * CGFloat(folder.depth + 1))
+                            // One step per level inside a folder; a top-level folder takes the
+                            // account's own columns. The indent is on the stack rather than inside
+                            // the row so the chevrons line up down a branch.
+                            .padding(.leading, paneRowShift + indentWidth * CGFloat(folder.depth))
                             .sidebarRowHighlight(
                                 showingMail
                                     && model.selectedAccount == account.id
@@ -263,6 +271,8 @@ extension ContentView {
                         }
                     }
                 }
+            } header: {
+                Text(L10n.sidebar_accounts()).padding(.leading, paneHeaderShift)
             }
         }
         .listStyle(.sidebar)
@@ -283,6 +293,7 @@ extension ContentView {
                 icon: "tray.and.arrow.up",
                 unread: UInt32(model.outbox.count)
             ) { model.showOutbox() }
+                .padding(.leading, paneRowShift)
                 .sidebarRowHighlight(showingMail && model.showingOutbox)
         }
     }
@@ -308,6 +319,7 @@ extension ContentView {
                 // large blue chevron directly above the small quiet ones.
                 sidebarChevron(expanded: model.unifiedExpanded)
                 Text(L10n.sidebar_all_accounts())
+                    .fontWeight(.semibold)
                     .lineLimit(1)
                     .truncationMode(.tail)
                 Spacer()
@@ -317,6 +329,7 @@ extension ContentView {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .padding(.leading, paneRowShift)
         // The glyph is a state, not a name, so the row is spoken as "All Accounts" and the
         // hint is what says which way activating it goes.
         .accessibilityHint(
@@ -333,7 +346,7 @@ extension ContentView {
                     unread: model.unifiedUnread
                 ) { selectAccount(nil) }
             }
-            .padding(.leading, indentWidth)
+            .padding(.leading, paneRowShift)
             .sidebarRowHighlight(showingMail && model.selectedAccount == nil)
         }
     }
@@ -374,7 +387,7 @@ extension ContentView {
             // A pointer hits the glyph; a finger needs the area around it, and a near miss on an
             // account is not a no-op, it lands on the row and navigates. The height stays inside
             // the row so the target grows without the row growing with it.
-            .frame(width: chevronTargetWidth, height: paneRowHeight)
+            .frame(width: chevronTargetWidth, height: paneRowHeight, alignment: chevronAlignment)
             .contentShape(Rectangle())
     }
 
@@ -393,10 +406,11 @@ extension ContentView {
         title: String,
         icon: String,
         unread: UInt32 = 0,
+        titlesGroup: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            sidebarRowLabel(title: title, icon: icon, unread: unread)
+            sidebarRowLabel(title: title, icon: icon, unread: unread, titlesGroup: titlesGroup)
         }
         .buttonStyle(.plain)
         #if os(macOS)
@@ -413,13 +427,23 @@ extension ContentView {
     /// of the destinations pinned under it: `listRowBackground` reaches only a row inside a
     /// `List`, so the pinned rows draw their own.
     @ViewBuilder
-    func sidebarRowLabel(title: String, icon: String, unread: UInt32) -> some View {
+    func sidebarRowLabel(
+        title: String, icon: String, unread: UInt32, titlesGroup: Bool = false
+    ) -> some View {
         HStack {
             // One line, truncated at the end. An account address is as long as it is, and a
             // pane narrow enough to wrap one (every iPad column) turns each account into a
             // two-line row with its domain orphaned underneath, `eva.jansen@example.c` over
             // `om`. Rule 11 already says the row says in full what it shortened.
-            Label(title, systemImage: icon)
+            //
+            // An account titles the folders beneath it, which share its columns, so its name is
+            // the weight that says so. On the title itself: a sidebar's label style sets the
+            // font of its own text, past any weight set on the row around it.
+            Label {
+                Text(title).fontWeight(titlesGroup ? .semibold : nil)
+            } icon: {
+                Image(systemName: icon)
+            }
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer()

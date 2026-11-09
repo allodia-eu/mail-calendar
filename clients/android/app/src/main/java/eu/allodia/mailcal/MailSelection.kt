@@ -3,8 +3,8 @@
 // A phone has no modifier keys, so this is a mode: a long press enters it, a tap then toggles a
 // row instead of opening it, and Back leaves it. The rules live in [MailSelectionState], a plain
 // class rather than a tangle of `remember`s in MailboxScreen, so what a selection survives is
-// unit-testable without composing a screen; what its bar offers is the core's
-// ([SelectionBarActions]).
+// unit-testable without composing a screen; what its bar offers is the core's `command_bar`
+// (docs/command-bar.md).
 package eu.allodia.mailcal
 
 import androidx.compose.runtime.getValue

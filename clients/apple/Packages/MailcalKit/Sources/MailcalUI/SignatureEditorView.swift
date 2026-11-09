@@ -92,12 +92,22 @@ private struct SignatureEditorWebView: PlatformViewRepresentable {
     let editor: SignatureEditor
 
     #if os(macOS)
-    func makeNSView(context: Context) -> WKWebView { editor.mount() }
-    func updateNSView(_ nsView: WKWebView, context: Context) {}
+    func makeNSView(context: Context) -> WKWebView { mount(context) }
+    func updateNSView(_ nsView: WKWebView, context: Context) { followScheme(context) }
     #else
-    func makeUIView(context: Context) -> WKWebView { editor.mount() }
-    func updateUIView(_ uiView: WKWebView, context: Context) {}
+    func makeUIView(context: Context) -> WKWebView { mount(context) }
+    func updateUIView(_ uiView: WKWebView, context: Context) { followScheme(context) }
     #endif
+
+    private func mount(_ context: Context) -> WKWebView {
+        let view = editor.mount()
+        followScheme(context)
+        return view
+    }
+
+    private func followScheme(_ context: Context) {
+        editor.host.setDark(context.environment.colorScheme == .dark)
+    }
 }
 
 /// Reads an image file and turns it into a `data:` URI, or explains why it can't. Returns `nil`

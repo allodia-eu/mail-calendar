@@ -11,6 +11,7 @@ pub mod attendee;
 pub mod avatar;
 pub mod calendar;
 pub mod color;
+mod command_bar;
 pub mod connectivity;
 pub mod contacts;
 mod folder_changes;
@@ -31,6 +32,7 @@ mod view_rows;
 pub use attendee::{EventAttendee, EventAttendeeRole, effective_response, event_attendees};
 pub use avatar::Avatar;
 pub use calendar::{CalendarSnapshot, EventRow};
+pub use command_bar::{Command, CommandBar, CommandItem, command_bar};
 pub use connectivity::ConnectivitySnapshot;
 pub use contacts::{ContactCardRef, ContactDetail, ContactRow, ContactValue, ContactsSnapshot};
 pub use folder_changes::{

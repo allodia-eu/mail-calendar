@@ -60,7 +60,7 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
     /// rows fails on the rows.</summary>
     private static void SwitchReadState(App app, string expect)
     {
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionMarkRead", "Button")) ?? throw new InvalidOperationException("the toolbar has no read toggle"));
+        app.Agent.Invoke(app.Agent.Find(Filter.ById("CommandRead", "Button")) ?? throw new InvalidOperationException("the toolbar has no read toggle"));
         App.Eventually(() => AcmeUnread(app) == expect, TimeSpan.FromSeconds(10));
     }
 

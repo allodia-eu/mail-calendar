@@ -201,6 +201,7 @@ above). Two couplings apply to everything user-facing: copy may not out-run the 
 | [`undo.md`](docs/undo.md) | Undo and redo while writing: every field keeps its own history and answers the platform's own chords. The body's history is the **editor's**, kept in the shared bundle as the mutations each change made, never the WebView's, whose stack sees only the engine's own edits; every change is one step however it was made, typing runs into one until the caret moves or it pauses, and what the editor made of what was typed undoes to what was typed. A recipient field's step is one address, and its entry keeps no history of its own. |
 | [`search.md`](docs/search.md) | Newest-first ordering (never relevance); default scope is every account and folder except Trash; the scope filter mirrors the mailbox list; leaving search restores the view it opened from. |
 | [`list-selection.md`](docs/list-selection.md) | Selecting several messages: the **selection** is the client's, because its list control already carries the modifier, focus and assistive-technology behaviour; the **batch** is the core's one intent, so a hundred rows cost one sync per account rather than a hundred. A conversation row stands for its whole thread, and a move never takes a Sent copy out of Sent. A selection is scoped to the list on screen and clears with it; the desktop keys are bound on the list, never app-wide. |
+| [`command-bar.md`](docs/command-bar.md) | The row of mail actions on a desktop. The **core** decides it (`command_bar`), reading it off the row menu over the same selection so the two cannot disagree; a client draws it. One full-width row under the title bar: New Mail over the folder pane, then Delete, Archive, Move, Flag, the read toggle and Sync from the list column onward. Labels never wrap or scroll: items leave from the end into **⋯**. Delete moves to Trash, and only in Trash is it **Delete permanently**, always asked first; the write refuses a purge of anything outside Trash. |
 | [`row-actions.md`](docs/row-actions.md) | The menu a list row opens. The **core** decides it (`row_menu`) and a client draws it; a conversation row offers what a message's does, each action reaching the messages Outlook's does (the newest for Open and Reply, the newest received for Flag and Report, what was received for read state, the whole conversation for a move, which leaves Sent copies and drafts where they are); what cannot be done is drawn disabled; one conversation is expanded, the one holding the selection. |
 | [`folder-pane.md`](docs/folder-pane.md) | Every account's folders on screen at once; expansion is independent of selection, lives in the core and survives a restart; the unread count is the **server's** and counts messages; no badge at zero; All Inboxes sums the inboxes only; icons come from the folder's **role**, in each platform's native set. |
 | [`app-badge.md`](docs/app-badge.md) | The number on the app's own icon: the unified Inbox unread, the **same** number as All Accounts › Inbox and nothing else, none at zero, never set by a notification. Written from the snapshot and always for a launch's first; a desktop takes it off when the app quits and a phone keeps it, rewritten by its background pass. Android draws no count of its own: it has no API for one. |
@@ -628,6 +629,15 @@ traps that produce a false pass.
 | `ios-device-bgsync` | Background sync or notifications, which a simulator cannot run. |
 | `device-interaction` | "It feels laggy", or before claiming any performance win. Needs a physical Android device. |
 | `apple-frame-budget` | The same on macOS or iOS: Release builds, the calendar's frame trace, the Mac Time Profiler (`calendar-perf-apple.sh`). |
+
+⚠️ **Nothing a test or a harness sends may leave the machine.** A send from a test, a fixture or a
+debugging session is addressed to `@test.local`, the harness's own domain, and never to a domain
+that resolves: not `example.com`, `example.org` or `example.eu`, which the seed uses as *senders*
+precisely because they look real. The harness enforces it whatever a client does: it routes every
+recipient to local delivery, so anything else bounces inside the container and no MX is looked up
+([`docker/stalwart/entrypoint.sh`](docker/stalwart/entrypoint.sh)). A test that needs an outside
+recipient asserts on the composer and does not press Send. A real delivery goes out from the
+developer's own address and costs its reputation.
 
 ⚠️ **This repo's harness is a different compose project** (`mailcal-core-harness`, ports
 `12xxx`/`28080`) from the engine repo's, because Compose keys a project on its `name:` and both

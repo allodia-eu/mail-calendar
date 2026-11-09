@@ -46,50 +46,31 @@ selection itself is the client's, and rule 1 says why.
    that leaves the list (archived, deleted, filtered away by a sync) leaves the selection with it.
    Nothing survives a relaunch.
 
-5. **The bar offers exactly six actions**: mark read/unread, flag/unflag,
-   archive, delete, delete permanently, plus **Select all** and a way out. Read and flag are
-   **single toggles**, not pairs: the label comes from the selection, so any unread row makes the
-   button "Mark as read", and any unflagged row makes it "Flag". A selection that is already read
-   throughout therefore offers the action that changes something. With **nothing** selected both
-   name the affirmative action, since that is what the desktop bar stands there saying.
+5. **The bar's actions are the core's** ([`command-bar.md`](command-bar.md)): Delete, Archive,
+   Move, Flag and the read toggle, then Sync. Read and flag are **single toggles**, not pairs: the
+   label comes from the selection, so any unread row makes the button "Mark as read", and any
+   unflagged row makes it "Flag". A selection that is already read throughout therefore offers the
+   action that changes something. With **nothing** selected both name the affirmative action,
+   since that is what the desktop bar stands there saying.
 
-   **Where there is a reading pane the bar is standing chrome, spanning both panes, its actions
-   at the leading edge.** It is on screen whether or not anything is picked, with its actions
-   disabled until something is; Select all stays live throughout, being how a pointer starts a
-   selection without a modifier. Three things follow, and each is why it is written this way. A
-   bar that arrives with the first click moves every row under the pointer *and* the message being
-   read, so the layout jumps at the moment the user is aiming at it. A bar inside the list column
-   is as narrow as a column the user may drag to 320 px, which put the last of its buttons behind
-   a horizontal scrollbar. And buttons at the *trailing* edge move with every drag of the divider
-   beneath them, where at the leading edge they stay where the hand learnt them. Each carries its
-   platform's own icon beside the word.
+   **Where there is a reading pane the bar is standing chrome**, on screen whether or not anything
+   is picked, with its actions disabled until something is. A bar that arrives with the first
+   click moves every row under the pointer *and* the message being read, so the layout jumps at the
+   moment the user is aiming at it. Where it stands, what it carries and how it narrows are
+   [`command-bar.md`](command-bar.md)'s.
 
    The phones and the iPad keep the bar the selection *mode* brings with it, arriving and leaving
    with the mode (on Apple the mode is the list's own edit mode, which draws the system's
-   checkmarks): there is no selection
-   to disable actions over until the mode is entered, so standing chrome there would be a row of
-   dead buttons taking height from a list that has less of it to give. That bar keeps the count,
-   which on the desktop moves to the reading pane (rule 10).
+   checkmarks): there is no selection to disable actions over until the mode is entered, so
+   standing chrome there would be a row of dead buttons taking height from a list that has less of
+   it to give. That bar draws the same core answer without Sync, which there is the
+   pull-to-refresh gesture on the list itself, and adds the mode's own **Select all** and a way
+   out. It keeps the count, which on the desktop moves to the reading pane (rule 10).
 
-   **What is on the standing bar and is not a selection action sits past a divider, and is never
-   disabled.** **Sync** is that everywhere the bar stands: it acts on the mailbox, so it goes after
-   the selection's own buttons rather than among them. It is on the bar because that is where a
-   user reaches for it, the way Outlook's own toolbar carries Sync beside Delete and Archive, and
-   because the alternative was a footer button nobody looks at. It is **not** on the mode bar the
-   phones and the iPad raise: that bar is the selection mode's chrome, and syncing there is the
-   pull-to-refresh gesture on the list itself.
-
-   On **Windows** the bar spans the whole window rather than the two mail panes, and **New Mail**
-   is the second such button, at its head. That is a placement decision the platform forces: the
-   folder pane collapses to an icon strip, so a New Mail living in the pane can be taken off screen
-   by the pane toggle, and nothing else in the app writes a message. The bar is the one row that is
-   always there and always the same width.
-
-6. **Archive and delete ask nothing.** Both are recoverable, and a confirmation over fifty rows
-   the user deliberately picked is a dialog they will learn to dismiss unread. **Delete
-   permanently keeps whatever confirmation its single-row path already has on that platform**, so
-   the bar never makes an irreversible action easier to reach than the row menu does: Windows and
-   Linux confirm, Apple and Android do not, which is exactly what their row menus do today.
+6. **Archive and delete ask nothing; a permanent delete always asks.** Both are recoverable, and a
+   confirmation over fifty rows the user deliberately picked is a dialog they will learn to dismiss
+   unread. Deleting for good is offered only where Delete has nowhere else to go, in Trash
+   ([`command-bar.md`](command-bar.md), rule 6), and every platform asks first, naming the count.
 
 7. **A move clears the selection; a keyword edit keeps it.** After archive or delete the rows are
    gone, so there is nothing to keep selected. After mark-read or flag the same rows are still
@@ -108,7 +89,8 @@ selection itself is the client's, and rule 1 says why.
    account with no Archive folder is skipped and the others still act.
 
 9. **The keyboard is the desktop's, and it is scoped to the list.** Where the message list has
-   focus: **Delete** (and Backspace) moves the selection to Trash, **Escape** clears it. Both are
+   focus: **Delete** (and Backspace) runs the bar's Delete over the selection (to Trash, or for
+   good after asking where the bar says so), **Escape** clears it. Both are
    bound on the list itself, never app-wide, so a focused search field or composer keeps its own
    keys, which is the whole reason for the scope. On macOS Delete is also the Edit menu's
    **Delete**, which acts on the list while the list has focus.
@@ -116,8 +98,8 @@ selection itself is the client's, and rule 1 says why.
    **Ctrl/⌘+A is the toolkit's** (`GtkListBox` in multiple-selection mode, a WinUI `ListView` in
    `Extended`, SwiftUI's `List` on macOS, where it is the Edit menu's **Select All**), and is never
    bound app-wide: taking that key from a focused search field to select mail would be worse than
-   not having it. Every platform also offers **Select all** as a button on the bar, which is the
-   affordance the contract counts.
+   not having it. The desktop bars carry no Select all, as Outlook's does not; the phones' and the
+   iPad's mode bars do, having no keyboard to carry it.
 
    On iPhone and iPad with a hardware keyboard, ⌘A is that button's: SwiftUI's list answers the
    system's Select All only on the Mac, and a touch screen selects nothing outside the mode, so the
@@ -181,11 +163,11 @@ selection itself is the client's, and rule 1 says why.
 
 | Platform | Enter | Extend | Bar | Count | Delete key | Escape | Row menu | Sync on the bar | Where |
 |---|---|---|---|---|:---:|:---:|:---:|:---:|---|
-| macOS | ⌘-click a row | ⇧-click a range, ⌘A, Edit ▸ Select All | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.MessageList.swift`, `Mailcal.Selection.swift` |
+| macOS | ⌘-click a row | ⇧-click a range, ⌘A, Edit ▸ Select All | standing, full width ([command bar](command-bar.md)) | reading pane | ✅ | ✅ | ✅ | ✅ | `Mailcal.MessageList.swift`, `Mailcal.CommandBar.swift` |
 | iPhone / iPadOS | **Select** in the toolbar (the list's edit mode) | tap toggles | over the list, with the mode | on the bar | — | — | ✅ | n/a: pull to refresh | `Mailcal.MessageList.swift`, `Mailcal.Selection.swift` |
-| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, over the whole window | reading pane | ✅ | ✅ | ✅ | ✅, and New Mail at the head | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
+| Windows | Ctrl-click a row | Shift-click, Ctrl+A | standing, full width ([command bar](command-bar.md)) | reading pane | ✅ | ✅ | ✅ | ✅ | `MainWindow.xaml`, `Views/MailListView.Selection.cs` |
 | Android | long-press a row | tap toggles | contextual top bar | on the bar | — | — | ✅ | n/a: pull to refresh | `MailSelectionBar.kt` |
-| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, over both panes | reading pane | ✅ | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
+| Linux | Ctrl-click a row | Shift-click, Ctrl+A | standing, full width ([command bar](command-bar.md)) | reading pane | ✅ | ✅ | ✅ | ✅ | `ui/selection_bar.rs`, `ui/selection_input.rs` |
 
 **Row menu** is rule 12: a menu opened on a selected row acts on the whole selection. On Android
 that menu is the row's ⋮, since a long press there is how a selection *starts*.
@@ -210,8 +192,6 @@ batch they all dispatch into is `crates/mailcal-app/src/mail_ops/bulk.rs`.
 - **A bulk action has no undo.** The swipe undo window (`docs/settings.md`, swipe actions) covers
   a gesture that is easy to trigger by accident; a deliberate select-then-click is not that. The
   actions the bar offers are recoverable in the mailbox instead.
-- **No "Move to folder…" item on the bar.** A row menu has one (rule 12), and the core takes the
-  move (`FolderIntent::MoveMessages` names any folder); what is missing is the item on the bar.
 - **Spam and not-spam are not bulk actions.** They are reports, not moves
   ([`reporting.md`](reporting.md)), only two clients offer them at all, and which verdicts exist
   is read per account from `Capabilities::mail_report`; a bar button would have to be gated on the

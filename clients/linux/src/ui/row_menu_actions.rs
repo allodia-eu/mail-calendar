@@ -1,7 +1,9 @@
 //! What the model does with a row menu's pick (`docs/row-actions.md`), and the one conversation
 //! a selection keeps expanded (rule 8).
 
-use mailcal_bindings::{MenuMessage, MessageKind, RowMenu};
+use mailcal_bindings::{
+    Command, CommandBar, CommandItem, Intent, MenuMessage, MessageKind, RowAction,
+};
 
 use super::{
     AppInput, AppModel,
@@ -10,7 +12,7 @@ use super::{
     mail_actions::DeleteTarget,
     model,
     notification_open::find_in_list,
-    row_menu::{BarActions, RowPick},
+    row_menu::{self, RowPick},
     selection::SelectMode,
 };
 
@@ -69,17 +71,60 @@ impl AppModel {
         self.open_composer_on(origin, None, ComposerTarget::Pane, Vec::new(), sender);
     }
 
-    /// What the selection bar offers: the core's menu over the selection, or nothing to offer
-    /// while nothing is picked. Asked again only when the selection or the published list has
-    /// changed, since the view runs on every message and Select all can name the whole window.
-    pub(super) fn bar_actions(&self) -> BarActions {
+    /// The command bar over the selection, as the core answers it (`docs/command-bar.md`, rule
+    /// 1). Asked again only when the selection or the published list has changed.
+    pub(super) fn command_bar(&self) -> CommandBar {
         self.bar_answer.answer(
             self.snapshot.generation(),
             self.selection.selected_rows(),
-            |rows| match &self.app {
-                Some(app) if !rows.is_empty() => app.row_menu(rows),
-                _ => RowMenu::default(),
+            |rows| {
+                self.app
+                    .as_ref()
+                    .map_or_else(CommandBar::default, |app| app.command_bar(rows))
             },
         )
     }
+
+    /// A bar item picked: run as the same item in a row's menu over the selection runs, asking
+    /// first where the core says so. Sync is the one item no menu carries.
+    pub(super) fn perform_bar_pick(
+        &mut self,
+        item: &CommandItem,
+        sender: &relm4::Sender<AppInput>,
+    ) {
+        if !item.enabled {
+            return;
+        }
+        let Some(menu_item) = row_menu::as_menu_item(item) else {
+            self.dispatch(Intent::RefreshMail);
+            return;
+        };
+        if let Some(pick) = row_menu::pick(&menu_item, &self.selection.selected_rows()) {
+            self.perform_row_pick(pick, sender);
+        }
+    }
+
+    /// The Delete key over the selection: the bar's Delete, which in Trash is a permanent delete
+    /// that asks first (`docs/list-selection.md`, rule 9).
+    pub(super) fn delete_selection(&mut self, sender: &relm4::Sender<AppInput>) {
+        if let Some(item) = delete_item(&self.command_bar()) {
+            self.perform_bar_pick(&item, sender);
+        }
+    }
+}
+
+/// The bar's Delete, or Delete permanently in its place.
+pub(super) fn delete_item(bar: &CommandBar) -> Option<CommandItem> {
+    bar.sections
+        .iter()
+        .flat_map(|section| &section.items)
+        .find(|item| {
+            matches!(
+                item.command,
+                Command::Act {
+                    action: RowAction::Delete | RowAction::PermanentlyDelete
+                }
+            )
+        })
+        .cloned()
 }

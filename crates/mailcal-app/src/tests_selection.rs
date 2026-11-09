@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, message, msg, thread_ref, threaded};
 
-use super::{BulkAction, Intent, RowRef};
+use super::{BulkAction, Intent, MessageRef, RowRef};
 
 #[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes.rs"]
@@ -125,9 +125,13 @@ async fn deleting_a_selection_moves_it_to_trash_rather_than_destroying_it() {
 }
 
 #[tokio::test]
-async fn permanently_deleting_a_selection_deletes_rather_than_moving() {
-    let provider =
-        FakeProvider::with_trash(vec![message("m1", "a", "One"), message("m2", "a", "Two")]);
+async fn permanently_deleting_a_selection_deletes_only_what_is_in_trash() {
+    // m1 is in Trash and goes for good; m2 is still in the Inbox, so no purge reaches it however
+    // it was asked for (`docs/row-actions.md`, rule 6).
+    let provider = FakeProvider::with_trash(vec![
+        message("m1", "trash", "One"),
+        message("m2", "a", "Two"),
+    ]);
     let edits = provider.edits();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app(vec![account("acct-1", provider)], &surfaces);
@@ -147,7 +151,23 @@ async fn permanently_deleting_a_selection_deletes_rather_than_moving() {
             other => panic!("expected only Delete edits, got {other:?}"),
         })
         .collect();
-    assert_eq!(deleted, ["m1", "m2"]);
+    assert_eq!(deleted, ["m1"]);
+}
+
+#[tokio::test]
+async fn a_single_purge_outside_trash_is_refused() {
+    let provider = FakeProvider::with_trash(vec![message("m1", "a", "One")]);
+    let edits = provider.edits();
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("acct-1", provider)], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+
+    app.dispatch(Intent::PermanentlyDelete {
+        message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
+    })
+    .await;
+
+    assert!(edits.lock().unwrap().is_empty());
 }
 
 #[tokio::test]

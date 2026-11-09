@@ -24,7 +24,7 @@ internal sealed class DraftsFlow(App app)
     internal bool WaitDraftRow(string subject, bool absent = false, int timeoutSec = 30)
     {
         app.OpenFolder("Drafts");
-        if (Agent.Find(Filter.ById("SelectionSync", "Button")) is { } sync)
+        if (Agent.Find(Filter.ById("CommandSync", "Button")) is { } sync)
         {
             Agent.Invoke(sync);
         }

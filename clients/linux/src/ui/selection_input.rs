@@ -8,7 +8,6 @@
 use std::collections::HashSet;
 
 use adw::prelude::*;
-use mailcal_bindings::BulkAction;
 
 use super::{
     AppInput, AppModel, mailbox::ThreadKey, mailbox_display::DisplayRow,
@@ -80,8 +79,8 @@ pub(super) fn pressed_on_control(list: &gtk::ListBox, x: f64, y: f64) -> bool {
     false
 }
 
-/// The message list's keys: Delete (and Backspace) to Trash, Escape to clear, Ctrl+A to select
-/// what is loaded.
+/// The message list's keys: Delete (and Backspace) as the bar's Delete, Escape to clear, Ctrl+A
+/// to select what is loaded.
 ///
 /// Bound on the list rather than app-wide, and in the capture phase so the list's own Ctrl+A
 /// binding does not select rows the model then has to correct. Nothing here reaches a focused
@@ -93,9 +92,7 @@ pub(super) fn selection_keys(messages: &gtk::ListBox, sender: &relm4::Sender<App
     let input = sender.clone();
     keys.connect_key_pressed(move |_, key, _, state| {
         let message = match key {
-            gtk::gdk::Key::Delete | gtk::gdk::Key::BackSpace => {
-                Some(AppInput::ActOnSelection(BulkAction::Delete))
-            }
+            gtk::gdk::Key::Delete | gtk::gdk::Key::BackSpace => Some(AppInput::DeleteSelection),
             gtk::gdk::Key::Escape => Some(AppInput::ClearSelection),
             gtk::gdk::Key::a | gtk::gdk::Key::A
                 if state.contains(gtk::gdk::ModifierType::CONTROL_MASK) =>

@@ -144,7 +144,7 @@
                              chevron is what says so. It stays an icon at every width, unlike the
                              buttons before it, because its PLACE is what identifies it, so it has
                              no label to collapse.
-                             Stretched for that same reason, as SelectionClear is in MainWindow.xaml:
+                             Stretched for that same reason:
                              the default button style centres its content, so the one button in the
                              row carrying no label stands at its glyph's height rather than the
                              row's, which is ragged at the labelled width and invisible at the

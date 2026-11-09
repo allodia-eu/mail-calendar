@@ -27,6 +27,7 @@ import {
 } from "./quote";
 import { installImageResize } from "./resize";
 import { installRevisionCounter } from "./revision";
+import { setScheme } from "./scheme";
 import { type BodySeed, focusComposerBody, setComposerBody, setComposerDocument, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
@@ -185,6 +186,7 @@ declare global {
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
+    setComposerScheme: (scheme: unknown) => void;
     setComposerHostRequests: (kinds: unknown) => void;
     answerComposerRequest: (id: unknown, answer: unknown) => void;
     composerDocument: () => string;
@@ -262,6 +264,9 @@ window.setComposerLabels = (incoming) => {
   labels = mergeLabels(labels, incoming);
   toolbar.applyLabels(labels);
 };
+
+/// The app's light or dark, which the chrome follows (`scheme.ts`).
+window.setComposerScheme = (scheme) => setScheme(doc.documentElement, scheme);
 
 /// Inserts an image at the caret as a self-contained `data:` URI: which is what a signature stores
 /// (one file, no side-car blobs to lose) and NOT what the composer's `addComposerInlineImage` does

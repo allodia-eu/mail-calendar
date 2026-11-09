@@ -77,6 +77,12 @@ public struct ContentView: View {
     @State var editMode: EditMode = .inactive
     #endif
     @State var accountToRemove: AccountRow? // the account a remove-confirmation is open for
+    @State var pendingPurge: PurgeRequest? // a delete for good, waiting on its question
+    /// The sidebar's width, which the Mac's command bar gives its New Mail slot.
+    @State var sidebarWidth: CGFloat = 240
+    /// Where the window's close button starts, which the Mac's sidebar and command bar line up on
+    /// (Mailcal.PaneAlignment.swift). Read from AppKit once the window is up.
+    @State var chromeLeading: CGFloat = 18
     /// The folder sheet (a name dialog, or Move to…) and the folder a delete-confirmation is open
     /// for (Mailcal.FolderActions.swift).
     @State var folderSheet: FolderSheet?
@@ -268,6 +274,12 @@ public struct ContentView: View {
             // Attached here rather than to the `WindowGroup`, for the reason the mail-link
             // routing below is: both need this view's model.
             .toolbar { windowToolbar }
+            // The toolbar paints nothing: on mail the command bar's material runs up under it, so
+            // the title row and the bar are one band (Mailcal.CommandBar.swift). Clear rather than
+            // hidden: a hidden background makes the title bar transparent to AppKit, which then
+            // hands its clicks to the content beneath, and double-clicking it no longer zooms.
+            .toolbarBackground(Color.clear, for: .windowToolbar)
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         #else
         // Each navigation stack carries the banners under its own bar (`bannered`).
         baseLayout
@@ -301,6 +313,12 @@ public struct ContentView: View {
                     ?? AccountSettingsLabels.removal(address: account.email, unlinked: nil)
             },
             confirm: { removeAccount($0.id) })
+        // Deleting for good always asks, from every route (`docs/command-bar.md`, rule 6).
+        .confirmAlert(
+            $pendingPurge, action: L10n.action_delete_permanently(),
+            title: { _ in L10n.delete_permanently_title() },
+            message: { $0.message },
+            confirm: { $0.run() })
         // The composer is a page sheet on iPad and the whole screen on iPhone (`taskPresentation`).
         // macOS no longer presents it at all: it renders INSIDE the detail column, in place of the
         // reading pane (macOSLayout), so the sidebar and the message list stay live while you

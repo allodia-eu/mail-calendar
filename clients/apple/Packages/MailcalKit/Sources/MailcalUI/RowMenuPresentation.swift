@@ -1,8 +1,9 @@
-// What the core's row menu looks like on Apple, and the one rule about expanding a conversation
+// What the core's row menu and command bar look like on Apple, and the one rule about expanding a conversation
 // (`docs/row-actions.md`). The core decides which items a menu holds, which respond and which
 // message each is about; this file gives each action its words and its symbol, and keeps no rule
 // of its own about either. Pure, so it is tested without a window.
 
+import Foundation
 import MailcalBindings
 
 extension RowAction {
@@ -22,7 +23,7 @@ extension RowAction {
         case .markAsNotSpam: return L10n.action_mark_as_not_spam()
         case .moveToFolder: return L10n.action_move_to_folder()
         case .archive: return L10n.action_archive()
-        case .delete: return L10n.action_move_to_trash()
+        case .delete: return L10n.action_delete()
         case .permanentlyDelete: return L10n.action_delete_permanently()
         }
     }
@@ -66,31 +67,54 @@ extension RowAction {
     }
 }
 
-/// The selection bar's buttons, read off the core's menu over the selection
-/// (`docs/list-selection.md`, rule 5): each toggle names the half that changes something, and a
-/// button the menu would draw disabled is disabled on the bar too.
-///
-/// With nothing selected the core answers no menu, and the bar names the affirmative halves, all
-/// disabled: "Mark as unread" over nothing describes an action nobody asked for.
-struct SelectionBarActions: Equatable {
-    var read: RowMenuItem
-    var flag: RowMenuItem
-    var archive: RowMenuItem
-    var delete: RowMenuItem
-    var permanentlyDelete: RowMenuItem
-
-    init(_ menu: RowMenu) {
-        // The first item doing one of `actions`, which for a toggle is the half on offer.
-        func find(_ actions: RowAction...) -> RowMenuItem {
-            menu.sections.lazy.flatMap(\.items).first { actions.contains($0.action) }
-                ?? RowMenuItem(action: actions[0], enabled: false, target: nil)
-        }
-        read = find(.markRead, .markUnread)
-        flag = find(.flag, .unflag)
-        archive = find(.archive)
-        delete = find(.delete)
-        permanentlyDelete = find(.permanentlyDelete)
+extension CommandItem {
+    /// The item as the row menu names it, so a pick from the bar runs through the menu's own
+    /// path; `nil` for Sync, which acts on the mailbox rather than on the selection.
+    var menuItem: RowMenuItem? {
+        guard case .act(let action) = command else { return nil }
+        return RowMenuItem(action: action, enabled: enabled, target: target, confirm: confirm)
     }
+
+    /// The label on the bar: the menu's words, except Move, which on a bar opens the picker
+    /// rather than reading as a menu entry.
+    var title: String {
+        switch command {
+        case .act(.moveToFolder): return L10n.action_move()
+        case .act(let action): return action.title
+        case .sync: return L10n.action_refresh()
+        }
+    }
+
+    /// The item's SF Symbol (`docs/icons.md`).
+    var systemImage: String {
+        switch command {
+        case .act(let action): return action.systemImage
+        case .sync: return "arrow.clockwise"
+        }
+    }
+}
+
+/// What a question before deleting for good says about `rows`: one message, one conversation,
+/// or how many of either (`docs/command-bar.md`, rule 6).
+enum PurgeWording {
+    static func message(for rows: [SelectedRow]) -> String {
+        let threads = rows.filter { if case .thread = $0 { return true } else { return false } }
+        switch (rows.count, threads.count) {
+        case (1, 1): return L10n.delete_permanently_conversation()
+        case (1, _): return L10n.delete_permanently_message()
+        case (let count, 0): return L10n.delete_permanently_message_many(count: count)
+        case (let count, _): return L10n.delete_permanently_conversations(count: count)
+        }
+    }
+}
+
+/// A delete for good, waiting on the user's answer.
+struct PurgeRequest: Identifiable {
+    let id = UUID()
+    /// The sentence the question carries, from `PurgeWording`.
+    let message: String
+    /// The delete itself, run on a yes.
+    let run: () -> Void
 }
 
 /// Which conversations stay expanded as the selection moves (`docs/row-actions.md`, rule 8).

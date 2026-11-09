@@ -380,7 +380,12 @@ pub(crate) fn the_pane_marks_where_the_core_says_we_are() {
     // The chevron opens a tree; it does not navigate. A different message entirely, which is
     // what keeps a click on it from moving the selection off the folder being read.
     let chevron = buttons(pane_rows[6].upcast_ref::<gtk::Widget>())
-        .pop()
+        .into_iter()
+        .find(|button| {
+            button
+                .icon_name()
+                .is_some_and(|name| name.starts_with("pan-"))
+        })
         .expect("an account row carries its disclosure control");
     chevron.emit_clicked();
     match receiver.recv_sync().expect("the chevron dispatches") {
@@ -444,16 +449,35 @@ pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let row = crate::ui::folder_pane_rows::pane_row(
         crate::ui::icons::FOLDER,
+        "Archive",
+        &crate::ui::folder_pane_rows::disclosure_slot(),
         &sender,
         &SidebarTarget::Folder {
             account: "account".to_owned(),
             key: "archive".to_owned(),
         },
     );
-    row.activatable_widget()
+    let action = row
+        .activatable_widget()
         .and_downcast::<gtk::Button>()
-        .expect("a folder row has a native primary action")
-        .emit_clicked();
+        .expect("a folder row has a native primary action");
+    // The action is the row's own icon, so no arrow is drawn beside a folder: the only chevron in
+    // the pane opens or shuts a tree.
+    assert!(
+        action.child().and_downcast::<gtk::Image>().is_some(),
+        "the folder's icon carries the action"
+    );
+    assert!(
+        !action.can_target() && !action.is_focusable(),
+        "a click and the keyboard reach the row, never a control of the icon's own"
+    );
+    assert!(
+        buttons(row.upcast_ref::<gtk::Widget>())
+            .iter()
+            .all(|button| button.icon_name().as_deref() != Some(crate::ui::icons::NEXT)),
+        "no arrow beside a row that opens nothing"
+    );
+    action.emit_clicked();
     assert!(matches!(
         receiver.recv_sync(),
         Some(AppInput::ActivateSidebar(SidebarTarget::Folder { account, key }))
