@@ -18,7 +18,6 @@ static OPENED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(
 pub(crate) struct Question {
     serial: u64,
     account: String,
-    address: String,
     dialog: adw::Dialog,
     drawn: AccountServerChange,
     sender: relm4::Sender<AppInput>,
@@ -85,13 +84,13 @@ fn body_markup(change: &ServerChange, address: &str) -> String {
     )
 }
 
-/// What the dialog holds for `question` on `address`'s account. Neither button is the suggested
-/// one, and "Not now" is the default: Return never allows a server the person has not looked at.
-/// While Allow runs, "Not now" and Escape wait for it too, since closing would not stop it.
+/// Draws `question` into `dialog`, and returns what it drew. Neither button
+/// is the suggested one, and "Not now" is the default: Return never allows a server the person has
+/// not looked at. While Allow runs, "Not now" and Escape wait for it too, since closing would not
+/// stop it.
 fn content(
     dialog: &adw::Dialog,
     question: &AccountServerChange,
-    address: &str,
     allow: impl Fn() + 'static,
 ) -> gtk::Box {
     let change = &question.change;
@@ -106,7 +105,10 @@ fn content(
     heading.set_justify(gtk::Justification::Center);
     content.append(&heading);
     let text = gtk::Label::new(None);
-    text.set_markup(&body_markup(change, address));
+    text.set_markup(&body_markup(
+        change,
+        &super::settings::account_names::linked_name(&question.account),
+    ));
     text.set_wrap(true);
     text.set_xalign(0.0);
     content.append(&text);
@@ -140,6 +142,8 @@ fn content(
         allow,
     ));
     content.append(&buttons);
+    // In the dialog before it takes focus, which only a widget the dialog holds can.
+    dialog.set_child(Some(&content));
     dialog.set_default_widget(Some(&not_now));
     dialog.set_focus(Some(&not_now));
     dialog.set_can_close(!question.allow.running);
@@ -155,7 +159,7 @@ impl Question {
             self.account.clone(),
             self.drawn.change.clone(),
         );
-        let content = content(&self.dialog, &self.drawn, &self.address, move || {
+        content(&self.dialog, &self.drawn, move || {
             sender.emit(AppInput::Accounts(AccountsInput::Change(
                 AccountPageIntent::AllowServerChange {
                     account: account.clone(),
@@ -163,7 +167,6 @@ impl Question {
                 },
             )));
         });
-        self.dialog.set_child(Some(&content));
     }
 }
 
@@ -183,12 +186,6 @@ impl AppModel {
             self.settings.open_account(account);
             return;
         };
-        let address = app
-            .accounts_snapshot()
-            .accounts
-            .into_iter()
-            .find(|entry| entry.id == account)
-            .map_or_else(|| account.clone(), |entry| entry.address);
         if let Some(open) = self.server_change.take() {
             open.dialog.force_close();
         }
@@ -204,7 +201,6 @@ impl AppModel {
         let question = Question {
             serial,
             account,
-            address,
             dialog,
             drawn,
             sender: sender.clone(),

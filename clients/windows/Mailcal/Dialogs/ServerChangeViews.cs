@@ -6,6 +6,7 @@
 
 using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -48,16 +49,16 @@ internal static class ServerChangeViews
 
     /// <summary>
     /// The question as the core draws it (<paramref name="question"/>): the sentences, the line
-    /// saying the last allow failed, and Allow, which <paramref name="allow"/> sends. While it
-    /// runs, the rest of the question waits for it too. <paramref name="notNow"/>, when given,
-    /// draws "Not now" beside Allow, for the account's page; a dialog has its own close button.
-    /// <paramref name="titled"/> draws the title as the panel's heading, for the account's page; a
-    /// dialog carries it as its own title.
+    /// saying the last allow failed, "Not now" (<paramref name="notNow"/>) and Allow, which
+    /// <paramref name="allow"/> sends. While Allow runs, "Not now" waits for it too: closing would
+    /// not stop it. <paramref name="titled"/> draws the title as the panel's heading, for the
+    /// account's page; a dialog carries it as its own title. Also returns "Not now", which a
+    /// question drawn again is to give the focus, so a stray Return never allows.
     /// </summary>
-    internal static StackPanel Question(
-        AccountServerChange question, string address, bool titled, Action allow, Action? notNow)
+    internal static (StackPanel Panel, Control NotNow) Question(
+        AccountServerChange question, bool titled, Action allow, Action notNow)
     {
-        var copy = Copy(question.Change, address);
+        var copy = Copy(question.Change, AccountNameText.Of(question.Account));
         var panel = new StackPanel { Spacing = 8 };
         AutomationProperties.SetAutomationId(panel, "ServerChangeQuestion");
         if (titled)
@@ -85,18 +86,17 @@ internal static class ServerChangeViews
             AutomationProperties.SetAutomationId(error, "ServerChangeError");
             panel.Children.Add(error);
         }
-        // Neither is the accent button: allowing a server is never the easy press.
+        // Neither is the accent button: allowing a server is never the easy press. "Not now" comes
+        // first, so it is what the focus finds first.
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var declining = ControlComponents.Button(
+            L10n.ServerChangedNotNow(), new ControlState(!question.Allow.Running, false),
+            "ServerChangeNotNow", notNow);
+        buttons.Children.Add(declining);
         buttons.Children.Add(ControlComponents.Button(
             L10n.ServerChangedAllow(), question.Allow, "ServerChangeAllow", allow));
-        if (notNow is not null)
-        {
-            buttons.Children.Add(ControlComponents.Button(
-                L10n.ServerChangedNotNow(), new ControlState(!question.Allow.Running, false),
-                "ServerChangeNotNow", notNow));
-        }
         panel.Children.Add(buttons);
-        return panel;
+        return (panel, (Control)declining.Children[0]);
     }
 
     private static TextBlock Sentence(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };

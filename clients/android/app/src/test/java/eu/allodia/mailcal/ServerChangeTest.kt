@@ -32,6 +32,7 @@ import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.LinkedAccount
 import uniffi.mailcal_bindings.ServerChange
 import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
@@ -101,10 +102,10 @@ class ServerChangeTest {
         change: ServerChange = change(calendar = true, contacts = true),
         allow: ControlState = FREE,
         failed: Boolean = false,
-    ) = AccountServerChange(change, allow, failed)
+    ) = AccountServerChange(LinkedAccount("acct-a", "ada@example.com", null), change, allow, failed)
 
     private fun shown(prompt: ServerChangePrompt, allowed: MutableList<ShownServerChange>) {
-        prompt.open(ShownServerChange("acct-a", "ada@example.com", question()))
+        prompt.open(ShownServerChange("acct-a", question()))
         compose.setContent {
             AppTheme { ServerChangeDialog(prompt) { allowed += it } }
         }
@@ -159,7 +160,7 @@ class ServerChangeTest {
     @Test
     fun a_question_the_account_no_longer_waits_on_closes() {
         val prompt = ServerChangePrompt()
-        prompt.open(ShownServerChange("acct-a", "ada@example.com", question()))
+        prompt.open(ShownServerChange("acct-a", question()))
         prompt.redraw(null)
         assertNull(prompt.shown)
     }

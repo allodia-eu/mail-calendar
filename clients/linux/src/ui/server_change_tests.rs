@@ -107,6 +107,11 @@ fn says_failed(content: &gtk::Box) -> bool {
 pub(crate) fn the_question_holds_while_allow_runs_and_says_a_failure() {
     let dialog = adw::Dialog::new();
     let question = |allow, failed| AccountServerChange {
+        account: mailcal_bindings::LinkedAccount {
+            id: "alice@example.org@imap.example.org".to_owned(),
+            address: "alice@example.org".to_owned(),
+            distinction: None,
+        },
         change: change(true, false),
         allow,
         failed,
@@ -118,12 +123,9 @@ pub(crate) fn the_question_holds_while_allow_runs_and_says_a_failure() {
         running: false,
     };
 
-    let drawn = content(
-        &dialog,
-        &question(free, false),
-        "alice@example.org",
-        move || heard.set(heard.get() + 1),
-    );
+    let drawn = content(&dialog, &question(free, false), move || {
+        heard.set(heard.get() + 1);
+    });
     let (not_now, allow) = buttons(&drawn);
     assert!(not_now.is_sensitive() && allow.is_sensitive() && dialog.can_close());
     assert!(!says_failed(&drawn));
@@ -134,16 +136,11 @@ pub(crate) fn the_question_holds_while_allow_runs_and_says_a_failure() {
         enabled: false,
         running: true,
     };
-    let drawn = content(
-        &dialog,
-        &question(running, false),
-        "alice@example.org",
-        || {},
-    );
+    let drawn = content(&dialog, &question(running, false), || {});
     let (not_now, allow) = buttons(&drawn);
     assert!(!not_now.is_sensitive() && !allow.is_sensitive() && spins(&allow));
     assert!(!dialog.can_close(), "closing would not stop the allow");
 
-    let drawn = content(&dialog, &question(free, true), "alice@example.org", || {});
+    let drawn = content(&dialog, &question(free, true), || {});
     assert!(says_failed(&drawn) && dialog.can_close());
 }

@@ -66,10 +66,9 @@ internal object ServerChangeRules {
     }
 }
 
-/** The question on screen, for account [accountId] read as [address], as the core drew it last. */
+/** The question on screen, for account [accountId], as the core drew it last. */
 internal data class ShownServerChange(
     val accountId: String,
-    val address: String,
     val question: AccountServerChange,
 )
 

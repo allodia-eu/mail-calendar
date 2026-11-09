@@ -1,9 +1,11 @@
 // The question a calendar or address book server found on another site asks, as the calendar and
-// contacts screens open it (docs/account-autodetect.md rule 14). The account's page draws the same
+// contacts screens open it (docs/account-autodetect.md rule 14). Its buttons are the question's
+// own, drawn from the core's record; Escape is the dialog's, and waits while Allow runs. The account's page draws the same
 // question inline (SettingsDialog.AccountServerChange.cs). Both draw the core's record, read again
 // whenever the accounts change: an allow starting or ending, or a lookup replacing the question.
 
 using Allodia.Mailcal.Services;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -21,24 +23,25 @@ internal static class ServerChangeDialog
         {
             return;
         }
-        var address = model.AccountAddress(accountId);
         var drawn = first;
         var dialog = new ContentDialog
         {
             XamlRoot = root,
-            Title = ServerChangeViews.Copy(first.Change, address).Title,
-            CloseButtonText = L10n.ServerChangedNotNow(),
-            // Enter and Escape both answer "Not now": allowing a server is never the easy press.
-            DefaultButton = ContentDialogButton.Close,
+            Title = ServerChangeViews.Copy(first.Change, AccountNameText.Of(first.Account)).Title,
         };
         AutomationProperties.SetAutomationId(dialog, "ServerChangePrompt");
         void Draw(AccountServerChange question)
         {
             drawn = question;
-            dialog.Title = ServerChangeViews.Copy(question.Change, address).Title;
-            dialog.Content = ServerChangeViews.Question(
-                question, address, titled: false,
-                () => model.AllowServerChange(accountId, question.Change), notNow: null);
+            dialog.Title = ServerChangeViews.Copy(question.Change, AccountNameText.Of(question.Account)).Title;
+            var (panel, notNow) = ServerChangeViews.Question(
+                question, titled: false,
+                () => model.AllowServerChange(accountId, question.Change), dialog.Hide);
+            // Return and Escape both answer "Not now": allowing a server is never the easy press.
+            // The focus goes to it each time the question is drawn, since the Allow just pressed
+            // is gone with the content it replaced.
+            panel.Loaded += (_, _) => notNow.Focus(FocusState.Programmatic);
+            dialog.Content = panel;
         }
         void Redraw()
         {

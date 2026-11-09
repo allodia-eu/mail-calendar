@@ -241,6 +241,19 @@ impl AccountWork {
         };
     }
 
+    /// Keeps a failed allow only while `waits` says its account still waits on that very change:
+    /// a pause that ended, or a question a lookup replaced, leaves nothing for a later one to
+    /// inherit, though the lookup may propose the same servers again.
+    pub(crate) fn keep_server_change_failures(
+        &self,
+        waits: impl Fn(&str, &crate::ServerChange) -> bool,
+    ) {
+        self.server_change_failed
+            .lock()
+            .expect("account work mutex poisoned")
+            .retain(|account, failed| waits(account, failed));
+    }
+
     /// Whether `account`'s last allow was of `change`, and did not move it.
     pub(crate) fn server_change_failed(&self, account: &str, change: &crate::ServerChange) -> bool {
         self.server_change_failed

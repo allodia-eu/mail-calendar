@@ -42,6 +42,9 @@ impl From<&mailcal_app::ServerChange> for ServerChange {
 /// on none, it is over.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountServerChange {
+    /// The account, which the question names by its address, told apart from another account
+    /// with that address as Settings tells it (`docs/accounts.md` rule 8).
+    pub account: crate::LinkedAccount,
     /// What the question asks about: the change being allowed while that runs, else the one the
     /// account waits on now, which a lookup may replace while it is shown.
     pub change: ServerChange,
@@ -84,6 +87,7 @@ impl MailcalApp {
         let failed =
             allowing.is_none() && self.account_work.server_change_failed(&account_id, &change);
         Some(AccountServerChange {
+            account: self.named_account(&account_id)?,
             change,
             allow: ControlState {
                 enabled: !hold.busy,
@@ -95,6 +99,21 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// `account_id` as Settings names it, from the registry alone.
+    fn named_account(&self, account_id: &str) -> Option<crate::LinkedAccount> {
+        let facts = self.registry.facts();
+        let told = crate::accounts_distinction::distinctions(&facts);
+        facts
+            .iter()
+            .zip(told)
+            .find(|(account, _)| account.id == account_id)
+            .map(|(account, distinction)| crate::LinkedAccount {
+                id: account.id.clone(),
+                address: account.address.clone(),
+                distinction,
+            })
+    }
+
     /// Allows `shown` for `account_id`, as a change on its page: what it came to is said by the
     /// question itself, so it leaves no notice on the page.
     pub(crate) fn allow_server_change(&self, account_id: &str, shown: &ServerChange) {

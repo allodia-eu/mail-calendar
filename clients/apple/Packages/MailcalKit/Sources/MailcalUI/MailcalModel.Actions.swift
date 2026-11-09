@@ -123,12 +123,6 @@ extension MailboxModel {
         accounts.first { $0.id == id }?.email ?? accountEntry(id)?.address ?? id
     }
 
-    /// The name a prompt asking account `id` to sign in again gives it: apart from another account
-    /// with its address where the accounts snapshot holds it (`docs/accounts.md` rule 8).
-    func signInName(_ id: String) -> String {
-        AccountSettingsLabels.name(accountEntry(id), or: accountEmail(id))
-    }
-
     /// Removes account `id`: the core drops it from the running app (rebuilding the switcher and
     /// list without it, falling back to the unified inbox if it was selected), clears every link
     /// the other accounts held to it, and erases its Keychain entry through the port it wrote it

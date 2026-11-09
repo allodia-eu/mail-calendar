@@ -79,6 +79,16 @@ fn allow(app: &MailcalApp, id: &str, shown: crate::ServerChange) {
     }
 }
 
+/// The account as Settings lists it, which the question names it by.
+fn listed(app: &MailcalApp) -> crate::LinkedAccount {
+    let entry = app.accounts_snapshot().accounts.remove(0);
+    crate::LinkedAccount {
+        id: entry.id,
+        address: entry.address,
+        distinction: entry.distinction,
+    }
+}
+
 const FREE: ControlState = ControlState {
     enabled: true,
     running: false,
@@ -94,6 +104,7 @@ fn the_question_reads_the_change_the_account_waits_on() {
     assert_eq!(
         app.account_server_change(id),
         Some(AccountServerChange {
+            account: listed(&app),
             change: shown(),
             allow: FREE,
             failed: false,
@@ -161,6 +172,7 @@ fn a_new_server_that_does_not_connect_leaves_the_account_paused_where_it_was() {
     assert_eq!(
         app.account_server_change(id.clone()),
         Some(AccountServerChange {
+            account: listed(&app),
             change: shown(),
             allow: FREE,
             failed: true,
@@ -169,6 +181,22 @@ fn a_new_server_that_does_not_connect_leaves_the_account_paused_where_it_was() {
     );
     assert_eq!(app.registry.endpoints(&id), before);
     assert_eq!(app.account_page_notice(id), None, "said by the question");
+}
+
+/// A failed allow is said only while its change is still the one waiting: once a lookup replaced
+/// it, the same servers proposed again later are a new question.
+#[test]
+fn a_failure_is_forgotten_once_its_question_is_over() {
+    let (app, id) = app("server-change-forgotten");
+    pause(&app, &id);
+    allow(&app, &id, shown());
+    assert!(app.account_server_change(id.clone()).expect("open").failed);
+
+    pause_on(&app, &id, "example.org");
+    let _ = app.notices();
+    pause(&app, &id);
+
+    assert!(!app.account_server_change(id).expect("open").failed);
 }
 
 /// A lookup can replace the question while it is on screen. Allowing what was shown must not
@@ -189,6 +217,7 @@ fn allowing_a_question_a_lookup_replaced_moves_nothing_and_asks_the_new_one() {
     assert_eq!(
         app.account_server_change(id.clone()),
         Some(AccountServerChange {
+            account: listed(&app),
             change: now,
             allow: FREE,
             failed: false,

@@ -216,6 +216,18 @@ impl ConnectedAccount {
         }
     }
 
+    /// Its servers and login, when Settings can edit them: an account that signs in with a
+    /// password to servers of its own. A Nextcloud-issued password works under the login it was
+    /// issued for and no other.
+    pub(crate) fn editable_endpoints(&self) -> Option<mailcal_account::EndpointEdit> {
+        match self {
+            Self::Imap { config, .. } if !config.is_oauth() && config.nextcloud.is_none() => {
+                Some(config.endpoints())
+            }
+            _ => None,
+        }
+    }
+
     /// What Settings → Accounts lists about the account `id`. A use its server offers none of
     /// counts as not used, whatever was chosen, so a link may fill it.
     pub(crate) fn facts(&self, id: &str) -> crate::accounts_view::AccountFacts {
@@ -251,13 +263,6 @@ impl ConnectedAccount {
             files_invitations,
             links: self.shape().links.clone(),
             calendar_addresses: Vec::new(),
-            // A Nextcloud-issued password works under the login it was issued for and no other.
-            endpoints: match self {
-                Self::Imap { config, .. } if !config.is_oauth() && config.nextcloud.is_none() => {
-                    Some(config.endpoints())
-                }
-                _ => None,
-            },
             nextcloud: matches!(self, Self::Imap { config, .. } if config.nextcloud.is_some()),
             dav_servers: match self {
                 Self::Imap { config, .. } if config.imap.is_some() => dav_servers(config),

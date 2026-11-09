@@ -14,8 +14,7 @@ internal fun MainActivity.reviewServerChange(accountId: String) {
         pullNotices()
         return
     }
-    val address = accountSettings.addressOf(accountId, accounts.firstOrNull { it.id == accountId }?.email)
-    accountSettings.serverChange.open(ShownServerChange(accountId, address, question))
+    accountSettings.serverChange.open(ShownServerChange(accountId, question))
 }
 
 /** Reads the open question again: an allow starting or ending, or a lookup replacing it. */

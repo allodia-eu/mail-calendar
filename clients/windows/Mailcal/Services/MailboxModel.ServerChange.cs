@@ -18,8 +18,4 @@ public sealed partial class MailboxModel
     /// account onto it only once it connects, and the question says what it came to.</summary>
     internal void AllowServerChange(string accountId, ServerChange shown) =>
         ChangeAccount(new AccountPageIntent.AllowServerChange(accountId, shown));
-
-    /// <summary>The address of <paramref name="accountId"/>, which the question names it by.</summary>
-    internal string AccountAddress(string accountId) =>
-        AccountsSnapshot().Accounts.FirstOrDefault(entry => entry.Id == accountId)?.Address ?? accountId;
 }

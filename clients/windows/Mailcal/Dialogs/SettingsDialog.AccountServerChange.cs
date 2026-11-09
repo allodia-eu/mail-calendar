@@ -6,6 +6,7 @@
 
 using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
@@ -46,15 +47,19 @@ public sealed partial class SettingsDialog
         }
         else
         {
-            panel.Children.Add(ServerChangeViews.Question(
-                question, entry.Address, titled: true,
+            var (drawn, notNow) = ServerChangeViews.Question(
+                question, titled: true,
                 () => _model.AllowServerChange(entry.Id, question.Change),
                 // "Not now" needs no call: the use stays paused.
                 () =>
                 {
                     _serverChangeOpen = null;
                     NotifyAccounts(null);
-                }));
+                });
+            // A redraw replaces the Allow just pressed, so the focus goes to "Not now" rather
+            // than wherever the page puts it.
+            drawn.Loaded += (_, _) => notNow.Focus(FocusState.Programmatic);
+            panel.Children.Add(drawn);
         }
         return panel;
     }

@@ -29,8 +29,17 @@ impl AccountRegistry {
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .and_then(|entry| entry.facts(id).endpoints)
+            .and_then(crate::connected_account::ConnectedAccount::editable_endpoints)
             .map(Into::into)
+    }
+
+    /// `id`'s address, as Settings lists it; `None` for one not registered.
+    pub(crate) fn address(&self, id: &str) -> Option<String> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .map(|entry| entry.identity().email)
     }
 
     /// Every registered account's links that hold ([`valid_links`]), keyed by id: what the core

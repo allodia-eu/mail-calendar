@@ -23,7 +23,7 @@ internal fun ServerChangeDialog(prompt: ServerChangePrompt, onAllow: (ShownServe
     val shown = prompt.shown ?: return
     val ctx = LocalContext.current
     val question = shown.question
-    val copy = ServerChangeRules.copy(ctx, question.change, shown.address)
+    val copy = ServerChangeRules.copy(ctx, question.change, accountName(ctx, question.account))
     AlertDialog(
         onDismissRequest = { prompt.close() },
         modifier = Modifier.testTag("server-change-dialog"),

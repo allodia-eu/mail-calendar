@@ -14,8 +14,6 @@ import SwiftUI
 /// The question for one account, as the person opened it with "Review".
 struct ServerChangeReview: Identifiable {
     let account: String
-    /// The account as a person knows it, for the body line.
-    let address: String
 
     var id: String { account }
 }
@@ -25,7 +23,7 @@ extension MailboxModel {
     func serverChangeReview(_ id: String) -> ServerChangeReview? {
         guard let question = app?.accountServerChange(accountId: id) else { return nil }
         serverChanges[id] = question
-        return ServerChangeReview(account: id, address: signInName(id))
+        return ServerChangeReview(account: id)
     }
 
     /// Reads every open question again: an allow starting or ending, or a lookup replacing it. One
@@ -51,10 +49,9 @@ extension View {
         _ model: MailboxModel, _ review: Binding<ServerChangeReview?>
     ) -> some View {
         sheet(item: review) { shown in
-            ServerChangeDialog(model: model, review: shown) {
-                model.serverChanges[shown.account] = nil
-                review.wrappedValue = nil
-            }
+            ServerChangeDialog(model: model, review: shown) { review.wrappedValue = nil }
+                // However the sheet went, a swipe included, its question is no longer read again.
+                .onDisappear { model.serverChanges[shown.account] = nil }
         }
     }
 }
@@ -120,7 +117,9 @@ struct ServerChangeDialog: View {
         return VStack(alignment: .leading, spacing: 12) {
             Label(ServerChangeLabels.title(change), systemImage: "exclamationmark.triangle")
                 .font(.headline)
-            Text(ServerChangeLabels.body(change, address: review.address))
+            Text(
+                ServerChangeLabels.body(
+                    change, address: AccountSettingsLabels.name(question.account)))
             VStack(alignment: .leading, spacing: 4) {
                 Text(ServerChangeLabels.before(change))
                 Text(ServerChangeLabels.now(change))

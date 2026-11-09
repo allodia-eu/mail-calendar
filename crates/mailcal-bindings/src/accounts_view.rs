@@ -32,8 +32,6 @@ pub(crate) struct AccountFacts {
     pub(crate) files_invitations: bool,
     /// Its links as stored, valid or not.
     pub(crate) links: AccountLinks,
-    /// Its servers and login, when Settings can edit them.
-    pub(crate) endpoints: Option<mailcal_account::EndpointEdit>,
     /// Whether a Nextcloud sign-in made it.
     pub(crate) nextcloud: bool,
     /// A mailbox's calendar and contacts servers, each with the login it holds there.

@@ -16,7 +16,7 @@ use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
 pub(super) mod account_mail;
-mod account_names;
+pub(in crate::ui) mod account_names;
 mod account_notices;
 pub(super) use account_names::entry_name;
 mod account_page;
