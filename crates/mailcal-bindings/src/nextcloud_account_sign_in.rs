@@ -51,12 +51,15 @@ impl MailcalApp {
         let root = self.separate_root(&account_id, uses)?;
         self.begin_at(&root)
     }
+}
 
+impl MailcalApp {
     /// Starts a Nextcloud sign-in for the calendar and contacts account `account_id`, at its own
     /// server: signing it in again, or switching it from a typed password. Completed with
     /// [`complete_account_nextcloud_sign_in`](MailcalApp::complete_account_nextcloud_sign_in).
+    /// Not exported: a client sends `AccountPageIntent::SignIn`. Public for the integration tests.
     ///
-    /// **Blocking** (the server is located, then asked to start one); call it off the UI thread.
+    /// **Blocking** (the server is located, then asked to start one).
     ///
     /// # Errors
     ///

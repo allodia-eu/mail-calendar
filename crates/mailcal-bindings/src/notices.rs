@@ -33,6 +33,8 @@ pub(crate) struct NoticeFacts<'a> {
     pub(crate) address: &'a dyn Fn(&str) -> String,
     /// The questions the core is holding (rule 8).
     pub(crate) questions: &'a Questions,
+    /// The account whose browser sign-in is out: a notice it answers is drawn running.
+    pub(crate) signing_in: Option<&'a str>,
 }
 
 /// A notice's identity: its kind and the account it is about. Never parsed; only compared.
@@ -273,6 +275,14 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
         raised.push(refused);
     }
     questions::raise(facts, &mut raised);
+    for notice in &mut raised {
+        if notice.action == Some(NoticeAction::SignInAgain)
+            && notice.account.is_some()
+            && notice.account.as_deref() == facts.signing_in
+        {
+            notice.running = true;
+        }
+    }
     raised
 }
 

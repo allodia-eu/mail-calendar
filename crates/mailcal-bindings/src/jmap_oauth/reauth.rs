@@ -34,7 +34,8 @@ use mailcal_account::JmapAccountConfig;
 use super::{JmapLoginStart, start_login};
 use crate::{MailcalApp, MailcalError, account_registry::JmapLookup, boot};
 
-#[uniffi::export]
+/// Not exported: an account is signed in again as `AccountPageIntent::SignIn`, whose sign-in begins
+/// here for an OAuth JMAP account. Public for the integration tests.
 impl MailcalApp {
     /// Starts a re-authentication of the existing OAuth JMAP account `account_id`: builds a fresh
     /// PKCE authorization URL from the account's **persisted** grant, for the host to open in its

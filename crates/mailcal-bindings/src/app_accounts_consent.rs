@@ -18,7 +18,6 @@ use crate::{
 
 /// What [`MailcalApp::begin_account_consent`] returns: the authorization URL to open, and an
 /// opaque `pending` handle to pass to [`MailcalApp::complete_account_consent`].
-#[derive(uniffi::Record)]
 pub struct AccountConsentStart {
     /// The authorization URL to open, exactly as for a first sign-in at the same provider.
     pub authorization_url: String,
@@ -91,7 +90,8 @@ struct PendingConsent {
     login: String,
 }
 
-#[uniffi::export]
+/// Not exported: a client sends `AccountPageIntent::SignIn`, which runs these off its thread.
+/// Public for the integration tests.
 impl MailcalApp {
     /// Starts signing the existing Microsoft or Google account `account_id` in again, asking for
     /// what it is used for plus `adding`. `redirect_uri` is the host's, as for

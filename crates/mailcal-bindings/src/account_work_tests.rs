@@ -32,7 +32,7 @@ fn a_change_asked_for_while_another_runs_waits_and_runs_next() {
     let next = work
         .finish("a", None)
         .expect("the waiting change runs next");
-    assert_eq!(next, name("a", "Alice"));
+    assert_eq!(next, name("a", "Alice").into());
     assert_eq!(
         work.of("a").0.own,
         vec![PageWork::SenderName("Alice".to_owned())]
@@ -80,7 +80,7 @@ fn a_removal_drops_what_waited_for_the_account_it_removed() {
     });
     let _ = work.start(name("a", "Alice"));
     let _ = work.start(name("b", "Bob"));
-    assert_eq!(work.finish("a", None), Some(name("b", "Bob")));
+    assert_eq!(work.finish("a", None), Some(name("b", "Bob").into()));
 }
 
 #[test]

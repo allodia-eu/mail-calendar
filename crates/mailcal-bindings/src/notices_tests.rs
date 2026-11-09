@@ -60,6 +60,7 @@ fn pull_with(
         provider: &oauth,
         address: &mail_address,
         questions: &Questions::default(),
+        signing_in: None,
     };
     book.snapshot(raise(&facts)).notices
 }
@@ -136,6 +137,7 @@ fn a_dead_password_sign_in_opens_settings_and_an_oauth_one_signs_in_again() {
         provider: &provider,
         address: &mail_address,
         questions: &Questions::default(),
+        signing_in: None,
     };
     let notices = NoticeBook::default().snapshot(raise(&facts)).notices;
     let action = |account: &str| {
