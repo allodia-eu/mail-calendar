@@ -27,8 +27,11 @@ know.
 2. **One full-width row under the title bar, on every desktop.** The title bar keeps the window's
    own controls and the search field. Below it, one row spans the window:
 
-   - **New Mail** at its leading edge, over the folder pane, drawn as the window's one primary
-     button. It is the client's own item, not the core's: it names no selection.
+   - **New Mail** at its leading edge, over the folder pane, as the bar's one framed button in
+     the platform's own style for a standalone button: Liquid Glass on macOS, the accent button on
+     Windows, a suggested action on Linux. Its leading edge is the line the window's own controls
+     start on, where a platform has them there. It is the client's own item, not the core's: it
+     names no selection.
    - **The actions** from the message list's leading edge onward, so they stand over the two panes
      they act on and move with the folder pane's divider, as Outlook's do.
    - When the folder pane is collapsed, New Mail stays where it is and the actions follow it. That

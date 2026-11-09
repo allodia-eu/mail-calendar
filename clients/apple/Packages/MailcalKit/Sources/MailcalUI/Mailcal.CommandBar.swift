@@ -87,7 +87,8 @@ extension ContentView {
                 Label(L10n.action_compose(), systemImage: "square.and.pencil")
                     .lineLimit(1)
             }
-            .buttonStyle(.borderedProminent)
+            .modifier(GlassButton())
+            .controlSize(.large)
             .labelStyle(.titleAndIcon)
             .fixedSize()
             .help(L10n.action_compose())
@@ -140,6 +141,20 @@ extension ContentView {
 }
 
 #if os(macOS)
+/// A standalone button on the window's chrome: Liquid Glass where the system has it, as New Mail
+/// had in the toolbar and as Outlook's has, and the bordered button it replaced before macOS 26.
+/// Not the accent-filled style: on macOS that is the default action of a dialog, which a window's
+/// standing chrome does not have.
+private struct GlassButton: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content.buttonStyle(.glass)
+        } else {
+            content.buttonStyle(.bordered)
+        }
+    }
+}
+
 /// The actions of a `CommandBar` on one line, with as many on the bar as fit and the rest behind
 /// ⋯ (`docs/command-bar.md`, rule 4). Every split is offered to `ViewThatFits`, most items first,
 /// so the measuring is SwiftUI's own and follows the language and the text size.
