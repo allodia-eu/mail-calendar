@@ -35,6 +35,12 @@ know.
      is why New Mail lives on the bar and not in the folder pane: a pane that can be shut cannot
      hold the one control that writes a message.
 
+   **The title row and the bar are one band of window chrome**, drawn in the folder pane's own
+   surface, so the band and the folder pane frame the list and the reading pane, which keep the
+   content's surface. Each platform uses the surface its toolkit gives the sidebar (on macOS the
+   sidebar material run up under the title row), never a colour of our own, so dark mode and the
+   desktop's tint follow.
+
    The bar is the mail surface's. The calendar and contacts draw their own.
 
 3. **The bar carries, in order: Delete, Archive, Move, Flag, the read toggle; then Sync, past a
