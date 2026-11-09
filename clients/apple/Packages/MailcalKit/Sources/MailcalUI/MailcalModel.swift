@@ -200,15 +200,9 @@ final class MailboxModel {
     var separateServers: [SeparateServerPlace: SeparateServerAsk] = [:]
     /// A removal whose stored sign-in could not be erased, until the person has read it.
     var removalFailure: String?
-    /// The account a sign-in in place is waiting on the browser for, or `nil`.
-    var signingInAgain: String?
-    /// The account whose sign-in switch is waiting on the core: a discovery, an exchange or a
-    /// connect. Its page's controls wait with it; the browser wait is `signingInAgain`.
-    var signInSwitchBusy: String?
-    /// That sign-in's browser half, so a newer request can end it rather than wait behind it.
-    @ObservationIgnored var consentBrowser: ConsentBrowser?
-    /// Which sign-in in place is the newest, so one a newer request ended clears nothing of it.
-    @ObservationIgnored var consentAttempt = 0
+    /// The browser opened, or the loopback bound, for the core's browser sign-in
+    /// (MailcalModel.BrowserSignIn.swift).
+    @ObservationIgnored var signInBrowser: SignInBrowser?
     /// Settings, asked for by something outside it: a prompt that points at an account's page.
     /// The shell presents Settings on this category and clears it.
     var settingsRequest: SettingsCategory?
@@ -272,17 +266,12 @@ final class MailboxModel {
     var setupExistingAccount: ExistingAccountUpdate?
     /// `true` while that offer is being taken.
     var updatingExistingAccount = false
-    /// Setup's sign-in with Nextcloud, and the account pages' and banner's (MailcalModel.Nextcloud).
+    /// Setup's sign-in with Nextcloud (MailcalModel.Nextcloud).
     let setupNextcloud = NextcloudSignIn()
-    let accountNextcloud = NextcloudSignIn()
     /// `true` while a Microsoft sign-in is in flight (browser + token exchange + first
     /// sync), so the form shows progress instead of looking dead.
     var microsoftSigningIn = false
     var googleSigningIn = false // Google sign-in in flight; mirrors microsoftSigningIn.
-    /// A JMAP *re*-authentication in flight (the expired-sign-in banner's button), so it can show
-    /// as busy. The setup form's first sign-in keeps its own local state; this one is on a screen
-    /// that outlives the flow.
-    var jmapReconnecting = false
     /// `true` while an IMAP account's Connect is in flight (the blocking login + first sync),
     /// so the Connect button shows a spinner and is disabled, an impatient user can't fire it
     /// twice or dismiss the form mid-connect.

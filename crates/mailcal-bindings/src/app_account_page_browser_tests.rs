@@ -255,6 +255,24 @@ fn a_browser_that_did_not_open_is_said() {
 }
 
 #[test]
+fn a_sign_in_with_nowhere_to_return_is_not_started() {
+    let (app, id) = booted("browser-sign-in-no-redirect");
+    send(
+        &app,
+        AccountPageIntent::SignIn {
+            account: id.clone(),
+            adding: Vec::new(),
+            redirect_uri: String::new(),
+        },
+    );
+    assert_eq!(
+        said(&app, &id),
+        failed(AccountChangeRefusal::BrowserNotOpened)
+    );
+    assert_eq!(app.browser_sign_in(), None);
+}
+
+#[test]
 fn a_browser_left_without_returning_ends_the_sign_in_on_its_cap() {
     let (app, id) = booted("browser-sign-in-cap");
     app.account_work.browser.set_cap(Duration::from_millis(50));

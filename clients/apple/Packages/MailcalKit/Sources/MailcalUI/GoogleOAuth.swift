@@ -52,10 +52,6 @@ protocol GoogleBrowserFlow: AnyObject {
     /// to (carrying the `code` + `state` query). Throws `GoogleSignInError.cancelled` on user
     /// dismissal.
     func authorize(authorizationURL: String) async throws -> String
-
-    /// Ends a flow the person abandoned in the browser, so a newer request supersedes it rather
-    /// than waiting behind it. `authorize` then throws `GoogleSignInError.cancelled`.
-    func cancel()
 }
 
 /// The platform's browser-half implementation: `ASWebAuthenticationSession` on iOS/iPadOS, a
@@ -140,12 +136,6 @@ final class GoogleSignIn: NSObject, GoogleBrowserFlow, ASWebAuthenticationPresen
         }
     }
 
-    /// The session answers its own completion handler with `.canceledLogin`, which `authorize`
-    /// already turns into `.cancelled`.
-    func cancel() {
-        session?.cancel()
-    }
-
     func presentationAnchor(for _: ASWebAuthenticationSession) -> ASPresentationAnchor {
         let keyWindow = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
@@ -224,8 +214,10 @@ final class GoogleLoopbackFlow: GoogleBrowserFlow {
         }
     }
 
+    /// Ends the wait: the sign-in no longer waits on this port. `authorize` then throws
+    /// `GoogleSignInError.cancelled`.
     func cancel() {
-        logBrowserSignIn("google", "a newer sign-in took over from this one")
+        logBrowserSignIn("google", "the sign-in stopped waiting for the redirect")
         fail(GoogleSignInError.cancelled)
     }
 

@@ -1,7 +1,7 @@
-// How a standards or JMAP account signs in, on its page, drawn from the core's record
-// (docs/accounts.md rule 17): the line saying how it signs in or what is wrong, the ways in
-// through a browser, and the field a password is typed into. Which of them it offers is the
-// core's; the browser sign-in is still this client's to run.
+// How an account signs in, on its page, drawn from the core's record (docs/accounts.md rule 17):
+// the line saying how it signs in or what is wrong, the ways in through a browser, the browser
+// sign-in while one is out, and the field a password is typed into. Which of them it offers, and
+// every step of a browser sign-in, are the core's; the browser itself is MailcalModel's to open.
 
 import MailcalBindings
 import SwiftUI
@@ -10,19 +10,6 @@ struct AccountSignInSection: View {
     var model: MailboxModel
     let entry: AccountEntry
     let section: AccountSignIn
-    @Binding var alert: AccountPageAlert?
-
-    /// The line the section ends with once a browser sign-in has worked.
-    @State private var result: String?
-    /// The question a switch asks before the browser opens, while it is on screen.
-    @State private var question: UnreachedQuestion?
-
-    /// The core is starting or completing this account's browser sign-in.
-    private var busy: Bool { model.signInSwitchBusy == entry.id }
-    /// The browser is up for this account. Its own button stays live, because a sign-in
-    /// abandoned in the browser cannot be told from one in progress (docs/provider-oauth.md
-    /// rule 13).
-    private var waiting: Bool { model.signingInAgain == entry.id }
 
     var body: some View {
         SettingsGroup(
@@ -30,17 +17,31 @@ struct AccountSignInSection: View {
             description: AccountSettingsLabels.signInLine(section.line, entry)
         ) {
             VStack(alignment: .leading, spacing: 8) {
+                // A route pressed while the browser waits starts the sign-in again
+                // (docs/provider-oauth.md rule 13).
                 ForEach(Array(section.routes.enumerated()), id: \.offset) { _, route in
                     ControlButton(
-                        title: AccountSettingsLabels.signInRoute(route),
-                        control: section.control.held(busy)
-                    ) { throughProvider(route) }
+                        title: AccountSettingsLabels.signInRoute(route), control: section.control
+                    ) { model.signInThroughBrowser(entry.id) }
+                }
+                if let browser = section.browser,
+                   let waiting = AccountSettingsLabels.signInWaiting(
+                       browser, name: AccountSettingsLabels.name(entry))
+                {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text(waiting)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                        ControlButton(title: L10n.action_cancel(), control: browser.cancel) {
+                            model.cancelSignIn(browser)
+                        }
+                    }
                 }
                 if let field = section.password {
-                    AccountPasswordEntry(
-                        model: model, accountId: entry.id, field: field, held: busy || waiting)
+                    AccountPasswordEntry(model: model, accountId: entry.id, field: field)
                 }
-                status
                 if section.switches {
                     Text(L10n.settings_account_switch_description())
                         .font(.caption)
@@ -49,42 +50,8 @@ struct AccountSignInSection: View {
                 }
             }
         }
-        .unreachedUsesAlert($question)
-    }
-
-    @ViewBuilder
-    private var status: some View {
-        if waiting {
-            progress(L10n.settings_account_signin_waiting(email: AccountSettingsLabels.name(entry)))
-        } else if busy {
-            progress(L10n.status_connecting())
-        } else if let result {
-            Text(result)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// Signs in through the provider in the browser, and says how it ended. A cancelled one says
-    /// nothing: the person closed it, or pressed again.
-    private func throughProvider(_ route: AccountSignInRoute) {
-        guard let redirect = AccountSignInRules.redirectURI(entry.kind) else { return }
-        result = nil
-        let id = entry.id
-        Task {
-            let ended = await model.signInThroughProvider(id, redirectURI: redirect) { set in
-                await UnreachedQuestion.ask(set) { question = $0 }
-            }
-            switch ended {
-            case .signedIn:
-                result = AccountSettingsLabels.signInDone(route)
-            case .cancelled:
-                break
-            case let .failed(detail, _):
-                alert = AccountPageAlert(
-                    title: AccountSettingsLabels.signInFailed(route), detail: detail)
-            }
+        .signInQuestion(AccountSignInRules.question(section.browser)) { attempt, answer in
+            model.answerSignInQuestion(entry.id, attempt: attempt, answer)
         }
     }
 }
@@ -96,8 +63,6 @@ struct AccountPasswordEntry: View {
     var model: MailboxModel
     let accountId: String
     let field: AccountPasswordField
-    /// Held as well while a browser sign-in of the account's runs.
-    let held: Bool
 
     @State private var revealed = false
     @State private var password = ""
@@ -112,7 +77,7 @@ struct AccountPasswordEntry: View {
             ControlButton(
                 title: field.replaces
                     ? L10n.action_save() : L10n.settings_account_switch_password_save(),
-                control: field.save.held(held),
+                control: field.save,
                 ready: !password.isEmpty
             ) {
                 model.changeAccount(
@@ -121,9 +86,10 @@ struct AccountPasswordEntry: View {
             }
             .buttonStyle(.borderedProminent)
         } else {
+            // It opens the field and starts nothing.
             ControlButton(
                 title: L10n.settings_account_switch_to_password(),
-                control: ControlState(enabled: field.save.enabled, running: false).held(held)
+                control: .free(field.save.enabled)
             ) { revealed = true }
         }
     }

@@ -1,4 +1,4 @@
-// The browser half of a sign-in with Nextcloud, which every surface offering it shares
+// The browser half of a sign-in with Nextcloud, which setup and a separate server share
 // (docs/nextcloud-sign-in.md rules 5 and 6). The core starts the sign-in, the login page opens in
 // an in-app browser tab, and the core is asked whether the person has finished: every poll
 // interval, at once when the app is active again, and once more when the person closes the tab.

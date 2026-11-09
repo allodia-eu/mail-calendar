@@ -109,6 +109,17 @@ impl MailcalApp {
             log::warn!("sign-in: a browser sign-in was asked for an account that is gone");
             return;
         };
+        // A client with nowhere to listen for the browser's return sends no redirect: the
+        // browser is not opened, and the page says so.
+        if redirect_uri.is_empty() && way != Way::Nextcloud {
+            log::warn!("sign-in: no redirect was given for the browser's return");
+            std::thread::spawn(move || {
+                let ended = Ended { account, switching };
+                self.sign_in_ended(&ended, AccountChangeRefusal::BrowserNotOpened);
+                self.signal_sign_in();
+            });
+            return;
+        }
         match self
             .account_work
             .browser

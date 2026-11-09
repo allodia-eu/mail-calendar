@@ -60,8 +60,7 @@ import Testing
     }
 }
 
-/// A failure signing in again settles is said in its own words wherever a sign-in is offered,
-/// including a banner, which says anything else as one plain line.
+/// A failure signing in again settles is said in its own words wherever setup offers a sign-in.
 @Suite struct SignInRemedyTests {
     @Test func onlyAnotherRequestOrAnotherAccountIsARemedy() {
         #expect(signInRemedy(MailcalError.StaleSignIn) == L10n.signin_stale())
@@ -71,33 +70,5 @@ import Testing
         #expect(
             signInRemedy(MailcalError.UseNotConnected(capability: .calendar, problem: .unreachable))
                 == nil)
-    }
-
-    @Test func aBannerSaysARemedyInItsOwnWords() {
-        #expect(ConsentEnded.failure(MailcalError.StaleSignIn).bannerNotice == L10n.signin_stale())
-        #expect(
-            ConsentEnded.failure(MailcalError.DifferentAccount).bannerNotice
-                == L10n.signin_different_account())
-    }
-
-    @Test func aBannerSaysAnyOtherFailureAsOnePlainLine() {
-        #expect(
-            ConsentEnded.failure(MailcalError.Connect("invalid_grant")).bannerNotice
-                == L10n.signin_expired_failed())
-        #expect(ConsentEnded.failed("no browser").bannerNotice == L10n.signin_expired_failed())
-    }
-
-    @Test func aBannerSaysNothingUnlessTheSignInFailed() {
-        #expect(ConsentEnded.signedIn.bannerNotice == nil)
-        #expect(ConsentEnded.cancelled.bannerNotice == nil)
-    }
-
-    @Test func thePageSaysTheSameDetailEitherWay() {
-        #expect(
-            ConsentEnded.failure(MailcalError.StaleSignIn)
-                == .failed(L10n.signin_stale(), remedy: true))
-        #expect(
-            ConsentEnded.failure(MailcalError.Config("bad"))
-                == .failed(coreMessage(MailcalError.Config("bad")), remedy: false))
     }
 }

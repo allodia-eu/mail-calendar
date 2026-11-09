@@ -7,8 +7,9 @@ use std::{sync::Mutex, time::Duration};
 
 use crate::{AccountCapability, BrowserSignIn, BrowserSignInStage, ControlState, UnreachedUses};
 
-/// How long a sign-in waits on the person, in the browser or at the question before it, before it
-/// is over: what a closed browser tab costs, since closing one tells nobody.
+/// How long a sign-in waits on the browser before it is over: what a closed browser tab costs,
+/// since closing one tells nobody. The question before the browser waits until it is answered,
+/// since it is on screen, or a fresh press replaces it.
 pub(crate) const WAIT_CAP: Duration = Duration::from_mins(5);
 
 /// The handle a started sign-in is completed with.

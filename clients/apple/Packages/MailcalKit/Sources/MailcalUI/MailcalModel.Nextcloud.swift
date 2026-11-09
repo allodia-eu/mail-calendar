@@ -1,6 +1,8 @@
 // Signing in with Nextcloud on the model (docs/nextcloud-sign-in.md): whether a server offers it,
-// and each surface's completion of a grant. The browser half is NextcloudFlight.swift's. Every
-// core call blocks, so each runs off the main actor; a grant is never logged.
+// and setup's and a separate server's completion of a grant. The browser half is
+// NextcloudFlight.swift's. An existing account's sign-in with Nextcloud is the core's
+// (MailcalModel.BrowserSignIn.swift). Every core call blocks, so each runs off the main actor; a
+// grant is never logged.
 
 import Foundation
 import MailcalBindings
@@ -104,35 +106,6 @@ extension MailboxModel {
             return SeparateServerRules.signInFailure(error)
         }
     }
-
-    // MARK: An account signing in again
-
-    /// Signs the calendar and contacts account `id` in with Nextcloud: again, or in place of its
-    /// typed password. `reported` hears a failure, for a surface that says it elsewhere.
-    func signInAccountWithNextcloud(_ id: String, reported: ((String) -> Void)? = nil) {
-        accountNextcloud.start(
-            app, key: id,
-            begin: { try $0.beginAccountNextcloudSignIn(accountId: id) },
-            complete: { await self.completeAccountNextcloudSignIn(id, $0) },
-            reported: reported)
-    }
-
-    private func completeAccountNextcloudSignIn(_ id: String, _ grant: NextcloudGrant) async
-        -> NextcloudCompleted
-    {
-        guard let app else { return .failed(said: L10n.app_unavailable()) }
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.completeAccountNextcloudSignIn(accountId: id, grant: grant.value)
-            }.value
-            refreshAccountsSnapshot()
-            return .done
-        } catch {
-            logBrowserSignIn("nextcloud", "the account was not signed in (\(coreMessage(error)))")
-            return .failed(said: coreMessage(error))
-        }
-    }
-
 }
 
 extension ExistingAccountUpdate {

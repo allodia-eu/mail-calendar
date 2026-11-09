@@ -93,44 +93,6 @@ extension MailboxModel {
         }
     }
 
-    /// Signs an existing OAuth JMAP account back in, from its notice. The core
-    /// builds the authorization URL from that account's own persisted grant (no re-discovery, no
-    /// second client registration), we run the same browser hop, and the core swaps the fresh
-    /// grant in, connect, Keychain, and the retracted prompt included. So unlike a first sign-in
-    /// there is no `addAccount` and no `KeychainStore.save` here: the account already exists.
-    /// Answers whether it worked or was left by the person; only a failure is said on the notice.
-    func reconnectJmap(accountId: String) async -> Bool {
-        guard let app, !jmapReconnecting else { return true }
-        // A weak `presentationContextProvider`, so this local is what keeps it alive for the
-        // duration of the awaited presentation, the same reason `signInWithJmap` holds one.
-        let signIn = JmapSignIn()
-        jmapReconnecting = true
-        defer { jmapReconnecting = false }
-        do {
-            let start = try await Task.detached(priority: .userInitiated) {
-                try app.beginJmapReauth(accountId: accountId)
-            }.value
-            // ASWebAuthenticationSession must start on the main actor.
-            let callbackURL = try await signIn.authorize(authorizationURL: start.authorizationUrl)
-            // The exchange, the connect and the catch-up sync all block.
-            try await Task.detached(priority: .userInitiated) {
-                try app.completeJmapReauth(
-                    accountId: accountId, pending: start.pending, callbackUrl: callbackURL)
-            }.value
-            return true
-        } catch JmapSignInError.cancelled {
-            // The user dismissed the browser. The notice is still there to try again from.
-            return true
-        } catch {
-            // The notice says it did not work and stays up (the core leaves the prompt raised on
-            // every failure), so the remedy is still one tap away. The cause goes to the
-            // diagnostic log: the core's messages name endpoints and error codes, never the
-            // address or a secret.
-            logAppleLifecycle("jmap oauth: re-authentication did not complete (\(error))")
-            return false
-        }
-    }
-
     /// Connects `configToml` as a new account. The single add path for JMAP: the manual form's
     /// secret and an OAuth grant differ only in what the TOML carries.
     ///

@@ -140,7 +140,8 @@ enum AccountSettingsLabels {
         }
     }
 
-    /// What a change on an account's page came to, when the core says it needs saying.
+    /// What a change on an account's page came to, when the core says it needs saying: what did
+    /// not take, or a sign-in that worked while its provider still withholds a use.
     static func changeFailed(_ notice: AccountChangeNotice) -> AccountPageAlert {
         switch notice {
         case let .useFailed(_, _, refusal), let .linkFailed(_, refusal):
@@ -156,6 +157,15 @@ enum AccountSettingsLabels {
                 title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
         case .sharedMailboxNotFound:
             AccountPageAlert(title: L10n.settings_account_shared_not_found(), detail: "")
+        case let .signInFailed(switching, refusal):
+            AccountPageAlert(
+                title: switching
+                    ? L10n.settings_account_switch_failed() : L10n.settings_account_signin_failed(),
+                detail: refused(refusal))
+        case let .signedInWithheld(uses):
+            AccountPageAlert(
+                title: L10n.setup_withheld_title(),
+                detail: L10n.setup_withheld_detail(uses: uses.map(use).joined(separator: ", ")))
         }
     }
 
@@ -182,6 +192,8 @@ enum AccountSettingsLabels {
         case let .blocked(block): blockNote(block)
         case .withheld: L10n.settings_account_use_withheld()
         case .noLongerShared: L10n.settings_account_shared_withdrawn()
+        case .browserNotOpened: L10n.account_signin_browser_failed()
+        case .notFinished: L10n.account_signin_timeout()
         case let .other(detail): detail
         }
     }

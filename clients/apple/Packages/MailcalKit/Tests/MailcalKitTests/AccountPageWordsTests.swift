@@ -82,6 +82,31 @@ private func toggle(
         #expect(gone.detail == L10n.settings_account_shared_withdrawn())
     }
 
+    @Test func aBrowserSignInThatDidNotCompleteIsSaidForWhatItWasTo() {
+        let again = AccountSettingsLabels.changeFailed(
+            .signInFailed(switching: false, refusal: .notFinished))
+        #expect(again.title == L10n.settings_account_signin_failed())
+        #expect(again.detail == L10n.account_signin_timeout())
+        let switching = AccountSettingsLabels.changeFailed(
+            .signInFailed(switching: true, refusal: .browserNotOpened))
+        #expect(switching.title == L10n.settings_account_switch_failed())
+        #expect(switching.detail == L10n.account_signin_browser_failed())
+        let refused = AccountSettingsLabels.changeFailed(
+            .signInFailed(switching: false, refusal: .staleSignIn))
+        #expect(refused.detail == L10n.signin_stale())
+    }
+
+    @Test func aSignInThatWorkedSaysOnlyWhatTheProviderStillWithholds() {
+        let withheld = AccountSettingsLabels.changeFailed(
+            .signedInWithheld(uses: [.calendar, .contacts]))
+        #expect(withheld.title == L10n.setup_withheld_title())
+        #expect(
+            withheld.detail
+                == L10n.setup_withheld_detail(
+                    uses: AccountSettingsLabels.use(.calendar) + ", "
+                        + AccountSettingsLabels.use(.contacts)))
+    }
+
     @Test func whatTheServersLeaveOutNamesTheField() {
         #expect(
             AccountSettingsLabels.endpointsGap(.smtp)

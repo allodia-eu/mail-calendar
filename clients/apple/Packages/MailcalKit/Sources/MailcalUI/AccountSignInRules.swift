@@ -1,22 +1,9 @@
-// How an account signs in again (docs/accounts.md rules 15 and 17): the remedy an expired sign-in
-// takes, where a browser sign-in returns to, and the words for the Sign-in section the core
-// decides (`AccountPage.signIn`). The words are the catalog's.
+// How an account signs in again (docs/accounts.md rules 15 and 17): where a browser sign-in
+// returns to, how this host waits for it, and the words for the Sign-in section the core decides
+// (`AccountPage.signIn`). Which step a sign-in is at, and what it came to, are the core's
+// (`BrowserSignIn`); the words are the catalog's.
 
 import MailcalBindings
-
-/// What the expired-sign-in banner does for an account.
-enum SignInRemedy: Equatable {
-    /// A Microsoft or Google account signs in again through its own consent.
-    case consent
-    /// A JMAP account signed in through its provider re-authorises its stored grant.
-    case jmapReauth
-    /// An IMAP account signed in through its provider signs in again from its stored grant.
-    case accountSignIn
-    /// A calendar and contacts account a Nextcloud sign-in made signs in with Nextcloud again.
-    case nextcloud
-    /// A password or a pasted secret is entered again on the account's page.
-    case settings
-}
 
 /// What the "already set up" refusal keeps, to put the credential just given on the account
 /// already there rather than throwing it away.
@@ -45,29 +32,84 @@ struct ExistingAccountUpdate: Equatable {
     }
 }
 
+/// How this host waits for the browser a sign-in opens to come back.
+enum SignInListener: Equatable {
+    /// The platform's auth session, which catches a return to this scheme.
+    case session(callbackScheme: String)
+    /// The loopback port bound for this sign-in before it was asked for.
+    case loopback
+    /// Nothing comes back: the core asks the server whether the person has finished
+    /// (docs/nextcloud-sign-in.md rule 5), so only the person closes the session.
+    case server
+}
+
+/// Where the browser opens for a sign-in, and where it returns.
+struct SignInOpening: Equatable {
+    let url: String
+    let redirect: String?
+}
+
+/// The question a sign-in asks before the browser opens (docs/accounts.md rule 18).
+struct SignInQuestion: Equatable {
+    let attempt: UInt64
+    let set: UnreachedSet
+}
+
 enum AccountSignInRules {
-    /// Where the provider sends the browser back to, by the account's kind: the redirect setup
-    /// uses for that kind. An account already signing in through its provider keeps the one its
-    /// grant was registered with, whatever is passed.
-    static func redirectURI(_ kind: AccountKind) -> String? {
+    /// Where the provider sends the browser back to for an account of `kind`: the redirect setup
+    /// uses for that kind. `google` is this build's registered Google redirect, `nil` where a
+    /// loopback port is bound for each sign-in instead. Empty for a calendar and contacts
+    /// account, whose sign-in returns nothing. An account already signing in through its provider
+    /// returns where its grant was registered, which the core reads from the grant.
+    static func redirectURI(_ kind: AccountKind, google: String?) -> String? {
         switch kind {
+        case .microsoft: MicrosoftOAuthConfig.redirectURI
+        case .google: google
         case .imap: ImapOAuthConfig.redirectURI
         case .jmap: JmapOAuthConfig.redirectURI
-        case .dav, .microsoft, .google: nil
+        case .dav: ""
         }
     }
 
-    /// The banner's remedy for an expired sign-in. An account a Nextcloud sign-in made is asked
-    /// first, because it reports the provider family of the password it holds. An account whose
-    /// family the core does not know is sent to Settings.
-    static func remedy(_ provider: AccountProvider?, nextcloud: Bool = false) -> SignInRemedy {
-        if nextcloud { return .nextcloud }
-        return switch provider {
-        case .microsoft, .google: .consent
-        case .jmapOauth: .jmapReauth
-        case .imapOauth: .accountSignIn
-        case .password, .jmap, nil: .settings
-        }
+    /// How to wait for a browser returning to `redirect`, given the loopback bound for the
+    /// sign-in, if any. `nil` when nothing here can: a web address no loopback answers, or no
+    /// address at all.
+    static func listener(redirect: String?, loopback: String?) -> SignInListener? {
+        guard let redirect else { return .server }
+        if let loopback, redirect == loopback { return .loopback }
+        guard let colon = redirect.firstIndex(of: ":") else { return nil }
+        let scheme = String(redirect[..<colon])
+        guard !scheme.isEmpty, !["http", "https"].contains(scheme.lowercased()) else { return nil }
+        return .session(callbackScheme: scheme)
+    }
+
+    /// Whether the browser this host holds for `attempt` stays: while the core still holds that
+    /// attempt, and once it is open, while the core still waits on it. A loopback bound before
+    /// the core answered waits for its browser.
+    static func keeps(_ record: BrowserSignIn?, attempt: UInt64, opened: Bool) -> Bool {
+        guard let record, record.attempt == attempt else { return false }
+        if case .inBrowser = record.stage { return true }
+        return !opened
+    }
+
+    /// The browser to open now: the core waits on one, and none was opened for the attempt.
+    static func opening(_ record: BrowserSignIn?, opened: Bool) -> SignInOpening? {
+        guard !opened, case let .inBrowser(url, redirect)? = record?.stage else { return nil }
+        return SignInOpening(url: url, redirect: redirect)
+    }
+
+    /// The question the sign-in asks before its browser opens, while it does.
+    static func question(_ browser: BrowserSignIn?) -> SignInQuestion? {
+        guard let browser, case let .asking(unreached) = browser.stage,
+              let set = UnreachedSet(unreached)
+        else { return nil }
+        return SignInQuestion(attempt: browser.attempt, set: set)
+    }
+
+    /// What the core is handed for an answer to that question; `nil` cancels the sign-in.
+    static func answer(_ answer: UnreachedAnswer) -> UnreachedUses? {
+        guard case let .proceed(uses) = answer.decision else { return nil }
+        return uses
     }
 }
 
@@ -94,17 +136,12 @@ extension AccountSettingsLabels {
         }
     }
 
-    /// The line a route ends with once it has worked.
-    static func signInDone(_ route: AccountSignInRoute) -> String {
-        switch route {
-        case .signInAgain: L10n.settings_account_signed_in()
-        case .toProvider, .toNextcloud: L10n.settings_account_switched_to_provider()
-        }
-    }
-
-    /// The title of the alert a route ends with when it has not.
-    static func signInFailed(_ route: AccountSignInRoute) -> String {
-        if case .signInAgain = route { return L10n.settings_account_signin_failed() }
-        return L10n.settings_account_switch_failed()
+    /// What the section says while the browser holds the account's sign-in, `name` being how the
+    /// account is named; `nil` at every other step.
+    static func signInWaiting(_ browser: BrowserSignIn?, name: String) -> String? {
+        guard case let .inBrowser(_, redirect)? = browser?.stage else { return nil }
+        return redirect == nil
+            ? L10n.nextcloud_sign_in_waiting()
+            : L10n.settings_account_signin_waiting(email: name)
     }
 }

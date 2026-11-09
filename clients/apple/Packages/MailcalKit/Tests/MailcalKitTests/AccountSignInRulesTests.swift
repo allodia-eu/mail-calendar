@@ -1,6 +1,5 @@
-// How the core's Sign-in section is worded, which remedy the banner takes for each family, and
-// what the "already set up" refusal keeps to update the account already there
-// (docs/accounts.md rules 15 and 17).
+// How the core's Sign-in section is worded, and what the "already set up" refusal keeps to update
+// the account already there (docs/accounts.md rules 15 and 17).
 
 import MailcalBindings
 import Testing
@@ -35,7 +34,7 @@ private func entry(_ kind: AccountKind) -> AccountEntry {
                 == L10n.settings_account_signs_in_nextcloud())
     }
 
-    @Test func eachRouteIsWordedAndSaysHowItEnded() {
+    @Test func eachRouteIsWorded() {
         #expect(
             AccountSettingsLabels.signInRoute(.toProvider(label: "Fastmail"))
                 == L10n.settings_account_switch_to_provider_named(provider: "Fastmail"))
@@ -45,31 +44,6 @@ private func entry(_ kind: AccountKind) -> AccountEntry {
         #expect(
             AccountSettingsLabels.signInRoute(.toNextcloud)
                 == L10n.settings_account_switch_to_provider_named(provider: "Nextcloud"))
-        #expect(AccountSettingsLabels.signInDone(.signInAgain) == L10n.settings_account_signed_in())
-        #expect(
-            AccountSettingsLabels.signInDone(.toNextcloud)
-                == L10n.settings_account_switched_to_provider())
-        #expect(
-            AccountSettingsLabels.signInFailed(.signInAgain) == L10n.settings_account_signin_failed())
-        #expect(
-            AccountSettingsLabels.signInFailed(.toProvider(label: nil))
-                == L10n.settings_account_switch_failed())
-    }
-
-    @Test func theRedirectIsTheOneSetupUsesForTheKind() {
-        #expect(AccountSignInRules.redirectURI(.imap) == ImapOAuthConfig.redirectURI)
-        #expect(AccountSignInRules.redirectURI(.jmap) == JmapOAuthConfig.redirectURI)
-        #expect(AccountSignInRules.redirectURI(.dav) == nil)
-    }
-
-    @Test func anImapSignInIsSignedInAgainFromTheBanner() {
-        #expect(AccountSignInRules.remedy(.imapOauth) == .accountSignIn)
-        #expect(AccountSignInRules.remedy(.jmapOauth) == .jmapReauth)
-        #expect(AccountSignInRules.remedy(.microsoft) == .consent)
-        #expect(AccountSignInRules.remedy(.google) == .consent)
-        #expect(AccountSignInRules.remedy(.password) == .settings)
-        #expect(AccountSignInRules.remedy(.jmap) == .settings)
-        #expect(AccountSignInRules.remedy(nil) == .settings)
     }
 
     @Test func theRefusalOfAnAccountAlreadySetUpKeepsWhatUpdatesIt() throws {

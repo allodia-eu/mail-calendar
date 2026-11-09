@@ -194,13 +194,7 @@ private func flight(_ script: Script) async -> NextcloudFlightEnd {
     }
 }
 
-@Suite struct NextcloudAccountRemedyTests {
-    @Test func theBannerSignsANextcloudAccountInWithNextcloudWhateverItsProvider() {
-        #expect(AccountSignInRules.remedy(.password, nextcloud: true) == .nextcloud)
-        #expect(AccountSignInRules.remedy(nil, nextcloud: true) == .nextcloud)
-        #expect(AccountSignInRules.remedy(.password) == .settings)
-    }
-
+@Suite struct NextcloudExistingAccountTests {
     @Test func aRefusedNextcloudAddOffersTheAccountAlreadySetUp() {
         let offer = ExistingAccountUpdate(nextcloudRefusal: MailcalError.AlreadySetUp(accountId: "a"))
         #expect(offer?.accountId == "a")
