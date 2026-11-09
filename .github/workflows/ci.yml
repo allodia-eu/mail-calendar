@@ -367,6 +367,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         # Submodules are contributor and AI guidance; the build does not need them.
 
+      # The build scripts of mailcal-oauth and mailcal-bindings watch the repo's `.env`, and cargo
+      # reruns a build script on every invocation while a watched path is missing, recompiling
+      # both crates and everything above them. This job runs cargo once per live suite and never
+      # makes a `.env`, so an empty one says the same as none without that cost. The values
+      # themselves come from the workflow's `env:`, which outranks the file.
+      - name: Give the build scripts an empty .env to watch
+        run: touch .env
+
       - name: Install the pinned Rust
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
@@ -1089,6 +1097,11 @@ jobs:
       - name: Check out the product core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Why, in the `jmap-stalwart` job. Here it stops `Unit tests` recompiling everything `Build the
+      # unit tests` has just built. Taken away again before packaging, below.
+      - name: Give the build scripts an empty .env to watch
+        run: touch .env
+
       - name: Install GTK4 + libadwaita + WebKitGTK development libraries
         # `apt-get update` reaches a mirror, and a mirror that stops answering hangs the step
         # rather than failing it — observed twice in one day at 20+ minutes against a normal 1-2.
@@ -1142,6 +1155,12 @@ jobs:
 
       - name: Docs (warnings as errors)
         run: cargo doc -p mailcal-linux --no-deps
+
+      # Gone before anything that packages: `package.sh` writes the registrations from this
+      # workflow's environment into `.env` only when there is none, because the file is the one way
+      # into the Flatpak sandbox, so an empty one left here would ship a bundle without them.
+      - name: Take the empty .env away again
+        run: rm -f .env
 
       # Default features deliberately omit `dev-harness`; this confirms the fixture and its custom
       # trust path do not leak into the production-shaped binary.
