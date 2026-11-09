@@ -42,8 +42,12 @@ pub(super) fn role_icon(role: Option<&FolderRole>) -> &'static str {
 }
 
 pub(super) fn unified_inbox_row(unread: u32, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
-    let row = pane_row(icons::INBOX, sender, &SidebarTarget::AllInboxes);
-    row.set_title(l10n::folder_inbox());
+    let row = pane_row(
+        icons::INBOX,
+        l10n::folder_inbox(),
+        sender,
+        &SidebarTarget::AllInboxes,
+    );
     add_badge(&row, unread);
     row
 }
@@ -103,10 +107,10 @@ pub(super) fn account_row(
 ) -> adw::ActionRow {
     let row = pane_row(
         icons::ACCOUNT,
+        &account.email,
         sender,
         &SidebarTarget::Account(account.id.clone()),
     );
-    row.set_title(&account.email);
     titles_group(&row);
     // An address is as long as it is, and the pane has a floor: the row that gets truncated is
     // precisely the one the user needs to read.
@@ -167,13 +171,13 @@ pub(super) fn folder_row(
 ) -> adw::ActionRow {
     let row = pane_row(
         role_icon(folder.role.as_ref()),
+        &folder_label(folder.role.as_ref(), &folder.name),
         sender,
         &SidebarTarget::Folder {
             account: account.to_owned(),
             key: folder.key.clone(),
         },
     );
-    row.set_title(&folder_label(folder.role.as_ref(), &folder.name));
     // In its account's columns, and one step in per folder it is filed inside, so the tree reads
     // as a tree while the account row's weight titles it (`docs/folder-pane.md`, rule 32). A
     // margin rather than a nested list: the rows stay siblings, which is what keeps one keyboard
@@ -231,21 +235,23 @@ fn folder_chevron(
     button
 }
 
-/// The shared skeleton: one line, an icon, the whole row activatable.
+/// The shared skeleton: one line under `title`, its icon carrying the row's action, the whole row
+/// activatable. No arrow: the only chevron in this pane opens or shuts a tree.
 pub(super) fn pane_row(
     icon: &str,
+    title: &str,
     sender: &relm4::Sender<AppInput>,
     target: &SidebarTarget,
 ) -> adw::ActionRow {
     // A folder's name and an account's address are the server's text: a bare ampersand must not
     // be read as an entity, and a markup-shaped name must render as itself.
     let row = mailbox::plain_text_row();
+    row.set_title(title);
     row.set_title_lines(1);
     row.set_activatable(true);
-    row.add_prefix(&gtk::Image::from_icon_name(icon));
     let input = sender.clone();
     let target = target.clone();
-    row_action::action_row(&row, move || {
+    row_action::icon_action_row(&row, icon, title, move || {
         input.emit(AppInput::ActivateSidebar(target.clone()));
     });
     row

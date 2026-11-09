@@ -380,9 +380,10 @@ pub(super) fn pane_row(queued: usize, sender: &relm4::Sender<AppInput>) -> adw::
     row.set_title(l10n::folder_outbox());
     row.set_title_lines(1);
     row.set_activatable(true);
-    row.add_prefix(&gtk::Image::from_icon_name(icons::OUTBOX));
     let input = sender.clone();
-    row_action::action_row(&row, move || input.emit(AppInput::ShowOutbox));
+    row_action::icon_action_row(&row, icons::OUTBOX, l10n::folder_outbox(), move || {
+        input.emit(AppInput::ShowOutbox);
+    });
     let count = i64::try_from(queued).unwrap_or(i64::MAX);
     let label = mailbox::badge(&count.to_string());
     let spoken = l10n::a11y_outbox_count(count);

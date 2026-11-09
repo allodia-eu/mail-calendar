@@ -307,6 +307,7 @@ impl AppWidgets {
         }
         self.rendered_sidebar_selection
             .sync(&self.sidebar, &model.snapshot);
+        self.command_bar.align_with(&self.sidebar);
         let mail_clock = MailClock::of(&model.calendar);
         let rendering = MailboxRendering::new(&model.snapshot, &mail_clock);
         if self.rendered_snapshot.as_ref() != Some(&rendering) {

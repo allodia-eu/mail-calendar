@@ -34,7 +34,6 @@ struct Slot {
 
 pub(crate) struct CommandBarRow {
     root: gtk::Box,
-    #[cfg(test)]
     compose: gtk::Button,
     lead: gtk::Box,
     actions: OverflowRow,
@@ -82,7 +81,6 @@ impl CommandBarRow {
         root.insert_action_group(GROUP, Some(&group));
         Self {
             root,
-            #[cfg(test)]
             compose,
             lead,
             actions,
@@ -105,6 +103,39 @@ impl CommandBarRow {
         self.lead.set_size_request(pane.position(), -1);
         let lead = self.lead.clone();
         pane.connect_position_notify(move |pane| lead.set_size_request(pane.position(), -1));
+    }
+
+    /// Stands New Mail's leading edge on the folder pane's icon column, read off the glyph of the
+    /// pane's first row, so the button and the icons below it are one column. Measured, so a
+    /// theme's padding moves both; until the pane has been laid out, nothing changes.
+    pub(crate) fn align_with(&self, pane: &gtk::ListBox) {
+        let Some(glyph) = pane
+            .row_at_index(0)
+            .and_downcast::<adw::ActionRow>()
+            .and_then(|row| row.activatable_widget())
+            .and_downcast::<gtk::Button>()
+            .and_then(|button| button.child())
+        else {
+            return;
+        };
+        if glyph.width() == 0 {
+            return;
+        }
+        let Some(point) = glyph.compute_point(&self.lead, &gtk::graphene::Point::new(0.0, 0.0))
+        else {
+            return;
+        };
+        // Truncating to a whole pixel is what a margin is.
+        #[allow(clippy::cast_possible_truncation)]
+        let left = point.x() as i32;
+        let inset = if self.lead.direction() == gtk::TextDirection::Rtl {
+            self.lead.width() - left - glyph.width()
+        } else {
+            left
+        };
+        if inset >= 0 && self.compose.margin_start() != inset {
+            self.compose.set_margin_start(inset);
+        }
     }
 
     /// Draws `bar`, the core's answer over the selection, with `moves` saying where Move can send

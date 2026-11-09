@@ -444,16 +444,34 @@ pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let row = crate::ui::folder_pane_rows::pane_row(
         crate::ui::icons::FOLDER,
+        "Archive",
         &sender,
         &SidebarTarget::Folder {
             account: "account".to_owned(),
             key: "archive".to_owned(),
         },
     );
-    row.activatable_widget()
+    let action = row
+        .activatable_widget()
         .and_downcast::<gtk::Button>()
-        .expect("a folder row has a native primary action")
-        .emit_clicked();
+        .expect("a folder row has a native primary action");
+    // The action is the row's own icon, so no arrow is drawn beside a folder: the only chevron in
+    // the pane opens or shuts a tree.
+    assert!(
+        action.child().and_downcast::<gtk::Image>().is_some(),
+        "the folder's icon carries the action"
+    );
+    assert!(
+        !action.can_target() && !action.is_focusable(),
+        "a click and the keyboard reach the row, never a control of the icon's own"
+    );
+    assert!(
+        buttons(row.upcast_ref::<gtk::Widget>())
+            .iter()
+            .all(|button| button.icon_name().as_deref() != Some(crate::ui::icons::NEXT)),
+        "no arrow beside a row that opens nothing"
+    );
+    action.emit_clicked();
     assert!(matches!(
         receiver.recv_sync(),
         Some(AppInput::ActivateSidebar(SidebarTarget::Folder { account, key }))
