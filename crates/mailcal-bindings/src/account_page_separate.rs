@@ -10,7 +10,7 @@ use mailcal_account::Capability;
 use crate::{
     AccountCapability, AccountChangeRefusal, AccountSeparateServer, AccountSeparateSignIn,
     ControlState,
-    account_answers::Answers,
+    account_page::answers::Answers,
     account_work::{Hold, PageWork},
     accounts_view::{AccountFacts, host_of},
 };

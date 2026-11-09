@@ -20,7 +20,6 @@ use engine_api::Provider;
 use mailcal_app::{Account, App};
 
 mod about;
-mod account_answers;
 mod account_capability;
 mod account_page;
 mod account_page_mail;

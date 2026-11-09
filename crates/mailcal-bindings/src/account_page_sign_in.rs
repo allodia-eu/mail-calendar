@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// What each account's server said it takes.
-pub(crate) type SignInAnswers = crate::account_answers::Answers<AccountSignInOptions>;
+pub(crate) type SignInAnswers = crate::account_page::answers::Answers<AccountSignInOptions>;
 
 /// `entry`'s Sign-in section, from what its server said it takes (`None` until it has answered)
 /// and whether it refused the stored sign-in (`refused`), held as `hold` says. `edits_servers`:
