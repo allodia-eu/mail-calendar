@@ -1,6 +1,7 @@
 // The contextual bar over the message list while rows are selected: the count, a way out, and the
-// actions docs/list-selection.md gives it. It replaces the account switcher rather than stacking
-// under it, which is the Material pattern for a selection mode and keeps the list where it was.
+// core's command bar (docs/command-bar.md, rule 9). It replaces the account switcher rather than
+// stacking under it, which is the Material pattern for a selection mode and keeps the list where it
+// was.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Row
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -19,32 +21,51 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.BulkAction
+import uniffi.mailcal_bindings.Command
+import uniffi.mailcal_bindings.CommandBar
+import uniffi.mailcal_bindings.CommandItem
+import uniffi.mailcal_bindings.RowAction
+import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.SnapshotRow
+
+/** How many of the core's actions stand on the bar as icons; the rest are in its overflow. */
+private const val BAR_ICONS = 2
 
 /**
  * The selection mode's top bar.
  *
- * Archive and Trash are the two icons, because they are what a mailbox is worked through with; the
- * rest (read/unread, flag/unflag, select all, delete permanently) live in the overflow the row
- * already has room for. The read and flag entries are single toggles naming the half that changes
- * something, and what responds is what the core's menu over the selection enables
- * ([SelectionBarActions]).
+ * The core's first actions, Delete and Archive, are the two icons, because they are what a mailbox
+ * is worked through with; the rest follow in the overflow in the core's order, then Select all.
+ * Each item runs as the same item in a row menu over the selection does, through [onPick], and Move
+ * asks for its folder here, as a row's menu does.
  */
 @Composable
 internal fun MailSelectionBar(
     selection: MailSelectionState,
     rows: List<SnapshotRow>,
-    actions: SelectionBarActions,
-    onAct: (BulkAction) -> Unit,
+    bar: CommandBar,
+    filing: MessageFiling?,
+    onPick: (RowPick) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
     var overflow by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf<Pair<List<SelectedRow>, List<MoveTarget>>?>(null) }
+    val selected = selection.selectedRows()
+    val account = selected.map { it.account() }.distinct().singleOrNull()
+    val targets = account?.let { filing?.targets?.invoke(it) }.orEmpty()
+    val items = bar.sections.flatMap { it.items }
+    fun available(item: CommandItem): Boolean =
+        item.enabled && (item.command != Command.Act(RowAction.MOVE_TO_FOLDER) || targets.any { it.enabled })
+    fun run(item: CommandItem) {
+        val pick = item.menuItem()?.let { rowPick(it, selected) } ?: return
+        if (pick is RowPick.Move) moving = pick.rows to targets else onPick(pick)
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -66,19 +87,19 @@ internal fun MailSelectionBar(
                 .weight(1f)
                 .testTag("selection-count"),
         )
-        IconButton(onClick = { onAct(BulkAction.ARCHIVE) }, enabled = actions.archive) {
-            Icon(
-                painter = painterResource(R.drawable.ic_archive),
-                contentDescription = L10n.action_archive(ctx),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        IconButton(onClick = { onAct(BulkAction.DELETE) }, enabled = actions.delete) {
-            Icon(
-                painter = painterResource(R.drawable.ic_delete),
-                contentDescription = L10n.action_move_to_trash(ctx),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        items.take(BAR_ICONS).forEach { item ->
+            val action = (item.command as? Command.Act)?.action ?: return@forEach
+            IconButton(onClick = { run(item) }, enabled = available(item)) {
+                Icon(
+                    painter = painterResource(action.icon()),
+                    contentDescription = action.label(ctx),
+                    tint = if (item.confirm && item.enabled) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    },
+                )
+            }
         }
         IconButton(onClick = { overflow = true }) {
             Icon(
@@ -88,36 +109,23 @@ internal fun MailSelectionBar(
             )
         }
         DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-            val read = actions.read
-            val flag = actions.flag
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        if (read == BulkAction.MARK_READ) {
-                            L10n.action_mark_read(ctx)
-                        } else {
-                            L10n.action_mark_unread(ctx)
-                        },
-                    )
-                },
-                enabled = actions.readEnabled,
-                onClick = {
-                    overflow = false
-                    onAct(read)
-                },
-            )
-            DropdownMenuItem(
-                text = {
-                    Text(
-                        if (flag == BulkAction.FLAG) L10n.action_flag(ctx) else L10n.action_unflag(ctx),
-                    )
-                },
-                enabled = actions.flagEnabled,
-                onClick = {
-                    overflow = false
-                    onAct(flag)
-                },
-            )
+            items.drop(BAR_ICONS).forEach { item ->
+                val action = (item.command as? Command.Act)?.action ?: return@forEach
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            action.label(ctx),
+                            color = if (item.confirm && item.enabled) MaterialTheme.colorScheme.error else Color.Unspecified,
+                        )
+                    },
+                    enabled = available(item),
+                    onClick = {
+                        overflow = false
+                        run(item)
+                    },
+                )
+            }
+            HorizontalDivider()
             DropdownMenuItem(
                 text = { Text(L10n.action_select_all(ctx)) },
                 onClick = {
@@ -125,14 +133,29 @@ internal fun MailSelectionBar(
                     selection.selectAll(rows)
                 },
             )
-            DropdownMenuItem(
-                text = { Text(L10n.action_delete_permanently(ctx)) },
-                enabled = actions.permanentlyDelete,
-                onClick = {
-                    overflow = false
-                    onAct(BulkAction.PERMANENTLY_DELETE)
-                },
-            )
         }
     }
+    moving?.let { (moved, offered) ->
+        MoveTargetDialog(
+            title = L10n.message_move_title(ctx),
+            targets = offered,
+            onPick = { target ->
+                val key = target.key
+                if (key != null && account != null) filing?.move?.invoke(moved, account, key)
+            },
+            onClose = { moving = null },
+        )
+    }
+}
+
+/** The glyph a bar action carries as an icon. */
+private fun RowAction.icon(): Int = when (this) {
+    RowAction.DELETE, RowAction.PERMANENTLY_DELETE -> R.drawable.ic_delete
+    RowAction.ARCHIVE -> R.drawable.ic_archive
+    else -> R.drawable.ic_folder
+}
+
+private fun SelectedRow.account(): String = when (this) {
+    is SelectedRow.Message -> account
+    is SelectedRow.Thread -> account
 }

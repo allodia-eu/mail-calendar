@@ -52,7 +52,7 @@ public sealed class ReadingPaneAdvanceTests(HarnessApp harness)
             Import(Message($"Bob Fixture <{Harness.Bob}>", Harness.Alice, archived, $"pane-m-{run}"), "inbox");
 
             app.OpenFolder(Inbox);
-            var sync = app.Agent.Find(Filter.ById("SelectionSync", "Button"))!;
+            var sync = app.Agent.Find(Filter.ById("CommandSync", "Button"))!;
             app.Agent.Invoke(sync);
             if (!App.Eventually(() => Listed(app, archived) && Listed(app, conversation), TimeSpan.FromSeconds(30)))
             {
@@ -98,7 +98,7 @@ public sealed class ReadingPaneAdvanceTests(HarnessApp harness)
             Import(Message($"Bob Fixture <{Harness.Bob}>", Harness.Alice, archived, $"pane-dm-{run}"), "inbox");
 
             app.OpenFolder(Inbox);
-            app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button"))!);
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("CommandSync", "Button"))!);
             if (!App.Eventually(() => Listed(app, archived) && Listed(app, conversation), TimeSpan.FromSeconds(30)))
             {
                 throw new InvalidOperationException("the imported messages never reached the list");

@@ -69,7 +69,8 @@ pub enum RowAction {
     Archive,
     /// Move to the account's Trash.
     Delete,
-    /// Delete for good.
+    /// Delete for good: what Delete is once everything it takes is in Trash already, or on an
+    /// account with no Trash. Never offered beside Delete, and it always asks first.
     PermanentlyDelete,
 }
 

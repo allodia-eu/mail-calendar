@@ -67,7 +67,6 @@ icons! {
     FLAG = "starred-symbolic";
     UNFLAG = "non-starred-symbolic";
     DELETE_PERMANENTLY = "edit-delete-symbolic";
-    SELECT_ALL = "edit-select-all-symbolic";
     SYNC = "view-refresh-symbolic";
     MORE = "view-more-symbolic";
     /// The reading pane's sun/moon button, showing what pressing it does: the sun on a dark

@@ -46,6 +46,7 @@ pub(crate) fn render(
     sender: &relm4::Sender<AppInput>,
 ) {
     mailbox::install_styles();
+    super::folder_pane_rows::install_styles();
     mailbox::clear(list);
 
     // Rule 18: above the account trees, and off screen entirely at zero.

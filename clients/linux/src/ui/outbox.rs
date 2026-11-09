@@ -377,12 +377,17 @@ fn confirm_send_again(
 /// nobody has received.
 pub(super) fn pane_row(queued: usize, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
     let row = mailbox::plain_text_row();
+    row.add_css_class(super::folder_pane_rows::ROW);
     row.set_title(l10n::folder_outbox());
     row.set_title_lines(1);
     row.set_activatable(true);
-    row.add_prefix(&gtk::Image::from_icon_name(icons::OUTBOX));
     let input = sender.clone();
-    row_action::action_row(&row, move || input.emit(AppInput::ShowOutbox));
+    row_action::icon_action_row(&row, icons::OUTBOX, l10n::folder_outbox(), move || {
+        input.emit(AppInput::ShowOutbox);
+    });
+    // In the pane's columns, though nothing here opens, so its icon stands with the folders'.
+    // After the icon, because `AdwActionRow` puts each new prefix before the ones it holds.
+    row.add_prefix(&super::folder_pane_rows::disclosure_slot());
     let count = i64::try_from(queued).unwrap_or(i64::MAX);
     let label = mailbox::badge(&count.to_string());
     let spoken = l10n::a11y_outbox_count(count);

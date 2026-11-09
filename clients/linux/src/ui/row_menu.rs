@@ -5,13 +5,16 @@
 
 use std::{cell::RefCell, rc::Rc};
 
-use mailcal_bindings::{BulkAction, MenuMessage, RowAction, RowMenu, RowMenuItem, SelectedRow};
+use mailcal_bindings::{
+    BulkAction, Command, CommandBar, CommandItem, MenuMessage, RowAction, RowMenu, RowMenuItem,
+    SelectedRow,
+};
 
 use super::{
     composer_model::ComposeKind,
     mail_actions::{ActionKind, MailActionRequest, MessageTarget},
 };
-use crate::l10n;
+use crate::{l10n, ui::icons};
 
 /// How a menu asks the core what it holds.
 pub(crate) type MenuAnswer = Rc<dyn Fn(Vec<SelectedRow>) -> RowMenu>;
@@ -121,8 +124,7 @@ fn batch(action: RowAction) -> Option<BulkAction> {
     }
 }
 
-/// The item's label, in the user's language: the selection bar's words for the actions the two
-/// share.
+/// The item's label in a row's menu, and in the reading pane, in the user's language.
 pub(crate) fn label(action: RowAction) -> &'static str {
     match action {
         RowAction::Open => l10n::action_open(),
@@ -138,73 +140,86 @@ pub(crate) fn label(action: RowAction) -> &'static str {
         RowAction::MarkAsNotSpam => l10n::action_mark_as_not_spam(),
         RowAction::MoveToFolder => l10n::action_move_to_folder(),
         RowAction::Archive => l10n::action_archive(),
-        RowAction::Delete => l10n::action_move_to_trash(),
+        RowAction::Delete => l10n::action_delete(),
         RowAction::PermanentlyDelete => l10n::action_delete_permanently(),
     }
 }
 
-/// The selection bar's buttons, read off the core's menu over the selection
-/// (`docs/list-selection.md`, rule 5): each toggle names the half that changes something, and a
-/// button the menu would draw disabled is disabled on the bar too.
-///
-/// With nothing selected the core answers no menu, and the bar names the affirmative halves, all
-/// disabled: "Mark as unread" over nothing describes an action nobody asked for.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct BarActions {
-    pub(crate) read: (BulkAction, bool),
-    pub(crate) flag: (BulkAction, bool),
-    pub(crate) archive: bool,
-    pub(crate) delete: bool,
-    pub(crate) permanently_delete: bool,
-}
-
-impl BarActions {
-    pub(crate) fn of(menu: &RowMenu) -> Self {
-        // The first item doing one of `actions`, which for a toggle is the half on offer.
-        let find = |actions: &[RowAction]| {
-            menu.sections
-                .iter()
-                .flat_map(|section| &section.items)
-                .find(|item| actions.contains(&item.action))
-                .map_or((actions[0], false), |item| (item.action, item.enabled))
-        };
-        let toggle = |actions: &[RowAction]| {
-            let (action, enabled) = find(actions);
-            (batch(action).unwrap_or(BulkAction::MarkRead), enabled)
-        };
-        Self {
-            read: toggle(&[RowAction::MarkRead, RowAction::MarkUnread]),
-            flag: toggle(&[RowAction::Flag, RowAction::Unflag]),
-            archive: find(&[RowAction::Archive]).1,
-            delete: find(&[RowAction::Delete]).1,
-            permanently_delete: find(&[RowAction::PermanentlyDelete]).1,
-        }
+/// The item's label on the command bar: the menu's, except that Move opens its picker from a
+/// button too narrow for the menu's "Move to folder…".
+pub(crate) fn bar_label(command: Command) -> &'static str {
+    match command {
+        Command::Act {
+            action: RowAction::MoveToFolder,
+        } => l10n::action_move(),
+        Command::Act { action } => label(action),
+        Command::Sync => l10n::action_refresh(),
     }
 }
 
-/// The bar's last answer and what it was asked about: the published list, by its number, and the
-/// rows. A redraw that changed neither asks the core nothing.
+/// The glyph a bar item draws beside its label.
+pub(crate) fn bar_icon(command: Command) -> &'static str {
+    let Command::Act { action } = command else {
+        return icons::SYNC;
+    };
+    match action {
+        RowAction::MarkRead => icons::MARK_READ,
+        RowAction::MarkUnread => icons::MARK_UNREAD,
+        RowAction::Flag => icons::FLAG,
+        RowAction::Unflag => icons::UNFLAG,
+        RowAction::Archive => icons::ARCHIVE,
+        RowAction::Delete => icons::TRASH,
+        // Its own glyph rather than a second bin: the label is not the only thing that should
+        // say this one cannot be undone.
+        RowAction::PermanentlyDelete => icons::DELETE_PERMANENTLY,
+        RowAction::MoveToFolder => icons::FOLDER,
+        RowAction::MarkAsSpam | RowAction::MarkAsNotSpam => icons::JUNK,
+        RowAction::Open | RowAction::OpenInWindow => icons::MAIL,
+        RowAction::Reply => icons::REPLY,
+        RowAction::ReplyAll => icons::REPLY_ALL,
+        RowAction::Forward => icons::FORWARD,
+    }
+}
+
+/// The row menu's item a bar item stands for, so a pick from the bar runs exactly as the same
+/// pick from a row's menu does (`docs/command-bar.md`, rule 1). `None` for Sync, which no menu
+/// carries.
+pub(crate) fn as_menu_item(item: &CommandItem) -> Option<RowMenuItem> {
+    match item.command {
+        Command::Act { action } => Some(RowMenuItem {
+            action,
+            enabled: item.enabled,
+            target: item.target.clone(),
+            confirm: item.confirm,
+        }),
+        Command::Sync => None,
+    }
+}
+
+/// The command bar over the rows it was last asked about, with what it was asked about: the
+/// published list, by its number, and the rows. A redraw that changed neither asks the core
+/// nothing, since the view runs on every message and Select all can name the whole window.
 #[derive(Default)]
-pub(crate) struct BarAnswer(RefCell<Option<(u64, Vec<SelectedRow>, BarActions)>>);
+pub(crate) struct BarAnswer(RefCell<Option<(u64, Vec<SelectedRow>, CommandBar)>>);
 
 impl BarAnswer {
-    /// The bar's actions over `rows` in list `generation`, asking `menu` only when either differs
-    /// from what was last asked.
+    /// The bar over `rows` in list `generation`, asking `bar` only when either differs from what
+    /// was last asked.
     pub(crate) fn answer(
         &self,
         generation: u64,
         rows: Vec<SelectedRow>,
-        menu: impl FnOnce(Vec<SelectedRow>) -> RowMenu,
-    ) -> BarActions {
-        if let Some((asked_in, asked, actions)) = &*self.0.borrow()
+        bar: impl FnOnce(Vec<SelectedRow>) -> CommandBar,
+    ) -> CommandBar {
+        if let Some((asked_in, asked, answer)) = &*self.0.borrow()
             && *asked_in == generation
             && *asked == rows
         {
-            return *actions;
+            return answer.clone();
         }
-        let actions = BarActions::of(&menu(rows.clone()));
-        self.0.replace(Some((generation, rows, actions)));
-        actions
+        let answer = bar(rows.clone());
+        self.0.replace(Some((generation, rows, answer.clone())));
+        answer
     }
 }
 

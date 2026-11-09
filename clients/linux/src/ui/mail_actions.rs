@@ -3,13 +3,16 @@
 //! The menus a row offers them through are [`super::mail_actions_menu`].
 
 use adw::prelude::*;
-use mailcal_bindings::{BulkAction, Intent, MenuMessage, SelectedRow, SnapshotRow};
+use mailcal_bindings::{
+    BulkAction, Command, Intent, MenuMessage, RowAction, SelectedRow, SnapshotRow,
+};
 
 use super::{
     AppInput, AppModel, mailbox,
     mailbox::ThreadKey,
     model::{self, OpenedMessage},
     reader::ReadingSource,
+    row_menu_actions::delete_item,
 };
 use crate::l10n;
 
@@ -29,6 +32,12 @@ pub(crate) enum DeleteTarget {
     Message(MessageTarget),
     /// The rows the bar, the Delete key or a row's menu was acting on, named when it asked.
     Rows(Vec<SelectedRow>),
+    /// The message a reading view is showing, from that view's own Delete: confirmed, it leaves
+    /// that view as its Delete to Trash would.
+    Opened {
+        source: ReadingSource,
+        message: MessageTarget,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -127,7 +136,9 @@ fn delete_confirmation(
     content.set_margin_start(24);
     content.set_margin_end(24);
     let sentence = match &target {
-        DeleteTarget::Message(_) => l10n::delete_permanently_message().to_owned(),
+        DeleteTarget::Message(_) | DeleteTarget::Opened { .. } => {
+            l10n::delete_permanently_message().to_owned()
+        }
         DeleteTarget::Rows(rows) => many(rows.len()),
     };
     let message = gtk::Label::new(Some(&sentence));
@@ -152,6 +163,10 @@ fn delete_confirmation(
             DeleteTarget::Rows(rows) => input.emit(AppInput::PerformRowsAction {
                 rows: rows.clone(),
                 action: BulkAction::PermanentlyDelete,
+            }),
+            DeleteTarget::Opened { source, .. } => input.emit(AppInput::PerformOpenedMailAction {
+                source: source.clone(),
+                action: ActionKind::PermanentlyDelete,
             }),
         }
         dialog.close();
@@ -188,11 +203,6 @@ impl AppModel {
             self.reading.close();
         }
         self.dispatch(request.into_intent());
-    }
-
-    /// Runs one action over every selected row, as a single batch in the core.
-    pub(super) fn act_on_selection(&mut self, action: BulkAction) {
-        self.act_on_rows(self.selection.selected_rows(), action);
     }
 
     /// Runs one action over `rows`, the selection or the rows a row's menu was opened on.
@@ -264,7 +274,9 @@ impl AppModel {
             })
     }
 
-    /// Archive or Trash from a reading view's own action row.  What is left behind differs by
+    /// Archive or Delete from a reading view's own action row. Where the bar over the message
+    /// would delete it for good, Delete asks first and the confirmation sends the permanent
+    /// delete back through here (`docs/command-bar.md`, rule 8). What is left behind differs by
     /// reader, and deliberately so (`docs/reading-window.md`): the pane is a place in a list, so it
     /// moves on to the message the core names, opened as clicking its row opens it, a draft into
     /// its composer (`docs/reading-actions.md`, "Where the pane goes next"); a window is one
@@ -276,12 +288,27 @@ impl AppModel {
         action: ActionKind,
         sender: &relm4::Sender<AppInput>,
     ) {
-        if !matches!(action, ActionKind::Archive | ActionKind::MoveToTrash) {
+        if !matches!(
+            action,
+            ActionKind::Archive | ActionKind::MoveToTrash | ActionKind::PermanentlyDelete
+        ) {
             return;
         }
         let Some(opened) = self.reader_message(source).cloned() else {
             return;
         };
+        if action == ActionKind::PermanentlyDelete {
+            self.pending_mail_delete = None;
+        } else if action == ActionKind::MoveToTrash && self.deletes_for_good(&opened) {
+            self.pending_mail_delete = Some(DeleteTarget::Opened {
+                source: source.clone(),
+                message: MessageTarget {
+                    account: opened.account,
+                    key: opened.key,
+                },
+            });
+            return;
+        }
         // Asked before the dispatch, while the message is still listed.
         let next = self.stop_after_removing(&opened);
         self.dispatch(intent_for(
@@ -299,6 +326,26 @@ impl AppModel {
             }
             ReadingSource::Window(window) => self.close_reading_window(&window.clone()),
         }
+    }
+
+    /// Whether a reading view's Delete is, for `opened`, the bar's Delete permanently: the core's
+    /// bar over that message's row says so (`docs/command-bar.md`, rule 8).
+    fn deletes_for_good(&self, opened: &OpenedMessage) -> bool {
+        let Some(app) = self.app.as_ref() else {
+            return false;
+        };
+        let row = SelectedRow::Message {
+            account: opened.account.clone(),
+            key: opened.key.clone(),
+        };
+        delete_item(&app.command_bar(vec![row])).is_some_and(|item| {
+            item.enabled
+                && item.confirm
+                && item.command
+                    == (Command::Act {
+                        action: RowAction::PermanentlyDelete,
+                    })
+        })
     }
 
     /// The message the pane moves on to once `opened` leaves the list, as the core names it.

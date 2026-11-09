@@ -29,7 +29,7 @@ extension ContentView {
     private func rowMenuButton(_ item: RowMenuItem, over keys: Set<SelectionKey>) -> some View {
         let available = item.enabled
             && (item.action != .moveToFolder || canAskMessageMove(Array(keys)))
-        return Button(role: item.action == .permanentlyDelete ? .destructive : nil) {
+        return Button(role: item.confirm ? .destructive : nil) {
             perform(item, over: keys)
         } label: {
             Label(item.action.title, systemImage: item.action.systemImage)
@@ -37,9 +37,23 @@ extension ContentView {
         .disabled(!available)
     }
 
-    /// Runs `item`: on its one message when it names one, otherwise over the rows the menu was
-    /// raised on.
-    private func perform(_ item: RowMenuItem, over keys: Set<SelectionKey>) {
+    /// Runs `item`: on its one message when it names one, otherwise over the rows the menu (or
+    /// the bar) was raised on. Where the core set `confirm` it asks first, naming what goes
+    /// (`docs/command-bar.md`, rule 6); the bar and the Delete key run through here too, so no
+    /// route deletes for good without the question.
+    func perform(_ item: RowMenuItem, over keys: Set<SelectionKey>) {
+        if item.confirm {
+            let rows = item.target.map { [SelectedRow.message(account: $0.account, key: $0.key)] }
+                ?? rows(of: keys)
+            pendingPurge = PurgeRequest(message: PurgeWording.message(for: rows)) {
+                run(item, over: keys)
+            }
+        } else {
+            run(item, over: keys)
+        }
+    }
+
+    private func run(_ item: RowMenuItem, over keys: Set<SelectionKey>) {
         if item.action == .moveToFolder {
             askMessageMove(Array(keys))
         } else if let target = item.target {
@@ -51,6 +65,14 @@ extension ContentView {
 
     private func perform(_ action: RowAction, on message: MenuMessage) {
         let (account, key) = (message.account, message.key)
+        // Taking away the message the pane is showing moves the pane on, as the pane's own
+        // Archive and Delete do (`docs/reading-actions.md`, "Where the pane goes next"): asked
+        // before the dispatch, while the row it is relative to is still listed.
+        let removes = [RowAction.archive, .delete, .permanentlyDelete, .markAsSpam, .markAsNotSpam]
+            .contains(action)
+        let opened = openedMessage.flatMap { $0.account == account && $0.key == key ? $0 : nil }
+        let next = removes ? opened.map(stopAfterRemoving) : nil
+        defer { if removes, opened != nil { settleReadingPane(next ?? nil) } }
         switch action {
         case .open: openAsClicked(message)
         case .openInWindow: openMenuTargetInWindow(message)

@@ -8,7 +8,8 @@ use super::{destinations::DestinationBar, folder_pane};
 use crate::{l10n, preferences};
 
 /// Assembles the folder pane: every account's tree scrolling under a header, with the destination
-/// switcher pinned beneath it.
+/// switcher pinned beneath it. Answers the header too, which only the calendar and contacts show:
+/// over mail, the window's band already stands above the pane (`docs/command-bar.md`, rule 2).
 ///
 /// The switcher is a **bottom bar** of the toolbar view rather than a row inside the scrolled
 /// tree, which is what makes it survive a long folder list: the bar's height is reserved before
@@ -20,8 +21,11 @@ use crate::{l10n, preferences};
 pub(super) fn sidebar_pane(
     accounts: &gtk::ScrolledWindow,
     destinations: &DestinationBar,
-) -> adw::ToolbarView {
+) -> (adw::ToolbarView, adw::HeaderBar) {
     let pane = adw::ToolbarView::new();
+    // The sidebar's own surface, which the mail window's header band shares
+    // (`docs/command-bar.md`, rule 2).
+    pane.add_css_class("sidebar-pane");
     let header = adw::HeaderBar::new();
     header.set_show_start_title_buttons(false);
     header.set_show_end_title_buttons(false);
@@ -29,7 +33,7 @@ pub(super) fn sidebar_pane(
     pane.add_top_bar(&header);
     pane.set_content(Some(accounts));
     pane.add_bottom_bar(destinations.widget());
-    pane
+    (pane, header)
 }
 
 /// Opens the folder pane at the width the user last left it, and keeps it there.

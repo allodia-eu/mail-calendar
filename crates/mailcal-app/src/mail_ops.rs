@@ -101,7 +101,41 @@ impl<P: Provider> App<P> {
 
     /// Permanently deletes `message`, on its owning account (irreversible). Hides the row
     /// optimistically, like a Trash move. Returns whether the edit applied.
+    ///
+    /// Only a message in Trash, or on an account with no Trash, is deleted for good: anything
+    /// else is refused, so no route here can lose mail that was never thrown away
+    /// (`docs/row-actions.md`, rule 6).
     pub(super) async fn permanently_delete(&self, message: MessageRef) -> bool {
+        let mailboxes = self
+            .engine
+            .mailboxes(&message.account)
+            .await
+            .unwrap_or_default();
+        if mailboxes.is_empty() {
+            log::warn!(
+                "purge: account {}'s folders are not known yet; refusing",
+                message.account.as_str()
+            );
+            return false;
+        }
+        if let Some(trash) = resolve_move_target(&mailboxes, &MailboxRole::Trash) {
+            let stored = self
+                .engine
+                .mail_by_keys(&message.account, std::slice::from_ref(&message.key))
+                .await
+                .unwrap_or_default();
+            let thrown = stored
+                .iter()
+                .any(|row| row.mailboxes.iter().any(|id| id.key() == trash.id.key()));
+            if !thrown {
+                log::warn!(
+                    "purge: key {} on account {} is not in Trash; refusing",
+                    message.key.as_str(),
+                    message.account.as_str(),
+                );
+                return false;
+            }
+        }
         let write = MailWrite::Edit(MailEdit::delete(message.key.clone()));
         self.remove_optimistically(message, write, WriteRefresh::Immediate)
             .await

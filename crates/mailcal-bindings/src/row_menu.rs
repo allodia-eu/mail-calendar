@@ -57,7 +57,8 @@ pub enum RowAction {
     Archive,
     /// Move to Trash.
     Delete,
-    /// Delete for good; each platform confirms it as its single-row path does.
+    /// Delete for good. Offered in Delete's place, never beside it, once everything it takes is
+    /// in Trash already or the account has no Trash; its item's `confirm` is set.
     PermanentlyDelete,
 }
 
@@ -83,6 +84,8 @@ pub struct RowMenuItem {
     /// it acts on the rows the menu was asked about, through `Intent::ActOnSelection` (or
     /// `FolderIntent::MoveMessages` for Move to folder…).
     pub target: Option<MenuMessage>,
+    /// Whether a client asks before acting: set for what cannot be undone, and only for that.
+    pub confirm: bool,
 }
 
 /// One section of a row menu: the items between two separators.
@@ -136,7 +139,7 @@ impl MailcalApp {
 }
 
 /// A selected row as the core names it; a malformed one is left out of the menu.
-fn row_ref(row: SelectedRow) -> Option<RowRef> {
+pub(crate) fn row_ref(row: SelectedRow) -> Option<RowRef> {
     match row {
         SelectedRow::Message { account, key } => {
             mailcal_app::MessageRef::from_parts(&account, key).map(RowRef::Message)
@@ -179,6 +182,11 @@ impl From<AppRowAction> for RowAction {
     }
 }
 
+/// Whether `action` is asked about first: it cannot be undone.
+pub(crate) const fn asks_first(action: AppRowAction) -> bool {
+    matches!(action, AppRowAction::PermanentlyDelete)
+}
+
 impl From<AppMenuMessage> for MenuMessage {
     fn from(message: AppMenuMessage) -> Self {
         Self {
@@ -195,6 +203,7 @@ impl From<AppRowMenuItem> for RowMenuItem {
             action: item.action.into(),
             enabled: item.enabled,
             target: item.target.map(MenuMessage::from),
+            confirm: asks_first(item.action),
         }
     }
 }

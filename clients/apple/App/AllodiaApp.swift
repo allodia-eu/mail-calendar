@@ -64,6 +64,12 @@ struct AllodiaApp: App {
             ContentView(session: session)
             #endif
         }
+        #if os(macOS)
+        // The title row holds only the window buttons and search, the actions being on the
+        // command bar beneath it, so it takes the compact height rather than the toolbar's full one:
+        // at full height the two rows stood a hand's width apart under the traffic lights.
+        .windowToolbarStyle(.unifiedCompact)
+        #endif
         #if os(iOS)
         // The periodic background mail sync: iOS launches this handler for the registered
         // BGAppRefreshTask; it runs one bounded pass, raises new-mail notifications, and

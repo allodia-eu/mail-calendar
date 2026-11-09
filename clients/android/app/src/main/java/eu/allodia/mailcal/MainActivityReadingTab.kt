@@ -5,15 +5,34 @@ package eu.allodia.mailcal
 
 import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
+import uniffi.mailcal_bindings.SelectedRow
 
 private const val TAG = "Mailcal"
 
 // A message is open: show its reading view over the list.
 @Composable
 internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: OpenedMessage) {
+    val ctx = LocalContext.current
+    var purging by remember { mutableStateOf<SelectedRow.Message?>(null) }
+    purging?.let { row ->
+        ConfirmDialog(
+            title = L10n.delete_permanently_title(ctx),
+            message = purgeMessage(ctx, listOf(row)),
+            action = L10n.action_delete_permanently(ctx),
+            tag = "purge",
+        ) { yes ->
+            purging = null
+            if (yes) instance.dispatch(Intent.PermanentlyDelete(row.account, row.key))
+        }
+    }
     ReadingScreen(
                             message = opened,
                             reading = reading,
@@ -72,7 +91,17 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                             // Archive/delete move the message out of the folder; the core hides
                             // the row optimistically, and the screen pops back to the list.
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },
-                            onDelete = { account, key -> instance.dispatch(Intent.Delete(account, key)) },
+                            // The bar's Delete over this one message: in Trash it deletes for
+                            // good, after asking (docs/command-bar.md, rule 8).
+                            onDelete = { account, key ->
+                                val row = SelectedRow.Message(account, key)
+                                val item = instance.commandBar(listOf(row)).deleteItem()
+                                if (item?.confirm == true) {
+                                    if (item.enabled) purging = row
+                                } else {
+                                    instance.dispatch(Intent.Delete(account, key))
+                                }
+                            },
                             // The sun/moon button: the preference Settings → Reading also shows.
                             // Applied here as well, so the open message re-renders on the press
                             // rather than on the SETTINGS pull that follows it.

@@ -41,12 +41,23 @@ extension ContentView {
     ///    Contacts → Mail, both nested splits, still snapped the sidebar to 320). The `ZStack`
     ///    persists, so the swap happens *inside* a pane the split never sees change.
     var macOSLayout: some View {
-        HSplitView {
-            sidebarList(showsCalendarAndContacts: true)
-                .frame(minWidth: 220, idealWidth: 240, maxWidth: 320)
-                .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacSidebarV3")))
+        VStack(spacing: 0) {
+            // The command bar spans the window, sidebar included (`docs/command-bar.md`, rule 2).
+            // An optional ahead of the split rather than a branch around it, so the split keeps its
+            // identity, and the widths AppKit restored, as the bar comes and goes with mail.
+            if model.destination == .mail {
+                mailCommandBar
+                Divider()
+            }
+            HSplitView {
+                sidebarList(showsCalendarAndContacts: true)
+                    .frame(minWidth: 220, idealWidth: 240, maxWidth: 320)
+                    .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacSidebarV3")))
+                    // The bar's New Mail slot is as wide as this, so its actions begin over the list.
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sidebarWidth = $0 }
 
-            ZStack { destinationPanes }
+                ZStack { destinationPanes }
+            }
         }
         .frame(minWidth: 1_080, minHeight: 520)
     }
@@ -75,18 +86,11 @@ extension ContentView {
                     .frame(minWidth: 420, idealWidth: 620)
             }
         case .mail:
-            // The actions bar spans the split rather than sitting inside the list column: it acts
-            // on rows, but its buttons are as wide as the words on them, and a column the user can
-            // drag to 420 points made the last of them something to scroll sideways for.
-            VStack(spacing: 0) {
-                selectionBar
-                Divider()
-                mailPanes
-            }
+            mailPanes
         }
     }
 
-    /// The mailbox's two panes, under the actions bar that spans them.
+    /// The mailbox's two panes, under the command bar that spans the window.
     private var mailPanes: some View {
         HSplitView {
             messageList

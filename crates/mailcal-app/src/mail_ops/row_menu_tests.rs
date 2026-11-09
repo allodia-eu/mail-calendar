@@ -251,7 +251,7 @@ async fn the_menu_will_not_answer_a_draft() {
 }
 
 #[tokio::test]
-async fn an_account_with_no_archive_offers_archive_disabled() {
+async fn an_account_with_no_archive_or_trash_disables_archive_and_purges_on_delete() {
     let provider = FakeProvider::with(vec![
         mail("r1", "a", 0, MessageKind::Received, ""),
         mail("r2", "a", 10, MessageKind::Received, ""),
@@ -263,7 +263,10 @@ async fn an_account_with_no_archive_offers_archive_disabled() {
 
     let menu = app.row_menu(&conversation());
     assert!(!item(&menu, RowAction::Archive).0, "nowhere to archive to");
-    assert!(!item(&menu, RowAction::Delete).0, "nor a Trash");
+    assert!(
+        item(&menu, RowAction::PermanentlyDelete).0,
+        "with no Trash to move to, Delete deletes for good"
+    );
 }
 
 /// The message above a conversation leaves, and the pane lands on what clicking the conversation

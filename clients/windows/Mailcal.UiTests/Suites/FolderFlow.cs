@@ -25,7 +25,7 @@ internal sealed class FolderFlow(App app)
     internal void OpenAndSync(string folder)
     {
         app.OpenFolder(folder);
-        Agent.Invoke(Agent.Find(Filter.ById("SelectionSync", "Button")) ?? throw new InvalidOperationException("the toolbar has no Sync button"));
+        Agent.Invoke(Agent.Find(Filter.ById("CommandSync", "Button")) ?? throw new InvalidOperationException("the toolbar has no Sync button"));
     }
 
     /// <summary>Waits until the open list does, or with <paramref name="absent"/> does not, show

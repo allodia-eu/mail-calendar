@@ -79,13 +79,15 @@ public sealed class RowMenuTests(HarnessApp harness)
     {
         var menu = Menu(app, Header(app, Received));
         var labels = string.Join(", ", menu.Keys);
-        foreach (var key in new[] { "action_open", "action_open_in_window", "action_reply", "action_reply_all", "action_forward", "action_flag", "action_mark_as_spam", "action_move_to_folder", "action_archive", "action_move_to_trash", "action_delete_permanently" })
+        foreach (var key in new[] { "action_open", "action_open_in_window", "action_reply", "action_reply_all", "action_forward", "action_flag", "action_mark_as_spam", "action_move_to_folder", "action_archive", "action_delete" })
         {
             Assert.True(menu.ContainsKey(Label(key)), $"the conversation's menu has no '{Label(key)}', got: {labels}");
         }
         Assert.True(menu[Label("action_reply")].Enabled, "the newest message was received, so it can be answered");
         Assert.True(menu[Label("action_mark_as_spam")].Enabled, "and reported");
         Assert.False(menu.ContainsKey(Label("thread_archive")), "the conversation's archive is the message menu's Archive");
+        Assert.False(menu.ContainsKey(Label("action_delete_permanently")),
+            "outside Trash no menu offers a delete for good beside Delete (docs/command-bar.md, rule 6)");
     });
 
     /// <summary>Rule 6: a draft is not yet a message anyone sent, so it cannot be answered, and the
@@ -112,7 +114,7 @@ public sealed class RowMenuTests(HarnessApp harness)
         Assert.True(App.Eventually(() => RowSaysFlagged(app, Received), TimeSpan.FromSeconds(15)), "flagging the conversation drew no flag on its row");
         // A sync puts the list back to what the server holds, so a flag only this client believed in
         // is gone after it.
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button"))!);
+        app.Agent.Invoke(app.Agent.Find(Filter.ById("CommandSync", "Button"))!);
         app.Agent.Settle(floor: TimeSpan.FromSeconds(2));
         Assert.True(RowSaysFlagged(app, Received), "the flag did not survive a sync: it never reached the server");
 
@@ -136,7 +138,7 @@ public sealed class RowMenuTests(HarnessApp harness)
         var message = app.Agent.FindAll(new Filter { Type = "Button", Under = app.RowTitled(Received) }).Last(b => b.Rendered);
         var menu = Menu(app, message);
         var labels = string.Join(", ", menu.Keys);
-        foreach (var key in new[] { "action_open_in_window", "action_reply", "action_forward", "action_archive", "action_move_to_trash" })
+        foreach (var key in new[] { "action_open_in_window", "action_reply", "action_forward", "action_archive", "action_delete" })
         {
             Assert.True(menu.ContainsKey(Label(key)), $"a message inside the conversation has no '{Label(key)}', got: {labels}");
         }
@@ -209,7 +211,7 @@ public sealed class RowMenuTests(HarnessApp harness)
                 $"Date: {DateTime.UtcNow:r}", $"Message-ID: <{Guid.NewGuid()}@test.local>",
                 "MIME-Version: 1.0", "Content-Type: text/plain; charset=utf-8", "", "New mail.", ""), "inbox")
                 .GetAwaiter().GetResult();
-            app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionSync", "Button"))!);
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("CommandSync", "Button"))!);
             // Looked for by RowTitled, which scrolls: the list is virtualised, and the new mail is
             // listed at the top while the case left the list scrolled to its baseline message.
             bool Listed()

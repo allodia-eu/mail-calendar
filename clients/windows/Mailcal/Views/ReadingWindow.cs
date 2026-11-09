@@ -79,11 +79,12 @@ internal sealed class ReadingWindow : Window
             _model.Archive(opened.Account, opened.Key);
             Close();
         },
-        opened =>
+        opened => _ = ReadingActions.DeleteAsync(_model, opened, Content?.XamlRoot, remove =>
         {
-            _model.Delete(opened.Account, opened.Key);
+            remove();
             Close();
-        },
+            return Task.CompletedTask;
+        }),
         // Into this window's own slot. The pane's retry re-opens the pane's message, which from
         // here would leave this window on its error and blank the mailbox behind it.
         () => _model.RetryReadingWindow(_reader.Id));

@@ -51,6 +51,11 @@ impl MoveContext {
 
     /// The rows a menu opened on `row` acts on: the selection when `row` is one of the selected
     /// rows, and `row` alone otherwise (`docs/list-selection.md`, rule 12).
+    /// The rows selected when this was taken.
+    pub(crate) fn selected(&self) -> &[SelectedRow] {
+        &self.selected
+    }
+
     pub(crate) fn rows_for(&self, row: &SelectedRow) -> Vec<SelectedRow> {
         if self.selected.contains(row) {
             self.selected.clone()

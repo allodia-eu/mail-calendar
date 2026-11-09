@@ -4,26 +4,33 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import uniffi.mailcal_bindings.BulkAction
+import uniffi.mailcal_bindings.Command
+import uniffi.mailcal_bindings.CommandBar
+import uniffi.mailcal_bindings.CommandItem
+import uniffi.mailcal_bindings.CommandSection
 import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MenuMessage
 import uniffi.mailcal_bindings.MessageKind
 import uniffi.mailcal_bindings.RowAction
-import uniffi.mailcal_bindings.RowMenu
 import uniffi.mailcal_bindings.RowMenuItem
 import uniffi.mailcal_bindings.RowMenuSection
 import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.ThreadMessage
 import uniffi.mailcal_bindings.ThreadRow
 
-// What a row menu's items do, what the selection bar reads off the same answer, and which message a
+// What a row menu's items and the core's command bar do, and which message a
 // listed conversation opens (docs/row-actions.md, docs/drafts.md).
 class RowMenuPresentationTest {
     private val conversation = listOf(SelectedRow.Thread("acct-1", "thread-1"))
     private val received = MenuMessage(account = "acct-1", key = "newest", kind = MessageKind.RECEIVED)
 
-    private fun item(action: RowAction, enabled: Boolean = true, target: MenuMessage? = null) =
-        RowMenuItem(action = action, enabled = enabled, target = target)
+    private fun item(
+        action: RowAction,
+        enabled: Boolean = true,
+        target: MenuMessage? = null,
+        confirm: Boolean = false,
+    ) = RowMenuItem(action = action, enabled = enabled, target = target, confirm = confirm)
 
     @Test
     fun an_item_naming_a_message_acts_on_that_message_alone() {
@@ -55,7 +62,6 @@ class RowMenuPresentationTest {
             RowAction.UNFLAG to BulkAction.UNFLAG,
             RowAction.ARCHIVE to BulkAction.ARCHIVE,
             RowAction.DELETE to BulkAction.DELETE,
-            RowAction.PERMANENTLY_DELETE to BulkAction.PERMANENTLY_DELETE,
         )) {
             assertEquals(RowPick.Rows(conversation, batch), rowPick(item(action), conversation))
         }
@@ -64,49 +70,41 @@ class RowMenuPresentationTest {
         assertNull(rowPick(item(RowAction.MARK_AS_SPAM, enabled = false), conversation))
     }
 
+    // Deleting for good always asks, naming what the menu was asked about or the one message the
+    // item names (docs/command-bar.md, rule 6).
     @Test
-    fun the_bar_reads_its_toggles_and_what_responds_off_the_selections_menu() {
-        val menu = RowMenu(
-            sections = listOf(
-                RowMenuSection(items = listOf(item(RowAction.MARK_UNREAD), item(RowAction.UNFLAG))),
-                RowMenuSection(
-                    items = listOf(
-                        item(RowAction.ARCHIVE, enabled = false),
-                        item(RowAction.DELETE),
-                        item(RowAction.PERMANENTLY_DELETE),
-                    ),
-                ),
-            ),
-        )
+    fun an_item_the_core_says_to_confirm_asks_first() {
+        val purge = item(RowAction.PERMANENTLY_DELETE, confirm = true)
         assertEquals(
-            SelectionBarActions(
-                read = BulkAction.MARK_UNREAD,
-                readEnabled = true,
-                flag = BulkAction.UNFLAG,
-                flagEnabled = true,
-                archive = false,
-                delete = true,
-                permanentlyDelete = true,
+            RowPick.Ask(conversation, RowPick.Rows(conversation, BulkAction.PERMANENTLY_DELETE)),
+            rowPick(purge, conversation),
+        )
+        val one = item(RowAction.PERMANENTLY_DELETE, target = received, confirm = true)
+        assertEquals(
+            RowPick.Ask(
+                listOf(SelectedRow.Message("acct-1", "newest")),
+                RowPick.Write(Intent.PermanentlyDelete(account = "acct-1", key = "newest")),
             ),
-            SelectionBarActions.of(menu),
+            rowPick(one, conversation),
         )
     }
 
-    // "Mark as unread" over nothing describes an action nobody asked for.
     @Test
-    fun an_empty_menu_names_the_affirmative_actions_and_enables_none() {
-        assertEquals(
-            SelectionBarActions(
-                read = BulkAction.MARK_READ,
-                readEnabled = false,
-                flag = BulkAction.FLAG,
-                flagEnabled = false,
-                archive = false,
-                delete = false,
-                permanentlyDelete = false,
+    fun a_bar_item_runs_as_the_menus_own_item_and_sync_names_no_selection() {
+        val bar = CommandBar(
+            sections = listOf(
+                CommandSection(
+                    items = listOf(
+                        CommandItem(Command.Act(RowAction.PERMANENTLY_DELETE), true, null, true),
+                        CommandItem(Command.Act(RowAction.ARCHIVE), false, null, false),
+                    ),
+                ),
+                CommandSection(items = listOf(CommandItem(Command.Sync, true, null, false))),
             ),
-            SelectionBarActions.of(RowMenu(sections = emptyList())),
+            menu = emptyList(),
         )
+        assertEquals(item(RowAction.PERMANENTLY_DELETE, confirm = true), bar.deleteItem()?.menuItem())
+        assertNull(bar.sections[1].items[0].menuItem())
     }
 
     // Tapping a conversation opens its newest message whatever its kind, so a draft newest on a

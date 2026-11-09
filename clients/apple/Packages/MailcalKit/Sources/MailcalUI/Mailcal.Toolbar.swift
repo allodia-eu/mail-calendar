@@ -1,5 +1,5 @@
-// The macOS window toolbar: New Mail in the leading corner, the search field centred over the
-// window. Its own file so Mailcal.Layout.swift stays under the repo line limit.
+// The macOS window toolbar: the search field centred over the window on mail, New Mail in the
+// leading corner elsewhere. Its own file so Mailcal.Layout.swift stays under the repo line limit.
 //
 // A window toolbar rather than controls inside a pane, because it is the only surface on macOS
 // that is *the window's* own top row. The traffic lights already own the leading corner, so a
@@ -14,39 +14,41 @@ import SwiftUI
 
 extension ContentView {
     @ToolbarContentBuilder var windowToolbar: some ToolbarContent {
-        ToolbarItem(placement: .navigation) {
-            Button {
-                // Mail first: on macOS the composer takes the reading pane's place, and that
-                // pane exists only on the mail surface, so writing from the calendar has to
-                // bring the mailbox back with it or the draft would open behind the grid.
-                showMail()
-                beginNewMessage()
-            } label: {
-                // Two nudges, both measured against the window buttons rather than judged.
-                //
-                // Trailing: a glyph's bounding box carries its own air and a word's does not,
-                // so the toolbar's equal insets read as tight after the word.
-                //
-                // Bottom: SwiftUI centres the label's *line box*, which reserves descender
-                // depth that "New Mail" never uses, so the ink it draws sits 1.5 pt below the
-                // capsule's centre; the item's height is the toolbar's and does not grow, so
-                // padding under the label lifts what you can see onto the line the close,
-                // minimise and zoom buttons are on.
-                Label(L10n.action_compose(), systemImage: "square.and.pencil")
-                    .padding(.trailing, 2)
-                    .padding(.bottom, 3)
-            }
-            // Word and glyph together. A macOS toolbar draws a `Label` icon-only by default, so
-            // the one control this change exists to name would have arrived unnamed.
-            .labelStyle(.titleAndIcon)
-            .help(L10n.action_compose())
-        }
-        // Mail only. Search reads mail, and a field over the calendar would narrow nothing on
-        // screen. New Mail stays either way, so the toolbar is never empty and the titlebar
-        // never changes height as the user moves between surfaces.
+        // Mail keeps the search field here and New Mail on the command bar beneath this row
+        // (Mailcal.CommandBar.swift). The calendar and contacts keep New Mail here instead, so
+        // writing a message is one click from anywhere and this row is never empty, which would
+        // change the titlebar's height between surfaces.
         if model.destination == .mail {
             ToolbarItem(placement: .principal) { toolbarSearchField }
+        } else {
+            ToolbarItem(placement: .navigation) { toolbarNewMail }
         }
+    }
+
+    private var toolbarNewMail: some View {
+        Button {
+            // Mail first: on macOS the composer takes the reading pane's place, and that pane
+            // exists only on the mail surface, so writing from the calendar has to bring the
+            // mailbox back with it or the draft would open behind the grid.
+            showMail()
+            beginNewMessage()
+        } label: {
+            // Two nudges, both measured against the window buttons rather than judged.
+            //
+            // Trailing: a glyph's bounding box carries its own air and a word's does not, so the
+            // toolbar's equal insets read as tight after the word.
+            //
+            // Bottom: SwiftUI centres the label's *line box*, which reserves descender depth that
+            // "New Mail" never uses, so the ink it draws sits 1.5 pt below the capsule's centre;
+            // the item's height is the toolbar's and does not grow, so padding under the label
+            // lifts what you can see onto the line the close, minimise and zoom buttons are on.
+            Label(L10n.action_compose(), systemImage: "square.and.pencil")
+                .padding(.trailing, 2)
+                .padding(.bottom, 3)
+        }
+        // Word and glyph together. A macOS toolbar draws a `Label` icon-only by default.
+        .labelStyle(.titleAndIcon)
+        .help(L10n.action_compose())
     }
 
     /// The search field, as it was in the message list's header: the same control, the same

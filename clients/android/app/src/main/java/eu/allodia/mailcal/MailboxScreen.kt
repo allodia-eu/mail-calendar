@@ -42,6 +42,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.BulkAction
+import uniffi.mailcal_bindings.CommandBar
 import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.EmptyReason
 import uniffi.mailcal_bindings.RowMenu
@@ -97,6 +98,8 @@ internal fun MailboxScreen(
     // What a row's menu holds, which the core answers as it opens, and what picking an item runs
     // (docs/row-actions.md). Defaulted for a test or a screenshot run, whose menus hold nothing.
     rowMenu: (List<SelectedRow>) -> RowMenu = { RowMenu(emptyList()) },
+    // The selection mode's bar, as the core decides it (docs/command-bar.md).
+    commandBar: (List<SelectedRow>) -> CommandBar = { CommandBar(emptyList(), emptyList()) },
     onRowPick: (RowPick) -> Unit = {},
     // Where a row's Move to folder… may file it, or null to leave the item disabled.
     messageFiling: MessageFiling? = null,
@@ -140,6 +143,15 @@ internal fun MailboxScreen(
     }
     // Every row's menu. A batch over the selection runs the bar's own path, which lets go of the
     // rows a move takes.
+    // A pick that cannot be undone waits here on its question (docs/command-bar.md, rule 6).
+    var asking by remember { mutableStateOf<RowPick.Ask?>(null) }
+    fun route(pick: RowPick) {
+        when {
+            pick is RowPick.Ask -> asking = pick
+            pick is RowPick.Rows && pick.rows == selection.selectedRows() -> actOnSelection(pick.action)
+            else -> onRowPick(pick)
+        }
+    }
     val menus = RowMenus(
         menu = rowMenu,
         rowsFor = { row ->
@@ -152,14 +164,19 @@ internal fun MailboxScreen(
                 if (moved == selection.selectedRows()) selection.clear()
             }
         },
-        onPick = { pick ->
-            if (pick is RowPick.Rows && pick.rows == selection.selectedRows()) {
-                actOnSelection(pick.action)
-            } else {
-                onRowPick(pick)
-            }
-        },
+        onPick = ::route,
     )
+    asking?.let { ask ->
+        ConfirmDialog(
+            title = L10n.delete_permanently_title(ctx),
+            message = purgeMessage(ctx, ask.rows),
+            action = L10n.action_delete_permanently(ctx),
+            tag = "purge",
+        ) { yes ->
+            asking = null
+            if (yes) route(ask.then)
+        }
+    }
 
     SwipeUndoEffect(
         pending = swipeUndo.pending,
@@ -202,8 +219,9 @@ internal fun MailboxScreen(
                 MailSelectionBar(
                     selection = selection,
                     rows = visibleRows,
-                    actions = SelectionBarActions.of(rowMenu(selection.selectedRows())),
-                    onAct = actOnSelection,
+                    bar = commandBar(selection.selectedRows()),
+                    filing = menus.filing,
+                    onPick = ::route,
                 )
             } else {
                 MailboxTopBar(

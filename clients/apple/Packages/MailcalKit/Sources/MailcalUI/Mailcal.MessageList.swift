@@ -119,7 +119,7 @@ extension ContentView {
         // list, never the window, so a focused field keeps its own keys (rule 9).
         return list
             .focused($messageListFocused)
-            .onDeleteCommand { actOnSelection(.delete) }
+            .onDeleteCommand { deleteSelection() }
             .onExitCommand { selection.clear() }
         #else
         return list.environment(\.editMode, $editMode)

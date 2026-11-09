@@ -13,6 +13,7 @@ using System.Collections.ObjectModel;
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -342,6 +343,17 @@ public sealed partial class MainWindow
         if (result == ContentDialogResult.Primary)
         {
             Model.RemoveAccount(id);
+        }
+    }
+
+    // Every row leads with its disclosure column, and a folder takes its account's columns
+    // (docs/folder-pane.md, rule 32). The footer destinations draw through the same template but
+    // belong to no tree, so they keep the framework's columns, as its own Settings gear does.
+    private void OnSidebarRowLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is NavigationViewItem item && !(item.DataContext is SidebarItem row && FooterItems.Contains(row)))
+        {
+            SidebarAccountColumns.Apply(item);
         }
     }
 
