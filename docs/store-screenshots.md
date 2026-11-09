@@ -29,21 +29,21 @@ same guarantee.
 
 - **Platforms:** `macos`, `iphone`, `ipad`, `android`, `windows`.
 - **Locales:** `en`, `nl`, `de`, `fr`, `es`, `it`, `pt`: exactly the app's localisation catalog
-  ([`project.inlang/settings.json`](../../project.inlang/settings.json)); each store listing
+  ([`project.inlang/settings.json`](../project.inlang/settings.json)); each store listing
   language needs its own screenshots.
 - **Screens (8):** `list`, `list-dark`, `reply`, `settings`, `add-account`, `calendar`,
   `invitation`, `meeting`. The order they appear in a store gallery is a separate decision, and
   one that is written down: `SCREEN_ORDER` in
-  [`scripts/dev/store_payload.py`](../../scripts/dev/store_payload.py), which every publisher
+  [`scripts/dev/store_payload.py`](../scripts/dev/store_payload.py), which every publisher
   applies (alphabetical would open every listing on `add-account`).
 
 **`invitation`** is the one screen that shows mail and calendar working as one product: a meeting
 request open in the reading view, with Accept / Maybe / Decline over a preview of the day it would
-land on ([`docs/invitations.md`](../../docs/invitations.md)).
+land on ([`docs/invitations.md`](invitations.md)).
 
 **`meeting`** is the calendar's half of that story: the showcase's design sync open in the event
 detail over the week, with Join, the meeting ID and the number to dial in on
-([`docs/conferencing.md`](../../docs/conferencing.md)). Every client opens the event the core
+([`docs/conferencing.md`](conferencing.md)). Every client opens the event the core
 names (`showcase_meeting`), so no seed can leave one of them photographing an empty detail.
 
 **`list-dark` is not a screen of its own: it is `list` again, in the other appearance.** Every
@@ -67,9 +67,6 @@ repository; the number is here because it decides what to capture.
 On the three-pane clients the dark capture includes the reading pane, and the message in it is
 drawn dark like the rest of the frame ([`reading-dark-mode.md`](reading-dark-mode.md)). A
 `list-dark` frame with a white panel in it predates that, and is re-captured rather than edited.
-
-Windows is the one platform still at the old set (`en`/`nl`, five screens): it builds only on a
-Windows host, so it is re-captured there rather than in the same pass as the other four.
 
 **Android is one flat directory, and the form factor is in the file name:**
 `android/<form-factor>-<locale>-<screen>.png`: e.g. `android/tablet-10-nl-list.png`. Google Play
@@ -152,7 +149,7 @@ picker needs: no rename step.
 macOS / iPhone / iPad run on a Mac; **Android needs an emulator** (SystemUI demo mode, which pins
 the status bar to a clean 09:41, only works on emulators, not a physical phone); **Windows** runs
 on a Windows host. The tablet targets boot their AVD if it isn't already running and shut it down
-again afterwards, so each is a single command. See [`docs/debugging.md`](../../docs/debugging.md) →
+again afterwards, so each is a single command. See [`docs/debugging.md`](debugging.md) →
 the showcase section.
 
 If the phone screenshots change, **regenerate the feature graphic too**: it is composed from them.
