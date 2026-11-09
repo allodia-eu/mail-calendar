@@ -60,6 +60,7 @@ pub(crate) fn page(
                 // Switching off asks first exactly when it deletes something.
                 confirms_off: domain_of(capability.into()).is_some(),
                 reviews_server_change: review == Some(capability),
+                signs_in_separately: false,
             }
         })
         .collect();
@@ -100,6 +101,7 @@ pub(crate) fn page(
         }),
         shared: None,
         sign_in: None,
+        separate_server: None,
         reply_fallback: entry
             .uses
             .iter()
@@ -215,3 +217,6 @@ pub(crate) mod shared;
 
 #[path = "account_page_sign_in.rs"]
 pub(crate) mod sign_in;
+
+#[path = "account_page_separate.rs"]
+pub(crate) mod separate;

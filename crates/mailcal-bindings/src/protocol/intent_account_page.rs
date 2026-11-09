@@ -87,6 +87,17 @@ pub enum AccountPageIntent {
         account: String,
         shown: crate::ServerChange,
     },
+    /// Give the calendar and contacts the account's sign-in does not reach a sign-in of their
+    /// own (`AccountSeparateServer`): an account at their server, signing in as `username` with
+    /// `password`, linked to this one. It connects before the account changes.
+    ConnectSeparateServer {
+        account: String,
+        username: String,
+        password: crate::TypedPassword,
+    },
+    /// Stop using the account for the calendar and contacts its sign-in does not reach, as
+    /// setup's step offers in place of a sign-in: what the device holds of them is deleted.
+    StopUsingSeparateServer { account: String },
 }
 
 impl AccountPageIntent {
@@ -107,7 +118,9 @@ impl AccountPageIntent {
             | Self::SetSharedMailbox { account, .. }
             | Self::AddSharedMailbox { account, .. }
             | Self::UsePassword { account, .. }
-            | Self::AllowServerChange { account, .. } => account,
+            | Self::AllowServerChange { account, .. }
+            | Self::ConnectSeparateServer { account, .. }
+            | Self::StopUsingSeparateServer { account } => account,
         }
     }
 }

@@ -72,6 +72,10 @@ pub struct AccountUseSwitch {
     /// The question that allows its new server is offered beneath it: under the last of the uses
     /// paused for one, so it follows every status that says so.
     pub reviews_server_change: bool,
+    /// The action that opens the separate server's form is offered beneath it: under the last of
+    /// the uses that need it, so it follows every status that says why.
+    #[uniffi(default = false)]
+    pub signs_in_separately: bool,
 }
 
 /// One link slot's picker: "none", then the accounts it may name.
@@ -372,6 +376,9 @@ pub struct AccountPage {
     /// that is not at a Nextcloud server.
     #[uniffi(default = None)]
     pub sign_in: Option<crate::AccountSignIn>,
+    /// While calendar or contacts need a sign-in of their own: the form that gives them one.
+    #[uniffi(default = None)]
+    pub separate_server: Option<crate::AccountSeparateServer>,
     pub remove: ControlState,
     /// What happens to an invitation answer its calendar server cannot pass on; `None` for an
     /// account not used for its calendar.

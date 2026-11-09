@@ -32,7 +32,6 @@ fn entry(kind: AccountKind, sign_in: SignInMethod) -> AccountEntry {
         links: AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
-        separate_server: None,
         distinction: None,
         mail_sync: None,
         nextcloud: false,
@@ -226,14 +225,14 @@ fn a_server_is_asked_once_and_an_answer_about_a_changed_sign_in_is_dropped() {
     let ticket = answers.ask("a", false).expect("asked");
     assert_eq!(answers.ask("a", true), None, "one ask at a time");
     assert!(answers.answered("a", ticket, options(true, false, false)));
-    assert_eq!(answers.options("a"), Some(options(true, false, false)));
+    assert_eq!(answers.get("a"), Some(options(true, false, false)));
     assert_eq!(answers.ask("a", false), None, "answered");
 
     // The page opened again: asked again, and the answer it had is drawn meanwhile.
     let reopened = answers.ask("a", true).expect("asked again");
-    assert_eq!(answers.options("a"), Some(options(true, false, false)));
+    assert_eq!(answers.get("a"), Some(options(true, false, false)));
     assert!(answers.answered("a", reopened, options(false, true, false)));
-    assert_eq!(answers.options("a"), Some(options(false, true, false)));
+    assert_eq!(answers.get("a"), Some(options(false, true, false)));
     // The same answer again leaves the page as it is drawn.
     let same = answers.ask("a", true).expect("asked again");
     assert!(!answers.answered("a", same, options(false, true, false)));
@@ -243,5 +242,5 @@ fn a_server_is_asked_once_and_an_answer_about_a_changed_sign_in_is_dropped() {
     let stale = answers.ask("a", false).expect("asked again");
     answers.forget("a");
     answers.answered("a", stale, options(false, true, false));
-    assert_eq!(answers.options("a"), None);
+    assert_eq!(answers.get("a"), None);
 }

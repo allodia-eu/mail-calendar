@@ -15,14 +15,6 @@ extension MailboxModel {
         }.value
     }
 
-    /// Whether the server holding `ask`'s uses is Nextcloud.
-    func separateServerOffersNextcloudSignIn(_ ask: SeparateServerAsk) async -> Bool {
-        guard let app else { return false }
-        return await Task.detached(priority: .userInitiated) {
-            app.separateServerOffersNextcloudSignIn(accountId: ask.account, uses: ask.uses)
-        }.value
-    }
-
     // MARK: Setup
 
     /// Setup's sign-in at the server `server` names, adding a calendar and contacts account used

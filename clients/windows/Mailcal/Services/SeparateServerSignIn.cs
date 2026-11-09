@@ -35,15 +35,12 @@ internal sealed record SeparateSignInEnd(string? AccountId, string? Error)
     internal static SeparateSignInEnd Retired { get; } = new(null, null);
 }
 
-/// <summary>What the form does once a connect or a sign-in has answered.</summary>
-/// <param name="Error">Null to go on as a connect does (setup to its link step, the account's
-/// page to a redraw from the snapshot); otherwise what to say under the form, which stays.</param>
+/// <summary>What the form does once a sign-in has answered.</summary>
+/// <param name="Error">Null to go on (setup to its link step, the account's page to a redraw
+/// without the form); otherwise what to say under the form, which stays.</param>
 internal sealed record SeparateServerNext(string? Error)
 {
     internal bool GoesOn => Error is null;
-
-    /// <summary>What Connect's answer makes: null is moved.</summary>
-    internal static SeparateServerNext AfterConnect(string? error) => new(error);
 }
 
 /// <summary>Which sign-in the server offers above the password field.</summary>
@@ -60,9 +57,6 @@ internal enum SeparateSignInOffer
 
 internal sealed class SeparateServerSignIn
 {
-    // Each form's answer, by the account and the uses it moves: null while it is still out.
-    private readonly Dictionary<string, SeparateSignInOffer?> _offers = new();
-
     private int _attempt;
 
     /// <summary>Where the current attempt stands.</summary>
@@ -76,27 +70,17 @@ internal sealed class SeparateServerSignIn
     internal static string Key(SeparateServerStep step) =>
         $"{step.AccountId}\n{string.Join(',', UnreachedUsesRules.Dav(step.Uses))}";
 
-    /// <summary>Whether drawing the form for <paramref name="step"/> asks the core; once per
-    /// account and uses, so a redraw does not ask again.</summary>
-    internal bool Asks(SeparateServerStep step) => _offers.TryAdd(Key(step), null);
-
-    /// <summary>The core's answer for <paramref name="step"/>: whether the server signs in at its
-    /// own provider.</summary>
-    internal void Answered(SeparateServerStep step, bool offers) =>
-        Answered(step, offers ? SeparateSignInOffer.Provider : SeparateSignInOffer.None);
-
-    /// <summary>The core's answer for <paramref name="step"/>.</summary>
-    internal void Answered(SeparateServerStep step, SeparateSignInOffer offer) => _offers[Key(step)] = offer;
-
-    /// <summary>Which sign-in the form for <paramref name="step"/> offers: none until the core has
-    /// answered for exactly those uses.</summary>
-    internal SeparateSignInOffer Offer(SeparateServerStep? step) =>
-        step is not null && _offers.TryGetValue(Key(step), out var offer) && offer is { } answered
-            ? answered
-            : SeparateSignInOffer.None;
+    /// <summary>Which sign-in the form for <paramref name="step"/> offers: none until the core
+    /// draws one.</summary>
+    internal static SeparateSignInOffer Offer(SeparateServerStep? step) => step?.Section.SignIn switch
+    {
+        AccountSeparateSignIn.Provider => SeparateSignInOffer.Provider,
+        AccountSeparateSignIn.Nextcloud => SeparateSignInOffer.Nextcloud,
+        _ => SeparateSignInOffer.None,
+    };
 
     /// <summary>Whether the form for <paramref name="step"/> offers a sign-in at all.</summary>
-    internal bool Offers(SeparateServerStep? step) => Offer(step) != SeparateSignInOffer.None;
+    internal static bool Offers(SeparateServerStep? step) => Offer(step) != SeparateSignInOffer.None;
 
     /// <summary>A press of the button: a new attempt, which supersedes any still out.</summary>
     /// <returns>The attempt's number, which its progress and its end name.</returns>
@@ -145,8 +129,8 @@ internal sealed class SeparateServerSignIn
         Phase = SeparateSignInPhase.Idle;
         return end switch
         {
-            { AccountId: not null } => SeparateServerNext.AfterConnect(null),
-            { Error: { } error } => SeparateServerNext.AfterConnect(error),
+            { AccountId: not null } => new SeparateServerNext(null),
+            { Error: { } error } => new SeparateServerNext(error),
             _ => null,
         };
     }

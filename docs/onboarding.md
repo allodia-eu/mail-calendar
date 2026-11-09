@@ -114,14 +114,15 @@ and Skip. Where that server signs in at an issuer of its own that may be sent it
 ([`mail-oauth.md`](mail-oauth.md) rule 13), the step offers that sign-in above the password field,
 asked off the UI thread once the step is drawn; the password field stays for a server that also
 takes one. A Nextcloud server offers its own sign-in there the same way
-([`nextcloud-sign-in.md`](nextcloud-sign-in.md)). The step is drawn from the new account's entry (`AccountEntry.separate_server`: the uses, the
-server's host and the login), which the add's own connect fills. Connect makes them
-an account of their own linked to the mailbox (`add_linked_calendar_account`,
-[`accounts.md`](accounts.md) rule 18), and the link step then offers only what is still unlinked;
-a refused password is said under the field and keeps the step. Skip switches those uses off on the
-new account, so it does not open on a calendar that cannot connect; the account's page offers the
-same step later. **While Connect or Skip runs, a spinner turns beside the buttons** and the
-controls hold still. A connect can take half a minute, because the mailbox's calendar and contacts
+([`nextcloud-sign-in.md`](nextcloud-sign-in.md)). The step is drawn from the new account's page
+(`AccountPage::separate_server`: the uses, the server's host and the login), which the add's own
+connect fills, and the core asks which way in the server offers. Connect makes them an account of
+their own linked to the mailbox ([`accounts.md`](accounts.md) rule 18), and the link step then
+offers only what is still unlinked; a refused password is said under the field and keeps the step.
+Skip switches those uses off on the new account, so it does not open on a calendar that cannot
+connect; the account's page offers the same step later. Both are changes on the account's page, and
+the step is over once the core draws none. **While Connect or Skip runs, a spinner turns beside
+the button pressed** and the controls hold still. A connect can take half a minute, because the mailbox's calendar and contacts
 move to the new account and the mailbox is dialled again, and a form that only greys its controls
 for that long reads as one that hangs. The account page's form does the same.
 

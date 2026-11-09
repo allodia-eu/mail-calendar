@@ -1,33 +1,12 @@
 // Signing a separate calendar or address book server in at its own provider, from the form that
-// otherwise asks for its password (docs/mail-oauth.md rule 13, docs/accounts.md rule 18). The
-// server is asked once the form is drawn; until it answers the form is the password form, and an
-// answer never takes away a field somebody has started typing in. The way back from the browser is
-// the setup sign-in's own (`SignInAttempts`, docs/onboarding.md "Nobody may be stranded on it").
+// otherwise asks for its password (docs/mail-oauth.md rule 13, docs/accounts.md rule 18). The core
+// asks the server and draws its answer on the section; until it has, the form is the password
+// form, and an answer never takes away a field somebody has started typing in. The way back from
+// the browser is the setup sign-in's own (`SignInAttempts`, docs/onboarding.md "Nobody may be
+// stranded on it").
 
 import Foundation
 import MailcalBindings
-
-/// What the server answered about a sign-in at its own provider, and which form it was asked for.
-struct SeparateServerOffer: Equatable {
-    let account: String
-    let uses: [AccountCapability]
-    let offers: Bool
-    /// The server is Nextcloud, whose own sign-in is offered where its provider's is not
-    /// (docs/nextcloud-sign-in.md rule 2).
-    let nextcloud: Bool
-
-    init(_ ask: SeparateServerAsk, offers: Bool, nextcloud: Bool = false) {
-        account = ask.account
-        uses = ask.uses
-        self.offers = offers
-        self.nextcloud = nextcloud && !offers
-    }
-
-    /// Whether this is the answer for `ask`: the same mailbox and the same uses.
-    func answers(_ ask: SeparateServerAsk) -> Bool {
-        account == ask.account && uses == ask.uses
-    }
-}
 
 /// How a sign-in at the server's own provider ended.
 enum SeparateServerSignInOutcome: Equatable {
@@ -39,7 +18,7 @@ enum SeparateServerSignInOutcome: Equatable {
     case failed(String)
 }
 
-/// What the form does once a Connect or a sign-in has answered.
+/// What the form does once a sign-in has answered.
 enum SeparateServerNext: Equatable {
     /// The uses moved: setup goes on to the link step, and the account's page folds the form away.
     case done
@@ -48,11 +27,6 @@ enum SeparateServerNext: Equatable {
 }
 
 extension SeparateServerRules {
-    /// Where Connect leads: `refused` is the core's reason, `nil` once the uses moved.
-    static func afterConnect(_ refused: String?) -> SeparateServerNext {
-        refused.map { .stay(failure: $0) } ?? .done
-    }
-
     /// Where a sign-in leads: a success where Connect's success does.
     static func afterSignIn(_ outcome: SeparateServerSignInOutcome) -> SeparateServerNext {
         switch outcome {
@@ -81,8 +55,6 @@ extension SeparateServerRules {
 /// One separate-server form's sign-in: whether it is offered, whether the password route is drawn
 /// beside it, and the attempts its button starts.
 struct SeparateServerSignIn: Equatable {
-    /// The server's answer; `nil` until it has given one.
-    private(set) var offer: SeparateServerOffer?
     /// Whether the password route is drawn beside the sign-in, as the IMAP card's "Use a password
     /// instead" draws it.
     private(set) var passwordChosen = false
@@ -92,17 +64,14 @@ struct SeparateServerSignIn: Equatable {
     /// nothing interrupts, so it draws no way back.
     private(set) var completing = false
 
-    /// The sign-in is offered only once the server said yes, and only for the form it was asked
-    /// about.
+    /// The sign-in at the server's own provider, offered once the core draws it.
     func offersSignIn(_ ask: SeparateServerAsk) -> Bool {
-        guard let offer else { return false }
-        return offer.offers && offer.answers(ask)
+        ask.section.signIn == .provider
     }
 
-    /// The sign-in with Nextcloud, offered on the same terms where the provider's is not.
+    /// The sign-in with Nextcloud, offered on the same terms.
     func offersNextcloud(_ ask: SeparateServerAsk) -> Bool {
-        guard let offer else { return false }
-        return offer.nextcloud && offer.answers(ask)
+        ask.section.signIn == .nextcloud
     }
 
     /// The login and password: always without a sign-in; beside one, once the password route is
@@ -122,10 +91,9 @@ struct SeparateServerSignIn: Equatable {
     /// The way back from the browser, once the hop has outlasted its threshold.
     var escapable: Bool { attempts.escapable && !completing }
 
-    /// The server answered. `started` keeps the fields of a password route somebody has begun:
-    /// an answer must not take them away.
-    mutating func answered(_ offer: SeparateServerOffer, started: Bool) {
-        self.offer = offer
+    /// The core drew a sign-in the form did not offer before. `started` keeps the fields of a
+    /// password route somebody has begun: an answer must not take them away.
+    mutating func offered(started: Bool) {
         if started { passwordChosen = true }
     }
 

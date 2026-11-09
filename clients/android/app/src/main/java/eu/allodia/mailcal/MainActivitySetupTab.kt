@@ -42,12 +42,11 @@ internal fun MainActivity.AccountSetupTabContent(instance: MailcalApp, ctx: Cont
         val separate = setupFlow.separate
         SeparateServerStepScreen(
             form = form,
-            controls = separate.controls,
-            error = separate.error,
-            onConnect = { username, password -> connectSetupSeparate(username, password) },
+            controls = SeparateControls.of(form.section, separate.browser.step),
+            error = separate.error ?: form.section.failed?.let { refusalSaid(ctx, it) },
+            onConnect = { username, password -> connectSeparate(separate, username, password) },
             onSkip = { skipSetupSeparate() },
             onSignIn = { signInSeparate(separate) },
-            onShown = { askSeparateSignIn(separate) },
             onLeave = { separate.left() },
         )
         return

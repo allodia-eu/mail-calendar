@@ -45,6 +45,16 @@ internal sealed class SetupFlow
         return ToLinks(stepFor);
     }
 
+    /// <summary>The core drew the separate-server step again: <paramref name="step"/> in its place,
+    /// while it is on screen.</summary>
+    public void Redraw(SeparateServerStep step)
+    {
+        if (SeparateServer?.AccountId == step.AccountId)
+        {
+            SeparateServer = step;
+        }
+    }
+
     /// <summary>The separate-server step answered, connected or skipped: on to the link step.</summary>
     /// <returns>Whether a link step is to be shown; otherwise the flow ends.</returns>
     public bool SeparateServerDone(Func<string, SetupLinkStep?> stepFor)

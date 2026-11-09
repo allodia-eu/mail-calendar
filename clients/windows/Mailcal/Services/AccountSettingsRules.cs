@@ -135,9 +135,6 @@ internal static class AccountSettingsRules
             parts.AddRange(entry.LinkCandidates.Contacts.Select(Linked));
             parts.AddRange(entry.LinkCandidates.Mail.Select(Linked));
             parts.AddRange(entry.LinkCandidates.Suggested);
-            parts.Add(entry.SeparateServer is { } separate
-                ? $"{string.Join(',', separate.Uses)}|{separate.Host}|{separate.Username}"
-                : "-");
             parts.Add(Distinction(entry.Distinction));
         }
         parts.Add("beside");
@@ -158,7 +155,7 @@ internal static class AccountSettingsRules
         foreach (var use in page.Uses)
         {
             yield return $"use:{use.Capability}={use.On}/{Control(use.Control)}/{use.Blocked}/{use.Status}/"
-                + $"{use.AsksProvider}/{use.ConfirmsOff}/{use.ReviewsServerChange}";
+                + $"{use.AsksProvider}/{use.ConfirmsOff}/{use.ReviewsServerChange}/{use.SignsInSeparately}";
         }
         foreach (var picker in page.Links)
         {
@@ -188,6 +185,7 @@ internal static class AccountSettingsRules
                 form.SmtpSecurity, form.CaldavUrl, form.CarddavUrl, form.Username, form.Password,
                 Control(servers.Save), servers.SignInRefused);
         }
+        yield return $"separate:{UnreachedUsesRules.Fingerprint(page.SeparateServer)}";
         if (page.SignIn is { } signIn)
         {
             yield return $"sign-in:{signIn.Line}/{Control(signIn.Control)}/{signIn.Switches}/"

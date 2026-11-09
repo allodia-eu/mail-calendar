@@ -1,58 +1,35 @@
-//! When the form offers the sign-in at its server's own provider, what an answer for an attempt
-//! it has moved on from does, and where a sign-in's success leads.
+//! When the form offers the sign-in at its server's own provider, and what an answer for an
+//! attempt it has moved on from does.
 
-use mailcal_bindings::AccountCapability;
+use mailcal_bindings::{AccountCapability, AccountSeparateSignIn};
 
 use super::{SignInEnd, SignInStage, as_connected};
-use crate::{
-    l10n,
-    ui::separate_sign_in::{Landing, SeparateFrom, landing, tests::form},
-};
+use crate::{l10n, ui::separate_sign_in::tests::form};
 
-#[test]
-fn the_sign_in_is_offered_only_after_the_server_says_so_for_the_forms_uses() {
+/// The form for the calendar, at a server that offers `sign_in`.
+fn offering(sign_in: Option<AccountSeparateSignIn>) -> crate::ui::separate_sign_in::SeparateForm {
     let mut form = form(vec![AccountCapability::Calendar]);
-    assert!(!form.offers_sign_in, "nothing is offered before the answer");
-    assert!(!form.begin_sign_in(1), "and nothing starts");
-
-    form.offer_answered(&[AccountCapability::Contacts], true, false);
-    assert!(
-        !form.offers_sign_in,
-        "an answer for other uses is not this form's"
-    );
-    form.offer_answered(&[AccountCapability::Calendar], false, false);
-    assert!(!form.offers_sign_in);
-    form.offer_answered(&[AccountCapability::Calendar], true, false);
-    assert!(form.offers_sign_in);
-    assert!(form.begin_sign_in(1));
+    form.section.sign_in = sign_in;
+    form
 }
 
 #[test]
-fn a_nextcloud_server_offers_its_own_sign_in_unless_a_provider_answered() {
-    let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], false, true);
-    assert!(form.nextcloud && !form.offers_sign_in);
-    assert!(form.offers());
-    assert!(form.begin_sign_in(1), "the same stages carry it");
-
-    let mut form = super::super::separate_sign_in::tests::form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true, true);
+fn a_sign_in_starts_only_once_the_server_offers_one() {
+    let mut form = offering(None);
+    assert!(!form.begin_sign_in(1), "nothing starts before the answer");
+    form.section.sign_in = Some(AccountSeparateSignIn::Nextcloud);
+    assert!(form.begin_sign_in(1), "the same stages carry Nextcloud's");
+    let mut form = offering(Some(AccountSeparateSignIn::Provider));
+    form.section.connect.enabled = false;
     assert!(
-        form.offers_sign_in && !form.nextcloud,
-        "one sign-in is offered, never two"
-    );
-
-    form.offer_answered(&[AccountCapability::Contacts], false, true);
-    assert!(
-        !form.nextcloud,
-        "an answer for other uses is not this form's"
+        !form.begin_sign_in(1),
+        "nor while a change runs on the page"
     );
 }
 
 #[test]
 fn only_the_blocking_core_calls_hold_the_form() {
-    let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true, false);
+    let mut form = offering(Some(AccountSeparateSignIn::Provider));
     assert!(form.begin_sign_in(1));
     assert!(form.held(), "held while the core finds the provider");
     assert!(form.sign_in_prepared(1, Ok(())));
@@ -71,8 +48,7 @@ fn only_the_blocking_core_calls_hold_the_form() {
 
 #[test]
 fn a_fresh_press_supersedes_the_attempt_in_the_browser() {
-    let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true, false);
+    let mut form = offering(Some(AccountSeparateSignIn::Provider));
     assert!(form.begin_sign_in(1));
     assert!(form.sign_in_prepared(1, Ok(())));
     assert!(form.begin_sign_in(2), "the wait does not refuse a press");
@@ -88,8 +64,7 @@ fn a_fresh_press_supersedes_the_attempt_in_the_browser() {
 
 #[test]
 fn a_retired_attempt_opens_no_browser_and_adds_no_account() {
-    let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true, false);
+    let mut form = offering(Some(AccountSeparateSignIn::Provider));
     assert!(form.begin_sign_in(1));
     assert!(form.retire_sign_in(), "a begin still running is retired");
     assert!(
@@ -111,14 +86,12 @@ fn a_retired_attempt_opens_no_browser_and_adds_no_account() {
 
 #[test]
 fn a_provider_that_cannot_be_reached_says_so_and_offers_the_sign_in_again() {
-    let mut form = form(vec![AccountCapability::Calendar]);
-    form.offer_answered(&[AccountCapability::Calendar], true, false);
+    let mut form = offering(Some(AccountSeparateSignIn::Provider));
     assert!(form.begin_sign_in(1));
     let failed = l10n::setup_imap_signin_failed().to_owned();
     assert!(!form.sign_in_prepared(1, Err(failed.clone())));
     assert_eq!(form.stage, SignInStage::Idle);
     assert_eq!(form.error, Some(failed));
-    assert!(form.offers_sign_in);
     assert!(form.begin_sign_in(2));
     assert!(
         form.error.is_none(),
@@ -127,26 +100,12 @@ fn a_provider_that_cannot_be_reached_says_so_and_offers_the_sign_in_again() {
 }
 
 #[test]
-fn a_sign_in_that_succeeds_goes_where_connect_goes() {
-    for from in [SeparateFrom::Setup, SeparateFrom::Page] {
-        let signed_in = as_connected(SignInEnd::Done(Ok(()))).expect("an answer");
-        assert_eq!(landing(from, &signed_in), landing(from, &Ok(())));
-    }
-    let signed_in = as_connected(SignInEnd::Done(Ok(()))).expect("an answer");
-    assert_eq!(landing(SeparateFrom::Setup, &signed_in), Landing::LinkStep);
-    assert_eq!(landing(SeparateFrom::Page, &signed_in), Landing::Page);
-}
-
-#[test]
-fn a_failed_sign_in_stays_on_the_form_and_a_cancelled_one_says_nothing() {
-    let refused = as_connected(SignInEnd::Done(Err(
-        l10n::signin_different_account().to_owned()
-    )));
+fn a_failed_sign_in_is_said_and_a_cancelled_one_says_nothing() {
     assert_eq!(
-        refused
-            .as_ref()
-            .map(|result| landing(SeparateFrom::Setup, result)),
-        Some(Landing::Form)
+        as_connected(SignInEnd::Done(Err(
+            l10n::signin_different_account().to_owned()
+        ))),
+        Some(Err(l10n::signin_different_account().to_owned()))
     );
     assert_eq!(
         as_connected(SignInEnd::Failed),

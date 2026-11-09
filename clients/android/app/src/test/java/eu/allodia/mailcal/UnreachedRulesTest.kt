@@ -1,6 +1,6 @@
 // A calendar or address book an account's sign-in does not reach (docs/accounts.md rule 18): which
-// title a set of uses gets, whether a sign-in asks first and what each answer tells the core, when
-// setup shows the separate server's step and the page offers it, and what Skip switches off.
+// title a set of uses gets, whether a sign-in asks first and what each answer tells the core, and
+// when setup shows the separate server's step.
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -16,20 +16,11 @@ import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.LinkCandidates
 import uniffi.mailcal_bindings.MailcalException
-import uniffi.mailcal_bindings.SeparateServer
 import uniffi.mailcal_bindings.UnreachedUses
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 class UnreachedRulesTest {
-    private fun mailbox(server: SeparateServer? = null) = accountEntry(
-        CoreAccountKind.IMAP,
-        MAIL to CapabilityState.ON,
-        CALENDAR to CapabilityState.ON,
-        CONTACTS to CapabilityState.ON,
-        id = "alice@imap",
-    ).copy(separateServer = server)
-
-    private val both = SeparateServer(listOf(CALENDAR, CONTACTS), "dav.example.org:8443", "alice")
+    private val both = separateSection(CALENDAR, CONTACTS)
 
     @Test
     fun the_title_names_what_is_left_behind() {
@@ -56,49 +47,15 @@ class UnreachedRulesTest {
     }
 
     @Test
-    fun the_form_is_the_server_the_core_names() {
-        val form = UnreachedRules.form(mailbox(both))!!
+    fun the_form_is_the_section_the_core_draws_for_calendar_or_contacts() {
+        val form = UnreachedRules.form("alice@imap", both)!!
 
         assertEquals("alice@imap", form.accountId)
         assertEquals(listOf(CALENDAR, CONTACTS), form.uses)
         assertEquals(UnreachedSet.BOTH, form.set)
-        assertEquals("dav.example.org:8443", form.host)
-        assertEquals("alice", form.username)
-    }
-
-    @Test
-    fun a_server_naming_no_login_starts_from_the_address() {
-        val form = UnreachedRules.form(mailbox(SeparateServer(listOf(CONTACTS), "dav.example.org", "")))!!
-
-        assertEquals("alice@example.org", form.username)
-        assertEquals(UnreachedSet.CONTACTS, form.set)
-    }
-
-    @Test
-    fun setup_shows_the_step_only_when_a_use_needs_a_sign_in_of_its_own() {
-        assertNull(UnreachedRules.form(mailbox()))
-        assertNull(UnreachedRules.form(null))
-        assertTrue(UnreachedRules.form(mailbox(both)) != null)
-    }
-
-    @Test
-    fun the_page_offers_the_action_on_exactly_the_uses_named() {
-        val calendarOnly = mailbox(SeparateServer(listOf(CALENDAR), "dav.example.org", "alice"))
-
-        assertTrue(UnreachedRules.offersSeparate(calendarOnly, CALENDAR))
-        assertFalse(UnreachedRules.offersSeparate(calendarOnly, CONTACTS))
-        assertFalse(UnreachedRules.offersSeparate(calendarOnly, MAIL))
-        assertFalse(UnreachedRules.offersSeparate(mailbox(), CALENDAR))
-    }
-
-    @Test
-    fun skip_switches_off_exactly_the_uses_left_behind() {
-        assertEquals(listOf(CALENDAR to false), UnreachedRules.skipChanges(listOf(CALENDAR)))
-        assertEquals(
-            listOf(CALENDAR to false, CONTACTS to false),
-            UnreachedRules.skipChanges(listOf(CALENDAR, CONTACTS)),
-        )
-        assertEquals(emptyList<Any>(), UnreachedRules.skipChanges(listOf(MAIL)))
+        assertEquals(UnreachedSet.CONTACTS, UnreachedRules.form("alice@imap", separateSection(CONTACTS))?.set)
+        assertNull("nothing needs one", UnreachedRules.form("alice@imap", null))
+        assertNull(UnreachedRules.form("alice@imap", separateSection(MAIL)))
     }
 
     @Test
@@ -153,14 +110,19 @@ class UnreachedRulesTest {
 
     @Test
     fun setup_holds_the_separate_step_ahead_of_the_link_step() {
-        val entry = mailbox(both).copy(
-            linkCandidates = LinkCandidates(listOf(linked("bob@dav")), emptyList(), emptyList(), emptyList()),
+        val entry = accountEntry(
+            CoreAccountKind.IMAP,
+            MAIL to CapabilityState.ON,
+            CALENDAR to CapabilityState.ON,
+            CONTACTS to CapabilityState.ON,
+            id = "alice@imap",
+            candidates = LinkCandidates(listOf(linked("bob@dav")), emptyList(), emptyList(), emptyList()),
         )
         val snapshot = AccountsSnapshot(listOf(entry))
         val stepFor: (String) -> SetupLinkStep? = { SetupLinkStep.of(snapshot, it, { true }, ::setupPickers) }
         val flow = SetupFlow()
 
-        assertTrue(flow.accountAdded("alice@imap", false, emptyList(), stepFor, UnreachedRules.form(entry)))
+        assertTrue(flow.accountAdded("alice@imap", false, emptyList(), stepFor, separateForm(both)))
 
         assertEquals("alice@imap", flow.separate.form?.accountId)
         assertFalse(flow.showsLinks)
@@ -170,20 +132,5 @@ class UnreachedRulesTest {
         assertNull(flow.separate.form)
         assertTrue(flow.showsLinks)
         assertEquals("alice@imap", flow.links?.account)
-    }
-
-    @Test
-    fun a_connect_runs_once_and_a_failure_keeps_the_form() {
-        val state = SeparateSignIn()
-        assertFalse("nothing to connect", state.start())
-        state.open(UnreachedRules.form(mailbox(both))!!)
-
-        assertTrue(state.start())
-        assertFalse(state.start())
-        state.failed("refused")
-
-        assertEquals("refused", state.error)
-        assertFalse(state.busy)
-        assertTrue(state.form != null)
     }
 }

@@ -22,6 +22,15 @@ impl AccountRegistry {
             .collect()
     }
 
+    /// `id`'s facts; `None` for one not registered.
+    pub(crate) fn account_facts(&self, id: &str) -> Option<AccountFacts> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .map(|entry| entry.facts(id))
+    }
+
     /// `id`'s servers and login, for an account Settings can edit them on: one that signs in with
     /// a password to servers of its own. `None` for any other, or one not registered.
     pub(crate) fn endpoints(&self, id: &str) -> Option<crate::AccountEndpoints> {

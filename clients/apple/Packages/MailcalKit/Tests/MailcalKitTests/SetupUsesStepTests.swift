@@ -56,8 +56,7 @@ private func noLinks(_: String) -> SetupLinkStep? { nil }
 
     @Test func theStepComesFirstAndHandsOnToTheSeparateServerStep() {
         var flow = SetupFlow()
-        let ask = SeparateServerAsk(
-            account: "alice@jmap", uses: [.calendar], host: "dav.example.org", username: "alice")
+        let ask = SeparateServerAsk(account: "alice@jmap", section: separateSection([.calendar]))
         let shown2 = flow.accountAdded(
             "alice@jmap", choices: everything, separateServer: ask, stepFor: noLinks)
         #expect(shown2)

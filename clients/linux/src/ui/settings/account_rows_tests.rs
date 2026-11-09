@@ -34,7 +34,6 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         links: AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
-        separate_server: None,
         distinction: None,
         mail_sync: None,
         nextcloud: false,
@@ -102,6 +101,7 @@ fn a_switch_says_what_is_wrong_with_the_use_then_why_it_cannot_be_pressed() {
         asks_provider: false,
         confirms_off: true,
         reviews_server_change: false,
+        signs_in_separately: false,
     };
     assert_eq!(switch_note(&switch(None, None)), None);
     assert_eq!(

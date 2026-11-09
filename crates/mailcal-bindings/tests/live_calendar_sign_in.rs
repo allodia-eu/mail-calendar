@@ -118,7 +118,12 @@ password = "not-this-servers"
         linked(&mail.links.contacts).as_deref(),
         Some(calendar.as_str())
     );
-    assert!(mail.separate_server.is_none());
+    assert!(
+        app.account_page(mail.id.clone())
+            .expect("listed")
+            .separate_server
+            .is_none()
+    );
     let moved = entry(&app, &calendar);
     assert_eq!(moved.sign_in, SignInMethod::Provider);
     assert_eq!(

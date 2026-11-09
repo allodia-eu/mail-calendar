@@ -73,7 +73,6 @@ internal class AccountsSettingsUi(
     val onUnreachedChoice: (UnreachedChoice) -> Unit = {},
     val onSeparateSignIn: (accountId: String) -> Unit = {},
     val onConnectSeparate: (username: String, password: String) -> Unit = { _, _ -> },
-    val onSeparateFormShown: () -> Unit = {},
     val onSeparateProviderSignIn: () -> Unit = {},
     // A calendar or address book whose server was found on another site: the question that
     // allows it (docs/account-autodetect.md rule 14).

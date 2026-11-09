@@ -1,7 +1,8 @@
 // A calendar or address book the account's sign-in does not reach (docs/accounts.md rule 18): the
-// question a switch to the provider asks first, the step setup shows after the mail sign-in, and
-// the sign-in of its own an account's page offers. Decided from the core's answers alone, so each
-// rule is tested without a view. The words are the catalog's.
+// question a switch to the provider asks first, and the form, setup's step after the mail sign-in
+// and the account page's, that gives them a sign-in of their own from the core's section. Decided
+// from the core's answers alone, so each rule is tested without a view. The words are the
+// catalog's.
 
 import Foundation
 import MailcalBindings
@@ -50,16 +51,17 @@ enum UnreachedDecision: Equatable {
 typealias UnreachedAsker = @MainActor (UnreachedSet) async -> UnreachedAnswer
 
 /// The form that signs in to a calendar or address book server of its own, in setup and on the
-/// account's page.
+/// account's page, as the core last drew it.
 struct SeparateServerAsk: Equatable {
     /// The mailbox whose uses move to an account of their own.
     let account: String
-    let uses: [AccountCapability]
-    /// The server, host and port only, never a path.
-    let host: String
-    /// The login the form starts from.
-    let username: String
+    let section: AccountSeparateServer
 
+    var uses: [AccountCapability] { section.uses }
+    /// The server, host and port only, never a path.
+    var host: String { section.host }
+    /// The login the form starts from.
+    var username: String { section.username }
     var set: UnreachedSet? { UnreachedSet(uses) }
 }
 
@@ -78,32 +80,17 @@ enum SeparateServerRules {
         return answer?.decision ?? .abandon
     }
 
-    /// The form for `entry`: the uses whose server needs a sign-in of its own, or refused the
-    /// account's, as the core names them. `nil` while every use connects. Setup shows it as a
-    /// step once the add's own dial has said so, and the account's page under those uses.
-    static func ask(_ entry: AccountEntry) -> SeparateServerAsk? {
-        guard let server = entry.separateServer, UnreachedSet(server.uses) != nil else {
-            return nil
-        }
-        let login = server.username.trimmingCharacters(in: .whitespaces)
-        return SeparateServerAsk(
-            account: entry.id, uses: server.uses, host: server.host,
-            username: login.isEmpty ? entry.address : login)
+    /// The form for `account`'s `section`, the core's for a mailbox whose calendar or contacts need
+    /// a sign-in of their own. `nil` while nothing needs one. Setup shows it as a step once the
+    /// add's own dial has said so, and the account's page under the use the core names.
+    static func ask(_ account: String, _ section: AccountSeparateServer?) -> SeparateServerAsk? {
+        guard let section, UnreachedSet(section.uses) != nil else { return nil }
+        return SeparateServerAsk(account: account, section: section)
     }
 
-    /// Whether the account's page offers the sign-in of its own under `capability`'s switch.
-    static func offered(_ entry: AccountEntry, _ capability: AccountCapability) -> Bool {
-        ask(entry)?.uses.contains(capability) ?? false
-    }
-
-    /// Connect is live with a login and a password, and nothing running.
-    static func canConnect(_ username: String, _ password: String, busy: Bool) -> Bool {
-        !busy && !password.isEmpty && !username.trimmingCharacters(in: .whitespaces).isEmpty
-    }
-
-    /// What Skip switches off: exactly the uses the form was for.
-    static func skipped(_ ask: SeparateServerAsk) -> [AccountCapability] {
-        ask.uses
+    /// Whether the fields hold what Connect sends: a login and a password.
+    static func canConnect(_ username: String, _ password: String) -> Bool {
+        !password.isEmpty && !username.trimmingCharacters(in: .whitespaces).isEmpty
     }
 }
 

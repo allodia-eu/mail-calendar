@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountSeparateSignIn
 import uniffi.mailcal_bindings.AccountProvider
 
 class NextcloudAccountSignInTest {
@@ -49,17 +50,15 @@ class NextcloudAccountSignInTest {
     }
 
     @Test
-    fun theSeparateStepOffersNextcloudOnlyWhereNoProviderSignInIs() {
-        val form = SeparateServerForm("alice", listOf(AccountCapability.CALENDAR), UnreachedSet.CALENDAR, "cloud.example.org", "alice")
+    fun theSeparateStepOffersNextcloudWhereTheCoreSaysSo() {
         val state = SeparateSignIn()
-        state.open(form)
-        state.answered(form, offers = false, nextcloud = true)
-        assertTrue(state.controls.offersSignIn && state.controls.nextcloud)
+        state.open(separateForm(separateSection(AccountCapability.CALENDAR)))
+        state.redraw(separateSection(AccountCapability.CALENDAR, signIn = AccountSeparateSignIn.NEXTCLOUD))
+        assertTrue(state.controls!!.offersSignIn && state.controls!!.nextcloud)
+        assertTrue(state.offersNextcloud)
         assertTrue(state.beginSignIn() != null)
 
-        val both = SeparateSignIn()
-        both.open(form)
-        both.answered(form, offers = true, nextcloud = true)
-        assertFalse("one sign-in, never two", both.controls.nextcloud)
+        state.redraw(separateSection(AccountCapability.CALENDAR, signIn = AccountSeparateSignIn.PROVIDER))
+        assertFalse(state.controls!!.nextcloud)
     }
 }

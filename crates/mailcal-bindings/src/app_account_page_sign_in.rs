@@ -20,7 +20,7 @@ impl MailcalApp {
         self.ask_sign_in_options(&entry.id, false);
         section(
             entry,
-            self.account_work.sign_in.options(&entry.id).as_ref(),
+            self.account_work.sign_in.get(&entry.id).as_ref(),
             refused,
             edits_servers,
             hold,

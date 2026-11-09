@@ -199,8 +199,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onAccountSignIn = { id, switching -> startAccountSignIn(id, switching) },
     onUnreachedChoice = { choice -> answerUnreached(choice) },
     onSeparateSignIn = { id -> openPageSeparate(id) },
-    onConnectSeparate = { username, password -> connectPageSeparate(username, password) },
-    onSeparateFormShown = { askSeparateSignIn(accountSettings.separate) },
+    onConnectSeparate = { username, password -> connectSeparate(accountSettings.separate, username, password) },
     onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },
     onReviewServerChange = { id -> reviewServerChange(id) },
 )

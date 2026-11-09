@@ -48,7 +48,7 @@ internal fun MainActivity.afterAccountAdded(account: String, signedInAtProvider:
         jmap = entry?.kind == CoreAccountKind.JMAP,
         choices = choices,
         stepFor = ::linkStepFor,
-        separate = UnreachedRules.form(entry),
+        separate = UnreachedRules.form(account, instance.accountPage(account)?.separateServer),
     )
     if (!goesOn) finishSetup()
 }

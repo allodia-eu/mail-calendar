@@ -52,7 +52,7 @@ impl AppModel {
         else {
             return;
         };
-        let (account, uses) = (form.account.clone(), form.server.uses.clone());
+        let (account, uses) = (form.account.clone(), form.section.uses.clone());
         if let Some(grant) = form.grant.clone() {
             form.sign_in_prepared(attempt, Ok(()));
             form.sign_in_redirected(attempt);
@@ -140,7 +140,7 @@ impl AppModel {
         let (Some(app), Some(form)) = (self.app.clone(), self.separate_form(from)) else {
             return;
         };
-        let (account, uses) = (form.account.clone(), form.server.uses.clone());
+        let (account, uses) = (form.account.clone(), form.section.uses.clone());
         self.host_tasks.separate.finish(attempt);
         self.redraw_separate(from);
         std::thread::spawn(move || {

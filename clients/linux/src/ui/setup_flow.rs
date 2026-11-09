@@ -30,12 +30,13 @@ impl AppModel {
             .unwrap_or_default();
         // The add's own dial found out whether its calendar and contacts need a sign-in of their
         // own; that is asked before the link step (`docs/onboarding.md`).
-        if let Some(server) = self
+        if let Some(section) = self
             .app
             .as_ref()
-            .and_then(|app| super::separate_sign_in::server_of(&app.accounts_snapshot(), account))
+            .and_then(|app| app.account_page(account.to_owned()))
+            .and_then(|page| page.separate_server)
         {
-            self.setup.hold_separate(account, server);
+            self.setup.hold_separate(account, section);
         }
         match UsesStep::new(account.to_owned(), next.clone(), choices) {
             Some(step) => self.setup.show_uses(step),
@@ -47,7 +48,8 @@ impl AppModel {
     /// account, or the end of the flow; first to the sign-in of its own `added` needs, if any.
     pub(super) fn onward(&mut self, added: &str, next: &str, sender: relm4::Sender<AppInput>) {
         if self.setup.show_separate(added, next) {
-            self.ask_separate_offer(super::separate_sign_in::SeparateFrom::Setup, sender);
+            // Drawn from the core as it stands now, which may already be over.
+            self.separate_redrawn(super::separate_sign_in::SeparateFrom::Setup, &sender);
             return;
         }
         match self.link_step(next) {

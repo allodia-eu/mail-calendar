@@ -1,7 +1,7 @@
-// The separate-server form's sign-in at the server's own provider (docs/mail-oauth.md rule 13):
-// whether the server offers one, and the browser flow that moves the uses to an account of their
-// own holding the grant, as a password's Connect does. Through the shared SignInFlight, because
-// every protocol-activation flow shares one redirect slot.
+// The separate-server form's sign-in at the server's own provider (docs/mail-oauth.md rule 13): the
+// browser flow that moves the uses to an account of their own holding the grant, as a password's
+// Connect does, where the core's section says the server offers one. Through the shared
+// SignInFlight, because every protocol-activation flow shares one redirect slot.
 
 using uniffi.mailcal_bindings;
 
@@ -9,38 +9,6 @@ namespace Allodia.Mailcal.Services;
 
 public sealed partial class MailboxModel
 {
-    /// <summary>Whether <paramref name="step"/>'s server signs in at its own provider. Blocking in
-    /// the core (it reads the server's metadata and its issuer's), so off the UI thread; never
-    /// throws, and anything that goes wrong reads as "no", which leaves the password form.</summary>
-    internal async Task<bool> SeparateServerOffersSignInAsync(SeparateServerStep step)
-    {
-        if (_app is not { } app)
-        {
-            return false;
-        }
-        try
-        {
-            return await Task.Run(() => app.SeparateServerOffersSignIn(step.AccountId, step.Uses.ToArray()));
-        }
-        catch (Exception ex)
-        {
-            // The core answers false for every ordinary failure; a panic lands here.
-            Log.Warn($"asking whether a calendar server signs in at its own provider failed: {CoreError.Describe(ex)}");
-            return false;
-        }
-    }
-
-    /// <summary>Which sign-in <paramref name="step"/>'s server offers: its own provider's, else
-    /// Nextcloud's when it is a Nextcloud server, else none. Off the UI thread; never throws.</summary>
-    internal async Task<SeparateSignInOffer> SeparateServerSignInOfferAsync(SeparateServerStep step)
-    {
-        if (await SeparateServerOffersSignInAsync(step))
-        {
-            return SeparateSignInOffer.Provider;
-        }
-        return await SeparateServerOffersNextcloudSignInAsync(step) ? SeparateSignInOffer.Nextcloud : SeparateSignInOffer.None;
-    }
-
     /// <summary>Withdraws the Nextcloud grant <paramref name="signIn"/>'s form held for another
     /// try: the form was left, or a password chosen instead. Never one the core is completing.</summary>
     internal void ReleaseSeparateNextcloudGrant(SeparateServerSignIn signIn) => AbandonNextcloudGrant(signIn.Grant.Release());
@@ -59,7 +27,7 @@ public sealed partial class MailboxModel
     {
         var attempt = signIn.Start();
         progress(SeparateSignInPhase.Starting);
-        var nextcloud = signIn.Offer(step) == SeparateSignInOffer.Nextcloud;
+        var nextcloud = SeparateServerSignIn.Offer(step) == SeparateSignInOffer.Nextcloud;
         var end = _app is { } app
             ? await _signIn.RunAsync(cancel => nextcloud
                 ? SeparateServerNextcloudFlowAsync(app, step, signIn.Grant, Advance, cancel)
@@ -157,7 +125,7 @@ public sealed partial class MailboxModel
             return null;
         }
         var next = await SeparateServerSignInAsync(step, signIn, progress);
-        if (next is { GoesOn: true } && ReferenceEquals(_setupFlow.SeparateServer, step))
+        if (next is { GoesOn: true } && _setupFlow.SeparateServer?.AccountId == step.AccountId)
         {
             SeparateServerDone();
         }

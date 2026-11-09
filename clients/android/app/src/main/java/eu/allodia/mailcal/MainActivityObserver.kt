@@ -45,6 +45,7 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             // Every account, mail or not: adding, removing, linking and signing one in again all
             // raise this signal (docs/accounts.md rule 11).
             refreshAccountsSnapshot()
+            refreshSeparate()
         }
         // The reading body (a potentially large HTML string) only changes on a
         // Reading signal, pull it just then, not on every other refresh.
@@ -62,6 +63,7 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         CoreSurface.NOTICES -> {
             pullNotices()
             refreshAccountsSnapshot()
+            refreshSeparate()
         }
     }
 }

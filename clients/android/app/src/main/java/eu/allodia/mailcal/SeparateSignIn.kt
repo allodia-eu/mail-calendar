@@ -1,47 +1,50 @@
 // A calendar or address book given a sign-in of its own (docs/accounts.md rule 18): the form open,
-// whether its connect runs, whether its server offers a sign-in at its own provider
-// (docs/mail-oauth.md rule 13), and what the last attempt said. One for setup's step and one for
-// the account page's dialog, each held by the activity; Compose-free in its decisions.
+// drawn from the core's section, and the sign-in in the browser this client still runs
+// (docs/mail-oauth.md rule 13) with what it last said. One for setup's step and one for the account
+// page's dialog, each held by the activity; Compose-free in its decisions.
 package eu.allodia.mailcal
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import uniffi.mailcal_bindings.AccountSeparateServer
+import uniffi.mailcal_bindings.AccountSeparateSignIn
+import uniffi.mailcal_bindings.ControlState
 
 /**
- * What the form's controls do. Only the blocking core calls disable anything: a connect or a skip
- * holds the whole form, the sign-in's start holds all but the way back, and its completion holds
- * everything. While the browser has the sign-in, a fresh press of its button supersedes it.
+ * What the form's controls do. Connect and Skip are the core's controls, held as well while the
+ * sign-in's own blocking core calls run: its start holds all but the way back, and its completion
+ * holds everything. While the browser has the sign-in, a fresh press of its button supersedes it.
  */
 internal data class SeparateControls(
-    /** Connect's spinner: a connect or a skip runs. */
-    val connecting: Boolean = false,
+    /** Connect, as the core draws it. */
+    val connect: ControlState,
+    /** Setup's Skip, as the core draws it. */
+    val skip: ControlState,
     /** Whether the sign-in at the server's own provider, or Nextcloud's, is drawn. */
     val offersSignIn: Boolean = false,
     /** The sign-in drawn is Nextcloud's (docs/nextcloud-sign-in.md). */
     val nextcloud: Boolean = false,
     /** The sign-in button's spinner. */
     val signingIn: Boolean = false,
-    /** The fields, Connect and the sign-in button. */
+    /** The fields and the sign-in button. */
     val editable: Boolean = true,
-    /** Skip, Cancel and back. */
+    /** The dialog's Cancel and setup's back. */
     val leavable: Boolean = true,
 ) {
     companion object {
-        fun of(
-            busy: Boolean,
-            offersSignIn: Boolean,
-            step: SeparateSignInStep?,
-            nextcloud: Boolean = false,
-        ): SeparateControls {
+        fun of(section: AccountSeparateServer, step: SeparateSignInStep?): SeparateControls {
             val completing = step == SeparateSignInStep.COMPLETING
+            val starting = step == SeparateSignInStep.STARTING
+            val running = section.connect.running || section.stopUsing.running
             return SeparateControls(
-                connecting = busy,
-                offersSignIn = offersSignIn || nextcloud,
-                nextcloud = nextcloud,
+                connect = section.connect.copy(enabled = section.connect.enabled && !starting && !completing),
+                skip = section.stopUsing.copy(enabled = section.stopUsing.enabled && !completing),
+                offersSignIn = section.signIn != null,
+                nextcloud = section.signIn == AccountSeparateSignIn.NEXTCLOUD,
                 signingIn = step != null,
-                editable = !busy && step != SeparateSignInStep.STARTING && !completing,
-                leavable = !busy && !completing,
+                editable = section.connect.enabled && !starting && !completing,
+                leavable = !running && !completing,
             )
         }
     }
@@ -52,20 +55,8 @@ internal class SeparateSignIn {
     var form by mutableStateOf<SeparateServerForm?>(null)
         private set
 
-    /** Whether its connect, or Skip's switching off, runs; the controls hold still meanwhile. */
-    var busy by mutableStateOf(false)
-        private set
-
-    /** Why the last connect or sign-in failed, said under the fields. */
+    /** Why the last sign-in in the browser failed; a Connect's failure is the section's. */
     var error by mutableStateOf<String?>(null)
-        private set
-
-    /** Whether the core said the form's server signs in at its own provider. */
-    var offersSignIn by mutableStateOf(false)
-        private set
-
-    /** Whether the core said the form's server is Nextcloud, whose own sign-in it offers. */
-    var offersNextcloud by mutableStateOf(false)
         private set
 
     /**
@@ -80,54 +71,50 @@ internal class SeparateSignIn {
     /** The browser sign-in, while one runs or its redirect is awaited. */
     val browser = SeparateServerSignInSlot()
 
-    private var asked: SeparateServerForm? = null
+    val controls: SeparateControls?
+        get() = form?.let { SeparateControls.of(it.section, browser.step) }
 
-    val controls: SeparateControls get() = SeparateControls.of(busy, offersSignIn, browser.step, offersNextcloud)
+    /** Whether the server's own sign-in is Nextcloud's. */
+    val offersNextcloud: Boolean get() = form?.section?.signIn == AccountSeparateSignIn.NEXTCLOUD
 
     fun open(form: SeparateServerForm) {
         close()
         this.form = form
     }
 
-    /** Whether to ask the core about [form] now: once for each opening, while it is on screen. */
-    fun startAsking(form: SeparateServerForm): Boolean {
-        if (this.form != form || asked == form) return false
-        asked = form
+    /**
+     * The core drew the form's section again: [section], or null once nothing needs the sign-in.
+     * False when the form is over, which the caller goes on from.
+     */
+    fun redraw(section: AccountSeparateServer?): Boolean {
+        val open = form ?: return true
+        if (section == null) return false
+        if (section != open.section) form = open.copy(section = section)
         return true
     }
 
     /**
-     * The core answered for [form]: whether it signs in at its own provider, or else with
-     * Nextcloud. An answer for a form no longer on screen is dropped.
+     * About to send Connect or Skip: false while the core or a completing sign-in holds them, or
+     * with no form open. A sign-in still out is superseded, so its redirect adds nothing.
      */
-    fun answered(form: SeparateServerForm, offers: Boolean, nextcloud: Boolean = false) {
-        if (this.form != form) return
-        offersSignIn = offers
-        offersNextcloud = nextcloud && !offers
-    }
-
-    /**
-     * Starts a connect or a skip; false while one runs, while a sign-in completes, or with no form
-     * open. A sign-in still out is superseded, so its redirect adds nothing.
-     */
-    fun start(): Boolean {
-        if (form == null || busy || browser.step == SeparateSignInStep.COMPLETING) return false
+    fun sending(skip: Boolean = false): Boolean {
+        val controls = controls ?: return false
+        if (!(if (skip) controls.skip.enabled else controls.connect.enabled)) return false
         retire()
-        busy = true
         error = null
         return true
     }
 
     /** Starts the browser sign-in, superseding one still out: the attempt, or null when it may not. */
     fun beginSignIn(): Long? {
-        if (form == null || !controls.offersSignIn || !controls.editable) return null
+        val controls = controls ?: return null
+        if (!controls.offersSignIn || !controls.editable) return null
         error = null
         return browser.begin()
     }
 
-    /** The connect or the sign-in failed with [said]; the form stays. */
+    /** The sign-in failed with [said]; the form stays. */
     fun failed(said: String) {
-        busy = false
         error = said
     }
 
@@ -142,11 +129,7 @@ internal class SeparateSignIn {
     /** The form goes, and with it any sign-in still running for it. */
     fun close() {
         form = null
-        busy = false
         error = null
-        offersSignIn = false
-        offersNextcloud = false
-        asked = null
         retire()
     }
 

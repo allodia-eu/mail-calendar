@@ -4,7 +4,7 @@
 // account of their own, linked to the mailbox. A use skipped there and switched back on later is
 // offered the same form from its row on the account's page.
 //
-// WHY HERE. Which sign-in the form offers is SeparateServerSignIn's, unit-tested in Mailcal.Tests.
+// WHY HERE. Which sign-in the form offers is the core's, unit-tested in mailcal-bindings.
 // What it cannot see is the step reached at all from a refused calendar, the answer drawn above the
 // login, the grant completed into a linked account, and the page's action giving way to its form.
 //

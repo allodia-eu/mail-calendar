@@ -3,14 +3,6 @@
 //! every signal without asking again, and the section decided from that answer. No client keeps a
 //! copy.
 
-use std::{
-    collections::HashMap,
-    sync::{
-        Mutex,
-        atomic::{AtomicU64, Ordering},
-    },
-};
-
 use crate::{
     AccountEntry, AccountKind, AccountPasswordField, AccountSecretKind, AccountSignIn,
     AccountSignInLine, AccountSignInOptions, AccountSignInRoute, CapabilityState, ControlState,
@@ -18,70 +10,8 @@ use crate::{
     account_work::{Hold, PageWork},
 };
 
-#[derive(Debug, Default)]
-struct Answer {
-    options: Option<AccountSignInOptions>,
-    /// The ask out now, if any: one at a time.
-    asking: Option<u64>,
-}
-
 /// What each account's server said it takes.
-#[derive(Debug, Default)]
-pub(crate) struct SignInAnswers {
-    answers: Mutex<HashMap<String, Answer>>,
-    tickets: AtomicU64,
-}
-
-impl SignInAnswers {
-    fn answers(&self) -> std::sync::MutexGuard<'_, HashMap<String, Answer>> {
-        self.answers.lock().expect("sign-in answers mutex poisoned")
-    }
-
-    /// A ticket to ask `account`'s server, when no ask is out and it has not answered, or is asked
-    /// `again` (its page opened). What it answered before is kept until the new answer lands.
-    pub(crate) fn ask(&self, account: &str, again: bool) -> Option<u64> {
-        let mut answers = self.answers();
-        let answer = answers.entry(account.to_owned()).or_default();
-        if answer.asking.is_some() || (answer.options.is_some() && !again) {
-            return None;
-        }
-        let ticket = self.tickets.fetch_add(1, Ordering::Relaxed) + 1;
-        answer.asking = Some(ticket);
-        Some(ticket)
-    }
-
-    /// The server answered the ask `ticket`; `false` when what is kept is what it answered before,
-    /// so the page has nothing new to draw. An ask the account's sign-in changed under is
-    /// dropped: it was about the way in the account no longer has.
-    pub(crate) fn answered(
-        &self,
-        account: &str,
-        ticket: u64,
-        options: AccountSignInOptions,
-    ) -> bool {
-        let mut answers = self.answers();
-        let Some(answer) = answers.get_mut(account) else {
-            return true;
-        };
-        if answer.asking != Some(ticket) {
-            return true;
-        }
-        answer.asking = None;
-        answer.options.replace(options.clone()) != Some(options)
-    }
-
-    /// What `account`'s server last answered.
-    pub(crate) fn options(&self, account: &str) -> Option<AccountSignInOptions> {
-        self.answers()
-            .get(account)
-            .and_then(|answer| answer.options.clone())
-    }
-
-    /// Drops what is kept for `account`, whose way in changed or which is gone, and any ask out.
-    pub(crate) fn forget(&self, account: &str) {
-        self.answers().remove(account);
-    }
-}
+pub(crate) type SignInAnswers = crate::account_answers::Answers<AccountSignInOptions>;
 
 /// `entry`'s Sign-in section, from what its server said it takes (`None` until it has answered)
 /// and whether it refused the stored sign-in (`refused`), held as `hold` says. `edits_servers`:

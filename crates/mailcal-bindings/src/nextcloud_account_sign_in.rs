@@ -13,14 +13,13 @@ use crate::{
     account_registry::SignInConfig, account_split::nothing_to_move, nextcloud_accounts::dav_url_of,
 };
 
-#[uniffi::export]
 impl MailcalApp {
     /// Whether the server holding `uses` of the mailbox `account_id` is a Nextcloud server, so
-    /// its separate-server step offers "Sign in with Nextcloud" above the password field.
+    /// its separate-server form offers "Sign in with Nextcloud" above the password field. The
+    /// core asks it for the account's page.
     ///
-    /// **Blocking** (a few requests of at most three seconds each); call it off the UI thread.
-    /// Never an error.
-    pub fn separate_server_offers_nextcloud_sign_in(
+    /// **Blocking** (a few requests of at most three seconds each). Never an error.
+    pub(crate) fn separate_server_offers_nextcloud_sign_in(
         &self,
         account_id: String,
         uses: Vec<AccountCapability>,
@@ -30,7 +29,10 @@ impl MailcalApp {
             .and_then(|calendar| dav_url_of(&calendar))
             .is_some_and(|url| self.offers_for(&url))
     }
+}
 
+#[uniffi::export]
+impl MailcalApp {
     /// Starts a Nextcloud sign-in at the server holding `uses` of the mailbox `account_id`,
     /// completed with
     /// [`add_linked_nextcloud_account`](MailcalApp::add_linked_nextcloud_account).

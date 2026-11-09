@@ -145,17 +145,18 @@ class NextcloudSetupScreenTest {
 
     @Test
     fun theSeparateStepNamesNextcloudAndSaysWhereItWaits() {
-        val form = SeparateServerForm("alice@imap", listOf(AccountCapability.CALENDAR), UnreachedSet.CALENDAR, "cloud.example.org", "alice")
+        val form = separateForm(
+            separateSection(AccountCapability.CALENDAR, signIn = uniffi.mailcal_bindings.AccountSeparateSignIn.NEXTCLOUD),
+        )
         var step by mutableStateOf<SeparateSignInStep?>(null)
         compose.setContent {
             SeparateServerStepScreen(
                 form,
-                SeparateControls.of(busy = false, offersSignIn = false, step = step, nextcloud = true),
+                SeparateControls.of(form.section, step),
                 null,
                 { _, _ -> },
                 {},
                 onSignIn = {},
-                onShown = {},
                 onLeave = {},
             )
         }

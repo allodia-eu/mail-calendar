@@ -73,7 +73,7 @@ public sealed partial class MailboxModel
                 _withheldWaiting = new WithheldUses(accountId, withheld);
             }
         }
-        var separate = UnreachedUsesRules.SetupStep(snapshot, accountId);
+        var separate = SeparateServerStepOf(accountId);
         var stepping = _setupFlow.AccountAdded(accountId, LinkStepFor, separate);
         RaiseSetupFlow();
         if (!stepping)
@@ -82,9 +82,15 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>The separate-server step answered: on to the link step, or the end of setup.</summary>
+    /// <summary>The separate-server step is over: on to the link step, or the end of setup. A
+    /// sign-in that ended it and the core no longer drawing it both reach here; the second is a
+    /// no-op.</summary>
     private void SeparateServerDone()
     {
+        if (_setupFlow.SeparateServer is null)
+        {
+            return;
+        }
         var linking = _setupFlow.SeparateServerDone(LinkStepFor);
         RaiseSetupFlow();
         if (!linking)

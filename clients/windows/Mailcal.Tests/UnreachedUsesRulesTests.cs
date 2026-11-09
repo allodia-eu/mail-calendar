@@ -1,6 +1,6 @@
 // A calendar and contacts the account's sign-in does not reach (docs/accounts.md rule 18): which
 // title a set of uses gets, whether a switch asks and what each answer passes, and the form setup
-// and the account's page offer from the core's AccountEntry.SeparateServer.
+// and the account's page draw from the core's section.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -10,11 +10,11 @@ namespace Allodia.Mailcal.Tests;
 
 public class UnreachedUsesRulesTests
 {
-    private static AccountEntry Mailbox(SeparateServer? separate) => AccountSettingsRulesTests.Entry(
-        AccountKind.Imap,
-        (AccountCapability.Mail, CapabilityState.On),
-        (AccountCapability.Calendar, CapabilityState.On),
-        (AccountCapability.Contacts, CapabilityState.On)) with { SeparateServer = separate };
+    private static readonly ControlState Free = new(true, false);
+
+    /// <summary>The core's section for <paramref name="uses"/>, nothing running.</summary>
+    internal static AccountSeparateServer Section(params AccountCapability[] uses) =>
+        new(uses, "dav.example.org:8443", "alice", null, Free, Free, null);
 
     [Fact]
     public void ATitleNamesWhatTheSetHolds()
@@ -48,40 +48,38 @@ public class UnreachedUsesRulesTests
     }
 
     [Fact]
-    public void ThePageOffersTheFormForExactlyTheUsesTheCoreNames()
+    public void TheFormIsTheSectionTheCoreDrawsForCalendarOrContacts()
     {
-        Assert.Null(UnreachedUsesRules.Step(Mailbox(null)));
+        Assert.Null(UnreachedUsesRules.Step("alice@imap", null));
+        Assert.Null(UnreachedUsesRules.Step("alice@imap", Section(AccountCapability.Mail)));
 
-        var entry = Mailbox(new SeparateServer([AccountCapability.Calendar], "dav.example.org:8443", "alice"));
-        var step = UnreachedUsesRules.Step(entry)!;
-        Assert.Equal(entry.Id, step.AccountId);
+        var step = UnreachedUsesRules.Step("alice@imap", Section(AccountCapability.Calendar))!;
+        Assert.Equal("alice@imap", step.AccountId);
         Assert.Equal([AccountCapability.Calendar], step.Uses);
         Assert.Equal(UnreachedTitle.Calendar, step.Title);
         Assert.Equal("dav.example.org:8443", step.Host);
         Assert.Equal("alice", step.Username);
-        Assert.True(UnreachedUsesRules.Offers(step, AccountCapability.Calendar));
-        Assert.False(UnreachedUsesRules.Offers(step, AccountCapability.Contacts));
-        Assert.False(UnreachedUsesRules.Offers(null, AccountCapability.Calendar));
-
-        // Both, calendar first whatever order they came in, and the address when no login is held.
-        var both = UnreachedUsesRules.Step(Mailbox(new SeparateServer(
-            [AccountCapability.Contacts, AccountCapability.Calendar], "dav.example.org", " ")))!;
-        Assert.Equal([AccountCapability.Calendar, AccountCapability.Contacts], both.Uses);
-        Assert.Equal(UnreachedTitle.Both, both.Title);
-        Assert.Equal("alice@example.org", both.Username);
+        Assert.Equal(
+            UnreachedTitle.Both,
+            UnreachedUsesRules.Step("alice@imap", Section(AccountCapability.Calendar, AccountCapability.Contacts))!.Title);
     }
 
     [Fact]
-    public void SetupShowsTheStepOnlyForANewAccountTheCoreNamesAServerFor()
+    public void TheOfferIsTheSectionsAndARedrawFollowsWhatChanged()
     {
-        var entry = Mailbox(new SeparateServer([AccountCapability.Contacts], "dav.example.org", "alice@example.org"));
-        var snapshot = new AccountsSnapshot([entry]);
-        var step = UnreachedUsesRules.SetupStep(snapshot, entry.Id)!;
-        Assert.Equal(UnreachedTitle.Contacts, step.Title);
-        // Skip switches off exactly these, and Connect moves exactly these.
-        Assert.Equal([AccountCapability.Contacts], step.Uses);
+        var plain = UnreachedUsesRules.Step("alice@imap", Section(AccountCapability.Calendar))!;
+        Assert.Equal(SeparateSignInOffer.None, SeparateServerSignIn.Offer(plain));
+        var nextcloud = plain with { Section = plain.Section with { SignIn = AccountSeparateSignIn.Nextcloud } };
+        Assert.Equal(SeparateSignInOffer.Nextcloud, SeparateServerSignIn.Offer(nextcloud));
+        Assert.True(SeparateServerSignIn.Offers(nextcloud));
 
-        Assert.Null(UnreachedUsesRules.SetupStep(new AccountsSnapshot([Mailbox(null)]), entry.Id));
-        Assert.Null(UnreachedUsesRules.SetupStep(snapshot, "someone-else"));
+        // A read that changed nothing draws nothing; a connect starting or failing does.
+        Assert.Equal(
+            UnreachedUsesRules.Fingerprint(Section(AccountCapability.Calendar)),
+            UnreachedUsesRules.Fingerprint(Section(AccountCapability.Calendar)));
+        var running = Section(AccountCapability.Calendar) with { Connect = new ControlState(false, true) };
+        Assert.NotEqual(UnreachedUsesRules.Fingerprint(plain.Section), UnreachedUsesRules.Fingerprint(running));
+        var refused = Section(AccountCapability.Calendar) with { Failed = new AccountChangeRefusal.SignInRefused() };
+        Assert.NotEqual(UnreachedUsesRules.Fingerprint(plain.Section), UnreachedUsesRules.Fingerprint(refused));
     }
 }

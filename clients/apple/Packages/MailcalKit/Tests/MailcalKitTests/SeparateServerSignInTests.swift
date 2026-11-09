@@ -1,6 +1,6 @@
 // A separate calendar or address book server signed in at its own provider (docs/mail-oauth.md
-// rule 13): the sign-in is offered only once the server said so, and only for the form it was
-// asked about; an answer never takes away a password route somebody has begun; an attempt
+// rule 13): the sign-in is offered only once the core draws it; an answer never takes away a
+// password route somebody has begun; an attempt
 // superseded or retired changes nothing; and a success leads where Connect's success leads.
 // That the button and the way back are on screen when the state says so stays hand-verified,
 // because reaching them opens a real browser.
@@ -10,9 +10,8 @@ import Testing
 
 @testable import MailcalUI
 
-private let ask = SeparateServerAsk(
-    account: "alice@imap", uses: [.calendar, .contacts], host: "dav.example.org",
-    username: "alice")
+private let ask = separateAsk([.calendar, .contacts])
+private let offering = separateAsk([.calendar, .contacts], signIn: .provider)
 
 @Suite struct SeparateServerSignInOfferTests {
     @Test func theFormIsThePasswordFormUntilTheServerAnswers() {
@@ -22,39 +21,20 @@ private let ask = SeparateServerAsk(
         #expect(form.showsPasswordFields(ask))
     }
 
-    @Test func aNoChangesNothing() {
+    @Test func aSignInTheCoreDrawsLeadsAndPutsThePasswordBehindIt() {
         var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: false), started: false)
-        #expect(!form.offersSignIn(ask))
-        #expect(form.showsPasswordFields(ask))
-    }
-
-    @Test func aYesLeadsWithTheSignInAndPutsThePasswordBehindIt() {
-        var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: true), started: false)
-        #expect(form.offersSignIn(ask))
-        #expect(form.signInLeads(ask))
-        #expect(!form.showsPasswordFields(ask))
+        form.offered(started: false)
+        #expect(form.offersSignIn(offering))
+        #expect(form.signInLeads(offering))
+        #expect(!form.showsPasswordFields(offering))
+        #expect(!form.offersNextcloud(offering))
+        #expect(form.offersNextcloud(separateAsk([.calendar], signIn: .nextcloud)))
 
         // "Use a password instead" draws the fields beneath a sign-in that stays.
         form.choosePassword()
-        #expect(form.offersSignIn(ask))
-        #expect(!form.signInLeads(ask))
-        #expect(form.showsPasswordFields(ask))
-    }
-
-    @Test func anAnswerForAnotherFormIsNotThisOnes() {
-        var form = SeparateServerSignIn()
-        let calendarOnly = SeparateServerAsk(
-            account: ask.account, uses: [.calendar], host: ask.host, username: ask.username)
-        form.answered(SeparateServerOffer(calendarOnly, offers: true), started: false)
-        #expect(form.offersSignIn(calendarOnly))
-        #expect(!form.offersSignIn(ask))
-        #expect(form.showsPasswordFields(ask))
-
-        let otherMailbox = SeparateServerAsk(
-            account: "bob@imap", uses: ask.uses, host: ask.host, username: ask.username)
-        #expect(!SeparateServerOffer(otherMailbox, offers: true).answers(ask))
+        #expect(form.offersSignIn(offering))
+        #expect(!form.signInLeads(offering))
+        #expect(form.showsPasswordFields(offering))
     }
 
     @Test func anAnswerKeepsThePasswordRouteSomebodyHasBegun() {
@@ -64,17 +44,17 @@ private let ask = SeparateServerAsk(
         #expect(SeparateServerRules.passwordStarted(ask, username: "alice2", password: ""))
 
         var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: true), started: true)
-        #expect(form.offersSignIn(ask))
-        #expect(!form.signInLeads(ask))
-        #expect(form.showsPasswordFields(ask))
+        form.offered(started: true)
+        #expect(form.offersSignIn(offering))
+        #expect(!form.signInLeads(offering))
+        #expect(form.showsPasswordFields(offering))
     }
 }
 
 @Suite struct SeparateServerSignInAttemptTests {
     private func offered() -> SeparateServerSignIn {
         var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: true), started: false)
+        form.offered(started: false)
         return form
     }
 
@@ -87,7 +67,7 @@ private let ask = SeparateServerAsk(
         let abandonedFailed = form.finish(abandoned, .failed("late"))
         #expect(abandonedFailed == nil)
         #expect(form.signingIn)
-        #expect(form.signInLeads(ask))
+        #expect(form.signInLeads(offering))
         let freshMoved = form.finish(fresh, .moved)
         #expect(freshMoved == .done)
         #expect(!form.signingIn)
@@ -109,7 +89,7 @@ private let ask = SeparateServerAsk(
         #expect(lateMoved == nil)
         let lateFailed = form.finish(attempt, .failed("late"))
         #expect(lateFailed == nil)
-        #expect(form.signInLeads(ask))
+        #expect(form.signInLeads(offering))
     }
 
     @Test func theExchangeAndAddDrawNoWayBack() {
@@ -138,7 +118,7 @@ private let ask = SeparateServerAsk(
         let dismissed = form.finish(attempt, .cancelled)
         #expect(dismissed == .stay(failure: nil))
         #expect(!form.signingIn)
-        #expect(form.signInLeads(ask))
+        #expect(form.signInLeads(offering))
     }
 
     @Test func aFailureIsSaidAndBringsThePasswordRouteBack() {
@@ -146,16 +126,15 @@ private let ask = SeparateServerAsk(
         let attempt = form.begin()
         let failed = form.finish(attempt, .failed("no"))
         #expect(failed == .stay(failure: "no"))
-        #expect(form.showsPasswordFields(ask))
-        #expect(form.offersSignIn(ask))
+        #expect(form.showsPasswordFields(offering))
+        #expect(form.offersSignIn(offering))
     }
 }
 
 @Suite struct SeparateServerSignInOutcomeTests {
-    @Test func aSuccessLeadsWhereConnectsSuccessLeads() {
-        #expect(SeparateServerRules.afterSignIn(.moved) == SeparateServerRules.afterConnect(nil))
-        #expect(SeparateServerRules.afterConnect(nil) == .done)
-        #expect(SeparateServerRules.afterConnect("refused") == .stay(failure: "refused"))
+    @Test func aSuccessEndsTheFormAndAFailureKeepsIt() {
+        #expect(SeparateServerRules.afterSignIn(.moved) == .done)
+        #expect(SeparateServerRules.afterSignIn(.cancelled) == .stay(failure: nil))
         #expect(SeparateServerRules.afterSignIn(.failed("refused")) == .stay(failure: "refused"))
     }
 
@@ -188,30 +167,25 @@ private let ask = SeparateServerAsk(
 }
 
 @Suite struct SeparateServerNextcloudOfferTests {
+    private let nextcloud = separateAsk([.calendar, .contacts], signIn: .nextcloud)
+
     @Test func aNextcloudServerLeadsWithItsSignInAndPutsThePasswordBehindIt() {
         var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: false, nextcloud: true), started: false)
-        #expect(form.offersNextcloud(ask))
-        #expect(!form.offersSignIn(ask))
-        #expect(form.signInLeads(ask))
-        #expect(!form.showsPasswordFields(ask))
+        form.offered(started: false)
+        #expect(form.offersNextcloud(nextcloud))
+        #expect(!form.offersSignIn(nextcloud))
+        #expect(form.signInLeads(nextcloud))
+        #expect(!form.showsPasswordFields(nextcloud))
 
         form.choosePassword()
-        #expect(form.offersNextcloud(ask))
-        #expect(form.showsPasswordFields(ask))
-    }
-
-    @Test func theProvidersSignInIsOfferedRatherThanNextcloudsWhenBothAnswer() {
-        var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: true, nextcloud: true), started: false)
-        #expect(form.offersSignIn(ask))
-        #expect(!form.offersNextcloud(ask))
+        #expect(form.offersNextcloud(nextcloud))
+        #expect(form.showsPasswordFields(nextcloud))
     }
 
     @Test func aPasswordRouteBegunKeepsItsFields() {
         var form = SeparateServerSignIn()
-        form.answered(SeparateServerOffer(ask, offers: false, nextcloud: true), started: true)
-        #expect(form.offersNextcloud(ask))
-        #expect(form.showsPasswordFields(ask))
+        form.offered(started: true)
+        #expect(form.offersNextcloud(nextcloud))
+        #expect(form.showsPasswordFields(nextcloud))
     }
 }
