@@ -923,14 +923,6 @@ sits in `App::make_meeting`, the one place every meeting service is called from.
   since it proves the token the store holds is the one the server has *not* moved past. The same
   boot re-persisted a rotated **Graph** token too, so the Microsoft table's rotation cell moved
   with it.
-- **Rule 14's *failure* half is still unrun on Windows.** A re-authentication that the server
-  refuses appends `signin_expired_failed` to the banner (`MailboxModel._signInReauthFailed`), so
-  the click never looks like it did nothing. The 2026-08-01 pass only ever succeeded, so that
-  sentence has not been on screen on Windows, and, like everything else in
-  `MailboxModel.Connectivity.cs`, no automated test can reach it (`Mailcal.Tests` is a plain
-  `net10.0` assembly; see the rules 12–13 bullet above). The *core* half (refusing a sign-in
-  completed as a **different address**) is unit-tested in `jmap_oauth/reauth.rs`, so what is
-  untried is the WinUI wording, not the decision.
 - **A re-authorisation replays the persisted client registration, so a server that has forgotten it
   would dead-end.** (Fastmail does **not**, verified 2026-08-01: the replayed `client_id` was
   accepted after a full grant revocation, with no `invalid_client`.)
