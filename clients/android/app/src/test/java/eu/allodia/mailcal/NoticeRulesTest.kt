@@ -7,7 +7,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.Notice
@@ -164,17 +163,6 @@ class NoticeRulesTest {
         assertTrue(NoticeRules.held(question.copy(running = true), null))
         assertTrue(NoticeRules.held(question, "q"))
         assertFalse(NoticeRules.held(question, "other"))
-    }
-
-    @Test
-    fun `sign in again runs the flow the account signs in by`() {
-        assertEquals(ExpiredRemedy.PROVIDER_CONSENT, NoticeRules.signInFlow(AccountProvider.MICROSOFT, false))
-        assertEquals(ExpiredRemedy.PROVIDER_CONSENT, NoticeRules.signInFlow(AccountProvider.GOOGLE, false))
-        assertEquals(ExpiredRemedy.JMAP_REAUTH, NoticeRules.signInFlow(AccountProvider.JMAP_OAUTH, false))
-        assertEquals(ExpiredRemedy.ACCOUNT_SIGN_IN, NoticeRules.signInFlow(AccountProvider.IMAP_OAUTH, false))
-        assertEquals(ExpiredRemedy.ACCOUNT_SIGN_IN, NoticeRules.signInFlow(AccountProvider.PASSWORD, true))
-        assertEquals(ExpiredRemedy.SETTINGS, NoticeRules.signInFlow(AccountProvider.PASSWORD, false))
-        assertEquals(ExpiredRemedy.SETTINGS, NoticeRules.signInFlow(null, false))
     }
 
     @Test

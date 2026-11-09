@@ -130,9 +130,7 @@ internal fun AccountPage(
 private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     val capability = switch.capability
-    // A sign-in at the provider for this account holds its switches until it answers.
-    val held = ui.state.signingIn == entry.id
-    val control = if (held) switch.control.copy(enabled = false) else switch.control
+    val control = switch.control
     var confirmingOff by remember(entry.id, capability) { mutableStateOf(false) }
     val set = { on: Boolean -> ui.onChange(AccountPageIntent.SetUse(entry.id, capability, on)) }
     ControlSwitchRow(
@@ -143,7 +141,7 @@ private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSe
         tag = "account-use-${capability.name}",
     ) { on ->
         when {
-            on && switch.asksProvider -> ui.onSignInAgain(entry.id, listOf(capability))
+            on && switch.asksProvider -> ui.onSignIn(entry.id, listOf(capability))
             !on && switch.confirmsOff -> confirmingOff = true
             else -> set(on)
         }

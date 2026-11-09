@@ -103,10 +103,15 @@ private fun MainActivity.openNextcloudLogin(flight: NextcloudFlight, loginUrl: S
         return
     }
     logUiInfo("nextcloud: opening the login page; polling for the grant")
-    runCatching { CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(loginUrl)) }.onFailure {
+    runCatching { openNextcloudPage(this, loginUrl) }.onFailure {
         logUiWarn("nextcloud: the browser did not open: ${it.message}")
         flight.stop(NextcloudEnd.Failed(null))
     }
+}
+
+/** Opens a Nextcloud server's login page at [loginUrl] in a Custom Tab. */
+internal fun openNextcloudPage(context: Context, loginUrl: String) {
+    CustomTabsIntent.Builder().build().launchUrl(context, Uri.parse(loginUrl))
 }
 
 /** Withdraws [grant], which became no account. Returns at once. */

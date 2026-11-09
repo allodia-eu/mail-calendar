@@ -281,11 +281,9 @@ class MainActivity : AppCompatActivity() {
     // The equivalent handle for an in-flight JMAP sign-in. Separate again, so three concurrent
     // flows can't clobber each other. Not persisted, it carries the PKCE verifier.
     internal var pendingJmapLogin: String? = null
-    // The account being signed back in, when the pending JMAP flow is a RE-authentication (the
-    // expired-sign-in banner) rather than a first sign-in from the setup form. Both come back
-    // through the same redirect scheme, and only this tells the two apart, null means "a new
-    // account". Set and cleared alongside `pendingJmapLogin`.
-    internal var pendingJmapReauthAccount: String? = null
+    // Which attempt of an existing account's browser sign-in, which the core runs, this host has
+    // opened the browser for (MainActivityBrowserSignIn.kt).
+    internal val browserSignIns = BrowserSignInDriver()
     // The equivalent handle for an in-flight IMAP sign-in. Separate again, so no two flows can
     // clobber each other. Not persisted, it carries the PKCE verifier.
     internal var pendingImapLogin: String? = null

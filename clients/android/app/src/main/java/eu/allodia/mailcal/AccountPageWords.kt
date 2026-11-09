@@ -99,6 +99,17 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
         L10n.settings_account_change_failed_title(ctx),
         refusalSaid(ctx, notice.refusal),
     )
+    is AccountChangeNotice.SignInFailed -> AccountNotice(
+        NoticeKind.FAILURE,
+        if (notice.switching) L10n.settings_account_switch_failed(ctx) else L10n.settings_account_signin_failed(ctx),
+        refusalSaid(ctx, notice.refusal),
+    )
+    // The sign-in worked; the person did not get every use they asked for.
+    is AccountChangeNotice.SignedInWithheld -> AccountNotice(
+        NoticeKind.WARNING,
+        L10n.setup_withheld_title(ctx),
+        L10n.setup_withheld_detail(ctx, notice.uses.joinToString(", ") { useName(ctx, it) }),
+    )
     // Not a failure of the app: the address is the person's to check.
     is AccountChangeNotice.SharedMailboxNotFound ->
         AccountNotice(NoticeKind.WARNING, "", L10n.settings_account_shared_not_found(ctx))
@@ -117,5 +128,7 @@ internal fun refusalSaid(ctx: Context, refusal: AccountChangeRefusal): String = 
     is AccountChangeRefusal.Blocked -> blockSaid(ctx, refusal.block)
     AccountChangeRefusal.Withheld -> L10n.settings_account_use_withheld(ctx)
     AccountChangeRefusal.NoLongerShared -> L10n.settings_account_shared_withdrawn(ctx)
+    AccountChangeRefusal.BrowserNotOpened -> L10n.account_signin_browser_failed(ctx)
+    AccountChangeRefusal.NotFinished -> L10n.account_signin_timeout(ctx)
     is AccountChangeRefusal.Other -> refusal.detail
 }

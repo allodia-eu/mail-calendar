@@ -125,13 +125,4 @@ class CoreErrorTextTest {
             coreErrorText(MailcalException.UseNotConnected(AccountCapability.CALENDAR, UseProblem.SERVER_CHANGED)),
         )
     }
-
-    @Test
-    fun signing_in_again_says_a_stale_or_other_account_sign_in_and_otherwise_the_retry_line() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
-        assertEquals(L10n.signin_stale(ctx), signInAgainSaid(MailcalException.StaleSignIn(), ctx))
-        assertEquals(L10n.signin_different_account(ctx), signInAgainSaid(MailcalException.DifferentAccount(), ctx))
-        assertEquals(L10n.signin_expired_failed(ctx), signInAgainSaid(MailcalException.Connect("invalid_grant"), ctx))
-        assertEquals(L10n.signin_refused(ctx), signInAgainSaid(MailcalException.SignInRefused("401"), ctx))
-    }
 }

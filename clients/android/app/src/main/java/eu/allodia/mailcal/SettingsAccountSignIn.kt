@@ -1,7 +1,7 @@
 // An account's Sign-in section (docs/accounts.md rule 17), drawn from the core's record: the line
-// saying how it signs in or what is wrong, the ways in through a browser, and the field a password
-// is typed into. Which of them it offers is the core's; this words and draws them. A browser
-// sign-in is still the activity's to run, so its button spins from the activity's own state.
+// saying how it signs in or what is wrong, the ways in through a browser, the browser sign-in out
+// with its question and its Cancel, and the field a password is typed into. Which of them it offers,
+// and what each is doing, is the core's; this words and draws them.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -23,9 +23,9 @@ import uniffi.mailcal_bindings.AccountSecretKind
 import uniffi.mailcal_bindings.AccountSignIn
 import uniffi.mailcal_bindings.AccountSignInLine
 import uniffi.mailcal_bindings.AccountSignInRoute
+import uniffi.mailcal_bindings.BrowserSignInStage
 import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.TypedPassword
-import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 /** The line under the heading, for [entry]. */
 internal fun signInLine(ctx: Context, line: AccountSignInLine, entry: AccountEntry): String = when (line) {
@@ -52,39 +52,40 @@ private fun routeTag(route: AccountSignInRoute): String = when (route) {
     is AccountSignInRoute.ToNextcloud -> "account-switch-to-nextcloud"
 }
 
+/** What the section says while the browser is open: where to go on, and as whom. */
+internal fun signInWaiting(ctx: Context, stage: BrowserSignInStage.InBrowser, entry: AccountEntry): String =
+    if (stage.redirectUri == null) {
+        L10n.nextcloud_sign_in_waiting(ctx)
+    } else {
+        L10n.settings_account_signin_waiting(ctx, entry.address)
+    }
+
 /** The section the core gave [entry]. */
 @Composable
 internal fun AccountSignInGroup(entry: AccountEntry, section: AccountSignIn, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
-    // Microsoft and Google sign in again through their own consent; every other account through
-    // its own sign-in, which may ask a question before its browser opens.
-    val consent = entry.kind == CoreAccountKind.MICROSOFT || entry.kind == CoreAccountKind.GOOGLE
-    val signIn = ui.state.signIn
-    val run = signIn.running?.takeIf { it.accountId == entry.id }
-    val idle = if (consent) ui.state.signingIn == null else signIn.idle
-    val waiting = if (consent) ui.state.signingIn == entry.id else run?.step == SignInStep.BROWSER
-    // Held, too, while the core works on a browser sign-in the activity runs.
-    val free = section.control.enabled && idle
+    val browser = section.browser
     SettingsGroupCard(L10n.settings_account_signin_heading(ctx), signInLine(ctx, section.line, entry)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // A route pressed while the browser waits starts the sign-in again.
             section.routes.forEach { route ->
-                val again = route is AccountSignInRoute.SignInAgain
-                val busy = if (consent) waiting else run != null && run.switching != again
                 ControlButton(
                     label = signInRouteLabel(ctx, route),
-                    control = ControlState(enabled = free, running = busy),
+                    control = section.control,
                     tag = routeTag(route),
-                ) {
-                    if (consent) ui.onSignInAgain(entry.id, emptyList()) else ui.onAccountSignIn(entry.id, !again)
-                }
+                ) { ui.onSignIn(entry.id, emptyList()) }
             }
-            section.password?.let { PasswordEntry(entry, it, free, ui) }
-            if (waiting) {
+            section.password?.let { PasswordEntry(entry, it, section.control, ui) }
+            val waiting = browser?.stage as? BrowserSignInStage.InBrowser
+            if (browser != null && waiting != null) {
                 Text(
-                    L10n.settings_account_signin_waiting(ctx, entry.address),
+                    signInWaiting(ctx, waiting, entry),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                ControlTextButton(L10n.action_cancel(ctx), browser.cancel, "account-sign-in-cancel") {
+                    ui.onChange(AccountPageIntent.CancelSignIn(entry.id, browser.attempt))
+                }
             }
             if (section.switches) {
                 Text(
@@ -96,25 +97,30 @@ internal fun AccountSignInGroup(entry: AccountEntry, section: AccountSignIn, ui:
         }
     }
     // Before the browser opens: what becomes of what the new sign-in will not reach (rule 18).
-    signIn.question?.takeIf { it.accountId == entry.id }?.let { asked ->
-        SignInUnreachedDialog(asked.set, ui.onUnreachedChoice)
+    val asking = browser?.stage as? BrowserSignInStage.Asking
+    val set = asking?.let { UnreachedRules.setOf(it.unreached) }
+    if (browser != null && set != null) {
+        SignInUnreachedDialog(set) { choice ->
+            ui.onChange(AccountPageIntent.AnswerUnreached(entry.id, browser.attempt, UnreachedRules.answer(choice)))
+        }
     }
 }
 
 /**
  * The password field. One that switches from the provider's sign-in waits behind "Use a password
  * instead" until it runs; one that replaces a refused password is drawn at once. It never shows
- * the stored credential, and empties as it is sent.
+ * the stored credential, and empties as it is sent. The button that reveals it opens a field and
+ * starts nothing, so it is held as the [routes] are, without their spinner.
  */
 @Composable
-private fun PasswordEntry(entry: AccountEntry, field: AccountPasswordField, enabled: Boolean, ui: AccountsSettingsUi) {
+private fun PasswordEntry(entry: AccountEntry, field: AccountPasswordField, routes: ControlState, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     var revealed by remember(entry.id) { mutableStateOf(false) }
     var password by remember(entry.id) { mutableStateOf("") }
     if (!field.replaces && !revealed && !field.save.running) {
         ControlButton(
             label = L10n.settings_account_switch_to_password(ctx),
-            control = ControlState(enabled = enabled, running = false),
+            control = routes.copy(running = false),
             tag = "account-switch-to-password",
         ) { revealed = true }
         return
@@ -123,12 +129,10 @@ private fun PasswordEntry(entry: AccountEntry, field: AccountPasswordField, enab
         AccountSecretKind.PASSWORD -> L10n.setup_field_password(ctx)
         AccountSecretKind.PASSWORD_OR_TOKEN -> L10n.setup_jmap_secret_placeholder(ctx)
     }
-    // Held, too, while a browser sign-in of the activity's runs ([enabled]).
-    val save = ControlState(enabled = field.save.enabled && enabled, running = field.save.running)
-    HeldFields(save) { open -> PasswordField(password, { password = it }, title, enabled = open) }
+    HeldFields(field.save) { open -> PasswordField(password, { password = it }, title, enabled = open) }
     ControlButton(
         label = if (field.replaces) L10n.action_save(ctx) else L10n.settings_account_switch_password_save(ctx),
-        control = save,
+        control = field.save,
         tag = "account-password-save",
         ready = password.isNotEmpty(),
     ) {

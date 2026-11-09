@@ -7,7 +7,6 @@ package eu.allodia.mailcal
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
@@ -24,8 +23,11 @@ internal class NoticesState {
     /** What the last change raised, for assistive technology; empty when it raised nothing. */
     var announcement by mutableStateOf("")
 
-    /** The remedy a notice started, until it ends. */
-    var remedy by mutableStateOf<RunningRemedy?>(null)
+    /**
+     * The notice whose Allodia sign-in this client runs, until it ends. An account's sign-in from a
+     * notice is the core's, which draws that notice running itself.
+     */
+    var allodiaRemedy by mutableStateOf<String?>(null)
 
     val announcements = NoticeAnnouncements()
 
@@ -50,9 +52,9 @@ internal fun MainActivity.pullNotices() {
     }
 }
 
-/** What the notice views run, and the notice whose remedy is under way. */
+/** What the notice views run, and the notice whose Allodia sign-in is under way. */
 internal fun MainActivity.noticeHandlers() = NoticeHandlers(
-    running = noticeRunning(),
+    running = notices.allodiaRemedy?.takeIf { signingInAllodia },
     onRun = { notice, action -> runNotice(notice, action) },
     onDismiss = { dismissNotice(it) },
 )
@@ -79,9 +81,11 @@ internal fun MainActivity.runNotice(notice: Notice, action: NoticeAction) {
     }
     val account = notice.account
     when (action) {
-        NoticeAction.SIGN_IN_AGAIN -> account?.let { signInAgainFromNotice(notice, it) }
+        // The core runs it, draws this notice running while it is out, and marks it failed when
+        // it fails (MainActivityBrowserSignIn.kt).
+        NoticeAction.SIGN_IN_AGAIN -> account?.let { signInInBrowser(it, emptyList()) }
         NoticeAction.SIGN_IN_TO_ALLODIA -> if (!signingInAllodia) {
-            notices.remedy = RunningRemedy(NoticeRemedy.ALLODIA, notice.id, null)
+            notices.allodiaRemedy = notice.id
             signInToAllodia()
         }
         NoticeAction.OPEN_ACCOUNT_SETTINGS -> if (account != null) {
@@ -104,56 +108,14 @@ internal fun MainActivity.runNotice(notice: Notice, action: NoticeAction) {
 }
 
 /**
- * The account's sign-in again, in place: it keeps its id, mail and settings. A browser sign-in is
- * one at a time, so a press while one runs is held, as its button is.
+ * The Allodia sign-in a notice started ended; [failed] when it ended refused (rule 10). A browser
+ * the person closed is not a failure. One nobody started from a notice is not a notice's to report.
  */
-private fun MainActivity.signInAgainFromNotice(notice: Notice, account: String) {
-    val nextcloud = accountSettings.entry(account)?.nextcloud == true
-    fun start(remedy: NoticeRemedy) {
-        notices.remedy = RunningRemedy(remedy, notice.id, account)
-    }
-    when (NoticeRules.signInFlow(app?.accountProvider(account), nextcloud)) {
-        ExpiredRemedy.PROVIDER_CONSENT -> if (accountSettings.signingIn == null) {
-            start(NoticeRemedy.CONSENT)
-            signInAgain(account, emptyList())
-        }
-        // Addressed to the account id: the core re-authorises this account's own stored grant.
-        ExpiredRemedy.JMAP_REAUTH -> if (!signingInJmap) {
-            start(NoticeRemedy.JMAP)
-            reconnectJmap(accountId = account)
-        }
-        ExpiredRemedy.ACCOUNT_SIGN_IN -> if (accountSettings.signIn.running == null) {
-            start(NoticeRemedy.ACCOUNT_SIGN_IN)
-            startAccountSignIn(account, switching = false)
-        }
-        // No browser flow to run: the password or token is entered again on the account's page.
-        ExpiredRemedy.SETTINGS -> openAccountPage(account)
-    }
-}
-
-/**
- * A flow a notice started ended; [failed] when it ended refused (rule 10). A browser the person
- * closed, or a wait that ran out, is not a failure. A flow nobody started from a notice, or one
- * for another account, is not this notice's to report.
- */
-internal fun MainActivity.noticeRemedyEnded(remedy: NoticeRemedy, account: String?, failed: Boolean) {
-    val running = notices.remedy ?: return
-    if (running.remedy != remedy || running.account != account) return
-    notices.remedy = null
+internal fun MainActivity.allodiaRemedyEnded(failed: Boolean) {
+    val noticeId = notices.allodiaRemedy ?: return
+    notices.allodiaRemedy = null
     if (failed) {
         logUiInfo("notices: a notice's remedy did not complete")
-        app?.dispatch(Intent.Notices(NoticeIntent.RemedyFailed(running.noticeId)))
+        app?.dispatch(Intent.Notices(NoticeIntent.RemedyFailed(noticeId)))
     }
-}
-
-/** The notice whose remedy runs now, read from the flow's own state so a closed browser stops it. */
-internal fun MainActivity.noticeRunning(): String? {
-    val running = notices.remedy ?: return null
-    val busy = when (running.remedy) {
-        NoticeRemedy.CONSENT -> accountSettings.signingIn == running.account
-        NoticeRemedy.JMAP -> signingInJmap || completingJmap
-        NoticeRemedy.ACCOUNT_SIGN_IN -> accountSettings.signIn.running?.accountId == running.account
-        NoticeRemedy.ALLODIA -> signingInAllodia
-    }
-    return running.noticeId.takeIf { busy }
 }
