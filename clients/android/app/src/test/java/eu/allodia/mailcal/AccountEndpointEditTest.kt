@@ -74,13 +74,4 @@ class AccountEndpointEditTest {
             AccountEndpointEdit.joined("mail.example:2993", "1234", ConnectionSecurity.IMPLICIT_TLS, imap),
         )
     }
-
-    @Test
-    fun a_server_left_empty_is_not_sent() {
-        assertTrue(AccountEndpointEdit.complete(mailbox(), fields()))
-        assertFalse(AccountEndpointEdit.complete(mailbox(), fields().copy(imapHost = " ")))
-        assertFalse(AccountEndpointEdit.complete(mailbox(), fields().copy(username = "")))
-        // A server the account does not have is not asked for.
-        assertTrue(AccountEndpointEdit.complete(mailbox(), fields().copy(caldavUrl = "")))
-    }
 }

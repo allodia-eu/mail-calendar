@@ -94,6 +94,27 @@ public class CoreErrorTests
     }
 
     [Fact]
+    public void A_change_the_page_could_not_make_is_said_as_the_same_refusal_would_be()
+    {
+        Assert.Equal(
+            "not accepted",
+            CoreError.Refused(new uniffi.mailcal_bindings.AccountChangeRefusal.SignInRefused(), Words));
+        Assert.Equal(
+            "set up already",
+            CoreError.Refused(new uniffi.mailcal_bindings.AccountChangeRefusal.AlreadySetUp(), Words));
+        Assert.Equal(
+            "contacts own sign-in",
+            CoreError.Refused(
+                new uniffi.mailcal_bindings.AccountChangeRefusal.UseNotConnected(
+                    uniffi.mailcal_bindings.AccountCapability.Contacts,
+                    uniffi.mailcal_bindings.UseProblem.NeedsOwnSignIn),
+                Words));
+        Assert.Equal(
+            "config: no such account",
+            CoreError.Refused(new uniffi.mailcal_bindings.AccountChangeRefusal.Other("config: no such account"), Words));
+    }
+
+    [Fact]
     public void An_account_already_set_up_is_said_in_words_and_logged_without_its_address()
     {
         var twice = new uniffi.mailcal_bindings.MailcalException.AlreadySetUp("alice@example.org@imap.example.org");

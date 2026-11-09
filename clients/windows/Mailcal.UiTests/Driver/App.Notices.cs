@@ -28,6 +28,15 @@ internal sealed partial class App
     internal Element? NoticeAction(Element bar) =>
         Agent.Find(new Filter { Id = "NoticeAction", Type = "Button", Under = bar, OnScreen = true });
 
+    /// <summary>A question's first answer in the bar (rule 8), or null when its notice is no
+    /// question.</summary>
+    internal Element? NoticeAnswer(Element bar) =>
+        Agent.Find(new Filter { Id = "NoticeAnswer", Type = "Button", Under = bar, OnScreen = true });
+
+    /// <summary>A question's second answer in the bar, the lesser button, or null.</summary>
+    internal Element? NoticeSecondAnswer(Element bar) =>
+        Agent.Find(new Filter { Id = "NoticeSecondAnswer", Type = "Button", Under = bar, OnScreen = true });
+
     /// <summary>The bar's close button, or null when its notice cannot be closed. The InfoBar's own,
     /// found by the name its template gives it.</summary>
     internal Element? NoticeClose(Element bar) =>

@@ -1,6 +1,7 @@
 // One account's page in Settings → Accounts, in the order docs/settings.md gives: how it is shared,
-// what it is used for, the accounts it relies on, its shared mailboxes, how it signs in, its own
-// servers and password, its mail settings while it is used for mail, and its removal, last.
+// the name it sends under, what it is used for, the accounts it relies on, its shared mailboxes,
+// how it signs in, its own servers and password, its mail settings while it is used for mail, and
+// its removal, last.
 
 import MailcalBindings
 import SwiftUI
@@ -25,8 +26,6 @@ struct AccountPageView: View {
     /// The line the sign-in section shows once a sign-in has answered.
     @State private var signInResult: String?
     @State private var confirmingRemoval: String?
-    /// What the server answered about the mailboxes the account's sign-in opens besides its own.
-    @State private var sharedMailboxes: SharedMailboxesView?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -63,34 +62,40 @@ struct AccountPageView: View {
                         .padding(6)
                 }
             }
+            if let name = page.senderName {
+                SenderNameSection(model: model, accountId: entry.id, name: name)
+            }
             AccountUsesSection(model: model, entry: entry, uses: page.uses, signIn: signIn)
             if !page.links.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: page.links)
             }
-            AccountSharedMailboxesSection(
-                model: model, entry: entry, answer: $sharedMailboxes, alert: $alert)
-            if AccountSettingsRules.signsInAtProvider(entry.kind) {
-                signInSection
-            } else if AccountSignInRules.switchesSignIn(entry.kind) {
-                AccountSignInSection(model: model, entry: entry, alert: $alert)
-            } else if entry.kind == .dav {
-                AccountNextcloudSignInSection(model: model, entry: entry)
+            if let replies = page.replyFallback {
+                AccountReplyFallbackSection(model: model, entry: entry, picker: replies)
+            }
+            if let shared = page.shared {
+                AccountSharedMailboxesSection(model: model, entry: entry, shared: shared)
+            }
+            if let section = page.signIn {
+                switch entry.kind {
+                case .microsoft, .google: signInSection(section)
+                case .dav: AccountNextcloudSignInSection(model: model, entry: entry, section: section)
+                case .imap, .jmap:
+                    AccountSignInSection(model: model, entry: entry, section: section, alert: $alert)
+                }
             }
             if let technology = entry.mailSync {
                 AccountSyncTechnologySection(technology: technology)
             }
-            if let endpoints = entry.endpoints {
-                AccountServersSection(
-                    model: model, entry: entry, endpoints: endpoints,
-                    expired: model.signInExpired(entry.id), alert: $alert
-                )
+            if let servers = page.servers {
+                AccountServersSection(model: model, entry: entry, servers: servers)
             }
-            if let account = model.syncSettings?.accounts.first(where: { $0.accountId == entry.id }) {
-                AccountMailSection(model: model, entry: entry, account: account, alert: $alert)
+            if let mail = page.mail {
+                AccountMailSection(model: model, entry: entry, mail: mail)
             }
             removeSection
         }
-        .modifier(SharedMailboxesAsking(model: model, entry: entry, answer: $sharedMailboxes))
+        // Its server is asked again which mailboxes the account's sign-in opens.
+        .task(id: entry.id) { model.accountPageOpened(entry.id) }
         // What a change on this page came to, said once (docs/waiting.md rule 5).
         .onChange(of: model.accountPageState.failure?.id, initial: true) {
             guard let failure = model.accountPageState.failure else { return }
@@ -130,16 +135,21 @@ struct AccountPageView: View {
 
     /// "Sign in again", for an account that signs in at its provider's page: the remedy for an
     /// expired sign-in and for a permission the provider withheld.
-    private var signInSection: some View {
+    private func signInSection(_ section: AccountSignIn) -> some View {
         SettingsGroup(
             heading: L10n.settings_account_signin_heading(),
-            description: AccountSettingsLabels.signIn(entry, expired: model.signInExpired(entry.id))
+            description: AccountSettingsLabels.signInLine(section.line, entry)
         ) {
             VStack(alignment: .leading, spacing: 8) {
-                // Never disabled: a sign-in abandoned in the browser cannot be told from one in
-                // progress, so pressing again starts a fresh one (docs/provider-oauth.md rule 13).
-                Button(L10n.signin_expired_action()) {
-                    signIn(adding: [])
+                // Held only while a change runs on the page: a sign-in abandoned in the browser
+                // cannot be told from one in progress, so pressing again starts a fresh one
+                // (docs/provider-oauth.md rule 13).
+                ForEach(Array(section.routes.enumerated()), id: \.offset) { _, route in
+                    ControlButton(
+                        title: AccountSettingsLabels.signInRoute(route), control: section.control
+                    ) {
+                        signIn(adding: [])
+                    }
                 }
                 if model.signingInAgain == entry.id {
                     progress(L10n.settings_account_signin_waiting(
@@ -263,11 +273,11 @@ struct AccountUsesSection: View {
                 }
             }
             if toggle.reviewsServerChange {
-                Button(L10n.server_changed_review()) {
+                // It opens a question and starts nothing, so it is only held while a change runs.
+                ControlButton(title: L10n.server_changed_review(), control: .free(control.enabled)) {
                     serverChange = model.serverChangeReview(entry.id)
                 }
                 .controlSize(.small)
-                .disabled(!control.enabled)
             }
             separateServer(capability, enabled: control.enabled)
         }
@@ -284,11 +294,13 @@ struct AccountUsesSection: View {
                 AccountSeparateServerForm(model: model, ask: ask) { separateServerUnder = nil }
                     .padding(.top, 4)
             } else {
-                Button(L10n.settings_account_use_separate_sign_in()) {
+                ControlButton(
+                    title: L10n.settings_account_use_separate_sign_in(),
+                    control: .free(enabled && separateServerUnder == nil)
+                ) {
                     separateServerUnder = capability
                 }
                 .controlSize(.small)
-                .disabled(separateServerUnder != nil || !enabled)
             }
         }
     }
@@ -318,6 +330,36 @@ struct AccountLinksSection: View {
                             .setLink(account: entry.id, slot: picker.slot, target: target))
                     }
                 }
+            }
+        }
+    }
+}
+
+/// What happens to an invitation answer the account's calendar server cannot pass on: asked each
+/// time with a notice, emailed, or not (docs/invitations.md).
+struct AccountReplyFallbackSection: View {
+    var model: MailboxModel
+    let entry: AccountEntry
+    let picker: AccountReplyFallback
+
+    private static let choices: [ReplyFallbackChoice] = [.ask, .always, .never]
+
+    var body: some View {
+        SettingsGroup(
+            heading: L10n.settings_reply_fallback_heading(),
+            description: L10n.settings_reply_fallback_description()
+        ) {
+            ControlPicker(
+                title: L10n.settings_reply_fallback_label(),
+                labels: [
+                    L10n.settings_reply_fallback_ask(),
+                    L10n.settings_reply_fallback_always(),
+                    L10n.settings_reply_fallback_never(),
+                ],
+                selected: Self.choices.firstIndex(of: picker.choice) ?? 0,
+                control: picker.control
+            ) { at in
+                model.changeAccount(.setReplyFallback(account: entry.id, choice: Self.choices[at]))
             }
         }
     }
@@ -367,9 +409,11 @@ struct LinkPickerRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if suggestButton, selected != suggested {
-                        Button(L10n.action_link()) { pick(option.id) }
-                            .controlSize(.small)
-                            .disabled(!control.enabled)
+                        // The picker beside it shows the link running.
+                        ControlButton(title: L10n.action_link(), control: .free(control.enabled)) {
+                            pick(option.id)
+                        }
+                        .controlSize(.small)
                     }
                 }
             }

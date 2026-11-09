@@ -46,6 +46,9 @@ extension MailboxModel {
         }
         self.app = app
         self.timezone = app.timezoneSettings()
+        // What the core staged while it was being built signalled before this model held it, so
+        // it is read now rather than waiting for a signal that may never come.
+        reloadNotices()
         needsSetup = firstRun
         // The agent (MCP) surface. Without these three lines Settings → Advanced renders *nothing*
         // for agent access, `McpSettingsView` draws only when the core has both settings and an

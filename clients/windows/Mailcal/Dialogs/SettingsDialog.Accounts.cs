@@ -9,6 +9,7 @@
 // again from the next snapshot and page record; a core signal that changed nothing the page shows
 // leaves it, and whatever is being typed on it, alone.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -22,9 +23,15 @@ public sealed partial class SettingsDialog
 {
     // The account whose page is open; null for the list.
     private string? _accountPage;
+    // The open picker, the field holding unsent text or the unsent form that the page's next
+    // redraw waits on.
+    private object? _redrawWaitsOn;
 
     // What the list or the page last said, kept across the redraw a change ends with.
     private AccountNotice? _accountNotice;
+    // The notice shown that a change on the page left, which the core withdraws when the page's
+    // next change starts.
+    private AccountNotice? _changeNotice;
     private InfoBar? _accountNoticeBar;
 
     // What the open list or page was drawn from, so a signal that changed none of it is ignored.
@@ -160,32 +167,38 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(BuildSyncModePicker(entry.Id, mode));
         }
+        if (page.SenderName is { } name)
+        {
+            panel.Children.Add(SenderNameGroup(entry, name));
+        }
         panel.Children.Add(UsesGroup(entry, page));
         if (page.Links.Length > 0)
         {
             panel.Children.Add(LinksGroup(entry, page.Links));
         }
-        panel.Children.Add(SharedMailboxesSlot(entry));
-        var expired = _model.SignInExpiredIds.Contains(entry.Id);
-        if (AccountSettingsRules.SignsInAtProvider(entry.Kind))
+        if (page.ReplyFallback is { } replies)
         {
-            panel.Children.Add(SignInGroup(entry, expired));
+            panel.Children.Add(ReplyFallbackGroup(entry, replies));
         }
-        else if (AccountSettingsRules.MayHaveSignInSection(entry))
+        if (page.Shared is { } shared)
         {
-            panel.Children.Add(AccountSignInGroup(entry));
+            panel.Children.Add(SharedGroup(entry, shared));
+        }
+        if (page.SignIn is { } signIn)
+        {
+            panel.Children.Add(AccountSignInGroup(entry, signIn));
         }
         if (entry.MailSync is { } technology)
         {
             panel.Children.Add(SyncTechnologyGroup(technology));
         }
-        if (entry.Endpoints is { } endpoints)
+        if (page.Servers is { } servers)
         {
-            panel.Children.Add(ServersGroup(entry, endpoints, expired));
+            panel.Children.Add(ServersGroup(entry, servers));
         }
-        if (MailGroup(entry, expired) is { } mail)
+        if (page.Mail is { } mail)
         {
-            panel.Children.Add(mail);
+            panel.Children.Add(MailGroup(entry, mail));
         }
         panel.Children.Add(RemoveGroup(entry, page.Remove));
     }
@@ -212,10 +225,12 @@ public sealed partial class SettingsDialog
         _accountPage = accountId;
         _accountNotice = null;
         _confirmOpen = null;
-        // A page opened again asks its server again: what it takes, and which mailboxes it shares
-        // with the account, can have changed meanwhile.
-        _signInOptions.Clear();
-        _sharedAnswers.Clear();
+        // A page opened again has the core ask its server again: what it takes, and which mailboxes
+        // it shares with the account, can have changed meanwhile.
+        if (accountId is not null)
+        {
+            _model.AccountPageOpened(accountId);
+        }
         ShowCategory("accounts");
     }
 
@@ -269,9 +284,16 @@ public sealed partial class SettingsDialog
     /// <summary>What a change on the page came to, in the core's words for why.</summary>
     private static AccountNotice ChangeFailed(AccountChangeNotice notice) => notice switch
     {
-        AccountChangeNotice.UseFailed use => ChangeFailed(use.Detail),
-        AccountChangeNotice.LinkFailed link => ChangeFailed(link.Detail),
+        AccountChangeNotice.UseFailed use => ChangeFailed(AccountUseText.Refused(use.Refusal)),
+        AccountChangeNotice.LinkFailed link => ChangeFailed(AccountUseText.Refused(link.Refusal)),
         AccountChangeNotice.RemoveFailed removal => RemovalFailed(L10n.RemoveAccountFailed(removal.Detail)),
+        AccountChangeNotice.ServersFailed servers => new(
+            InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), AccountUseText.Refused(servers.Refusal)),
+        AccountChangeNotice.SharedMailboxFailed shared => ChangeFailed(AccountUseText.Refused(shared.Refusal)),
+        AccountChangeNotice.PasswordFailed password => ChangeFailed(AccountUseText.Refused(password.Refusal)),
+        // Not a failure of the app: the address is the person's to check.
+        AccountChangeNotice.SharedMailboxNotFound => new(
+            InfoBarSeverity.Warning, L10n.SettingsAccountSharedNotFound(), string.Empty),
         _ => ChangeFailed(L10n.ErrorUnknown()),
     };
 
@@ -296,7 +318,7 @@ public sealed partial class SettingsDialog
     private void OnAccountsChanged()
     {
         // Every other category reconciles itself, and the core is asked nothing on their behalf:
-        // this runs on every settings and connectivity signal. An account is removed from the
+        // this runs on every settings and notices signal. An account is removed from the
         // Accounts category, so that is where the last one goes. Videoconferencing lists the
         // accounts that make meetings, from the same snapshot.
         if (!_rebuilding && CurrentCategory() == "videoconferencing")
@@ -309,7 +331,6 @@ public sealed partial class SettingsDialog
             return;
         }
         var snapshot = _model.AccountsSnapshot();
-        AskSharedAgain(snapshot);
         var any = snapshot.Accounts.Length > 0;
         if (!any && _hadAccounts)
         {
@@ -320,10 +341,35 @@ public sealed partial class SettingsDialog
         var page = OpenPage();
         if (_model.TakeChangeNotice(page) is { } notice)
         {
-            _accountNotice = ChangeFailed(notice);
+            _accountNotice = _changeNotice = ChangeFailed(notice);
+        }
+        else if (_changeNotice is not null && ReferenceEquals(_accountNotice, _changeNotice) && page?.Notice is null)
+        {
+            // A change since says nothing of the one that failed: a save that worked must not
+            // stand under "Couldn't save".
+            _accountNotice = _changeNotice = null;
         }
         if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
         {
+            // Drawn again now, a picker whose list is open would close under the pointer and the
+            // pick would be lost, and a field holding what is still being typed would send it half
+            // finished as it goes. The page is drawn once the list closes or the field is left,
+            // which sends what it holds; either change is queued in the core behind this one.
+            if (OpenPicker() is { } open)
+            {
+                WhenClosed(open);
+                return;
+            }
+            if (UnsentField() is { } field)
+            {
+                WhenLeft(field);
+                return;
+            }
+            if (UnsentForm() is { } form)
+            {
+                WhenSent(form);
+                return;
+            }
             ShowCategory("accounts");
         }
         else if (_accountNoticeBar is { } bar)
@@ -332,16 +378,113 @@ public sealed partial class SettingsDialog
         }
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, which
-    /// accounts have a mailbox listed and how each is shared, the notices about accounts, and the
-    /// open page's record, which the page draws from calls of their own.</summary>
+    /// <summary>The picker on the page whose list is open, if any.</summary>
+    private ComboBox? OpenPicker()
+    {
+        var pending = new Stack<DependencyObject>([_detail]);
+        while (pending.TryPop(out var node))
+        {
+            if (node is ComboBox { IsDropDownOpen: true } open)
+            {
+                return open;
+            }
+            for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(node); i++)
+            {
+                pending.Push(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(node, i));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>The text field with the keyboard, if it holds text it has not sent.</summary>
+    private TextBox? UnsentField() =>
+        XamlRoot is { } root
+        && Microsoft.UI.Xaml.Input.FocusManager.GetFocusedElement(root) is TextBox box
+        && ControlComponents.HoldsUnsentText(box)
+            ? box
+            : null;
+
+    /// <summary>A form on the page holding edits its button has not sent, if any.</summary>
+    private ControlComponents.FormState? UnsentForm()
+    {
+        var pending = new Stack<DependencyObject>([_detail]);
+        while (pending.TryPop(out var node))
+        {
+            if (node is FrameworkElement { Tag: ControlComponents.FormState { Unsent: true } form })
+            {
+                return form;
+            }
+            for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(node); i++)
+            {
+                pending.Push(Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(node, i));
+            }
+        }
+        return null;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="form"/> is sent, once however many
+    /// signals arrive meanwhile.</summary>
+    private void WhenSent(ControlComponents.FormState form)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, form))
+        {
+            return;
+        }
+        _redrawWaitsOn = form;
+        void Sent()
+        {
+            form.Sent -= Sent;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        form.Sent += Sent;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="picker"/>'s list closes, once
+    /// however many signals arrive while it is open.</summary>
+    private void WhenClosed(ComboBox picker)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, picker))
+        {
+            return;
+        }
+        _redrawWaitsOn = picker;
+        void Closed(object? sender, object args)
+        {
+            picker.DropDownClosed -= Closed;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        picker.DropDownClosed += Closed;
+    }
+
+    /// <summary>Asks for the page again once <paramref name="field"/> loses the keyboard, after it
+    /// has sent what it holds, once however many signals arrive meanwhile.</summary>
+    private void WhenLeft(TextBox field)
+    {
+        if (ReferenceEquals(_redrawWaitsOn, field))
+        {
+            return;
+        }
+        _redrawWaitsOn = field;
+        void Left(object sender, RoutedEventArgs args)
+        {
+            field.LostFocus -= Left;
+            _redrawWaitsOn = null;
+            OnAccountsChanged();
+        }
+        field.LostFocus += Left;
+    }
+
+    /// <summary>What the list or a page is drawn from: the snapshot, how each account is shared,
+    /// the notices about accounts, and the open page's record, which the page draws from calls of
+    /// their own.</summary>
     private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page)
     {
-        var beside = (_model.GetSyncSettings()?.Accounts.Select(account => "mail:" + account.AccountId) ?? [])
-            .Concat(_model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}"))
+        var beside = _model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}")
             .Concat(AccountNoticesFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));
-        return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);
+        return AccountSettingsRules.Fingerprint(snapshot, beside);
     }
 
     private string? CurrentCategory() => (_categories.SelectedItem as ListViewItem)?.Tag as string;

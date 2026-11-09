@@ -129,7 +129,9 @@ fn a_change_the_core_refuses_leaves_a_notice_and_a_missing_server_is_said_first(
         AccountChangeNotice::UseFailed {
             capability: AccountCapability::Mail,
             on: false,
-            ..
+            refusal: crate::AccountChangeRefusal::Blocked {
+                block: AccountUseBlock::LastUse
+            },
         }
     ));
 
@@ -162,7 +164,7 @@ fn a_calendar_the_provider_refused_asks_it_again_on_the_page_and_in_the_change()
         AccountChangeNotice::UseFailed {
             capability: AccountCapability::Calendar,
             on: true,
-            ..
+            refusal: crate::AccountChangeRefusal::Withheld,
         }
     ));
 }
@@ -264,5 +266,74 @@ fn a_removal_takes_the_page_and_says_on_the_list_what_it_could_not_finish() {
     assert!(
         matches!(notice.notice, AccountChangeNotice::RemoveFailed { .. }),
         "the account is gone, and the list says its credential was kept"
+    );
+}
+
+/// A mail account's page carries its mail half, and a change to it runs through `dispatch` and is
+/// on the page when it ends: the interval in effect, the name it sends under.
+#[test]
+fn a_mail_setting_changes_through_the_page() {
+    let app = app("account-page-mail", MAIL_ONLY);
+    let page = settled(&app);
+    let mail = page.mail.expect("a mail account has its mail settings");
+    // The server never answered, so nothing says it pushes: it checks on a timer.
+    assert!(mail.push.is_none());
+    let interval = mail
+        .interval
+        .expect("an account that cannot push checks on a timer");
+    let other = interval
+        .options
+        .iter()
+        .copied()
+        .find(|minutes| *minutes != interval.options[interval.selected as usize])
+        .expect("more than one interval is offered");
+
+    // Asked for while the interval runs, as a field sends what was typed when the held page
+    // takes its focus: it waits its turn rather than being turned away.
+    for _ in 0..2 {
+        app.dispatch(Intent::AccountPage {
+            intent: AccountPageIntent::SetPollInterval {
+                account: ID.to_owned(),
+                minutes: other,
+            },
+        });
+    }
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SetSenderName {
+            account: ID.to_owned(),
+            name: "Alice Example".to_owned(),
+        },
+    });
+    let page = settled(&app);
+    let interval = page
+        .mail
+        .and_then(|mail| mail.interval)
+        .expect("still on a timer");
+    assert_eq!(interval.options[interval.selected as usize], other);
+    assert!(interval.control.enabled && !interval.control.running);
+    let name = page.sender_name.expect("a mail account sends under a name");
+    assert_eq!(name.name, "Alice Example");
+}
+
+/// An add the core refuses keeps the address in the field, as the person meant it, so it is
+/// corrected rather than typed again.
+#[test]
+fn a_refused_add_keeps_the_address_it_was_given() {
+    let app = app("account-page-shared-add", MAIL_ONLY);
+    settled(&app);
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::AddSharedMailbox {
+            account: ID.to_owned(),
+            address: "  team@example.org ".to_owned(),
+        },
+    });
+    let page = settled(&app);
+    assert!(matches!(
+        page.notice.map(|raised| raised.notice),
+        Some(AccountChangeNotice::SharedMailboxFailed { .. })
+    ));
+    assert_eq!(
+        app.account_work.shared.missed_at(ID).as_deref(),
+        Some("team@example.org")
     );
 }

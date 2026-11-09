@@ -16,7 +16,12 @@ internal static class CorePage
         [.. entry.Uses.Select(use => new AccountUseSwitch(
             use.Capability, use.State == CapabilityState.On, Free, null, null, false, true, false))],
         [],
+        null,
+        null,
+        null,
+        null,
         Free,
+        null,
         null);
 
     /// <summary>One picker per slot with candidates and nothing linked, the suggestion marked, as

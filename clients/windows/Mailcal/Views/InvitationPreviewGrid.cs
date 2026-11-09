@@ -16,6 +16,7 @@
 using System.Globalization;
 using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -154,7 +155,7 @@ internal sealed class InvitationPreviewGrid : UserControl
             }
             var chip = Chip(
                 band.Title,
-                CalendarColors.SwatchFor(NoCalendars, band.Account, band.Calendar, dark),
+                CalendarColors.EventColorsFor(NoCalendars, band.Account, band.Calendar, dark),
                 InvitationFormat.IsAwaitingResponse(band.Participation),
                 LaneHeight - 2);
             chip.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -219,7 +220,7 @@ internal sealed class InvitationPreviewGrid : UserControl
             var bottom = (hourHeight * (segment.EndMinutes / CalendarUnits.MinutesInHour)) - offset;
             var chip = Chip(
                 segment.Title,
-                CalendarColors.SwatchFor(NoCalendars, segment.Account, segment.Calendar, dark),
+                CalendarColors.EventColorsFor(NoCalendars, segment.Account, segment.Calendar, dark),
                 InvitationFormat.IsAwaitingResponse(segment.Participation),
                 Math.Max(bottom - top - 1, 1));
             chip.Width = Math.Max(columnWidth - 1, 1);
@@ -239,33 +240,38 @@ internal sealed class InvitationPreviewGrid : UserControl
     /// dashed edge is invisible to a screen reader); on this surface the card's own answer line and
     /// its conflict sentence carry that, which is why the preview needs no spoken label of its own.
     /// </remarks>
-    private static FrameworkElement Chip(string title, Swatch swatch, bool awaiting, double height)
+    private static FrameworkElement Chip(string title, EventColors colors, bool awaiting, double height)
     {
-        var edge = CalendarColors.Parse(swatch.Border);
-        var chip = new Grid { Height = height };
-        chip.Children.Add(new Rectangle
+        // The grid's block in miniature (docs/calendar.md §1): the tint, the calendar's colour down
+        // the leading edge, which a border on that side alone draws round the corners, and a
+        // semibold title in the deep shade.
+        var chip = new Border
         {
-            RadiusX = ChipCorner,
-            RadiusY = ChipCorner,
-            Fill = new SolidColorBrush(CalendarHold.Fade(CalendarColors.Parse(swatch.Background), awaiting)),
-        });
+            Height = height,
+            CornerRadius = new CornerRadius(ChipCorner),
+            Background = new SolidColorBrush(CalendarHold.Fade(colors.Fill, awaiting)),
+        };
+        if (!awaiting)
+        {
+            chip.BorderBrush = new SolidColorBrush(colors.Accent);
+            chip.BorderThickness = new Thickness(CalendarBlocks.BarWidth, 0, 0, 0);
+        }
         if (height >= InvitationFormat.MinimumTitledHeight)
         {
-            chip.Children.Add(new TextBlock
+            chip.Child = new TextBlock
             {
                 Text = string.IsNullOrEmpty(title) ? L10n.EventNoTitle() : title,
                 FontSize = 9,
+                FontWeight = FontWeights.SemiBold,
                 MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(4, 1, 2, 0),
-                Foreground = new SolidColorBrush(
-                    awaiting ? edge : CalendarColors.Parse(swatch.Text)),
-            });
+                Margin = new Thickness(awaiting ? CalendarBlocks.BarWidth + 2 : 2, 1, 2, 0),
+                Foreground = new SolidColorBrush(colors.Text),
+            };
         }
-        return CalendarHold.Compose(chip, edge, ChipCorner, awaiting, height);
+        return CalendarHold.Compose(chip, colors.Accent, ChipCorner, awaiting, height);
     }
-
     // The preview carries no calendar list, it is one already-loaded day, not a page to page
     // through, so every block falls back to the neutral swatch. The preview is about *when*, not
     // about which calendar.

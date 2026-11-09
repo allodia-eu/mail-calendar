@@ -26,6 +26,7 @@ internal fun SetupField(
     keyboardType: KeyboardType = KeyboardType.Text,
     missing: Boolean = false,
     onGo: (() -> Unit)? = null,
+    enabled: Boolean = true,
 ) {
     val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.runtime.LaunchedEffect(missing) {
@@ -35,6 +36,7 @@ internal fun SetupField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth().focusRequester(focus),
+        enabled = enabled,
         isError = missing,
         singleLine = true,
         label = { Text(label) },
@@ -53,11 +55,13 @@ internal fun PasswordField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
+    enabled: Boolean = true,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
+        enabled = enabled,
         singleLine = true,
         label = { Text(label) },
         visualTransformation = PasswordVisualTransformation(),

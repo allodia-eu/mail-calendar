@@ -107,6 +107,12 @@ pub enum DeviceClass {
 }
 
 impl DeviceClass {
+    /// Whether the device is a phone, which opens the calendar on three days.
+    #[must_use]
+    pub const fn is_phone(self) -> bool {
+        matches!(self, Self::Iphone | Self::AndroidPhone)
+    }
+
     /// The wire label.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

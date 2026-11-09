@@ -21,10 +21,6 @@ struct EventDetailView: View {
     var onAnswer: (InvitationResponse, String) -> Void = { _, _ in }
     /// Whether a calendar write is on its way, which holds the answer buttons back.
     var saving = false
-    /// The "organiser wasn't told" question, put from here while the detail is open, as the window
-    /// puts it otherwise; see `MailboxModel.eventDetailOpen`.
-    var replyPrompt: ReplyPrompt?
-    var onReplyPrompt: (Bool, Bool) -> Void = { _, _ in }
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
@@ -117,14 +113,6 @@ struct EventDetailView: View {
                 Button(L10n.action_cancel(), role: .cancel) {}
             } message: {
                 if detail.isRecurring { Text(L10n.event_series_note()) }
-            }
-            // The same contract as the window's: the core owns the question, so the binding only
-            // reads it and a swipe-away cannot orphan it.
-            .sheet(isPresented: Binding(get: { replyPrompt != nil }, set: { _ in })) {
-                if let replyPrompt {
-                    InvitationReplyPromptView(prompt: replyPrompt, answer: onReplyPrompt)
-                        .interactiveDismissDisabled()
-                }
             }
         }
         // A macOS sheet sizes itself to its content, and a `List` has no intrinsic height to give it

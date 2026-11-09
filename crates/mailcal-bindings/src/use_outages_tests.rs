@@ -15,6 +15,7 @@ fn snapshot(offline: bool, expired: &[&str]) -> ConnectivitySnapshot {
         calendar_outages: Vec::new(),
         contacts_outages: Vec::new(),
         allodia_sign_in_ended: None,
+        allodia_lapses_soon: false,
     }
 }
 

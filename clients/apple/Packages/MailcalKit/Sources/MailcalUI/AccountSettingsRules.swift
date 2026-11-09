@@ -41,25 +41,11 @@ enum AccountSettingsRules {
         entry.uses.filter { $0.state == .needsPermission }.map(\.capability)
     }
 
-    /// Whether the account signs in at its provider's own page, which "Sign in again" opens.
-    static func signsInAtProvider(_ kind: AccountKind) -> Bool {
-        kind == .microsoft || kind == .google
-    }
-
     /// The accounts that lose their link when this one is removed, joined for the confirmation;
     /// `nil` when none does.
     static func unlinked(_ entry: AccountEntry) -> String? {
         entry.linkedFrom.isEmpty
             ? nil : entry.linkedFrom.map { AccountSettingsLabels.name($0) }.joined(separator: ", ")
-    }
-
-    /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
-    /// secret the server stopped accepting. An account whose servers are editable takes its new
-    /// password there, and one that signs in at a provider signs in again instead.
-    static func replacesSecret(
-        _ entry: AccountEntry, expired: Bool, provider: AccountProvider?
-    ) -> Bool {
-        expired && entry.endpoints == nil && provider == .jmap
     }
 }
 
@@ -143,26 +129,79 @@ enum AccountSettingsLabels {
         case .withheld: L10n.settings_account_use_withheld()
         case nil: nil
         }
-        let blocked: String? = switch toggle.blocked {
+        let blocked = toggle.blocked.map(blockNote)
+        let lines = [status, blocked].compactMap { $0 }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// Why a use's switch cannot be pressed.
+    static func blockNote(_ block: AccountUseBlock) -> String {
+        switch block {
         case .lastUse: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
         case .needsMail: L10n.settings_account_shared_needs_mail()
         case .notOffered: L10n.settings_account_use_not_offered()
         case .needsServer: L10n.settings_account_use_needs_endpoint()
-        case nil: nil
         }
-        let lines = [status, blocked].compactMap { $0 }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     /// What a change on an account's page came to, when the core says it needs saying.
     static func changeFailed(_ notice: AccountChangeNotice) -> AccountPageAlert {
         switch notice {
-        case let .useFailed(_, _, detail), let .linkFailed(_, detail):
-            AccountPageAlert(title: L10n.settings_account_change_failed_title(), detail: detail)
+        case let .useFailed(_, _, refusal), let .linkFailed(_, refusal):
+            AccountPageAlert(
+                title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
         case let .removeFailed(detail):
             AccountPageAlert(title: L10n.remove_account_failed(error: detail), detail: "")
+        case let .serversFailed(refusal):
+            AccountPageAlert(
+                title: L10n.settings_account_servers_failed(), detail: refused(refusal))
+        case let .sharedMailboxFailed(refusal), let .passwordFailed(refusal):
+            AccountPageAlert(
+                title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
+        case .sharedMailboxNotFound:
+            AccountPageAlert(title: L10n.settings_account_shared_not_found(), detail: "")
         }
+    }
+
+    /// The line under an account's shared mailboxes.
+    static func sharedNote(_ note: SharedMailboxesNote) -> String {
+        switch note {
+        case .noneShared: L10n.settings_account_shared_none()
+        case .byAddress: L10n.settings_account_shared_by_address()
+        case .notConnected: L10n.settings_account_shared_not_connected()
+        case .unreachable: L10n.settings_account_shared_unreachable()
+        }
+    }
+
+    /// Why a change did not take, in the person's language where the core names the reason, as
+    /// `coreMessage` words a refusal; anything else as the core renders it.
+    static func refused(_ refusal: AccountChangeRefusal) -> String {
+        switch refusal {
+        case .signInRefused: L10n.signin_refused()
+        case .alreadySetUp: L10n.account_already_set_up()
+        case .differentAccount: L10n.signin_different_account()
+        case .staleSignIn: L10n.signin_stale()
+        case let .useNotConnected(capability, problem):
+            useNotConnectedMessage(capability, problem)
+        case let .blocked(block): blockNote(block)
+        case .withheld: L10n.settings_account_use_withheld()
+        case .noLongerShared: L10n.settings_account_shared_withdrawn()
+        case let .other(detail): detail
+        }
+    }
+
+    /// What Save says the server fields leave out, naming the field as the form labels it.
+    static func endpointsGap(_ gap: AccountEndpointsGap) -> String {
+        let field = switch gap {
+        case .imap: L10n.settings_account_field_imap()
+        case .smtp: L10n.setup_field_smtp()
+        case .calDav: L10n.setup_field_caldav()
+        case .cardDav: L10n.settings_account_field_carddav()
+        case .username: L10n.settings_account_field_login()
+        case .password: L10n.settings_account_field_new_password()
+        }
+        return L10n.settings_account_servers_gap(field: field)
     }
 
     /// The line under a calendar or an address book that did not connect, which its outage line
@@ -210,14 +249,5 @@ enum AccountSettingsLabels {
         let message = L10n.remove_account_message(email: address)
         guard let unlinked else { return message }
         return "\(message) \(L10n.remove_account_unlinks(accounts: unlinked))"
-    }
-
-    /// The sign-in section's line: what is wrong, when something is.
-    static func signIn(_ entry: AccountEntry, expired: Bool) -> String {
-        if expired { return L10n.signin_expired_prompt(accounts: name(entry)) }
-        if AccountSettingsRules.needsPermission(entry) {
-            return L10n.settings_account_needs_permission()
-        }
-        return L10n.settings_account_signin_description()
     }
 }

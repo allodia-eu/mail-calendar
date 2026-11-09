@@ -4,7 +4,7 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AccountEntry, AccountLinkPicker, AccountPage, AccountPageIntent, AccountUseSwitch,
+    AccountEntry, AccountLinkPicker, AccountPage, AccountPageIntent, AccountUseSwitch, ControlState,
 };
 
 use super::{PageContext, account_mail, account_rows, account_servers, group, page_box};
@@ -40,38 +40,37 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
             status,
         ));
     }
+    if let Some(name) = &account.sender_name {
+        content.append(&super::sender_name::group(&entry.id, name, &ctx.sender));
+    }
     content.append(&uses_group(ctx, entry, &account.uses));
     if !account.links.is_empty() {
         content.append(&links_group(ctx, entry, &account.links));
     }
-    if let Some(shared) = super::shared_mailboxes::section(ctx, entry) {
-        content.append(&shared);
+    if let Some(picker) = account.reply_fallback {
+        content.append(&super::account_reply_fallback::group(ctx, entry, picker));
     }
-    if account_rows::signs_in_at_provider(entry.kind) {
-        content.append(&signin_group(ctx, entry));
-    } else if let Some(section) = super::sign_in_section::group(ctx, entry) {
-        content.append(&section);
+    if let Some(shared) = &account.shared {
+        content.append(&super::shared_mailboxes::section(ctx, entry, shared));
+    }
+    if let Some(section) = &account.sign_in {
+        content.append(&super::sign_in_section::group(ctx, entry, section));
     }
     if let Some(technology) = entry.mail_sync {
         content.append(&super::account_sync_technology::group(technology));
     }
-    if let Some(endpoints) = &entry.endpoints {
-        content.append(&account_servers::server_group(
-            ctx,
-            entry,
-            endpoints,
-            signin_expired(ctx, entry),
-        ));
+    if let Some(servers) = &account.servers {
+        content.append(&account_servers::server_group(ctx, entry, servers));
     }
-    if let Some(mail) = mail_group(ctx, entry) {
-        content.append(&mail);
+    if let Some(mail) = &account.mail {
+        content.append(&account_mail::mail_group(ctx, &entry.id, mail));
     }
     content.append(&remove_group(ctx, entry, account.remove));
     content
 }
 
 /// Asks the core for a change on the page; it returns at once, and the page says it runs.
-fn change(sender: &relm4::Sender<AppInput>, intent: AccountPageIntent) {
+pub(super) fn change(sender: &relm4::Sender<AppInput>, intent: AccountPageIntent) {
     sender.emit(AppInput::Accounts(AccountsInput::Change(intent)));
 }
 
@@ -143,13 +142,17 @@ fn uses_group(
         section.add(&row);
         // Under the note that says why: a sign-in of its own for the server that needs one.
         if crate::ui::separate_sign_in_view::action_after(entry) == Some(capability)
-            && let Some(action) = crate::ui::separate_sign_in_view::page_action(entry, &ctx.sender)
+            && let Some(action) = crate::ui::separate_sign_in_view::page_action(
+                entry,
+                switch.control.enabled,
+                &ctx.sender,
+            )
         {
             section.add(&action);
         }
         // Under the note that says it is paused: the question about the server found elsewhere.
         if switch.reviews_server_change
-            && let Some(action) = review_row(ctx, entry)
+            && let Some(action) = review_row(ctx, entry, switch.control.enabled)
         {
             section.add(&action);
         }
@@ -158,19 +161,17 @@ fn uses_group(
 }
 
 /// "Review", which asks whether to allow the server the calendar or contacts was found on.
-fn review_row(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::ButtonRow> {
+fn review_row(ctx: &PageContext, entry: &AccountEntry, enabled: bool) -> Option<adw::ButtonRow> {
     let review = Review {
         address: entry.address.clone(),
         change: ctx.app.pending_server_change(entry.id.clone())?,
     };
-    let row = adw::ButtonRow::new();
-    row.set_use_markup(false);
-    row.set_title(l10n::server_changed_review());
     let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
-    row.connect_activated(move |_| {
-        server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender);
-    });
-    Some(row)
+    Some(controls::button_row(
+        l10n::server_changed_review(),
+        enabled,
+        move || server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender),
+    ))
 }
 
 /// A picker per link slot the account can hold.
@@ -230,12 +231,14 @@ fn suggest(
     enabled: bool,
 ) {
     row.set_subtitle(&l10n::settings_account_link_suggested(address));
-    let link = gtk::Button::with_label(l10n::action_link());
-    link.set_valign(gtk::Align::Center);
-    link.set_sensitive(enabled);
     let dropdown = dropdown.downgrade();
     let position = index + 1;
-    link.connect_clicked(move |_| {
+    // The picker shows the link running, so this button never does.
+    let held = ControlState {
+        enabled,
+        running: false,
+    };
+    let link = controls::button(l10n::action_link(), held, false, move || {
         if let Some(dropdown) = dropdown.upgrade() {
             dropdown.set_selected(position);
         }
@@ -243,64 +246,11 @@ fn suggest(
     row.add_suffix(&link);
 }
 
-/// "Sign in again", for an account that signs in at its provider's page: the remedy for an
-/// expired sign-in and for a permission the provider withheld.
-fn signin_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {
-    let expired = signin_expired(ctx, entry);
-    let section = group(
-        l10n::settings_account_signin_heading(),
-        &account_rows::signin_description(entry, expired),
-    );
-    let row = adw::ButtonRow::builder()
-        .title(l10n::signin_expired_action())
-        .use_markup(false)
-        .build();
-    let sender = ctx.sender.clone();
-    let account = entry.id.clone();
-    row.connect_activated(move |_| {
-        sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
-            account: account.clone(),
-            adding: Vec::new(),
-        }));
-    });
-    section.add(&row);
-    section
-}
-
-/// The mail settings, while the account is used for mail and the core lists its mailbox.
-fn mail_group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::PreferencesGroup> {
-    let snapshot = ctx.app.sync_settings();
-    let account = snapshot
-        .accounts
-        .iter()
-        .find(|account| account.account_id == entry.id)?;
-    // An account whose servers are editable takes its new password in that section, so the mail
-    // settings offer it only to one that has no such section.
-    let expired = signin_expired(ctx, entry) && entry.endpoints.is_none();
-    let provider = ctx.app.account_provider(entry.id.clone());
-    Some(account_mail::mail_group(
-        ctx,
-        account,
-        &super::account_names::entry_name(entry),
-        &snapshot,
-        expired,
-        provider.as_ref(),
-    ))
-}
-
-/// Whether the server refused the account's stored sign-in.
-fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
-    ctx.app
-        .connectivity()
-        .signin_expired_accounts
-        .contains(&entry.id)
-}
-
 /// Removing the account, last, confirmed first.
 fn remove_group(
     ctx: &PageContext,
     entry: &AccountEntry,
-    control: mailcal_bindings::ControlState,
+    control: ControlState,
 ) -> adw::PreferencesGroup {
     let section = adw::PreferencesGroup::new();
     let row = adw::ActionRow::builder()

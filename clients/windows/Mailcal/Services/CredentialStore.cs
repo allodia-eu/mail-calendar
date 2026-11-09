@@ -105,7 +105,7 @@ internal static class CredentialStore
     /// id from the ordered index, so a later launch no longer loads it. Returns whether nothing is
     /// stored for <paramref name="id"/> any more, an id that was not there is a success, since
     /// that is already the desired end state. The account's runtime removal is the core's job
-    /// (<c>MailcalApp.RemoveAccount</c>), which calls this itself.
+    /// (<c>AccountPageIntent.Remove</c>), which calls this itself.
     /// </summary>
     public static bool Remove(string id)
     {

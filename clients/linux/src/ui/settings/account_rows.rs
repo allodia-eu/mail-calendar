@@ -76,22 +76,6 @@ pub(super) fn needs_permission(entry: &AccountEntry) -> bool {
         .any(|use_| use_.state == CapabilityState::NeedsPermission)
 }
 
-/// Whether the account signs in at its provider's own page, which "Sign in again" opens.
-pub(super) const fn signs_in_at_provider(kind: AccountKind) -> bool {
-    matches!(kind, AccountKind::Microsoft | AccountKind::Google)
-}
-
-/// What the sign-in group says beneath its heading: what is wrong, when something is.
-pub(super) fn signin_description(entry: &AccountEntry, expired: bool) -> String {
-    if expired {
-        l10n::signin_expired_prompt(&super::account_names::entry_name(entry))
-    } else if needs_permission(entry) {
-        l10n::settings_account_needs_permission().to_owned()
-    } else {
-        l10n::settings_account_signin_description().to_owned()
-    }
-}
-
 /// What a use that did not connect says beneath its switch. Only a calendar or an address book
 /// fails on its own; mail decides whether the account connected at all.
 fn problem_note(capability: AccountCapability, problem: UseProblem) -> &'static str {
@@ -121,29 +105,44 @@ pub(super) fn switch_note(switch: &AccountUseSwitch) -> Option<String> {
         AccountUseStatus::Problem { problem } => problem_note(switch.capability, problem),
         AccountUseStatus::Withheld => l10n::settings_account_use_withheld(),
     });
-    let blocked = switch.blocked.map(|block| match block {
+    let blocked = switch.blocked.map(block_note);
+    let lines = [status, blocked].into_iter().flatten().collect::<Vec<_>>();
+    (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
+/// Why a use's switch cannot be pressed.
+pub(in crate::ui) fn block_note(block: AccountUseBlock) -> &'static str {
+    match block {
         AccountUseBlock::LastUse => l10n::settings_account_use_last(),
         AccountUseBlock::NeedsContacts => l10n::settings_account_colleagues_needs_contacts(),
         AccountUseBlock::NeedsMail => l10n::settings_account_shared_needs_mail(),
         AccountUseBlock::NotOffered => l10n::settings_account_use_not_offered(),
         AccountUseBlock::NeedsServer => l10n::settings_account_use_needs_endpoint(),
-    });
-    let lines = [status, blocked].into_iter().flatten().collect::<Vec<_>>();
-    (!lines.is_empty()).then(|| lines.join("\n"))
+    }
 }
 
 /// What a change on an account's page came to, when the core says it needs saying.
 pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notice::Notice {
     match notice {
-        AccountChangeNotice::UseFailed { detail, .. }
-        | AccountChangeNotice::LinkFailed { detail, .. } => super::notice::Notice::Error {
+        AccountChangeNotice::UseFailed { refusal, .. }
+        | AccountChangeNotice::LinkFailed { refusal, .. }
+        | AccountChangeNotice::SharedMailboxFailed { refusal }
+        | AccountChangeNotice::PasswordFailed { refusal } => super::notice::Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
-            detail: detail.clone(),
+            detail: crate::ui::core_error::refusal_said(refusal),
         },
         AccountChangeNotice::RemoveFailed { detail } => super::notice::Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
             detail: l10n::remove_account_failed(detail),
         },
+        AccountChangeNotice::ServersFailed { refusal } => super::notice::Notice::Error {
+            title: l10n::settings_account_servers_failed().to_owned(),
+            detail: crate::ui::core_error::refusal_said(refusal),
+        },
+        // Not a failure of the app: the address is the person's to check.
+        AccountChangeNotice::SharedMailboxNotFound { .. } => {
+            super::notice::Notice::Toast(l10n::settings_account_shared_not_found().to_owned())
+        }
     }
 }
 

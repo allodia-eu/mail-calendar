@@ -14,14 +14,14 @@ pub(crate) enum CredentialPersistence {
     RegisteredGrant,
 }
 
-#[uniffi::export]
 impl MailcalApp {
     /// Replaces the password or pasted JMAP secret of `account_id`, after proving it connects.
     /// The account keeps its identity, settings, cached mail, and switcher position; the core
     /// writes the accepted credential through its
     /// [`AccountCredentialStore`](crate::AccountCredentialStore) and runs a catch-up refresh.
     ///
-    /// **Blocking** (provider connect); call it off the UI thread.
+    /// **Blocking** (provider connect). Not exported: a client sends a typed password as
+    /// `AccountPageIntent::UsePassword`, which runs this off its thread.
     ///
     /// # Errors
     ///
@@ -158,18 +158,15 @@ impl MailcalApp {
             return Err(error);
         }
         registered.commit();
+        // Which ways in the server takes depends on the way in the account has, which may have
+        // just changed: its page asks again.
+        self.account_work.sign_in.forget(account_id);
         // Only once committed: a principal learned by a replacement that was rolled back would
         // start the next connect of the account it did not replace.
         self.registry.learn_dav_starts(account_id, &outcome.learned);
         self.registry
             .note_dav_dialled(account_id, std::time::Instant::now());
         self.app.note_use_problems(&id, outcome.use_problems);
-        if let Some(error) = outcome.calendar_error {
-            self.calendar_connect_errors
-                .lock()
-                .expect("calendar-errors mutex poisoned")
-                .push(error);
-        }
         // As a reconnect does: a calendar that came up retracts the prompt to re-consent for it,
         // and one the grant still withholds raises it.
         if outcome.account.calendar_provider.is_none() {

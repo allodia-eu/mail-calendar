@@ -60,8 +60,6 @@ pub(in crate::ui) struct SettingsState {
     pub(in crate::ui) account: Option<String>,
     /// What the account page's Sign-in section knows, for the same reason.
     pub(in crate::ui) sign_in: crate::ui::account_sign_in::SignInSwitchState,
-    /// What each account's server said of its shared mailboxes, for the same reason.
-    pub(in crate::ui) shared: crate::ui::account_shared::SharedState,
     /// The form for a sign-in of its own that an account's page opened, while it is open.
     pub(in crate::ui) separate: Option<crate::ui::separate_sign_in::SeparateForm>,
     /// How many such forms have been opened, so each is told from the one before it.
@@ -90,7 +88,6 @@ impl Default for SettingsState {
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
             sign_in: crate::ui::account_sign_in::SignInSwitchState::default(),
-            shared: crate::ui::account_shared::SharedState::default(),
             separate: None,
             separate_forms: 0,
             notice: None,
@@ -210,11 +207,10 @@ impl SettingsState {
         self.generation = self.generation.wrapping_add(1);
     }
 
-    /// What the window is rendered from. `credential_repair_failed` and `accounts_synced` ride
-    /// along because they live on the model beside this, and the window reads them together.
+    /// What the window is rendered from. `accounts_synced` rides along because it lives on the
+    /// model beside this, and the window reads them together.
     pub(in crate::ui) fn render_state<'a>(
         &'a self,
-        credential_repair_failed: Option<&'a str>,
         accounts_synced: &'a std::collections::HashMap<
             String,
             mailcal_bindings::AllodiaAccountSyncMode,
@@ -223,7 +219,6 @@ impl SettingsState {
         RenderState {
             generation: self.generation,
             category: self.category,
-            credential_repair_failed,
             allodia_signing_in: self.allodia_signing_in,
             allodia_failure: self.allodia_failure.as_deref(),
             allodia_sync: &self.allodia_sync,
@@ -231,7 +226,6 @@ impl SettingsState {
             allodia_accounts_synced: accounts_synced,
             account: self.account.as_deref(),
             sign_in: &self.sign_in,
-            shared: &self.shared,
             separate: self.separate.as_ref(),
             notice: self.notice.as_ref(),
             redraw: self.redraw,

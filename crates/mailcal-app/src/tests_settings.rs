@@ -197,8 +197,9 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
     assert_eq!(app.timezone_settings().active, "Etc/UTC");
     assert_eq!(app.timezone_settings().pending_device, None);
 
-    // The OS reports a move to Amsterdam: a pending change is raised + a Settings signal,
-    // but the active zone stays put until the user accepts.
+    // The OS reports a move to Amsterdam: a pending change is raised, with a Settings signal and
+    // a Notices one for the notice that asks, but the active zone stays put until the user
+    // accepts.
     app.dispatch(Intent::ReportDeviceTimeZone("Europe/Amsterdam".to_owned()))
         .await;
     assert_eq!(
@@ -206,7 +207,10 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
         Some("Europe/Amsterdam")
     );
     assert_eq!(app.timezone_settings().active, "Etc/UTC");
-    assert_eq!(*surfaces.lock().unwrap(), vec![Surface::Settings]);
+    assert_eq!(
+        *surfaces.lock().unwrap(),
+        vec![Surface::Settings, Surface::Notices]
+    );
 
     // Accepting adopts the zone and re-orders the agenda (Settings + Calendar signals).
     surfaces.lock().unwrap().clear();
@@ -215,6 +219,7 @@ async fn timezone_intents_drive_the_settings_surface_and_reorder_the_agenda() {
     assert_eq!(app.timezone_settings().pending_device, None);
     let seen = surfaces.lock().unwrap().clone();
     assert!(seen.contains(&Surface::Settings));
+    assert!(seen.contains(&Surface::Notices), "the question is settled");
     assert!(seen.contains(&Surface::Calendar));
 
     // The explicit selector switches the active zone (and re-orders) too.
@@ -293,6 +298,37 @@ async fn sync_settings_defaults_to_pushing_the_inbox_when_idle_supported() {
         "the Inbox is watched by default under push"
     );
     assert!(!row.at_push_limit, "one subscribed folder is under the cap");
+}
+
+#[tokio::test]
+async fn a_switch_to_push_is_drawn_with_the_folders_it_will_watch() {
+    // While the switch runs, the page draws the row it will store, not the timer's empty one.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(
+        vec![account("acct", FakeProvider::with_idle(vec![]))],
+        &surfaces,
+    );
+    app.dispatch(Intent::RefreshMail).await;
+    app.set_sync_strategy("acct", mailcal_viewmodel::SyncStrategyKind::Poll)
+        .await;
+
+    let stored = app
+        .sync_settings_row("acct", None)
+        .await
+        .expect("a mail account");
+    assert!(stored.folders.iter().all(|f| !f.subscribed));
+    let going = app
+        .sync_settings_row("acct", Some(mailcal_viewmodel::SyncStrategyKind::Push))
+        .await
+        .expect("a mail account");
+    assert_eq!(going.strategy, mailcal_viewmodel::SyncStrategyKind::Push);
+    assert!(
+        going.folders.iter().any(|f| f.key == "a" && f.subscribed),
+        "the Inbox is drawn watched, as the switch stores it"
+    );
+    app.set_sync_strategy("acct", mailcal_viewmodel::SyncStrategyKind::Push)
+        .await;
+    assert_eq!(app.sync_settings_row("acct", None).await, Some(going));
 }
 
 #[tokio::test]

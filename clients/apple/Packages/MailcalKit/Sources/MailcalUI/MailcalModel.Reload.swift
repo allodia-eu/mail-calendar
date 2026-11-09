@@ -6,9 +6,13 @@ import MailcalBindings
 
 extension MailboxModel {
     func reload(_ surface: Surface) {
-        // Notices touch nothing else, and returning keeps the signal from the mailbox reload below.
+        // Notices touch nothing else but Settings → Accounts, which says when a provider refused a
+        // use, a sign-in expired, or a calendar or address book did not connect; the accounts
+        // snapshot is published only when it changed. Returning keeps the signal from the
+        // mailbox reload below.
         if case .notices = surface {
             reloadNotices()
+            refreshAccountsSnapshot()
             return
         }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
@@ -32,35 +36,10 @@ extension MailboxModel {
             syncProgress = app?.syncProgress()
             return
         }
-        // A connectivity signal only updates the offline banner + per-account outage badges, and
-        // Settings → Accounts, which says when a provider refused a use, a sign-in expired, or a
-        // calendar or address book did not connect. The last is not in the connectivity
-        // snapshot, so the accounts snapshot is pulled on every such signal; it is published
-        // only when it changed.
-        if case .connectivity = surface {
-            connectivity = app?.connectivity()
-            refreshAccountsSnapshot()
-            return
-        }
         // A calendar-write-status signal only moves the small header badge (spinner → check /
         // warning); the grid/agenda arrive on their own `.calendar` signal.
         if case .calendarStatus = surface {
             calendarWriteStatus = app?.calendarWriteStatus() ?? .idle
-            return
-        }
-        // An invitation-reply signal only raises or clears the "the organiser wasn't told"
-        // modal. It arrives in both directions, the core clears the question as soon as it is
-        // answered, so this assigns whatever the core now holds rather than only setting it.
-        if case .invitationReply = surface {
-            replyPrompt = app?.replyPrompt()
-            return
-        }
-        // The missing-Sent-copy question has its own surface, and the core signals it in both
-        // directions too, it clears the question the moment the copy is filed or the user
-        // dismisses it, so this assigns whatever the core now holds, and `nil` is what closes
-        // the sheet.
-        if case .unfiledCopy = surface {
-            unfiledCopy = app?.unfiledCopy()
             return
         }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
@@ -75,12 +54,11 @@ extension MailboxModel {
             }
             return
         }
-        // A settings signal only updates the settings surfaces (the timezone prompt, the
-        // per-account sync behaviour, and the app-level composing/swipe preferences); it doesn't
-        // change the mailbox/calendar projection.
+        // A settings signal only updates the settings surfaces (the timezone prompt, the accounts
+        // and the page open, and the app-level composing/swipe preferences); it doesn't change the
+        // mailbox/calendar projection.
         if case .settings = surface {
             timezone = app?.timezoneSettings()
-            syncSettings = app?.syncSettings()
             quoteSettings = app?.quoteSettings() ?? QuoteSettings(style: .indented, perMessage: false)
             defaultSendAccount = app?.defaultSendAccount()
             swipeSettings = app?.swipeSettings() ?? SwipeSettings(left: .delete, right: .delete)

@@ -166,7 +166,6 @@ impl AppModel {
         if let Some(next) = self.host_tasks.sender_names_waiting.pop_front() {
             self.ask_sender_name(next, sender);
         } else if let Some((account, notice)) = self.host_tasks.withheld.take() {
-            self.ask_sign_in_options(&account, sender);
             self.settings.open_on_account(account, notice);
         }
     }

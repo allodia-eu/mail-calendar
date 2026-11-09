@@ -21,8 +21,11 @@ license.workspace = true
 crate-type = ["cdylib", "lib"]
 
 [features]
-# Forwards the dev-only extra-CA TLS trust path to the account layer for a release core build
-# (the Android dev loop passes `--features dev-harness`). Off by default; excluded from production.
+# A release core built for development (the Android dev loop passes `--features dev-harness`): the
+# dev-only extra-CA TLS trust path in the account layer, and the showcase's staged questions
+# (`MAILCAL_SHOWCASE_REAUTH`, `MAILCAL_SHOWCASE_SERVER_CHANGE`, `MAILCAL_SHOWCASE_QUESTIONS`) a
+# debug build reads. Off by
+# default; excluded from production.
 dev-harness = ["mailcal-account/dev-harness"]
 # Allodia's own builds only. `allodia_license/` is source-available rather than GPL and the open
 # tree has to build without it (docs/pledge.md, promise 4), so the dependency below is optional and

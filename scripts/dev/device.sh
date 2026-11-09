@@ -9,9 +9,15 @@
 # Developer-Mode precondition, and terminate-BEFORE-launch (a launch over a live process only
 # re-foregrounds it, so no fresh onAppear fires the MAILCAL_* hook).
 #
+# Release is for measuring (scripts/dev/calendar-perf-apple.sh): a Debug Swift build and a debug
+# core are both slower than what ships, and a measurement of either describes neither the app nor
+# the change. Its core carries the device and macOS slices, so one core build serves the phone and
+# the Mac Release app alike; a simulator build afterwards rebuilds the core for its own slice.
+#
 #   scripts/dev/device.sh doctor              # device / Developer Mode / signing team; run first
 #   scripts/dev/device.sh build [--core]      # device-signed Debug build (--core rebuilds Rust)
-#   scripts/dev/device.sh install
+#   scripts/dev/device.sh build --release     # device-signed Release build on a release core
+#   scripts/dev/device.sh install [--release] # the Debug build, or the Release one
 #   scripts/dev/device.sh run [KEY=VAL ...]   # terminate + FRESH launch (with MAILCAL_* hooks)
 #   scripts/dev/device.sh logs [--grep RE]    # pull & print the on-device mailcal.log
 #   scripts/dev/device.sh marks               # print notify_marks (background-sync high-water)
@@ -36,7 +42,10 @@ APPLE_DIR="$REPO_ROOT/clients/apple"
 PROJECT="$APPLE_DIR/AllodiaMail.xcodeproj"
 DERIVED_DATA="${DERIVED_DATA:-$APPLE_DIR/build/DerivedData}"
 ARTIFACTS="$APPLE_DIR/Packages/MailcalKit/artifacts"
-APP="$DERIVED_DATA/Build/Products/Debug-iphoneos/$APPLE_PRODUCT_NAME.app"
+# The configuration a verb works on: Debug unless it was given --release.
+CONFIGURATION=Debug
+app_path() { printf '%s/Build/Products/%s-iphoneos/%s.app' "$DERIVED_DATA" "$CONFIGURATION" "$APPLE_PRODUCT_NAME"; }
+APP="$(app_path)"
 BGSYNC_WAIT="${BGSYNC_WAIT:-22}"
 
 DEVICE="$(device_udid)" || die "no physical iOS device found: connect one, or set MAILCAL_DEVICE=<udid>"
@@ -56,13 +65,19 @@ cmd_doctor() {
 }
 
 cmd_build() {
-  if [[ "${1:-}" == "--core" || ! -d "$ARTIFACTS/Mailcal.xcframework/ios-arm64" ]]; then
+  if [[ "$CONFIGURATION" == Release ]]; then
+    # Always rebuilt: the xcframework does not say which profile it holds, and a Release app
+    # linked against a debug core is the build this exists to avoid. Cargo makes an unchanged
+    # core a short step.
+    info "building the Rust core (release; device and macOS slices)"
+    "$APPLE_DIR/Scripts/build-core.sh" --release --slices device,macos
+  elif [[ "${1:-}" == "--core" || ! -d "$ARTIFACTS/Mailcal.xcframework/ios-arm64" ]]; then
     info "building the Rust core (device slice)"
     "$APPLE_DIR/Scripts/build-core.sh"
   fi
-  info "building AllodiaMail for the device (team $TEAM, automatic signing)"
+  info "building AllodiaMail for the device ($CONFIGURATION, team $TEAM, automatic signing)"
   xcodebuild -project "$PROJECT" -scheme AllodiaMail \
-    -destination "id=$DEVICE" -configuration Debug -derivedDataPath "$DERIVED_DATA" \
+    -destination "id=$DEVICE" -configuration "$CONFIGURATION" -derivedDataPath "$DERIVED_DATA" \
     -allowProvisioningUpdates \
     CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="$TEAM" "CODE_SIGN_IDENTITY=Apple Development" \
     ARCHS=arm64 build
@@ -71,7 +86,8 @@ cmd_build() {
 
 cmd_install() {
   require_dev_mode "$DEVICE"
-  [[ -d "$APP" ]] || die "no built app at $APP: run: device.sh build"
+  local flag=""; [[ "$CONFIGURATION" == Release ]] && flag=" --release"
+  [[ -d "$APP" ]] || die "no built app at $APP: run: device.sh build$flag"
   info "installing on $DEVICE"
   xcrun devicectl device install app --device "$DEVICE" "$APP" >/dev/null
   info "installed $APPLE_BUNDLE_ID"
@@ -130,6 +146,17 @@ cmd_bgsync() {
 }
 
 cmd="${1:-}"; shift || true
+# --release picks the Release build for build, install and all, wherever it appears.
+args=()
+for arg in "$@"; do
+  if [[ "$arg" == --release && "$cmd" =~ ^(build|install|all)$ ]]; then
+    CONFIGURATION=Release
+  else
+    args+=("$arg")
+  fi
+done
+set -- "${args[@]}"
+APP="$(app_path)"
 case "$cmd" in
   doctor)  cmd_doctor "$@" ;;
   build)   cmd_build "$@" ;;
@@ -139,6 +166,6 @@ case "$cmd" in
   marks)   cmd_marks "$@" ;;
   bgsync)  cmd_bgsync "$@" ;;
   all)     cmd_build; cmd_install; cmd_run "$@" ;;
-  ""|-h|--help) sed -nE '2,30{/^#/!q; s/^# ?//p}' "$0" ;;
+  ""|-h|--help) sed -nE '2,40{/^#/!q; s/^# ?//p;}' "$0" ;;
   *) die "unknown command '$cmd' (doctor|build|install|run|logs|marks|bgsync|all)" ;;
 esac

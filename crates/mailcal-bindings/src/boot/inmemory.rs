@@ -85,7 +85,6 @@ pub(crate) fn build_demo(
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
-        calendar_connect_errors: Mutex::new(Vec::new()),
         notice_book: Mutex::default(),
         registry,
         background,
@@ -99,6 +98,8 @@ pub(crate) fn build_demo(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        allodia_entitlement: crate::allodia_entitlement::EntitlementState::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
@@ -232,13 +233,23 @@ pub(crate) fn build_showcase(
             ],
         )
     });
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
-        pause_for_a_server_change(&app, &primary_identity);
+        super::showcase_staging::pause_for_a_server_change(&app, &primary_identity);
     }
-    #[cfg(debug_assertions)]
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
     if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
-        ask_for_reconsent(&app, &primary_identity);
+        super::showcase_staging::ask_for_reconsent(&app, &primary_identity);
+    }
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    if std::env::var_os("MAILCAL_SHOWCASE_QUESTIONS").is_some_and(|value| !value.is_empty()) {
+        super::showcase_staging::ask_the_questions(
+            &app,
+            &runtime,
+            &primary_identity,
+            &primary.identity,
+            &device_tz,
+        );
     }
     let registered = [
         listed(
@@ -251,35 +262,6 @@ pub(crate) fn build_showcase(
         ),
     ];
     finish_showcase(app, runtime, device_tz, registered)
-}
-
-/// The account `id`'s calendar waiting on a server found on another site, for
-/// `MAILCAL_SHOWCASE_SERVER_CHANGE`, which puts the question in front of the UI suites
-/// (`docs/account-autodetect.md` rule 14). Allowing it is refused, because a showcase account has
-/// no servers to change.
-#[cfg(debug_assertions)]
-pub(crate) fn pause_for_a_server_change<P>(app: &App<P>, id: &str) {
-    let id = AccountId::try_from(id).expect("valid account id");
-    app.note_server_change(
-        &id,
-        mailcal_app::ServerChange {
-            previous_site: "example.com".to_owned(),
-            proposed_site: "example.net".to_owned(),
-            calendar_url: Some("https://dav.example.net/".to_owned()),
-            contacts_url: None,
-        },
-    );
-}
-
-/// The account `id` asked to sign in again for mail and for its calendar, for
-/// `MAILCAL_SHOWCASE_REAUTH`: the two notices only a narrowed Microsoft grant raises otherwise
-/// (`docs/provider-oauth.md` rule 11), staged for the UI suites and the help screenshots. Signing
-/// in again opens the account's page, as for any account without a browser sign-in.
-#[cfg(debug_assertions)]
-pub(crate) fn ask_for_reconsent<P: Provider>(app: &App<P>, id: &str) {
-    let id = AccountId::try_from(id).expect("valid account id");
-    app.note_calendar_reauth_required(&id);
-    app.note_mail_reauth_required(&id);
 }
 
 /// The registry entry that lists the showcase account `id` in Settings → Accounts, used for
@@ -345,7 +327,6 @@ fn finish_showcase(
         runtime,
         app,
         account_connect_errors: Mutex::new(Vec::new()),
-        calendar_connect_errors: Mutex::new(Vec::new()),
         notice_book: Mutex::default(),
         registry,
         background,
@@ -359,6 +340,8 @@ fn finish_showcase(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        allodia_entitlement: crate::allodia_entitlement::EntitlementState::default(),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),

@@ -95,12 +95,8 @@ pub enum Appearance {
 /// *read* by more than one client, and a client-local default is how the macOS app and the phone
 /// end up disagreeing about what "the calendar" looks like.
 ///
-/// **Defaults to the whole week.** Not an arbitrary preference: the four grid shapes are zoom
-/// levels of one grid, and the page underneath is always a whole week: so any shape narrower than
-/// a week leaves the rest of it hanging off the side of the screen as a scrollable overhang. On a
-/// phone that overhang sits *inside* the pager and takes the swipe before the pager does, so a
-/// flick meant for next week is spent sliding along this one. Opening on the week means the columns
-/// fill the screen exactly, and every swipe turns the page.
+/// Until the user chooses a shape, the device decides (`CalendarLayout::default_for`): three days
+/// on a phone, the whole week elsewhere.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CalendarLayout {
@@ -110,13 +106,23 @@ pub enum CalendarLayout {
     ThreeDay,
     /// Monday to Friday.
     WorkWeek,
-    /// The whole week. The default.
+    /// The whole week. The default everywhere but a phone (`CalendarLayout::default_for`).
     #[default]
     Week,
     /// The month grid: a different layout, not a zoom level.
     Month,
     /// The agenda list; likewise.
     Agenda,
+}
+
+impl CalendarLayout {
+    /// The shape a calendar opens in before the user has chosen one: three days on a phone, whose
+    /// width gives seven columns too little room to read a title in, and the whole week everywhere
+    /// else. A product decision (`docs/calendar.md` §8).
+    #[must_use]
+    pub const fn default_for(phone: bool) -> Self {
+        if phone { Self::ThreeDay } else { Self::Week }
+    }
 }
 
 /// The narrowest calendar horizon the grid will zoom to; below this an event's label cannot fit

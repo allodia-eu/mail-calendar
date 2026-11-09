@@ -1,7 +1,6 @@
-//! What the open account's Sign-in section knows about a change: what the server accepts, and
-//! where a running change is.
+//! Where a browser sign-in the open account's Sign-in section started is.
 
-use mailcal_bindings::{AccountCapability, AccountSignInOptions, AccountSignInStart};
+use mailcal_bindings::{AccountCapability, AccountSignInStart};
 
 use super::Attempt;
 use crate::ui::nextcloud_flight::Grant;
@@ -16,15 +15,10 @@ pub(crate) enum Stage {
     Browser,
 }
 
-/// What the open account's Sign-in section knows. Here rather than in the window, which is
-/// rebuilt on every change while a question to the server and a browser hop each outlive
-/// several rebuilds.
+/// Where a browser sign-in is. Here rather than in the window, which is rebuilt on every change
+/// while a browser hop outlives several rebuilds.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct SignInSwitchState {
-    /// What one account's server accepts, and the account it is for.
-    answered: Option<(String, AccountSignInOptions)>,
-    /// The account whose question is out, so a page opened twice asks once.
-    asking: Option<String>,
     /// The account whose sign-in is changing, while it is, and where the change is.
     running: Option<(String, Stage)>,
     /// A switch waiting on what becomes of the calendar and contacts it would not reach, asked
@@ -36,14 +30,6 @@ pub(crate) struct SignInSwitchState {
 }
 
 impl SignInSwitchState {
-    /// What `account`'s server accepts, once it has answered.
-    pub(crate) fn options(&self, account: &str) -> Option<&AccountSignInOptions> {
-        self.answered
-            .as_ref()
-            .filter(|(id, _)| id == account)
-            .map(|(_, options)| options)
-    }
-
     /// Where `account`'s change is, while one runs.
     pub(crate) fn running(&self, account: &str) -> Option<Stage> {
         self.running
@@ -57,30 +43,6 @@ impl SignInSwitchState {
         self.question
             .as_ref()
             .map(|(attempt, start)| (attempt.id, start.unreached.as_slice()))
-    }
-
-    /// Whether to ask about `account`: nothing is known or asked about it yet.
-    pub(super) fn ask(&mut self, account: &str) -> bool {
-        if self.options(account).is_some() || self.asking.as_deref() == Some(account) {
-            return false;
-        }
-        self.asking = Some(account.to_owned());
-        true
-    }
-
-    pub(super) fn answer(&mut self, account: String, options: AccountSignInOptions) {
-        if self.asking.as_deref() == Some(account.as_str()) {
-            self.asking = None;
-        }
-        self.answered = Some((account, options));
-    }
-
-    /// Forgets what `account`'s server was said to accept: its way in changed, and with it the
-    /// question.
-    pub(crate) fn forget(&mut self, account: &str) {
-        if self.options(account).is_some() {
-            self.answered = None;
-        }
     }
 
     /// A change for `account` started, replacing any other: the core is asked first.

@@ -10,7 +10,7 @@ use super::{
 };
 use crate::ui::{
     AppInput,
-    calendar::{CalendarModel, EventIdentity, paint::Rgb},
+    calendar::{CalendarModel, EventIdentity, paint::event_colors},
 };
 
 pub(crate) fn the_create_drag_owns_the_primary_pointer_before_event_buttons() {
@@ -67,10 +67,11 @@ fn scrollable_scene() -> GridScene {
         end_minutes: 810,
         column: 0,
         columns: 1,
-        background: Rgb::new(0.0, 0.0, 0.0),
-        foreground: Rgb::new(1.0, 1.0, 1.0),
-        border: Rgb::new(0.0, 0.0, 0.0),
+        colors: event_colors("#2f6fa8", false),
         awaiting: false,
+        repeats: true,
+        time: "13:00".to_owned(),
+        range: "13:00–13:30".to_owned(),
     }];
     scene.hidden_per_day = vec![0];
     scene.hour_height = 60.0;
@@ -287,8 +288,7 @@ pub(crate) fn the_day_names_stay_on_screen_when_the_hours_scroll() {
         day: 0,
         days: 1,
         lane: 0,
-        background: Rgb::new(0.0, 0.0, 0.0),
-        foreground: Rgb::new(1.0, 1.0, 1.0),
+        colors: event_colors("#2f6fa8", false),
         awaiting: false,
     }];
     let header_height = scene.header_height();

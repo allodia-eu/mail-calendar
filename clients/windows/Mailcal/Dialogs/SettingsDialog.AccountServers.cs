@@ -2,8 +2,8 @@
 // with a password to servers of its own (docs/accounts.md rule 14), and its removal, which names
 // the accounts that lose their link to it (rule 12).
 //
-// Saving tries the servers before keeping them (update_account_endpoints), so a typo never costs
-// a working account, and an expired password is replaced here too.
+// Saving tries the servers before keeping them (SaveServers), so a typo never costs a working
+// account, and an expired password is replaced here too.
 
 using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
@@ -17,54 +17,79 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    private UIElement ServersGroup(AccountEntry entry, AccountEndpoints endpoints, bool expired)
+    /// <summary>The servers form, drawn from the page's <paramref name="servers"/>: the edit being
+    /// saved while a save runs, the one the last save refused so one field is corrected rather than
+    /// all retyped, and otherwise what is stored. The page is not drawn again while the form holds
+    /// edits Save has not sent.</summary>
+    private UIElement ServersGroup(AccountEntry entry, AccountServers servers)
     {
+        var form = servers.Form;
         var stack = new StackPanel { Spacing = 8 };
-        var imap = endpoints.ImapHost is { } imapHost
-            ? ServerRows(stack, L10n.SettingsAccountFieldImap(), imapHost, endpoints.ImapSecurity, MailServerKind.Imap)
+        var imap = form.ImapHost is { } imapHost
+            ? ServerRows(stack, L10n.SettingsAccountFieldImap(), imapHost, form.ImapSecurity, MailServerKind.Imap)
             : null;
-        var smtp = endpoints.SmtpHost is { } smtpHost
-            ? ServerRows(stack, L10n.SetupFieldSmtp(), smtpHost, endpoints.SmtpSecurity, MailServerKind.Smtp)
+        var smtp = form.SmtpHost is { } smtpHost
+            ? ServerRows(stack, L10n.SetupFieldSmtp(), smtpHost, form.SmtpSecurity, MailServerKind.Smtp)
             : null;
-        var caldav = endpoints.CaldavUrl is { } caldavUrl
+        var caldav = form.CaldavUrl is { } caldavUrl
             ? Field(stack, L10n.SetupFieldCaldav(), caldavUrl)
             : null;
-        var carddav = endpoints.CarddavUrl is { } carddavUrl
+        var carddav = form.CarddavUrl is { } carddavUrl
             ? Field(stack, L10n.SettingsAccountFieldCarddav(), carddavUrl)
             : null;
-        var login = Field(stack, L10n.SettingsAccountFieldLogin(), endpoints.Username);
-        var password = new PasswordBox { Header = L10n.SettingsAccountFieldNewPassword() };
+        var login = Field(stack, L10n.SettingsAccountFieldLogin(), form.Username);
+        var password = new PasswordBox
+        {
+            Header = L10n.SettingsAccountFieldNewPassword(),
+            Password = form.Password ?? string.Empty,
+        };
         AutomationProperties.SetAutomationId(password, "AccountNewPassword");
         stack.Children.Add(password);
-        var save = new Button { Content = L10n.ActionSave(), Style = AccentButton() };
-        AutomationProperties.SetAutomationId(save, "AccountServersSave");
-        save.Click += async (_, _) =>
+        // Held with Save, so nothing typed during a save is drawn over when it ends.
+        ControlComponents.HoldFields(
+            servers.Save with { Running = false },
+            imap?.Host, imap?.Port, imap?.Picker, smtp?.Host, smtp?.Port, smtp?.Picker,
+            caldav, carddav, login, password);
+
+        AccountEndpoints Read() => AccountEndpointEdit.Edited(form, new EndpointFields(
+            imap?.Address(), imap?.Security(),
+            smtp?.Address(), smtp?.Security(),
+            caldav?.Text.Trim(), carddav?.Text.Trim(),
+            login.Text.Trim(), password.Password));
+        var drawn = Read();
+        var state = ControlComponents.Form(stack);
+        var save = ControlComponents.FormButton(
+            L10n.ActionSave(), servers.Save, "AccountServersSave", AccentButton(), () =>
+            {
+                var endpoints = Read();
+                drawn = endpoints;
+                state.Unsent = false;
+                _model.ChangeAccount(new AccountPageIntent.SaveServers(entry.Id, endpoints));
+            });
+        void Follow()
         {
-            var fields = new EndpointFields(
-                imap?.Address(), imap?.Security(),
-                smtp?.Address(), smtp?.Security(),
-                caldav?.Text.Trim(), carddav?.Text.Trim(),
-                login.Text.Trim(), password.Password);
-            SayOnAccounts(new AccountNotice(
-                InfoBarSeverity.Informational, string.Empty, L10n.SettingsAccountServersTrying()));
-            save.IsEnabled = false;
-            var error = await _model.SaveAccountEndpointsAsync(
-                entry.Id, AccountEndpointEdit.Edited(endpoints, fields));
-            save.IsEnabled = true;
-            if (error is null)
+            var now = Read();
+            state.Unsent = now != drawn;
+            save.Ready(_model.EndpointsGap(entry.Id, now) is { } gap ? AccountUseText.EndpointsGap(gap) : null);
+        }
+        foreach (var box in new[] { imap?.Host, imap?.Port, smtp?.Host, smtp?.Port, caldav, carddav, login })
+        {
+            if (box is not null)
             {
-                NotifyAccounts(new AccountNotice(
-                    InfoBarSeverity.Success, L10n.SettingsAccountServersSaved(), string.Empty));
+                box.TextChanged += (_, _) => Follow();
             }
-            else
+        }
+        foreach (var picker in new[] { imap?.Picker, smtp?.Picker })
+        {
+            if (picker is not null)
             {
-                // The form stays as the person typed it, the password included, so they correct
-                // one field rather than retype them all.
-                SayOnAccounts(new AccountNotice(InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), error));
+                picker.SelectionChanged += (_, _) => Follow();
             }
-        };
-        stack.Children.Add(save);
-        var description = expired
+        }
+        password.PasswordChanged += (_, _) => Follow();
+        Follow();
+        stack.Children.Add(save.Element);
+        var description = servers.SignInRefused
             ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
             : L10n.SettingsAccountServersDescription();
         return Group(L10n.SettingsAccountServersHeading(), description, stack);

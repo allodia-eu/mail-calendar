@@ -31,12 +31,10 @@ struct CalendarDayHeader: View {
             ZStack(alignment: .topLeading) {
                 Color.clear
                 ForEach(weeks) { week in
-                    HStack(spacing: 0) {
-                        ForEach(Array(week.days.enumerated()), id: \.offset) { _, date in
-                            heading(date)
-                        }
-                    }
-                    .frame(width: dayWidth * CGFloat(daysInWeek), alignment: .leading)
+                    CalendarWeekHeadings(
+                        days: week.days, today: today, dayWidth: dayWidth, calendar: calendar
+                    )
+                    .equatable()
                     .offset(x: strip.origin(ofWeek: week.index, dayWidth: dayWidth))
                 }
             }
@@ -44,6 +42,29 @@ struct CalendarDayHeader: View {
             .clipped()
         }
         .padding(.vertical, 5)
+    }
+
+    /// The week of the **leftmost** column on screen, which is the one the gutter sits beside.
+    private var weekNumber: Int {
+        guard let first = weeks.first?.days.first else { return 0 }
+        return isoWeekNumber(first, zone: calendar.timeZone)
+    }
+}
+
+/// One week's day headings. Equatable, so a frame that only slides the strip leaves them alone.
+struct CalendarWeekHeadings: View, Equatable {
+    let days: [Date]
+    let today: Date
+    let dayWidth: CGFloat
+    let calendar: Calendar
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(days.enumerated()), id: \.offset) { _, date in
+                heading(date)
+            }
+        }
+        .frame(width: dayWidth * CGFloat(daysInWeek), alignment: .leading)
     }
 
     private func heading(_ date: Date) -> some View {
@@ -60,12 +81,6 @@ struct CalendarDayHeader: View {
                 .background(isToday ? Color.accentColor : Color.clear, in: Circle())
         }
         .frame(width: dayWidth)
-    }
-
-    /// The week of the **leftmost** column on screen, which is the one the gutter sits beside.
-    private var weekNumber: Int {
-        guard let first = weeks.first?.days.first else { return 0 }
-        return isoWeekNumber(first, zone: calendar.timeZone)
     }
 }
 
@@ -104,13 +119,21 @@ struct CalendarAllDayBanner: View {
             ZStack(alignment: .topLeading) {
                 Color.clear
                 ForEach(weeks) { week in
-                    band(week, drawnLanes: drawnLanes, overflows: overflows)
-                        .frame(
-                            width: dayWidth * CGFloat(daysInWeek),
-                            height: calendarLaneHeight * CGFloat(bannerLanes),
-                            alignment: .topLeading
-                        )
-                        .offset(x: strip.origin(ofWeek: week.index, dayWidth: dayWidth))
+                    CalendarWeekBands(
+                        week: week,
+                        drawnLanes: drawnLanes,
+                        showsMore: overflows && !expanded,
+                        dayWidth: dayWidth,
+                        dark: dark,
+                        onOpen: onOpen
+                    )
+                    .equatable()
+                    .frame(
+                        width: dayWidth * CGFloat(daysInWeek),
+                        height: calendarLaneHeight * CGFloat(bannerLanes),
+                        alignment: .topLeading
+                    )
+                    .offset(x: strip.origin(ofWeek: week.index, dayWidth: dayWidth))
                 }
             }
             .frame(height: calendarLaneHeight * CGFloat(bannerLanes))
@@ -123,10 +146,28 @@ struct CalendarAllDayBanner: View {
             if overflows { expanded.toggle() }
         }
     }
+}
 
-    /// One week's bars, in its own coordinates.
-    @ViewBuilder
-    private func band(_ week: CalendarStripWeek, drawnLanes: Int, overflows: Bool) -> some View {
+/// One week's all-day bars, in its own coordinates. Equatable on what it draws, so a frame that only
+/// slides the strip leaves the week's bars alone; `onOpen` is not compared.
+struct CalendarWeekBands: View, Equatable {
+    let week: CalendarStripWeek
+    let drawnLanes: Int
+    /// Whether the banner is capped, so a day with more bars than lanes says "+N".
+    let showsMore: Bool
+    let dayWidth: CGFloat
+    let dark: Bool
+    let onOpen: (EventRefID) -> Void
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.week.index == rhs.week.index && lhs.week.days == rhs.week.days
+            && lhs.week.page.allDay == rhs.week.page.allDay
+            && lhs.week.page.calendars == rhs.week.page.calendars
+            && lhs.drawnLanes == rhs.drawnLanes && lhs.showsMore == rhs.showsMore
+            && lhs.dayWidth == rhs.dayWidth && lhs.dark == rhs.dark
+    }
+
+    var body: some View {
         let hidden = allDayOverflowPerDay(
             bands: week.page.allDay, dayCount: week.days.count, drawnLanes: drawnLanes
         )
@@ -145,7 +186,7 @@ struct CalendarAllDayBanner: View {
                     }
                 )
             }
-            if overflows && !expanded {
+            if showsMore {
                 ForEach(Array(hidden.enumerated()), id: \.offset) { day, count in
                     if count > 0 {
                         Text(L10n.calendar_all_day_more(count: count))

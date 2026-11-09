@@ -4,9 +4,8 @@ use super::{
     super::{
         date::{clock, date_heading, parse_date, today_in},
         drag::CreateDrag,
-        meeting,
         model::{CalendarModel, EventIdentity},
-        paint::{self, Rgb},
+        paint::{self, EventColors, Rgb},
     },
     geometry::Geometry,
 };
@@ -37,11 +36,15 @@ pub(super) struct EventPaint {
     pub(super) end_minutes: u32,
     pub(super) column: u32,
     pub(super) columns: u32,
-    pub(super) background: Rgb,
-    pub(super) foreground: Rgb,
-    pub(super) border: Rgb,
+    pub(super) colors: EventColors,
     /// An invitation this account has not answered: draw it as a hold rather than a commitment.
     pub(super) awaiting: bool,
+    /// One occurrence of a series, which earns the repeat glyph in the block's corner.
+    pub(super) repeats: bool,
+    /// The start time, for a block too narrow for the range.
+    pub(super) time: String,
+    /// "09:00–12:00", the line beneath the title a tall enough block earns.
+    pub(super) range: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -54,8 +57,7 @@ pub(super) struct BandPaint {
     pub(super) day: usize,
     pub(super) days: usize,
     pub(super) lane: u32,
-    pub(super) background: Rgb,
-    pub(super) foreground: Rgb,
+    pub(super) colors: EventColors,
     /// An invitation this account has not answered: draw it as a hold rather than a commitment.
     pub(super) awaiting: bool,
 }
@@ -226,40 +228,40 @@ fn timed_events(model: &CalendarModel, dark: bool, first: usize, count: usize) -
         .filter_map(|event| {
             let day = usize::try_from(event.day).ok()?.checked_sub(first)?;
             (day < count).then(|| {
-                let (background, foreground, border, calendar_name) =
+                let (colors, calendar_name) =
                     colors(&model.page.calendars, &event.account, &event.calendar, dark);
                 let title = title(&event.title);
-                let range = format!(
-                    "{}–{}",
-                    clock(event.start_minutes, model.use_24_hour),
-                    clock(event.end_minutes, model.use_24_hour)
-                );
+                let time = clock(event.start_minutes, model.use_24_hour);
+                let range = format!("{time}–{}", clock(event.end_minutes, model.use_24_hour));
+                // The core names an occurrence of a series by its original start, and leaves a
+                // one-off event's empty.
+                let repeats = !event.occurrence_start.is_empty();
                 EventPaint {
                     identity: EventIdentity {
                         account: event.account.clone(),
                         key: event.event.clone(),
                         occurrence: event.occurrence_start.clone(),
                     },
-                    // The dashed border and hatched gutter below are invisible to a screen
-                    // reader, so the label says it too (`docs/calendar.md` §4).
-                    spoken: meeting::spoken(
-                        paint::spoken_with_hold(
-                            &l10n::calendar_event_a11y(&title, &range, &calendar_name),
-                            event.participation,
-                        ),
+                    // The dashed border, the hatched gutter and the corner glyphs are invisible
+                    // to a screen reader, so the label says them too (`docs/calendar.md` §4).
+                    spoken: paint::spoken_event(
+                        &l10n::calendar_event_a11y(&title, &range, &calendar_name),
+                        event.participation,
                         event.has_conference,
+                        repeats,
                     ),
                     has_conference: event.has_conference,
                     awaiting: paint::is_awaiting(event.participation),
+                    repeats,
                     title,
                     day,
                     start_minutes: event.start_minutes,
                     end_minutes: event.end_minutes,
                     column: event.column,
                     columns: event.columns.max(1),
-                    background,
-                    foreground,
-                    border,
+                    colors,
+                    time,
+                    range,
                 }
             })
         })
@@ -289,7 +291,7 @@ fn all_day_events(
             }
             continue;
         }
-        let (background, foreground, _, calendar_name) =
+        let (colors, calendar_name) =
             colors(&model.page.calendars, &band.account, &band.calendar, dark);
         let title = title(&band.title);
         bands.push(BandPaint {
@@ -298,12 +300,11 @@ fn all_day_events(
                 key: band.event.clone(),
                 occurrence: band.occurrence_start.clone(),
             },
-            spoken: meeting::spoken(
-                paint::spoken_with_hold(
-                    &l10n::calendar_event_a11y(&title, l10n::calendar_all_day(), &calendar_name),
-                    band.participation,
-                ),
+            spoken: paint::spoken_event(
+                &l10n::calendar_event_a11y(&title, l10n::calendar_all_day(), &calendar_name),
+                band.participation,
                 band.has_conference,
+                !band.occurrence_start.is_empty(),
             ),
             has_conference: band.has_conference,
             awaiting: paint::is_awaiting(band.participation),
@@ -311,8 +312,7 @@ fn all_day_events(
             day: clipped_start - first,
             days: clipped_end - clipped_start,
             lane: band.lane,
-            background,
-            foreground,
+            colors,
         });
     }
     (bands, hidden_per_day)
@@ -335,36 +335,22 @@ fn colors(
     account: &str,
     calendar: &str,
     dark: bool,
-) -> (Rgb, Rgb, Rgb, String) {
-    let Some(row) = calendars
+) -> (EventColors, String) {
+    calendars
         .iter()
         .find(|row| row.account == account && row.id == calendar)
-    else {
-        let (background, foreground, border) = paint::neutral_swatch();
-        return (background, foreground, border, String::new());
-    };
-    let swatch = if dark {
-        &row.color.dark
-    } else {
-        &row.color.light
-    };
-    (
-        Rgb::from_hex(&swatch.background),
-        Rgb::from_hex(&swatch.text),
-        Rgb::from_hex(&swatch.border),
-        row.name.clone(),
-    )
+        .map_or_else(
+            || (paint::event_colors(paint::NEUTRAL_HEX, dark), String::new()),
+            |row| (paint::event_colors(&row.color.hex, dark), row.name.clone()),
+        )
 }
 
+/// A slot being drawn wears the default calendar's event colours: it says where it is going.
 fn calendar_swatch(calendar: &mailcal_bindings::CalendarRow, dark: bool) -> CreatePaint {
-    let swatch = if dark {
-        &calendar.color.dark
-    } else {
-        &calendar.color.light
-    };
+    let colors = paint::event_colors(&calendar.color.hex, dark);
     CreatePaint {
-        background: Rgb::from_hex(&swatch.background),
-        border: Rgb::from_hex(&swatch.border),
+        background: colors.fill,
+        border: colors.accent,
     }
 }
 
@@ -405,10 +391,11 @@ mod tests {
                 end_minutes: 660,
                 column: 1,
                 columns: 2,
-                background: Rgb::new(0.0, 0.0, 0.0),
-                foreground: Rgb::new(1.0, 1.0, 1.0),
-                border: Rgb::new(0.0, 0.0, 0.0),
+                colors: crate::ui::calendar::paint::event_colors("#2f6fa8", false),
                 awaiting: false,
+                repeats: false,
+                time: "10:00".to_owned(),
+                range: "10:00–11:00".to_owned(),
             }],
             bands: Vec::new(),
             hidden_per_day: vec![0, 0],
@@ -433,9 +420,9 @@ mod tests {
             geometry.hits[0].rect,
             Rect {
                 x: 369.0,
-                y: 600.0,
+                y: 601.0,
                 width: 98.0,
-                height: 60.0
+                height: 58.0
             }
         );
         assert_eq!(geometry.hits[0].spoken, "Fixture, 10:00–11:00, Work");

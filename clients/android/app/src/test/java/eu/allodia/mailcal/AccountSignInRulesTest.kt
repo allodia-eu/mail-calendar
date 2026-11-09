@@ -1,6 +1,5 @@
-// Which way in an IMAP or JMAP account's Sign-in section offers, which remedy an expired sign-in
-// takes, and when the "already set up" refusal offers to update the account already there
-// (docs/accounts.md rules 15 and 17).
+// Which remedy an expired sign-in takes, and when the "already set up" refusal offers to update the
+// account already there (docs/accounts.md rules 15 and 17).
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -8,62 +7,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountProvider
-import uniffi.mailcal_bindings.AccountSignInOptions
-import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.MailcalException
-import uniffi.mailcal_bindings.SignInMethod
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 class AccountSignInRulesTest {
-    private fun entry(signIn: SignInMethod, kind: CoreAccountKind = CoreAccountKind.IMAP) =
-        accountEntry(kind, AccountCapability.MAIL to CapabilityState.ON, signIn = signIn)
-
-    private fun options(signIn: Boolean, password: Boolean, label: String? = null) =
-        AccountSignInOptions(signIn = signIn, providerLabel = label, password = password)
-
-    @Test
-    fun nothing_is_offered_before_the_server_answers() {
-        val section = AccountSignInRules.section(entry(SignInMethod.PROVIDER), null)
-
-        assertEquals(SignInMethod.PROVIDER, section.method)
-        assertFalse(section.signInAgain || section.toPassword || section.toProvider)
-        assertFalse(section.offersSwitch)
-    }
-
-    @Test
-    fun a_signed_in_account_signs_in_again_and_takes_a_password_where_the_server_does() {
-        val both = AccountSignInRules.section(entry(SignInMethod.PROVIDER), options(true, true, "Fastmail"))
-        assertTrue(both.signInAgain)
-        assertTrue(both.toPassword)
-        assertFalse(both.toProvider)
-        assertTrue(both.offersSwitch)
-        // The label names the switch to the provider, which this account does not need.
-        assertNull(both.providerLabel)
-
-        val noPassword = AccountSignInRules.section(entry(SignInMethod.PROVIDER), options(true, false))
-        assertTrue(noPassword.signInAgain)
-        assertFalse(noPassword.toPassword)
-        // Signing in again is not a switch, so the explanatory line stays away.
-        assertFalse(noPassword.offersSwitch)
-    }
-
-    @Test
-    fun a_password_account_switches_to_its_provider_where_setup_would_offer_it() {
-        val named = AccountSignInRules.section(entry(SignInMethod.PASSWORD), options(true, true, "Fastmail"))
-        assertTrue(named.toProvider)
-        assertEquals("Fastmail", named.providerLabel)
-        assertFalse(named.signInAgain)
-        assertFalse(named.toPassword)
-
-        val unnamed = AccountSignInRules.section(entry(SignInMethod.PASSWORD), options(true, true))
-        assertNull(unnamed.providerLabel)
-
-        val none = AccountSignInRules.section(entry(SignInMethod.PASSWORD), options(false, true))
-        assertFalse(none.offersSwitch)
-    }
-
     @Test
     fun only_imap_and_jmap_accounts_switch_here() {
         assertTrue(AccountSignInRules.switchable(CoreAccountKind.IMAP))

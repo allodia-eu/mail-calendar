@@ -6,11 +6,14 @@ package eu.allodia.mailcal
 
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.MailcalException
+import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
-/** Whether [accountId] signs in with Nextcloud: one a Nextcloud sign-in made, or at such a server. */
+/**
+ * Whether [accountId] signs in through a browser with Nextcloud: a calendar and contacts account,
+ * whose page offers no other browser sign-in.
+ */
 internal fun MainActivity.signsInWithNextcloud(accountId: String): Boolean =
-    accountSettings.entry(accountId)?.nextcloud == true ||
-        accountSettings.signIn.options[accountId]?.nextcloud == true
+    accountSettings.entry(accountId)?.kind == CoreAccountKind.DAV
 
 /**
  * Signs [accountId] in with Nextcloud; [switching] from a typed password. A grant kept from the
@@ -72,7 +75,7 @@ private fun MainActivity.completeAccountNextcloud(accountId: String, grant: Stri
             if (answer.isSuccess || answer.exceptionOrNull() is MailcalException.DifferentAccount) {
                 signIn.nextcloudGrant = null
             }
-            signIn.finished(switched = answer.isSuccess && switching)
+            signIn.finished()
             refreshAccountsSnapshot()
             pullNotices()
             noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, accountId, failed = answer.isFailure)
@@ -84,7 +87,6 @@ private fun MainActivity.completeAccountNextcloud(accountId: String, grant: Stri
                     L10n.settings_account_signed_in(this)
                 }
                 say(AccountNotice(NoticeKind.SUCCESS, said, ""))
-                if (switching) askSignInOptions(accountId)
             }
             answer.onFailure {
                 logUiWarn("sign-in: the Nextcloud grant did not go on the account: ${coreErrorText(it)}")

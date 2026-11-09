@@ -37,42 +37,35 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEndpoints
+import uniffi.mailcal_bindings.AccountEndpointsGap
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.MailServerKind
 import uniffi.mailcal_bindings.Notice
-import uniffi.mailcal_bindings.SharedMailboxEntry
 import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
  * What Settings → Accounts draws beyond each account's mail settings: the snapshot and the page
- * open ([state]), which accounts' sign-in has expired, which take
- * a pasted secret, and what each change asks the activity to do.
+ * open ([state]), and what each change asks the activity to do.
  */
 internal class AccountsSettingsUi(
     val state: AccountsUiState,
-    val expired: Set<String> = emptySet(),
-    // A JMAP account holding a pasted password or API token, which a new one replaces.
-    val pastedSecret: Set<String> = emptySet(),
     // Every notice in force, of which the page draws its account's at its top (docs/notices.md).
     val notices: List<Notice> = emptyList(),
     val noticeHandlers: NoticeHandlers = NoticeHandlers(),
     val standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
+    // What an edit of an account's servers leaves out, asked of the core as the person types.
+    val endpointsGap: (accountId: String, AccountEndpoints) -> AccountEndpointsGap? = { _, _ -> null },
     val onAddAccount: () -> Unit = {},
     val onOpenPage: (String?) -> Unit = { state.page = it },
     // A use, a link or the removal, for the core to run: it answers at once, and the page says
     // it runs (docs/waiting.md).
     val onChange: (AccountPageIntent) -> Unit = {},
     val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
-    val onSaveServers: (accountId: String, AccountEndpoints) -> Unit = { _, _ -> },
-    val onReplaceSecret: (accountId: String, secret: String) -> Unit = { _, _ -> },
-    // An IMAP or JMAP account's sign-in (docs/accounts.md rule 17): what its server takes, asked
-    // as its page opens; a browser sign-in, again or in place of a password ([switching]); and a
-    // password in place of signing in.
-    val onAskSignInOptions: (accountId: String) -> Unit = {},
+    // An account's browser sign-in (docs/accounts.md rule 17), again or in place of a password
+    // ([switching]).
     val onAccountSignIn: (accountId: String, switching: Boolean) -> Unit = { _, _ -> },
-    val onSwitchToPassword: (accountId: String, password: String) -> Unit = { _, _ -> },
     // What a switch's sign-in will not reach, answered before the browser opens, and a sign-in of
     // their own for a calendar or address book that needs one (docs/accounts.md rule 18): the
     // form, its Connect, whether its server is asked to offer a sign-in at its own provider once it
@@ -85,11 +78,6 @@ internal class AccountsSettingsUi(
     // A calendar or address book whose server was found on another site: the question that
     // allows it (docs/account-autodetect.md rule 14).
     val onReviewServerChange: (accountId: String) -> Unit = {},
-    // The mailboxes the account's sign-in opens besides its own (docs/shared-mailboxes.md): which,
-    // asked as its page opens; switching one on or off; and one added by its address.
-    val onAskSharedMailboxes: (accountId: String) -> Unit = {},
-    val onSetSharedMailbox: (accountId: String, SharedMailboxEntry, on: Boolean) -> Unit = { _, _, _ -> },
-    val onAddSharedMailbox: (accountId: String, address: String) -> Unit = { _, _ -> },
     val onDismissNotice: () -> Unit = { state.notice = null },
 )
 

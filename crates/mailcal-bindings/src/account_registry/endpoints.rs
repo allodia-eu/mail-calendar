@@ -1,11 +1,25 @@
 //! A standards account's edited servers, checked against the registry before anything dials them.
 
-use mailcal_account::{Capabilities, EndpointEdit};
+use mailcal_account::{Capabilities, EndpointEdit, EndpointGap};
 
 use super::AccountRegistry;
 use crate::{ConnectedAccount, MailcalError};
 
 impl AccountRegistry {
+    /// What `edit` leaves out of `id`'s servers, as [`Self::edited_endpoints`] would refuse it;
+    /// `None` for an account whose servers cannot be edited, which refuses for another reason.
+    pub(crate) fn endpoint_gap(&self, id: &str, edit: &EndpointEdit) -> Option<EndpointGap> {
+        match self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+        {
+            Some(ConnectedAccount::Imap { config, .. }) if !config.is_oauth() => edit.gap(config),
+            _ => None,
+        }
+    }
+
     /// `id`'s config with `edit` applied, serialized for a dial and the host's store, and the uses
     /// whose server moved to another host. Nothing in the registry changes.
     ///

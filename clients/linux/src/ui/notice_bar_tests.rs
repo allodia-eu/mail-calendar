@@ -5,13 +5,17 @@ use std::collections::HashMap;
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    Notice, NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, NoticeText,
+    InvitationResponse, Notice, NoticeAction, NoticeKind, NoticeScreens, NoticeSeverity, NoticeText,
 };
 
 use super::NoticeBar;
 use crate::{
     l10n,
-    ui::{AppInput, PrimaryView, notices::NoticeInput},
+    ui::{
+        AppInput, PrimaryView,
+        mailbox::tests::{glib_records, rendered_labels},
+        notices::NoticeInput,
+    },
 };
 
 fn text(key: &str, address: &str) -> NoticeText {
@@ -35,6 +39,9 @@ fn reauth(id: &str, kind: NoticeKind, screens: NoticeScreens, key: &str) -> Noti
         action_label: Some(text("notice_action_sign_in_again", "")),
         dismissible: false,
         remedy_failed: false,
+        second_action: None,
+        second_action_label: None,
+        running: false,
     }
 }
 
@@ -52,6 +59,9 @@ fn skipped() -> Notice {
         action_label: None,
         dismissible: true,
         remedy_failed: false,
+        second_action: None,
+        second_action_label: None,
+        running: false,
     }
 }
 
@@ -138,5 +148,114 @@ pub(crate) fn one_banner_per_screen_and_the_rest_behind_issues() {
             l10n::notice_mail_reauth("alice@example.org"),
             l10n::notices_remedy_failed()
         )
+    );
+}
+
+/// The question a calendar server raises when it stored an answer and could not pass it on.
+fn reply_question(running: bool) -> Notice {
+    Notice {
+        id: "reply".to_owned(),
+        kind: NoticeKind::ReplyNotDelivered {
+            summary: "Research & Development".to_owned(),
+            organizer: "bob@example.test".to_owned(),
+            response: InvitationResponse::Decline,
+        },
+        title: NoticeText {
+            key: "notice_reply_not_delivered".to_owned(),
+            args: HashMap::from([
+                ("summary".to_owned(), "Research & Development".to_owned()),
+                ("organizer".to_owned(), "bob@example.test".to_owned()),
+            ]),
+        },
+        detail: None,
+        severity: NoticeSeverity::Informational,
+        screens: NoticeScreens::Everywhere,
+        account: Some("alice".to_owned()),
+        mark: None,
+        action: Some(NoticeAction::SendReply),
+        action_label: Some(text("notice_action_send_reply", "")),
+        dismissible: false,
+        remedy_failed: false,
+        second_action: Some(NoticeAction::DontSendReply),
+        second_action_label: Some(text("notice_action_dont_send_reply", "")),
+        running,
+    }
+}
+
+/// The strip's answers, in the order drawn, each with the words it shows.
+fn answers(bar: &NoticeBar) -> Vec<(gtk::Button, String)> {
+    let mut found = Vec::new();
+    let mut child = bar.answers.first_child();
+    while let Some(widget) = child {
+        if let Some(button) = widget.downcast_ref::<gtk::Button>() {
+            let words = rendered_labels(button.upcast_ref()).join(" ");
+            found.push((button.clone(), words));
+        }
+        child = widget.next_sibling();
+    }
+    found
+}
+
+/// Whether a control component's button draws its spinner.
+fn spins(button: &gtk::Button) -> bool {
+    button
+        .child()
+        .and_then(|child| child.first_child())
+        .is_some_and(|first| first.is::<adw::Spinner>())
+}
+
+pub(crate) fn a_question_offers_both_answers_and_holds_them_while_one_runs() {
+    let (sender, receiver) = relm4::channel();
+    let mut bar = NoticeBar::new(&sender);
+    let question = reply_question(false);
+
+    let ((), records) = glib_records(|| {
+        bar.render(std::slice::from_ref(&question), PrimaryView::Calendar, None);
+    });
+    assert!(
+        !records.iter().any(|line| line.contains("markup")),
+        "the meeting's title is the sender's, never markup: {records:?}"
+    );
+    assert!(
+        bar.banner.title().contains("bob@example.test"),
+        "consent to send mail on someone's behalf needs the recipient"
+    );
+    assert_eq!(
+        bar.banner.button_label(),
+        None,
+        "the strip draws both answers, so the banner draws neither"
+    );
+    let drawn = answers(&bar);
+    let words: Vec<_> = drawn.iter().map(|(_, words)| words.as_str()).collect();
+    assert_eq!(
+        words,
+        [
+            l10n::notice_action_dont_send_reply(),
+            l10n::notice_action_send_reply()
+        ],
+        "the lesser answer first"
+    );
+    let (second, primary) = (&drawn[0].0, &drawn[1].0);
+    assert!(second.has_css_class("flat"));
+    assert!(second.is_sensitive() && primary.is_sensitive());
+    second.emit_clicked();
+    assert!(matches!(pressed(&receiver), Some(NoticeInput::Second(id)) if id == "reply"));
+    primary.emit_clicked();
+    assert!(matches!(pressed(&receiver), Some(NoticeInput::Run(id)) if id == "reply"));
+
+    // The core carries an answer out: neither can start a second, and the primary spins.
+    bar.render(&[reply_question(true)], PrimaryView::Calendar, None);
+    let drawn = answers(&bar);
+    let (second, primary) = (&drawn[0].0, &drawn[1].0);
+    assert!(!second.is_sensitive() && !primary.is_sensitive());
+    assert!(spins(primary) && !spins(second));
+    assert!(!bar.spinner.is_visible(), "the spinner is the button's");
+
+    // A notice that is no question puts its one button back on the banner.
+    bar.render(&[skipped()], PrimaryView::Mail, None);
+    assert!(!bar.answers.is_visible());
+    assert_eq!(
+        bar.banner.button_label().as_deref(),
+        Some(l10n::notices_dismiss())
     );
 }

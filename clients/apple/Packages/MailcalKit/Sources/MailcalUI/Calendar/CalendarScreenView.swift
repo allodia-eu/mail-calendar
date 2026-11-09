@@ -41,22 +41,14 @@ struct CalendarScreenView: View {
     @State private var pager: CalendarPager?
     /// The page the **month** is on. The time grid has no pages: it has a strip (`CalendarStrip`).
     @State private var page = 0
-    /// Not `private`: CalendarScreenView.Grid.swift lays the grid out from all three.
-    @State var zoom: CalendarZoom
-    /// The grid's horizontal axis: one continuous strip of days, in weeks from the pager's origin.
-    @State var strip = CalendarStrip()
-    @State var hourOffset: CGFloat = 0
+    /// Where the time grid is. An object rather than state of this view, so a frame of motion
+    /// re-evaluates the grid and not this screen (`CalendarGridPosition`).
+    @State private var position: CalendarGridPosition
     @State private var now = ShowcaseMode.now ?? Date()
     @State private var managing = false
     /// Bumped whenever the grid should frame itself on today again: a shape from the menu, and
-    /// "back to today". Not `private`: CalendarScreenView.Grid.swift watches it.
-    @State var recentreToken = 0
-    /// Whether a hand has moved the time grid: a scroll, a flick, a pinch or a chevron.
-    ///
-    /// Until one has, the grid is the app's to frame, and every layout pass re-frames it on today
-    /// and now. After one has, nothing but a deliberate seat (a shape from the menu, "back to
-    /// today") may move it again. Not `private`: CalendarScreenView.Grid.swift sets it.
-    @State var gridHeld = false
+    /// "back to today". `CalendarGridContent` watches it.
+    @State private var recentreToken = 0
     /// The open editor (create or edit), or nil; and the event whose detail is open, or nil.
     @State private var editor: EventEditorState?
     @State private var openEvent: EventRefID?
@@ -84,12 +76,20 @@ struct CalendarScreenView: View {
     init(model: MailboxModel) {
         self.model = model
         let settings = model.displaySettings
-        _zoom = State(
-            initialValue: CalendarZoom(
+        let position = CalendarGridPosition(
+            zoom: CalendarZoom(
                 visibleHours: Int(settings.visibleHours),
                 visibleDays: settings.layout.mode.gridColumns
             )
         )
+        // Today's column before the first render, against the origin the first render uses, so the
+        // first frame already knows whether "back to today" belongs in the toolbar.
+        let today = ShowcaseMode.now ?? Date()
+        let calendar = model.gridCalendar
+        position.todayColumn = calendar.dateComponents(
+            [.day], from: model.weekStart(of: today), to: calendar.startOfDay(for: today)
+        ).day
+        _position = State(initialValue: position)
     }
 
     var body: some View {
@@ -105,7 +105,7 @@ struct CalendarScreenView: View {
         )
         // A grid has no page: its anchor is whichever week the strip's left edge is in, which
         // moves as the user scrolls and moves the grid by exactly nothing when it does.
-        let anchor = pager.anchor(forPage: pager.mode.isGrid ? strip.anchorWeek : page)
+        let anchor = pager.anchor(forPage: pager.mode.isGrid ? position.anchorWeek : page)
 
         let header = CalendarHeaderState(
             title: title(pager: pager, anchor: anchor, calendar: calendar),
@@ -150,11 +150,14 @@ struct CalendarScreenView: View {
             }
         }
         .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
+        .onChange(of: todayColumn(pager: pager, calendar: calendar), initial: true) { _, column in
+            position.todayColumn = column
+        }
         .onChange(of: model.displaySettings.visibleHours) { _, hours in
-            zoom.resetHours(Int(hours))
+            position.zoom.resetHours(Int(hours))
             // A horizon arriving from the core (or changed in Settings) resizes the content under
             // the hour offset. While the grid is still the app's to frame, that is a re-frame.
-            if !gridHeld { recentreToken += 1 }
+            if !position.held { recentreToken += 1 }
         }
         .sheet(isPresented: $managing) {
             CalendarManagerView(model: model, calendars: currentCalendars(pager: pager, anchor: anchor))
@@ -188,12 +191,8 @@ struct CalendarScreenView: View {
                         if response == .decline { openEvent = nil }
                         model.respondToEvent(detail.account, detail.key, response, replySubject: subject)
                     },
-                    saving: model.calendarWriteStatus == .saving,
-                    replyPrompt: model.replyPrompt,
-                    onReplyPrompt: { send, remember in model.answerReplyPrompt(send: send, remember: remember) }
+                    saving: model.calendarWriteStatus == .saving
                 )
-                .onAppear { model.eventDetailOpen = true }
-                .onDisappear { model.eventDetailOpen = false }
             }
         }
         // The create/edit editor. One form, both jobs.
@@ -340,7 +339,18 @@ struct CalendarScreenView: View {
                 .monthSwipe { step($0, mode: .month) }
             }
         default:
-            gridContent(pager: pager, calendar: calendar, today: today)
+            CalendarGridContent(
+                model: model,
+                pager: pager,
+                calendar: calendar,
+                today: today,
+                nowMinutes: nowMinutes(calendar: calendar),
+                position: position,
+                recentreToken: recentreToken,
+                onOpen: open,
+                onDrop: { drag, week in drop(drag, week: week, pager: pager) },
+                onSettleZoom: settleZoom
+            )
         }
     }
 
@@ -354,15 +364,15 @@ struct CalendarScreenView: View {
     /// columns rather than to `settledDays`, because a pinch outwards from the week lands on ~6.4,
     /// which rounds to 6 while the level it maps to is the whole week, of 7.
     func settleZoom() {
-        gridHeld = true
-        model.setVisibleHours(zoom.settledHours)
-        zoom.settleDays()
-        let settled = modeForColumns(zoom.settledDays)
+        position.held = true
+        model.setVisibleHours(position.zoom.settledHours)
+        position.zoom.settleDays()
+        let settled = modeForColumns(position.zoom.settledDays)
         setZoomMode(settled)
         model.setCalendarLayout(settled.layout)
         // A pinch is an input like any other, so it comes to rest on a day too. The columns have
         // just changed width, so wherever the fingers left the strip is almost never a column edge.
-        withAnimation(.easeOut(duration: 0.2)) { strip.weeks = strip.nearestDay }
+        withAnimation(.easeOut(duration: 0.2)) { position.strip.weeks = position.strip.nearestDay }
     }
 
     private func seed(calendar: Calendar, today: Date) {
@@ -376,19 +386,8 @@ struct CalendarScreenView: View {
                 origin: model.weekStart(of: today), mode: mode, calendar: calendar
             )
         }
-        zoom.resetHours(Int(model.displaySettings.visibleHours))
-        zoom.resetDays(mode.gridColumns)
-    }
-
-    /// The height the hour grid gets once the headings and the banner have taken their share.
-    ///
-    /// Shared with `CalendarGridView`, which draws against the same number: two copies of it would
-    /// be two chances for the hour clamp to disagree with the hours on screen.
-    func calendarGridHeight(viewportHeight: CGFloat, lanes: Int) -> CGFloat {
-        let banner = lanes > 0
-            ? calendarLaneHeight * CGFloat(allDayBannerLanes(lanes: lanes, expanded: false))
-            : 0
-        return max(viewportHeight - calendarHeaderHeight - banner, 1)
+        position.zoom.resetHours(Int(model.displaySettings.visibleHours))
+        position.zoom.resetDays(mode.gridColumns)
     }
 
     /// A week along the strip, a month of the month grid; nothing in the agenda, which has no period.
@@ -396,8 +395,8 @@ struct CalendarScreenView: View {
         if mode.isGrid {
             // From wherever the strip is, so a chevron pressed mid-seam keeps the day it is framed
             // on rather than re-aligning the week under the user.
-            gridHeld = true
-            withAnimation(.easeOut(duration: 0.25)) { strip.weeks += CGFloat(direction) }
+            position.held = true
+            withAnimation(.easeOut(duration: 0.25)) { position.strip.weeks += CGFloat(direction) }
         } else if mode != .agenda {
             page += direction
         }
@@ -406,12 +405,12 @@ struct CalendarScreenView: View {
     private func setMode(_ next: CalendarMode, calendar: Calendar) {
         guard var current = pager else { return }
         model.setCalendarLayout(next.layout)
-        current.setMode(next, currentPage: current.mode.isGrid ? strip.anchorWeek : page)
+        current.setMode(next, currentPage: current.mode.isGrid ? position.anchorWeek : page)
         // Picking a shape from the MENU is where week alignment happens, not on a zoom, which must
         // leave the days exactly where they are.
         if next.isGrid {
             current.jump(to: model.weekStart(of: current.origin))
-            zoom.resetDays(next.columns)
+            position.zoom.resetDays(next.columns)
         }
         pager = current
         page = 0
@@ -462,16 +461,16 @@ struct CalendarScreenView: View {
         case .month:
             return calendar.isDate(anchor, equalTo: now, toGranularity: .month)
         default:
-            // The columns actually on screen, which is the only reading of "in view" a strip has:
-            // its days do not belong to a page, so there is no week for today to be inside of.
-            // `zoom.visibleDays` is the count the columns were laid out from, so this needs no
-            // viewport of its own.
-            guard let column = calendar.dateComponents(
-                [.day], from: pager.anchor(forPage: 0), to: calendar.startOfDay(for: now)
-            ).day else { return false }
-            let left = strip.weeks * CGFloat(daysInWeek)
-            return CGFloat(column) >= left.rounded(.down) && CGFloat(column) < left + zoom.visibleDays
+            return position.todayInView
         }
+    }
+
+    /// Today's column, counted from the origin week's first day, which the grid position judges "in
+    /// view" against.
+    private func todayColumn(pager: CalendarPager, calendar: Calendar) -> Int? {
+        calendar.dateComponents(
+            [.day], from: pager.anchor(forPage: 0), to: calendar.startOfDay(for: now)
+        ).day
     }
 
     func currentCalendars(pager: CalendarPager, anchor: Date) -> [CalendarRow] {

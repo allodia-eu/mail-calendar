@@ -5,8 +5,8 @@
 use std::cell::RefCell;
 
 use super::{
-    AccountService, Answer, Cache, Capability, Entitlement, Error, GRACE_SECONDS, Outcome, Request,
-    Response, Stored, Transport,
+    AccountService, Answer, Cache, Capability, Entitlement, Error, GRACE_SECONDS,
+    LAPSE_WARNING_SECONDS, Outcome, Request, Response, Stored, Transport,
 };
 
 const DAY: i64 = 24 * 60 * 60;
@@ -224,6 +224,48 @@ fn grace_does_run_out() {
     let past = NOW + GRACE_SECONDS;
     assert_eq!(cache.effective(past), Entitlement::free());
     assert!(!cache.effective(past).grants(&Capability::Push));
+}
+
+#[test]
+fn a_paid_answer_lapses_soon_in_the_last_week_of_its_grace() {
+    let mut cache = Cache::default();
+    cache.apply(Outcome::Answered(paid()), NOW);
+    let warned_from = NOW + GRACE_SECONDS - LAPSE_WARNING_SECONDS;
+
+    assert!(
+        !cache.lapses_soon(NOW),
+        "a fresh answer is not about to lapse"
+    );
+    assert!(!cache.lapses_soon(warned_from - 1));
+    assert!(cache.lapses_soon(warned_from));
+    assert!(cache.lapses_soon(NOW + GRACE_SECONDS - 1));
+    assert!(
+        !cache.lapses_soon(NOW + GRACE_SECONDS),
+        "past grace there is nothing left to keep"
+    );
+}
+
+#[test]
+fn only_a_paid_capability_can_lapse() {
+    let free = Answer {
+        entitlement: Entitlement {
+            capabilities: [
+                Capability::AccountsSync,
+                Capability::Unknown("future".to_owned()),
+            ]
+            .into_iter()
+            .collect(),
+            ..Entitlement::free()
+        },
+        refresh_after_seconds: 12 * 60 * 60,
+    };
+    let mut cache = Cache::default();
+    cache.apply(Outcome::Answered(free), NOW);
+    assert!(!cache.lapses_soon(NOW + GRACE_SECONDS - 1));
+    assert!(
+        !Cache::default().lapses_soon(NOW),
+        "nothing stored lapses nothing"
+    );
 }
 
 #[test]

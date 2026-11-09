@@ -103,8 +103,6 @@ extension MailboxModel {
         app.setAgentHostUi(ui: AgentComposerBridge(model: self))
         app.setMcpEndpoint(endpoint: McpEndpoint.path(dataDirName: dataDirName))
         mcpSettings = app.mcpSettings()
-        // Pull the per-account sync-behaviour settings so the "New mail" screen opens current.
-        syncSettings = app.syncSettings()
         refreshAccountsSnapshot()
         // The swipe actions are read while rendering every row, so mirror them now rather
         // than crossing the FFI per row; the composer's From dropdown wants the stored
@@ -123,11 +121,6 @@ extension MailboxModel {
         // What is wrong at launch, read now: the stored accounts that could not be read never
         // change after this, so no signal would ever bring their notice (docs/notices.md).
         reloadNotices()
-        // A configured-but-failed CalDAV connect is non-fatal (mail still works), so it
-        // is otherwise invisible, log it here as the likely empty-calendar cause.
-        if let calendarError = app.calendarConnectError() {
-            print("[Mailcal] calendar (CalDAV) failed to connect: \(calendarError)")
-        }
         // Pull the initial timezone setting (which may already carry a pending change
         // if the stored zone differs from this device's zone), then watch for the OS
         // zone changing while the app runs.

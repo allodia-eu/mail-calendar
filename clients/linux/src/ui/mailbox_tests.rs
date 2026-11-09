@@ -151,6 +151,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::widget_tests::a_resized_window_keeps_the_hour_the_reader_was_looking_at();
     crate::ui::calendar::widget_tests::a_scroll_repaints_the_hours_it_reveals();
     crate::ui::calendar::widget_tests::the_day_names_stay_on_screen_when_the_hours_scroll();
+    crate::ui::calendar::labels_widget_tests::
+        a_title_wraps_by_word_and_a_word_wider_than_the_block_is_one_line();
+    crate::ui::calendar::labels_widget_tests::
+        a_label_is_laid_out_once_per_page_however_often_it_is_drawn();
     crate::ui::calendar::widget_tests::
         an_unchanged_page_keeps_its_hit_targets_and_a_new_one_replaces_them();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
@@ -244,8 +248,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         a_meeting_account_row_names_the_service_and_account_and_opens_its_page();
     crate::ui::settings::sender_name::tests::clearing_the_field_asks_to_send_as_the_address_alone();
     crate::ui::settings::sender_name::tests::a_provider_held_name_is_shown_without_a_field();
-    crate::ui::settings::sender_name::tests::a_provider_held_account_with_no_name_shows_its_address(
-    );
+    crate::ui::settings::sender_name::tests::the_field_is_held_while_a_change_runs();
     crate::ui::setup_widgets::sender_name_tests::
         the_step_opens_seeded_and_continue_asks_for_the_field();
     crate::ui::setup_widgets::sender_name_tests::a_provider_with_no_name_opens_the_step_empty();
@@ -261,17 +264,16 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia_sync::tests::every_health_row_is_reachable_from_the_keyboard();
     crate::ui::settings::about::assert_about_page_states_version_support_and_attributions();
     crate::ui::settings::general::assert_the_appearance_row_shows_the_stored_choice();
-    crate::ui::settings::account_mail::tests::
-        an_expired_password_is_replaced_without_removing_the_account();
     crate::ui::settings::accounts::tests::an_account_row_opens_its_page();
     crate::ui::controls::tests::
         a_control_spins_while_its_work_runs_and_tells_only_what_the_person_did();
     crate::ui::controls::tests::a_confirmation_closed_without_its_action_answers_no();
     crate::ui::settings::sign_in_section::tests::the_section_draws_the_switch_its_server_takes();
-    crate::ui::settings::sign_in_section::tests::
-        a_calendar_account_switches_to_signing_in_with_nextcloud();
+    crate::ui::settings::sign_in_section::tests::each_route_goes_to_the_sign_in_its_account_takes();
     crate::ui::settings::sign_in_section::tests::
         a_password_is_typed_into_an_empty_field_and_cleared_once_sent();
+    crate::ui::settings::sign_in_section::tests::
+        a_refused_password_is_typed_again_where_the_section_says_so();
     crate::ui::settings::sign_in_section::tests::a_running_change_holds_every_control();
     crate::ui::settings::sign_in_section::tests::
         a_change_waiting_on_the_browser_can_be_replaced_or_cancelled();
@@ -281,8 +283,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     );
     crate::ui::separate_sign_in_view::tests::the_page_form_offers_the_sign_in_in_place();
     crate::ui::notice_bar::tests::one_banner_per_screen_and_the_rest_behind_issues();
-    crate::ui::unfiled_copy::tests::
-        the_unfiled_copy_question_offers_both_answers_and_blocks_double_answers();
+    crate::ui::notice_bar::tests::a_question_offers_both_answers_and_holds_them_while_one_runs();
     // The ampersand has to sit in **both** halves. A property builder applies `use-markup` in
     // GObject's order, not the written one: it landed after `title` but before `subtitle`,
     // so a fixture with an ampersand only in the subject stays silent while every real
@@ -416,7 +417,6 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     invitation::a_cancelled_or_superseded_card_states_itself_and_offers_no_answer();
     invitation::an_unread_calendar_withholds_both_the_count_and_the_grid();
     invitation::a_settling_write_is_reported_and_a_settled_one_is_not();
-    invitation::the_reply_question_names_the_recipient_and_withholds_the_status_code();
 
     let application = adw::Application::builder()
         .application_id(format!("{}.composer-test", crate::l10n::APP_ID))

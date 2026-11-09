@@ -15,7 +15,7 @@ namespace Allodia.Mailcal.Services;
 public sealed partial class MailboxModel
 {
     /// <summary>Whether the send hint should show (a send is in flight or just finished).</summary>
-    /// <remarks>SentNotFiled shows no transient hint: the standing UnfiledCopy question already says this, and says it with a button.</remarks>
+    /// <remarks>SentNotFiled shows no transient hint: the copy's standing notice already says this, and says it with a button.</remarks>
     public bool SendStatusVisible =>
         _sendStatus != SendStatus.Idle && _sendStatus != SendStatus.SentNotFiled;
     /// <summary>Shows the in-flight spinner only while the send hasn't completed yet.</summary>
@@ -120,13 +120,7 @@ public sealed partial class MailboxModel
         Destination == AppDestination.Contacts ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>Whether a setup error should be surfaced.</summary>
     public bool HasSetupError => !string.IsNullOrEmpty(SetupError);
-    /// <summary>Whether the device-zone-changed prompt should show.</summary>
-    public bool HasPendingZone => PendingDeviceZone is not null;
-    /// <summary>The body text of the zone-changed prompt.</summary>
-    public string ZonePromptText =>
-        L10n.TzChangedMessage(PendingDeviceZone ?? L10n.TzZoneNew());
-    /// <summary>The "keep current" button label of the zone-changed prompt.</summary>
-    public string KeepZoneText => L10n.TzKeep(ActiveZone);
+
 
     /// <summary>
     /// The current scope's title: the unified Inbox (no account selected), else the selected

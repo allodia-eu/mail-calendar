@@ -44,15 +44,11 @@ pub(crate) enum AppInput {
     /// wait is for. One that fires after [`Self::Booted`] has nothing left to show.
     LaunchStatusDue,
     RefreshRequested,
-    RetryUnfiledCopy,
-    DismissUnfiledCopy,
     RefreshCalendar,
     PeriodicCalendarRefresh,
     SurfaceChanged(Surface),
     NetworkReachabilityChanged(bool),
     CheckDeviceTimeZone,
-    AcceptDeviceTimeZone,
-    DismissDeviceTimeZone,
     /// A notice's button (`docs/notices.md`).
     Notice(NoticeInput),
     ShowMail,
@@ -185,14 +181,6 @@ pub(crate) enum AppInput {
         mailcal_bindings::InvitationResponse,
         String,
     ),
-    /// Answer the standing "the organiser wasn't told" question. Carries no handle on the meeting,
-    /// the core holds the question and clears it as this arrives, so pressing twice cannot email
-    /// the organiser twice.
-    AnswerReplyPrompt {
-        send: bool,
-        remember: bool,
-        reply_subject: String,
-    },
     LoadRemoteImages(ReadingSource),
     /// The sun/moon button: flips whether messages are drawn on a dark background while the app is
     /// dark, the preference Settings → Reading also shows (`docs/reading-dark-mode.md`).
@@ -343,14 +331,6 @@ pub(crate) enum AppInput {
     JmapFinished(u64, JmapOutcome),
     JmapReauthPrepared(u64, Result<Box<JmapReauthPrepared>, String>),
     JmapReauthFinished(u64, JmapReauthOutcome),
-    ReplaceAccountSecret {
-        account: String,
-        secret: String,
-    },
-    AccountSecretReplaced {
-        account: String,
-        success: bool,
-    },
     StartAllodiaSignIn,
     StartAllodiaRegistration,
     ManageAllodiaAccount,

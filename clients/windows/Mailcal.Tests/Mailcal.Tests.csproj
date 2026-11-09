@@ -79,6 +79,7 @@
          needed here. -->
     <Compile Include="..\Mailcal\Calendar\EventMeeting.cs" Link="Calendar\EventMeeting.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarHitTest.cs" Link="Calendar\CalendarHitTest.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarBlocks.cs" Link="Calendar\CalendarBlocks.cs" />
     <!-- What a tap yielded, and so which question a write from it owes the user. WinUI-free and
          L10n-free on purpose: the rule is which occurrence was drawn, and getting it wrong deletes
          a whole series in place of one Tuesday, the one outcome nobody can undo. -->
@@ -271,7 +272,6 @@
          8): which switch, line and field each answer draws. Silent when wrong: a section drawn for
          an account that cannot open one says nothing useful, and one absent while the server is
          away leaves a chosen mailbox with no switch to turn it off. -->
-    <Compile Include="..\Mailcal\Services\SharedMailboxRules.cs" Link="Services\SharedMailboxRules.cs" />
     <!-- The link step and the flow around it (docs/onboarding.md, "After the connect"): a
          suggestion that starts picked and yields to a pick, and "Add another account" coming back
          to the step it left. A flow that forgets where it came from closes the window on an
@@ -386,9 +386,9 @@
     <Compile Include="..\Mailcal\ViewModels\AccountList.cs" Link="ViewModels\AccountList.cs" />
     <!-- What the folder pane offers and accepts when the tree is changed (docs/folder-pane.md,
          "Changing the tree"): a row's menu, Move to…'s destinations, which drops land, and the
-         words of the name check, the delete question and the notice. WinUI-free and L10n-free on
-         purpose, so each rule can fail here. It reads the generated FolderNameCheck, FolderNotice
-         and SelectedRow, so it needs the bindings below. -->
+         words of the name check and the delete question. WinUI-free and L10n-free on purpose, so
+         each rule can fail here. It reads the generated FolderNameCheck and SelectedRow, so it
+         needs the bindings below. -->
     <Compile Include="..\Mailcal\Services\FolderActions.cs" Link="Services\FolderActions.cs" />
     <!-- CalendarLayout / WeekStart / JmapSetup come from here. Never invoked, no cdylib is loaded. -->
     <Compile Include="..\Mailcal\Services\DefaultMailApp.cs" Link="Services\DefaultMailApp.cs" />

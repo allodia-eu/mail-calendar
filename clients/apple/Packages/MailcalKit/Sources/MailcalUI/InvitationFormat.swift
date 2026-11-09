@@ -297,12 +297,14 @@ func calendarEventLabel(
     time: String,
     calendar: String,
     participation: ResponseStatus,
-    hasConference: Bool = false
+    hasConference: Bool = false,
+    repeats: Bool = false
 ) -> String {
     var label = L10n.calendar_event_a11y(title: title, time: time, calendar: calendar)
     if participation == .needsAction { label += ", \(L10n.a11y_invitation_awaiting_response())" }
-    // The camera glyph is hidden from VoiceOver, so the label says what it shows.
+    // The camera and repeat glyphs are hidden from VoiceOver, so the label says what they show.
     if hasConference { label += ", \(L10n.event_video_meeting())" }
+    if repeats { label += ", \(L10n.a11y_event_repeats())" }
     return label
 }
 

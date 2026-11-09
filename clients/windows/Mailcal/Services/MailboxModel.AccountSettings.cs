@@ -23,7 +23,7 @@ public sealed partial class MailboxModel
 {
     /// <summary>Raised when what Settings → Accounts draws may have changed: the core's
     /// settings signal, which adding, removing, linking and signing an account in again raise,
-    /// and its connectivity signal, which an expired sign-in and a refused calendar raise.</summary>
+    /// and its notices signal, which an expired sign-in and a refused calendar raise.</summary>
     public event Action? AccountsChanged;
 
     /// <summary>Raised on the UI thread, once, with what a removal came to when the core says it
@@ -86,12 +86,6 @@ public sealed partial class MailboxModel
     internal AccountsSnapshot AccountsSnapshot() =>
         _app?.AccountsSnapshot() ?? new AccountsSnapshot([]);
 
-    /// <summary>The accounts whose stored sign-in the server no longer accepts.</summary>
-    internal IReadOnlyList<string> SignInExpiredIds => _signInExpired;
-
-    /// <summary>Which sign-in an account's credential is, for the remedy its page offers.</summary>
-    internal AccountProvider? ProviderOf(string accountId) => _app?.AccountProvider(accountId);
-
     /// <summary>Switches one of an account's uses on or off, for setup's own steps, which wait on
     /// the answer.</summary>
     /// <returns>Why the core refused, or null; a use it could not switch on is logged.</returns>
@@ -140,51 +134,15 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>Tries an account's edited servers and sign-in, and keeps them if they connect.</summary>
-    /// <returns>Null when saved, otherwise why not; the form is then left as the person typed it.</returns>
-    internal async Task<string?> SaveAccountEndpointsAsync(string accountId, AccountEndpoints endpoints)
-    {
-        if (_app is not { } app)
-        {
-            return L10n.AppUnavailable();
-        }
-        try
-        {
-            await Task.Run(() => app.UpdateAccountEndpoints(accountId, endpoints));
-            return null;
-        }
-        catch (MailcalException.CertificateRejected refused)
-        {
-            // The message carries the whole certificate; the reason is what a person reads.
-            Log.Error("editing an account's servers was refused for a certificate");
-            return refused.reason;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"editing an account's servers failed: {CoreError.Describe(ex)}");
-            return CoreErrorCopy.Said(ex);
-        }
-    }
+    /// <summary>An account's page opened: its server is asked again, on the core's own thread,
+    /// which mailboxes its sign-in opens besides its own, and the page is signalled once it
+    /// answers.</summary>
+    internal void AccountPageOpened(string accountId) => _app?.AccountPageOpened(accountId);
 
-    /// <summary>Replaces a JMAP account's pasted password or API token, after proving it connects.</summary>
-    /// <returns>Null when replaced, otherwise why not.</returns>
-    internal async Task<string?> ReplaceAccountSecretAsync(string accountId, string secret)
-    {
-        if (_app is not { } app)
-        {
-            return L10n.AppUnavailable();
-        }
-        try
-        {
-            await Task.Run(() => app.ReplaceAccountSecret(accountId, secret));
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"replacing an account's secret failed: {CoreError.Describe(ex)}");
-            return CoreErrorCopy.Said(ex);
-        }
-    }
+    /// <summary>What <paramref name="endpoints"/> leaves out of an account's servers, as its save
+    /// would refuse it. Reads only what is stored, so the page asks it as the person types.</summary>
+    internal AccountEndpointsGap? EndpointsGap(string accountId, AccountEndpoints endpoints) =>
+        _app?.AccountEndpointsGap(accountId, endpoints);
 
     /// <summary>
     /// Signs an existing Microsoft or Google account in again at its provider, asking for what it

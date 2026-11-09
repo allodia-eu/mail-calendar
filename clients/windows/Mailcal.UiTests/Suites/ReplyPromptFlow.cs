@@ -1,6 +1,7 @@
-// What the two suites about "The organiser wasn't told" share: the account's remembered answer,
-// which would make the core answer for the user and ask nothing, and the sentence the question is
-// put in (docs/invitations.md, "A server can promise to send the reply, and then not send it").
+// What the two suites about "The organiser wasn't told" share: the account's standing answer, set on
+// its page in Settings, which would make the core answer for the user and ask nothing, and the
+// sentence the question's notice is put in (docs/invitations.md, "A server can promise to send the
+// reply, and then not send it").
 
 using Allodia.Mailcal.UiTests.Driver;
 
@@ -9,7 +10,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 internal static class ReplyPromptFlow
 {
     /// <summary>Where the core keeps the preferences of MAILCAL_DEV_ACCOUNT=stalwart-imap
-    /// (AppPaths.PrefsDir), a remembered answer among them.</summary>
+    /// (AppPaths.PrefsDir), a standing answer among them.</summary>
     internal static readonly string PrefsFile = Path.Combine(DataDir.Root, "dev-imap", "preferences.toml");
 
     /// <summary>Whether the account holds a standing answer.</summary>
@@ -18,8 +19,8 @@ internal static class ReplyPromptFlow
 
     /// <summary>
     /// Forgets the account's standing answer. Called before a case asks, so a run heals what the
-    /// last one left, including one that died between ticking the box and getting here. Safe under
-    /// the running app: the core reads the file on each RSVP and writes it whole from that read.
+    /// last one left, including one that died between setting it and getting here. Safe under the
+    /// running app: the core reads the file on each RSVP and writes it whole from that read.
     /// </summary>
     internal static void ForgetRemembered()
     {
@@ -44,13 +45,13 @@ internal static class ReplyPromptFlow
     }
 
     /// <summary>
-    /// Whether <paramref name="texts"/> hold the catalog's undelivered-body sentence with the meeting
-    /// and the organiser's address in its slots, in any locale. Built from the template, so the whole
+    /// Whether <paramref name="texts"/> hold the notice's sentence with the meeting and the
+    /// organiser's address in its slots, in any locale. Built from the template, so the whole
     /// sentence is pinned, the order of its clauses included: the answer was saved, said first.
     /// </summary>
     internal static bool ShowsBody(IEnumerable<string> texts, string summary, string organiser)
     {
-        var expected = Catalog.Everywhere("invitation_reply_undelivered_body")
+        var expected = Catalog.Everywhere("notice_reply_not_delivered")
             .Select(template => template.Replace("{summary}", summary).Replace("{organizer}", organiser))
             .ToHashSet();
         return texts.Any(expected.Contains);

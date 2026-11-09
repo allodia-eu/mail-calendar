@@ -373,11 +373,6 @@ public sealed partial class MailboxModel
     /// <summary>Set the active display time zone (an IANA id) via the selector.</summary>
     public void SetTimeZone(string id) => _app?.Dispatch(new Intent.SetTimeZone(id));
 
-    /// <summary>Adopt the device's reported zone (the user accepted the change prompt).</summary>
-    public void AcceptTimeZoneChange() => _app?.Dispatch(new Intent.AcceptTimeZoneChange());
-
-    /// <summary>Keep the current zone (the user dismissed the change prompt).</summary>
-    public void DismissTimeZoneChange() => _app?.Dispatch(new Intent.DismissTimeZoneChange());
 
     /// <summary>Reset the local cache and re-fetch everything (destructive).</summary>
     public void Reset() => _app?.Reset();

@@ -1,6 +1,6 @@
 //! The controls a page draws from the core's `ControlState` (`docs/waiting.md`): a switch row, a
-//! button, a picker row and a confirmation. Each is held while it cannot be used and shows a
-//! spinner beside itself while work it started runs, so every page waits the same way.
+//! button, a text row, a picker row and a confirmation. Each is held while it cannot be used and
+//! shows a spinner beside itself while work it started runs, so every page waits the same way.
 
 use adw::prelude::*;
 use mailcal_bindings::ControlState;
@@ -14,6 +14,13 @@ fn spinner(control: ControlState) -> Option<adw::Spinner> {
         spinner.set_valign(gtk::Align::Center);
         spinner
     })
+}
+
+/// An action row titled `title` in plain text: a translated title may hold a bare ampersand.
+fn plain_row(title: &str) -> adw::ActionRow {
+    let row = super::mailbox::plain_text_row();
+    row.set_title(title);
+    row
 }
 
 /// A switch row. `changed` is told when the person moves it from where it was drawn; putting it
@@ -71,6 +78,157 @@ pub(super) fn button(
     button
 }
 
+/// A row that opens something, a question or a form, and starts no work of its own: it is only
+/// held, while a change runs on the page, and the spinner is the control's that started it.
+pub(super) fn button_row(
+    title: &str,
+    enabled: bool,
+    activated: impl Fn() + 'static,
+) -> adw::ButtonRow {
+    let row = adw::ButtonRow::new();
+    row.set_use_markup(false);
+    row.set_title(title);
+    row.set_sensitive(enabled);
+    row.connect_activated(move |_| activated());
+    row
+}
+
+/// Marks a field that sends what was typed itself, so a redraw of the page does not wait on it
+/// once it has.
+const SENDS_ITSELF: &str = "sends-itself";
+/// Marks such a field while it holds text it has not sent.
+const UNSENT: &str = "unsent";
+
+/// Holds a form's `field` while `control` is held, without a spinner: the spinner is its send
+/// button's.
+pub(super) fn hold_field(field: &impl IsA<gtk::Widget>, control: ControlState) {
+    field.set_sensitive(control.enabled);
+}
+
+/// Marks `form`, whose fields are sent together by a button, as holding edits it has not sent
+/// (`unsent`) or not. A redraw waits while it does, wherever the caret is: the fields are the
+/// person's until the button sends them.
+pub(super) fn form_unsent(form: &impl IsA<gtk::Widget>, unsent: bool) {
+    form.add_css_class(SENDS_ITSELF);
+    if unsent {
+        form.add_css_class(UNSENT);
+    } else {
+        form.remove_css_class(UNSENT);
+    }
+}
+
+/// Whether anything under `root` holds edits it has not sent.
+pub(super) fn holds_unsent(root: &gtk::Widget) -> bool {
+    root.has_css_class(UNSENT)
+        || std::iter::successors(root.first_child(), gtk::Widget::next_sibling)
+            .any(|child| holds_unsent(&child))
+}
+
+/// A form's button that sends its fields, in a row whose title says what the fields still leave
+/// out. Held while `control` is, or while the fields leave something out ([`FormSend::ready`]);
+/// a spinner beside it while the work it started runs.
+pub(super) struct FormSend {
+    row: adw::ActionRow,
+    button: gtk::Button,
+    control: ControlState,
+}
+
+impl FormSend {
+    pub(super) fn new(label: &str, control: ControlState, pressed: impl Fn() + 'static) -> Self {
+        let row = plain_row("");
+        let button = button(label, control, false, pressed);
+        button.add_css_class("suggested-action");
+        row.add_suffix(&button);
+        Self {
+            row,
+            button,
+            control,
+        }
+    }
+
+    pub(super) fn row(&self) -> &adw::ActionRow {
+        &self.row
+    }
+
+    /// Sends the form as its button would, when the button may be pressed: for a field whose
+    /// Return sends it.
+    pub(super) fn press(&self) {
+        if self.button.is_sensitive() {
+            self.button.emit_clicked();
+        }
+    }
+
+    /// The fields as they stand: `missing` says what they leave out, `None` when they can be
+    /// sent.
+    pub(super) fn ready(&self, missing: Option<&str>) {
+        self.row.set_title(missing.unwrap_or_default());
+        self.button
+            .set_sensitive(self.control.enabled && missing.is_none());
+    }
+}
+
+/// Whether `widget` sits in a field that sends what was typed itself, and if so, whether that
+/// field holds text it has not sent yet.
+pub(super) fn unsent(widget: &gtk::Widget) -> Option<bool> {
+    std::iter::successors(Some(widget.clone()), gtk::Widget::parent)
+        .find(|widget| widget.has_css_class(SENDS_ITSELF))
+        .map(|field| field.has_css_class(UNSENT))
+}
+
+/// A row with a text field, which tells `committed` what was typed on Return and when it loses
+/// focus, and only when it differs from what it last told, starting from `text`: never on every
+/// keystroke, which would store a half-typed value and redraw the page under the cursor, and never
+/// twice for one edit, as Return and then the focus leaving would.
+pub(super) fn text_row(
+    title: &str,
+    subtitle: &str,
+    text: &str,
+    control: ControlState,
+    committed: impl Fn(String) + 'static,
+) -> adw::ActionRow {
+    let row = plain_row(title);
+    row.set_subtitle(subtitle);
+    if let Some(spinner) = spinner(control) {
+        row.add_suffix(&spinner);
+    }
+    let entry = gtk::Entry::new();
+    entry.set_placeholder_text(Some(title));
+    entry.set_text(text);
+    entry.set_valign(gtk::Align::Center);
+    entry.set_width_chars(24);
+    entry.set_sensitive(control.enabled);
+    entry.add_css_class(SENDS_ITSELF);
+    let sent = std::rc::Rc::new(std::cell::RefCell::new(text.to_owned()));
+    let unsent_now = sent.clone();
+    entry.connect_changed(move |entry| {
+        if entry.text() == unsent_now.borrow().as_str() {
+            entry.remove_css_class(UNSENT);
+        } else {
+            entry.add_css_class(UNSENT);
+        }
+    });
+    let commit = std::rc::Rc::new(move |entry: &gtk::Entry| {
+        let typed = entry.text().to_string();
+        if typed != *sent.borrow() {
+            sent.replace(typed.clone());
+            entry.remove_css_class(UNSENT);
+            committed(typed);
+        }
+    });
+    let on_activate = commit.clone();
+    entry.connect_activate(move |entry| on_activate(entry));
+    let focus = gtk::EventControllerFocus::new();
+    let left = entry.downgrade();
+    focus.connect_leave(move |_| {
+        if let Some(entry) = left.upgrade() {
+            commit(&entry);
+        }
+    });
+    entry.add_controller(focus);
+    row.add_suffix(&entry);
+    row
+}
+
 /// A row that picks one of `labels`. `picked` is told the position the person picked, and never
 /// the one it was drawn with.
 pub(super) fn picker_row(
@@ -80,10 +238,7 @@ pub(super) fn picker_row(
     control: ControlState,
     picked: impl Fn(u32) + 'static,
 ) -> (adw::ActionRow, gtk::DropDown) {
-    let row = adw::ActionRow::builder()
-        .use_markup(false)
-        .title(title)
-        .build();
+    let row = plain_row(title);
     if let Some(spinner) = spinner(control) {
         row.add_suffix(&spinner);
     }

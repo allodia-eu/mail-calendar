@@ -72,11 +72,20 @@ struct CalendarToolbar: ToolbarContent {
 
     /// Segmented where all six fit; a menu showing the current shape where they do not, such as an
     /// iPad upright beside the sidebar, rather than a bar that overflows.
+    ///
+    /// Always segmented on the Mac, whose window toolbar moves an item that does not fit into its own
+    /// overflow menu. A `ViewThatFits` there is measured, both of its shapes, on every layout pass of
+    /// the window, and AppKit lays the toolbar out on every frame the grid moves.
+    @ViewBuilder
     private var modePicker: some View {
-        ViewThatFits(in: .horizontal) {
+        #if os(macOS)
             modes.pickerStyle(.segmented).fixedSize()
-            modes.pickerStyle(.menu).fixedSize()
-        }
+        #else
+            ViewThatFits(in: .horizontal) {
+                modes.pickerStyle(.segmented).fixedSize()
+                modes.pickerStyle(.menu).fixedSize()
+            }
+        #endif
     }
 
     private var modes: some View {

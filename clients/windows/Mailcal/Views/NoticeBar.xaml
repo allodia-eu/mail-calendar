@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   The window's one notice bar (docs/notices.md): the first notice that belongs to the screen on
-  show, its one action, and every other notice behind a single "more" button. Never a second bar.
+  show, its action or a question's two answers, and every other notice behind a single "more"
+  button. Never a second bar.
 
   Drawn from code (NoticeBar.xaml.cs) rather than bound, because what it shows is a choice made
   over the whole list on each snapshot and each change of screen, and its flyout is rebuilt from
@@ -28,22 +29,45 @@
                     Click="OnAction" />
         </InfoBar.ActionButton>
         <InfoBar.Content>
-            <Button x:Name="MoreButton"
-                    Margin="0,0,0,8"
-                    Visibility="Collapsed"
-                    AutomationProperties.AutomationId="NoticeMore">
-                <Button.Flyout>
-                    <Flyout x:Name="MoreFlyout" Opening="OnMoreOpening">
-                        <!-- Narrower than the flyout itself, whose own maximum is the theme's: a list
-                             wider than that is clipped rather than wrapped. -->
-                        <ScrollViewer MaxHeight="480" MaxWidth="400">
-                            <StackPanel x:Name="MoreList"
-                                        Spacing="16"
-                                        AutomationProperties.AutomationId="NoticeList" />
-                        </ScrollViewer>
-                    </Flyout>
-                </Button.Flyout>
-            </Button>
+            <StackPanel>
+                <!-- A question's two answers (rule 8). The InfoBar holds one action button, so a
+                     question draws both here instead, the first as the accent one. -->
+                <StackPanel x:Name="Answers"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            Margin="0,0,0,8"
+                            Visibility="Collapsed">
+                    <Button x:Name="FirstAnswer"
+                            Style="{StaticResource AccentButtonStyle}"
+                            AutomationProperties.AutomationId="NoticeAnswer"
+                            Click="OnFirstAnswer" />
+                    <Button x:Name="SecondAnswer"
+                            AutomationProperties.AutomationId="NoticeSecondAnswer"
+                            Click="OnSecondAnswer" />
+                    <ProgressRing x:Name="AnswerRunning"
+                                  Width="16"
+                                  Height="16"
+                                  IsActive="False"
+                                  Visibility="Collapsed"
+                                  AutomationProperties.AutomationId="NoticeAnswer_Running" />
+                </StackPanel>
+                <Button x:Name="MoreButton"
+                        Margin="0,0,0,8"
+                        Visibility="Collapsed"
+                        AutomationProperties.AutomationId="NoticeMore">
+                    <Button.Flyout>
+                        <Flyout x:Name="MoreFlyout" Opening="OnMoreOpening">
+                            <!-- Narrower than the flyout itself, whose own maximum is the theme's: a list
+                                 wider than that is clipped rather than wrapped. -->
+                            <ScrollViewer MaxHeight="480" MaxWidth="400">
+                                <StackPanel x:Name="MoreList"
+                                            Spacing="16"
+                                            AutomationProperties.AutomationId="NoticeList" />
+                            </ScrollViewer>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
         </InfoBar.Content>
     </InfoBar>
 </UserControl>

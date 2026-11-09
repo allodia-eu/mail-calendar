@@ -88,11 +88,13 @@ public sealed partial class SettingsDialog
         }
         confirm.Enabled = use.Control.Enabled;
         row.Children.Add(toggle.Element);
-        if (SeparateServerAction(entry, capability) is { } separate)
+        // Both open something and start nothing, so they are only held while a change runs.
+        var held = use.Control with { Running = false };
+        if (SeparateServerAction(entry, capability, held) is { } separate)
         {
             row.Children.Add(separate);
         }
-        if (ServerChangeAction(entry, capability, use.ReviewsServerChange) is { } review)
+        if (ServerChangeAction(entry, capability, use.ReviewsServerChange, held) is { } review)
         {
             row.Children.Add(review);
         }
@@ -154,21 +156,6 @@ public sealed partial class SettingsDialog
         LinkSlot.Contacts => L10n.SettingsAccountLinkContacts(),
         _ => L10n.SettingsAccountLinkMail(),
     };
-
-    /// <summary>"Sign in again", for an account that signs in at its provider's page: the remedy
-    /// for an expired sign-in and for a permission the provider withheld.</summary>
-    private UIElement SignInGroup(AccountEntry entry, bool expired)
-    {
-        var description = expired
-            ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
-            : AccountSettingsRules.NeedsPermission(entry)
-                ? L10n.SettingsAccountNeedsPermission()
-                : L10n.SettingsAccountSigninDescription();
-        var button = new Button { Content = L10n.SigninExpiredAction() };
-        AutomationProperties.SetAutomationId(button, "AccountSignInAgain");
-        button.Click += (_, _) => _ = SignInAgainFromPageAsync(entry, []);
-        return Group(L10n.SettingsAccountSigninHeading(), description, button);
-    }
 
     /// <summary>Signs the account in again at its provider, asking for what it is used for plus
     /// <paramref name="adding"/>, and says how it ended. A cancelled sign-in says nothing.</summary>

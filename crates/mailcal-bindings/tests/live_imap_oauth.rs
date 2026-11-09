@@ -23,7 +23,7 @@
 mod live_oauth;
 
 use live_oauth::{PASSWORD, RecordingStore, app, param, sign_in_as_the_user};
-use mailcal_bindings::{ImapAuthOffer, ImapLoginRequest, SetupRecommendation};
+use mailcal_bindings::{ImapAuthOffer, ImapLoginRequest, NoticeKind, SetupRecommendation};
 
 /// The address whose autoconfig the front serves at `https://localhost`.
 const EMAIL: &str = "alice@localhost";
@@ -159,7 +159,13 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
     // The calendar connected on the same grant, over Bearer: the one provider that speaks HTTP.
     // Contacts take the same path (`dav_credentials`) but bind nothing here, because the sign-in
     // server holds no address book for this user.
-    assert_eq!(app.calendar_connect_error(), None);
+    assert!(
+        !app.notices()
+            .notices
+            .iter()
+            .any(|notice| matches!(notice.kind, NoticeKind::CalendarOutage { .. })),
+        "the calendar connected"
+    );
     let over_http = app
         .connection_info(row.id.clone())
         .iter()

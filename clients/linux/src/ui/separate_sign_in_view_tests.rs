@@ -112,7 +112,7 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
         Some(UseProblem::NeedsOwnSignIn),
         Some(server(vec![AccountCapability::Calendar])),
     );
-    let action = page_action(&entry, &sender).expect("the action");
+    let action = page_action(&entry, true, &sender).expect("the action");
     assert_eq!(
         action.title().as_str(),
         l10n::settings_account_use_separate_sign_in()
@@ -123,7 +123,10 @@ pub(crate) fn the_page_form_opens_over_settings_and_updates_in_place() {
         Some(AppInput::Accounts(AccountsInput::Separate(SeparateInput::Open { account, .. })))
             if account == entry.id
     ));
-    assert!(page_action(&mailbox(None, None), &sender).is_none());
+    assert!(page_action(&mailbox(None, None), true, &sender).is_none());
+    // Held while a change runs on the page, as every control on it is.
+    let held = page_action(&entry, false, &sender).expect("the action");
+    assert!(!held.is_sensitive());
 
     let parent = gtk::Window::new();
     let mut prompts = Prompts::default();

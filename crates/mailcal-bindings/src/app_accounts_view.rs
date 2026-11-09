@@ -43,8 +43,8 @@ impl MailcalApp {
     /// is used for, in what state, and which accounts it relies on. Pulled after a
     /// [`Surface::Settings`](crate::Surface::Settings) signal, which adding, removing and signing
     /// an account in again all raise, and after a
-    /// [`Surface::Connectivity`](crate::Surface::Connectivity) one, which a provider refusing a
-    /// calendar raises.
+    /// [`Surface::Notices`](crate::Surface::Notices) one, which a provider refusing a calendar
+    /// raises.
     ///
     /// An empty list means the last account is gone, and the client returns to first-run setup.
     pub fn accounts_snapshot(&self) -> AccountsSnapshot {

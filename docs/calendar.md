@@ -123,6 +123,20 @@ This is a cross-platform product decision. It lives in the core (`calendar/color
 `resolved_calendars`), so a client never assigns a colour itself: it only draws the resolved swatch
 and offers the override.
 
+### How an event wears its colour
+
+An event on the time grid, in the all-day banner and in a month cell is drawn the way Apple's Calendar
+draws it: a **light tint** of its calendar's colour fills the block, the **colour itself** runs down
+its leading edge as a bar, and its title is set **semibold in a deep shade** of the colour (a pale
+one on dark). An unanswered hold keeps its own treatment in the same terms: a fainter tint, the bar
+hatched rather than solid, and a dashed edge in the calendar's colour (§4).
+
+The three colours are the core's (`event_swatch`, exported as `calendar_event_swatch`), resolved from
+the calendar's palette colour for a light or a dark theme, and the title is guaranteed to clear WCAG AA
+on the tint: it starts as a shade of the hue and moves toward black (white) only as far as legibility
+needs. A client draws them and derives none. A calendar's **dot** (the manager, the editor's picker,
+the detail) and a sender's avatar keep the solid swatch.
+
 ### The default calendar
 
 **Which calendar a new event lands on is a setting, and the core resolves it.** `CalendarRow` carries
@@ -146,9 +160,9 @@ grid wears** (§10): a new event's block says where it is going before the edito
 ### Device time-zone changes
 
 The active display zone never changes merely because the device moved. A client reports a new IANA
-device zone to the core; `TimeZoneSnapshot::pending_device` then raises one choice: **Update** the
-display zone, or **Keep** the active one. Only Update persists the new zone and rebuilds the diary.
-Closing the prompt means Keep. Linux checks the device zone once a minute while the app remains open
+device zone to the core, which then raises one question, the `TimeZoneChanged` notice
+([`notices.md`](notices.md) rule 8): **Update** the display zone, or **Keep current**. Only Update
+persists the new zone and rebuilds the diary. Linux checks the device zone once a minute while the app remains open
 and drives both answers through the same core state machine as the manual Settings picker.
 
 ---
@@ -288,6 +302,14 @@ question of how much room *this* screen has) but the **rule** is shared.
   title when the user zooms in.
 - Getting this wrong does not hide the title: it **cuts it through the middle**. (Android shipped
   that for one build. The grid was geometrically perfect and looked broken.)
+- A long title **wraps by word over every whole line the block has room for**, as Apple's Calendar
+  does, rather than stopping at the first line behind an ellipsis. The time takes the line beneath
+  it once the block has room for two, as a range (`09:00–12:00`) where the column is wide enough
+  and the start alone where it is not. The last line drawn is always whole.
+- An event with a video meeting, and an occurrence of a **repeating** series (one whose block
+  carries an occurrence token), wear a glyph in the block's **top-right corner**: a camera, and
+  Apple's repeat arrows. The title wraps beside them. Neither glyph is spoken, so the block's spoken
+  label says both.
 
 ### `is_materialized`
 
@@ -322,8 +344,7 @@ of its own, refused the account's, or could not be reached ([`accounts.md`](acco
 What the store holds of it stays on the grid, so the week is not emptied by a sign-in change, and
 the calendar screen says what that week is:
 
-- **One notice per account** ([`notices.md`](notices.md)), raised from
-  `ConnectivitySnapshot.calendar_outages` and drawn wherever the client draws the calendar's
+- **One notice per account** ([`notices.md`](notices.md)), `CalendarOutage`, drawn wherever the client draws the calendar's
   notices: "The calendar for {address} isn't connected.", with the reason the account's page gives
   for the same problem and "You're seeing what was last synced." beneath it. Its one action is
   **Try again** for a server that could not be reached, **Review** for one paused on a new server,
@@ -933,7 +954,7 @@ Both axes zoom, and both **anchor on the fingers**.
   clamped by the core: a pinch runs off the end of its own gesture constantly, and a client that sent
   the raw value would leave one platform showing a 1-hour day. Persisting them in the core, not the
   client, is also what stops the phone and the desktop opening on different calendars.
-- **A settled pinch snaps to a rung (1, 3, 5 or 7 columns) and the grid opens on the whole week.**
+- **A settled pinch snaps to a rung (1, 3, 5 or 7 columns).**
   The shape is a persisted core setting with exactly four values, so a zoom that settles between rungs
   has nothing to save. Snap to the settled **level's** columns, not to the rounded count: a pinch
   outwards from the week lands on ~6.4, which rounds to **6** while the level it maps to is the whole
@@ -943,6 +964,15 @@ Both axes zoom, and both **anchor on the fingers**.
   sliding along the one you are already on and comes to rest in the middle. *(Windows:)* there is no
   nesting left to trip over: the strip is one axis, and a week is a distance along it, so the rung is
   kept for the persisted shape and for the tidy columns, not to protect the swipe.
+- **Until the user picks a shape, a phone opens on three days and anything else on the whole week.**
+  Seven columns leave a phone too little room to read a title in. The core decides it
+  (`CalendarLayout::default_for`) from the device class every client already reports at
+  construction (an iPhone or an Android phone), and applies it before the constructor returns, so a
+  phone never shows the week first. Only a shape the user chose is persisted: a default written
+  back on the first unrelated settings change would be a choice nobody made, and would outlive a
+  change to the default. An install that has never chosen a shape is treated alike, so a phone that
+  never changed its view opens on three days after the update that brought this rule; one that
+  pinched or picked a shape keeps it.
 
 ---
 
@@ -1120,6 +1150,51 @@ What it says honestly: on this hardware the grid is not dropping frames a hand w
 does *not* yet say: how it holds up on a 120 Hz Windows display, or after the fling/settle constants
 (ported from Android, not re-measured here) are tuned to this GPU. Those are open, and named in
 "Known gaps".
+
+### The same measurement, on Apple
+
+`MAILCAL_CALENDAR_TRACE=1` at launch, in any build, logs one line per burst of motion
+(`CalendarFrameTrace.swift`): frames, how many missed their deadline, the gaps at p50, p90, p99 and
+worst, how many input events went to the days, the hours and the zoom, and how many weeks' blocks
+were built. Counts and durations only, as on Android. `MAILCAL_CALENDAR_TRACE=drive` opens the
+calendar and moves it itself, hours, then days, then a zoom on both axes, the same way on every run,
+so two builds compare without a hand on the trackpad. It measures what a frame costs to draw, not
+the gesture that asked for it; that half is measured by hand with the plain trace.
+
+[`scripts/dev/calendar-perf-apple.sh`](../scripts/dev/calendar-perf-apple.sh) builds Release on a
+release core, runs the drive and prints the run's lines, one per axis:
+
+    scripts/dev/calendar-perf-apple.sh mac            # the Mac
+    scripts/dev/calendar-perf-apple.sh device         # the connected phone, unlocked
+    scripts/dev/calendar-perf-apple.sh mac-profile    # the Mac, under the Time Profiler
+
+⚠️ **Instruments' command line does not reach an app on the phone** here: attaching by name, by
+pid and by launch all fail, and a whole-device trace collects gigabytes it cannot then export. The
+trace is the instrument because of that, and because it labels each burst with what drove it. On
+the Mac, `xctrace record --attach` works, and `mac-profile` is what finds a cost once the trace has
+said there is one: the main thread's busy time per axis, and the frames it was busy in. The
+`apple-frame-budget` skill carries the traps.
+
+Measured on release builds, scripted motion, 60 Hz:
+
+| in-motion frames dropped | hours | days | zoom, both axes |
+|---|---|---|---|
+| MacBook Air | 0.8% | 3.0% | 0.4% |
+| iPhone 13 Pro | 1.0% | 3.8% | 0.4% |
+
+The p90 gap is 16.7 ms on every axis of both. The days' remaining drops are the frames a week slides
+into view on. Three costs had to go to get there, each one a §7 rule the Apple grid was breaking:
+
+- **A page was pulled per frame.** Every visible week was laid out by the core and copied across the
+  FFI several times a frame. Pages and their parsed dates are held per calendar version and display
+  zone (`CalendarPageCache.swift`).
+- **The screen moved with the grid.** The strip, the hour offset and the zoom were the calendar
+  screen's own state, so every frame re-ran the screen and AppKit laid out the window toolbar again:
+  two fifths of the main thread. The position is an observable object only the grid reads, and the
+  screen reads what changes rarely (which week is anchored, whether today is in view).
+- **Text was shaped per block per frame.** Two thirds of the main thread during a zoom. A week's
+  labels are resolved once per paint and wrapped against a width rounded down to a 4 pt step
+  (`CalendarBlockLabels.swift`), the Apple form of "freeze the width the text is shaped against".
 
 ### The trace
 
@@ -1581,6 +1656,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Pinch-to-zoom: hours | — | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Pinch-to-zoom: days, and **diagonal** | — | ✅ | ✅ | ✅ ¹ | ✅ | ⬜ |
 | Shape + horizon restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A phone opens on three days, a tablet or a computer on the week, until a shape is chosen (§8) | ✅ | — | ✅ | — | ✅ | — |
 | Stored diary on screen at launch, and filled without being opened | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Week paging: by swipe | — | ⬜ ⁴ | ⬜ ⁴ | ⬜ ⁴ | ✅ | ⬜ |
 | Continuous day strip + **pinned** hour ruler (rests between weeks) | — | ✅ ⁴ | ✅ ⁴ | ✅ ⁴ | ⬜ | ⬜ |
@@ -1591,9 +1667,12 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Horizontal **touch** pan across weeks, landing on a day | — | — | ✅ ⁴ | ✅ | ⬜ | ⬜ |
 | `< Today >` header navigation (steps by the visible span ⁵) | — | ⬜ | ⬜ | ✅ | ⬜ | ✅ |
 | Drawn (canvas) grid, not composed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Events in the tinted style: a tint, the calendar's colour down the leading edge, a deep-shade title (§1) ¹⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A long title wraps over every whole line the block has room for (§4) ¹⁸ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The repeat and meeting glyphs in a block's top-right corner, and spoken (§4) ¹⁸ | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One owner for the pointer stream | — | ⬜ | ⬜ | ✅ | ✅ | ⬜ |
 | The spoken **time** grid (a11y over a canvas): the month surface is its own question, see "Known gaps" | — | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Frame budget measured on a release build | — | ⬜ | ⬜ | ✅ ² | ✅ | ✅ ¹² |
+| Frame budget measured on a release build | — | ✅ ¹⁹ | ✅ ¹⁹ | ✅ ² | ✅ | ✅ ¹² |
 | Create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Create with a **calendar picker** (grouped by account) · all-day · notes · location ⁶ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | **View** an event (tap → detail) and **edit** it: title, time, notes, location ⁶ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -1828,6 +1907,19 @@ over its window. ⚠️ It cannot be verified any other way: the simulator does 
 *synthetic* host scroll into the guest at all, as a real `UIScrollView` on the same screen proves by
 not moving either. A test that injects one passes while measuring nothing.
 
+¹⁸ **A product rule for every platform.** Every client draws the tinted block, the wrapped title
+and the corner glyphs, in the grid, the all-day bars and the month chips alike, from the colours
+the core resolves (`calendar_event_swatch`), and each lays a page's labels out once rather than per
+frame (§7): Android keeps a block's layout per width step, line count and time line, against the
+width it freezes for a pinch; Linux keeps the shaped text per width step as a render node; Windows
+keeps DirectWrite's layout of each run, and of a title per width step, against the width it
+freezes for a pinch.
+
+¹⁹ **Measured with the scripted motion** (§9, "The same measurement, on Apple"), on a MacBook Air
+and an iPhone 13 Pro: at most 3.8% of in-motion frames dropped on any axis, the p90 gap one frame.
+The week is a drawn canvas with an accessibility element per block placed by the canvas's own
+geometry (§7), so the "drawn, not composed" row above holds for Apple too.
+
 ---
 
 ## 13. Known gaps
@@ -1895,11 +1987,6 @@ Stated, not buried.
   capture-phase primary-button controller for creating events, but no owner for horizontal navigation
   or pinch, so it needs the single pointer owner before it can have the strip. **A platform takes the
   whole rule or none of it**: half of it is the rubber-band.
-- **Apple's grid is not frame-budget measured.** §7's bar is the frames missed *during motion*, on a
-  release build, and nobody has taken that number on a Mac or a phone. It is also the one client whose
-  grid is **composed rather than drawn** at the block level, which §7 says costs a layout pass per
-  block per frame, so the measurement is more likely to say something than on the clients that already
-  pass. Until it is taken, no performance claim may be made for the Apple strip.
 - **The Windows day landing has not been frame-measured on a 120 Hz panel.** The wheel path was
   measured on a 60 Hz ARM64 Surface, before and after, by injecting notches at a known cadence and
   reading the grid's own frame counters. The ease constant (a 60 ms time constant) and the two idle
@@ -2113,17 +2200,13 @@ Stated, not buried.
   Microsoft account connected **before** calendar support (or with revoked consent) lacks the
   `Calendars.ReadWrite` scope, so its calendar-list probe `403`s (`ErrorAccessDenied`). The core
   classifies that specific `403` as `AccountError::CalendarAccessDenied` (distinct from a transient
-  failure), records the account in a per-account **`calendar_reauth_accounts`** set on
-  `ConnectivitySnapshot` (signalled on `Surface::Connectivity`, **not** suppressed while offline;
-  it is a standing permission gap, and mail is unaffected), and every client renders a **"reconnect
-  to enable calendar"** banner on the calendar naming the account. Its action re-runs that account's
+  failure), records the account in a per-account **`calendar_reauth_accounts`** set, which raises the
+  `CalendarReauth` notice on the calendar naming the account ([`notices.md`](notices.md); **not**
+  suppressed while offline: it is a standing permission gap, and mail is unaffected). Its action re-runs that account's
   Microsoft sign-in with the address as `login_hint` and the now-expanded scopes; because the
   re-auth resolves to the **same account id**, `complete_microsoft_login` upgrades the existing
   account's token **in place** (no duplicate), reconnects the calendar, and clears the flag (which
-  clears the banner). This is a **cross-platform contract**: the signal is shared and all four
-  clients (Android: device-verified; macOS + iOS/iPadOS: one SwiftUI banner, compile-verified;
-  Windows: InfoBar, compile + UIA owed on a Windows host; Linux: GTK banner and loopback sign-in,
-  runtime-verified) render it. The **whole loop** was verified live on a real Android device
+  takes the notice down). The **whole loop** was verified live on a real Android device
   2026-07-18 and on Linux 2026-08-25: the `403` classified as `CalendarAccessDenied`, the banner
   named the affected account, **Reconnect** opened the Microsoft consent for
   `Calendars.ReadWrite` targeted at that account via `login_hint`, and on consent the token upgraded
@@ -2141,8 +2224,8 @@ Stated, not buried.
   (`reconcile_calendar_events`), **never** by re-issuing the write. An answer to an invitation
   settles the same way: not sent unless its write may have landed where storing it is sending it
   (`invitation_failed` or `invitation_unconfirmed`). An explicit
-  `RefreshCalendar` clears the status (a full sync reconciles the whole scope); a genuine outage shows
-  through `Surface::Connectivity`, not here. **Cross-platform status:** the surface is shared;
+  `RefreshCalendar` clears the status (a full sync reconciles the whole scope); a genuine outage is
+  a notice, not here. **Cross-platform status:** the surface is shared;
   **Android** and the **Apple** clients (macOS + iOS/iPadOS, one SwiftUI header) render it today
   (spinner/warning/retry). **Windows** has the header badge wired the same way (the pure
   `CalendarWriteIndicators.Of` mapping is unit-tested via `dotnet test`, and the model + XAML mirror

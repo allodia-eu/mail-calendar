@@ -8,7 +8,12 @@ import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinkPicker
 import uniffi.mailcal_bindings.AccountLinksView
+import uniffi.mailcal_bindings.AccountMailSettings
 import uniffi.mailcal_bindings.AccountPage
+import uniffi.mailcal_bindings.AccountSenderName
+import uniffi.mailcal_bindings.AccountServers
+import uniffi.mailcal_bindings.AccountSharedMailboxes
+import uniffi.mailcal_bindings.AccountSignIn
 import uniffi.mailcal_bindings.AccountUse
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
@@ -118,7 +123,23 @@ internal fun pageOf(
     uses: List<AccountUseSwitch> = entry.uses.map { useSwitch(it.capability, it.state == CapabilityState.ON) },
     links: List<AccountLinkPicker> = emptyList(),
     remove: ControlState = FREE,
-) = AccountPage(entry.id, uses, links, remove, notice = null)
+    senderName: AccountSenderName? = null,
+    mail: AccountMailSettings? = null,
+    servers: AccountServers? = entry.endpoints?.let { AccountServers(form = it, save = FREE) },
+    shared: AccountSharedMailboxes? = null,
+    signIn: AccountSignIn? = null,
+) = AccountPage(
+    account = entry.id,
+    uses = uses,
+    links = links,
+    senderName = senderName,
+    mail = mail,
+    servers = servers,
+    shared = shared,
+    signIn = signIn,
+    remove = remove,
+    notice = null,
+)
 
 /**
  * Setup's pickers, standing in for the core's `setup_link_pickers`: a picker per slot with

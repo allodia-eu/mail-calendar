@@ -35,48 +35,33 @@ struct CalendarGridLines: View {
 
     var body: some View {
         Canvas { context, size in
-            let line = Color.secondary.opacity(0.25)
-            for hour in 1..<calendarHours {
-                let y = hourHeight * CGFloat(hour)
-                var path = Path()
-                path.move(to: CGPoint(x: 0, y: y))
-                path.addLine(to: CGPoint(x: size.width, y: y))
-                context.stroke(path, with: .color(line), lineWidth: 0.5)
-            }
-            // From zero, not from one: with the weeks laid end to end there is no gutter between
-            // them, so a week's first line is the seam it shares with the week before it.
-            for day in 0..<dayCount {
-                let x = dayWidth * CGFloat(day)
-                var path = Path()
-                path.move(to: CGPoint(x: x, y: 0))
-                path.addLine(to: CGPoint(x: x, y: size.height))
-                context.stroke(path, with: .color(line), lineWidth: 0.5)
-            }
+            drawCalendarGridLines(
+                in: context, size: size, dayCount: dayCount, dayWidth: dayWidth,
+                hourHeight: hourHeight
+            )
         }
     }
 }
 
-/// The red now line, with a dot on today's column.
-struct CalendarNowLine: View {
-    let nowMinutes: Int
-    let todayIndex: Int
-    let dayWidth: CGFloat
-    let hourHeight: CGFloat
-    let weekWidth: CGFloat
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle()
-                .fill(Color.red)
-                .frame(width: weekWidth, height: 1.5)
-            Circle()
-                .fill(Color.red)
-                .frame(width: 8, height: 8)
-                .offset(x: dayWidth * CGFloat(todayIndex) - 4, y: -3)
-        }
-        .offset(y: hourHeight * (CGFloat(nowMinutes) / 60))
-        .accessibilityLabel(L10n.calendar_now())
+/// The hour lines and the day dividers, into a canvas the grid is already drawing.
+func drawCalendarGridLines(
+    in context: GraphicsContext, size: CGSize, dayCount: Int, dayWidth: CGFloat, hourHeight: CGFloat
+) {
+    let line = Color.secondary.opacity(0.25)
+    var path = Path()
+    for hour in 1..<calendarHours {
+        let y = hourHeight * CGFloat(hour)
+        path.move(to: CGPoint(x: 0, y: y))
+        path.addLine(to: CGPoint(x: size.width, y: y))
     }
+    // From zero, not from one: with the weeks laid end to end there is no gutter between them, so a
+    // week's first line is the seam it shares with the week before it.
+    for day in 0..<dayCount {
+        let x = dayWidth * CGFloat(day)
+        path.move(to: CGPoint(x: x, y: 0))
+        path.addLine(to: CGPoint(x: x, y: size.height))
+    }
+    context.stroke(path, with: .color(line), lineWidth: 0.5)
 }
 
 /// The block a drag has in its hand, drawn where the pointer has it, with the time it would land on
@@ -112,10 +97,9 @@ struct CalendarDragBlock: View {
         // accent it used to fall back to is the one colour on the grid that means nothing: every
         // other block says which calendar it belongs to, and the one being created, the only one
         // whose calendar is still a choice, said "accent" on its way to a red calendar.
-        let swatch = held.flatMap { segment in
+        let colors = (held.flatMap { segment in
             page?.calendars.row(account: segment.account, calendar: segment.calendar)
-        }?.swatchOrFallback(dark: dark)
-            ?? page?.calendars.first { $0.isDefault }?.color.swatch(dark: dark)
+        } ?? page?.calendars.first { $0.isDefault }).map { eventColors(hex: $0.color.hex, dark: dark) }
 
         let blockWidth = max(dayWidth - 2, 0)
         let blockHeight = max(hourHeight * CGFloat(live.minutes) / 60 - 2, 0)
@@ -123,14 +107,11 @@ struct CalendarDragBlock: View {
         let blockY = hourHeight * CGFloat(live.startMinutes) / 60 + 1
 
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 4)
-                .fill(swatch.map { parseHexColor($0.background) } ?? Color.accentColor)
+            RoundedRectangle(cornerRadius: blockCorner)
+                .fill(colors?.fill ?? Color.accentColor.opacity(0.2))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .strokeBorder(
-                            swatch.map { parseHexColor($0.border) } ?? Color.accentColor,
-                            lineWidth: 2
-                        )
+                    RoundedRectangle(cornerRadius: blockCorner)
+                        .strokeBorder(colors?.accent ?? Color.accentColor, lineWidth: 2)
                 )
                 .frame(width: blockWidth, height: blockHeight)
                 .offset(x: blockX, y: blockY)

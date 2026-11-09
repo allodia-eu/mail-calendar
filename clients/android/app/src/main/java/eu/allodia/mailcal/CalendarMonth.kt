@@ -201,22 +201,21 @@ private fun ColumnScope.MonthChips(
         Column(modifier = Modifier.fillMaxWidth()) {
             cell.chips.take(shown).forEach { chip ->
                 val calendar = page.calendars.rowFor(chip.account, chip.calendar)
-                val swatch = calendar.swatchOrFallback(dark)
+                val colors = calendar.eventColorsOrFallback(dark)
                 // An invitation nobody has answered is a hold, not a commitment: faded, dashed and
                 // hatched (CalendarParticipation.kt), and its spoken label says so, the drawing
                 // alone is invisible to a screen reader.
                 val awaiting = isAwaitingResponse(chip.participation)
                 val title = chip.title.ifEmpty { L10n.event_no_title(ctx) }
-                val textColor = parseHexColor(swatch.text)
+                val textColor = colors.text
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 1.dp)
                         .clip(RoundedCornerShape(CHIP_CORNER))
-                        .background(parseHexColor(swatch.background).holdFill(awaiting))
-                        .holdChip(awaiting, parseHexColor(swatch.border), CHIP_CORNER)
+                        .eventChip(colors.fill.holdFill(awaiting), colors.accent, awaiting, CHIP_CORNER)
                         .clickable { onOpenEvent(EventOpen(chip.account, chip.event, chip.occurrenceStart)) }
-                        .padding(horizontal = 2.dp)
+                        .padding(start = EVENT_BAR + 2.dp, end = 2.dp)
                         // One node, so TalkBack reads the label rather than the title twice.
                         .clearAndSetSemantics {
                             contentDescription = monthChipLabel(ctx, title, awaiting, chip.hasConference)
@@ -229,6 +228,7 @@ private fun ColumnScope.MonthChips(
                         modifier = Modifier.weight(1f, fill = false),
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
                         lineHeight = 11.sp,
                         color = textColor,
                         maxLines = 1,

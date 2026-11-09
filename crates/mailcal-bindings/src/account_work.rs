@@ -2,18 +2,22 @@
 //!
 //! One change at a time across every account: a change to one account can write another's config
 //! (a link is stored on both ends), so while one runs every account page holds its controls, and
-//! only the page that started it marks its control running. Kept here rather than by any client,
-//! so a page drawn on any platform says the same thing about the same work.
+//! only the page that started it marks its control running. A change that still arrives while
+//! another runs (a field sending what was typed as the held page takes its focus) waits and runs
+//! next; the same work asked for again is dropped. Kept here rather than by any client, so a page
+//! drawn on any platform says the same thing about the same work.
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::{
         Mutex,
         atomic::{AtomicU64, Ordering},
     },
 };
 
-use crate::{AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, LinkSlot};
+use crate::{
+    AccountCapability, AccountChangeNotice, AccountChangeNoticeRaised, AccountPageIntent, LinkSlot,
+};
 
 /// A change an account's page started, with where it takes the control, so a running control is
 /// drawn at the value it is moving to rather than back at the one it is leaving.
@@ -27,7 +31,65 @@ pub(crate) enum PageWork {
         slot: LinkSlot,
         target: Option<String>,
     },
+    ReplyFallback {
+        choice: crate::ReplyFallbackChoice,
+    },
     Remove,
+    SenderName(String),
+    Depth(u16),
+    Size(u16),
+    Push(bool),
+    Interval(u16),
+    Folder {
+        key: String,
+        on: bool,
+    },
+    Servers(Box<crate::AccountEndpoints>),
+    Shared {
+        handle: String,
+        on: bool,
+    },
+    AddShared(String),
+    /// A typed password, never kept: the same work asked twice is one press, whatever was typed.
+    Password,
+}
+
+impl PageWork {
+    /// The work `intent` starts, with where it takes its control.
+    pub(crate) fn of(intent: &AccountPageIntent) -> Self {
+        match intent {
+            AccountPageIntent::SetUse { capability, on, .. } => Self::Use {
+                capability: *capability,
+                on: *on,
+            },
+            AccountPageIntent::SetLink { slot, target, .. } => Self::Link {
+                slot: *slot,
+                target: target.clone(),
+            },
+            AccountPageIntent::SetReplyFallback { choice, .. } => {
+                Self::ReplyFallback { choice: *choice }
+            }
+            AccountPageIntent::Remove { .. } => Self::Remove,
+            AccountPageIntent::SetSenderName { name, .. } => Self::SenderName(name.clone()),
+            AccountPageIntent::SetSyncDepth { months, .. } => Self::Depth(*months),
+            AccountPageIntent::SetMessageSizeLimit { megabytes, .. } => Self::Size(*megabytes),
+            AccountPageIntent::SetPush { on, .. } => Self::Push(*on),
+            AccountPageIntent::SetPollInterval { minutes, .. } => Self::Interval(*minutes),
+            AccountPageIntent::SetWatchedFolder { key, on, .. } => Self::Folder {
+                key: key.clone(),
+                on: *on,
+            },
+            AccountPageIntent::SaveServers { endpoints, .. } => {
+                Self::Servers(Box::new(endpoints.clone()))
+            }
+            AccountPageIntent::SetSharedMailbox { handle, on, .. } => Self::Shared {
+                handle: handle.clone(),
+                on: *on,
+            },
+            AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
+            AccountPageIntent::UsePassword { .. } => Self::Password,
+        }
+    }
 }
 
 /// How a page's controls stand against the change running, if any.
@@ -35,52 +97,101 @@ pub(crate) enum PageWork {
 pub(crate) struct Hold {
     /// A change runs somewhere, so every control is held.
     pub(crate) busy: bool,
-    /// The change this page started, whose control is drawn running.
-    pub(crate) own: Option<PageWork>,
+    /// The changes this page started, running or waiting in the order they run, whose controls
+    /// are drawn running.
+    pub(crate) own: Vec<PageWork>,
+}
+
+impl Hold {
+    /// Where this page's work takes the control `at` picks out, from the last change that moves
+    /// it, which is where it ends up; `None` when none of it does.
+    pub(crate) fn going<'a, T>(&'a self, at: impl Fn(&'a PageWork) -> Option<T>) -> Option<T> {
+        self.own.iter().rev().find_map(at)
+    }
+}
+
+/// What asking for a change came to.
+#[derive(Debug)]
+pub(crate) enum Start {
+    /// Nothing else runs: run it now.
+    Run(AccountPageIntent),
+    /// It runs once the changes ahead of it end.
+    Waits,
+    /// The same work is already running or waiting.
+    Dropped,
+}
+
+/// The change running and those waiting behind it, each with the account it is for.
+#[derive(Debug, Default)]
+struct Queue {
+    running: Option<(String, PageWork)>,
+    waiting: VecDeque<(String, PageWork, AccountPageIntent)>,
 }
 
 /// Every account page's state.
 #[derive(Debug, Default)]
 pub(crate) struct AccountWork {
-    running: Mutex<Option<(String, PageWork)>>,
+    queue: Mutex<Queue>,
     notices: Mutex<HashMap<String, AccountChangeNoticeRaised>>,
     /// What a removal came to: said on the accounts list, since the page is gone with the account.
     list_notice: Mutex<Option<AccountChangeNoticeRaised>>,
+    /// The edit of each account's servers its last save refused, which its form is drawn with.
+    refused_servers: Mutex<HashMap<String, crate::AccountEndpoints>>,
+    /// What each account's server last said of the mailboxes its sign-in opens.
+    pub(crate) shared: crate::account_page::shared::SharedAnswers,
+    /// What each account's server last said of the ways in it takes.
+    pub(crate) sign_in: crate::account_page::sign_in::SignInAnswers,
     raised: AtomicU64,
 }
 
 impl AccountWork {
-    /// Marks `work` running for `account`, and takes away the notice the last change on its page
-    /// left. `false` while another change runs, and then nothing starts.
-    pub(crate) fn start(&self, account: &str, work: PageWork) -> bool {
-        let mut running = self.running.lock().expect("account work mutex poisoned");
-        if running.is_some() {
-            return false;
+    /// Asks for `intent`'s change: it runs now when nothing else does, and takes away the notice
+    /// the last change on its page left; otherwise it waits its turn, unless the same work is
+    /// already running or waiting.
+    pub(crate) fn start(&self, intent: AccountPageIntent) -> Start {
+        let (account, work) = (intent.account().to_owned(), PageWork::of(&intent));
+        let mut queue = self.queue.lock().expect("account work mutex poisoned");
+        let same = |id: &String, other: &PageWork| *id == account && *other == work;
+        if queue
+            .running
+            .as_ref()
+            .is_some_and(|(id, other)| same(id, other))
+            || queue.waiting.iter().any(|(id, other, _)| same(id, other))
+        {
+            return Start::Dropped;
         }
-        *running = Some((account.to_owned(), work));
+        if queue.running.is_some() {
+            queue.waiting.push_back((account, work, intent));
+            return Start::Waits;
+        }
+        queue.running = Some((account.clone(), work));
+        drop(queue);
+        // Only the notice: what the page is drawn from outlives a change.
         self.notices
             .lock()
             .expect("account notice mutex poisoned")
-            .remove(account);
-        true
+            .remove(&account);
+        Start::Run(intent)
     }
 
     /// The change for `account` ended, saying `notice` when it needs saying: on the account's
-    /// page, or on the accounts list when the change removed it.
-    pub(crate) fn finish(&self, account: &str, notice: Option<AccountChangeNotice>) {
-        let removed = matches!(
-            *self.running.lock().expect("account work mutex poisoned"),
-            Some((_, PageWork::Remove))
-        );
+    /// page, or on the accounts list when the change removed it. Answers the change that runs
+    /// next, now marked running; a waiting change for an account the ended one removed is dropped.
+    /// The next change leaves the notice standing: it was asked for before the notice was raised.
+    pub(crate) fn finish(
+        &self,
+        account: &str,
+        notice: Option<AccountChangeNotice>,
+    ) -> Option<AccountPageIntent> {
+        let mut queue = self.queue.lock().expect("account work mutex poisoned");
+        let removed = matches!(queue.running, Some((_, PageWork::Remove)));
         let raised = notice.map(|notice| AccountChangeNoticeRaised {
             id: self.raised.fetch_add(1, Ordering::Relaxed) + 1,
             notice,
         });
         if removed {
-            self.notices
-                .lock()
-                .expect("account notice mutex poisoned")
-                .remove(account);
+            queue.waiting.retain(|(id, ..)| id != account);
+            self.forget(account);
             *self
                 .list_notice
                 .lock()
@@ -91,7 +202,12 @@ impl AccountWork {
                 .expect("account notice mutex poisoned")
                 .insert(account.to_owned(), raised);
         }
-        *self.running.lock().expect("account work mutex poisoned") = None;
+        let Some((next_account, work, intent)) = queue.waiting.pop_front() else {
+            queue.running = None;
+            return None;
+        };
+        queue.running = Some((next_account, work));
+        Some(intent)
     }
 
     /// Drops what `account`'s page had to say, for an account that is gone: one added again later
@@ -101,19 +217,48 @@ impl AccountWork {
             .lock()
             .expect("account notice mutex poisoned")
             .remove(account);
+        self.servers_saved(account, None);
+        self.shared.forget(account);
+        self.sign_in.forget(account);
+    }
+
+    /// What `account`'s last save of its servers came to: `refused` is the edit it did not keep,
+    /// `None` once one was kept.
+    pub(crate) fn servers_saved(&self, account: &str, refused: Option<crate::AccountEndpoints>) {
+        let mut kept = self
+            .refused_servers
+            .lock()
+            .expect("account work mutex poisoned");
+        match refused {
+            Some(edit) => kept.insert(account.to_owned(), edit),
+            None => kept.remove(account),
+        };
+    }
+
+    /// The edit of `account`'s servers its last save refused.
+    pub(crate) fn refused_servers(&self, account: &str) -> Option<crate::AccountEndpoints> {
+        self.refused_servers
+            .lock()
+            .expect("account work mutex poisoned")
+            .get(account)
+            .cloned()
     }
 
     /// How `account`'s page stands, and the notice it shows.
     pub(crate) fn of(&self, account: &str) -> (Hold, Option<AccountChangeNoticeRaised>) {
-        let running = self.running.lock().expect("account work mutex poisoned");
+        let queue = self.queue.lock().expect("account work mutex poisoned");
         let hold = Hold {
-            busy: running.is_some(),
-            own: running
-                .as_ref()
-                .filter(|(id, _)| id == account)
-                .map(|(_, work)| work.clone()),
+            busy: queue.running.is_some(),
+            own: queue
+                .running
+                .iter()
+                .map(|(id, work)| (id, work))
+                .chain(queue.waiting.iter().map(|(id, work, _)| (id, work)))
+                .filter(|(id, _)| *id == account)
+                .map(|(_, work)| work.clone())
+                .collect(),
         };
-        drop(running);
+        drop(queue);
         let notice = self
             .notices
             .lock()
@@ -131,3 +276,7 @@ impl AccountWork {
             .clone()
     }
 }
+
+#[cfg(test)]
+#[path = "account_work_tests.rs"]
+mod tests;

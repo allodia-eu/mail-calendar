@@ -251,7 +251,7 @@ fn connectivity_signalled(rx: &mpsc::Receiver<crate::Surface>) -> bool {
     let mut seen = false;
     while let Some(left) = deadline.checked_duration_since(std::time::Instant::now()) {
         match rx.recv_timeout(left) {
-            Ok(crate::Surface::Connectivity) => seen = true,
+            Ok(crate::Surface::Notices) => seen = true,
             Ok(_) => {}
             Err(_) => break,
         }

@@ -165,9 +165,11 @@ fn value(root: &Path, key: &str, from_environment: Option<&str>) -> Result<Strin
 /// file at all. A build keyed on the files alone is therefore never invalidated by the identity
 /// changing, and the catalog goes on carrying the name it was generated with.
 ///
-/// **The directory, and not only the files in it**, because Cargo drops a `rerun-if-changed`
-/// naming a path that does not exist, so a brand file *appearing* would rebuild nothing. Creating
-/// it moves the directory's mtime, which Cargo does act on.
+/// **The directory, and only the files in it that exist.** Cargo treats a `rerun-if-changed`
+/// naming a missing path as changed on every build, and every checkout lacks at least one of the
+/// brand files, so naming all three rebuilt each crate this runs for, and everything depending on
+/// it, on every build of every checkout. A brand file *appearing* is still noticed: creating it is
+/// a change inside the directory, which Cargo scans.
 fn tracking(root: &Path, key: &str) -> Vec<String> {
     let branding = root.join("branding");
     let mut lines = vec![
@@ -177,7 +179,9 @@ fn tracking(root: &Path, key: &str) -> Vec<String> {
     lines.extend(
         BRAND_FILES
             .iter()
-            .map(|file| format!("cargo:rerun-if-changed={}", branding.join(file).display())),
+            .map(|file| branding.join(file))
+            .filter(|path| path.is_file())
+            .map(|path| format!("cargo:rerun-if-changed={}", path.display())),
     );
     lines
 }
@@ -372,29 +376,47 @@ mod tests {
         // no brand file is read. A checkout that gains `branding/brand.env` would otherwise go
         // on generating the neutral catalog, which `scripts/dev/test-linux-ui.sh` sees as the
         // branded window never appearing.
-        let root = Path::new("/checkout");
-        let lines = tracking(root, APP_NAME_KEY);
+        let lines = tracking(Path::new("/checkout"), APP_NAME_KEY);
 
         assert!(
             lines.contains(&format!("cargo:rerun-if-env-changed={APP_NAME_KEY}")),
             "{lines:?}"
         );
-        // Joined rather than spelled out: a path separator is the host's, so a literal
-        // "/checkout/branding" is a Windows-only failure of a rule that holds on every host.
-        for file in [
-            "branding",
-            "branding/brand.env",
-            "branding/allodia.env",
-            "branding/default.env",
-        ] {
-            let watched = file
+    }
+
+    #[test]
+    fn a_rebuild_watches_the_directory_and_only_the_brand_files_there() {
+        // A missing file named here is changed on every build to Cargo, which rebuilt every crate
+        // carrying a brand value on every build of every checkout. The directory is what notices
+        // one appearing.
+        let dir = scratch("mailcal-l10n-brand-tracking");
+        write(
+            &dir,
+            "default.env",
+            "MAILCAL_APP_NAME=Neutral
+",
+        );
+        write(
+            &dir,
+            "allodia.env",
+            "MAILCAL_APP_NAME=Older
+",
+        );
+        let lines = tracking(&dir, APP_NAME_KEY);
+        let watched = |file: &str| {
+            let path = file
                 .split('/')
-                .fold(root.to_path_buf(), |path, part| path.join(part));
-            assert!(
-                lines.contains(&format!("cargo:rerun-if-changed={}", watched.display())),
-                "{file} is not watched: {lines:?}"
-            );
+                .fold(dir.clone(), |path, part| path.join(part));
+            lines.contains(&format!("cargo:rerun-if-changed={}", path.display()))
+        };
+
+        for present in ["branding", "branding/default.env", "branding/allodia.env"] {
+            assert!(watched(present), "{present} is not watched: {lines:?}");
         }
+        assert!(
+            !watched("branding/brand.env"),
+            "a missing brand file is watched, so every build rebuilds: {lines:?}"
+        );
     }
 
     #[test]

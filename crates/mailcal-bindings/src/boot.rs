@@ -33,6 +33,8 @@ mod connect;
 mod contacts;
 mod inmemory;
 mod outcome;
+#[cfg(any(debug_assertions, feature = "dev-harness"))]
+mod showcase_staging;
 mod stored;
 
 /// The host's device facts, grouped so the boot signature stays inside clippy's argument limit;
@@ -51,8 +53,6 @@ pub(crate) use connect::{connect_google_calendars, connect_jmap_calendars};
 pub(crate) use contacts::{
     connect_caldav_contacts, connect_google_contacts, connect_graph_contacts, connect_jmap_contacts,
 };
-#[cfg(all(test, debug_assertions))]
-pub(crate) use inmemory::{ask_for_reconsent, pause_for_a_server_change};
 // The in-memory demo/showcase builders (no real account, no network) live in their own module.
 pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 // Only `record_dial_outcome`'s own tests name the shape of a failure.
@@ -60,6 +60,10 @@ pub(crate) use inmemory::{build_demo, build_showcase, build_showcase_first_run};
 pub(crate) use outcome::DialFailure;
 use outcome::dial_registered;
 pub(crate) use outcome::{FailedDial, record_dial_outcome};
+#[cfg(all(test, debug_assertions))]
+pub(crate) use showcase_staging::{
+    ask_for_reconsent, ask_the_questions, pause_for_a_server_change,
+};
 pub(crate) use stored::{
     PreparedAccount, StoredConfig, connect_graph_calendars, placeholder, prepare_stored_account,
 };
@@ -160,7 +164,6 @@ pub(crate) fn build_accounts(
         mut account_errors,
     } = prepare_accounts(&registry, &sink, &configs);
 
-    let mut calendar_errors: Vec<String> = Vec::new();
     let mut failed: Vec<FailedDial> = Vec::new();
     let accounts: Vec<BoxedAccount> = if start_live_sync {
         // Nothing is dialed yet, so nothing is known-failed: each account shows its cached mail as
@@ -182,7 +185,6 @@ pub(crate) fn build_accounts(
                 failure,
                 &mut connected,
                 &mut account_errors,
-                &mut calendar_errors,
                 &mut failed,
             );
         }
@@ -239,6 +241,7 @@ pub(crate) fn build_accounts(
     // see `analytics::relay_config`) gets a telemetry that records consent and sends nothing.
     // A Nextcloud server's refusal may be a remote wipe, which is asked once the app exists.
     let (refusals, refused) = std::sync::mpsc::channel();
+    let device_class = mailcal_app::DeviceClass::from(device_info.device_class);
     let telemetry = {
         let _guard = runtime.enter();
         analytics::build_telemetry(prefs_path.clone(), device_info)
@@ -262,6 +265,7 @@ pub(crate) fn build_accounts(
     // Render the persisted store's mail before returning, so the host paints cached rows
     // the instant it comes up instead of a blank list while the background sync runs. The
     // host then dispatches RefreshMail, which re-snapshots and re-renders in the background.
+    app.adopt_device_defaults(device_class);
     let app = Arc::new(app);
     app.set_links_source(registry.links_source());
     // Seed what every account's synchronous headless dial already found, so the state is there the
@@ -329,7 +333,6 @@ pub(crate) fn build_accounts(
         runtime,
         app,
         account_connect_errors: Mutex::new(account_errors),
-        calendar_connect_errors: Mutex::new(calendar_errors),
         notice_book: Mutex::default(),
         registry,
         background,
@@ -342,6 +345,8 @@ pub(crate) fn build_accounts(
         allodia_health: Mutex::new(crate::AllodiaGrantHealth::Ok),
         #[cfg(feature = "allodia-license")]
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
+        #[cfg(feature = "allodia-license")]
+        allodia_entitlement: crate::allodia_entitlement::EntitlementState::load(&base),
         allodia_sync: Mutex::new(None),
         allodia: Mutex::new(allodia),
         credential_store,
@@ -359,6 +364,8 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
+    #[cfg(feature = "allodia-license")]
+    mailcal.refresh_allodia_entitlement();
     // A refresh that widens a grant opens a use the dial before it was planned without; dial it
     // again now. Off the runtime, whose thread must not drop the last handle on the app.
     let widened = Arc::downgrade(&mailcal);

@@ -135,3 +135,57 @@ fn an_edit_onto_servers_an_edited_account_already_uses_is_refused() {
         Err(MailcalError::AlreadySetUp { account_id }) if account_id == "alice@example.org@old.example"
     ));
 }
+
+#[test]
+fn the_page_says_what_an_edit_leaves_out_and_a_save_through_it_says_why_it_failed() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let app = app("endpoints-page", &store);
+    let page = app.account_page(ALICE_ID.to_owned()).expect("listed");
+    let servers = page
+        .servers
+        .expect("a password account's servers are on its page");
+    assert!(servers.save.enabled && !servers.save.running);
+
+    let mut no_calendar = servers.form.clone();
+    no_calendar.caldav_url = Some(" ".to_owned());
+    assert_eq!(
+        app.account_endpoints_gap(ALICE_ID.to_owned(), no_calendar),
+        Some(crate::AccountEndpointsGap::CalDav),
+        "said before Save is pressed, by the rule the save refuses with"
+    );
+    assert_eq!(
+        app.account_endpoints_gap(ALICE_ID.to_owned(), servers.form.clone()),
+        None
+    );
+
+    let mut elsewhere = servers.form;
+    elsewhere.imap_host = Some("127.0.0.1:2".to_owned());
+    elsewhere.password = Some("typed".to_owned());
+    app.dispatch(crate::Intent::AccountPage {
+        intent: crate::AccountPageIntent::SaveServers {
+            account: ALICE_ID.to_owned(),
+            endpoints: elsewhere,
+        },
+    });
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while app.account_work.of(ALICE_ID).0.busy {
+        assert!(std::time::Instant::now() < deadline, "the save never ended");
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let page = app.account_page(ALICE_ID.to_owned()).expect("listed");
+    assert!(matches!(
+        page.notice.map(|raised| raised.notice),
+        Some(crate::AccountChangeNotice::ServersFailed { .. })
+    ));
+    assert_eq!(
+        endpoints(&app).imap_host.as_deref(),
+        Some("127.0.0.1:1"),
+        "the old servers are still the account's"
+    );
+    let form = page.servers.expect("still editable").form;
+    assert_eq!(
+        (form.imap_host.as_deref(), form.password.as_deref()),
+        (Some("127.0.0.1:2"), Some("typed")),
+        "the form is drawn as it was typed, so one field is corrected rather than all retyped"
+    );
+}

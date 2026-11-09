@@ -103,8 +103,8 @@ optional OAuth sign-in, and secure storage of the resulting config.
 
    > This is where JMAP stops being one kind of account. A pasted password/API token has no
    > sign-in to re-run, so its prompt still points at Settings, where it genuinely can be
-   > re-entered through `replace_account_secret`, which validates it before replacing the stored
-   > credential. The core reports the two apart (`AccountProvider::Jmap` · `JmapOauth`) because
+   > re-entered in the account page's Sign-in section (`AccountPageIntent::UsePassword`), which
+   > validates it before replacing the stored credential. The core reports the two apart (`AccountProvider::Jmap` · `JmapOauth`) because
    > only the stored config can tell them apart, and a client that guesses gets it wrong in one
    > direction or the other: a missing button leaves remove-and-re-add as the only cure, and an
    > offered one dead-ends.
@@ -139,7 +139,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | **One** secret field ("Password or API token"), stored as `password` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | OAuth sign-in: discovery + DCR + PKCE, offered only when advertised | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Re-authenticate an expired OAuth account in place, from its persisted grant (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Replace an expired pasted secret in place, connect-before-persist | ✅ | ⬜ | ⬜ | ⬜ | ✅ |
+| Replace an expired pasted secret in place, connect-before-persist | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Detected card: the sign-in offer **replaces** the secret field (which returns on failure) | — | ⬜ | ✅ | ✅ | ✅ |
 | Rotated refresh token re-persisted (the shared `AccountCredentialStore`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A rotation in a **cold background pass** is persisted (stores are constructor params) | ✅ | ✅ | — no worker | ✅ | — no worker |

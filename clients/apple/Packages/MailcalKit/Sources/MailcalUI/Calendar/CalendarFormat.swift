@@ -24,33 +24,66 @@ func displayCalendar(zone: String?, locale: Locale = L10n.appLocale) -> Calendar
 
 /// The core hands day columns back as `YYYY-MM-DD`. Parsed in the display zone, so the date the core
 /// named is the date this client draws.
+///
+/// By arithmetic rather than a `DateFormatter`: the grid parses every column it draws on every frame
+/// of a scroll, and building a formatter costs more than the rest of that frame's work together.
+/// Always Gregorian, because the core's dates are, whatever calendar the caller reckons in.
 func parseISODate(_ iso: String, calendar: Calendar) -> Date? {
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy-MM-dd"
-    return formatter.date(from: iso)
+    let parts = iso.split(separator: "-", omittingEmptySubsequences: false)
+    guard
+        parts.count == 3, parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+        let year = Int(parts[0]), let month = Int(parts[1]), let day = Int(parts[2])
+    else { return nil }
+    let gregorian = isoCalendar(zone: calendar.timeZone)
+    guard
+        let date = gregorian.date(from: DateComponents(year: year, month: month, day: day)),
+        gregorian.dateComponents([.year, .month, .day], from: date)
+            == DateComponents(year: year, month: month, day: day)
+    else { return nil }
+    return date
 }
 
 /// A `Date` back to the core's `YYYY-MM-DD`.
 func isoDate(_ date: Date, calendar: Calendar) -> String {
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.dateFormat = "yyyy-MM-dd"
-    return formatter.string(from: date)
+    let parts = isoCalendar(zone: calendar.timeZone).dateComponents([.year, .month, .day], from: date)
+    return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
 }
+
+private func isoCalendar(zone: TimeZone) -> Calendar {
+    var gregorian = Calendar(identifier: .gregorian)
+    gregorian.timeZone = zone
+    return gregorian
+}
+
+/// A formatter for a localised template, built once per template, locale and zone.
+///
+/// The headings and the title are formatted on every frame of a scroll, and a `DateFormatter` is
+/// far more expensive to build than to use. Formatting with one is thread-safe; the lock guards
+/// only the dictionary.
+private final class TemplateFormatters: @unchecked Sendable {
+    private let lock = NSLock()
+    private var formatters: [String: DateFormatter] = [:]
+
+    func formatter(_ template: String, calendar: Calendar, locale: Locale) -> DateFormatter {
+        let key = "\(template)|\(locale.identifier)|\(calendar.identifier)|\(calendar.timeZone.identifier)"
+        lock.lock()
+        defer { lock.unlock() }
+        if let cached = formatters[key] { return cached }
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = locale
+        formatter.setLocalizedDateFormatFromTemplate(template)
+        formatters[key] = formatter
+        return formatter
+    }
+}
+
+private let templateFormatters = TemplateFormatters()
 
 /// The abbreviated weekday for a column heading: "Mon", "ma".
 func weekdayShort(_ date: Date, calendar: Calendar, locale: Locale = L10n.appLocale) -> String {
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.locale = locale
-    formatter.setLocalizedDateFormatFromTemplate("EEE")
-    return formatter.string(from: date)
+    templateFormatters.formatter("EEE", calendar: calendar, locale: locale).string(from: date)
 }
 
 /// The ISO-8601 week number, the "wk 28" a Dutch or German user expects to see.
@@ -70,11 +103,7 @@ func isoWeekNumber(_ date: Date, zone: TimeZone) -> Int {
 /// wrong for half the columns on screen.
 func periodTitle(days: [Date], calendar: Calendar, locale: Locale = L10n.appLocale) -> String {
     guard let first = days.first, let last = days.last else { return "" }
-    let month = DateFormatter()
-    month.calendar = calendar
-    month.timeZone = calendar.timeZone
-    month.locale = locale
-    month.setLocalizedDateFormatFromTemplate("MMM")
+    let month = templateFormatters.formatter("MMM", calendar: calendar, locale: locale)
 
     let firstYear = calendar.component(.year, from: first)
     let lastYear = calendar.component(.year, from: last)
@@ -95,12 +124,7 @@ func periodTitle(days: [Date], calendar: Calendar, locale: Locale = L10n.appLoca
 /// A month grid deliberately shows a few days of its neighbours, so titling it from its columns would
 /// name June for a July page.
 func monthTitle(_ anchor: Date, calendar: Calendar, locale: Locale = L10n.appLocale) -> String {
-    let formatter = DateFormatter()
-    formatter.calendar = calendar
-    formatter.timeZone = calendar.timeZone
-    formatter.locale = locale
-    formatter.setLocalizedDateFormatFromTemplate("MMMM yyyy")
-    return formatter.string(from: anchor)
+    templateFormatters.formatter("MMMM yyyy", calendar: calendar, locale: locale).string(from: anchor)
 }
 
 /// An hour label for the ruler: "09" on a 24-hour clock, "9 AM" on a 12-hour one.

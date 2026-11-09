@@ -23,6 +23,7 @@ mod account_page;
 pub(super) mod account_rows;
 pub(super) mod sign_in_section;
 pub(super) use account_rows::{link_labels, link_title, suggested_name, use_name};
+mod account_reply_fallback;
 mod account_servers;
 pub(super) mod account_sync_mode;
 mod account_sync_technology;
@@ -76,7 +77,6 @@ pub(crate) enum Category {
 pub(super) struct RenderState<'a> {
     pub(super) generation: u64,
     pub(super) category: Category,
-    pub(super) credential_repair_failed: Option<&'a str>,
     pub(super) allodia_signing_in: bool,
     pub(super) allodia_failure: Option<&'a str>,
     pub(super) allodia_sync: &'a AllodiaSyncState,
@@ -88,7 +88,6 @@ pub(super) struct RenderState<'a> {
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     pub(super) sign_in: &'a super::account_sign_in::SignInSwitchState,
-    pub(super) shared: &'a super::account_shared::SharedState,
     /// The form for a sign-in of its own an account's page opened.
     pub(super) separate: Option<&'a super::separate_sign_in::SeparateForm>,
     pub(super) notice: Option<&'a notice::Raised>,
@@ -133,7 +132,6 @@ struct PageContext {
     sender: relm4::Sender<AppInput>,
     window: gtk::Window,
     navigation: gtk::Stack,
-    credential_repair_failed: Option<String>,
     /// The Allodia sign-in's state. It lives in the model rather than in this window because the
     /// window is rebuilt from scratch on every change; a browser hop outlasts several rebuilds.
     allodia_signing_in: bool,
@@ -150,8 +148,8 @@ struct PageContext {
     account: Option<String>,
     /// What that page's Sign-in section knows: what the server accepts, and a change running.
     sign_in: super::account_sign_in::SignInSwitchState,
-    /// What each account's server said of its shared mailboxes.
-    shared: super::account_shared::SharedState,
+    /// The page of the account Accounts shows, read once for the redraw.
+    page: Option<mailcal_bindings::AccountPage>,
 }
 
 #[derive(Debug, Default)]
@@ -165,6 +163,8 @@ pub(super) struct SettingsWindow {
     drawn: Option<redraw::Drawn>,
     /// Whether a field was edited since the window was drawn.
     edited: std::rc::Rc<std::cell::Cell<bool>>,
+    /// The open list a redraw waits for, asking again once it closes.
+    waiting_on: Option<gtk::glib::WeakRef<gtk::Popover>>,
     /// Where toasts are shown: above the pages, which every redraw replaces.
     toasts: Option<adw::ToastOverlay>,
     /// The last notice shown.
@@ -208,7 +208,11 @@ impl SettingsWindow {
         let Some(app) = app.cloned() else {
             return;
         };
+        let mut read = None;
         if state.redraw == Redraw::Signalled {
+            if redraw::wait_for_open_list(self.window.as_ref(), &mut self.waiting_on, &sender) {
+                return;
+            }
             let typing = self
                 .window
                 .as_ref()
@@ -216,7 +220,7 @@ impl SettingsWindow {
             match redraw::signalled(typing, self.drawn.as_ref(), || {
                 redraw::drawn(&app, state.account)
             }) {
-                redraw::Signalled::Draw => {}
+                redraw::Signalled::Draw(drawn) => read = Some(drawn),
                 redraw::Signalled::Skip => {
                     self.rendered_generation = state.generation;
                     return;
@@ -273,13 +277,12 @@ impl SettingsWindow {
         let navigation = gtk::Stack::new();
         navigation.set_hexpand(true);
         navigation.set_vexpand(true);
-        let ctx = PageContext {
+        let mut ctx = PageContext {
             app,
             preferences,
             sender,
             window: window.clone(),
             navigation: navigation.clone(),
-            credential_repair_failed: state.credential_repair_failed.map(str::to_owned),
             allodia_signing_in: state.allodia_signing_in,
             allodia_failure: state.allodia_failure.map(str::to_owned),
             allodia_sync: state.allodia_sync.clone(),
@@ -287,11 +290,13 @@ impl SettingsWindow {
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
             sign_in: state.sign_in.clone(),
-            shared: state.shared.clone(),
+            page: None,
         };
-        // Read before the pages read theirs: a change landing in between then reads as one the
-        // window has not drawn, and the next signal draws it.
-        let drawn = redraw::drawn(&ctx.app, state.account);
+        // Read before the pages are built, which draw the account's page from it: a change
+        // landing in between then reads as one the window has not drawn, and the next signal
+        // draws it.
+        let drawn = read.unwrap_or_else(|| redraw::drawn(&ctx.app, state.account));
+        ctx.page.clone_from(&drawn.1);
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");

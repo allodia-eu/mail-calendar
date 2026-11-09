@@ -48,9 +48,10 @@ nobody has to dig a link out of the notes.
    `display_location`, which leaves out a location that is only a shown meeting's link, and the
    editor edits `location`, link included.
 7. **The glyph.** A block, bar, chip or agenda row with `has_conference` carries a small video
-   camera glyph after its title, from the platform's own set ([`icons.md`](icons.md)), and its
-   accessibility label says the event has a video meeting. The glyph is never the only way the
-   meeting is told: the detail always lists it.
+   camera glyph, from the platform's own set ([`icons.md`](icons.md)): after its title, except on
+   the time grid's blocks, which keep it in their top-right corner ([`calendar.md`](calendar.md)
+   §4). Its accessibility label says the event has a video meeting. The glyph is never the only
+   way the meeting is told: the detail always lists it.
 8. **Everything a meeting carries came from whoever wrote the event**, an invitation's sender
    included. A client renders it as text, never markup, and never logs a link, a meeting ID or
    a passcode: a Zoom link carries its passcode in the URL ([`logging.md`](logging.md)).
@@ -121,6 +122,7 @@ nobody has to dig a link out of the notes.
 | The detail's meetings, Join first (rules 2 to 5) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The detail shows `display_notes` and `display_location` (rule 6) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The camera glyph and its spoken label (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The camera in a time-grid block's top-right corner (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Teams and Talk through an account, in the editor (rules 14 and 15) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -130,12 +132,12 @@ nobody has to dig a link out of the notes.
 On Apple the section is `EventConferenceView.swift`, and `EventConferenceTests` pins that Join and
 a dial-in row open the core's links as sent. On Windows the section is `EventConferenceSection.cs`
 over the WinUI-free `EventMeeting.cs`, which `EventMeetingTests` pins the same way; the grid draws
-its camera in `CalendarTitleDraw.cs`. The editor's Video meeting row is drawn by
+its camera in `CalendarBlockDraw.cs`. The editor's Video meeting row is drawn by
 `EventEditorDialog.cs` over the WinUI-free `EventEditorMeeting.cs`, which `EventEditorMeetingTests`
 drives, and the Jitsi server is `SettingsDialog.Videoconferencing.cs`. On Android the section is `EventConferenceSection.kt` over
 `EventMeeting.kt`, and `EventMeetingTest` drives the section; the grid draws its camera in
-`CalendarTitleDraw.kt`. On Linux the rows are `conference.rs` over `meeting.rs`, and the grid
-paints its camera in `grid/camera.rs`. The editor's Video meeting row is `meeting_row.rs` over the
+`CalendarBlockDraw.kt` and the all-day bars in `CalendarTitleDraw.kt`. On Linux the rows are
+`conference.rs` over `meeting.rs`, and the grid paints its camera in `grid/glyphs.rs`. The editor's Video meeting row is `meeting_row.rs` over the
 GTK-free `editor_meeting.rs`, which its unit tests drive, and the Jitsi server is
 `settings/videoconferencing.rs`.
 

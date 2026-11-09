@@ -43,7 +43,7 @@ pub use accounts::{
     AccountList, CalDavEndpoint, ConflictWith, DeletedAccount, ImapEndpoint, JmapAuth, Security,
     SmtpEndpoint, SyncedAccount, SyncedConfig,
 };
-pub use cache::{Cache, GRACE_SECONDS, Outcome, Stored};
+pub use cache::{Cache, GRACE_SECONDS, LAPSE_WARNING_SECONDS, Outcome, Stored};
 pub use feature::Feature;
 pub use link::{Ledger, LinkOutcome, Pending, Settled, StorePurchase};
 pub use projection::{NotSyncable, SetupPrefill, to_synced};
@@ -217,6 +217,13 @@ pub enum Capability {
 }
 
 impl Capability {
+    /// Whether a plan has to be paid for to grant it: anything but the capability every plan
+    /// carries, and never a label this version does not know, which is never granted.
+    #[must_use]
+    pub fn is_paid(&self) -> bool {
+        !matches!(self, Self::AccountsSync | Self::Unknown(_))
+    }
+
     fn parse(label: &str) -> Self {
         match label {
             "accounts_sync" => Self::AccountsSync,

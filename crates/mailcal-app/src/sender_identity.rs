@@ -24,13 +24,9 @@ impl<P: Provider> App<P> {
     /// owns, so an editor there offers an edit that cannot land. An account whose provider
     /// has no identity object at all is editable; the name is ours in the first place.
     pub async fn sender_name_editable(&self, account: &AccountId) -> bool {
-        let Some(handle) = self.account_handle(account).await else {
-            return false;
-        };
-        !handle.providers.iter().any(|provider| {
-            provider.connection_info().capabilities.sender_identities()
-                == Some(IdentityControls::ReadOnly)
-        })
+        self.account_handle(account)
+            .await
+            .is_some_and(|handle| sender_name_editable(&handle))
     }
 
     /// The name to show in a "your name" field for `account`: the one the user has already
@@ -191,4 +187,13 @@ impl<P: Provider> App<P> {
             .into_iter()
             .find(|identity| addresses_match(&identity.address.email, &own.email))
     }
+}
+
+/// [`App::sender_name_editable`] for an account in hand, read from the same capability every other
+/// client-visible answer comes from, so no screen decides it from the account's kind.
+pub(crate) fn sender_name_editable<P: Provider>(account: &crate::accounts::Account<P>) -> bool {
+    !account.providers.iter().any(|provider| {
+        provider.connection_info().capabilities.sender_identities()
+            == Some(IdentityControls::ReadOnly)
+    })
 }

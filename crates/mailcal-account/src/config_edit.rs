@@ -9,7 +9,7 @@ use crate::{
 
 /// A standards account's servers and sign-in, as Settings shows and edits them. A server that is
 /// `None` is one the account does not have.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct EndpointEdit {
     /// The IMAP server, `host` or `host:port`; the standard port for its security when bare.
     pub imap_host: Option<String>,
@@ -28,6 +28,75 @@ pub struct EndpointEdit {
     /// A new password for every server, or `None` to keep the stored one. Never filled in when
     /// read back.
     pub password: Option<String>,
+}
+
+/// Never the password, which a `Debug` would carry into a log.
+impl std::fmt::Debug for EndpointEdit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EndpointEdit")
+            .field("imap_host", &self.imap_host)
+            .field("imap_security", &self.imap_security)
+            .field("smtp_host", &self.smtp_host)
+            .field("smtp_security", &self.smtp_security)
+            .field("caldav_url", &self.caldav_url)
+            .field("carddav_url", &self.carddav_url)
+            .field("username", &self.username)
+            .field("password_given", &self.password.is_some())
+            .finish()
+    }
+}
+
+/// What an edit of an account's servers leaves out, which [`AccountConfig::with_endpoints`]
+/// refuses and Settings says before Save is pressed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EndpointGap {
+    /// No login.
+    Username,
+    /// A new password given empty.
+    Password,
+    /// The account's IMAP server left without an address.
+    Imap,
+    /// The account's SMTP server left without an address: mail could no longer be sent.
+    Smtp,
+    /// The account's CalDAV server left without an address.
+    CalDav,
+    /// The account's CardDAV server left without an address, with no calendar server for
+    /// contacts to fall back to.
+    CardDav,
+}
+
+impl EndpointEdit {
+    /// What this edit of `account` leaves out, the first of them in the order Settings draws the
+    /// fields, or `None` when it can be tried. A server the account has keeps an address; the
+    /// CardDAV one may be cleared while the account has a calendar server, which then serves its
+    /// contacts.
+    #[must_use]
+    pub fn gap(&self, account: &AccountConfig) -> Option<EndpointGap> {
+        let blank =
+            |field: &Option<String>| field.as_deref().is_none_or(|value| value.trim().is_empty());
+        // A port with nothing before it is no address: a form joins a cleared host with the port
+        // still in its own field.
+        let no_host = |field: &Option<String>| {
+            field
+                .as_deref()
+                .is_none_or(|value| value.trim().is_empty() || value.trim().starts_with(':'))
+        };
+        if account.imap.is_some() && no_host(&self.imap_host) {
+            Some(EndpointGap::Imap)
+        } else if account.smtp.is_some() && no_host(&self.smtp_host) {
+            Some(EndpointGap::Smtp)
+        } else if account.caldav.is_some() && blank(&self.caldav_url) {
+            Some(EndpointGap::CalDav)
+        } else if account.carddav.is_some() && blank(&self.carddav_url) && blank(&self.caldav_url) {
+            Some(EndpointGap::CardDav)
+        } else if self.username.trim().is_empty() {
+            Some(EndpointGap::Username)
+        } else if self.password.as_deref().is_some_and(str::is_empty) {
+            Some(EndpointGap::Password)
+        } else {
+            None
+        }
+    }
 }
 
 /// An account after [`AccountConfig::with_endpoints`].
@@ -79,22 +148,26 @@ impl AccountConfig {
     ///
     /// # Errors
     ///
-    /// Returns [`ConfigError::Incomplete`] for an empty login or password, and
+    /// Returns [`ConfigError::Incomplete`] for what [`EndpointEdit::gap`] finds left out, and
     /// [`ConfigError::Refused`] when a use the account has would lose its server, or a password is
     /// given for an account that signs in through its provider.
     pub fn with_endpoints(&self, edit: &EndpointEdit) -> Result<EditedAccount, ConfigError> {
-        let username = edit.username.trim();
-        if username.is_empty() {
-            return Err(ConfigError::Incomplete("username"));
+        if let Some(gap) = edit.gap(self) {
+            return Err(ConfigError::Incomplete(match gap {
+                EndpointGap::Username => "username",
+                EndpointGap::Password => "password",
+                EndpointGap::Imap => "mail server",
+                EndpointGap::Smtp => "sending server",
+                EndpointGap::CalDav => "calendar server",
+                EndpointGap::CardDav => "address book server",
+            }));
         }
+        let username = edit.username.trim();
         let password = match (&edit.password, self.is_oauth()) {
             (Some(_), true) => {
                 return Err(ConfigError::Refused(
                     "this account signs in through its provider, not with a password",
                 ));
-            }
-            (Some(password), false) if password.is_empty() => {
-                return Err(ConfigError::Incomplete("password"));
             }
             (Some(password), false) => Some(Secret::new(password.clone())),
             (None, _) => self.stored_password(),

@@ -22,8 +22,8 @@ usage() { sed -n '2,15p' "${BASH_SOURCE[0]}"; exit "${1:-1}"; }
 
 # The crate's test binary. `--no-run` prints the path rather than us guessing the hash cargo
 # appends to it. Match from `/deps/` rather than from `target/`: the executable lives in cargo's
-# build directory, which `.cargo/config.toml` puts outside the checkout, and cargo then prints an
-# absolute path.
+# build directory, which a personal cargo config can move outside the checkout, and cargo then
+# prints an absolute path.
 test_binary() {
   cargo test -p "$CRATE" --all-features --no-run 2>&1 |
     grep -oE "[^ ()]+/deps/mailcal_linux-[a-z0-9]+" | head -1

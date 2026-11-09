@@ -157,28 +157,6 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetAccountSyncMode = { accountId, mode ->
                                 setAllodiaAccountSyncMode(accountId, mode)
                             },
-                            // Accounts, per-account fetch depth + sync behaviour.
-                            settings = syncSettings,
-                            onSetSyncDepth = { account, months ->
-                                instance.setAccountSyncDepth(account, months)
-                            },
-                            onSetMessageSize = { account, megabytes ->
-                                instance.setAccountMessageSizeLimit(account, megabytes)
-                            },
-                            onSetStrategy = { account, strategy ->
-                                instance.setSyncStrategy(account, strategy)
-                            },
-                            onSetPollInterval = { account, minutes ->
-                                instance.setPollInterval(account, minutes)
-                            },
-                            onSetPushFolder = { account, folder, subscribed ->
-                                instance.setPushFolder(account, folder, subscribed)
-                            },
-                            // The name this account's mail goes out under. Passed through
-                            // unchanged: the core sanitises it (docs/sending.md).
-                            onSetSenderName = { account, name ->
-                                instance.setAccountSenderName(account, name)
-                            },
                             // Diagnostics, the log viewer/share + debug-detail screen.
                             onOpenDiagnostics = { showingDiagnostics = true },
                             // Advanced, reset the local cache.
@@ -198,13 +176,11 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
 // (MainActivityAccountSettings.kt).
 private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     state = accountSettings,
-    expired = notices.expired,
-    // A JMAP account holding a pasted password or API token, while the server refuses it.
-    pastedSecret = notices.pastedSecret,
     // Its notices open its page (docs/notices.md rule 6).
     notices = notices.notices,
     noticeHandlers = noticeHandlers(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
+    endpointsGap = { id, endpoints -> app?.accountEndpointsGap(id, endpoints) },
     // Add account opens setup in place of Settings, and cancelling or finishing returns to Accounts.
     onAddAccount = {
         addError = null
@@ -214,22 +190,17 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     onOpenPage = { id ->
         accountSettings.notice = null
         accountSettings.page = id
+        // Its server is asked again which mailboxes the account's sign-in opens.
+        id?.let { app?.accountPageOpened(it) }
         refreshAccountPage()
     },
     onChange = { intent -> changeAccount(intent) },
     onSignInAgain = { id, adding -> signInAgain(id, adding) },
-    onSaveServers = { id, endpoints -> saveAccountEndpoints(id, endpoints) },
-    onReplaceSecret = { id, secret -> replaceAccountSecret(id, secret) },
-    onAskSignInOptions = { id -> askSignInOptions(id) },
     onAccountSignIn = { id, switching -> startAccountSignIn(id, switching) },
-    onSwitchToPassword = { id, password -> switchToPassword(id, password) },
     onUnreachedChoice = { choice -> answerUnreached(choice) },
     onSeparateSignIn = { id -> openPageSeparate(id) },
     onConnectSeparate = { username, password -> connectPageSeparate(username, password) },
     onSeparateFormShown = { askSeparateSignIn(accountSettings.separate) },
     onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },
     onReviewServerChange = { id -> reviewServerChange(id) },
-    onAskSharedMailboxes = { id -> askSharedMailboxes(id) },
-    onSetSharedMailbox = { id, mailbox, on -> setSharedMailbox(id, mailbox, on) },
-    onAddSharedMailbox = { id, address -> addSharedMailbox(id, address) },
 )

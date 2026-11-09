@@ -74,7 +74,7 @@ pub use config::{
     SmtpAccount, default_path, load, load_str,
 };
 pub use config_dav::{CardDavAccount, grant_reaches};
-pub use config_edit::{EditedAccount, EndpointEdit};
+pub use config_edit::{EditedAccount, EndpointEdit, EndpointGap};
 pub use consent::{requested_scopes, withheld};
 pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};

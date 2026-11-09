@@ -17,10 +17,11 @@ public class NoticeRulesTests
         string? account = null,
         bool dismissible = false,
         bool remedyFailed = false,
-        bool action = true) =>
+        bool action = true,
+        NoticeKind? kind = null) =>
         new(
             Id: id,
-            Kind: new NoticeKind.Unreachable(),
+            Kind: kind ?? new NoticeKind.Unreachable(),
             Title: new NoticeText("notice_" + id, new Dictionary<string, string> { ["address"] = account ?? "" }),
             Detail: null,
             Mark: account is null ? null : new NoticeText("notice_mark_" + id, []),
@@ -29,6 +30,9 @@ public class NoticeRulesTests
             Account: account,
             Action: action ? NoticeAction.Retry : null,
             ActionLabel: action ? new NoticeText("notice_action_retry", []) : null,
+            SecondAction: null,
+            SecondActionLabel: null,
+            Running: false,
             Dismissible: dismissible,
             RemedyFailed: remedyFailed);
 
@@ -153,7 +157,7 @@ public class NoticeRulesTests
 
         // The core refreshes the notice's screen itself and marks the notice when that dial ends
         // with it still standing (docs/notices.md rules 7 and 10), so the client sends only this.
-        var sent = Assert.IsType<NoticeIntent.Retry>(NoticeRules.CoreRemedy(notice));
+        var sent = Assert.IsType<NoticeIntent.Retry>(NoticeRules.CoreRemedy(notice, notice.Action!.Value));
         Assert.Equal(notice.Id, sent.Id);
     }
 
@@ -164,13 +168,62 @@ public class NoticeRulesTests
     [InlineData(nameof(NoticeAction.Review))]
     public void Every_other_action_is_a_flow_the_client_runs(string action)
     {
-        var notice = Make("other", nameof(NoticeScreens.Mail), account: "a") with
+        var flow = Enum.Parse<NoticeAction>(action);
+        var notice = Make("other", nameof(NoticeScreens.Mail), account: "a") with { Action = flow };
+
+        Assert.Null(NoticeRules.CoreRemedy(notice, flow));
+        Assert.Null(NoticeRules.Answer(notice, flow, Subject));
+    }
+
+    private static string Subject(InvitationResponse response, string summary) => $"{response}: {summary}";
+
+    private static Notice Question(NoticeKind kind, NoticeAction first, NoticeAction second) =>
+        Make("question", nameof(NoticeScreens.Everywhere), account: "a", kind: kind) with
         {
-            Action = Enum.Parse<NoticeAction>(action),
+            Action = first,
+            ActionLabel = new NoticeText("first", []),
+            SecondAction = second,
+            SecondActionLabel = new NoticeText("second", []),
         };
 
-        Assert.Null(NoticeRules.CoreRemedy(notice));
-        Assert.Null(NoticeRules.CoreRemedy(notice with { Action = null }));
+    [Fact]
+    public void Each_answer_sends_the_intent_the_client_already_had_for_it()
+    {
+        var copy = Question(new NoticeKind.SentNotFiled("Quarterly figures"), NoticeAction.FileSentCopy, NoticeAction.LeaveSentCopy);
+        Assert.IsType<Intent.RetryUnfiledCopy>(NoticeRules.Answer(copy, NoticeAction.FileSentCopy, Subject));
+        Assert.IsType<Intent.DismissUnfiledCopy>(NoticeRules.Answer(copy, NoticeAction.LeaveSentCopy, Subject));
+
+        var zone = Question(new NoticeKind.TimeZoneChanged("Europe/Lisbon"), NoticeAction.UseDeviceTimeZone, NoticeAction.KeepTimeZone);
+        Assert.IsType<Intent.AcceptTimeZoneChange>(NoticeRules.Answer(zone, NoticeAction.UseDeviceTimeZone, Subject));
+        Assert.IsType<Intent.DismissTimeZoneChange>(NoticeRules.Answer(zone, NoticeAction.KeepTimeZone, Subject));
+    }
+
+    [Fact]
+    public void Sending_the_reply_carries_the_subject_composed_from_the_answer_and_the_meeting()
+    {
+        var reply = Question(
+            new NoticeKind.ReplyNotDelivered("Board meeting", "chair@example.org", InvitationResponse.Decline),
+            NoticeAction.SendReply, NoticeAction.DontSendReply);
+
+        var send = Assert.IsType<Intent.AnswerReplyPrompt>(NoticeRules.Answer(reply, NoticeAction.SendReply, Subject));
+        Assert.True(send.Send);
+        // The tick is gone: a standing answer is the account page's setting now, never this one's.
+        Assert.False(send.Remember);
+        Assert.Equal("Decline: Board meeting", send.ReplySubject);
+
+        var dont = Assert.IsType<Intent.AnswerReplyPrompt>(NoticeRules.Answer(reply, NoticeAction.DontSendReply, Subject));
+        Assert.False(dont.Send);
+        Assert.False(dont.Remember);
+        Assert.Null(dont.ReplySubject);
+    }
+
+    [Fact]
+    public void Only_a_question_offers_a_second_button()
+    {
+        var zone = Question(new NoticeKind.TimeZoneChanged("Europe/Lisbon"), NoticeAction.UseDeviceTimeZone, NoticeAction.KeepTimeZone);
+        Assert.True(NoticeRules.OffersSecond(zone));
+        Assert.False(NoticeRules.OffersSecond(zone with { SecondActionLabel = null }), "the core sends both or neither");
+        Assert.False(NoticeRules.OffersSecond(Make("retry", nameof(NoticeScreens.Mail))));
     }
 
     [Fact]
@@ -181,6 +234,35 @@ public class NoticeRulesTests
     }
 
     [Fact]
+    public void The_allodia_card_follows_its_notice()
+    {
+        var offline = Make("offline", nameof(NoticeScreens.Everywhere), kind: new NoticeKind.Offline());
+        var ended = Make("allodia", nameof(NoticeScreens.Everywhere), kind: new NoticeKind.AllodiaSignInEnded("anna@example.org"));
+
+        Assert.True(NoticeRules.AllodiaSignInEnded([offline, ended]));
+        Assert.False(NoticeRules.AllodiaSignInEnded([offline]));
+    }
+
+    [Fact]
+    public void The_connection_status_names_the_unreachable_accounts_only_while_the_device_is_online()
+    {
+        var offline = Make("offline", nameof(NoticeScreens.Everywhere), kind: new NoticeKind.Offline());
+        Notice[] online =
+        [
+            Make("b-unreachable", nameof(NoticeScreens.Mail), account: "b"),
+            Make("a-expired", nameof(NoticeScreens.Everywhere), account: "a", kind: new NoticeKind.SignInExpired()),
+            Make("a-unreachable", nameof(NoticeScreens.Mail), account: "a"),
+        ];
+
+        Assert.False(NoticeRules.Offline(online));
+        // In the core's order; an expired sign-in is its own notice, not an outage.
+        Assert.Equal(["b", "a"], NoticeRules.Unreachable(online));
+        // Offline, the device is the fault, so no account is named.
+        Assert.True(NoticeRules.Offline([offline, .. online]));
+        Assert.Empty(NoticeRules.Unreachable([offline, .. online]));
+    }
+
+    [Fact]
     public void The_fingerprint_moves_with_what_a_notice_says_and_not_otherwise()
     {
         var notice = Make("a", nameof(NoticeScreens.Mail), account: "a");
@@ -188,6 +270,9 @@ public class NoticeRulesTests
 
         Assert.Equal(drawn, NoticeRules.Fingerprint([Make("a", nameof(NoticeScreens.Mail), account: "a")]));
         Assert.NotEqual(drawn, NoticeRules.Fingerprint([notice with { RemedyFailed = true }]));
+        // An answer starting or ending holds and frees the buttons, so it redraws.
+        Assert.NotEqual(drawn, NoticeRules.Fingerprint([notice with { Running = true }]));
+        Assert.NotEqual(drawn, NoticeRules.Fingerprint([notice with { SecondAction = NoticeAction.KeepTimeZone }]));
         Assert.NotEqual(drawn, NoticeRules.Fingerprint([notice with { Action = NoticeAction.OpenAccountSettings }]));
         Assert.NotEqual(drawn, NoticeRules.Fingerprint([notice with { Title = new NoticeText("notice_other", []) }]));
         Assert.NotEqual(drawn, NoticeRules.Fingerprint([]));

@@ -7,7 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Answer, Entitlement};
+use crate::{Answer, Capability, Entitlement};
 
 /// How long a stored answer keeps granting while the service cannot be reached: **30 days**.
 ///
@@ -17,6 +17,10 @@ use crate::{Answer, Entitlement};
 /// work anyway. Being wrong the other way takes a capability from someone who paid for it, during
 /// an outage that is Allodia's fault.
 pub const GRACE_SECONDS: i64 = 30 * 24 * 60 * 60;
+
+/// How long before its grace ends a stored answer that grants a paid capability is said to be
+/// about to lapse: **7 days**. From then on, signing in again is what keeps the capability.
+pub const LAPSE_WARNING_SECONDS: i64 = 7 * 24 * 60 * 60;
 
 /// What happened when a client last tried to ask.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -74,6 +78,31 @@ impl Cache {
             }
             _ => Entitlement::free(),
         }
+    }
+
+    /// Whether the stored answer grants a paid capability and its grace ends within
+    /// [`LAPSE_WARNING_SECONDS`].
+    ///
+    /// Grace, not the plan's period end, is the horizon: the period end is for display, and the
+    /// grace is what this device will actually stop granting on. A paid capability is any but the
+    /// one every plan carries, and never a label this version does not know.
+    #[must_use]
+    pub fn lapses_soon(&self, now: i64) -> bool {
+        let Some(stored) = &self.stored else {
+            return false;
+        };
+        let left = stored
+            .fetched_at
+            .saturating_add(GRACE_SECONDS)
+            .saturating_sub(now);
+        left > 0
+            && left <= LAPSE_WARNING_SECONDS
+            && stored
+                .answer
+                .entitlement
+                .capabilities
+                .iter()
+                .any(Capability::is_paid)
     }
 
     /// Whether it is time to ask again.

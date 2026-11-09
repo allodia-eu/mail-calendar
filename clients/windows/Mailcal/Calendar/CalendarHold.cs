@@ -33,8 +33,9 @@ namespace Allodia.Mailcal.Calendar;
 /// <summary>The hold treatment, for both of the client's calendar renderers.</summary>
 internal static class CalendarHold
 {
-    /// <summary>The width of the hatched gutter down a hold's leading edge, and the diagonals' pitch.</summary>
-    private const float Gutter = 4f;
+    /// <summary>The width of the hatched gutter down a hold's leading edge: the bar it stands in for.
+    /// Then the diagonals' pitch.</summary>
+    private const float Gutter = CalendarBlocks.BarWidth;
     private const float HatchStep = 4f;
 
     /// <summary>The hairline every surface strokes with, solid on a commitment, dashed on a hold.</summary>

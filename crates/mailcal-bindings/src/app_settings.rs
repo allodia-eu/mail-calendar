@@ -1,9 +1,9 @@
-//! Settings-surface FFI methods on [`MailcalApp`]: per-account sync behaviour (strategy, poll
-//! interval, push folders), sync-depth windowing, the message-list grouping, the default send
-//! account, the per-direction swipe actions, the runtime log level, and the one-time offer to
-//! become the OS's default mail app. Split out of `lib.rs` to
-//! keep each file under the 500-line limit; the object is defined in `lib.rs`, and UniFFI
-//! collects these exported methods crate-wide.
+//! Settings-surface FFI methods on [`MailcalApp`]: the per-account sync snapshot, the message-list
+//! grouping, the default send account, the per-direction swipe actions, the runtime log level, and
+//! the one-time offer to become the OS's default mail app; and the sync behaviour an account's page
+//! changes (strategy, poll interval, push folders). Split out of `lib.rs` to keep each file under
+//! the 500-line limit; the object is defined in `lib.rs`, and UniFFI collects the exported methods
+//! crate-wide.
 
 use crate::{
     DefaultMailAppOutcome, DefaultMailAppSupport, LogLevel, MailcalApp, SwipeActionKind,
@@ -18,56 +18,6 @@ impl MailcalApp {
     /// push-subscription state; everything the settings screen renders.
     pub fn sync_settings(&self) -> SyncSettingsSnapshot {
         self.runtime.block_on(|| self.app.sync_settings()).into()
-    }
-
-    /// Sets whether an account receives mail as it arrives (`Push`, valid only when the
-    /// server supports `IDLE`) or checks on a timer (`Poll`), then restarts its background
-    /// sync. Persisted. Fire-and-forget beyond the persisted change; the observer fires as
-    /// the new watches/poll produce mail.
-    pub fn set_sync_strategy(&self, account: String, strategy: SyncStrategyKind) {
-        self.runtime
-            .block_on(|| self.app.set_sync_strategy(&account, strategy.into()));
-        self.refresh_background(&account);
-    }
-
-    /// Sets an account's background-poll interval (minutes; snapped to the allowed set) and
-    /// restarts its poll timer. Persisted.
-    pub fn set_poll_interval(&self, account: String, minutes: u16) {
-        self.runtime
-            .block_on(|| self.app.set_poll_interval(&account, minutes));
-        self.refresh_background(&account);
-    }
-
-    /// Subscribes or unsubscribes one folder for push on an account (the core caps the set
-    /// at the platform-wide maximum), then restarts its watches. Persisted.
-    pub fn set_push_folder(&self, account: String, folder: String, subscribed: bool) {
-        self.runtime
-            .block_on(|| self.app.set_push_folder(&account, &folder, subscribed));
-        self.refresh_background(&account);
-    }
-
-    /// Sets one account's **per-account** sync depth (a month count; `0` = all mail), clears its
-    /// mail cursors, and starts a re-snapshot under the new window. Widening immediately backfills
-    /// older mail; narrowing tombstones rows that are no longer in scope. Fire-and-forget: the
-    /// observer fires as the re-sync completes. An unknown account id is ignored.
-    pub fn set_account_sync_depth(&self, account: String, months: u16) {
-        let app = std::sync::Arc::clone(&self.app);
-        self.runtime
-            .spawn(async move { app.update_account_sync_depth(&account, months).await });
-    }
-
-    /// Sets one account's **per-account** message-size cap (a megabyte count; `0` = no limit)
-    /// and acts on the mail already cached. Raising it downloads what the lower cap skipped;
-    /// lowering it forgets the cached copies it may no longer keep, which runs locally and needs
-    /// no server. The mail itself is never removed either way (only its offline copy) so the
-    /// list, the threads and body search are unchanged. Fire-and-forget: the observer fires as
-    /// the work completes. An unknown account id is ignored.
-    pub fn set_account_message_size_limit(&self, account: String, megabytes: u16) {
-        let app = std::sync::Arc::clone(&self.app);
-        self.runtime.spawn(async move {
-            app.update_account_message_size_limit(&account, megabytes)
-                .await;
-        });
     }
 
     /// The persisted message-list grouping (flat vs threaded) the settings screen renders.
@@ -155,5 +105,33 @@ impl MailcalApp {
     #[must_use]
     pub fn default_mail_app_offer(&self) -> Option<bool> {
         self.app.default_mail_app_offer()
+    }
+}
+
+/// The mail settings an account's page changes (`AccountPageIntent`), run on the page's own thread.
+impl MailcalApp {
+    /// Sets whether an account receives mail as it arrives (`Push`, valid only when the
+    /// server supports `IDLE`) or checks on a timer (`Poll`), then restarts its background
+    /// sync. Persisted; the observer fires as the new watches/poll produce mail.
+    pub(crate) fn set_sync_strategy(&self, account: String, strategy: SyncStrategyKind) {
+        self.runtime
+            .block_on(|| self.app.set_sync_strategy(&account, strategy.into()));
+        self.refresh_background(&account);
+    }
+
+    /// Sets an account's background-poll interval (minutes; snapped to the allowed set) and
+    /// restarts its poll timer. Persisted.
+    pub(crate) fn set_poll_interval(&self, account: String, minutes: u16) {
+        self.runtime
+            .block_on(|| self.app.set_poll_interval(&account, minutes));
+        self.refresh_background(&account);
+    }
+
+    /// Subscribes or unsubscribes one folder for push on an account (the core caps the set
+    /// at the platform-wide maximum), then restarts its watches. Persisted.
+    pub(crate) fn set_push_folder(&self, account: String, folder: String, subscribed: bool) {
+        self.runtime
+            .block_on(|| self.app.set_push_folder(&account, &folder, subscribed));
+        self.refresh_background(&account);
     }
 }

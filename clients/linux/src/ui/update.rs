@@ -19,8 +19,6 @@ impl AppModel {
     ) {
         match message {
             AppInput::RefreshRequested => self.dispatch(Intent::RefreshMail),
-            AppInput::RetryUnfiledCopy => self.dispatch(Intent::RetryUnfiledCopy),
-            AppInput::DismissUnfiledCopy => self.dispatch(Intent::DismissUnfiledCopy),
             AppInput::RefreshCalendar => self.dispatch(Intent::RefreshCalendar),
             AppInput::PeriodicCalendarRefresh => {
                 if self.calendar_refresh.periodic_refresh()
@@ -31,7 +29,7 @@ impl AppModel {
             }
             AppInput::SurfaceChanged(surface) => {
                 let collect_new_mail = matches!(surface, Surface::MailboxList);
-                self.pull(&surface, sender.input_sender());
+                self.pull(&surface);
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
                     // After the pull, so the rows this snapshot brought are the ones searched.
@@ -53,12 +51,6 @@ impl AppModel {
                 if let Some(zone) = self.device_zone.changed(super::time_zone::device_zone()) {
                     self.dispatch(Intent::ReportDeviceTimeZone { id: zone });
                 }
-            }
-            AppInput::AcceptDeviceTimeZone => {
-                self.dispatch(Intent::AcceptTimeZoneChange);
-            }
-            AppInput::DismissDeviceTimeZone => {
-                self.dispatch(Intent::DismissTimeZoneChange);
             }
             AppInput::Notice(input) => self.notice_input(input, sender.input_sender().clone()),
             AppInput::ShowMail => self.primary = PrimaryView::Mail,
@@ -147,20 +139,6 @@ impl AppModel {
             AppInput::CloseComposerWindow(id) => self.close_composer_window(id),
             AppInput::RespondToInvitation(source, answer) => {
                 self.respond_to_invitation(&source, *answer);
-            }
-            AppInput::AnswerReplyPrompt {
-                send,
-                remember,
-                reply_subject,
-            } => {
-                // The two flags only. The subject is not logged: it *contains* the meeting's title,
-                // which is message content (`docs/invitations.md` → Logging and privacy).
-                log::info!("invitation: reply question answered send={send} remember={remember}");
-                self.dispatch(Intent::AnswerReplyPrompt {
-                    send,
-                    remember,
-                    reply_subject: Some(reply_subject),
-                });
             }
             AppInput::SelectRow { index, mode } => self.select_row(index, mode),
             AppInput::SelectAllRows => self.selection.select_all(&self.snapshot.rows),
@@ -441,12 +419,6 @@ impl AppModel {
             }
             AppInput::DismissSenderNamePrompt => {
                 self.ask_next_sender_name(sender.input_sender().clone());
-            }
-            AppInput::ReplaceAccountSecret { account, secret } => {
-                self.replace_account_secret(account, secret, sender.input_sender().clone());
-            }
-            AppInput::AccountSecretReplaced { account, success } => {
-                self.account_secret_replaced(account, success);
             }
             AppInput::Accounts(input) => {
                 self.accounts_input(input, sender.input_sender().clone());

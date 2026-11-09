@@ -26,7 +26,7 @@ use crate::{
         allodia_subscription::{SubscriptionAnswer, SubscriptionInput, SubscriptionWrite},
         allodia_subscription_facts as facts,
         mailbox::plain_text_row,
-        timestamps,
+        notice_rules, timestamps,
     },
 };
 
@@ -41,7 +41,7 @@ const RESPONSE_GO_AHEAD: &str = "go-ahead";
 pub(super) fn subscription(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
     // A subscription belongs to an account, so nobody signed in is nothing to draw.
     ctx.app.allodia_account()?;
-    if ctx.app.connectivity().allodia_sign_in_ended.is_some() {
+    if notice_rules::allodia_sign_in_ended(&ctx.app.notices().notices) {
         return None;
     }
     let state = &ctx.allodia_subscription;

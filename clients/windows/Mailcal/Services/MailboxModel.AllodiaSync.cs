@@ -157,8 +157,7 @@ public sealed partial class MailboxModel
             AccountsSyncMode = new Dictionary<string, AllodiaAccountSyncMode>();
             return;
         }
-        var accounts = GetSyncSettings()?.Accounts ?? Array.Empty<AccountSyncChoice>();
-        AccountsSyncMode = accounts
+        AccountsSyncMode = _app.SyncSettings().Accounts
             .ToDictionary(a => a.AccountId, a => _app.AllodiaAccountSyncMode(a.AccountId));
     }
 

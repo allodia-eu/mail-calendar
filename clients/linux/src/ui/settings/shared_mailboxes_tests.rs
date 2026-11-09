@@ -1,82 +1,53 @@
-//! What the Shared mailboxes section draws for each answer, without a display.
+//! What the Shared mailboxes section says for what the core decided, without a display.
 
-use mailcal_bindings::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView};
+use mailcal_bindings::{AccountSharedMailbox, ControlState, SharedMailboxesNote};
 
-use super::{SharedRow, note, row};
+use super::{note, subtitle};
 use crate::l10n;
 
-fn mailbox(address: Option<&str>, name: &str, selected: bool, listed: bool) -> SharedMailboxEntry {
-    SharedMailboxEntry {
+fn mailbox(label: Option<&str>, withdrawn: bool) -> AccountSharedMailbox {
+    AccountSharedMailbox {
         handle: "f".to_owned(),
-        name: name.to_owned(),
-        address: address.map(str::to_owned),
-        selected,
-        listed,
+        title: "support@example.org".to_owned(),
+        label: label.map(str::to_owned),
+        withdrawn,
+        on: true,
+        control: ControlState {
+            enabled: true,
+            running: false,
+        },
     }
 }
 
 #[test]
-fn a_mailbox_is_named_by_its_address_with_the_servers_label_beside_it_when_it_differs() {
+fn a_withdrawn_mailbox_says_so_in_place_of_its_label() {
     assert_eq!(
-        row(&mailbox(
-            Some("support@example.org"),
-            "Support Team",
-            true,
-            true
-        )),
-        SharedRow {
-            title: "support@example.org".to_owned(),
-            subtitle: Some("Support Team".to_owned()),
-            active: true,
-        }
+        subtitle(&mailbox(Some("Support Team"), false)),
+        Some("Support Team")
     );
+    assert_eq!(subtitle(&mailbox(None, false)), None);
     assert_eq!(
-        row(&mailbox(
-            Some("support@example.org"),
-            "support@example.org",
-            false,
-            true
-        ))
-        .subtitle,
-        None
-    );
-    assert_eq!(row(&mailbox(None, "team", false, true)).title, "team");
-}
-
-#[test]
-fn a_chosen_mailbox_the_server_stopped_listing_says_so() {
-    assert_eq!(
-        row(&mailbox(
-            Some("support@example.org"),
-            "Support",
-            true,
-            false
-        ))
-        .subtitle,
-        Some(l10n::settings_account_shared_withdrawn().to_owned())
+        subtitle(&mailbox(Some("Support Team"), true)),
+        Some(l10n::settings_account_shared_withdrawn())
     );
 }
 
 #[test]
-fn the_line_under_the_switches_says_why_there_is_nothing_more_to_choose() {
-    let view = |support, mailboxes| SharedMailboxesView { support, mailboxes };
+fn each_line_under_the_switches_is_said_in_words() {
     assert_eq!(
-        note(&view(SharedMailboxSupport::Listed, Vec::new())),
-        Some(l10n::settings_account_shared_none())
+        note(SharedMailboxesNote::NoneShared),
+        l10n::settings_account_shared_none()
     );
     assert_eq!(
-        note(&view(
-            SharedMailboxSupport::Listed,
-            vec![mailbox(None, "team", false, true)]
-        )),
-        None
+        note(SharedMailboxesNote::ByAddress),
+        l10n::settings_account_shared_by_address()
     );
     assert_eq!(
-        note(&view(SharedMailboxSupport::NotConnected, Vec::new())),
-        Some(l10n::settings_account_shared_not_connected())
+        note(SharedMailboxesNote::NotConnected),
+        l10n::settings_account_shared_not_connected()
     );
     assert_eq!(
-        note(&view(SharedMailboxSupport::Unreachable, Vec::new())),
-        Some(l10n::settings_account_shared_unreachable())
+        note(SharedMailboxesNote::Unreachable),
+        l10n::settings_account_shared_unreachable()
     );
 }

@@ -177,13 +177,14 @@ extension MailboxModel {
         app?.dispatch(intent: .accountPage(intent: intent))
     }
 
-    func accountEntry(_ id: String) -> AccountEntry? {
-        accountsSnapshot.accounts.first { $0.id == id }
+    /// Account `id`'s page opened: its server is asked again which mailboxes its sign-in opens,
+    /// on the core's own thread, and the page is signalled once it answers.
+    func accountPageOpened(_ id: String) {
+        app?.accountPageOpened(accountId: id)
     }
 
-    /// Whether the server refused `id`'s stored sign-in.
-    func signInExpired(_ id: String) -> Bool {
-        connectivity?.signinExpiredAccounts.contains(id) ?? false
+    func accountEntry(_ id: String) -> AccountEntry? {
+        accountsSnapshot.accounts.first { $0.id == id }
     }
 
     /// Switches one of an account's uses on or off, for setup's own steps, which wait on the
@@ -223,35 +224,10 @@ extension MailboxModel {
         }
     }
 
-    /// Tries an account's edited servers and sign-in, and keeps them if they connect. Answers why
-    /// not, or `nil` once saved; the form is then left as the person typed it.
-    func saveAccountEndpoints(_ id: String, _ endpoints: AccountEndpoints) async -> String? {
-        guard let app else { return L10n.app_unavailable() }
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.updateAccountEndpoints(accountId: id, endpoints: endpoints)
-            }.value
-            return nil
-        } catch {
-            // Never the endpoints themselves: they carry the password.
-            logAppleLifecycle("accounts: editing an account's servers failed (\(coreMessage(error)))")
-            return coreMessage(error)
-        }
-    }
-
-    /// Replaces a pasted password or API token the server stopped accepting, after proving it
-    /// connects. Answers why not, or `nil` once replaced.
-    func replaceAccountSecret(_ id: String, _ secret: String) async -> String? {
-        guard let app else { return L10n.app_unavailable() }
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.replaceAccountSecret(accountId: id, secret: secret)
-            }.value
-            return nil
-        } catch {
-            logAppleLifecycle("accounts: replacing a stored secret failed (\(coreMessage(error)))")
-            return coreMessage(error)
-        }
+    /// What `endpoints` leaves out of account `id`'s servers, as its save would refuse it. Reads
+    /// only what is stored, so the page asks it as the person types.
+    func endpointsGap(_ id: String, _ endpoints: AccountEndpoints) -> AccountEndpointsGap? {
+        app?.accountEndpointsGap(accountId: id, endpoints: endpoints)
     }
 
     /// Signs an existing Microsoft or Google account in again at its provider, asking for what it

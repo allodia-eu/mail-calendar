@@ -8,24 +8,20 @@ use std::time::Instant;
 
 use crate::{BoxedAccount, SharedRegistry, account_registry::dial_all};
 
-/// Routes one dialed account into the app's account list and the two diagnostic channels, keeping a
-/// mail failure distinct from a calendar-only one.
+/// Routes one dialed account into the app's account list, recording a mail failure.
 ///
 /// The account is **always** added: a failed dial keeps its placeholder, so an outaged account
 /// still lists with a badge instead of vanishing, which is the difference between "my server is
 /// down" and "the app lost my account". A mail failure also records its `(id, detail)` in `failed`,
 /// which seeds the outage badge and queues the account for reconnect.
 ///
-/// Generic over the account so the classification is unit-testable without a live provider; the
-/// one piece of this loop worth pinning on its own, since each channel means something different to
-/// a host and they used to be easy to swap.
+/// Generic over the account so the classification is unit-testable without a live provider.
 pub(crate) fn record_dial_outcome<A>(
     account: A,
     id: String,
     failure: Option<DialFailure>,
     accounts: &mut Vec<A>,
     account_errors: &mut Vec<String>,
-    calendar_errors: &mut Vec<String>,
     failed: &mut Vec<FailedDial>,
 ) {
     accounts.push(account);
@@ -41,7 +37,6 @@ pub(crate) fn record_dial_outcome<A>(
                 signin_rejected,
             });
         }
-        Some(DialFailure::CalendarOnly(detail)) => calendar_errors.push(detail),
         None => {}
     }
 }
@@ -61,7 +56,8 @@ pub(crate) struct FailedDial {
     pub(crate) signin_rejected: bool,
 }
 
-/// What went wrong on one account's boot dial, in the two shapes the boot reports differently.
+/// What went wrong on one account's boot dial. A calendar that did not connect beside working mail
+/// is not a dial failure: it is a use problem, which the calendar's outage notice reports.
 pub(crate) enum DialFailure {
     /// The **mail** connect failed: the account is kept as its placeholder, carrying this
     /// account-labelled detail, and re-dialed later.
@@ -72,9 +68,6 @@ pub(crate) enum DialFailure {
         /// reconnect prompt, not an outage badge (`docs/provider-oauth.md` rule 12).
         signin_rejected: bool,
     },
-    /// Mail is up but an optional calendar connect failed; recorded separately so an empty agenda
-    /// is not mistaken for a skipped account.
-    CalendarOnly(String),
 }
 
 /// Dials every prepared account, at most [`MAX_CONCURRENT_DIALS`] at a time, and returns each
@@ -114,10 +107,7 @@ pub(super) async fn dial_registered(
         match outcome {
             Ok(outcome) => {
                 registry.learn_dav_starts(id.as_str(), &outcome.learned);
-                (
-                    outcome.account,
-                    outcome.calendar_error.map(DialFailure::CalendarOnly),
-                )
+                (outcome.account, None)
             }
             Err(err) => (
                 placeholder,

@@ -49,3 +49,47 @@ extension Optional where Wrapped == CalendarRow {
         self?.color.swatch(dark: dark) ?? fallbackSwatch
     }
 }
+
+/// An event block's colours (`calendarEventSwatch`), parsed. The look of Apple's Calendar: a light
+/// tint fills the block, the calendar's colour runs down its leading edge, and the title is a deep
+/// shade of it, pale on dark. The core resolves the hexes, contrast included; this only parses them.
+struct EventColors: Sendable {
+    let fill: Color
+    let accent: Color
+    let text: Color
+}
+
+/// The event colours a calendar's `hex` resolves to in a theme, asked of the core once per colour
+/// and theme rather than on every frame a block is drawn.
+func eventColors(hex: String, dark: Bool) -> EventColors {
+    eventColorCache.colors(hex: hex, dark: dark)
+}
+
+extension Optional where Wrapped == CalendarRow {
+    /// The event colours for a looked-up calendar, or the fallback grey's when the page didn't list it.
+    func eventColorsOrFallback(dark: Bool) -> EventColors {
+        eventColors(hex: self?.color.hex ?? fallbackSwatch.background, dark: dark)
+    }
+}
+
+private final class EventColorCache: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cached: [String: EventColors] = [:]
+
+    func colors(hex: String, dark: Bool) -> EventColors {
+        let key = "\(hex)|\(dark)"
+        lock.lock()
+        defer { lock.unlock() }
+        if let held = cached[key] { return held }
+        let swatch = calendarEventSwatch(hex: hex, dark: dark)
+        let colors = EventColors(
+            fill: parseHexColor(swatch.fill),
+            accent: parseHexColor(swatch.accent),
+            text: parseHexColor(swatch.text)
+        )
+        cached[key] = colors
+        return colors
+    }
+}
+
+private let eventColorCache = EventColorCache()

@@ -140,9 +140,6 @@ internal fun MainActivity.connect(
                 activity.connectError = null
                 // A boot outage keeps the failed accounts as placeholders, and the core says it as
                 // a notice, pulled once below so it shows before any surface signal fires.
-                connected.calendarConnectError()?.let {
-                    Log.w(TAG, "calendar (CalDAV) failed to connect: $it")
-                }
                 connected.dispatch(Intent.ReportDeviceTimeZone(deviceZone))
                 activity.timeZone = connected.timezoneSettings()
                 activity.syncSettings = connected.syncSettings()

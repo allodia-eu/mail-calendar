@@ -164,6 +164,8 @@ public struct ContentView: View {
             }
             #endif
             #endif
+            // The frame trace's scripted motion runs on the calendar, in any build.
+            if CalendarFrameTrace.shared.drives { showCalendar() }
             #if DEBUG
             // Verification: open the calendar / contacts on launch (for simulator screenshots). The
             // composer waits for the core instead (`autoComposeIfRequested`).
@@ -401,54 +403,6 @@ public struct ContentView: View {
         // dropped, and the queue would then wait on a dismissal that never comes.
         .sheet(item: senderNameSheet, onDismiss: model.senderNameAnswered) { prompt in
             SenderNameStepView(model: model, account: prompt.id) { model.senderNamePrompt = nil }
-        }
-        // The device moved to a different time zone than the active one: prompt to switch.
-        // The buttons drive the core state; the implicit-dismiss setter is ignored.
-        .alert(
-            L10n.tz_changed_title(),
-            isPresented: Binding(
-                get: { model.timezone?.pendingDevice != nil },
-                set: { _ in }
-            )
-        ) {
-            Button(L10n.action_update()) { model.acceptTimeZoneChange() }
-            Button(L10n.tz_keep(zone: model.timezone?.active ?? L10n.tz_zone_current()), role: .cancel) {
-                model.dismissTimeZoneChange()
-            }
-        } message: {
-            Text(L10n.tz_changed_message(zone: model.timezone?.pendingDevice ?? L10n.tz_zone_new()))
-        }
-        // The calendar server stored the answer and then reported it could not tell the organiser:
-        // offer to email it ourselves. The core owns both edges of this, it raises the question
-        // and clears it the moment it is answered, so the presented binding only *reads* the
-        // model, and the implicit-dismiss setter is ignored. `interactiveDismissDisabled` is what
-        // keeps the two in step: a swipe-away would leave the core still holding a question the
-        // user can no longer see or answer.
-        .sheet(
-            isPresented: Binding(
-                get: { model.replyPrompt != nil && !model.eventDetailOpen }, set: { _ in }
-            )
-        ) {
-            if let prompt = model.replyPrompt {
-                InvitationReplyPromptView(prompt: prompt) { send, remember in
-                    model.answerReplyPrompt(send: send, remember: remember)
-                }
-                .interactiveDismissDisabled()
-            }
-        }
-        // Same contract as the prompt above: the core owns the question, so the binding only
-        // reads it and a swipe-away cannot orphan it.
-        .sheet(
-            isPresented: Binding(get: { model.unfiledCopy != nil }, set: { _ in })
-        ) {
-            if let unfiled = model.unfiledCopy {
-                UnfiledCopyPromptView(
-                    unfiled: unfiled,
-                    onRetry: { model.retryUnfiledCopy() },
-                    onDismiss: { model.dismissUnfiledCopy() }
-                )
-                .interactiveDismissDisabled()
-            }
         }
     }
 

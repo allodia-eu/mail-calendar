@@ -13,7 +13,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.launchStatusAfterMs
 
@@ -111,37 +110,9 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                         },
                         onDismiss = { askNextSenderName() },
                     )
-                    // The message went out; its copy did not reach Sent. Rendered here for the
-                    // same reason as the question below: the send may have been started from
-                    // anywhere, and the question outlives the screen that raised it.
-                    UnfiledCopyPrompt(
-                        unfiledCopy,
-                        onRetry = { instance?.dispatch(Intent.RetryUnfiledCopy) },
-                        onDismiss = { instance?.dispatch(Intent.DismissUnfiledCopy) },
-                    )
                     // A calendar or address book server found on another site: asked from the
                     // calendar, the contacts list or the account's page, so drawn over all three.
                     ServerChangeDialog(accountSettings.serverChange) { allowServerChange() }
-                    // The calendar server stored the answer and then reported it could not tell
-                    // the organiser. Rendered outside the screen switch above because an
-                    // invitation can be answered from the reading view *or* from the list, and
-                    // the question outlives whichever one raised it, the user may well have
-                    // navigated on before the server's verdict came back.
-                    //
-                    // The reply's subject is composed here, not in the core, for the same reason
-                    // the RSVP's is: it is copy a stranger reads in their inbox, and the core
-                    // carries no locale.
-                    InvitationReplyPrompt(replyPrompt) { send, remember ->
-                        instance?.dispatch(
-                            Intent.AnswerReplyPrompt(
-                                send,
-                                remember,
-                                replyPrompt?.let {
-                                    invitationReplySubject(ctx, it.response, it.summary)
-                                },
-                            ),
-                        )
-                    }
                 }
               }
             }

@@ -39,9 +39,6 @@ internal fun MainActivity.addAccount(configToml: String, unreached: List<Account
     thread(name = "mailcal-add-account") {
         try {
             val row = instance.addAccount(configToml)
-            instance.calendarConnectError()?.let {
-                Log.w(TAG, "calendar (CalDAV) failed to connect: $it")
-            }
             activity.mainHandler.post {
                 activity.isConnecting = false
                 activity.addError = null

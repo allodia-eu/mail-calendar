@@ -1,12 +1,12 @@
 //! What the accounts list and an account's page say, from a snapshot entry.
 
 use mailcal_bindings::{
-    AccountCapability, AccountChangeNotice, AccountEntry, AccountKind, AccountLinksView,
-    AccountUse, AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
-    LinkCandidates, LinkedAccount, UseProblem,
+    AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountEntry, AccountKind,
+    AccountLinksView, AccountUse, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
+    CapabilityState, ControlState, LinkCandidates, LinkedAccount, UseProblem,
 };
 
-use super::{change_notice, signin_description, signs_in_at_provider, summary, switch_note};
+use super::{change_notice, summary, switch_note};
 use crate::{l10n, ui::settings::notice::Notice};
 
 fn linked(id: &str) -> LinkedAccount {
@@ -51,46 +51,6 @@ fn mailbox_only() -> AccountEntry {
             (AccountCapability::Contacts, CapabilityState::Off),
         ],
     )
-}
-
-#[test]
-fn signing_in_again_is_offered_where_the_provider_signs_in_and_says_what_is_wrong() {
-    assert!(signs_in_at_provider(AccountKind::Microsoft));
-    assert!(signs_in_at_provider(AccountKind::Google));
-    for kind in [AccountKind::Imap, AccountKind::Dav, AccountKind::Jmap] {
-        assert!(!signs_in_at_provider(kind), "{kind:?}");
-    }
-
-    let mut entry = entry(
-        AccountKind::Google,
-        &[
-            (AccountCapability::Mail, CapabilityState::On),
-            (AccountCapability::Calendar, CapabilityState::On),
-        ],
-    );
-    assert_eq!(
-        signin_description(&entry, false),
-        l10n::settings_account_signin_description()
-    );
-    entry.uses[1].state = CapabilityState::NeedsPermission;
-    assert_eq!(
-        signin_description(&entry, false),
-        l10n::settings_account_needs_permission()
-    );
-    assert_eq!(
-        signin_description(&entry, true),
-        l10n::signin_expired_prompt("alice@example.org")
-    );
-    entry.distinction = Some(mailcal_bindings::AccountDistinction::Server {
-        host: "imap.example.org".to_owned(),
-    });
-    assert_eq!(
-        signin_description(&entry, true),
-        l10n::signin_expired_prompt(&l10n::settings_account_distinguished(
-            "alice@example.org",
-            "imap.example.org"
-        ))
-    );
 }
 
 #[test]
@@ -172,15 +132,35 @@ fn a_change_that_did_not_take_is_said_with_the_cores_reason() {
     let failed = change_notice(&AccountChangeNotice::UseFailed {
         capability: AccountCapability::Mail,
         on: false,
-        detail: "the last use".to_owned(),
+        refusal: AccountChangeRefusal::Blocked {
+            block: AccountUseBlock::LastUse,
+        },
     });
     assert_eq!(
         failed,
         Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
-            detail: "the last use".to_owned(),
+            detail: l10n::settings_account_use_last().to_owned(),
+        },
+        "in the person's language, as the switch says it beside itself"
+    );
+    let servers = change_notice(&AccountChangeNotice::ServersFailed {
+        refusal: AccountChangeRefusal::SignInRefused,
+    });
+    assert_eq!(
+        servers,
+        Notice::Error {
+            title: l10n::settings_account_servers_failed().to_owned(),
+            detail: l10n::signin_refused().to_owned(),
         }
     );
+    let other = change_notice(&AccountChangeNotice::LinkFailed {
+        slot: mailcal_bindings::LinkSlot::Calendar,
+        refusal: AccountChangeRefusal::Other {
+            detail: "config: no such account".to_owned(),
+        },
+    });
+    assert!(matches!(other, Notice::Error { detail, .. } if detail == "config: no such account"));
     let kept = change_notice(&AccountChangeNotice::RemoveFailed {
         detail: "locked".to_owned(),
     });

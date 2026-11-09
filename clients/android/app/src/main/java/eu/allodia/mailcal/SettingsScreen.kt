@@ -3,7 +3,7 @@
 // (docs/settings.md), but where the desktops show a sidebar beside a detail panel, a phone gets
 // a hub-and-spoke: a list of category rows (icon, name, one-line summary of what's inside), each
 // opening its own screen. The back arrow and system back both step detail → hub → mailbox. State
-// lives in the Rust core (the SyncSettingsSnapshot / persisted preferences); this renders it and
+// lives in the Rust core (its page records and persisted preferences); this renders it and
 // dispatches the setters, which re-signal SETTINGS. Swapped in over the mailbox (like the reading
 // view). The category taxonomy is SettingsCategory.kt and the Notifications category is
 // SettingsNotifications.kt, so each file stays under the 500-line limit.
@@ -57,8 +57,6 @@ import uniffi.mailcal_bindings.SignatureSlotKind
 import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
-import uniffi.mailcal_bindings.SyncSettingsSnapshot
-import uniffi.mailcal_bindings.SyncStrategyKind
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.TimeZoneSnapshot
 import uniffi.mailcal_bindings.ViewMode
@@ -135,13 +133,6 @@ internal fun SettingsScreen(
     onAllodiaKeepLocal: (String) -> Unit,
     accountsSyncMode: Map<String, AllodiaAccountSyncMode>,
     onSetAccountSyncMode: (account: String, mode: AllodiaAccountSyncMode) -> Unit,
-    settings: SyncSettingsSnapshot?,
-    onSetSyncDepth: (account: String, months: UShort) -> Unit,
-    onSetMessageSize: (account: String, megabytes: UShort) -> Unit,
-    onSetStrategy: (account: String, strategy: SyncStrategyKind) -> Unit,
-    onSetPollInterval: (account: String, minutes: UShort) -> Unit,
-    onSetPushFolder: (account: String, folder: String, subscribed: Boolean) -> Unit,
-    onSetSenderName: (account: String, name: String) -> Unit,
     // Diagnostics, opens the Diagnostics screen (log viewer/share, debug toggle).
     onOpenDiagnostics: () -> Unit,
     // Advanced
@@ -274,13 +265,6 @@ internal fun SettingsScreen(
                     onAllodiaKeepLocal = onAllodiaKeepLocal,
                     accountsSyncMode = accountsSyncMode,
                     onSetAccountSyncMode = onSetAccountSyncMode,
-                    settings = settings,
-                    onSetSyncDepth = onSetSyncDepth,
-                    onSetMessageSize = onSetMessageSize,
-                    onSetStrategy = onSetStrategy,
-                    onSetPollInterval = onSetPollInterval,
-                    onSetPushFolder = onSetPushFolder,
-                    onSetSenderName = onSetSenderName,
                     onRequestReset = { confirmingReset = true },
                     accountsUi = accountsUi,
                     onOpenAccount = { id ->

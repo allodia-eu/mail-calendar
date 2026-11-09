@@ -1,6 +1,6 @@
 // A calendar and contacts account at a Nextcloud server on its page and in the banner
-// (docs/nextcloud-sign-in.md rules 7 and 8): what its Sign-in section offers, which remedy a
-// refused sign-in takes, and the grant kept for another try; and the separate-server step's offer.
+// (docs/nextcloud-sign-in.md rules 7 and 8): which remedy a refused sign-in takes, and the grant
+// kept for another try; and the separate-server step's offer.
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -10,43 +10,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountProvider
-import uniffi.mailcal_bindings.AccountSignInOptions
-import uniffi.mailcal_bindings.CapabilityState
-import uniffi.mailcal_bindings.SignInMethod
-import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 class NextcloudAccountSignInTest {
-    private fun calendar(nextcloud: Boolean) = accountEntry(
-        CoreAccountKind.DAV,
-        AccountCapability.CALENDAR to CapabilityState.ON,
-        signIn = if (nextcloud) SignInMethod.PROVIDER else SignInMethod.PASSWORD,
-        nextcloud = nextcloud,
-    )
-
-    private val answered = AccountSignInOptions(signIn = false, providerLabel = null, password = false, nextcloud = true)
-    private val nothing = AccountSignInOptions(signIn = false, providerLabel = null, password = false)
-
-    @Test
-    fun aCalendarAccountHasASectionOnlyAtANextcloudServer() {
-        assertFalse(AccountSignInRules.hasSection(calendar(false), null))
-        assertFalse(AccountSignInRules.hasSection(calendar(false), nothing))
-        assertTrue(AccountSignInRules.hasSection(calendar(false), answered))
-        assertTrue("one a Nextcloud sign-in made, before anything is asked", AccountSignInRules.hasSection(calendar(true), null))
-        assertTrue(AccountSignInRules.asksOptions(CoreAccountKind.DAV))
-    }
-
-    @Test
-    fun itSignsInAgainOrSwitchesToNextcloudAndNeverToAPassword() {
-        val made = AccountSignInRules.section(calendar(true), answered)
-        assertTrue(made.nextcloud && made.signInAgain)
-        assertFalse(made.toPassword || made.toProvider || made.toNextcloud || made.offersSwitch)
-
-        val typed = AccountSignInRules.section(calendar(false), answered)
-        assertTrue(typed.toNextcloud)
-        assertFalse(typed.nextcloud || typed.signInAgain || typed.toPassword)
-        assertEquals(SignInMethod.PASSWORD, typed.method)
-    }
-
     @Test
     fun aRefusedNextcloudSignInIsSignedInAgainWhateverItsProviderSays() {
         assertEquals(ExpiredRemedy.SETTINGS, AccountSignInRules.expiredRemedy(AccountProvider.PASSWORD))

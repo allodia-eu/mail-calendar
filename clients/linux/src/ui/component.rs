@@ -218,9 +218,6 @@ impl AppModel {
             notice: None,
             sync_status,
             sync_bar,
-            unfiled_copy: None,
-            reply_prompt: None,
-            reply_prompt_generation: 0,
             boot_error,
             webview_available: true,
             calendar_refresh: calendar_actions::CalendarRefreshGate::default(),
@@ -231,7 +228,6 @@ impl AppModel {
                 syncable: allodia_syncable,
                 accounts_synced: HashMap::new(),
             },
-            credential_repair_failed: None,
             settings: settings::SettingsState::default(),
             host_tasks: HostTasks::new(welcome_pending, flow.setup_after_welcome),
             #[cfg(any(debug_assertions, feature = "dev-harness"))]

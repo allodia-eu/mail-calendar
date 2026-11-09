@@ -111,6 +111,7 @@ final class MailboxModel {
     /// to a cache-invalidation signal: THIS is what changes, and the views re-key their page pulls on
     /// it. See MailcalModel.Calendar.swift.
     var calendarVersion = 0
+    @ObservationIgnored let calendarPages = CalendarCache<CalendarPageKey, CalendarPage>()
     /// The persisted display preferences the core owns: first day of the week, the 12/24-hour clock
     /// (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Seeded
     /// with the core's own defaults so the very first frame agrees with it.
@@ -154,25 +155,12 @@ final class MailboxModel {
     /// the same terms as `calendarWriteStatus`. Its own slot rather than the calendar's, so the
     /// contacts list does not report a calendar save.
     var contactWriteStatus: ContactWriteStatus = .idle
-    /// The unanswered question raised when a calendar server that promised to tell the organiser
-    /// reported that it could not (pulled on a `Surface::InvitationReply` signal). Non-`nil`
-    /// presents the modal; the core clears it the moment it is answered, so `nil` is also what
-    /// closes it, the host never dismisses it on its own.
-    var replyPrompt: ReplyPrompt?
-    /// Whether an event's detail sheet is open. It then puts `replyPrompt` itself, since the window
-    /// cannot present a sheet while another is up: the question would wait for the detail to close.
-    var eventDetailOpen = false
     /// The event a meeting screenshot run opens over the calendar, taken once by the calendar
     /// screen so a later visit to the calendar does not open it again.
     @ObservationIgnored var showcaseOpeningEvent = ShowcaseMode.openingEvent
-    /// The message that went out without a copy reaching Sent; `nil` when there is nothing to ask.
-    var unfiledCopy: UnfiledCopy?
     /// Background mail-download progress (pulled on a `Surface::SyncProgress` signal): drives
     /// the "downloading Y of X" bar while a sync fills in; `nil`/inactive hides it.
     var syncProgress: SyncProgressSnapshot?
-    /// The per-account synchronisation-behaviour settings (push vs. poll, watched folders),
-    /// pulled on a `Surface::Settings` signal. Drives the "New mail" settings screen.
-    var syncSettings: SyncSettingsSnapshot?
     /// The reply/forward quoting settings, the default style, and whether the composer offers a
     /// per-message override of it, pulled on a `Surface::Settings` signal. The style seeds a new
     /// reply's composer; both drive the settings screen.
@@ -199,7 +187,7 @@ final class MailboxModel {
     /// what it already calls this person (docs/sending.md).
     var senderNamePrompt: SenderNamePrompt?
     /// Every account, mail or not, as Settings → Accounts draws it (`docs/accounts.md` rule 11).
-    /// Pulled on a `Surface::Settings` or `Surface::Connectivity` signal.
+    /// Pulled on a `Surface::Settings` or `Surface::Notices` signal.
     var accountsSnapshot = AccountsSnapshot(accounts: [])
     /// The account whose page Settings → Accounts shows, or `nil` for the list.
     var accountPage: String?
@@ -296,8 +284,6 @@ final class MailboxModel {
     var isConnecting = false
     /// The core is being opened at launch (`connect`); the root view shows `LaunchView` meanwhile.
     var isOpening = false
-    /// Connectivity (pulled on a `Surface::Connectivity` signal), for Settings and the calendar.
-    var connectivity: ConnectivitySnapshot?
     /// The core's notices, ranked (`Surface::Notices`, docs/notices.md); `nil` until first pulled.
     var notices: [Notice]?
     /// Whether the iPad's sidebar column, which carries the notice card, is on screen.

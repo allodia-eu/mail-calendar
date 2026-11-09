@@ -28,12 +28,14 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountChangeNotice
+import uniffi.mailcal_bindings.AccountChangeRefusal
 import uniffi.mailcal_bindings.AccountDistinction
-import uniffi.mailcal_bindings.AccountEndpoints
+import uniffi.mailcal_bindings.AccountEndpointsGap
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinksView
 import uniffi.mailcal_bindings.AccountPage
 import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountServers
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountsSnapshot
@@ -50,7 +52,6 @@ class SettingsAccountsTest {
     private val state = AccountsUiState()
     private val changes = mutableListOf<AccountPageIntent>()
     private val signIns = mutableListOf<Pair<String, List<AccountCapability>>>()
-    private val saved = mutableListOf<AccountEndpoints>()
     private var added = 0
 
     private val calendarOnly = accountEntry(
@@ -62,8 +63,11 @@ class SettingsAccountsTest {
         address = "alice@cloud.example",
     )
 
-    /** Shows [accounts], the open one's page drawn from [page], else from [pageOf]. */
-    private fun show(vararg accounts: AccountEntry, page: AccountPage? = null) {
+    /**
+     * Shows [accounts], the open one's page drawn from [page], else from [pageOf]; [gap] is what
+     * the core answers an edit of its servers leaves out.
+     */
+    private fun show(vararg accounts: AccountEntry, page: AccountPage? = null, gap: AccountEndpointsGap? = null) {
         state.snapshot = AccountsSnapshot(accounts.toList())
         fun open(id: String?) {
             state.page = id
@@ -77,12 +81,12 @@ class SettingsAccountsTest {
             onOpenPage = ::open,
             onChange = { changes += it },
             onSignInAgain = { id, adding -> signIns += id to adding },
-            onSaveServers = { _, endpoints -> saved += endpoints },
+            endpointsGap = { _, _ -> gap },
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
-                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {}) {}
+                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {})
                 }
             }
         }
@@ -177,8 +181,22 @@ class SettingsAccountsTest {
     @Test
     fun what_a_change_came_to_is_said_in_the_persons_words() {
         val ctx = RuntimeEnvironment.getApplication()
-        val failed = changeNotice(ctx, AccountChangeNotice.LinkFailed(LinkSlot.CALENDAR, "refused"))
+        val failed = changeNotice(
+            ctx,
+            AccountChangeNotice.LinkFailed(LinkSlot.CALENDAR, AccountChangeRefusal.Other("refused")),
+        )
         assertEquals(AccountNotice(NoticeKind.FAILURE, "Couldn’t change this account", "refused"), failed)
+        val last = changeNotice(
+            ctx,
+            AccountChangeNotice.UseFailed(
+                AccountCapability.MAIL,
+                false,
+                AccountChangeRefusal.Blocked(AccountUseBlock.LAST_USE),
+            ),
+        )
+        assertEquals("An account is used for at least one of these. Remove it instead.", last.message)
+        val servers = changeNotice(ctx, AccountChangeNotice.ServersFailed(AccountChangeRefusal.SignInRefused))
+        assertEquals("The server didn’t accept this sign-in. Check what you entered and try again.", servers.message)
         val kept = changeNotice(ctx, AccountChangeNotice.RemoveFailed("locked"))
         assertEquals("Couldn't remove this account: locked", kept.message)
     }
@@ -290,7 +308,7 @@ class SettingsAccountsTest {
         compose.onNodeWithText("imap.example.org").performScrollTo().performTextReplacement("mail.example.org")
         compose.onNodeWithTag("account-servers-save").performScrollTo().performClick()
 
-        val endpoints = saved.single()
+        val endpoints = changes.filterIsInstance<AccountPageIntent.SaveServers>().single().endpoints
         assertEquals("mail.example.org", endpoints.imapHost)
         // A port the person never touched travels as stored.
         assertEquals("smtp.example.org:2525", endpoints.smtpHost)
@@ -305,10 +323,28 @@ class SettingsAccountsTest {
 
         compose.onNodeWithText("New password").performScrollTo().performTextInput("hunter2")
         compose.onNodeWithText("•••••••", substring = true).assertExists()
-        // The core kept it: the form starts again from what was saved, which holds no password.
-        state.serversSaved += 1
+        // While it is tried the page draws the edit; once kept, what was saved, which holds no
+        // password.
+        val stored = entry.endpoints!!
+        state.accountPage = pageOf(
+            entry,
+            servers = AccountServers(stored.copy(password = "hunter2"), ControlState(enabled = false, running = true)),
+        )
+        compose.waitForIdle()
+        compose.onNodeWithTag("account-servers-save-running").assertExists()
+        state.accountPage = pageOf(entry)
         compose.waitForIdle()
         compose.onNodeWithText("•••••••", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun what_the_servers_leave_out_is_said_and_holds_save() {
+        val entry = mailboxOnly(endpoints = imapEndpoints())
+        state.page = entry.id
+        show(entry, gap = AccountEndpointsGap.SMTP)
+
+        compose.onNodeWithText("Fill in “Outgoing server (SMTP)” to save.").performScrollTo().assertExists()
+        compose.onNodeWithTag("account-servers-save").performScrollTo().assertIsNotEnabled()
     }
 
     @Test

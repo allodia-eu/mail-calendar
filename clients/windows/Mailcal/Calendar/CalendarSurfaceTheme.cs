@@ -6,10 +6,10 @@
 // structural.
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Text;
 using Microsoft.UI;
+using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Windows.UI;
 
@@ -34,19 +34,18 @@ internal sealed class SurfaceTheme : IDisposable
     internal const float CornerRadius = 4f;
 
     /// <summary>The gap that keeps two adjacent blocks from touching.</summary>
-    internal const float BlockGap = 1f;
+    internal const float BlockGap = CalendarBlocks.Gap;
 
-    /// <summary>The padding inside the coloured chip. A short block spends nothing on it, every
-    /// pixel is the difference between showing the title and not.</summary>
+    /// <summary>The padding before a banner's "+N" chip.</summary>
     internal const float BlockPadding = 2f;
 
-    /// <summary>The space between a title and the camera after it.</summary>
-    internal const float GlyphGap = 3f;
+    /// <summary>The type size of an all-day bar's title.</summary>
+    internal const float BandFontSize = 11f;
 
     /// <summary>
-    /// The icon font the camera is drawn in. DirectWrite takes one family, not XAML's fallback
-    /// list, so it is chosen by the OS: Segoe Fluent Icons, which Windows 11 (build 22000) ships,
-    /// else Windows 10's Segoe MDL2 Assets, which has the same code points.
+    /// The icon font the corner glyphs are drawn in. DirectWrite takes one family, not XAML's
+    /// fallback list, so it is chosen by the OS: Segoe Fluent Icons, which Windows 11 (build 22000)
+    /// ships, else Windows 10's Segoe MDL2 Assets, which has the same code points.
     /// </summary>
     private static readonly string IconFont =
         OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000) ? "Segoe Fluent Icons" : "Segoe MDL2 Assets";
@@ -70,13 +69,15 @@ internal sealed class SurfaceTheme : IDisposable
         Hour = Format(11f, CanvasHorizontalAlignment.Right);
         Chrome = Format(12f, CanvasHorizontalAlignment.Left);
 
-        // Two rungs. A quarter-hour block at the default horizon is ~11px tall, and a 16px line box
-        // slices its title through the middle, geometrically perfect, visibly broken.
-        BlockSmall = Format(9f, CanvasHorizontalAlignment.Left);
-        BlockLarge = Format(11f, CanvasHorizontalAlignment.Left);
-        GlyphSmall = Format(9f, CanvasHorizontalAlignment.Left);
+        // Two rungs, CalendarBlocks.FontSize's: a quarter-hour block at the default horizon is ~11px
+        // tall, and a 16px line box slices its title through the middle.
+        TitleSmall = Label(CalendarBlocks.FontSize(0), FontWeights.SemiBold);
+        TitleLarge = Label(CalendarBlocks.FontSize(60), FontWeights.SemiBold);
+        TimeSmall = Label(CalendarBlocks.FontSize(0), FontWeights.Normal);
+        TimeLarge = Label(CalendarBlocks.FontSize(60), FontWeights.Normal);
+        GlyphSmall = Label(CalendarBlocks.FontSize(0), FontWeights.Normal);
         GlyphSmall.FontFamily = IconFont;
-        GlyphLarge = Format(11f, CanvasHorizontalAlignment.Left);
+        GlyphLarge = Label(CalendarBlocks.FontSize(60), FontWeights.Normal);
         GlyphLarge.FontFamily = IconFont;
     }
 
@@ -104,50 +105,34 @@ internal sealed class SurfaceTheme : IDisposable
 
     internal CanvasTextFormat Chrome { get; }
 
-    internal CanvasTextFormat BlockSmall { get; }
+    /// <summary>An event's title, semibold, as Apple's Calendar sets it.</summary>
+    internal CanvasTextFormat TitleSmall { get; }
 
-    internal CanvasTextFormat BlockLarge { get; }
+    internal CanvasTextFormat TitleLarge { get; }
 
-    /// <summary>The camera beside a <see cref="BlockSmall"/> title.</summary>
+    /// <summary>The time beneath a block's title.</summary>
+    internal CanvasTextFormat TimeSmall { get; }
+
+    internal CanvasTextFormat TimeLarge { get; }
+
+    /// <summary>The corner glyphs beside a <see cref="TitleSmall"/> title.</summary>
     internal CanvasTextFormat GlyphSmall { get; }
 
-    /// <summary>The camera beside a <see cref="BlockLarge"/> title.</summary>
+    /// <summary>The corner glyphs beside a <see cref="TitleLarge"/> title, and after an all-day bar's.</summary>
     internal CanvasTextFormat GlyphLarge { get; }
 
     /// <summary>The theme the app is actually showing, read once out of XAML.</summary>
     internal static SurfaceTheme For(ElementTheme theme, bool appIsDark) =>
         new(theme == ElementTheme.Dark || (theme == ElementTheme.Default && appIsDark));
 
-    /// <summary>The line box a block of <paramref name="minutes"/> gets.</summary>
-    internal static float BlockLineHeight(int minutes) => minutes < 30 ? 11f : 15f;
+    /// <summary>The title format a block of <paramref name="minutes"/> is written in.</summary>
+    internal CanvasTextFormat TitleFormat(int minutes) => minutes < 30 ? TitleSmall : TitleLarge;
 
-    /// <summary>The inset a block of <paramref name="minutes"/> gets.</summary>
-    internal static float BlockInset(int minutes) =>
-        minutes < 30 ? BlockGap : BlockGap + BlockPadding;
+    /// <summary>The format of the time beneath it.</summary>
+    internal CanvasTextFormat TimeFormat(int minutes) => minutes < 30 ? TimeSmall : TimeLarge;
 
-    /// <summary>The vertical room a block leaves for its label, at this zoom.</summary>
-    internal static float BlockLabelSpace(int minutes, float hourHeight) =>
-        (hourHeight * (minutes / CalendarUnits.MinutesInHour)) - (BlockInset(minutes) * 2f);
-
-    /// <summary>
-    /// Whether a block is tall enough to hold its own title <b>at this zoom</b>.
-    /// </summary>
-    /// <remarks>
-    /// Zoomed out to the whole day, a 15-minute event is a few pixels tall and <i>cannot</i> hold
-    /// text, so it doesn't get any, rather than getting a title cut through the middle. It stays a
-    /// coloured block, keeps its full spoken label for a screen reader, and reveals its title when the
-    /// user zooms in. This is why the rule has to be a function of the zoom rather than a constant
-    /// (§4).
-    /// </remarks>
-    internal static bool ShowsLabel(int minutes, float hourHeight) =>
-        BlockLabelSpace(minutes, hourHeight) >= BlockLineHeight(minutes);
-
-    /// <summary>A block only earns a second line (its clock) once there is room for two.</summary>
-    internal static bool ShowsTime(int minutes, float hourHeight) =>
-        BlockLabelSpace(minutes, hourHeight) >= BlockLineHeight(minutes) * 2f;
-
-    /// <summary>The format a block of <paramref name="minutes"/> is written in.</summary>
-    internal CanvasTextFormat BlockFormat(int minutes) => minutes < 30 ? BlockSmall : BlockLarge;
+    /// <summary>The format of the glyphs in its corner.</summary>
+    internal CanvasTextFormat GlyphFormat(int minutes) => minutes < 30 ? GlyphSmall : GlyphLarge;
 
     public void Dispose()
     {
@@ -155,8 +140,10 @@ internal sealed class SurfaceTheme : IDisposable
         DayNumber.Dispose();
         Hour.Dispose();
         Chrome.Dispose();
-        BlockSmall.Dispose();
-        BlockLarge.Dispose();
+        TitleSmall.Dispose();
+        TitleLarge.Dispose();
+        TimeSmall.Dispose();
+        TimeLarge.Dispose();
         GlyphSmall.Dispose();
         GlyphLarge.Dispose();
     }
@@ -167,84 +154,107 @@ internal sealed class SurfaceTheme : IDisposable
         HorizontalAlignment = align,
         VerticalAlignment = CanvasVerticalAlignment.Top,
         WordWrapping = CanvasWordWrapping.NoWrap,
-        // A title that does not fit ellipsises. It never wraps into a block that has no room for a
-        // second line, and it is never simply clipped mid-glyph.
         TrimmingGranularity = CanvasTextTrimmingGranularity.Character,
         TrimmingSign = CanvasTrimmingSign.Ellipsis,
     };
+
+    /// <summary>An event's label: never trimmed, because a label the block has no room for is cut
+    /// at the block's edge or at its last whole line (§4).</summary>
+    private static CanvasTextFormat Label(float size, Windows.UI.Text.FontWeight weight) => new()
+    {
+        FontSize = size,
+        FontWeight = weight,
+        HorizontalAlignment = CanvasHorizontalAlignment.Left,
+        VerticalAlignment = CanvasVerticalAlignment.Top,
+        WordWrapping = CanvasWordWrapping.NoWrap,
+    };
 }
+
+/// <summary>A run of shaped text and what a frame reads of it, read once when it is shaped.</summary>
+/// <param name="Width">The widest line.</param>
+/// <param name="LineBottoms">Where each line ends, from the top.</param>
+internal sealed record ShapedText(CanvasTextLayout Layout, float Width, float Height, float[] LineBottoms);
 
 /// <summary>
 /// The shaped text the grid draws, held, not re-derived.
 /// </summary>
 /// <remarks>
-/// <b>This is the single most expensive thing a calendar frame can do, and the reason a pinch used to
-/// cost 3.4× a swipe while drawing half as many blocks.</b> A column's width moves every frame of a
-/// pinch, the shaper's cache is keyed on that width, and so every visible label is re-shaped from
-/// scratch, sixty times a second, in the gesture the grid is judged on.
-/// <para>
-/// Two things stop it. The width the text is <i>laid out</i> against is frozen for the length of the
-/// gesture (<see cref="CalendarSurfaceState.ShapedDayWidth"/>), the block's rectangle still tracks
-/// the fingers every frame, as it must; it is the layout inside it that is held, and it is clipped to
-/// the live rectangle anyway. And on top of that, the width is bucketed, so a stray pixel of
-/// difference is not a cache miss.
-/// </para>
+/// Shaping is the most expensive thing a calendar frame can do, and none of it changes while the grid
+/// scrolls. A label run is shaped once, unbounded, and cut by the block it is drawn in; a wrapped
+/// title is shaped once per width on <see cref="CalendarBlocks.LabelStep"/>'s grid. During a pinch the
+/// width a title wraps against is the one frozen for the gesture
+/// (<see cref="CalendarSurfaceState.ShapedDayWidth"/>): the block's rectangle still tracks the
+/// fingers, and the text inside it is clipped to that.
 /// </remarks>
 internal sealed class TextLayoutCache(ICanvasResourceCreator device) : IDisposable
 {
-    /// <summary>Widths are floored into buckets this wide. Floored, never rounded up, so a title
-    /// still ellipsises inside its own block rather than overflowing it.</summary>
-    private const float Bucket = 8f;
+    /// <summary>The width a run is shaped against: wider than any block, so it never wraps or trims.</summary>
+    private const float Unbounded = 100_000f;
 
-    /// <summary>Roughly a busy week's worth of visible labels, twice over.</summary>
-    private const int Capacity = 512;
+    /// <summary>A busy week's labels, each with its time, range and a wrapped title, several times over.</summary>
+    private const int Capacity = 2048;
 
-    private readonly Dictionary<(string Text, float Width, int Format), CanvasTextLayout> _cache = [];
-    private readonly List<(string Text, float Width, int Format)> _order = [];
+    private readonly Dictionary<(string Text, float Width, CanvasTextFormat Format), ShapedText> _cache = [];
+    private readonly Queue<(string Text, float Width, CanvasTextFormat Format)> _order = [];
 
     /// <summary>How many layouts were shaped this frame, the number the trace watches.</summary>
     internal int Shaped { get; private set; }
 
     internal void ResetCounters() => Shaped = 0;
 
-    /// <summary>A shaped, ellipsised line of text, from the cache if it has been seen before.</summary>
-    internal CanvasTextLayout Line(string text, CanvasTextFormat format, float maxWidth, int formatId)
+    /// <summary>
+    /// <paramref name="text"/> on one line, never trimmed. The <paramref name="format"/> is the theme's,
+    /// so it names the type in the cache's key; a new theme clears the cache.
+    /// </summary>
+    internal ShapedText Run(string text, CanvasTextFormat format) =>
+        Shape(text, Unbounded, format, CanvasWordWrapping.NoWrap);
+
+    /// <summary>
+    /// <paramref name="text"/> wrapped at whole words to <paramref name="width"/>, a multiple of
+    /// <see cref="CalendarBlocks.LabelStep"/>. A word wider than that runs past it, which
+    /// <see cref="ShapedText.Width"/> shows.
+    /// </summary>
+    internal ShapedText Wrapped(string text, CanvasTextFormat format, float width) =>
+        Shape(text, width, format, CanvasWordWrapping.WholeWord);
+
+    private ShapedText Shape(string text, float width, CanvasTextFormat format, CanvasWordWrapping wrapping)
     {
-        var width = MathF.Max(MathF.Floor(maxWidth / Bucket) * Bucket, Bucket);
-        var key = (text, width, formatId);
+        var key = (text, width, format);
         if (_cache.TryGetValue(key, out var hit))
         {
             return hit;
         }
 
         Shaped++;
-        var layout = new CanvasTextLayout(device, text, format, width, 0f)
+        // The height is left free; the block clips. Constraining it would let DirectWrite drop the
+        // last line rather than leave it to the block to keep only the whole ones.
+        var layout = new CanvasTextLayout(device, text, format, width, 0f) { WordWrapping = wrapping };
+        var lines = layout.LineMetrics;
+        var bottoms = new float[lines.Length];
+        var bottom = 0f;
+        for (var i = 0; i < lines.Length; i++)
         {
-            // The height is left free; the block clips. Constraining it here would let Win2D trim
-            // vertically, which drops the line entirely rather than ellipsising it.
-            WordWrapping = CanvasWordWrapping.NoWrap,
-        };
-
-        if (_cache.Count >= Capacity)
-        {
-            var oldest = _order[0];
-            _order.RemoveAt(0);
-            if (_cache.Remove(oldest, out var evicted))
-            {
-                evicted.Dispose();
-            }
+            bottom += lines[i].Height;
+            bottoms[i] = bottom;
         }
-        _cache[key] = layout;
-        _order.Add(key);
-        return layout;
+        var bounds = layout.LayoutBounds;
+        var shaped = new ShapedText(layout, (float)bounds.Width, (float)bounds.Height, bottoms);
+
+        if (_cache.Count >= Capacity && _order.TryDequeue(out var oldest) && _cache.Remove(oldest, out var evicted))
+        {
+            evicted.Layout.Dispose();
+        }
+        _cache[key] = shaped;
+        _order.Enqueue(key);
+        return shaped;
     }
 
-    /// <summary>Throws the lot away, the theme, the locale or the graphics device changed.</summary>
+    /// <summary>Throws the lot away: the theme, the locale or the graphics device changed.</summary>
     internal void Clear()
     {
-        foreach (var layout in _cache.Values)
+        foreach (var shaped in _cache.Values)
         {
-            layout.Dispose();
+            shaped.Layout.Dispose();
         }
         _cache.Clear();
         _order.Clear();

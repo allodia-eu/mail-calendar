@@ -725,6 +725,18 @@ device_launch() { # <udid> [KEY=VAL ...]
   fi
 }
 
+# Refuse unless device <udid> is unlocked now. `passcodeRequired` is whether unlocking needs the
+# passcode at this moment: true while the screen is locked. Asked before work that takes minutes,
+# since the launch at the end of it is refused on a locked phone. A device that cannot answer (an
+# older devicectl) is let through, and `device_launch` still names the lock if it is one.
+require_unlocked() { # <udid>
+  local state
+  state="$(xcrun devicectl device info lockState --device "$1" 2>/dev/null || true)"
+  if grep -q "passcodeRequired: true" <<<"$state"; then
+    die "the device is LOCKED: unlock the iPhone/iPad and keep it unlocked for the run, then re-run."
+  fi
+}
+
 # Copy a file out of the device app's data container to a local path. Returns 1 if absent.
 device_pull() { # <udid> <remote-rel> <local>
   xcrun devicectl device copy from --device "$1" \

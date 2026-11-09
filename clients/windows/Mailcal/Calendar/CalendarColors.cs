@@ -1,10 +1,11 @@
-// Turning the core's resolved calendar colours into WinUI brushes, shared by the month grid and the
-// calendar manager, so they never disagree about what a calendar looks like.
+// Turning the core's resolved calendar colours into WinUI colours, shared by every surface that draws
+// a calendar or an event, so they never disagree about what a calendar looks like.
 //
-// The core owns the colour: each calendar resolves to a light and a dark [Swatch] whose label is
-// already guaranteed ≥ 4.5:1 (WCAG AA) against its fill (docs/calendar.md §1). A client never computes
-// contrast, it picks the theme's swatch and paints it. The hex is always well-formed here; the
-// fallbacks are belt-and-braces so a draw can never throw on a malformed string.
+// The core owns the colour: a calendar resolves to a solid [Swatch] per theme, and an event on it to
+// the tinted [EventSwatch] (`calendar_event_swatch`), each with a label already guaranteed ≥ 4.5:1
+// (WCAG AA) against its fill (docs/calendar.md §1). A client never computes contrast, it picks the
+// theme's colours and paints them. The hex is always well-formed here; the fallbacks are
+// belt-and-braces so a draw can never throw on a malformed string.
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -14,23 +15,46 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Calendar;
 
+/// <summary>
+/// How an event wears its calendar's colour in one theme (docs/calendar.md §1): a tint to fill it,
+/// the colour itself down its leading edge, and a title that clears WCAG AA on the tint.
+/// </summary>
+internal readonly record struct EventColors(Color Fill, Color Accent, Color Text);
+
 /// <summary>Resolves calendar colours to WinUI <see cref="Color"/>s.</summary>
 internal static class CalendarColors
 {
-    // A neutral swatch for a chip whose calendar is no longer in the list (hidden mid-view, or an
-    // account just removed), grey fill, white label, so it is still legible rather than invisible.
-    private static readonly Swatch Fallback = new("#8E8E93", "#FFFFFF", "#8E8E93");
+    // The colour of an event whose calendar is not in the list (hidden mid-view, an account just
+    // removed, or the invitation card's preview, which carries no list): a neutral grey, the one
+    // Apple and Android fall back to, so the event is still legible rather than invisible.
+    private const string FallbackHex = "#6b7280";
 
-    /// <summary>The theme's swatch for the calendar a chip belongs to, or a neutral fallback.</summary>
-    internal static Swatch SwatchFor(
-        IReadOnlyList<CalendarRow> calendars, string account, string calendar, bool dark)
+    // The core's answer for each colour and theme, asked once rather than for every event drawn.
+    private static readonly Dictionary<(string Hex, bool Dark), EventColors> Events = [];
+
+    /// <summary>
+    /// The event colours of the calendar an event belongs to, from the core
+    /// (<c>calendar_event_swatch</c>), or the neutral grey's for a calendar the page does not list.
+    /// </summary>
+    internal static EventColors EventColorsFor(
+        IReadOnlyList<CalendarRow> calendars, string account, string calendar, bool dark) =>
+        EventColorsOf(
+            calendars.FirstOrDefault(c => c.Account == account && c.Id == calendar)?.Color.Hex ?? FallbackHex,
+            dark);
+
+    /// <summary>The event colours a calendar colour (<c>CalendarColor.Hex</c>) resolves to.</summary>
+    internal static EventColors EventColorsOf(string hex, bool dark)
     {
-        var row = calendars.FirstOrDefault(c => c.Account == account && c.Id == calendar);
-        if (row is null)
+        lock (Events)
         {
-            return Fallback;
+            if (!Events.TryGetValue((hex, dark), out var colors))
+            {
+                var swatch = MailcalBindingsMethods.CalendarEventSwatch(hex, dark);
+                colors = new EventColors(Parse(swatch.Fill), Parse(swatch.Accent), Parse(swatch.Text));
+                Events[(hex, dark)] = colors;
+            }
+            return colors;
         }
-        return dark ? row.Color.Dark : row.Color.Light;
     }
 
     /// <summary>"#rrggbb" → an opaque colour. Neutral grey on anything unexpected.</summary>

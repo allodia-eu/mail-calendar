@@ -83,7 +83,7 @@ enum KeychainStore {
     /// Removes account `id`: deletes its item and drops it from the ordered index, so a later
     /// launch no longer loads it. Returns whether nothing is stored for `id` any more, an id
     /// that was not there is a success, since that is already the desired end state. The
-    /// account's runtime removal is the core's job (`MailcalApp.removeAccount`), which calls
+    /// account's runtime removal is the core's job (`AccountPageIntent.remove`), which calls
     /// this itself.
     @discardableResult
     static func remove(id: String) -> Bool {

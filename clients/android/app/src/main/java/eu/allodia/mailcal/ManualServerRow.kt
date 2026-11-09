@@ -30,6 +30,7 @@ internal fun ServerRow(
     field: ManualServerField,
     onFieldChange: (ManualServerField) -> Unit,
     ctx: Context,
+    enabled: Boolean = true,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -37,7 +38,7 @@ internal fun ServerRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                SetupField(host, onHostChange, label, placeholder)
+                SetupField(host, onHostChange, label, placeholder, enabled = enabled)
             }
             Column(modifier = Modifier.width(112.dp)) {
                 SetupField(
@@ -45,6 +46,7 @@ internal fun ServerRow(
                     { onFieldChange(field.typePort(it)) },
                     L10n.setup_field_port(ctx),
                     keyboardType = KeyboardType.Number,
+                    enabled = enabled,
                 )
             }
         }
@@ -53,6 +55,7 @@ internal fun ServerRow(
                 SegmentedButton(
                     selected = field.security == security,
                     onClick = { onFieldChange(field.choose(security)) },
+                    enabled = enabled,
                     shape = SegmentedButtonDefaults.itemShape(
                         index = index,
                         count = SECURITIES.size,

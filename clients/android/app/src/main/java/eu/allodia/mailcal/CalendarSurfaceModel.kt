@@ -15,8 +15,11 @@ package eu.allodia.mailcal
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -68,13 +71,22 @@ internal fun blockLabelFontSize(minutes: Int): TextUnit = if (minutes < 30) 9.sp
  * keeps its full spoken label for a screen reader, and reveals its title when the user pinches in.
  * This is what every good calendar does, and it is why the rule has to be a function of the zoom
  * rather than a constant.
+ *
+ * [line] is the line box in dp, which the font scale grows: the grid passes the one it draws with,
+ * so a large text setting earns fewer lines rather than lines cut at the block's edge.
  */
-internal fun blockShowsLabel(minutes: Int, hourHeight: Dp): Boolean =
-    blockLabelSpace(minutes, hourHeight).value >= blockLabelLineHeight(minutes).value
+internal fun blockShowsLabel(
+    minutes: Int,
+    hourHeight: Dp,
+    line: Dp = blockLabelLineHeight(minutes).value.dp,
+): Boolean = blockLabelSpace(minutes, hourHeight) >= line
 
 /** A block only earns a second line (its start time) once there is room for two. */
-internal fun blockShowsTime(minutes: Int, hourHeight: Dp): Boolean =
-    blockLabelSpace(minutes, hourHeight).value >= blockLabelLineHeight(minutes).value * 2f
+internal fun blockShowsTime(
+    minutes: Int,
+    hourHeight: Dp,
+    line: Dp = blockLabelLineHeight(minutes).value.dp,
+): Boolean = blockLabelSpace(minutes, hourHeight) >= line * 2f
 
 /**
  * A column heading: the weekday and the date, already localised.
@@ -98,7 +110,7 @@ internal data class DayHeading(
  *
  * The two [TextStyle]s carry their own colour, so drawing a block copies nothing. A `style.copy(color
  * = …)` in the draw path would allocate per block, per frame, which is the very cost this type
- * exists to remove.
+ * exists to remove. The colours are the core's event colours (docs/calendar.md §1).
  */
 @Immutable
 internal data class BlockPaint(
@@ -112,12 +124,16 @@ internal data class BlockPaint(
     val endMinutes: Int,
     val title: String,
     val clock: String,
+    /** "09:00–12:00", the time line where the column is wide enough for it. */
+    val range: String,
     /** Unconditional: a block too short to show its title still speaks it. */
     val spoken: String,
-    /** Whether the event has a video meeting: a camera after the title (docs/conferencing.md). */
+    /** Whether the event has a video meeting: a camera in the corner (docs/conferencing.md). */
     val hasConference: Boolean,
-    val background: Color,
-    val border: Color,
+    /** The tint the block is filled with, already faded for a hold. */
+    val fill: Color,
+    /** The calendar's colour: the bar down the leading edge, and a hold's hatching and dashed edge. */
+    val accent: Color,
     val titleStyle: TextStyle,
     val clockStyle: TextStyle,
     /**
@@ -144,6 +160,15 @@ internal data class BlockPaint(
     val clipped: Boolean,
 ) {
     val minutes: Int get() = endMinutes - startMinutes
+
+    /** One occurrence of a series, which wears the repeat glyph. */
+    val repeats: Boolean get() = occurrenceStart.isNotEmpty()
+
+    /** How many glyphs the block's corner holds: the meeting's, then the repeat's. */
+    val cornerGlyphs: Int = (if (hasConference) 1 else 0) + (if (repeats) 1 else 0)
+
+    /** The corner glyphs' tint, made once rather than per frame. */
+    val glyphTint: ColorFilter? = titleStyle.color.takeIf { it.isSpecified }?.let { ColorFilter.tint(it) }
 }
 
 /** One all-day or multi-day bar, ready to draw. [span] is the core's stacking, untouched. */
@@ -157,12 +182,13 @@ internal data class BandPaint(
     val spoken: String,
     /** As [BlockPaint.hasConference]. */
     val hasConference: Boolean,
-    val background: Color,
+    /** As [BlockPaint.fill]. */
+    val fill: Color,
     val titleStyle: TextStyle,
     /** As [BlockPaint.awaitingResponse]: an unanswered hold, drawn provisionally. */
     val awaitingResponse: Boolean,
-    /** The bar's own edge colour, a bar has no border until it is a hold and needs a dashed one. */
-    val border: Color,
+    /** As [BlockPaint.accent]. */
+    val accent: Color,
     /**
      * This occurrence's own start, as the core minted it, empty when the event does not recur.
      * Non-empty means a write from this bar must ask "this event, or all of them?" first. A bar
@@ -208,6 +234,9 @@ internal data class PagePaint(
     val isMaterialized: Boolean,
 ) {
     val days: List<LocalDate> get() = headings.map { it.date }
+
+    /** The blocks' labels, laid out as the grid first draws each one (CalendarBlockLabels.kt). */
+    val labels = BlockLabels(blocks.size)
 }
 
 /** An empty page, for a week the core has not answered for yet. */
@@ -261,8 +290,10 @@ internal data class SurfaceTheme(
     /** The floating readout's own colours, Material's tooltip pair, so it reads in either theme. */
     val pillFill: Color,
     val pillLabel: TextStyle,
-    /** The camera after the title of an event with a video meeting (docs/conferencing.md). */
+    /** The camera of an event with a video meeting (docs/conferencing.md). */
     val camera: Painter,
+    /** The repeat arrows in the corner of an occurrence of a series. */
+    val repeat: Painter,
 )
 
 /**
@@ -325,19 +356,19 @@ internal fun CalendarPage.toPaint(
         val start = segment.startMinutes.toInt()
         val end = segment.endMinutes.toInt()
         val calendar = calendars.rowFor(segment.account, segment.calendar)
-        val swatch = calendar.swatchOrFallback(dark)
+        val colors = calendar.eventColorsOrFallback(dark)
         val title = segment.title.ifEmpty { noTitle }
-        val text = parseHexColor(swatch.text)
         // Two rungs, and only two: a quarter-hour block gets type that fits the ~11dp it has, and
         // everything else gets the normal label. Material's own `labelSmall` carries a 16sp line box,
         // which is taller than a short block has to offer, so the clip sliced every standup's title
         // through the middle. Geometrically perfect, visibly broken.
         val minutes = end - start
         val style = theme.blockBase.copy(
-            color = text,
+            color = colors.text,
             fontSize = blockLabelFontSize(minutes),
             lineHeight = blockLabelLineHeight(minutes),
         )
+        val clock = clockTime(start, use24Hour)
         val awaiting = isAwaitingResponse(segment.participation)
         BlockPaint(
             account = segment.account,
@@ -348,7 +379,8 @@ internal fun CalendarPage.toPaint(
             startMinutes = start,
             endMinutes = end,
             title = title,
-            clock = clockTime(start, use24Hour),
+            clock = clock,
+            range = "$clock\u2013${clockTime(end, use24Hour)}",
             hasConference = segment.hasConference,
             spoken = calendarEventLabel(
                 ctx,
@@ -357,10 +389,11 @@ internal fun CalendarPage.toPaint(
                 calendar?.name.orEmpty(),
                 segment.participation,
                 segment.hasConference,
+                repeats = segment.occurrenceStart.isNotEmpty(),
             ),
-            background = parseHexColor(swatch.background).holdFill(awaiting),
-            border = parseHexColor(swatch.border),
-            titleStyle = style,
+            fill = colors.fill.holdFill(awaiting),
+            accent = colors.accent,
+            titleStyle = style.copy(fontWeight = FontWeight.SemiBold),
             clockStyle = style,
             awaitingResponse = awaiting,
             canMove = segment.canMove,
@@ -371,7 +404,7 @@ internal fun CalendarPage.toPaint(
 
     val bands = allDay.map { band ->
         val calendar = calendars.rowFor(band.account, band.calendar)
-        val swatch = calendar.swatchOrFallback(dark)
+        val colors = calendar.eventColorsOrFallback(dark)
         val title = band.title.ifEmpty { noTitle }
         val awaiting = isAwaitingResponse(band.participation)
         BandPaint(
@@ -391,11 +424,12 @@ internal fun CalendarPage.toPaint(
                 calendar?.name.orEmpty(),
                 band.participation,
                 band.hasConference,
+                repeats = band.occurrenceStart.isNotEmpty(),
             ),
-            background = parseHexColor(swatch.background).holdFill(awaiting),
-            titleStyle = theme.allDay.copy(color = parseHexColor(swatch.text)),
+            fill = colors.fill.holdFill(awaiting),
+            titleStyle = theme.allDay.copy(color = colors.text, fontWeight = FontWeight.SemiBold),
             awaitingResponse = awaiting,
-            border = parseHexColor(swatch.border),
+            accent = colors.accent,
             occurrenceStart = band.occurrenceStart,
         )
     }

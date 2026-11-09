@@ -1,6 +1,6 @@
 // The controls a page draws from the core's ControlState (docs/waiting.md): a switch, a button, a
-// combo box and a confirmation. Each is held while it cannot be used and shows a ring beside it
-// while work it started runs, so every page waits the same way.
+// text box, a combo box and a confirmation. Each is held while it cannot be used and shows a ring
+// beside it while work it started runs, so every page waits the same way.
 //
 // The confirmation is inline, beneath what it asks about: Settings is a ContentDialog, and a nested
 // one is not allowed.
@@ -49,6 +49,153 @@ internal static class ControlComponents
         AutomationProperties.SetAutomationId(button, automationId);
         button.Click += (_, _) => click();
         return Beside(button, control, automationId);
+    }
+
+    /// <summary>Holds a form's <paramref name="fields"/> while <paramref name="control"/> is
+    /// held, without a ring: the ring is the form's send button's.</summary>
+    internal static void HoldFields(ControlState control, params Control?[] fields)
+    {
+        foreach (var field in fields)
+        {
+            if (field is not null)
+            {
+                field.IsEnabled = control.Enabled;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The button that sends a form's fields together, under a line saying what the fields still
+    /// leave out. Held while <paramref name="control"/> is, and while the fields leave something
+    /// out (<see cref="FormSend.Ready"/>); a ring beside it while the work it started runs.
+    /// </summary>
+    internal static FormSend FormButton(
+        string label, ControlState control, string automationId, Style? style, Action click)
+    {
+        var button = new Button { Content = label, IsEnabled = control.Enabled };
+        if (style is not null)
+        {
+            button.Style = style;
+        }
+        AutomationProperties.SetAutomationId(button, automationId);
+        button.Click += (_, _) => click();
+        var missing = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+        AutomationProperties.SetAutomationId(missing, automationId + "_Missing");
+        var element = new StackPanel { Spacing = 4 };
+        element.Children.Add(missing);
+        element.Children.Add(Beside(button, control, automationId));
+        return new FormSend(element, button, missing, control);
+    }
+
+    /// <summary>A form's send button, from <see cref="FormButton"/>.</summary>
+    internal sealed class FormSend(StackPanel element, Button button, TextBlock missing, ControlState control)
+    {
+        internal StackPanel Element { get; } = element;
+
+        /// <summary>The fields as they stand: <paramref name="leftOut"/> says what they leave
+        /// out, null when they can be sent; empty holds the button and says nothing, for a field
+        /// with nothing typed yet.</summary>
+        internal void Ready(string? leftOut)
+        {
+            missing.Text = leftOut ?? string.Empty;
+            missing.Visibility = string.IsNullOrEmpty(leftOut) ? Visibility.Collapsed : Visibility.Visible;
+            button.IsEnabled = control.Enabled && leftOut is null;
+        }
+    }
+
+    /// <summary>
+    /// Whether a form whose fields a button sends together holds edits it has not sent. Kept on the
+    /// form's panel (<see cref="FrameworkElement.Tag"/>) so the page can ask it: a redraw waits
+    /// while it does, wherever the keyboard is, and <see cref="Sent"/> says when it no longer does.
+    /// </summary>
+    internal sealed class FormState
+    {
+        private bool _unsent;
+
+        internal bool Unsent
+        {
+            get => _unsent;
+            set
+            {
+                var sent = _unsent && !value;
+                _unsent = value;
+                if (sent)
+                {
+                    Sent?.Invoke();
+                }
+            }
+        }
+
+        internal event Action? Sent;
+    }
+
+    /// <summary>The form state kept on <paramref name="form"/>, made there the first time.</summary>
+    internal static FormState Form(FrameworkElement form)
+    {
+        if (form.Tag is not FormState state)
+        {
+            state = new FormState();
+            form.Tag = state;
+        }
+        return state;
+    }
+
+    /// <summary>
+    /// A text box named <paramref name="name"/>, which the page's own heading stands above, and
+    /// which tells <paramref name="commit"/> what was typed on Enter,
+    /// when it loses focus and when the page is redrawn without it, and only when it differs from
+    /// what it last told, starting from <paramref name="text"/>: never on every keystroke, which
+    /// would store a half-typed value and redraw the page under the cursor, and never twice for
+    /// one edit, as Enter and then the focus leaving would. A redraw for another change takes the
+    /// box away; the core runs what was typed once that change ends.
+    /// </summary>
+    internal static StackPanel TextBox(
+        string name, string text, ControlState control, string automationId, Action<string> commit)
+    {
+        var box = new TextBox
+        {
+            PlaceholderText = name,
+            Text = text,
+            MinWidth = 260,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            IsEnabled = control.Enabled,
+        };
+        AutomationProperties.SetName(box, name);
+        AutomationProperties.SetAutomationId(box, automationId);
+        var sent = new SentText { Text = text };
+        box.Tag = sent;
+        void Send()
+        {
+            if (box.Text != sent.Text)
+            {
+                sent.Text = box.Text;
+                commit(sent.Text);
+            }
+        }
+        box.LostFocus += (_, _) => Send();
+        box.Unloaded += (_, _) => Send();
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                // Unhandled, Enter goes on to the dialog the page sits in and presses its default
+                // button, which closes Settings.
+                e.Handled = true;
+                Send();
+            }
+        };
+        return Beside(box, control, automationId);
+    }
+
+    /// <summary>Whether <paramref name="box"/>, a text box drawn here, holds text it has not sent,
+    /// which a redraw of its page would take away.</summary>
+    internal static bool HoldsUnsentText(Microsoft.UI.Xaml.Controls.TextBox box) =>
+        box.Tag is SentText sent && box.Text != sent.Text;
+
+    /// <summary>What a text box last told its page, kept on the box so the page can ask.</summary>
+    private sealed class SentText
+    {
+        internal required string Text { get; set; }
     }
 
     /// <summary>
@@ -153,6 +300,7 @@ internal sealed class ConfirmPanel
         Element.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         var cancel = new Button { Content = L10n.ActionCancel() };
+        AutomationProperties.SetAutomationId(cancel, automationId + "Cancel");
         _confirm = new Button { Content = action };
         AutomationProperties.SetAutomationId(_confirm, automationId + "Confirm");
         buttons.Children.Add(cancel);

@@ -64,6 +64,17 @@ public class AccountEndpointEditTests
     }
 
     [Fact]
+    public void AnEmptyHostIsNoAddressWhateverItsPort()
+    {
+        // A port alone names no server: stored as ":12465" it would pass for an address, and the
+        // core's check that a use keeps its server would find nothing missing.
+        var tls = ConnectionSecurity.ImplicitTls;
+        Assert.Equal("", AccountEndpointEdit.Joined("", "12465", tls, Smtp));
+        Assert.Equal("", AccountEndpointEdit.Joined("  ", "1143", tls, Imap));
+        Assert.Equal("", AccountEndpointEdit.Joined("", "", tls, Imap));
+    }
+
+    [Fact]
     public void APortWrittenIntoTheHostWins()
     {
         // As the setup form dials it: two ports would be a contradiction, and the one in the host

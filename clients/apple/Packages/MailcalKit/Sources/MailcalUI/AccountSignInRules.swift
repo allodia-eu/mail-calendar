@@ -1,22 +1,8 @@
-// How a standards or JMAP account signs in, and the switch to the other way in where its server
-// takes it (docs/accounts.md rules 15 and 17), decided from the snapshot entry and the core's
-// answer alone so each rule is tested without a view. The words are the catalog's.
+// How an account signs in again (docs/accounts.md rules 15 and 17): the remedy an expired sign-in
+// takes, where a browser sign-in returns to, and the words for the Sign-in section the core
+// decides (`AccountPage.signIn`). The words are the catalog's.
 
 import MailcalBindings
-
-/// One control of an account's sign-in section.
-enum SignInAction: Hashable {
-    /// Signs an account that signs in through its provider in again, from its stored grant.
-    case signInAgain
-    /// Switches a password account to signing in through its provider, named when this build
-    /// knows the provider's name.
-    case toProvider(label: String?)
-    /// Switches an account that signs in through its provider to a password.
-    case toPassword
-
-    /// Whether it runs in the browser.
-    var opensBrowser: Bool { self != .toPassword }
-}
 
 /// What the expired-sign-in banner does for an account.
 enum SignInRemedy: Equatable {
@@ -60,30 +46,6 @@ struct ExistingAccountUpdate: Equatable {
 }
 
 enum AccountSignInRules {
-    /// Whether the account's page draws the sign-in section that can switch: a standards or JMAP
-    /// account. Microsoft and Google sign in again through their own section, and an account used
-    /// for no mail signs in to no mailbox.
-    static func switchesSignIn(_ kind: AccountKind) -> Bool {
-        kind == .imap || kind == .jmap
-    }
-
-    /// The controls the section offers once the core has said which ways in the server takes;
-    /// none while it has not answered.
-    static func actions(_ signIn: SignInMethod, _ options: AccountSignInOptions?) -> [SignInAction] {
-        guard let options else { return [] }
-        switch signIn {
-        case .provider:
-            return (options.signIn ? [.signInAgain] : []) + (options.password ? [.toPassword] : [])
-        case .password:
-            return options.signIn ? [.toProvider(label: options.providerLabel)] : []
-        }
-    }
-
-    /// Whether `actions` switches the account to the other way in, which the section explains.
-    static func offersSwitch(_ actions: [SignInAction]) -> Bool {
-        actions.contains { $0 != .signInAgain }
-    }
-
     /// Where the provider sends the browser back to, by the account's kind: the redirect setup
     /// uses for that kind. An account already signing in through its provider keeps the one its
     /// grant was registered with, whatever is passed.
@@ -110,37 +72,39 @@ enum AccountSignInRules {
 }
 
 extension AccountSettingsLabels {
-    /// The section's status line.
-    static func signInMethod(_ signIn: SignInMethod) -> String {
-        switch signIn {
+    /// The line under the section's heading.
+    static func signInLine(_ line: AccountSignInLine, _ entry: AccountEntry) -> String {
+        switch line {
         case .password: L10n.settings_account_signs_in_password()
         case .provider: L10n.settings_account_signs_in_provider()
+        case .nextcloud: L10n.settings_account_signs_in_nextcloud()
+        case .atProvider: L10n.settings_account_signin_description()
+        case .needsPermission: L10n.settings_account_needs_permission()
+        case .refused: L10n.signin_expired_prompt(accounts: name(entry))
         }
     }
 
-    /// A control's label.
-    static func signInAction(_ action: SignInAction) -> String {
-        switch action {
+    /// A route's label.
+    static func signInRoute(_ route: AccountSignInRoute) -> String {
+        switch route {
         case .signInAgain: L10n.signin_expired_action()
         case let .toProvider(label?): L10n.settings_account_switch_to_provider_named(provider: label)
         case .toProvider(nil): L10n.settings_account_switch_to_provider()
-        case .toPassword: L10n.settings_account_switch_to_password()
+        case .toNextcloud: L10n.settings_account_switch_to_provider_named(provider: "Nextcloud")
         }
     }
 
-    /// The line a control ends with once it has worked.
-    static func signInDone(_ action: SignInAction) -> String {
-        switch action {
+    /// The line a route ends with once it has worked.
+    static func signInDone(_ route: AccountSignInRoute) -> String {
+        switch route {
         case .signInAgain: L10n.settings_account_signed_in()
-        case .toProvider: L10n.settings_account_switched_to_provider()
-        case .toPassword: L10n.settings_account_switched_to_password()
+        case .toProvider, .toNextcloud: L10n.settings_account_switched_to_provider()
         }
     }
 
-    /// The title of the alert a control ends with when it has not.
-    static func signInFailed(_ action: SignInAction) -> String {
-        action == .signInAgain
-            ? L10n.settings_account_signin_failed()
-            : L10n.settings_account_switch_failed()
+    /// The title of the alert a route ends with when it has not.
+    static func signInFailed(_ route: AccountSignInRoute) -> String {
+        if case .signInAgain = route { return L10n.settings_account_signin_failed() }
+        return L10n.settings_account_switch_failed()
     }
 }

@@ -119,6 +119,60 @@ fn swatches(color: Rgb) -> CalendarColor {
     }
 }
 
+/// How an event block on the time grid wears a calendar colour, in one theme.
+///
+/// A light tint of the colour fills the block, the colour itself runs down its leading edge as a
+/// bar, and the title is set in a deep shade of it (a pale one on dark): the look of Apple's own
+/// Calendar, decided here so every client draws the same block. A chip elsewhere, and a sender's
+/// avatar, keep the solid `Swatch`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EventSwatch {
+    /// The block's fill, `#rrggbb`: opaque, already mixed over the grid's own surface.
+    pub fill: String,
+    /// The bar down the leading edge, `#rrggbb`.
+    pub accent: String,
+    /// The title and time, `#rrggbb`; always at least 4.5:1 against `fill`.
+    pub text: String,
+}
+
+/// The grid's surface in a dark theme, which a dark tint is mixed over.
+const DARK_SURFACE: Rgb = Rgb {
+    r: 0x1c,
+    g: 0x1c,
+    b: 0x1e,
+};
+
+/// The event swatch for a calendar colour (`CalendarColor::hex`) in a light or dark theme.
+///
+/// Input that does not parse draws in the palette's first colour rather than failing the grid.
+#[must_use]
+pub fn event_swatch(hex: &str, dark: bool) -> EventSwatch {
+    let color = parse(hex).unwrap_or_else(|| palette_at(0));
+    let (fill, accent, ink) = if dark {
+        (
+            mix(color, DARK_SURFACE, 70),
+            mix(color, Rgb::WHITE, 25),
+            Rgb::WHITE,
+        )
+    } else {
+        (mix(color, Rgb::WHITE, 82), color, Rgb::BLACK)
+    };
+    // The title begins as a deep (on dark, a pale) shade of the colour and moves further toward
+    // black (white) only until it clears AA against the fill: the hue keeps its identity where it
+    // can, and legibility wins where it cannot. Pure black or white always clears it.
+    let mut percent = if dark { 60 } else { 40 };
+    let mut text = mix(color, ink, percent);
+    while contrast(text, fill) < 4.5 && percent < 100 {
+        percent += 5;
+        text = mix(color, ink, percent);
+    }
+    EventSwatch {
+        fill: fill.to_hex(),
+        accent: accent.to_hex(),
+        text: text.to_hex(),
+    }
+}
+
 /// Black or white, whichever contrasts more with `background`.
 ///
 /// Never a near-black or near-white: the worst-case background clears 4.58:1 against pure

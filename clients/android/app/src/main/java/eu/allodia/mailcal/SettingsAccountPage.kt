@@ -1,6 +1,7 @@
 // One account's page in Settings → Accounts, and its first questions: how it is shared, what it
-// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), the
-// mailboxes its sign-in opens besides its own (SettingsSharedMailboxes.kt), and how it signs in:
+// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), what
+// happens to an invitation answer its calendar server cannot pass on, the mailboxes its sign-in
+// opens besides its own (SettingsSharedMailboxes.kt), and how it signs in:
 // again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched, for IMAP and JMAP
 // (docs/accounts.md rule 17). The servers, the mail settings and the removal follow, in that order
 // (docs/settings.md).
@@ -16,7 +17,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,16 +31,18 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinkPicker
 import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountReplyFallback
 import uniffi.mailcal_bindings.AccountUseSwitch
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.ReplyFallbackChoice
 import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
  * One account's page: its uses, links and removal as the core decided them ([page]), the rest from
  * [entry]. [syncMode] is how it is shared with the other devices, null in a build with no Allodia
- * sign-in; [mail] draws its mail settings, and nothing while it has no mailbox listed.
+ * sign-in.
  */
 @Composable
 internal fun AccountPage(
@@ -49,7 +51,6 @@ internal fun AccountPage(
     ui: AccountsSettingsUi,
     syncMode: AllodiaAccountSyncMode?,
     onSetSyncMode: (AllodiaAccountSyncMode) -> Unit,
-    mail: @Composable () -> Unit,
 ) {
     val ctx = LocalContext.current
     Text(
@@ -64,6 +65,10 @@ internal fun AccountPage(
     if (syncMode != null) {
         AccountSyncModePicker(syncMode, onSetSyncMode)
         Spacer(modifier = Modifier.height(12.dp))
+    }
+    page.senderName?.let { name ->
+        AccountSenderNameGroup(entry, name, ui)
+        Spacer(modifier = Modifier.height(8.dp))
     }
     SettingsGroupCard(
         L10n.settings_account_uses_heading(ctx),
@@ -92,35 +97,27 @@ internal fun AccountPage(
             page.links.forEach { picker -> LinkRow(entry, picker, ui) }
         }
     }
-    SharedMailboxesGroup(entry, ui)
-    val expired = entry.id in ui.expired
-    if (AccountSettingsRules.signsInAtProvider(entry.kind)) {
+    page.replyFallback?.let { picker ->
         Spacer(modifier = Modifier.height(8.dp))
-        SignInGroup(entry, expired, ui)
+        ReplyFallbackGroup(entry, picker, ui)
     }
-    // Where Microsoft and Google sign in again, an IMAP or JMAP account says how it signs in and
-    // offers the other way (docs/accounts.md rule 17).
-    if (AccountSignInRules.switchable(entry.kind)) {
+    page.shared?.let { SharedMailboxesGroup(entry, it, ui) }
+    page.signIn?.let { section ->
         Spacer(modifier = Modifier.height(8.dp))
-        AccountSignInGroup(entry, ui)
-    } else if (AccountSignInRules.asksOptions(entry.kind)) {
-        // A calendar and contacts account has one only at a Nextcloud server, which its server is
-        // asked about as the page opens (docs/nextcloud-sign-in.md rule 7).
-        LaunchedEffect(entry.id) { ui.onAskSignInOptions(entry.id) }
-        if (AccountSignInRules.hasSection(entry, ui.state.signIn.options[entry.id])) {
-            Spacer(modifier = Modifier.height(8.dp))
-            AccountSignInGroup(entry, ui)
-        }
+        AccountSignInGroup(entry, section, ui)
     }
     entry.mailSync?.let { technology ->
         Spacer(modifier = Modifier.height(8.dp))
         AccountSyncTechnologyCard(technology)
     }
-    entry.endpoints?.let { endpoints ->
+    page.servers?.let { servers ->
         Spacer(modifier = Modifier.height(8.dp))
-        ServersGroup(entry, endpoints, expired, ui)
+        ServersGroup(entry, servers, ui)
     }
-    mail()
+    page.mail?.let { mail ->
+        Spacer(modifier = Modifier.height(8.dp))
+        AccountMailGroup(entry, mail, ui)
+    }
     Spacer(modifier = Modifier.height(16.dp))
     RemoveAccount(entry, page.remove, ui)
 }
@@ -154,20 +151,21 @@ private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSe
     }
     // A calendar or address book the account's sign-in does not reach: one of its own (rule 18).
     if (UnreachedRules.offersSeparate(entry, capability)) {
-        TextButton(
-            onClick = { ui.onSeparateSignIn(entry.id) },
-            enabled = control.enabled,
-            modifier = Modifier.testTag("account-use-separate-${capability.name}"),
-        ) { Text(L10n.settings_account_use_separate_sign_in(ctx)) }
+        ControlTextButton(
+            L10n.settings_account_use_separate_sign_in(ctx),
+            control.copy(running = false),
+            "account-use-separate-${capability.name}",
+        ) { ui.onSeparateSignIn(entry.id) }
     }
     // Its server was found on another site: the question that allows it
-    // (docs/account-autodetect.md rule 14).
+    // (docs/account-autodetect.md rule 14). Like the button above, it opens something and starts
+    // nothing, so it is only held while a change runs.
     if (switch.reviewsServerChange) {
-        TextButton(
-            onClick = { ui.onReviewServerChange(entry.id) },
-            enabled = control.enabled,
-            modifier = Modifier.testTag("account-use-review-${capability.name}"),
-        ) { Text(L10n.server_changed_review(ctx)) }
+        ControlTextButton(
+            L10n.server_changed_review(ctx),
+            control.copy(running = false),
+            "account-use-review-${capability.name}",
+        ) { ui.onReviewServerChange(entry.id) }
     }
     if (confirmingOff) {
         ConfirmDialog(
@@ -213,48 +211,42 @@ private fun LinkRow(entry: AccountEntry, picker: AccountLinkPicker, ui: Accounts
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(
-                onClick = { link(suggestion.id) },
-                enabled = picker.control.enabled,
-                modifier = Modifier.testTag("account-link-suggested-${picker.slot.name}"),
-            ) { Text(L10n.action_link(ctx)) }
+            // The picker above shows the link running.
+            ControlTextButton(
+                L10n.action_link(ctx),
+                picker.control.copy(running = false),
+                "account-link-suggested-${picker.slot.name}",
+            ) { link(suggestion.id) }
         }
     }
     Spacer(modifier = Modifier.height(8.dp))
 }
 
+/** The reply setting's choices, in the order its picker lists them. */
+private val replyFallbackChoices = listOf(ReplyFallbackChoice.ASK, ReplyFallbackChoice.ALWAYS, ReplyFallbackChoice.NEVER)
+
 /**
- * "Sign in again", for an account that signs in at its provider's page: the remedy for an expired
- * sign-in and for a permission the provider withheld.
+ * What happens to an invitation answer the account's calendar server cannot pass on: asked each
+ * time with a notice, emailed, or not (docs/invitations.md).
  */
 @Composable
-private fun SignInGroup(entry: AccountEntry, expired: Boolean, ui: AccountsSettingsUi) {
+private fun ReplyFallbackGroup(entry: AccountEntry, picker: AccountReplyFallback, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
-    val description = when {
-        expired -> L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
-        AccountSettingsRules.needsPermission(entry) -> L10n.settings_account_needs_permission(ctx)
-        else -> L10n.settings_account_signin_description(ctx)
-    }
-    val signingIn = ui.state.signingIn == entry.id
-    SettingsGroupCard(L10n.settings_account_signin_heading(ctx), description) {
-        OutlinedButton(
-            onClick = { ui.onSignInAgain(entry.id, emptyList()) },
-            enabled = ui.state.signingIn == null,
-            modifier = Modifier.testTag("account-sign-in-again"),
-        ) {
-            if (signingIn) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            Text(L10n.signin_expired_action(ctx))
-        }
-        if (signingIn) {
-            Text(
-                L10n.settings_account_signin_waiting(ctx, entry.address),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+    SettingsGroupCard(
+        L10n.settings_reply_fallback_heading(ctx),
+        L10n.settings_reply_fallback_description(ctx),
+    ) {
+        ControlDropdown(
+            title = L10n.settings_reply_fallback_label(ctx),
+            labels = listOf(
+                L10n.settings_reply_fallback_ask(ctx),
+                L10n.settings_reply_fallback_always(ctx),
+                L10n.settings_reply_fallback_never(ctx),
+            ),
+            selected = replyFallbackChoices.indexOf(picker.choice).coerceAtLeast(0),
+            control = picker.control,
+            tag = "account-reply-fallback",
+        ) { at -> ui.onChange(AccountPageIntent.SetReplyFallback(entry.id, replyFallbackChoices[at])) }
     }
 }
 

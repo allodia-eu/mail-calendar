@@ -1,8 +1,8 @@
-// A JMAP account whose pasted password stopped working, given a new one on its page in Settings →
-// Accounts (docs/accounts.md rule 11, the expired-sign-in prompt of rule 7): the server refuses the
-// stored secret, the window says so in its notice bar and on the account's row, the notice opens the
-// account's page, which says it again and offers the field, and the new secret reconnects the account
-// in place (docs/notices.md).
+// A JMAP account whose pasted password stopped working, given a new one in its page's Sign-in
+// section in Settings → Accounts (docs/accounts.md rules 11 and 17): the server refuses the stored
+// secret, the window says so in its notice bar and on the account's row, the notice opens the
+// account's page, which says it again and offers the field, and the new secret, sent as a change on
+// the page, reconnects the account in place (docs/notices.md, docs/waiting.md).
 //
 // WHY HERE. The field is drawn only for an account the core reports as needing to sign in again,
 // which only a server refusing a real request produces, and what matters is that the secret typed
@@ -58,14 +58,14 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
     {
         app.CloseDialogs();
         var dialog = flow.OpenAccount(Harness.Alice);
-        var field = app.Agent.Find(new Filter { Id = "AccountReplaceSecret", Under = dialog });
+        var field = app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog });
         Assert.True(field is not null,
             "the account's page offers a new secret to a JMAP account whose pasted one stopped working: it has no servers to edit and no provider to sign in at");
         app.Agent.SetValue(field!, secret);
-        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountReplaceSecretSave", Under = dialog })!);
-        var notices = Catalog.Everywhere("settings_account_signed_in").Concat(Catalog.Everywhere("settings_account_signin_failed")).ToHashSet();
+        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountPasswordSave", Under = dialog })!);
+        var notices = Catalog.Everywhere("settings_account_change_failed_title").ToHashSet();
         Assert.True(App.Eventually(
-            () => app.Agent.Find(new Filter { Id = "AccountReplaceSecret", Under = dialog }) is null
+            () => app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog }) is null
                 || app.Agent.FindAll(new Filter { Type = "Text", Under = dialog }).Any(text => notices.Contains(text.Name)),
             TimeSpan.FromSeconds(30)), "the new secret was given, and the page never said how it went");
         return dialog;
@@ -75,7 +75,7 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
     private static void AssertSignedIn(App app, SetupFlow flow, string why)
     {
         var dialog = flow.OpenAccount(Harness.Alice);
-        Assert.True(app.Agent.Find(new Filter { Id = "AccountReplaceSecret", Under = dialog }) is null,
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog }) is null,
             $"{why}, so the page no longer asks for one: the core reconnected the account and its next answer cleared the expired sign-in");
         app.CloseDialogs();
         Assert.True(App.Eventually(() => app.NoticeBar() is not { } bar || !app.Says(bar, Expired), TimeSpan.FromSeconds(10)),
@@ -129,7 +129,7 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         Assert.Equal(Catalog.English("notice_action_open_account_settings"), action.Name);
         app.Agent.Invoke(action);
         var dialog = app.Dialog(Filter.ById("SettingsCategory_accounts"));
-        Assert.True(app.Agent.Wait(new Filter { Id = "AccountReplaceSecret", Under = dialog }, TimeSpan.FromSeconds(10)) is not null,
+        Assert.True(app.Agent.Wait(new Filter { Id = "AccountPassword", Under = dialog }, TimeSpan.FromSeconds(10)) is not null,
             "the action opened the account's own page, where its secret is given");
         var notice = app.Agent.Find(new Filter { Id = "AccountNotice", Under = dialog });
         Assert.True(notice is not null && app.Says(notice, Expired), "and the page says the notice at its top");
@@ -144,10 +144,10 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         Harness.SetPassword("alice", Changed);
         WaitSignInExpired(app);
         var dialog = GiveSecret(app, flow, "not-the-password");
-        var failed = Catalog.Everywhere("settings_account_signin_failed");
+        var failed = Catalog.Everywhere("settings_account_change_failed_title");
         Assert.True(app.Agent.FindAll(new Filter { Type = "Text", Under = dialog }).Any(text => failed.Contains(text.Name)),
             "a secret the server refuses is said, rather than taken as signed in");
-        Assert.True(app.Agent.Find(new Filter { Id = "AccountReplaceSecret", Under = dialog }) is not null, "and the field stays, since the account still needs one");
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog }) is not null, "and the field stays, since the account still needs one");
         Harness.SetPassword("alice", Seeded);
         GiveSecret(app, flow, Seeded);
         AssertSignedIn(app, flow, "the seeded secret is the one the server holds again");

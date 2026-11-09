@@ -30,7 +30,7 @@ fn save_then_load_round_trips_the_preferences() {
         appearance: Appearance::Dark,
         dark_message_background: false,
         calendar_visible_hours: 8,
-        calendar_layout: CalendarLayout::ThreeDay,
+        calendar_layout: Some(CalendarLayout::ThreeDay),
         calendars: BTreeMap::from([(
             "me@imap.example.com".to_owned(),
             BTreeMap::from([(
