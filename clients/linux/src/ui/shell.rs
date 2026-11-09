@@ -45,6 +45,7 @@ pub(crate) struct AppWidgets {
     messages: gtk::ListBox,
     search: SearchBar,
     mail_band: gtk::Box,
+    pane_heading: adw::HeaderBar,
     command_bar: CommandBarRow,
     selection_pane: SelectionCountPane,
     primary: gtk::Stack,
@@ -100,7 +101,7 @@ impl AppWidgets {
         sidebar_scroll.set_min_content_width(folder_pane::width::MIN);
         sidebar_scroll.set_child(Some(&sidebar));
         let destinations = DestinationBar::new(&sender);
-        let sidebar_toolbar = sidebar_pane(&sidebar_scroll, &destinations);
+        let (sidebar_toolbar, pane_heading) = sidebar_pane(&sidebar_scroll, &destinations);
 
         let messages = gtk::ListBox::new();
         // Multiple, so a selection is the platform's own selected state rather than a colour we
@@ -235,6 +236,7 @@ impl AppWidgets {
             messages,
             search,
             mail_band,
+            pane_heading,
             command_bar,
             selection_pane,
             primary,
@@ -287,7 +289,11 @@ impl AppWidgets {
                 self.primary.set_visible_child_name("contacts");
             }
         }
-        mail_toolbar::show_mail_chrome(&self.mail_band, model.primary == PrimaryView::Mail);
+        mail_toolbar::show_mail_chrome(
+            &self.mail_band,
+            &self.pane_heading,
+            model.primary == PrimaryView::Mail,
+        );
         self.rendered_primary = Some(model.primary);
         self.subtitle.set_title(&model.list_title());
         self.subtitle.set_subtitle(&model.subtitle());

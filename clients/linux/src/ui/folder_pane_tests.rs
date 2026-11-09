@@ -380,7 +380,12 @@ pub(crate) fn the_pane_marks_where_the_core_says_we_are() {
     // The chevron opens a tree; it does not navigate. A different message entirely, which is
     // what keeps a click on it from moving the selection off the folder being read.
     let chevron = buttons(pane_rows[6].upcast_ref::<gtk::Widget>())
-        .pop()
+        .into_iter()
+        .find(|button| {
+            button
+                .icon_name()
+                .is_some_and(|name| name.starts_with("pan-"))
+        })
         .expect("an account row carries its disclosure control");
     chevron.emit_clicked();
     match receiver.recv_sync().expect("the chevron dispatches") {
@@ -445,6 +450,7 @@ pub(crate) fn folder_rows_expose_their_navigation_as_a_semantic_action() {
     let row = crate::ui::folder_pane_rows::pane_row(
         crate::ui::icons::FOLDER,
         "Archive",
+        &crate::ui::folder_pane_rows::disclosure_slot(),
         &sender,
         &SidebarTarget::Folder {
             account: "account".to_owned(),

@@ -105,31 +105,38 @@ impl CommandBarRow {
         pane.connect_position_notify(move |pane| lead.set_size_request(pane.position(), -1));
     }
 
-    /// Stands New Mail's leading edge on the folder pane's icon column, read off the glyph of the
-    /// pane's first row, so the button and the icons below it are one column. Measured, so a
-    /// theme's padding moves both; until the pane has been laid out, nothing changes.
+    /// Stands New Mail's leading edge on the folder pane's chevrons, the column every row of the
+    /// pane leads with, so the button heads the pane it writes from. Read off the pane's first row
+    /// and the theme's own glyph width, so a theme's padding moves both; until the pane has been
+    /// laid out, nothing changes.
     pub(crate) fn align_with(&self, pane: &gtk::ListBox) {
-        let Some(glyph) = pane
+        // The disclosure column: a chevron, or the empty slot of a row with nothing to open,
+        // just before the glyph carrying the row's action, or that action itself where the
+        // chevron is the row's action (All Accounts).
+        let Some(column) = pane
             .row_at_index(0)
             .and_downcast::<adw::ActionRow>()
             .and_then(|row| row.activatable_widget())
-            .and_downcast::<gtk::Button>()
-            .and_then(|button| button.child())
+            .map(|action| action.prev_sibling().unwrap_or(action))
         else {
             return;
         };
-        if glyph.width() == 0 {
+        if column.width() == 0 {
             return;
         }
-        let Some(point) = glyph.compute_point(&self.lead, &gtk::graphene::Point::new(0.0, 0.0))
+        let Some(point) = column.compute_point(&self.lead, &gtk::graphene::Point::new(0.0, 0.0))
         else {
             return;
         };
+        let chevron = gtk::Image::from_icon_name(icons::EXPANDED)
+            .measure(gtk::Orientation::Horizontal, -1)
+            .1;
+        let centring = (column.width() - chevron).max(0) / 2;
         // Truncating to a whole pixel is what a margin is.
         #[allow(clippy::cast_possible_truncation)]
-        let left = point.x() as i32;
+        let left = point.x() as i32 + centring;
         let inset = if self.lead.direction() == gtk::TextDirection::Rtl {
-            self.lead.width() - left - glyph.width()
+            self.lead.width() - left - chevron
         } else {
             left
         };

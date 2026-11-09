@@ -60,8 +60,11 @@ pub(crate) fn the_header_and_the_command_bar_span_every_pane() {
     );
     assert_eq!(frame.content().as_ref(), Some(panes.upcast_ref()));
 
-    show_mail_chrome(&band, false);
-    assert!(!band.is_visible());
-    show_mail_chrome(&band, true);
-    assert!(band.is_visible());
+    // Over mail the band heads the folder pane, so the pane's own heading steps aside; anywhere
+    // else there is no band, and the heading lines the pane up with that surface's header bar.
+    let heading = adw::HeaderBar::new();
+    show_mail_chrome(&band, &heading, false);
+    assert!(!band.is_visible() && heading.is_visible());
+    show_mail_chrome(&band, &heading, true);
+    assert!(band.is_visible() && !heading.is_visible());
 }

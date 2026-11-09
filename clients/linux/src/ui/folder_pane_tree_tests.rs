@@ -104,7 +104,8 @@ pub(crate) fn a_folder_chevron_toggles_without_navigating() {
     let (list, receiver) = pane(&one_tree(true, true));
     let drawn = rows(&list);
 
-    // The Archive's own chevron: the trailing button on that row.
+    // The Archive's own chevron, leading the row: the disclosure column comes before the icon, so
+    // what a tree holds stands under the chevron that opened it (`docs/folder-pane.md`, rule 32).
     let chevron = super::buttons(drawn[4].upcast_ref::<gtk::Widget>())
         .into_iter()
         .find(|button| {
@@ -113,6 +114,36 @@ pub(crate) fn a_folder_chevron_toggles_without_navigating() {
                 .is_some_and(|name| name.starts_with("pan-"))
         })
         .expect("a folder holding folders carries a disclosure control");
+    let leads = |row: &gtk::ListBoxRow, disclosure: &gtk::Widget| {
+        let action = row
+            .downcast_ref::<adw::ActionRow>()
+            .and_then(adw::ActionRow::activatable_widget)
+            .expect("a pane row has a primary action");
+        disclosure.next_sibling().as_ref() == Some(&action)
+    };
+    assert!(
+        leads(&drawn[4], chevron.upcast_ref()),
+        "the chevron stands before the folder's icon, not at the row's end"
+    );
+    // A folder with nothing to open keeps the column, empty and as wide as a chevron, so its icon
+    // stands under the Archive's.
+    let inbox_action = drawn[3]
+        .downcast_ref::<adw::ActionRow>()
+        .and_then(adw::ActionRow::activatable_widget)
+        .expect("a pane row has a primary action");
+    let slot = inbox_action
+        .prev_sibling()
+        .expect("the Inbox keeps the disclosure column");
+    assert!(
+        slot.downcast_ref::<gtk::Button>().is_none(),
+        "empty, not a control"
+    );
+    let width = |widget: &gtk::Widget| widget.measure(gtk::Orientation::Horizontal, -1).1;
+    assert_eq!(
+        width(&slot),
+        width(chevron.upcast_ref()),
+        "as wide as a chevron"
+    );
     chevron.emit_clicked();
     assert!(
         matches!(

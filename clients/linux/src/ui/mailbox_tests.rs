@@ -188,6 +188,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::mailbox::window_tests::
         a_conversations_messages_open_in_windows_and_its_header_does_not();
     crate::ui::mailbox::window_tests::every_message_row_offers_the_window_by_name();
+    crate::ui::mailbox::window_tests::every_mail_row_leads_with_the_dot_then_the_avatar();
     crate::ui::detached::widget_tests::a_reading_window_is_the_mailbox_peer_and_not_a_second_app();
     crate::ui::detached::widget_tests::closing_a_composer_window_asks_no_question();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();

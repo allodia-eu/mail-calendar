@@ -227,3 +227,70 @@ pub(crate) fn every_message_row_offers_the_window_by_name() {
         ));
     }
 }
+
+/// A message row and a conversation row lead the same way, the unread dot and then the avatar,
+/// so every avatar in the list stands in one column; and neither draws an arrow, because the
+/// avatar carries the row's own action (`row_action`).
+pub(crate) fn every_mail_row_leads_with_the_dot_then_the_avatar() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let clock = MailClock::new("UTC", true);
+    let menus = RowMenus::default();
+    let flat = flat_row(&message_row(), &menus, &clock, &sender);
+    let header = thread_row(&conversation(), false, &menus, &clock, &sender);
+    for (kind, row) in [
+        ("message", flat.upcast_ref::<gtk::Widget>()),
+        ("conversation", header.upcast_ref::<gtk::Widget>()),
+    ] {
+        assert_eq!(leading(row), ["dot", "avatar"], "a {kind} row");
+        assert!(
+            !buttons(row)
+                .iter()
+                .any(|button| button.icon_name().as_deref() == Some(crate::ui::icons::NEXT)),
+            "a {kind} row draws no arrow"
+        );
+    }
+}
+
+/// The unread dot and the avatar's action button under `root`, in the order they are drawn.
+fn leading(root: &gtk::Widget) -> Vec<&'static str> {
+    let mut found = Vec::new();
+    let mut stack = vec![root.clone()];
+    while let Some(widget) = stack.pop() {
+        if let Some(button) = widget.downcast_ref::<gtk::Button>() {
+            if !button.can_target() {
+                found.push("avatar");
+                continue;
+            }
+        } else if widget
+            .downcast_ref::<gtk::DrawingArea>()
+            .is_some_and(|area| area.content_width() == 8)
+        {
+            found.push("dot");
+        }
+        let mut children = Vec::new();
+        let mut child = widget.first_child();
+        while let Some(next) = child {
+            child = next.next_sibling();
+            children.push(next);
+        }
+        stack.extend(children.into_iter().rev());
+    }
+    found
+}
+
+/// Every `GtkButton` under `root`.
+fn buttons(root: &gtk::Widget) -> Vec<gtk::Button> {
+    let mut found = Vec::new();
+    let mut stack = vec![root.clone()];
+    while let Some(widget) = stack.pop() {
+        if let Some(button) = widget.downcast_ref::<gtk::Button>() {
+            found.push(button.clone());
+        }
+        let mut child = widget.first_child();
+        while let Some(next) = child {
+            child = next.next_sibling();
+            stack.push(next);
+        }
+    }
+    found
+}

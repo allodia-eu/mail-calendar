@@ -46,8 +46,11 @@ pub(crate) fn window_frame(
     (frame, band)
 }
 
-pub(crate) fn show_mail_chrome(band: &gtk::Box, mail: bool) {
+/// Shows the band over mail, and the folder pane's own heading everywhere else: over mail the
+/// band heads the pane, and a second heading there only pushed the tree down a row.
+pub(crate) fn show_mail_chrome(band: &gtk::Box, pane_heading: &adw::HeaderBar, mail: bool) {
     band.set_visible(mail);
+    pane_heading.set_visible(!mail);
 }
 
 #[cfg(test)]

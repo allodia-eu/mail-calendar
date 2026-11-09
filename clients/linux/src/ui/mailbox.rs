@@ -1,7 +1,7 @@
 //! Mailbox-list projection for the three-pane shell. The pane beside it is
 //! [`super::folder_pane`], which shares this module's row skeleton and styles.
 
-use std::{collections::HashSet, sync::Once};
+use std::collections::HashSet;
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
@@ -18,7 +18,9 @@ use super::{
     row_action,
     timestamps::MailClock,
 };
-pub(super) use super::{mail_actions_menu::RowMenus, mailbox_display::MailboxRendering};
+pub(super) use super::{
+    mail_actions_menu::RowMenus, mailbox_display::MailboxRendering, mailbox_styles::install_styles,
+};
 #[cfg(test)]
 use super::{mailbox_display::DisplayRow, mailbox_reconcile::reconcile};
 use crate::l10n;
@@ -118,56 +120,6 @@ pub(super) fn clear(list: &gtk::ListBox) {
     }
 }
 
-/// Unread is carried by **weight**, and every mail row states its own; never leaving it to
-/// inherit. A conversation's messages are rendered *inside* the row holding the conversation's
-/// weight, so a reply already read would otherwise be drawn bold under an unread thread.
-///
-/// What the weight reaches is the subject and the sender; a message's preview and the trailing
-/// date, count and badges stay regular, because bolding every line of an unread mailbox turns it
-/// into one solid block that distinguishes nothing.
-///
-/// The pane beside the list, the contacts surface and the composer's recipient fields draw from the
-/// same sheet; the badge pill and recipient pill; so that a shell-wide shape is defined once.
-const MAIL_LIST_CSS: &str = "row.mailcal-unread { font-weight: bold; }
-row.mailcal-read { font-weight: normal; }
-row.mailcal-group-title .title { font-weight: 600; }
-row.mailcal-thread-message .subtitle { font-weight: normal; }
-row .mailcal-meta { font-weight: normal; }
-row .mailcal-badge {
-  font-weight: normal;
-  border-radius: 9999px;
-  padding: 0 6px;
-  background-color: alpha(currentColor, 0.12);
-}
-.mailcal-pill {
-  border-radius: 9999px;
-  padding: 2px 4px 2px 10px;
-  background-color: alpha(currentColor, 0.12);
-}
-.mailcal-pill button {
-  min-width: 20px;
-  min-height: 20px;
-  padding: 0;
-}
-";
-
-/// Installs the message list's stylesheet and icons once per display.
-pub(super) fn install_styles() {
-    static INSTALLED: Once = Once::new();
-    if let Some(display) = gtk::gdk::Display::default() {
-        INSTALLED.call_once(|| {
-            let provider = gtk::CssProvider::new();
-            provider.load_from_string(MAIL_LIST_CSS);
-            gtk::style_context_add_provider_for_display(
-                &display,
-                &provider,
-                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
-            );
-            super::icons::install(&display);
-        });
-    }
-}
-
 /// Builds a row whose text is plain, never Pango markup.
 ///
 /// The flag has to be set **before** the text, and the property builder cannot promise that:
@@ -200,8 +152,7 @@ fn flat_row(
     widget.set_subtitle_lines(1);
     widget.set_activatable(true);
     widget.add_css_class(weight_class(display.unread));
-    widget.add_prefix(&avatar::unread_dot(display.unread));
-    widget.add_prefix(&avatar::view(&display.avatar, 36));
+    let avatar = avatar::view(&display.avatar, 36);
     if display.flagged {
         widget.add_suffix(&flag_icon());
     }
@@ -229,25 +180,39 @@ fn flat_row(
     ));
     opens_in_window(&widget, &opened, sender);
     mail_drag(&widget, &row.account, selected);
-    opens_listed(&widget, opened, row.draft, sender);
+    let open = opens_listed(&avatar, opened, row.draft, sender);
+    widget.add_prefix(&lead(display.unread, &open));
+    widget.set_activatable_widget(Some(&open));
     widget
 }
 
-/// Activating a message row opens it, or resumes it in a composer when the row says it is a
-/// draft, wherever it is listed (`docs/drafts.md`).
+/// What every mail row leads with: the unread dot, then the avatar carrying the row's action. One
+/// box of this file's own, so a message row and a conversation row space the two alike, and every
+/// avatar in the list stands in one column; each kind of row arranges its own prefixes otherwise.
+fn lead(unread: bool, open: &gtk::Button) -> gtk::Box {
+    let lead = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    lead.set_valign(gtk::Align::Center);
+    lead.append(&avatar::unread_dot(unread));
+    lead.append(open);
+    lead
+}
+
+/// The button that opens a message row's message, or resumes it in a composer when the row says
+/// it is a draft, wherever it is listed (`docs/drafts.md`). The row makes it its activatable
+/// widget, so activating the row is pressing it.
 fn opens_listed(
-    widget: &adw::ActionRow,
+    avatar: &gtk::Widget,
     opened: OpenedMessage,
     draft: bool,
     sender: &relm4::Sender<AppInput>,
-) {
+) -> gtk::Button {
     let input = sender.clone();
-    row_action::action_row(widget, move || {
+    row_action::open_button(avatar, move || {
         input.emit(AppInput::OpenListedMessage {
             message: Box::new(opened.clone()),
             draft,
         });
-    });
+    })
 }
 
 /// Lets a list row be dragged onto a folder (`docs/folder-pane.md`, rule 24). A selected row takes
@@ -315,8 +280,7 @@ fn thread_row(
     widget.set_title_lines(1);
     widget.set_subtitle_lines(1);
     widget.add_css_class(weight_class(display.unread));
-    widget.add_prefix(&avatar::unread_dot(display.unread));
-    widget.add_prefix(&avatar::view(&display.avatar, 36));
+    let avatar = avatar::view(&display.avatar, 36);
     if display.count > 1 {
         widget.add_suffix(&count_badge(display.count));
     }
@@ -340,9 +304,12 @@ fn thread_row(
     ));
     mail_drag(&widget, &row.account, selected);
     let (input, thread) = (sender.clone(), ThreadKey::of(row));
-    row_action::expander_row(&widget, move || {
+    // The row itself expands, so this button is only what assistive technology invokes to open
+    // the conversation.
+    let open = row_action::open_button(&avatar, move || {
         input.emit(AppInput::OpenConversation(thread.clone()));
     });
+    widget.add_prefix(&lead(display.unread, &open));
     for message in &row.messages {
         widget.add_row(&thread_message_row(row, message, menus, clock, sender));
     }
@@ -380,8 +347,7 @@ fn thread_message_row(
     widget.set_activatable(true);
     widget.add_css_class(weight_class(display.unread));
     widget.add_css_class("mailcal-thread-message");
-    widget.add_prefix(&avatar::unread_dot(display.unread));
-    widget.add_prefix(&avatar::view(&display.avatar, 32));
+    let avatar = avatar::view(&display.avatar, 32);
     if display.outgoing {
         widget.add_suffix(&badge(l10n::thread_sent()));
     }
@@ -406,7 +372,9 @@ fn thread_message_row(
         &widget, selected, menus, sender,
     ));
     opens_in_window(&widget, &opened, sender);
-    opens_listed(&widget, opened, message.draft, sender);
+    let open = opens_listed(&avatar, opened, message.draft, sender);
+    widget.add_prefix(&lead(display.unread, &open));
+    widget.set_activatable_widget(Some(&open));
     widget
 }
 

@@ -86,6 +86,7 @@ mod mailbox_empty;
 mod mailbox_progressive;
 mod mailbox_reconcile;
 mod mailbox_snapshot;
+mod mailbox_styles;
 mod mcp;
 mod message_move;
 mod microsoft;
