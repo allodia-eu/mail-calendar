@@ -44,10 +44,18 @@ pub(super) fn role_icon(role: Option<&FolderRole>) -> &'static str {
 pub(super) fn unified_inbox_row(unread: u32, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
     let row = pane_row(icons::INBOX, sender, &SidebarTarget::AllInboxes);
     row.set_title(l10n::folder_inbox());
-    row.set_margin_start(INDENT);
     add_badge(&row, unread);
     row
 }
+
+/// Draws `row` heavier than the rows beneath it: the account and All Accounts rows title their
+/// groups by weight, not by indenting what they hold (`docs/folder-pane.md`, rule 32).
+fn titles_group(row: &adw::ActionRow) {
+    row.add_css_class(GROUP_TITLE);
+}
+
+/// The style class [`titles_group`] adds, which the pane's stylesheet draws semibold.
+pub(super) const GROUP_TITLE: &str = "mailcal-group-title";
 
 pub(super) fn unified_group_row(
     expanded: bool,
@@ -56,6 +64,7 @@ pub(super) fn unified_group_row(
     let row = mailbox::plain_text_row();
     row.set_title(l10n::sidebar_all_accounts());
     row.set_title_lines(1);
+    titles_group(&row);
     row.set_activatable(true);
     let button = gtk::Button::from_icon_name(if expanded {
         icons::EXPANDED
@@ -98,6 +107,7 @@ pub(super) fn account_row(
         &SidebarTarget::Account(account.id.clone()),
     );
     row.set_title(&account.email);
+    titles_group(&row);
     // An address is as long as it is, and the pane has a floor: the row that gets truncated is
     // precisely the one the user needs to read.
     row.set_tooltip_text(Some(&account.email));
@@ -164,10 +174,11 @@ pub(super) fn folder_row(
         },
     );
     row.set_title(&folder_label(folder.role.as_ref(), &folder.name));
-    // Under its account, and one step further per folder it is filed inside, so the tree reads
-    // as a tree. A margin rather than a nested list: the rows stay siblings, which is what keeps
-    // one keyboard traversal over the whole pane.
-    row.set_margin_start(INDENT * (1 + i32::try_from(folder.depth).unwrap_or(1)));
+    // In its account's columns, and one step in per folder it is filed inside, so the tree reads
+    // as a tree while the account row's weight titles it (`docs/folder-pane.md`, rule 32). A
+    // margin rather than a nested list: the rows stay siblings, which is what keeps one keyboard
+    // traversal over the whole pane.
+    row.set_margin_start(INDENT * i32::try_from(folder.depth).unwrap_or(0));
     add_badge(&row, folder.unread);
     // Only where there is a tree to open: a chevron beside a folder holding nothing but mail
     // promises one that is not there.
@@ -177,8 +188,8 @@ pub(super) fn folder_row(
     row
 }
 
-/// One step of the pane's indent: what an account's own rows are moved by, and what each level of
-/// folders inside folders adds again. The destination pickers indent by it too.
+/// One step of the pane's indent: what each level of folders inside folders adds. The destination
+/// pickers indent by it too.
 pub(super) const INDENT: i32 = 18;
 
 /// The disclosure control on a folder that holds folders: a button of its own, for the reason the

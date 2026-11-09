@@ -130,6 +130,7 @@ pub(super) fn clear(list: &gtk::ListBox) {
 /// same sheet; the badge pill and recipient pill; so that a shell-wide shape is defined once.
 const MAIL_LIST_CSS: &str = "row.mailcal-unread { font-weight: bold; }
 row.mailcal-read { font-weight: normal; }
+row.mailcal-group-title .title { font-weight: 600; }
 row.mailcal-thread-message .subtitle { font-weight: normal; }
 row .mailcal-meta { font-weight: normal; }
 row .mailcal-badge {

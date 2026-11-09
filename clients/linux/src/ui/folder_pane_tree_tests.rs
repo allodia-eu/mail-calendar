@@ -50,8 +50,9 @@ pub(crate) fn a_nested_folder_is_indented_and_a_shut_one_is_not_drawn() {
     assert!(text.iter().any(|entry| entry == "Clients"), "{text:?}");
     assert!(text.iter().any(|entry| entry == "Acme"), "{text:?}");
 
-    // One indent step per level, on top of the account's own. Asserted on the row rather than
-    // on a number in the source, because the indent is the only thing on screen that says
+    // One indent step per level inside a folder, and none for the account's own folders, which
+    // take the account's columns (`docs/folder-pane.md`, rule 32). Asserted on the row rather
+    // than on a number in the source, because the indent is the only thing on screen that says
     // where a folder sits: every adapter names it by its own name alone.
     // The margin is read off the row itself: an `AdwActionRow` **is** a `GtkListBoxRow`, so the
     // widget the list holds is the row, and `child()` would hand back the box inside it.
@@ -59,6 +60,28 @@ pub(crate) fn a_nested_folder_is_indented_and_a_shut_one_is_not_drawn() {
     let margin = |index: usize| drawn[index].margin_start();
     // [0] All Accounts, [1] its Inbox, [2] the account, [3] Inbox, [4] Archive, [5] Clients,
     // [6] Acme.
+    assert_eq!(
+        margin(1),
+        margin(0),
+        "the unified Inbox takes its group's columns"
+    );
+    assert_eq!(
+        margin(3),
+        margin(2),
+        "a top-level folder takes its account's columns"
+    );
+    assert_eq!(margin(4), margin(2));
+    // The group rows are titled by weight instead, and nothing beneath them is.
+    let titled =
+        |index: usize| drawn[index].has_css_class(crate::ui::folder_pane_rows::GROUP_TITLE);
+    assert!(
+        titled(0) && titled(2),
+        "All Accounts and the account title their groups"
+    );
+    assert!(
+        !(1..7).filter(|index| *index != 2).any(titled),
+        "no folder is drawn heavier"
+    );
     assert!(margin(5) > margin(4), "Clients sits inside Archive");
     assert!(margin(6) > margin(5), "Acme sits inside Clients");
     assert_eq!(
