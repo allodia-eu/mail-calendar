@@ -374,6 +374,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             onCompose = { origin -> openComposer(instance, origin) },
                             // A row's menu is the core's, asked as it opens (docs/row-actions.md).
                             rowMenu = { rows -> instance.rowMenu(rows) },
+                            commandBar = { rows -> instance.commandBar(rows) },
                             onRowPick = { pick -> performRowPick(instance, pick) },
                             messageFiling = MessageFiling.of(instance, this@MailboxTabContent),
                             // Swipe actions (per direction) + the archive intent a swipe may run;

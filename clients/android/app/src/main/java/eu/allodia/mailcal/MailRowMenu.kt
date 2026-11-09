@@ -83,7 +83,7 @@ internal fun RowMenuButton(row: SelectedRow, account: String, menus: RowMenus) {
                         text = {
                             Text(
                                 text = item.action.label(ctx),
-                                color = if (item.action == RowAction.PERMANENTLY_DELETE && enabled) {
+                                color = if (item.confirm && enabled) {
                                     MaterialTheme.colorScheme.error
                                 } else {
                                     androidx.compose.ui.graphics.Color.Unspecified

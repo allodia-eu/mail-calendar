@@ -293,6 +293,12 @@ extension MailboxModel {
         app?.rowMenu(rows: rows) ?? RowMenu(sections: [])
     }
 
+    /// The mail command bar over `rows`, as the core decides it (`docs/command-bar.md`): read off
+    /// the same menu a right-click over them opens, from the published snapshot without waiting.
+    func commandBar(_ rows: [SelectedRow]) -> CommandBar {
+        app?.commandBar(rows: rows) ?? CommandBar(sections: [], menu: [])
+    }
+
     /// The message the reading pane opens once `account`'s `key` leaves the list, as the core
     /// decides it (`docs/reading-actions.md`, "Where the pane goes next"). `expanded` names the
     /// conversations the list shows expanded.

@@ -1,17 +1,19 @@
-// What the core's row menu looks like on Android, and what picking an item does
-// (docs/row-actions.md). The core decides which items a menu holds, which respond and which message
+// What the core's row menu and command bar look like on Android, and what picking an item does
+// (docs/row-actions.md, docs/command-bar.md). The core decides which items a menu holds, which respond and which message
 // each is about; this file gives each action its words and says what a pick runs, and keeps no
 // rule of its own about either. Plain, so the JVM suite tests it without composing a screen.
 package eu.allodia.mailcal
 
 import android.content.Context
 import uniffi.mailcal_bindings.BulkAction
+import uniffi.mailcal_bindings.Command
+import uniffi.mailcal_bindings.CommandBar
+import uniffi.mailcal_bindings.CommandItem
 import uniffi.mailcal_bindings.ComposeOrigin
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MenuMessage
 import uniffi.mailcal_bindings.MessageKind
 import uniffi.mailcal_bindings.RowAction
-import uniffi.mailcal_bindings.RowMenu
 import uniffi.mailcal_bindings.RowMenuItem
 import uniffi.mailcal_bindings.SelectedRow
 import uniffi.mailcal_bindings.ThreadMessage
@@ -32,7 +34,7 @@ internal fun RowAction.label(ctx: Context): String = when (this) {
     RowAction.MARK_AS_NOT_SPAM -> L10n.action_mark_as_not_spam(ctx)
     RowAction.MOVE_TO_FOLDER -> L10n.action_move_to_folder(ctx)
     RowAction.ARCHIVE -> L10n.action_archive(ctx)
-    RowAction.DELETE -> L10n.action_move_to_trash(ctx)
+    RowAction.DELETE -> L10n.action_delete(ctx)
     RowAction.PERMANENTLY_DELETE -> L10n.action_delete_permanently(ctx)
 }
 
@@ -52,6 +54,9 @@ internal sealed interface RowPick {
 
     /** Ask for a folder, then move the rows the menu was asked about. */
     data class Move(val rows: List<SelectedRow>) : RowPick
+
+    /** Ask before [then], which cannot be undone; [rows] are what the question names. */
+    data class Ask(val rows: List<SelectedRow>, val then: RowPick) : RowPick
 }
 
 /**
@@ -60,6 +65,13 @@ internal sealed interface RowPick {
  * does not open.
  */
 internal fun rowPick(item: RowMenuItem, rows: List<SelectedRow>): RowPick? {
+    val pick = plainPick(item, rows) ?: return null
+    if (!item.confirm) return pick
+    val named = item.target?.let { listOf(SelectedRow.Message(it.account, it.key)) } ?: rows
+    return RowPick.Ask(named, pick)
+}
+
+private fun plainPick(item: RowMenuItem, rows: List<SelectedRow>): RowPick? {
     if (item.action == RowAction.MOVE_TO_FOLDER) return RowPick.Move(rows)
     val message = item.target ?: return item.action.batch()?.let { RowPick.Rows(rows, it) }
     val (account, key) = message.account to message.key
@@ -97,42 +109,26 @@ private fun RowAction.batch(): BulkAction? = when (this) {
     -> null
 }
 
-/**
- * The selection bar's actions, read off the core's menu over the selection
- * (docs/list-selection.md, rule 5): each toggle names the half that changes something, and an
- * action the menu would draw disabled is disabled on the bar too.
- *
- * With nothing selected the core answers no menu, and the bar names the affirmative halves, all
- * disabled: "Mark as unread" over nothing describes an action nobody asked for.
- */
-internal data class SelectionBarActions(
-    val read: BulkAction,
-    val readEnabled: Boolean,
-    val flag: BulkAction,
-    val flagEnabled: Boolean,
-    val archive: Boolean,
-    val delete: Boolean,
-    val permanentlyDelete: Boolean,
-) {
-    companion object {
-        fun of(menu: RowMenu): SelectionBarActions {
-            val items = menu.sections.flatMap { it.items }
-            // The first item doing one of `actions`, which for a toggle is the half on offer.
-            fun find(vararg actions: RowAction): Pair<RowAction, Boolean> =
-                items.firstOrNull { it.action in actions }?.let { it.action to it.enabled }
-                    ?: (actions[0] to false)
-            val (read, readEnabled) = find(RowAction.MARK_READ, RowAction.MARK_UNREAD)
-            val (flag, flagEnabled) = find(RowAction.FLAG, RowAction.UNFLAG)
-            return SelectionBarActions(
-                read = read.batch() ?: BulkAction.MARK_READ,
-                readEnabled = readEnabled,
-                flag = flag.batch() ?: BulkAction.FLAG,
-                flagEnabled = flagEnabled,
-                archive = find(RowAction.ARCHIVE).second,
-                delete = find(RowAction.DELETE).second,
-                permanentlyDelete = find(RowAction.PERMANENTLY_DELETE).second,
-            )
-        }
+/** The bar item as the row menu names it, so a pick runs the menu's own path; null for Sync. */
+internal fun CommandItem.menuItem(): RowMenuItem? = when (val command = command) {
+    is Command.Act -> RowMenuItem(command.action, enabled, target, confirm)
+    Command.Sync -> null
+}
+
+/** The bar's Delete, which in Trash is Delete permanently (docs/command-bar.md, rule 6). */
+internal fun CommandBar.deleteItem(): CommandItem? = sections.flatMap { it.items }.firstOrNull {
+    val action = (it.command as? Command.Act)?.action
+    action == RowAction.DELETE || action == RowAction.PERMANENTLY_DELETE
+}
+
+/** What the question before deleting for good says about [rows]: one, or how many, of which. */
+internal fun purgeMessage(ctx: Context, rows: List<SelectedRow>): String {
+    val threads = rows.count { it is SelectedRow.Thread }
+    return when {
+        rows.size == 1 && threads == 1 -> L10n.delete_permanently_conversation(ctx)
+        rows.size == 1 -> L10n.delete_permanently_message(ctx)
+        threads == 0 -> L10n.delete_permanently_message_many(ctx, rows.size.toLong())
+        else -> L10n.delete_permanently_conversations(ctx, rows.size.toLong())
     }
 }
 

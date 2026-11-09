@@ -13,8 +13,9 @@ internal fun MainActivity.performRowPick(instance: MailcalApp, pick: RowPick) {
         is RowPick.Answer -> openComposer(instance, pick.origin)
         is RowPick.Write -> instance.dispatch(pick.intent)
         is RowPick.Rows -> instance.dispatch(Intent.ActOnSelection(pick.rows, pick.action))
-        // The row asks for the folder itself, and moves through its own filing.
-        is RowPick.Move -> Unit
+        // The row asks for the folder itself, and moves through its own filing; the screen asks
+        // its question and hands back what it guarded.
+        is RowPick.Move, is RowPick.Ask -> Unit
     }
 }
 
