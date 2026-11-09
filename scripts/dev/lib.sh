@@ -379,7 +379,13 @@ emulator_serial_for_avd() { # <avd>
 # dialog, a stale install) and never writes one back, so the developer's AVD is left as it was.
 # `wait-for-device` is not enough on its own; it returns as soon as adbd answers, which is a
 # minute before there is a launcher to photograph, so poll `sys.boot_completed` too.
+#
+# `-gpu host` and `-memory` override the AVD's own config.ini, because `avdmanager create` (the
+# command a missing AVD is told to run) writes software rendering and about 2 GB of RAM. On that
+# configuration SystemUI stops answering partway through a capture run, and the dimmed screen
+# behind its dialog is refused as a store asset.
 EMULATOR_BOOT_TIMEOUT=300
+EMULATOR_MEMORY_MB=4096
 # How long to wait for a killed emulator to actually leave `adb devices`, freeing its console port.
 EMULATOR_SHUTDOWN_TIMEOUT=60
 emulator_boot() { # <avd> <port>
@@ -395,7 +401,8 @@ emulator_boot() { # <avd> <port>
     die "port $port is already taken by $serial (AVD '$("$adb" -s "$serial" emu avd name 2>/dev/null | tr -d '\r' | head -1)').
 Stop it, or pass --serial to use it directly."
   fi
-  "$emu" -avd "$avd" -port "$port" -no-snapshot -no-boot-anim >/dev/null 2>&1 &
+  "$emu" -avd "$avd" -port "$port" -no-snapshot -no-boot-anim \
+    -gpu host -memory "$EMULATOR_MEMORY_MB" >/dev/null 2>&1 &
   # Detach, so the caller's shell doesn't print a job notice when the emulator is later killed.
   disown
   "$adb" -s "$serial" wait-for-device
