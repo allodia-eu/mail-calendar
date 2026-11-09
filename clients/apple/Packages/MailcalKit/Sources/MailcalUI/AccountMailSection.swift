@@ -1,6 +1,5 @@
-// An account's mail settings, on its page: a new secret when the stored one stopped working, fetch
-// depth, message size, live delivery and watched folders, as the core's page record says them.
-// Drawn only while the account is used for mail.
+// An account's mail settings, on its page: fetch depth, message size, live delivery and watched
+// folders, as the core's page record says them. Drawn only while the account is used for mail.
 
 import MailcalBindings
 import SwiftUI
@@ -9,31 +8,13 @@ struct AccountMailSection: View {
     var model: MailboxModel
     let entry: AccountEntry
     let mail: AccountMailSettings
-    @Binding var alert: AccountPageAlert?
-
-    @State private var secret = ""
-    @State private var replacing = false
-    @State private var replaced = false
-
-    /// A pasted password or API token the server stopped accepting, replaced here; an account
-    /// whose servers are editable takes its new password in that section instead.
-    private var replacesSecret: Bool {
-        AccountSettingsRules.replacesSecret(
-            entry, expired: model.signInExpired(entry.id),
-            provider: model.app?.accountProvider(accountId: entry.id))
-    }
 
     var body: some View {
         SettingsGroup(
             heading: L10n.nav_mail(),
-            description: replacesSecret
-                ? L10n.signin_expired_prompt(accounts: AccountSettingsLabels.name(entry))
-                : L10n.settings_sync_description()
+            description: L10n.settings_sync_description()
         ) {
             VStack(alignment: .leading, spacing: 14) {
-                if replacesSecret || replaced {
-                    secretRemedy
-                }
                 count(
                     L10n.settings_sync_depth_heading(), L10n.settings_sync_depth_description(),
                     mail.depth,
@@ -50,44 +31,6 @@ struct AccountMailSection: View {
                 ) { .setMessageSizeLimit(account: entry.id, megabytes: $0) }
                 Divider()
                 arrival
-            }
-        }
-    }
-
-    /// A new password or API token, tried before it is kept (`replace_account_secret`).
-    @ViewBuilder
-    private var secretRemedy: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            SecureField(L10n.setup_jmap_secret_placeholder(), text: $secret)
-                .setupField(.password)
-                .frame(maxWidth: 320)
-            HStack(spacing: 10) {
-                Button(L10n.signin_expired_action(), action: replace)
-                    .buttonStyle(.borderedProminent)
-                    .disabled(secret.isEmpty || replacing)
-                if replacing {
-                    progress(L10n.status_connecting())
-                } else if replaced {
-                    Text(L10n.settings_account_signed_in())
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private func replace() {
-        let (id, typed) = (entry.id, secret)
-        replacing = true
-        replaced = false
-        Task {
-            let failure = await model.replaceAccountSecret(id, typed)
-            replacing = false
-            if let failure {
-                alert = AccountPageAlert(title: L10n.settings_account_signin_failed(), detail: failure)
-            } else {
-                secret = ""
-                replaced = true
             }
         }
     }

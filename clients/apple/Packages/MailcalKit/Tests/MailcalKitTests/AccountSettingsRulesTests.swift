@@ -45,14 +45,6 @@ private func mailboxOnly() -> AccountEntry {
         #expect(AccountSettingsRules.inUse(account) == [.mail])
     }
 
-    @Test func signingInAgainIsOfferedWhereTheProviderSignsIn() {
-        #expect(AccountSettingsRules.signsInAtProvider(.microsoft))
-        #expect(AccountSettingsRules.signsInAtProvider(.google))
-        for kind in [AccountKind.imap, .dav, .jmap] {
-            #expect(!AccountSettingsRules.signsInAtProvider(kind))
-        }
-    }
-
     @Test func theRowNamesTheUsesInOrderAndTheLinks() {
         var mailbox = mailboxOnly()
         mailbox.links = AccountLinksView(calendar: linked("alice@cloud.example"), contacts: nil, mail: nil)
@@ -108,7 +100,7 @@ private func mailboxOnly() -> AccountEntry {
         #expect(AccountSettingsLabels.name(mailbox) == named)
         #expect(AccountSettingsLabels.removal(mailbox) == L10n.remove_account_message(email: named))
         #expect(
-            AccountSettingsLabels.signIn(mailbox, expired: true)
+            AccountSettingsLabels.signInLine(.refused, mailbox)
                 == L10n.signin_expired_prompt(accounts: named))
     }
 
@@ -151,27 +143,6 @@ private func mailboxOnly() -> AccountEntry {
         #expect(
             AccountSettingsLabels.removal(mailbox).hasSuffix(
                 L10n.remove_account_unlinks(accounts: "a@example.org, b@example.org")))
-    }
-
-    @Test func aNewSecretIsOfferedOnlyForAnExpiredPastedOne() {
-        let jmap = entry(.jmap, [(.mail, .on)])
-        #expect(AccountSettingsRules.replacesSecret(jmap, expired: true, provider: .jmap))
-        #expect(!AccountSettingsRules.replacesSecret(jmap, expired: false, provider: .jmap))
-        // Signed in at a provider: signing in again is the remedy, not a pasted secret.
-        #expect(!AccountSettingsRules.replacesSecret(jmap, expired: true, provider: .jmapOauth))
-
-        // Editable servers take the new password in their own section.
-        var imap = entry(.imap, [(.mail, .on)])
-        imap.endpoints = AccountEndpoints(
-            imapHost: "imap.example.org", imapSecurity: .implicitTls, smtpHost: nil,
-            smtpSecurity: .implicitTls, caldavUrl: nil, carddavUrl: nil, username: "alice",
-            password: nil)
-        #expect(!AccountSettingsRules.replacesSecret(imap, expired: true, provider: .password))
-
-        // An IMAP account that signed in at its provider has no editable servers, and no secret a
-        // paste could replace.
-        let imapSignedIn = entry(.imap, [(.mail, .on)])
-        #expect(!AccountSettingsRules.replacesSecret(imapSignedIn, expired: true, provider: .imapOauth))
     }
 }
 

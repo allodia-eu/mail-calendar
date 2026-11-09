@@ -115,34 +115,6 @@ internal fun MainActivity.changeFailed(detail: String?) = AccountNotice(
     detail ?: L10n.error_unknown(this),
 )
 
-/** Replaces a JMAP account's pasted password or API token, after proving it connects. */
-internal fun MainActivity.replaceAccountSecret(accountId: String, secret: String) {
-    val instance = app ?: return
-    accountSettings.replacingSecret = accountId
-    thread(name = "mailcal-account-secret") {
-        val answer = runCatching { instance.replaceAccountSecret(accountId, secret) }
-        mainHandler.post {
-            accountSettings.replacingSecret = null
-            answer.onSuccess {
-                accountSettings.notice = AccountNotice(
-                    NoticeKind.SUCCESS,
-                    L10n.settings_account_signed_in(this),
-                    "",
-                )
-                pullNotices()
-            }
-            answer.onFailure {
-                logUiWarn("accounts: replacing an account's secret failed: ${coreErrorText(it)}")
-                accountSettings.notice = AccountNotice(
-                    NoticeKind.FAILURE,
-                    L10n.settings_account_signin_failed(this),
-                    coreErrorSaid(it, this) ?: L10n.error_unknown(this),
-                )
-            }
-        }
-    }
-}
-
 /**
  * Signs an existing Microsoft or Google account in again at its provider, asking for what it is
  * used for plus [adding]. The account keeps its id, settings, links and downloaded mail

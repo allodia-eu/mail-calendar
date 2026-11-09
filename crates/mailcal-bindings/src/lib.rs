@@ -127,6 +127,7 @@ mod protocol_surface;
 mod reconnect;
 mod records;
 mod records_account_page;
+mod records_account_sign_in;
 mod records_accounts;
 mod records_avatar;
 mod records_calendar;
@@ -253,6 +254,10 @@ pub use records_account_page::{
     AccountSenderName, AccountServers, AccountSharedAddress, AccountSharedMailbox,
     AccountSharedMailboxes, AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
     AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
+};
+pub use records_account_sign_in::{
+    AccountPasswordField, AccountSecretKind, AccountSignIn, AccountSignInLine, AccountSignInRoute,
+    TypedPassword,
 };
 pub use records_accounts::{
     AccountDistinction, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView, AccountUse,

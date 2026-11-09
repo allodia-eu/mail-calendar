@@ -1,83 +1,60 @@
-// How a standards or JMAP account's page offers to switch its sign-in, which remedy the banner
-// takes for each family, and what the "already set up" refusal keeps to update the account
-// already there (docs/accounts.md rules 15 and 17).
+// How the core's Sign-in section is worded, which remedy the banner takes for each family, and
+// what the "already set up" refusal keeps to update the account already there
+// (docs/accounts.md rules 15 and 17).
 
 import MailcalBindings
 import Testing
 
 @testable import MailcalUI
 
-private func options(signIn: Bool, label: String? = nil, password: Bool) -> AccountSignInOptions {
-    AccountSignInOptions(signIn: signIn, providerLabel: label, password: password)
+private func entry(_ kind: AccountKind) -> AccountEntry {
+    AccountEntry(
+        id: "alice@example.org@imap.example.org", address: "alice@example.org", kind: kind,
+        signIn: .provider, uses: [AccountUse(capability: .mail, state: .on)],
+        links: AccountLinksView(calendar: nil, contacts: nil, mail: nil), linkedFrom: [],
+        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
+        endpoints: nil)
 }
 
 @Suite struct AccountSignInRulesTests {
-    @Test func nothingIsOfferedBeforeTheServerAnswers() {
-        #expect(AccountSignInRules.actions(.provider, nil).isEmpty)
-        #expect(AccountSignInRules.actions(.password, nil).isEmpty)
+    @Test func eachLineIsWorded() {
+        let account = entry(.imap)
+        #expect(
+            AccountSettingsLabels.signInLine(.refused, account)
+                == L10n.signin_expired_prompt(accounts: "alice@example.org"))
+        #expect(
+            AccountSettingsLabels.signInLine(.needsPermission, account)
+                == L10n.settings_account_needs_permission())
+        #expect(
+            AccountSettingsLabels.signInLine(.atProvider, account)
+                == L10n.settings_account_signin_description())
+        #expect(
+            AccountSettingsLabels.signInLine(.password, account)
+                == L10n.settings_account_signs_in_password())
+        #expect(
+            AccountSettingsLabels.signInLine(.nextcloud, account)
+                == L10n.settings_account_signs_in_nextcloud())
     }
 
-    @Test func aSignedInAccountSignsInAgainAndMaySwitchToAPassword() {
-        let both = AccountSignInRules.actions(.provider, options(signIn: true, password: true))
-        #expect(both == [.signInAgain, .toPassword])
-        #expect(AccountSignInRules.offersSwitch(both))
-
-        let again = AccountSignInRules.actions(.provider, options(signIn: true, password: false))
-        #expect(again == [.signInAgain])
-        // Signing in again is not a switch, so the section does not explain one.
-        #expect(!AccountSignInRules.offersSwitch(again))
-
+    @Test func eachRouteIsWordedAndSaysHowItEnded() {
         #expect(
-            AccountSignInRules.actions(.provider, options(signIn: false, password: true))
-                == [.toPassword])
-    }
-
-    @Test func aPasswordAccountSwitchesToItsProviderWhereTheServerTakesIt() {
-        let named = AccountSignInRules.actions(
-            .password, options(signIn: true, label: "Fastmail", password: true))
-        #expect(named == [.toProvider(label: "Fastmail")])
-        #expect(AccountSignInRules.offersSwitch(named))
-        #expect(
-            AccountSettingsLabels.signInAction(named[0])
+            AccountSettingsLabels.signInRoute(.toProvider(label: "Fastmail"))
                 == L10n.settings_account_switch_to_provider_named(provider: "Fastmail"))
         #expect(
-            AccountSettingsLabels.signInAction(.toProvider(label: nil))
+            AccountSettingsLabels.signInRoute(.toProvider(label: nil))
                 == L10n.settings_account_switch_to_provider())
-
-        // A password account already signs in with a password: nothing to switch to.
         #expect(
-            AccountSignInRules.actions(.password, options(signIn: false, password: true)).isEmpty)
-    }
-
-    @Test func eachControlSaysHowItEnded() {
+            AccountSettingsLabels.signInRoute(.toNextcloud)
+                == L10n.settings_account_switch_to_provider_named(provider: "Nextcloud"))
         #expect(AccountSettingsLabels.signInDone(.signInAgain) == L10n.settings_account_signed_in())
         #expect(
-            AccountSettingsLabels.signInDone(.toProvider(label: "Fastmail"))
+            AccountSettingsLabels.signInDone(.toNextcloud)
                 == L10n.settings_account_switched_to_provider())
-        #expect(
-            AccountSettingsLabels.signInDone(.toPassword)
-                == L10n.settings_account_switched_to_password())
         #expect(
             AccountSettingsLabels.signInFailed(.signInAgain) == L10n.settings_account_signin_failed())
         #expect(
-            AccountSettingsLabels.signInFailed(.toPassword) == L10n.settings_account_switch_failed())
-        #expect(
             AccountSettingsLabels.signInFailed(.toProvider(label: nil))
                 == L10n.settings_account_switch_failed())
-        #expect(
-            AccountSettingsLabels.signInMethod(.password)
-                == L10n.settings_account_signs_in_password())
-        #expect(
-            AccountSettingsLabels.signInMethod(.provider)
-                == L10n.settings_account_signs_in_provider())
-    }
-
-    @Test func onlyStandardsAndJmapAccountsDrawTheSwitch() {
-        #expect(AccountSignInRules.switchesSignIn(.imap))
-        #expect(AccountSignInRules.switchesSignIn(.jmap))
-        for kind in [AccountKind.dav, .microsoft, .google] {
-            #expect(!AccountSignInRules.switchesSignIn(kind))
-        }
     }
 
     @Test func theRedirectIsTheOneSetupUsesForTheKind() {

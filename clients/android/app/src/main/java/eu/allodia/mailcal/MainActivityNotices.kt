@@ -21,9 +21,6 @@ internal class NoticesState {
     /** Each account's mark, by account id. */
     var marks by mutableStateOf<Map<String, AccountMark>>(emptyMap())
 
-    /** The accounts a pasted JMAP password or token was refused for, which a new one replaces. */
-    var pastedSecret by mutableStateOf<Set<String>>(emptySet())
-
     /** What the last change raised, for assistive technology; empty when it raised nothing. */
     var announcement by mutableStateOf("")
 
@@ -47,7 +44,6 @@ internal fun MainActivity.pullNotices() {
     notices.notices = pulled
     logUiInfo("notices: ${pulled.size} in force")
     notices.marks = NoticeRules.marks(pulled, { noticeWords(this, it) }) { L10n.notices_account_count(this, it) }
-    notices.pastedSecret = notices.expired.filter { instance.accountProvider(it) == AccountProvider.JMAP }.toSet()
     notices.announcement = notices.announcements.arrived(pulled).joinToString("\n") { notice ->
         listOfNotNull(noticeWords(this, notice.title), notice.detail?.let { noticeWords(this, it) })
             .joinToString(" ")

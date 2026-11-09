@@ -1160,7 +1160,6 @@
 	"settings_account_switch_to_provider_named": "Sign in with {provider} instead",
 	"settings_account_switch_to_password": "Use a password instead",
 	"settings_account_switch_password_save": "Use this password",
-	"settings_account_switched_to_password": "This account now signs in with a password.",
 	"settings_account_switched_to_provider": "This account now signs in through your provider.",
 	"settings_account_switch_failed": "Couldn’t change how this account signs in",
 	"signin_unreached_title_both": "Your calendar and contacts won’t work with this sign-in",

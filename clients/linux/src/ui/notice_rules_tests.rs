@@ -7,8 +7,7 @@ use mailcal_bindings::{
 
 use super::{
     Announcements, SignInFlow, about, allodia_sign_in_ended, answer, asks, belongs, beneath,
-    core_remedy, glyph, marks, more, offers, prominent, screen_of, sign_in_expired, sign_in_flow,
-    words,
+    core_remedy, glyph, marks, more, offers, prominent, screen_of, sign_in_flow, words,
 };
 use crate::{
     l10n,
@@ -189,30 +188,6 @@ fn the_account_page_lists_its_own_notices_in_order() {
         .map(|notice| notice.id.as_str())
         .collect();
     assert_eq!(ids, ["one", "two"]);
-}
-
-#[test]
-fn an_expired_sign_in_is_the_accounts_own_notice() {
-    let of = |id: &str, kind: NoticeKind, account: &str| Notice {
-        kind,
-        ..notice(
-            id,
-            NoticeScreens::Everywhere,
-            NoticeSeverity::Blocked,
-            Some(account),
-        )
-    };
-    let notices = [
-        of("a-expired", NoticeKind::SignInExpired, "a"),
-        of("b-mail", NoticeKind::MailReauth, "b"),
-    ];
-
-    assert!(sign_in_expired(&notices, "a"));
-    assert!(
-        !sign_in_expired(&notices, "b"),
-        "a narrower grant is not a dead sign-in"
-    );
-    assert!(!sign_in_expired(&notices, "c"));
 }
 
 #[test]

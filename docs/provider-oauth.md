@@ -416,8 +416,9 @@ capturing the redirect), because that is inherently platform-specific.
     An IMAP account is split the same way (`Password` · `ImapOauth`): one signed in through its
     provider signs in again in place with `begin_account_sign_in` and `complete_account_sign_in`,
     from its stored grant ([`accounts.md`](accounts.md) rule 17).
-    For a password or pasted JMAP secret, `replace_account_secret` rebuilds the account from its
-    existing endpoints with only that secret changed, connects it before writing anything, then
+    For a password or pasted JMAP secret, a new one typed on the account's page
+    (`AccountPageIntent::UsePassword`) rebuilds the account from its existing endpoints with only
+    that secret changed, connects it before writing anything, then
     replaces the credential through `AccountCredentialStore` and runs a catch-up. A refusal leaves
     both the registered account and its stored credential untouched.
 
@@ -688,7 +689,7 @@ single provider's table):
 | A second sign-in request supersedes one abandoned in the browser (rule 13) | — | ✅ never guarded; a sign-in in place ends the one before it | ✅ `SignInFlight` | ✅ never guarded | ✅ `AttemptSlot` |
 | OAuth **JMAP** re-authentication in place from the prompt (rule 14: `begin_jmap_reauth` / `complete_jmap_reauth`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Microsoft and Google signed in again in place, from the prompts and the account's Settings page, a withheld use asked for when switched on (rule 11: `begin_account_consent` / `complete_account_consent`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`replace_account_secret`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Password / pasted JMAP secret replacement in Accounts, connect-before-persist (`UsePassword`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The uses chosen before the browser opens, the sign-in asking for those alone, and a use the grant withheld said after it (rule 10) | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 Each client fills its Azure **client id** in its `MicrosoftOAuth.{swift,kt,cs}` and registers a

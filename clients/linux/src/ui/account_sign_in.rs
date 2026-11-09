@@ -1,10 +1,11 @@
-//! Changing how an IMAP or JMAP account signs in, and signing one that signs in through its
-//! provider in again (`docs/accounts.md` rule 17): what its server accepts, asked when its page
-//! opens, and the browser and password routes, each a blocking core call off the main thread.
-//! The account keeps its id, uses, links, settings and mail; the core replaces it in place and
-//! signals Settings, so the page redraws from the next snapshot.
+//! Signing an IMAP or JMAP account in through its provider, again or instead of a password
+//! (`docs/accounts.md` rule 17): the browser routes the account's page offers, each a blocking
+//! core call off the main thread. The account keeps its id, uses, links, settings and mail; the
+//! core replaces it in place and signals Settings, so the page redraws from the next snapshot.
+//! Which routes the page offers, and a password typed there, are the core's
+//! (`AccountPage::sign_in`).
 
-use mailcal_bindings::{AccountSignInOptions, AccountSignInStart, MailcalApp, UnreachedUses};
+use mailcal_bindings::{AccountSignInStart, MailcalApp, UnreachedUses};
 
 use super::{
     AppInput, AppModel,
@@ -30,8 +31,6 @@ pub(crate) enum Switch {
     Again,
     /// Signs a password account in through its provider instead.
     ToProvider,
-    /// Puts a password on an account that signs in through its provider.
-    ToPassword,
 }
 
 /// A password on its way to the core. Never printed: an input can reach a log through `Debug`.
@@ -62,11 +61,6 @@ pub(crate) enum Outcome {
 /// The Sign-in section's traffic, as one input of the account pages'.
 #[derive(Debug)]
 pub(crate) enum SignInInput {
-    /// What `account`'s server accepts.
-    Options {
-        account: String,
-        options: AccountSignInOptions,
-    },
     /// Sign `account` in through its provider, from its page.
     Browser { account: String, switch: Switch },
     /// The core started that sign-in, or could not.
@@ -78,8 +72,6 @@ pub(crate) enum SignInInput {
     Cancel { account: String },
     /// The browser came back, and the core completes the sign-in.
     Completing { attempt: u64, account: String },
-    /// Put `password` on `account`, in place of its sign-in.
-    Password { account: String, password: Password },
     /// The switch's question was answered.
     Answered { attempt: u64, answer: Answer },
     /// A change ended.
@@ -116,7 +108,6 @@ pub(super) fn settings_notice(switch: Switch, outcome: &Outcome) -> Option<Notic
             match switch {
                 Switch::Again => l10n::settings_account_signed_in(),
                 Switch::ToProvider => l10n::settings_account_switched_to_provider(),
-                Switch::ToPassword => l10n::settings_account_switched_to_password(),
             }
             .to_owned(),
         )),
@@ -124,7 +115,7 @@ pub(super) fn settings_notice(switch: Switch, outcome: &Outcome) -> Option<Notic
         Outcome::Failed(detail) => Some(Notice::Error {
             title: match switch {
                 Switch::Again => l10n::settings_account_signin_failed(),
-                Switch::ToProvider | Switch::ToPassword => l10n::settings_account_switch_failed(),
+                Switch::ToProvider => l10n::settings_account_switch_failed(),
             }
             .to_owned(),
             detail: detail.clone(),
@@ -133,32 +124,8 @@ pub(super) fn settings_notice(switch: Switch, outcome: &Outcome) -> Option<Notic
 }
 
 impl AppModel {
-    /// Asks what `account`'s server accepts, off the main thread: detection, a capability probe
-    /// and issuer discovery, each bounded. The core answers nothing for an account it offers no
-    /// switch on, without asking anyone.
-    pub(super) fn ask_sign_in_options(&mut self, account: &str, sender: relm4::Sender<AppInput>) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        if !self.settings.sign_in.ask(account) {
-            return;
-        }
-        let account = account.to_owned();
-        std::thread::spawn(move || {
-            let options = app.account_sign_in_options(account.clone());
-            sender.emit(input(SignInInput::Options { account, options }));
-        });
-    }
-
     pub(super) fn sign_in_input(&mut self, message: SignInInput, sender: relm4::Sender<AppInput>) {
         match message {
-            SignInInput::Options { account, options } => {
-                let offers = options.sign_in || options.password || options.nextcloud;
-                self.settings.sign_in.answer(account.clone(), options);
-                if offers && self.settings.account.as_deref() == Some(account.as_str()) {
-                    self.settings.refresh_in_place();
-                }
-            }
             SignInInput::Browser { account, switch } => {
                 self.start_account_sign_in(account, switch, ConsentFrom::Settings, sender);
             }
@@ -175,11 +142,8 @@ impl AppModel {
                     self.settings.refresh_in_place();
                 }
             }
-            SignInInput::Password { account, password } => {
-                self.switch_to_password(account, password.0, sender);
-            }
             SignInInput::Finished { attempt, outcome } => {
-                self.account_sign_in_finished(&attempt, &outcome, sender);
+                self.account_sign_in_finished(&attempt, &outcome);
             }
             SignInInput::Nextcloud { attempt, flight } => {
                 self.account_nextcloud_flight(attempt, flight, sender);
@@ -189,7 +153,7 @@ impl AppModel {
                 attempt,
                 outcome,
                 spent,
-            } => self.account_nextcloud_completed(&attempt, &outcome, spent, sender),
+            } => self.account_nextcloud_completed(&attempt, &outcome, spent),
         }
     }
 
@@ -205,7 +169,7 @@ impl AppModel {
         let Some(app) = self.app.clone() else {
             return;
         };
-        if self.signs_in_with_nextcloud(&app, &account) {
+        if Self::signs_in_with_nextcloud(&app, &account) {
             return self.start_account_nextcloud_sign_in(account, switch, from, sender);
         }
         let (id, _) = self.host_tasks.account_sign_in.start();
@@ -274,7 +238,7 @@ impl AppModel {
         let start = match start {
             Ok(start) => start,
             Err(error) => {
-                return self.account_sign_in_finished(&attempt, &Outcome::Failed(error), sender);
+                return self.account_sign_in_finished(&attempt, &Outcome::Failed(error));
             }
         };
         if unreached::asks(&start.unreached) {
@@ -305,7 +269,7 @@ impl AppModel {
         }
         match answer.choice() {
             Some(choice) => self.open_sign_in_browser(asked, start, Some(choice), sender),
-            None => self.account_sign_in_finished(&asked, &Outcome::Cancelled, sender),
+            None => self.account_sign_in_finished(&asked, &Outcome::Cancelled),
         }
     }
 
@@ -329,7 +293,7 @@ impl AppModel {
             self.host_tasks.account_sign_in.cancel_token(attempt.id),
         ) else {
             log::warn!("sign-in: the browser could not be readied for the account");
-            return self.account_sign_in_finished(&attempt, &browser_failed(), sender);
+            return self.account_sign_in_finished(&attempt, &browser_failed());
         };
         let (failed, abandoned) = (sender.clone(), attempt.clone());
         oauth_loopback::launch_browser(url, move || {
@@ -381,55 +345,18 @@ impl AppModel {
         }
     }
 
-    /// Tests `password` against the account's servers and stores it in place of its grant.
-    fn switch_to_password(
-        &mut self,
-        account: String,
-        password: String,
-        sender: relm4::Sender<AppInput>,
-    ) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        let (id, _) = self.host_tasks.account_sign_in.start();
-        let attempt = Attempt {
-            id,
-            account: account.clone(),
-            from: ConsentFrom::Settings,
-            switch: Switch::ToPassword,
-        };
-        self.settings.sign_in.begin(&account);
-        self.settings.refresh_in_place();
-        std::thread::spawn(move || {
-            let outcome = match app.switch_account_to_password(account, password) {
-                Ok(()) => Outcome::Switched,
-                Err(error) => Outcome::Failed(super::core_error::said(&error)),
-            };
-            sender.emit(finished(attempt, outcome));
-        });
-    }
-
-    /// A change ended. The core has already replaced the account; this says so where it was
-    /// asked for, and asks its server again, since the question depends on the way in.
-    fn account_sign_in_finished(
-        &mut self,
-        attempt: &Attempt,
-        outcome: &Outcome,
-        sender: relm4::Sender<AppInput>,
-    ) {
+    /// A change ended. The core has already replaced the account, and asks its server again what
+    /// it takes, since that depends on the way in; this says so where it was asked for.
+    fn account_sign_in_finished(&mut self, attempt: &Attempt, outcome: &Outcome) {
         if !self.host_tasks.account_sign_in.finish(attempt.id) {
             return;
         }
         self.settings.sign_in.end(&attempt.account);
         if *outcome == Outcome::Switched {
-            self.settings.sign_in.forget(&attempt.account);
             if let Some(app) = &self.app {
                 self.snapshot.replace(app.mailbox_list());
             }
             self.pull_notices();
-            if self.settings.account.as_deref() == Some(attempt.account.as_str()) {
-                self.ask_sign_in_options(&attempt.account, sender);
-            }
         }
         match attempt.from {
             ConsentFrom::Settings => match settings_notice(attempt.switch, outcome) {

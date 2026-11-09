@@ -94,6 +94,11 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
         L10n.settings_account_change_failed_title(ctx),
         refusalSaid(ctx, notice.refusal),
     )
+    is AccountChangeNotice.PasswordFailed -> AccountNotice(
+        NoticeKind.FAILURE,
+        L10n.settings_account_change_failed_title(ctx),
+        refusalSaid(ctx, notice.refusal),
+    )
     // Not a failure of the app: the address is the person's to check.
     is AccountChangeNotice.SharedMailboxNotFound ->
         AccountNotice(NoticeKind.WARNING, "", L10n.settings_account_shared_not_found(ctx))

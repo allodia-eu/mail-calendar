@@ -10,18 +10,16 @@ struct AccountServersSection: View {
     var model: MailboxModel
     let entry: AccountEntry
     let servers: AccountServers
-    let expired: Bool
 
     /// The fields as the person is leaving them, seeded from the page's form: the edit being saved
     /// while a save runs, the one the last save refused, and otherwise what is stored. Seeded again
     /// only when that changes, so a signal that redraws the page leaves typing alone.
     @State private var fields: EndpointFields
 
-    init(model: MailboxModel, entry: AccountEntry, servers: AccountServers, expired: Bool) {
+    init(model: MailboxModel, entry: AccountEntry, servers: AccountServers) {
         self.model = model
         self.entry = entry
         self.servers = servers
-        self.expired = expired
         _fields = State(initialValue: EndpointFields(servers.form))
     }
 
@@ -30,7 +28,7 @@ struct AccountServersSection: View {
         let gap = model.endpointsGap(entry.id, edited)
         SettingsGroup(
             heading: L10n.settings_account_servers_heading(),
-            description: expired
+            description: servers.signInRefused
                 ? L10n.signin_expired_prompt(accounts: AccountSettingsLabels.name(entry))
                 : L10n.settings_account_servers_description()
         ) {

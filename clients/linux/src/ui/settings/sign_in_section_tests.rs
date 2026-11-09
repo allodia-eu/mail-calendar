@@ -1,13 +1,16 @@
-//! Which controls the Sign-in section of an IMAP or JMAP account offers, and what they send.
+//! How the Sign-in section words and draws the core's record, and what each control sends.
 //!
-//! The rules are plain `#[test]`s. The widget functions are called from the crate's single
+//! The wording is plain `#[test]`s. The widget functions are called from the crate's single
 //! `gtk::init` test, and assert on the **rendered** labels
 //! ([`crate::ui::mailbox::tests::rendered_labels`]).
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountKind, AccountSignInOptions, SignInMethod};
+use mailcal_bindings::{
+    AccountKind, AccountPageIntent, AccountPasswordField, AccountSecretKind, AccountSignIn,
+    AccountSignInLine, AccountSignInRoute, ControlState,
+};
 
-use super::{SignInControl, calendar_section, draw, label, section};
+use super::{draw, label, line};
 use crate::{
     l10n,
     ui::{
@@ -21,123 +24,68 @@ use crate::{
 
 const ACCOUNT: &str = "alice@example.org@imap.example.org";
 
-const fn options(sign_in: bool, password: bool) -> AccountSignInOptions {
-    AccountSignInOptions {
-        sign_in,
-        provider_label: None,
+const IDLE: ControlState = ControlState {
+    enabled: true,
+    running: false,
+};
+
+fn section(
+    line: AccountSignInLine,
+    routes: Vec<AccountSignInRoute>,
+    password: Option<AccountPasswordField>,
+) -> AccountSignIn {
+    AccountSignIn {
+        line,
+        switches: password.is_some_and(|field| !field.replaces)
+            || routes
+                .iter()
+                .any(|route| matches!(route, AccountSignInRoute::ToProvider { .. })),
+        routes,
+        control: IDLE,
         password,
-        nextcloud: false,
     }
 }
 
-#[test]
-fn microsoft_google_and_calendar_accounts_have_no_such_section() {
-    for kind in [
-        AccountKind::Microsoft,
-        AccountKind::Google,
-        AccountKind::Dav,
-    ] {
-        let both = options(true, true);
-        assert_eq!(section(kind, SignInMethod::Password, Some(&both)), None);
-        assert_eq!(section(kind, SignInMethod::Provider, Some(&both)), None);
+const fn field(replaces: bool, save: ControlState) -> AccountPasswordField {
+    AccountPasswordField {
+        kind: if replaces {
+            AccountSecretKind::PasswordOrToken
+        } else {
+            AccountSecretKind::Password
+        },
+        replaces,
+        save,
     }
 }
 
-#[test]
-fn before_the_server_answers_the_section_says_only_how_it_signs_in() {
-    let password = section(AccountKind::Imap, SignInMethod::Password, None).expect("a section");
-    assert_eq!(password.status, l10n::settings_account_signs_in_password());
-    assert_eq!(password.controls, []);
-    assert!(!password.switches());
-    let provider = section(AccountKind::Jmap, SignInMethod::Provider, None).expect("a section");
-    assert_eq!(provider.status, l10n::settings_account_signs_in_provider());
-    assert_eq!(provider.controls, []);
+fn signed_in() -> AccountSignIn {
+    section(
+        AccountSignInLine::Provider,
+        vec![AccountSignInRoute::SignInAgain],
+        Some(field(false, IDLE)),
+    )
 }
 
 #[test]
-fn a_signed_in_account_signs_in_again_and_switches_to_a_password_its_server_takes() {
-    let both = section(
-        AccountKind::Imap,
-        SignInMethod::Provider,
-        Some(&options(true, true)),
-    )
-    .expect("a section");
+fn each_line_and_route_is_worded() {
     assert_eq!(
-        both.controls,
-        [SignInControl::SignInAgain, SignInControl::ToPassword]
-    );
-    assert!(both.switches());
-
-    // A server that names no password mechanism is only signed in again, and nothing is
-    // switched, so the line about what a switch keeps does not belong.
-    let again = section(
-        AccountKind::Imap,
-        SignInMethod::Provider,
-        Some(&options(true, false)),
-    )
-    .expect("a section");
-    assert_eq!(again.controls, [SignInControl::SignInAgain]);
-    assert!(!again.switches());
-}
-
-#[test]
-fn a_password_account_switches_to_signing_in_where_its_server_offers_it() {
-    let offered = AccountSignInOptions {
-        provider_label: Some("Fastmail".to_owned()),
-        ..options(true, true)
-    };
-    let switch =
-        section(AccountKind::Jmap, SignInMethod::Password, Some(&offered)).expect("a section");
-    assert_eq!(
-        switch.controls,
-        [SignInControl::ToProvider(Some("Fastmail".to_owned()))]
-    );
-    assert!(switch.switches());
-    assert_eq!(
-        label(&switch.controls[0]),
-        l10n::settings_account_switch_to_provider_named("Fastmail")
+        line(AccountSignInLine::Refused, "alice@example.org"),
+        l10n::signin_expired_prompt("alice@example.org")
     );
     assert_eq!(
-        label(&SignInControl::ToProvider(None)),
+        line(AccountSignInLine::NeedsPermission, "alice@example.org"),
+        l10n::settings_account_needs_permission()
+    );
+    assert_eq!(
+        line(AccountSignInLine::Nextcloud, "alice@example.org"),
+        l10n::settings_account_signs_in_nextcloud()
+    );
+    assert_eq!(
+        label(&AccountSignInRoute::ToProvider { label: None }),
         l10n::settings_account_switch_to_provider()
     );
-
-    let password_only = section(
-        AccountKind::Imap,
-        SignInMethod::Password,
-        Some(&options(false, true)),
-    )
-    .expect("a section");
-    assert_eq!(password_only.controls, []);
-}
-
-fn nextcloud_answered() -> AccountSignInOptions {
-    AccountSignInOptions {
-        nextcloud: true,
-        ..options(false, false)
-    }
-}
-
-#[test]
-fn a_calendar_account_has_a_section_only_at_a_nextcloud_server() {
-    assert_eq!(calendar_section(false, None), None);
-    assert_eq!(calendar_section(false, Some(&options(true, true))), None);
-
-    // One a Nextcloud sign-in made says so before anything is asked, and signs in again.
-    let made = calendar_section(true, None).expect("a section");
-    assert_eq!(made.status, l10n::settings_account_signs_in_nextcloud());
-    assert_eq!(made.controls, []);
-    let again = calendar_section(true, Some(&nextcloud_answered())).expect("a section");
-    assert_eq!(again.controls, [SignInControl::SignInAgain]);
-
-    // A typed password at a server that answered as Nextcloud switches to it, and never the
-    // other way: there is no switch to a typed password, and no line about what one keeps.
-    let typed = calendar_section(false, Some(&nextcloud_answered())).expect("a section");
-    assert_eq!(typed.status, l10n::settings_account_signs_in_password());
-    assert_eq!(typed.controls, [SignInControl::ToNextcloud]);
-    assert!(!typed.switches());
     assert_eq!(
-        label(&SignInControl::ToNextcloud),
+        label(&AccountSignInRoute::ToNextcloud),
         l10n::settings_account_switch_to_provider_named("Nextcloud")
     );
 }
@@ -146,17 +94,28 @@ fn rendered(group: &adw::PreferencesGroup) -> Vec<String> {
     rendered_labels(group.upcast_ref())
 }
 
-/// The section draws its controls in plain text, every row reachable from the keyboard, and the
+fn browser(input: Option<AppInput>) -> Option<(String, Switch)> {
+    match input {
+        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Browser {
+            account,
+            switch,
+        }))) => Some((account, switch)),
+        _ => None,
+    }
+}
+
+/// The section draws its routes in plain text, every row reachable from the keyboard, and the
 /// line saying what a switch keeps beneath them.
 pub(crate) fn the_section_draws_the_switch_its_server_takes() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let offered = AccountSignInOptions {
-        provider_label: Some("Mail & Co".to_owned()),
-        ..options(true, true)
-    };
-    let switch =
-        section(AccountKind::Imap, SignInMethod::Password, Some(&offered)).expect("a section");
-    let group = draw(&switch, ACCOUNT, ACCOUNT, None, &sender);
+    let switch = section(
+        AccountSignInLine::Password,
+        vec![AccountSignInRoute::ToProvider {
+            label: Some("Mail & Co".to_owned()),
+        }],
+        None,
+    );
+    let group = draw(&switch, AccountKind::Imap, ACCOUNT, ACCOUNT, None, &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     let labels = rendered(&group);
     assert!(labels.contains(&l10n::settings_account_signs_in_password().to_owned()));
@@ -173,142 +132,191 @@ pub(crate) fn the_section_draws_the_switch_its_server_takes() {
         .next()
         .expect("the switch's row");
     row.emit_by_name::<()>("activated", &[]);
-    assert!(matches!(
-        receiver.recv_sync(),
-        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Browser {
-            account,
-            switch: Switch::ToProvider,
-        }))) if account == ACCOUNT
-    ));
+    assert_eq!(
+        browser(receiver.recv_sync()),
+        Some((ACCOUNT.to_owned(), Switch::ToProvider))
+    );
 }
 
 /// A calendar account at a Nextcloud server draws the switch to signing in with Nextcloud, which
-/// sends the browser sign-in for it.
-pub(crate) fn a_calendar_account_switches_to_signing_in_with_nextcloud() {
+/// sends the browser sign-in for it; a Microsoft account signs in again through its consent.
+pub(crate) fn each_route_goes_to_the_sign_in_its_account_takes() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let typed = calendar_section(false, Some(&nextcloud_answered())).expect("a section");
-    let group = draw(&typed, ACCOUNT, ACCOUNT, None, &sender);
-    every_row_belongs_to_a_list(group.upcast_ref());
-    let labels = rendered(&group);
-    assert!(
-        labels.contains(&l10n::settings_account_switch_to_provider_named(
-            "Nextcloud"
-        ))
+    let typed = section(
+        AccountSignInLine::Password,
+        vec![AccountSignInRoute::ToNextcloud],
+        None,
     );
-    assert!(!labels.contains(&l10n::settings_account_switch_description().to_owned()));
-    let row = descendants::<adw::ButtonRow>(group.upcast_ref())
-        .into_iter()
-        .next()
-        .expect("the switch's row");
-    row.emit_by_name::<()>("activated", &[]);
+    let group = draw(&typed, AccountKind::Dav, ACCOUNT, ACCOUNT, None, &sender);
+    every_row_belongs_to_a_list(group.upcast_ref());
+    assert!(!rendered(&group).contains(&l10n::settings_account_switch_description().to_owned()));
+    descendants::<adw::ButtonRow>(group.upcast_ref())[0].emit_by_name::<()>("activated", &[]);
+    assert_eq!(
+        browser(receiver.recv_sync()),
+        Some((ACCOUNT.to_owned(), Switch::ToProvider))
+    );
+
+    let consent = section(
+        AccountSignInLine::AtProvider,
+        vec![AccountSignInRoute::SignInAgain],
+        None,
+    );
+    let group = draw(
+        &consent,
+        AccountKind::Microsoft,
+        ACCOUNT,
+        ACCOUNT,
+        None,
+        &sender,
+    );
+    assert!(rendered(&group).contains(&l10n::settings_account_signin_description().to_owned()));
+    descendants::<adw::ButtonRow>(group.upcast_ref())[0].emit_by_name::<()>("activated", &[]);
     assert!(matches!(
         receiver.recv_sync(),
-        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Browser {
-            account,
-            switch: Switch::ToProvider,
-        }))) if account == ACCOUNT
+        Some(AppInput::Accounts(AccountsInput::SignInAgain { account, adding }))
+            if account == ACCOUNT && adding.is_empty()
     ));
 }
 
-/// "Use a password instead" reveals an empty field; the password goes to the core once, and the
-/// field is emptied as it goes.
-pub(crate) fn a_password_is_typed_into_an_empty_field_and_cleared_once_sent() {
-    let (sender, receiver) = relm4::channel::<AppInput>();
-    let signed_in = section(
-        AccountKind::Imap,
-        SignInMethod::Provider,
-        Some(&options(true, true)),
-    )
-    .expect("a section");
-    let group = draw(&signed_in, ACCOUNT, ACCOUNT, None, &sender);
-    every_row_belongs_to_a_list(group.upcast_ref());
-    let rows = descendants::<adw::ButtonRow>(group.upcast_ref());
-    let titled = |title: &str| {
-        rows.iter()
-            .find(|row| row.title() == title)
-            .cloned()
-            .expect("a row with that title")
-    };
-    let again = titled(l10n::signin_expired_action());
-    let reveal = titled(l10n::settings_account_switch_to_password());
-    let save = titled(l10n::settings_account_switch_password_save());
-    let field = descendants::<adw::PasswordEntryRow>(group.upcast_ref())
+fn password_entry(group: &adw::PreferencesGroup) -> adw::PasswordEntryRow {
+    descendants::<adw::PasswordEntryRow>(group.upcast_ref())
         .into_iter()
         .next()
-        .expect("a password field");
-    assert!(!field.is_visible() && !save.is_visible());
+        .expect("a password field")
+}
+
+fn button(group: &adw::PreferencesGroup, label: &str) -> gtk::Button {
+    descendants::<gtk::Button>(group.upcast_ref())
+        .into_iter()
+        .find(|button| rendered_labels(button.upcast_ref()).contains(&label.to_owned()))
+        .expect("a button with that label")
+}
+
+fn sent_password(input: Option<AppInput>) -> Option<(String, String)> {
+    match input {
+        Some(AppInput::Accounts(AccountsInput::Change(AccountPageIntent::UsePassword {
+            account,
+            password,
+        }))) => {
+            assert!(!format!("{password:?}").contains(&password.text));
+            Some((account, password.text))
+        }
+        _ => None,
+    }
+}
+
+/// "Use a password instead" reveals an empty field; the password goes to the core once, as a
+/// change on the page, and the field is emptied as it goes.
+pub(crate) fn a_password_is_typed_into_an_empty_field_and_cleared_once_sent() {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let group = draw(
+        &signed_in(),
+        AccountKind::Imap,
+        ACCOUNT,
+        ACCOUNT,
+        None,
+        &sender,
+    );
+    every_row_belongs_to_a_list(group.upcast_ref());
+    let reveal = descendants::<adw::ButtonRow>(group.upcast_ref())
+        .into_iter()
+        .find(|row| row.title() == l10n::settings_account_switch_to_password())
+        .expect("the reveal");
+    let field = password_entry(&group);
+    let save = button(&group, l10n::settings_account_switch_password_save());
+    assert!(!field.is_visible());
 
     reveal.emit_by_name::<()>("activated", &[]);
-    assert!(field.is_visible() && save.is_visible() && !reveal.is_visible());
+    assert!(field.is_visible() && !reveal.is_visible());
     assert!(
         field.text().is_empty(),
         "the current credential is never shown"
     );
+    assert!(!save.is_sensitive(), "nothing typed, nothing to send");
 
-    // Nothing typed, nothing sent.
-    save.emit_by_name::<()>("activated", &[]);
     field.set_text("hunter2");
-    save.emit_by_name::<()>("activated", &[]);
-    match receiver.recv_sync() {
-        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Password {
-            account,
-            password,
-        }))) => {
-            assert_eq!(account, ACCOUNT);
-            assert_eq!(password.0, "hunter2");
-            assert!(!format!("{password:?}").contains("hunter2"));
-        }
-        other => panic!("expected the password switch, got {other:?}"),
-    }
+    assert!(save.is_sensitive());
+    save.emit_clicked();
+    assert_eq!(
+        sent_password(receiver.recv_sync()),
+        Some((ACCOUNT.to_owned(), "hunter2".to_owned()))
+    );
     assert!(field.text().is_empty(), "the field is emptied once sent");
-
-    again.emit_by_name::<()>("activated", &[]);
-    assert!(matches!(
-        receiver.recv_sync(),
-        Some(AppInput::Accounts(AccountsInput::SignIn(
-            SignInInput::Browser {
-                switch: Switch::Again,
-                ..
-            }
-        )))
-    ));
 }
 
-/// While the core works on a change, its controls wait.
+/// A password the server refused is typed again at once, a token as well on a JMAP account.
+pub(crate) fn a_refused_password_is_typed_again_where_the_section_says_so() {
+    let (sender, receiver) = relm4::channel::<AppInput>();
+    let refused = section(
+        AccountSignInLine::Refused,
+        Vec::new(),
+        Some(field(true, IDLE)),
+    );
+    let group = draw(
+        &refused,
+        AccountKind::Jmap,
+        ACCOUNT,
+        "alice@example.org",
+        None,
+        &sender,
+    );
+    every_row_belongs_to_a_list(group.upcast_ref());
+    assert!(rendered(&group).contains(&l10n::signin_expired_prompt("alice@example.org")));
+    let field = password_entry(&group);
+    assert!(field.is_visible());
+    assert_eq!(field.title(), l10n::setup_jmap_secret_placeholder());
+    field.set_text("token");
+    field.emit_by_name::<()>("entry-activated", &[]);
+    assert_eq!(
+        sent_password(receiver.recv_sync()),
+        Some((ACCOUNT.to_owned(), "token".to_owned()))
+    );
+}
+
+/// While a password is tried its field stays open and its button spins; while the core completes
+/// a browser sign-in, every route waits.
 pub(crate) fn a_running_change_holds_every_control() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
-    let signed_in = section(
-        AccountKind::Jmap,
-        SignInMethod::Provider,
-        Some(&options(true, true)),
-    )
-    .expect("a section");
-    let group = draw(&signed_in, ACCOUNT, ACCOUNT, Some(Stage::Core), &sender);
-    let rows = descendants::<adw::ButtonRow>(group.upcast_ref());
+    let mut trying = signed_in();
+    trying.control = ControlState {
+        enabled: false,
+        running: false,
+    };
+    trying.password = Some(field(
+        false,
+        ControlState {
+            enabled: false,
+            running: true,
+        },
+    ));
+    let group = draw(&trying, AccountKind::Imap, ACCOUNT, ACCOUNT, None, &sender);
+    let field = password_entry(&group);
+    assert!(field.is_visible() && !field.is_sensitive());
+    assert_ne!(descendants::<adw::Spinner>(group.upcast_ref()).len(), 0);
+
+    let group = draw(
+        &signed_in(),
+        AccountKind::Imap,
+        ACCOUNT,
+        ACCOUNT,
+        Some(Stage::Core),
+        &sender,
+    );
     assert!(
-        rows.iter()
+        descendants::<adw::ButtonRow>(group.upcast_ref())
+            .iter()
             .filter(|row| row.is_visible())
             .all(|row| !row.is_sensitive())
     );
-    assert!(
-        descendants::<gtk::Button>(group.upcast_ref())
-            .iter()
-            .all(|button| button.label().as_deref() != Some(l10n::action_cancel()))
-    );
 }
 
-/// While the browser holds a change, nobody is stranded: every control stays live, so a fresh
-/// press replaces the attempt, and Cancel beside the line saying where it waits drops it.
+/// While the browser holds a change, nobody is stranded: every route stays live, so a fresh press
+/// replaces the attempt, and Cancel beside the line saying where it waits drops it.
 pub(crate) fn a_change_waiting_on_the_browser_can_be_replaced_or_cancelled() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let signed_in = section(
-        AccountKind::Imap,
-        SignInMethod::Provider,
-        Some(&options(true, true)),
-    )
-    .expect("a section");
     let group = draw(
-        &signed_in,
+        &signed_in(),
+        AccountKind::Imap,
         ACCOUNT,
         "alice@example.org",
         Some(Stage::Browser),
@@ -316,26 +324,16 @@ pub(crate) fn a_change_waiting_on_the_browser_can_be_replaced_or_cancelled() {
     );
     every_row_belongs_to_a_list(group.upcast_ref());
     assert!(rendered(&group).contains(&l10n::settings_account_signin_waiting("alice@example.org")));
-    let rows = descendants::<adw::ButtonRow>(group.upcast_ref());
-    assert!(
-        rows.iter()
-            .filter(|row| row.is_visible())
-            .all(gtk::prelude::WidgetExt::is_sensitive)
-    );
-    let again = rows
-        .iter()
+    let again = descendants::<adw::ButtonRow>(group.upcast_ref())
+        .into_iter()
         .find(|row| row.title() == l10n::signin_expired_action())
         .expect("sign in again");
+    assert!(again.is_sensitive());
     again.emit_by_name::<()>("activated", &[]);
-    assert!(matches!(
-        receiver.recv_sync(),
-        Some(AppInput::Accounts(AccountsInput::SignIn(
-            SignInInput::Browser {
-                switch: Switch::Again,
-                ..
-            }
-        )))
-    ));
+    assert_eq!(
+        browser(receiver.recv_sync()),
+        Some((ACCOUNT.to_owned(), Switch::Again))
+    );
 
     let cancel = descendants::<gtk::Button>(group.upcast_ref())
         .into_iter()

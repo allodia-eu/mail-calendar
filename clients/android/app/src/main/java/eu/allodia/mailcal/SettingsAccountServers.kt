@@ -68,7 +68,6 @@ internal fun endpointsGapSaid(ctx: Context, gap: AccountEndpointsGap): String =
 internal fun ServersGroup(
     entry: AccountEntry,
     servers: AccountServers,
-    expired: Boolean,
     ui: AccountsSettingsUi,
 ) {
     val ctx = LocalContext.current
@@ -97,7 +96,7 @@ internal fun ServersGroup(
     )
     val edited = AccountEndpointEdit.edited(form, fields)
     val gap = ui.endpointsGap(entry.id, edited)
-    val description = if (expired) {
+    val description = if (servers.signInRefused) {
         L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
     } else {
         L10n.settings_account_servers_description(ctx)
@@ -172,32 +171,3 @@ internal fun ServersGroup(
     }
 }
 
-/**
- * A new password or API token for a JMAP account whose pasted one the server stopped accepting,
- * inside the account's Sign-in section. Offered only while it is refused: a working secret stays
- * out of ordinary settings (docs/settings.md).
- */
-@Composable
-internal fun SecretFields(entry: AccountEntry, ui: AccountsSettingsUi) {
-    val ctx = LocalContext.current
-    var secret by remember(entry.id) { mutableStateOf("") }
-    val replacing = ui.state.replacingSecret == entry.id
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        androidx.compose.material3.Text(
-            L10n.signin_expired_prompt(ctx, accountName(ctx, entry)),
-            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
-        )
-        PasswordField(secret, { secret = it }, L10n.setup_jmap_secret_placeholder(ctx))
-        Button(
-            onClick = { ui.onReplaceSecret(entry.id, secret) },
-            enabled = !replacing && secret.isNotBlank(),
-            modifier = Modifier.testTag("account-secret-save"),
-        ) {
-            if (replacing) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            androidx.compose.material3.Text(L10n.signin_expired_action(ctx))
-        }
-    }
-}

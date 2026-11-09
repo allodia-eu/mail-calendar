@@ -62,11 +62,8 @@ pub(crate) enum ExistingInput {
     /// Put the credential just given on the account already set up, with the answer to what
     /// becomes of the calendar and contacts it does not reach when it was asked.
     Update { unreached: Option<UnreachedUses> },
-    /// That ended, for the account it was put on.
-    Updated {
-        account: String,
-        result: Result<(), String>,
-    },
+    /// That ended.
+    Updated { result: Result<(), String> },
 }
 
 /// Whether a refused add of `submission` can offer its credential to the account already there:
@@ -175,17 +172,9 @@ impl AppModel {
     ) {
         match input {
             ExistingInput::Update { unreached } => self.update_existing_account(unreached, sender),
-            ExistingInput::Updated {
-                account,
-                result: Ok(()),
-            } => {
-                // Its way in may have changed, so what its page offers is asked again.
-                self.settings.sign_in.forget(&account);
-                self.existing_account_updated(sender);
-            }
+            ExistingInput::Updated { result: Ok(()) } => self.existing_account_updated(sender),
             ExistingInput::Updated {
                 result: Err(message),
-                ..
             } => self.setup.connect_failed(ConnectFailure {
                 message: Some(l10n::status_connect_failed(&message)),
                 ..ConnectFailure::default()
@@ -209,7 +198,6 @@ impl AppModel {
         }
         self.setup.connecting();
         std::thread::spawn(move || {
-            let account = existing.account_id.clone();
             let result = match existing.credential {
                 Offered::Config(config) => {
                     app.use_credential_from(existing.account_id, config, unreached)
@@ -229,10 +217,7 @@ impl AppModel {
                 }
             }
             .map_err(|error| super::core_error::said(&error));
-            sender.emit(AppInput::AlreadySetUp(ExistingInput::Updated {
-                account,
-                result,
-            }));
+            sender.emit(AppInput::AlreadySetUp(ExistingInput::Updated { result }));
         });
     }
 }

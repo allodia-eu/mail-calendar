@@ -108,7 +108,6 @@ impl AppModel {
                     self.abandon_held_nextcloud_grant();
                 }
                 if let Some(account) = &account {
-                    self.ask_sign_in_options(account, sender.clone());
                     // Its server is asked again which mailboxes the account's sign-in opens.
                     if let Some(app) = &self.app {
                         app.account_page_opened(account.clone());

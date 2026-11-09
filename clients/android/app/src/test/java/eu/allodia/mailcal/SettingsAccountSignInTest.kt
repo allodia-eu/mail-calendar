@@ -1,6 +1,6 @@
-// An IMAP or JMAP account's Sign-in section as a person meets it (docs/accounts.md rule 17): how it
-// signs in now, and only once its server has answered, the way back in or the other way in. Each
-// control asks the activity; nothing here changes the account by itself.
+// An account's Sign-in section as a person meets it (docs/accounts.md rule 17), drawn from a record
+// the core would answer: the line, the ways in through a browser, and the password field, which
+// sends its password to the core as a change on the page. A browser sign-in still asks the activity.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
@@ -22,9 +22,15 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
-import uniffi.mailcal_bindings.AccountSignInOptions
+import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AccountPasswordField
+import uniffi.mailcal_bindings.AccountSecretKind
+import uniffi.mailcal_bindings.AccountSignIn
+import uniffi.mailcal_bindings.AccountSignInLine
+import uniffi.mailcal_bindings.AccountSignInRoute
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
+import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.SignInMethod
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
@@ -33,23 +39,29 @@ class SettingsAccountSignInTest {
     @get:Rule val compose = createComposeRule()
 
     private val state = AccountsUiState()
-    private val asked = mutableListOf<String>()
     private val signIns = mutableListOf<Pair<String, Boolean>>()
-    private val passwords = mutableListOf<Pair<String, String>>()
+    private val consents = mutableListOf<String>()
+    private val changes = mutableListOf<AccountPageIntent>()
 
-    private fun account(signIn: SignInMethod, kind: CoreAccountKind = CoreAccountKind.IMAP) =
-        accountEntry(kind, AccountCapability.MAIL to CapabilityState.ON, signIn = signIn)
+    private fun account(kind: CoreAccountKind = CoreAccountKind.IMAP) =
+        accountEntry(kind, AccountCapability.MAIL to CapabilityState.ON, signIn = SignInMethod.PROVIDER)
 
-    private fun show(entry: AccountEntry, options: AccountSignInOptions? = null) {
+    private fun section(
+        line: AccountSignInLine,
+        routes: List<AccountSignInRoute> = emptyList(),
+        password: AccountPasswordField? = null,
+        switches: Boolean = false,
+    ) = AccountSignIn(line = line, routes = routes, control = FREE, password = password, switches = switches)
+
+    private fun show(entry: AccountEntry, section: AccountSignIn?) {
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
-        state.accountPage = pageOf(entry)
-        options?.let { state.signIn.answered(entry.id, it) }
+        state.accountPage = pageOf(entry, signIn = section)
         val ui = AccountsSettingsUi(
             state = state,
-            onAskSignInOptions = { asked += it },
+            onChange = { changes += it },
+            onSignInAgain = { id, _ -> consents += id },
             onAccountSignIn = { id, switching -> signIns += id to switching },
-            onSwitchToPassword = { id, password -> passwords += id to password },
         )
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -62,83 +74,127 @@ class SettingsAccountSignInTest {
     }
 
     @Test
-    fun the_page_says_how_it_signs_in_and_asks_the_server_before_offering_anything() {
-        val entry = account(SignInMethod.PASSWORD)
-        show(entry)
+    fun the_page_says_how_it_signs_in_and_offers_only_what_the_core_gives() {
+        show(account(), section(AccountSignInLine.PASSWORD))
 
         compose.onNodeWithText("Sign-in").assertExists()
         compose.onNodeWithText("Signs in with a password.").assertExists()
-        assertEquals(listOf(entry.id), asked)
         compose.onNodeWithTag("account-switch-to-provider").assertDoesNotExist()
-        compose.onNodeWithText("Its mail, settings and linked accounts stay as they are.")
-            .assertDoesNotExist()
+        compose.onNodeWithText("Its mail, settings and linked accounts stay as they are.").assertDoesNotExist()
+    }
+
+    @Test
+    fun a_calendar_account_without_a_section_draws_none() {
+        show(account(CoreAccountKind.DAV), null)
+
+        compose.onNodeWithText("Sign-in").assertDoesNotExist()
     }
 
     @Test
     fun a_password_account_switches_to_the_provider_its_server_names() {
-        val entry = account(SignInMethod.PASSWORD)
-        show(entry, AccountSignInOptions(signIn = true, providerLabel = "Fastmail", password = true))
+        val entry = account()
+        show(
+            entry,
+            section(
+                AccountSignInLine.PASSWORD,
+                routes = listOf(AccountSignInRoute.ToProvider("Fastmail")),
+                switches = true,
+            ),
+        )
 
         compose.onNodeWithText("Sign in with Fastmail instead").performScrollTo().performClick()
         compose.onNodeWithText("Its mail, settings and linked accounts stay as they are.").assertExists()
-        // A password account is not offered a password.
-        compose.onNodeWithTag("account-switch-to-password").assertDoesNotExist()
 
         assertEquals(listOf(entry.id to true), signIns)
     }
 
     @Test
-    fun a_signed_in_account_signs_in_again_without_switching() {
-        val entry = account(SignInMethod.PROVIDER, CoreAccountKind.JMAP)
-        show(entry, AccountSignInOptions(signIn = true, providerLabel = null, password = false))
+    fun a_microsoft_account_signs_in_again_through_its_consent() {
+        val entry = account(CoreAccountKind.MICROSOFT)
+        show(entry, section(AccountSignInLine.NEEDS_PERMISSION, routes = listOf(AccountSignInRoute.SignInAgain)))
 
-        compose.onNodeWithText("Signs in through your provider.").assertExists()
-        compose.onNodeWithText("Sign in again").performScrollTo().performClick()
-        compose.onNodeWithText("Its mail, settings and linked accounts stay as they are.")
-            .assertDoesNotExist()
+        compose.onNodeWithText("Needs permission: sign in again to allow it.").assertExists()
+        compose.onNodeWithTag("account-sign-in-again").performScrollTo().performClick()
 
-        assertEquals(listOf(entry.id to false), signIns)
+        assertEquals(listOf(entry.id), consents)
+        assertEquals(emptyList<Pair<String, Boolean>>(), signIns)
     }
 
     @Test
-    fun a_password_in_place_of_signing_in_starts_from_an_empty_field() {
-        val entry = account(SignInMethod.PROVIDER)
-        show(entry, AccountSignInOptions(signIn = true, providerLabel = null, password = true))
+    fun a_password_in_place_of_signing_in_is_a_change_on_the_page() {
+        val entry = account()
+        show(
+            entry,
+            section(
+                AccountSignInLine.PROVIDER,
+                routes = listOf(AccountSignInRoute.SignInAgain),
+                password = AccountPasswordField(AccountSecretKind.PASSWORD, replaces = false, save = FREE),
+                switches = true,
+            ),
+        )
 
-        compose.onNodeWithTag("account-switch-password-save").assertDoesNotExist()
+        compose.onNodeWithTag("account-password-save").assertDoesNotExist()
         compose.onNodeWithTag("account-switch-to-password").performScrollTo().performClick()
         compose.waitForIdle()
-        compose.onNodeWithTag("account-switch-password-save").assertIsNotEnabled()
+        compose.onNodeWithTag("account-password-save").assertIsNotEnabled()
         compose.onNodeWithText("Password").performTextInput("hunter2")
-        compose.onNodeWithTag("account-switch-password-save").performScrollTo().performClick()
+        compose.onNodeWithTag("account-password-save").performScrollTo().performClick()
 
-        assertEquals(listOf(entry.id to "hunter2"), passwords)
-    }
-
-    @Test
-    fun a_switched_password_leaves_the_field() {
-        val entry = account(SignInMethod.PROVIDER)
-        val options = AccountSignInOptions(signIn = true, providerLabel = null, password = true)
-        show(entry, options)
-        compose.onNodeWithTag("account-switch-to-password").performScrollTo().performClick()
-        compose.onNodeWithText("Password").performTextInput("hunter2")
-        compose.onNodeWithText("•••••••", substring = true).assertExists()
-
-        state.signIn.beginPassword(entry.id)
-        state.signIn.finished(switched = true)
-        // Asked again, the server still offers the switch: it starts closed and empty.
-        state.signIn.answered(entry.id, options)
-        compose.waitForIdle()
-
+        val sent = changes.single() as AccountPageIntent.UsePassword
+        assertEquals(entry.id, sent.account)
+        assertEquals("hunter2", sent.password.text)
         compose.onNodeWithText("•••••••", substring = true).assertDoesNotExist()
-        compose.onNodeWithTag("account-switch-password-save").assertDoesNotExist()
-        compose.onNodeWithTag("account-switch-to-password").assertExists()
+    }
+
+    @Test
+    fun a_refused_password_is_typed_again_at_once() {
+        val entry = account(CoreAccountKind.JMAP)
+        show(
+            entry,
+            section(
+                AccountSignInLine.REFUSED,
+                password = AccountPasswordField(AccountSecretKind.PASSWORD_OR_TOKEN, replaces = true, save = FREE),
+            ),
+        )
+
+        compose.onNodeWithText("The sign-in for alice@example.org no longer works. Sign in again to keep syncing.")
+            .assertExists()
+        compose.onNodeWithText("Password or API token").performTextInput("token")
+        compose.onNodeWithTag("account-password-save").performScrollTo().performClick()
+
+        assertEquals("token", (changes.single() as AccountPageIntent.UsePassword).password.text)
+    }
+
+    @Test
+    fun a_password_being_tried_keeps_its_field_open_and_held() {
+        show(
+            account(),
+            section(
+                AccountSignInLine.PROVIDER,
+                password = AccountPasswordField(
+                    AccountSecretKind.PASSWORD,
+                    replaces = false,
+                    save = ControlState(enabled = false, running = true),
+                ),
+                switches = true,
+            ),
+        )
+
+        compose.onNodeWithTag("account-switch-to-password").assertDoesNotExist()
+        compose.onNodeWithTag("account-password-save").assertIsNotEnabled()
     }
 
     @Test
     fun while_the_browser_is_open_the_page_waits_and_holds_its_buttons() {
-        val entry = account(SignInMethod.PASSWORD)
-        show(entry, AccountSignInOptions(signIn = true, providerLabel = null, password = true))
+        val entry = account()
+        show(
+            entry,
+            section(
+                AccountSignInLine.PASSWORD,
+                routes = listOf(AccountSignInRoute.ToProvider(null)),
+                switches = true,
+            ),
+        )
         compose.onNodeWithTag("account-switch-to-provider").assertIsEnabled()
 
         state.signIn.begin(entry.id, switching = true)
@@ -147,36 +203,5 @@ class SettingsAccountSignInTest {
 
         compose.onNodeWithTag("account-switch-to-provider").assertIsNotEnabled()
         compose.onNodeWithText("Continue in your browser to sign in as alice@example.org.").assertExists()
-    }
-
-    @Test
-    fun an_account_without_mail_has_a_sign_in_only_at_a_nextcloud_server() {
-        val entry = accountEntry(
-            CoreAccountKind.DAV,
-            AccountCapability.MAIL to CapabilityState.OFF,
-            AccountCapability.CALENDAR to CapabilityState.ON,
-            id = "alice@dav:cloud.example",
-        )
-        show(entry, AccountSignInOptions(signIn = false, providerLabel = null, password = false))
-
-        compose.onNodeWithText("Sign-in").assertDoesNotExist()
-        // Asked whether its server is Nextcloud, which is the one way in it can switch to.
-        assertEquals(listOf(entry.id), asked)
-    }
-
-    @Test
-    fun an_account_a_nextcloud_sign_in_made_signs_in_again_with_nextcloud() {
-        val entry = accountEntry(
-            CoreAccountKind.DAV,
-            AccountCapability.CALENDAR to CapabilityState.ON,
-            id = "alice@dav:cloud.example",
-            signIn = SignInMethod.PROVIDER,
-            nextcloud = true,
-        )
-        show(entry, AccountSignInOptions(signIn = false, providerLabel = null, password = false, nextcloud = true))
-
-        compose.onNodeWithText("Signs in with Nextcloud.").assertExists()
-        compose.onNodeWithTag("account-sign-in-provider-again").assertExists()
-        compose.onNodeWithTag("account-switch-to-password").assertDoesNotExist()
     }
 }

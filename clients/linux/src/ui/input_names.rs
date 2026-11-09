@@ -164,8 +164,6 @@ impl fmt::Debug for AppInput {
             Self::SetUpOfferedAccount(_) => "SetUpOfferedAccount",
             Self::JmapReauthPrepared(..) => "JmapReauthPrepared",
             Self::JmapReauthFinished(..) => "JmapReauthFinished",
-            Self::ReplaceAccountSecret { .. } => "ReplaceAccountSecret",
-            Self::AccountSecretReplaced { .. } => "AccountSecretReplaced",
             Self::Accounts(_) => "Accounts",
             Self::AnalyticsDecided(_) => "AnalyticsDecided",
             Self::CollectNewMail => "CollectNewMail",

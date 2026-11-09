@@ -86,12 +86,6 @@ public sealed partial class MailboxModel
     internal AccountsSnapshot AccountsSnapshot() =>
         _app?.AccountsSnapshot() ?? new AccountsSnapshot([]);
 
-    /// <summary>The accounts whose stored sign-in the server no longer accepts.</summary>
-    internal IReadOnlyList<string> SignInExpiredIds => _signInExpired;
-
-    /// <summary>Which sign-in an account's credential is, for the remedy its page offers.</summary>
-    internal AccountProvider? ProviderOf(string accountId) => _app?.AccountProvider(accountId);
-
     /// <summary>Switches one of an account's uses on or off, for setup's own steps, which wait on
     /// the answer.</summary>
     /// <returns>Why the core refused, or null; a use it could not switch on is logged.</returns>
@@ -149,26 +143,6 @@ public sealed partial class MailboxModel
     /// would refuse it. Reads only what is stored, so the page asks it as the person types.</summary>
     internal AccountEndpointsGap? EndpointsGap(string accountId, AccountEndpoints endpoints) =>
         _app?.AccountEndpointsGap(accountId, endpoints);
-
-    /// <summary>Replaces a JMAP account's pasted password or API token, after proving it connects.</summary>
-    /// <returns>Null when replaced, otherwise why not.</returns>
-    internal async Task<string?> ReplaceAccountSecretAsync(string accountId, string secret)
-    {
-        if (_app is not { } app)
-        {
-            return L10n.AppUnavailable();
-        }
-        try
-        {
-            await Task.Run(() => app.ReplaceAccountSecret(accountId, secret));
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"replacing an account's secret failed: {CoreError.Describe(ex)}");
-            return CoreErrorCopy.Said(ex);
-        }
-    }
 
     /// <summary>
     /// Signs an existing Microsoft or Google account in again at its provider, asking for what it

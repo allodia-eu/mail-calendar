@@ -14,10 +14,12 @@ use crate::{
 
 #[uniffi::export]
 impl MailcalApp {
-    /// The account's page opened: its server is asked again which mailboxes the account's sign-in
-    /// opens besides its own (rule 3), and the page is signalled once it answers. What it answered
-    /// before is drawn meanwhile.
+    /// The account's page opened: its server is asked again which ways in it takes
+    /// (`docs/accounts.md` rule 17) and which mailboxes the account's sign-in opens besides its own
+    /// (rule 3), and the page is signalled once each answers. What it answered before is drawn
+    /// meanwhile.
     pub fn account_page_opened(&self, account_id: String) {
+        self.ask_sign_in_options(&account_id, true);
         self.ask_shared(&account_id, true);
     }
 }

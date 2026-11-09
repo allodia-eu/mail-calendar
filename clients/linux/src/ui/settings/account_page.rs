@@ -13,7 +13,7 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        controls, notice_rules,
+        controls,
         server_change::{self, Review, ReviewFrom},
     },
 };
@@ -53,24 +53,17 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     if let Some(shared) = &account.shared {
         content.append(&super::shared_mailboxes::section(ctx, entry, shared));
     }
-    if account_rows::signs_in_at_provider(entry.kind) {
-        content.append(&signin_group(ctx, entry));
-    } else if let Some(section) = super::sign_in_section::group(ctx, entry) {
-        content.append(&section);
+    if let Some(section) = &account.sign_in {
+        content.append(&super::sign_in_section::group(ctx, entry, section));
     }
     if let Some(technology) = entry.mail_sync {
         content.append(&super::account_sync_technology::group(technology));
     }
     if let Some(servers) = &account.servers {
-        content.append(&account_servers::server_group(
-            ctx,
-            entry,
-            servers,
-            signin_expired(ctx, entry),
-        ));
+        content.append(&account_servers::server_group(ctx, entry, servers));
     }
-    if let Some(mail) = mail_group(ctx, entry, account) {
-        content.append(&mail);
+    if let Some(mail) = &account.mail {
+        content.append(&account_mail::mail_group(ctx, &entry.id, mail));
     }
     content.append(&remove_group(ctx, entry, account.remove));
     content
@@ -251,56 +244,6 @@ fn suggest(
         }
     });
     row.add_suffix(&link);
-}
-
-/// "Sign in again", for an account that signs in at its provider's page: the remedy for an
-/// expired sign-in and for a permission the provider withheld.
-fn signin_group(ctx: &PageContext, entry: &AccountEntry) -> adw::PreferencesGroup {
-    let expired = signin_expired(ctx, entry);
-    let section = group(
-        l10n::settings_account_signin_heading(),
-        &account_rows::signin_description(entry, expired),
-    );
-    let row = adw::ButtonRow::builder()
-        .title(l10n::signin_expired_action())
-        .use_markup(false)
-        .build();
-    let sender = ctx.sender.clone();
-    let account = entry.id.clone();
-    row.connect_activated(move |_| {
-        sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
-            account: account.clone(),
-            adding: Vec::new(),
-        }));
-    });
-    section.add(&row);
-    section
-}
-
-/// The mail settings, while the account is used for mail.
-fn mail_group(
-    ctx: &PageContext,
-    entry: &AccountEntry,
-    account: &AccountPage,
-) -> Option<adw::PreferencesGroup> {
-    let mail = account.mail.as_ref()?;
-    // An account whose servers are editable takes its new password in that section, so the mail
-    // settings offer it only to one that has no such section.
-    let expired = signin_expired(ctx, entry) && entry.endpoints.is_none();
-    let provider = ctx.app.account_provider(entry.id.clone());
-    Some(account_mail::mail_group(
-        ctx,
-        &entry.id,
-        mail,
-        &super::account_names::entry_name(entry),
-        expired,
-        provider.as_ref(),
-    ))
-}
-
-/// Whether the server refused the account's stored sign-in.
-fn signin_expired(ctx: &PageContext, entry: &AccountEntry) -> bool {
-    notice_rules::sign_in_expired(&ctx.app.notices().notices, &entry.id)
 }
 
 /// Removing the account, last, confirmed first.

@@ -52,7 +52,7 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    | The found card for an address with a calendar and contacts but no mail, and the link step's card for servers found beside a JMAP server | During detection (`DetectedSetup.nextcloud_sign_in`, handed back to `dav_setup_beside`) | **Sign in with Nextcloud** first, under the line that explains it, and the password behind **Use a password instead** ([`mail-oauth.md`](mail-oauth.md) rule 2) |
    | The manual calendar and contacts form | Off the UI thread once a CalDAV or CardDAV URL is entered (`offers_nextcloud_sign_in`) | The line and the button above the fields; fields already drawn stay ([`mail-oauth.md`](mail-oauth.md) rule 8) |
    | A mailbox's separate-server step, and its twin on the account's page | Off the UI thread once the step is drawn (`separate_server_offers_nextcloud_sign_in`) | Above the password field, where rule 13's sign-in sits |
-   | A calendar and contacts account's page, and its "sign in again" prompt | `account_sign_in_options(..).nextcloud`; `AccountEntry.nextcloud` for an account a Nextcloud sign-in made | **Sign in with Nextcloud** again, or **instead** of a typed password |
+   | A calendar and contacts account's page, and its "sign in again" prompt | As the page opens, by the core: its Sign-in section (`AccountPage::sign_in`) offers the route; `AccountEntry.nextcloud` for an account a Nextcloud sign-in made | **Sign in with Nextcloud** again, or **instead** of a typed password |
 
    An IMAP route's found card is unchanged: its calendar reuses the mailbox's password, and a
    server that refuses it leads to the separate-server step, which asks.

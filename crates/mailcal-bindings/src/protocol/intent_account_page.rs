@@ -74,6 +74,12 @@ pub enum AccountPageIntent {
     },
     /// Use the account for the shared mailbox at `address`, once its server opens one there.
     AddSharedMailbox { account: String, address: String },
+    /// Sign the account in with `password`, from its Sign-in section's field: in place of its
+    /// grant, or of the password or token its server refused. Tried before it is kept.
+    UsePassword {
+        account: String,
+        password: crate::TypedPassword,
+    },
 }
 
 impl AccountPageIntent {
@@ -92,7 +98,8 @@ impl AccountPageIntent {
             | Self::SetWatchedFolder { account, .. }
             | Self::SaveServers { account, .. }
             | Self::SetSharedMailbox { account, .. }
-            | Self::AddSharedMailbox { account, .. } => account,
+            | Self::AddSharedMailbox { account, .. }
+            | Self::UsePassword { account, .. } => account,
         }
     }
 }

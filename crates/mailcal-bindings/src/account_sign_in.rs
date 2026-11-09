@@ -14,8 +14,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ImapLoginRequest, MailcalApp, MailcalError, account_registry::SignInConfig};
 
-/// Which ways in an account's server accepts, for the switch its Settings page offers.
-#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+/// Which ways in an account's server accepts, which its page's Sign-in section is decided from.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AccountSignInOptions {
     /// Whether the account can sign in through its provider: switched to from a password, or
     /// signed in again when it already does.
@@ -28,7 +28,6 @@ pub struct AccountSignInOptions {
     /// Nextcloud sign-in made, signed in again that way, or one with a typed password whose server
     /// answers as Nextcloud, switched over (`docs/nextcloud-sign-in.md`). Started with
     /// [`MailcalApp::begin_account_nextcloud_sign_in`].
-    #[uniffi(default = false)]
     pub nextcloud: bool,
 }
 
@@ -65,32 +64,6 @@ pub(crate) enum Replacement {
 
 #[uniffi::export]
 impl MailcalApp {
-    /// Which ways in `account_id`'s server accepts: signing in through the provider where setup
-    /// would offer it, and a password where the server names a password mechanism (for JMAP,
-    /// where setup offers its secret field, which is everywhere). Nothing for an unknown account
-    /// and for Microsoft and Google, which sign in again through their own consent.
-    ///
-    /// **Blocking** (detection, a capability probe and issuer discovery, each bounded); call it
-    /// off the UI thread and draw the switch once it answers. Never fails: an unanswered
-    /// question offers nothing.
-    pub fn account_sign_in_options(&self, account_id: String) -> AccountSignInOptions {
-        match self.registry.sign_in_config(&account_id) {
-            Some(SignInConfig::Imap(config)) if config.imap.is_none() => {
-                self.calendar_sign_in_options(&config)
-            }
-            Some(SignInConfig::Imap(config)) => self.imap_sign_in_options(&account_id, &config),
-            Some(SignInConfig::Jmap(config)) => AccountSignInOptions {
-                sign_in: config.is_oauth()
-                    || self
-                        .jmap_oauth_available(config.email.clone(), Some(config.base_url.clone())),
-                provider_label: None,
-                password: true,
-                nextcloud: false,
-            },
-            None => no_options(),
-        }
-    }
-
     /// Starts signing `account_id` in through its provider: again, from its stored grant and with
     /// no discovery, when it already signs in that way; for the first time, discovered as setup
     /// discovers it, when it signs in with a password. The browser targets the account's own
@@ -209,39 +182,6 @@ impl MailcalApp {
         self.install_credential(&account_id, replacement, &[])
     }
 
-    /// Switches `account_id` to signing in with `password`, in place of its grant: tests it
-    /// against the account's servers, then stores it and drops the grant.
-    ///
-    /// **Blocking** (a connect); call it off the UI thread.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Config`] for an empty password or an account Settings cannot
-    /// switch, [`MailcalError::SignInRefused`] when the server refuses it, and
-    /// [`MailcalError::Connect`] when it cannot be reached. The account is unchanged on every
-    /// failure.
-    pub fn switch_account_to_password(
-        &self,
-        account_id: String,
-        password: String,
-    ) -> Result<(), MailcalError> {
-        if password.is_empty() {
-            return Err(MailcalError::Config("the password is empty".to_owned()));
-        }
-        let replacement = match self.switchable(&account_id)? {
-            SignInConfig::Imap(config) => {
-                Replacement::Imap(config.with_password_instead_of_grant(&password))
-            }
-            SignInConfig::Jmap(config) => Replacement::Jmap(JmapAccountConfig {
-                password: Some(Secret::new(password)),
-                token: None,
-                oauth: None,
-                ..*config
-            }),
-        };
-        self.install_credential(&account_id, replacement, &[])
-    }
-
     /// Puts the credential of `config_toml`, a config a setup just produced for the mailbox
     /// `account_id` already is, on that account: what the "This account is already set up"
     /// refusal offers, so the sign-in or password just given replaces the existing account's
@@ -306,6 +246,66 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// Which ways in `account_id`'s server accepts: signing in through the provider where setup
+    /// would offer it, and a password where the server names a password mechanism (for JMAP,
+    /// where setup offers its secret field, which is everywhere). Nothing for an unknown account
+    /// and for Microsoft and Google, which sign in again through their own consent.
+    ///
+    /// **Blocking** (detection, a capability probe and issuer discovery, each bounded). Never
+    /// fails: an unanswered question offers nothing. Not exported: the account's page asks it in
+    /// the background ([`crate::AccountSignIn`]).
+    pub fn account_sign_in_options(&self, account_id: String) -> AccountSignInOptions {
+        match self.registry.sign_in_config(&account_id) {
+            Some(SignInConfig::Imap(config)) if config.imap.is_none() => {
+                self.calendar_sign_in_options(&config)
+            }
+            Some(SignInConfig::Imap(config)) => self.imap_sign_in_options(&account_id, &config),
+            Some(SignInConfig::Jmap(config)) => AccountSignInOptions {
+                sign_in: config.is_oauth()
+                    || self
+                        .jmap_oauth_available(config.email.clone(), Some(config.base_url.clone())),
+                provider_label: None,
+                password: true,
+                nextcloud: false,
+            },
+            None => no_options(),
+        }
+    }
+
+    /// Switches `account_id` to signing in with `password`, in place of its grant: tests it
+    /// against the account's servers, then stores it and drops the grant.
+    ///
+    /// **Blocking** (a connect). Not exported: a client sends a typed password as
+    /// `AccountPageIntent::UsePassword`, which runs this off its thread.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] for an empty password or an account Settings cannot
+    /// switch, [`MailcalError::SignInRefused`] when the server refuses it, and
+    /// [`MailcalError::Connect`] when it cannot be reached. The account is unchanged on every
+    /// failure.
+    pub fn switch_account_to_password(
+        &self,
+        account_id: String,
+        password: String,
+    ) -> Result<(), MailcalError> {
+        if password.is_empty() {
+            return Err(MailcalError::Config("the password is empty".to_owned()));
+        }
+        let replacement = match self.switchable(&account_id)? {
+            SignInConfig::Imap(config) => {
+                Replacement::Imap(config.with_password_instead_of_grant(&password))
+            }
+            SignInConfig::Jmap(config) => Replacement::Jmap(JmapAccountConfig {
+                password: Some(Secret::new(password)),
+                token: None,
+                oauth: None,
+                ..*config
+            }),
+        };
+        self.install_credential(&account_id, replacement, &[])
+    }
+
     /// `account_id`'s config, when Settings can switch its sign-in.
     pub(crate) fn switchable(&self, account_id: &str) -> Result<SignInConfig, MailcalError> {
         self.registry.sign_in_config(account_id).ok_or_else(|| {

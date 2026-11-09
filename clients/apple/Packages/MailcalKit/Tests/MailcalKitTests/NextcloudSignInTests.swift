@@ -194,33 +194,7 @@ private func flight(_ script: Script) async -> NextcloudFlightEnd {
     }
 }
 
-@Suite struct NextcloudAccountRulesTests {
-    private func options(nextcloud: Bool) -> AccountSignInOptions {
-        AccountSignInOptions(signIn: false, providerLabel: nil, password: false, nextcloud: nextcloud)
-    }
-
-    @Test func anAccountANextcloudSignInMadeSignsInAgainAndNeverSwitchesToAPassword() {
-        let asking = NextcloudAccountRules.section(nextcloud: true, nil)
-        #expect(asking?.status == L10n.settings_account_signs_in_nextcloud())
-        #expect(asking?.action == nil)
-        let section = NextcloudAccountRules.section(nextcloud: true, options(nextcloud: true))
-        #expect(section?.action == .signInAgain)
-    }
-
-    @Test func aTypedPasswordAtANextcloudServerOffersTheSwitch() {
-        let section = NextcloudAccountRules.section(nextcloud: false, options(nextcloud: true))
-        #expect(section?.status == L10n.settings_account_signs_in_password())
-        #expect(section?.action == .toProvider(label: "Nextcloud"))
-        #expect(
-            AccountSettingsLabels.signInAction(section!.action!)
-                == L10n.settings_account_switch_to_provider_named(provider: "Nextcloud"))
-    }
-
-    @Test func anyOtherCalendarAccountHasNoSection() {
-        #expect(NextcloudAccountRules.section(nextcloud: false, nil) == nil)
-        #expect(NextcloudAccountRules.section(nextcloud: false, options(nextcloud: false)) == nil)
-    }
-
+@Suite struct NextcloudAccountRemedyTests {
     @Test func theBannerSignsANextcloudAccountInWithNextcloudWhateverItsProvider() {
         #expect(AccountSignInRules.remedy(.password, nextcloud: true) == .nextcloud)
         #expect(AccountSignInRules.remedy(nil, nextcloud: true) == .nextcloud)

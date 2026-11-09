@@ -65,6 +65,9 @@ private func toggle(
         let servers = AccountSettingsLabels.changeFailed(.serversFailed(refusal: .signInRefused))
         #expect(servers.title == L10n.settings_account_servers_failed())
         #expect(servers.detail == L10n.signin_refused())
+        let password = AccountSettingsLabels.changeFailed(.passwordFailed(refusal: .signInRefused))
+        #expect(password.title == L10n.settings_account_change_failed_title())
+        #expect(password.detail == L10n.signin_refused())
     }
 
     @Test func theSharedMailboxesSayWhatTheServerAnsweredInWords() {

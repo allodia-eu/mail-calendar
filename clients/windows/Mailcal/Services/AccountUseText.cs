@@ -68,4 +68,24 @@ internal static class AccountUseText
             ? L10n.SettingsAccountUseNoneOnServerCalendar() : L10n.SettingsAccountUseNoneOnServerContacts(),
         _ => calendar ? L10n.SettingsAccountUseOwnSignInCalendar() : L10n.SettingsAccountUseOwnSignInContacts(),
     };
+
+    /// <summary>The line under the Sign-in heading, for an account read as <paramref name="name"/>.</summary>
+    internal static string SignInLine(AccountSignInLine line, string name) => line switch
+    {
+        AccountSignInLine.Password => L10n.SettingsAccountSignsInPassword(),
+        AccountSignInLine.Provider => L10n.SettingsAccountSignsInProvider(),
+        AccountSignInLine.Nextcloud => L10n.SettingsAccountSignsInNextcloud(),
+        AccountSignInLine.AtProvider => L10n.SettingsAccountSigninDescription(),
+        AccountSignInLine.NeedsPermission => L10n.SettingsAccountNeedsPermission(),
+        _ => L10n.SigninExpiredPrompt(name),
+    };
+
+    /// <summary>The words on a way in's button.</summary>
+    internal static string SignInRoute(AccountSignInRoute route) => route switch
+    {
+        AccountSignInRoute.ToProvider { Label: { } provider } => L10n.SettingsAccountSwitchToProviderNamed(provider),
+        AccountSignInRoute.ToProvider => L10n.SettingsAccountSwitchToProvider(),
+        AccountSignInRoute.ToNextcloud => L10n.SettingsAccountSwitchToProviderNamed("Nextcloud"),
+        _ => L10n.SigninExpiredAction(),
+    };
 }

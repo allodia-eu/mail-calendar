@@ -188,6 +188,10 @@ pub struct AccountServers {
     /// they are the person's own, and [`crate::MailcalApp::account_endpoints_gap`] says what they
     /// leave out.
     pub save: ControlState,
+    /// The server refused the stored password, so the section says so: a new one is typed into
+    /// its form.
+    #[uniffi(default = false)]
+    pub sign_in_refused: bool,
 }
 
 /// What an edit of an account's servers leaves out, which its save refuses and the page says
@@ -270,6 +274,9 @@ pub enum AccountChangeNotice {
     ServersFailed { refusal: AccountChangeRefusal },
     /// Switching a shared mailbox, or adding one, did not take.
     SharedMailboxFailed { refusal: AccountChangeRefusal },
+    /// The password typed into the Sign-in section was not kept: the server refused it, or could
+    /// not be reached. The account signs in as it did.
+    PasswordFailed { refusal: AccountChangeRefusal },
     /// Nothing the account's sign-in opens answers to `address`. The server will not say
     /// whether no such mailbox exists or it was not shared with the account, so neither does this.
     SharedMailboxNotFound { address: String },
@@ -361,6 +368,10 @@ pub struct AccountPage {
     /// Once its server has answered, for an account whose sign-in can open a shared mailbox or
     /// that still has one chosen.
     pub shared: Option<AccountSharedMailboxes>,
+    /// How it signs in, and the ways in it offers; `None` for a calendar and contacts account
+    /// that is not at a Nextcloud server.
+    #[uniffi(default = None)]
+    pub sign_in: Option<crate::AccountSignIn>,
     pub remove: ControlState,
     /// What happens to an invitation answer its calendar server cannot pass on; `None` for an
     /// account not used for its calendar.

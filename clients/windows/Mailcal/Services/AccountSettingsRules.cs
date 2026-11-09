@@ -1,31 +1,12 @@
 // What Settings → Accounts' list says about an account, decided from its snapshot entry alone
-// (docs/accounts.md rules 11 to 13), how it signs in and what it can switch to (rule 17), and
-// what an expired sign-in and a refused duplicate offer. An account's uses, links and removal are
-// the core's (`account_page`) and carry no rule here. WinUI-free and L10n-free on purpose, so each
+// (docs/accounts.md rules 11 to 13), and what an expired sign-in and a refused duplicate offer.
+// An account's page, its Sign-in section included (rule 17), is the core's (`account_page`) and
+// carries no rule here. WinUI-free and L10n-free on purpose, so each
 // rule is reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
 
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
-
-/// <summary>The Sign-in section of a standards or JMAP account's page.</summary>
-/// <param name="ThroughProvider">Whether it signs in through its provider now, rather than with a
-/// password: the status line.</param>
-/// <param name="SignInAgain">"Sign in again", from its stored grant.</param>
-/// <param name="SwitchToProvider">Signing in through the provider in place of its password.</param>
-/// <param name="ProviderLabel">The provider's name for that button, when the core has one.</param>
-/// <param name="SwitchToPassword">A password in place of its grant.</param>
-/// <param name="Nextcloud">Whether its sign-in is Nextcloud's own, a calendar and contacts
-/// account's (docs/nextcloud-sign-in.md rule 7): then <paramref name="ThroughProvider"/> is an
-/// account a Nextcloud sign-in made.</param>
-internal sealed record SignInSection(
-    bool ThroughProvider, bool SignInAgain, bool SwitchToProvider, string? ProviderLabel, bool SwitchToPassword,
-    bool Nextcloud = false)
-{
-    /// <summary>Whether a switch is offered, which the line saying what it keeps goes with. A
-    /// calendar and contacts account switching to Nextcloud has no mail or links that line names.</summary>
-    internal bool OffersSwitch => (SwitchToProvider && !Nextcloud) || SwitchToPassword;
-}
 
 /// <summary>What an expired sign-in's banner button runs.</summary>
 internal enum SignInRemedy
@@ -98,83 +79,6 @@ internal static class AccountSettingsRules
         entry.Uses.Where(use => use.State == CapabilityState.NeedsPermission)
             .Select(use => use.Capability).ToList();
 
-    /// <summary>Whether the account signs in at its provider's own page, which "Sign in again"
-    /// opens.</summary>
-    internal static bool SignsInAtProvider(AccountKind kind) =>
-        kind is AccountKind.Microsoft or AccountKind.Google;
-
-    /// <summary>Whether an account of <paramref name="kind"/> has the Sign-in section that switches
-    /// between a password and its provider: one with a mailbox server to ask, a standards or JMAP
-    /// account.</summary>
-    internal static bool SwitchesSignIn(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Jmap;
-
-    /// <summary>Whether <paramref name="entry"/>'s page may have a Sign-in section: a standards or
-    /// JMAP account's, or a calendar and contacts account's, which has one only at a Nextcloud
-    /// server.</summary>
-    internal static bool MayHaveSignInSection(AccountEntry entry) =>
-        entry.Nextcloud || SwitchesSignIn(entry.Kind) || entry.Kind == AccountKind.Dav;
-
-    /// <summary>Whether the section is drawn before its server answers: every one but that of a
-    /// calendar and contacts account with a typed password, which has a section only once its
-    /// server has said it is Nextcloud.</summary>
-    internal static bool SignInDrawnBeforeAnswer(AccountEntry entry) =>
-        entry.Nextcloud || SwitchesSignIn(entry.Kind);
-
-    /// <summary>
-    /// The Sign-in section for <paramref name="entry"/>, given what its server accepts
-    /// (<paramref name="options"/>, null until <c>account_sign_in_options</c> answers). Null for a
-    /// Microsoft or Google account, which signs in again through its own consent, and for a
-    /// calendar or address book used for no mail, except at a Nextcloud server.
-    /// </summary>
-    internal static SignInSection? SignIn(AccountEntry entry, AccountSignInOptions? options)
-    {
-        // Ahead of the sign-in method: an account a Nextcloud sign-in made reports Provider, and
-        // has no endpoints to switch a password onto.
-        if (entry.Nextcloud || entry.Kind == AccountKind.Dav)
-        {
-            return NextcloudSignIn(entry.Nextcloud, options);
-        }
-        if (!SwitchesSignIn(entry.Kind))
-        {
-            return null;
-        }
-        var throughProvider = entry.SignIn switch
-        {
-            SignInMethod.Provider => true,
-            _ => false,
-        };
-        var signIn = options?.SignIn ?? false;
-        var password = options?.Password ?? false;
-        return new SignInSection(
-            ThroughProvider: throughProvider,
-            SignInAgain: throughProvider && signIn,
-            SwitchToProvider: !throughProvider && signIn,
-            ProviderLabel: !throughProvider && signIn ? options?.ProviderLabel : null,
-            SwitchToPassword: throughProvider && password);
-    }
-
-    /// <summary>
-    /// The section of a calendar and contacts account, which has one only at a Nextcloud server:
-    /// signing in again for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), and the
-    /// switch from a typed password for one whose server answered that it is Nextcloud. It never
-    /// switches to a typed password: its login is the one the server issued the password under.
-    /// </summary>
-    private static SignInSection? NextcloudSignIn(bool nextcloud, AccountSignInOptions? options)
-    {
-        var offered = options?.Nextcloud ?? false;
-        if (!nextcloud && !offered)
-        {
-            return null;
-        }
-        return new SignInSection(
-            ThroughProvider: nextcloud,
-            SignInAgain: nextcloud && offered,
-            SwitchToProvider: !nextcloud && offered,
-            ProviderLabel: !nextcloud && offered ? "Nextcloud" : null,
-            SwitchToPassword: false,
-            Nextcloud: true);
-    }
-
     /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>,
     /// or for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), which reports a provider
     /// as well. Null, a provider the core could not name, has nothing to run.</summary>
@@ -207,13 +111,12 @@ internal static class AccountSettingsRules
 
     /// <summary>
     /// What the page compares to decide whether a core signal changed anything on it: every field
-    /// of every entry, which accounts' sign-in has expired, and <paramref name="drawnBeside"/>,
+    /// of every entry, and <paramref name="drawnBeside"/>,
     /// what else the page draws from other calls (which accounts have a mailbox listed, how each
     /// is shared). A signal that changed none of it leaves the page, and whatever is being typed
     /// on it, alone.
     /// </summary>
-    internal static string Fingerprint(
-        AccountsSnapshot snapshot, IEnumerable<string> expired, IEnumerable<string>? drawnBeside = null)
+    internal static string Fingerprint(AccountsSnapshot snapshot, IEnumerable<string>? drawnBeside = null)
     {
         var parts = new List<string>();
         foreach (var entry in snapshot.Accounts)
@@ -240,8 +143,6 @@ internal static class AccountSettingsRules
                 : "-");
             parts.Add(Distinction(entry.Distinction));
         }
-        parts.Add("expired");
-        parts.AddRange(expired.Order(StringComparer.Ordinal));
         parts.Add("beside");
         parts.AddRange((drawnBeside ?? []).Order(StringComparer.Ordinal));
         return string.Join('\n', parts);
@@ -288,7 +189,20 @@ internal static class AccountSettingsRules
             var form = servers.Form;
             yield return string.Join('/', "servers", form.ImapHost, form.ImapSecurity, form.SmtpHost,
                 form.SmtpSecurity, form.CaldavUrl, form.CarddavUrl, form.Username, form.Password,
-                Control(servers.Save));
+                Control(servers.Save), servers.SignInRefused);
+        }
+        if (page.SignIn is { } signIn)
+        {
+            yield return $"sign-in:{signIn.Line}/{Control(signIn.Control)}/{signIn.Switches}/"
+                + string.Join(',', signIn.Routes.Select(route => route switch
+                {
+                    AccountSignInRoute.ToProvider provider => $"provider={provider.Label}",
+                    _ => route.GetType().Name,
+                }));
+            if (signIn.Password is { } field)
+            {
+                yield return $"password:{field.Kind}/{field.Replaces}/{Control(field.Save)}";
+            }
         }
         if (page.Shared is { } shared)
         {

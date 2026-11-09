@@ -31,27 +31,6 @@ public sealed partial class MailboxModel
     public Microsoft.UI.Xaml.Visibility SetupUpdateVisibility =>
         _setupExisting is null ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
 
-    /// <summary>Which ways in the account's server accepts, for its page's Sign-in section; null
-    /// when the core is not up or could not answer. Blocking (it asks the server, and the
-    /// provider's metadata), so it runs off the UI thread.</summary>
-    internal async Task<AccountSignInOptions?> AccountSignInOptionsAsync(string accountId)
-    {
-        if (_app is not { } app)
-        {
-            return null;
-        }
-        try
-        {
-            return await Task.Run(() => app.AccountSignInOptions(accountId));
-        }
-        catch (Exception ex)
-        {
-            // The core answers every ordinary failure with nothing offered; a panic lands here.
-            Log.Warn($"asking how an account can sign in failed: {CoreError.Describe(ex)}");
-            return null;
-        }
-    }
-
     /// <summary>
     /// Signs a standards or JMAP account in through its provider in the browser: again from its
     /// stored grant when it already signs in that way, in place of its password otherwise.
@@ -153,29 +132,6 @@ public sealed partial class MailboxModel
         finally
         {
             IsSigningIn = false;
-        }
-    }
-
-    /// <summary>Switches an account that signs in through its provider to <paramref name="password"/>,
-    /// after the server has accepted it.</summary>
-    /// <returns>Null when switched, otherwise why not.</returns>
-    internal async Task<string?> SwitchAccountToPasswordAsync(string accountId, string password)
-    {
-        if (_app is not { } app)
-        {
-            return L10n.AppUnavailable();
-        }
-        try
-        {
-            // A connect with the password, then the store.
-            await Task.Run(() => app.SwitchAccountToPassword(accountId, password));
-            Log.Info($"an account now signs in with a password: {LogHandle(accountId)}");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"switching an account to a password failed: {CoreError.Describe(ex)}");
-            return CoreErrorCopy.Said(ex);
         }
     }
 

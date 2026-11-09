@@ -184,14 +184,9 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(SharedGroup(entry, shared));
         }
-        var expired = _model.SignInExpiredIds.Contains(entry.Id);
-        if (AccountSettingsRules.SignsInAtProvider(entry.Kind))
+        if (page.SignIn is { } signIn)
         {
-            panel.Children.Add(SignInGroup(entry, expired));
-        }
-        else if (AccountSettingsRules.MayHaveSignInSection(entry))
-        {
-            panel.Children.Add(AccountSignInGroup(entry));
+            panel.Children.Add(AccountSignInGroup(entry, signIn));
         }
         if (entry.MailSync is { } technology)
         {
@@ -199,11 +194,11 @@ public sealed partial class SettingsDialog
         }
         if (page.Servers is { } servers)
         {
-            panel.Children.Add(ServersGroup(entry, servers, expired));
+            panel.Children.Add(ServersGroup(entry, servers));
         }
         if (page.Mail is { } mail)
         {
-            panel.Children.Add(MailGroup(entry, mail, expired));
+            panel.Children.Add(MailGroup(entry, mail));
         }
         panel.Children.Add(RemoveGroup(entry, page.Remove));
     }
@@ -230,9 +225,8 @@ public sealed partial class SettingsDialog
         _accountPage = accountId;
         _accountNotice = null;
         _confirmOpen = null;
-        // A page opened again asks its server again: what it takes, and which mailboxes it shares
-        // with the account, can have changed meanwhile.
-        _signInOptions.Clear();
+        // A page opened again has the core ask its server again: what it takes, and which mailboxes
+        // it shares with the account, can have changed meanwhile.
         if (accountId is not null)
         {
             _model.AccountPageOpened(accountId);
@@ -296,6 +290,7 @@ public sealed partial class SettingsDialog
         AccountChangeNotice.ServersFailed servers => new(
             InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), AccountUseText.Refused(servers.Refusal)),
         AccountChangeNotice.SharedMailboxFailed shared => ChangeFailed(AccountUseText.Refused(shared.Refusal)),
+        AccountChangeNotice.PasswordFailed password => ChangeFailed(AccountUseText.Refused(password.Refusal)),
         // Not a failure of the app: the address is the person's to check.
         AccountChangeNotice.SharedMailboxNotFound => new(
             InfoBarSeverity.Warning, L10n.SettingsAccountSharedNotFound(), string.Empty),
@@ -481,15 +476,15 @@ public sealed partial class SettingsDialog
         field.LostFocus += Left;
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, the expired sign-ins, how
-    /// each account is shared, the notices about accounts, and the open page's record, which the
-    /// page draws from calls of their own.</summary>
+    /// <summary>What the list or a page is drawn from: the snapshot, how each account is shared,
+    /// the notices about accounts, and the open page's record, which the page draws from calls of
+    /// their own.</summary>
     private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page)
     {
         var beside = _model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}")
             .Concat(AccountNoticesFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));
-        return AccountSettingsRules.Fingerprint(snapshot, _model.SignInExpiredIds, beside);
+        return AccountSettingsRules.Fingerprint(snapshot, beside);
     }
 
     private string? CurrentCategory() => (_categories.SelectedItem as ListViewItem)?.Tag as string;

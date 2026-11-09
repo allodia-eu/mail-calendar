@@ -1,183 +1,120 @@
-//! The Sign-in section of an IMAP or JMAP account's page: how it signs in now and, once its
-//! server has answered, the switch to the other way in where the server takes both, or signing
-//! in again where it signs in through its provider (`docs/accounts.md` rule 17). Microsoft and
-//! Google keep their own section; an account for a calendar and contacts alone has one only at a
-//! Nextcloud server (`docs/nextcloud-sign-in.md` rule 7).
+//! An account's Sign-in section, drawn from the core's record (`docs/accounts.md` rule 17): the
+//! line saying how it signs in or what is wrong, the ways in through a browser, and the field a
+//! password is typed into. Which of them it offers is the core's; this words and draws them.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountEntry, AccountKind, AccountSignInOptions, SignInMethod};
+use mailcal_bindings::{
+    AccountEntry, AccountKind, AccountPageIntent, AccountPasswordField, AccountSecretKind,
+    AccountSignIn, AccountSignInLine, AccountSignInRoute, TypedPassword,
+};
 
-use super::PageContext;
+use super::{PageContext, account_page::change};
 use crate::{
     l10n,
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        account_sign_in::{Password, SignInInput, Stage, Switch},
+        account_sign_in::{SignInInput, Stage, Switch},
+        controls,
     },
 };
 
-/// One control the section offers.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum SignInControl {
-    /// Sign in through the provider again.
-    SignInAgain,
-    /// Switch to a password, typed into the field this reveals.
-    ToPassword,
-    /// Switch to signing in through the provider, named when the build knows its name.
-    ToProvider(Option<String>),
-    /// Switch a calendar and contacts account from its typed password to signing in with
-    /// Nextcloud.
-    ToNextcloud,
-}
-
-/// What the section shows.
-#[derive(Debug, PartialEq, Eq)]
-pub(super) struct SignInSection {
-    /// How the account signs in now.
-    pub(super) status: &'static str,
-    /// Nothing until the server has answered, and nothing it does not take.
-    pub(super) controls: Vec<SignInControl>,
-}
-
-impl SignInSection {
-    /// Whether a switch is offered, which is when the line saying what it keeps belongs.
-    pub(super) fn switches(&self) -> bool {
-        self.controls.iter().any(|control| {
-            !matches!(
-                control,
-                SignInControl::SignInAgain | SignInControl::ToNextcloud
-            )
-        })
+/// The line under the heading, for an account read as `name`.
+pub(super) fn line(line: AccountSignInLine, name: &str) -> String {
+    match line {
+        AccountSignInLine::Password => l10n::settings_account_signs_in_password().to_owned(),
+        AccountSignInLine::Provider => l10n::settings_account_signs_in_provider().to_owned(),
+        AccountSignInLine::Nextcloud => l10n::settings_account_signs_in_nextcloud().to_owned(),
+        AccountSignInLine::AtProvider => l10n::settings_account_signin_description().to_owned(),
+        AccountSignInLine::NeedsPermission => l10n::settings_account_needs_permission().to_owned(),
+        AccountSignInLine::Refused => l10n::signin_expired_prompt(name),
     }
 }
 
-/// The section for an account of `kind` that signs in with `sign_in`, given what its server
-/// accepts once it has answered. `None` for a kind that has no such section.
-pub(super) fn section(
-    kind: AccountKind,
-    sign_in: SignInMethod,
-    options: Option<&AccountSignInOptions>,
-) -> Option<SignInSection> {
-    if !matches!(kind, AccountKind::Imap | AccountKind::Jmap) {
-        return None;
-    }
-    let status = match sign_in {
-        SignInMethod::Password => l10n::settings_account_signs_in_password(),
-        SignInMethod::Provider => l10n::settings_account_signs_in_provider(),
-    };
-    let mut controls = Vec::new();
-    if let Some(options) = options {
-        match sign_in {
-            SignInMethod::Provider => {
-                if options.sign_in {
-                    controls.push(SignInControl::SignInAgain);
-                }
-                if options.password {
-                    controls.push(SignInControl::ToPassword);
-                }
-            }
-            SignInMethod::Password if options.sign_in => {
-                controls.push(SignInControl::ToProvider(options.provider_label.clone()));
-            }
-            SignInMethod::Password => {}
+/// The words on a route's button.
+pub(super) fn label(route: &AccountSignInRoute) -> String {
+    match route {
+        AccountSignInRoute::SignInAgain => l10n::signin_expired_action().to_owned(),
+        AccountSignInRoute::ToProvider {
+            label: Some(provider),
+        } => l10n::settings_account_switch_to_provider_named(provider),
+        AccountSignInRoute::ToProvider { label: None } => {
+            l10n::settings_account_switch_to_provider().to_owned()
+        }
+        AccountSignInRoute::ToNextcloud => {
+            l10n::settings_account_switch_to_provider_named("Nextcloud")
         }
     }
-    Some(SignInSection { status, controls })
 }
 
-/// The section of a calendar and contacts account, which has one only at a Nextcloud server:
-/// signing in again for one a Nextcloud sign-in made (`nextcloud`), and the switch from a typed
-/// password for one whose server has answered that it is Nextcloud. It never switches to a typed
-/// password: its login is the one the server issued the password under.
-pub(super) fn calendar_section(
-    nextcloud: bool,
-    options: Option<&AccountSignInOptions>,
-) -> Option<SignInSection> {
-    let offered = options.is_some_and(|options| options.nextcloud);
-    if !nextcloud && !offered {
-        return None;
+/// What pressing `route` on an account of `kind` asks for. Microsoft and Google sign in again
+/// through their own consent; every other account through its own sign-in.
+fn pressed(kind: AccountKind, account: &str, route: &AccountSignInRoute) -> AppInput {
+    let account = account.to_owned();
+    if matches!(kind, AccountKind::Microsoft | AccountKind::Google) {
+        return AppInput::Accounts(AccountsInput::SignInAgain {
+            account,
+            adding: Vec::new(),
+        });
     }
-    let status = if nextcloud {
-        l10n::settings_account_signs_in_nextcloud()
-    } else {
-        l10n::settings_account_signs_in_password()
-    };
-    let controls = match (offered, nextcloud) {
-        (false, _) => Vec::new(),
-        (true, true) => vec![SignInControl::SignInAgain],
-        (true, false) => vec![SignInControl::ToNextcloud],
-    };
-    Some(SignInSection { status, controls })
-}
-
-/// The words on a control's button.
-pub(super) fn label(control: &SignInControl) -> String {
-    match control {
-        SignInControl::SignInAgain => l10n::signin_expired_action().to_owned(),
-        SignInControl::ToPassword => l10n::settings_account_switch_to_password().to_owned(),
-        SignInControl::ToProvider(Some(provider)) => {
-            l10n::settings_account_switch_to_provider_named(provider)
+    let switch = match route {
+        AccountSignInRoute::SignInAgain => Switch::Again,
+        AccountSignInRoute::ToProvider { .. } | AccountSignInRoute::ToNextcloud => {
+            Switch::ToProvider
         }
-        SignInControl::ToProvider(None) => l10n::settings_account_switch_to_provider().to_owned(),
-        SignInControl::ToNextcloud => l10n::settings_account_switch_to_provider_named("Nextcloud"),
-    }
+    };
+    AppInput::Accounts(AccountsInput::SignIn(SignInInput::Browser {
+        account,
+        switch,
+    }))
 }
 
-/// The section for `entry`, when its kind has one.
-pub(super) fn group(ctx: &PageContext, entry: &AccountEntry) -> Option<adw::PreferencesGroup> {
-    let options = ctx.sign_in.options(&entry.id);
-    let section = match entry.kind {
-        AccountKind::Dav => calendar_section(entry.nextcloud, options),
-        kind => section(kind, entry.sign_in, options),
-    }?;
-    Some(draw(
-        &section,
+/// `entry`'s section, when the core gives it one.
+pub(super) fn group(
+    ctx: &PageContext,
+    entry: &AccountEntry,
+    section: &AccountSignIn,
+) -> adw::PreferencesGroup {
+    draw(
+        section,
+        entry.kind,
         &entry.id,
         &super::account_names::entry_name(entry),
         ctx.sign_in.running(&entry.id),
         &ctx.sender,
-    ))
+    )
 }
 
-/// Draws `section` for `account`, read as `name`. Every control waits while the core works on a
-/// change. While the browser holds one they stay live, since a fresh press replaces it, and a
-/// line above them says where it waits, with the Cancel that drops it
-/// (`docs/provider-oauth.md` rule 13).
+/// Draws `section` for `account`, of `kind` and read as `name`. A browser sign-in is still this
+/// client's to run: while the core completes one every route waits, and while the browser holds
+/// one they stay live, since a fresh press replaces it, under a line saying where it waits with
+/// the Cancel that drops it (`docs/provider-oauth.md` rule 13).
 pub(super) fn draw(
-    section: &SignInSection,
+    section: &AccountSignIn,
+    kind: AccountKind,
     account: &str,
     name: &str,
     running: Option<Stage>,
     sender: &relm4::Sender<AppInput>,
 ) -> adw::PreferencesGroup {
-    let group = super::group(l10n::settings_account_signin_heading(), section.status);
+    let group = super::group(
+        l10n::settings_account_signin_heading(),
+        &line(section.line, name),
+    );
     if running == Some(Stage::Browser) {
         group.add(&waiting_row(account, name, sender));
     }
-    for control in &section.controls {
-        let row = button_row(&label(control));
-        row.set_sensitive(running != Some(Stage::Core));
-        group.add(&row);
-        let switch = match control {
-            SignInControl::ToPassword => {
-                password_field(&group, &row, account, sender);
-                continue;
-            }
-            SignInControl::SignInAgain => Switch::Again,
-            SignInControl::ToProvider(_) | SignInControl::ToNextcloud => Switch::ToProvider,
-        };
-        let (input, account) = (sender.clone(), account.to_owned());
-        row.connect_activated(move |_| {
-            input.emit(AppInput::Accounts(AccountsInput::SignIn(
-                SignInInput::Browser {
-                    account: account.clone(),
-                    switch,
-                },
-            )));
-        });
+    let enabled = section.control.enabled && running != Some(Stage::Core);
+    for route in &section.routes {
+        let (input, account, pressing) = (sender.clone(), account.to_owned(), route.clone());
+        group.add(&controls::button_row(&label(route), enabled, move || {
+            input.emit(pressed(kind, &account, &pressing));
+        }));
     }
-    if section.switches() {
+    if let Some(field) = section.password {
+        password_field(&group, field, account, enabled, sender);
+    }
+    if section.switches {
         // Not a row: a group places anything else beneath its list, which is where this belongs.
         let note = gtk::Label::new(Some(l10n::settings_account_switch_description()));
         note.set_wrap(true);
@@ -209,61 +146,82 @@ fn waiting_row(account: &str, name: &str, sender: &relm4::Sender<AppInput>) -> a
     row
 }
 
-/// A row that acts, with its title as plain text: set before the title, since the builder
-/// cannot promise the order (`docs/client-traps.md`).
-fn button_row(title: &str) -> adw::ButtonRow {
-    let row = adw::ButtonRow::new();
-    row.set_use_markup(false);
-    row.set_title(title);
-    row
-}
-
-/// The password field "Use a password instead" reveals, with the row that sends it. It never
-/// shows the account's current credential, and is emptied as it is sent.
+/// The password field, with the button that sends it. One that switches from the provider's
+/// sign-in waits behind "Use a password instead" until it runs; one that replaces a refused
+/// password is drawn at once. It never shows the account's credential, and is emptied as it is
+/// sent; while it holds text, a redraw waits.
 fn password_field(
     group: &adw::PreferencesGroup,
-    reveal: &adw::ButtonRow,
+    field: AccountPasswordField,
     account: &str,
+    enabled: bool,
     sender: &relm4::Sender<AppInput>,
 ) {
-    let field = adw::PasswordEntryRow::new();
-    field.set_use_markup(false);
-    field.set_title(l10n::setup_field_password());
-    field.set_visible(false);
-    group.add(&field);
-    let save = button_row(l10n::settings_account_switch_password_save());
-    save.add_css_class("suggested-action");
-    save.set_visible(false);
-    group.add(&save);
-    {
-        let (field, save) = (field.clone(), save.clone());
-        reveal.connect_activated(move |reveal| {
-            reveal.set_visible(false);
-            field.set_visible(true);
-            save.set_visible(true);
-            field.grab_focus();
-        });
-    }
-    let send = {
-        let (field, input, account) = (field.clone(), sender.clone(), account.to_owned());
-        move || {
-            let password = field.text().to_string();
-            // Kept sensitive while empty: the arrow keys stop on an insensitive row.
-            if password.is_empty() {
+    let title = match field.kind {
+        AccountSecretKind::Password => l10n::setup_field_password(),
+        AccountSecretKind::PasswordOrToken => l10n::setup_jmap_secret_placeholder(),
+    };
+    let entry = adw::PasswordEntryRow::new();
+    entry.set_use_markup(false);
+    entry.set_title(title);
+    controls::hold_field(&entry, field.save);
+    controls::form_unsent(&entry, false);
+    let label = if field.replaces {
+        l10n::action_save()
+    } else {
+        l10n::settings_account_switch_password_save()
+    };
+    let save = {
+        let (entry, input, account) = (entry.clone(), sender.clone(), account.to_owned());
+        controls::FormSend::new(label, field.save, move || {
+            let text = entry.text().to_string();
+            if text.is_empty() {
                 return;
             }
-            field.set_text("");
-            input.emit(AppInput::Accounts(AccountsInput::SignIn(
-                SignInInput::Password {
+            entry.set_text("");
+            change(
+                &input,
+                AccountPageIntent::UsePassword {
                     account: account.clone(),
-                    password: Password(password),
+                    password: TypedPassword { text },
                 },
-            )));
-        }
+            );
+        })
     };
-    let on_return = send.clone();
-    field.connect_entry_activated(move |_| on_return());
-    save.connect_activated(move |_| send());
+    save.ready(Some(""));
+    let save = std::rc::Rc::new(save);
+    {
+        let save = save.clone();
+        entry.connect_changed(move |entry| {
+            let empty = entry.text().is_empty();
+            controls::form_unsent(entry, !empty);
+            save.ready(empty.then_some(""));
+        });
+    }
+    {
+        let save = save.clone();
+        entry.connect_entry_activated(move |_| save.press());
+    }
+    let shown = field.replaces || field.save.running;
+    entry.set_visible(shown);
+    save.row().set_visible(shown);
+    if !shown {
+        let reveal = controls::button_row(l10n::settings_account_switch_to_password(), enabled, {
+            let (entry, row) = (entry.clone(), save.row().clone());
+            move || {
+                entry.set_visible(true);
+                row.set_visible(true);
+                entry.grab_focus();
+            }
+        });
+        {
+            let reveal = reveal.clone();
+            reveal.connect_activated(|reveal| reveal.set_visible(false));
+        }
+        group.add(&reveal);
+    }
+    group.add(&entry);
+    group.add(save.row());
 }
 
 #[cfg(test)]

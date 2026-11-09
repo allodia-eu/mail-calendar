@@ -47,14 +47,10 @@ import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
  * What Settings → Accounts draws beyond each account's mail settings: the snapshot and the page
- * open ([state]), which accounts' sign-in has expired, which take
- * a pasted secret, and what each change asks the activity to do.
+ * open ([state]), and what each change asks the activity to do.
  */
 internal class AccountsSettingsUi(
     val state: AccountsUiState,
-    val expired: Set<String> = emptySet(),
-    // A JMAP account holding a pasted password or API token, which a new one replaces.
-    val pastedSecret: Set<String> = emptySet(),
     // Every notice in force, of which the page draws its account's at its top (docs/notices.md).
     val notices: List<Notice> = emptyList(),
     val noticeHandlers: NoticeHandlers = NoticeHandlers(),
@@ -67,13 +63,9 @@ internal class AccountsSettingsUi(
     // it runs (docs/waiting.md).
     val onChange: (AccountPageIntent) -> Unit = {},
     val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
-    val onReplaceSecret: (accountId: String, secret: String) -> Unit = { _, _ -> },
-    // An IMAP or JMAP account's sign-in (docs/accounts.md rule 17): what its server takes, asked
-    // as its page opens; a browser sign-in, again or in place of a password ([switching]); and a
-    // password in place of signing in.
-    val onAskSignInOptions: (accountId: String) -> Unit = {},
+    // An account's browser sign-in (docs/accounts.md rule 17), again or in place of a password
+    // ([switching]).
     val onAccountSignIn: (accountId: String, switching: Boolean) -> Unit = { _, _ -> },
-    val onSwitchToPassword: (accountId: String, password: String) -> Unit = { _, _ -> },
     // What a switch's sign-in will not reach, answered before the browser opens, and a sign-in of
     // their own for a calendar or address book that needs one (docs/accounts.md rule 18): the
     // form, its Connect, whether its server is asked to offer a sign-in at its own provider once it
