@@ -14,6 +14,7 @@ pub(super) use super::mailbox_display::display_row;
 use super::{
     AppInput, avatar, mail_actions_menu,
     mailbox_display::{flat_display, message_display, thread_display},
+    mailbox_lead,
     model::{self, OpenedMessage},
     row_action,
     timestamps::MailClock,
@@ -181,20 +182,13 @@ fn flat_row(
     opens_in_window(&widget, &opened, sender);
     mail_drag(&widget, &row.account, selected);
     let open = opens_listed(&avatar, opened, row.draft, sender);
-    widget.add_prefix(&lead(display.unread, &open));
+    widget.add_prefix(&mailbox_lead::lead(
+        &mailbox_lead::slot(),
+        display.unread,
+        &open,
+    ));
     widget.set_activatable_widget(Some(&open));
     widget
-}
-
-/// What every mail row leads with: the unread dot, then the avatar carrying the row's action. One
-/// box of this file's own, so a message row and a conversation row space the two alike, and every
-/// avatar in the list stands in one column; each kind of row arranges its own prefixes otherwise.
-fn lead(unread: bool, open: &gtk::Button) -> gtk::Box {
-    let lead = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-    lead.set_valign(gtk::Align::Center);
-    lead.append(&avatar::unread_dot(unread));
-    lead.append(open);
-    lead
 }
 
 /// The button that opens a message row's message, or resumes it in a composer when the row says
@@ -309,7 +303,11 @@ fn thread_row(
     let open = row_action::open_button(&avatar, move || {
         input.emit(AppInput::OpenConversation(thread.clone()));
     });
-    widget.add_prefix(&lead(display.unread, &open));
+    widget.add_prefix(&mailbox_lead::lead(
+        &mailbox_lead::chevron(&widget),
+        display.unread,
+        &open,
+    ));
     for message in &row.messages {
         widget.add_row(&thread_message_row(row, message, menus, clock, sender));
     }
@@ -373,7 +371,11 @@ fn thread_message_row(
     ));
     opens_in_window(&widget, &opened, sender);
     let open = opens_listed(&avatar, opened, message.draft, sender);
-    widget.add_prefix(&lead(display.unread, &open));
+    widget.add_prefix(&mailbox_lead::lead(
+        &mailbox_lead::slot(),
+        display.unread,
+        &open,
+    ));
     widget.set_activatable_widget(Some(&open));
     widget
 }

@@ -231,7 +231,7 @@ pub(crate) fn every_message_row_offers_the_window_by_name() {
 /// A message row and a conversation row lead the same way, the unread dot and then the avatar,
 /// so every avatar in the list stands in one column; and neither draws an arrow, because the
 /// avatar carries the row's own action (`row_action`).
-pub(crate) fn every_mail_row_leads_with_the_dot_then_the_avatar() {
+pub(crate) fn every_mail_row_leads_with_its_chevron_column_the_dot_and_the_avatar() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let clock = MailClock::new("UTC", true);
     let menus = RowMenus::default();
@@ -249,6 +249,64 @@ pub(crate) fn every_mail_row_leads_with_the_dot_then_the_avatar() {
             "a {kind} row draws no arrow"
         );
     }
+
+    // The conversation's chevron leads its row, ahead of the dot, pointing the way the folder
+    // pane's do; libadwaita's own arrow at the row's end is gone, so the row says it once.
+    let lead_of = |row: &gtk::Widget| {
+        let open = buttons(row)
+            .into_iter()
+            .find(|button| !button.can_target())
+            .expect("the avatar's button");
+        open.parent().expect("the lead box")
+    };
+    let chevron = lead_of(header.upcast_ref())
+        .first_child()
+        .and_downcast::<gtk::Button>()
+        .expect("a conversation leads with its chevron");
+    assert_eq!(
+        chevron.icon_name().as_deref(),
+        Some(crate::ui::icons::COLLAPSED)
+    );
+    assert!(
+        !visible_with_class(header.upcast_ref(), "expander-row-arrow"),
+        "one arrow per row"
+    );
+    chevron.emit_clicked();
+    assert!(header.is_expanded(), "the chevron opens the conversation");
+    assert_eq!(
+        chevron.icon_name().as_deref(),
+        Some(crate::ui::icons::EXPANDED)
+    );
+    chevron.emit_clicked();
+    assert!(!header.is_expanded(), "and folds it away again");
+
+    // A message has nothing to open, and keeps the column empty at the chevron's width, so the
+    // dots and avatars below a conversation line up with its own.
+    let slot = lead_of(flat.upcast_ref())
+        .first_child()
+        .expect("a message keeps the disclosure column");
+    assert!(
+        slot.downcast_ref::<gtk::Button>().is_none(),
+        "empty, not a control"
+    );
+    let width = |widget: &gtk::Widget| widget.measure(gtk::Orientation::Horizontal, -1).1;
+    assert_eq!(width(&slot), width(chevron.upcast_ref()));
+}
+
+/// Whether a widget carrying `class` is drawn anywhere under `root`.
+fn visible_with_class(root: &gtk::Widget, class: &str) -> bool {
+    let mut stack = vec![root.clone()];
+    while let Some(widget) = stack.pop() {
+        if widget.has_css_class(class) && widget.is_visible() {
+            return true;
+        }
+        let mut child = widget.first_child();
+        while let Some(next) = child {
+            child = next.next_sibling();
+            stack.push(next);
+        }
+    }
+    false
 }
 
 /// The unread dot and the avatar's action button under `root`, in the order they are drawn.
