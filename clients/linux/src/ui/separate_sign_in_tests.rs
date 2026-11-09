@@ -40,7 +40,6 @@ pub(crate) fn mailbox(problem: Option<UseProblem>, server: Option<SeparateServer
         links: mailcal_bindings::AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: mailcal_bindings::LinkCandidates::default(),
-        endpoints: None,
         separate_server: server,
         distinction: None,
         mail_sync: None,

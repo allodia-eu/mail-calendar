@@ -14,6 +14,7 @@ impl MailcalApp {
         &self,
         entry: &AccountEntry,
         refused: bool,
+        edits_servers: bool,
         hold: &Hold,
     ) -> Option<AccountSignIn> {
         self.ask_sign_in_options(&entry.id, false);
@@ -21,6 +22,7 @@ impl MailcalApp {
             entry,
             self.account_work.sign_in.options(&entry.id).as_ref(),
             refused,
+            edits_servers,
             hold,
         )
     }

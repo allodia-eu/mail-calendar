@@ -35,7 +35,6 @@ fn snapshot() -> AccountsSnapshot {
                 mail: Vec::new(),
                 suggested: vec!["alice@dav".to_owned()],
             },
-            endpoints: None,
             separate_server: None,
             distinction: None,
             mail_sync: None,

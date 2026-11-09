@@ -19,7 +19,6 @@ fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
                 links: mailcal_bindings::AccountLinksView::default(),
                 linked_from: Vec::new(),
                 link_candidates: mailcal_bindings::LinkCandidates::default(),
-                endpoints: None,
                 separate_server: None,
                 distinction: None,
                 mail_sync: None,

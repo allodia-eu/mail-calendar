@@ -112,7 +112,6 @@ pub(crate) fn entries(
                     suggested: suggested(facts, &links, index),
                 }
             },
-            endpoints: account.endpoints.clone().map(Into::into),
             separate_server: separate_server(
                 account,
                 problems.get(&account.id).copied().unwrap_or_default(),

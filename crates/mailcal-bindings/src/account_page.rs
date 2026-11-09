@@ -12,14 +12,16 @@ use crate::{
     app_accounts_uses::domain_of,
 };
 
-/// `entry`'s page. `hold` says which change runs, `refused_servers` is the edit its last save of
-/// servers refused, `reply_fallback` the account's standing answer about invitation replies, and
+/// `entry`'s page. `hold` says which change runs, `stored_servers` are its servers and login for
+/// an account whose page edits them, `refused_servers` is the edit its last save of servers
+/// refused, `reply_fallback` the account's standing answer about invitation replies, and
 /// `toggle` what switching a use on (`true`) or off comes to. The control a running change started
 /// is drawn at the value it is moving to.
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
+    stored_servers: Option<AccountEndpoints>,
     refused_servers: Option<AccountEndpoints>,
     reply_fallback: ReplyFallbackChoice,
     toggle: impl Fn(AccountCapability, bool) -> Toggle,
@@ -85,7 +87,7 @@ pub(crate) fn page(
         remove: control(hold.own.contains(&PageWork::Remove), true),
         sender_name: None,
         mail: None,
-        servers: entry.endpoints.clone().map(|stored| {
+        servers: stored_servers.map(|stored| {
             let saving = hold.going(|work| match work {
                 PageWork::Servers(edit) => Some(edit.as_ref().clone()),
                 _ => None,

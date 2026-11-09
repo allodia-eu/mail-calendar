@@ -87,8 +87,9 @@ impl MailcalApp {
         else {
             return;
         };
-        let Some(stored) = entry
-            .endpoints
+        let Some(stored) = self
+            .registry
+            .endpoints(account_id)
             .filter(|endpoints| endpoints.caldav_url.is_some() || endpoints.carddav_url.is_some())
         else {
             return;

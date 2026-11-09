@@ -1,8 +1,10 @@
 // The question a calendar or address book server found on another site asks
-// (docs/account-autodetect.md rule 14), drawn once for the dialog the calendar and contacts screens
-// open and for the account's page, which draws it inline because Settings is itself a
-// ContentDialog. The sentences and which variant each change earns are ServerChangeCopy's.
+// (docs/account-autodetect.md rule 14), drawn from the core's AccountServerChange once for the
+// dialog the calendar and contacts screens open and for the account's page, which draws it inline
+// because Settings is itself a ContentDialog. The sentences and which variant each change earns
+// are ServerChangeCopy's.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
@@ -12,25 +14,6 @@ using Microsoft.UI.Xaml.Documents;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Dialogs;
-
-/// <summary>The question's controls: the sentences, the ring while the new server is dialled, and
-/// the line saying it could not be.</summary>
-internal sealed record ServerChangePanel(StackPanel Panel, ProgressRing Ring, InfoBar Error)
-{
-    /// <summary>Shows the ring while allowing the new server runs.</summary>
-    internal void Busy(bool busy)
-    {
-        Ring.IsActive = busy;
-        Ring.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
-    }
-
-    /// <summary>Says <paramref name="error"/> under the sentences, or takes the last one away.</summary>
-    internal void Say(string? error)
-    {
-        Error.Message = error ?? string.Empty;
-        Error.IsOpen = error is not null;
-    }
-}
 
 internal static class ServerChangeViews
 {
@@ -64,11 +47,17 @@ internal static class ServerChangeViews
         ServerChangeCopy.Of(change, address, Words());
 
     /// <summary>
-    /// The sentences, the ring and the error line. <paramref name="titled"/> draws the title as the
-    /// panel's heading, for the account's page; a dialog carries it as its own title.
+    /// The question as the core draws it (<paramref name="question"/>): the sentences, the line
+    /// saying the last allow failed, and Allow, which <paramref name="allow"/> sends. While it
+    /// runs, the rest of the question waits for it too. <paramref name="notNow"/>, when given,
+    /// draws "Not now" beside Allow, for the account's page; a dialog has its own close button.
+    /// <paramref name="titled"/> draws the title as the panel's heading, for the account's page; a
+    /// dialog carries it as its own title.
     /// </summary>
-    internal static ServerChangePanel Panel(ServerChangeCopy copy, bool titled)
+    internal static StackPanel Question(
+        AccountServerChange question, string address, bool titled, Action allow, Action? notNow)
     {
+        var copy = Copy(question.Change, address);
         var panel = new StackPanel { Spacing = 8 };
         AutomationProperties.SetAutomationId(panel, "ServerChangeQuestion");
         if (titled)
@@ -84,20 +73,30 @@ internal static class ServerChangeViews
         panel.Children.Add(sites);
         panel.Children.Add(Sentence(copy.Advice));
         panel.Children.Add(Sentence(copy.Unsure));
-        var ring = new ProgressRing
+        if (question.Failed)
         {
-            Width = 20,
-            Height = 20,
-            IsActive = false,
-            Visibility = Visibility.Collapsed,
-            HorizontalAlignment = HorizontalAlignment.Left,
-        };
-        AutomationProperties.SetAutomationId(ring, "ServerChangeProgress");
-        panel.Children.Add(ring);
-        var error = new InfoBar { Severity = InfoBarSeverity.Error, IsClosable = false, IsOpen = false };
-        AutomationProperties.SetAutomationId(error, "ServerChangeError");
-        panel.Children.Add(error);
-        return new ServerChangePanel(panel, ring, error);
+            var error = new InfoBar
+            {
+                Severity = InfoBarSeverity.Error,
+                IsClosable = false,
+                IsOpen = true,
+                Message = L10n.ServerChangedFailed(),
+            };
+            AutomationProperties.SetAutomationId(error, "ServerChangeError");
+            panel.Children.Add(error);
+        }
+        // Neither is the accent button: allowing a server is never the easy press.
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        buttons.Children.Add(ControlComponents.Button(
+            L10n.ServerChangedAllow(), question.Allow, "ServerChangeAllow", allow));
+        if (notNow is not null)
+        {
+            buttons.Children.Add(ControlComponents.Button(
+                L10n.ServerChangedNotNow(), new ControlState(!question.Allow.Running, false),
+                "ServerChangeNotNow", notNow));
+        }
+        panel.Children.Add(buttons);
+        return panel;
     }
 
     private static TextBlock Sentence(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };

@@ -198,13 +198,6 @@ impl SettingsWindow {
         if state.redraw != Redraw::Open && !self.is_on_screen() {
             return;
         }
-        if state.redraw == Redraw::NoticeOnly {
-            if let Some((window, toasts)) = self.window.clone().zip(self.toasts.clone()) {
-                notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
-            }
-            self.rendered_generation = state.generation;
-            return;
-        }
         let Some(app) = app.cloned() else {
             return;
         };

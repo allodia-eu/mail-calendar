@@ -22,6 +22,17 @@ impl AccountRegistry {
             .collect()
     }
 
+    /// `id`'s servers and login, for an account Settings can edit them on: one that signs in with
+    /// a password to servers of its own. `None` for any other, or one not registered.
+    pub(crate) fn endpoints(&self, id: &str) -> Option<crate::AccountEndpoints> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .and_then(|entry| entry.facts(id).endpoints)
+            .map(Into::into)
+    }
+
     /// Every registered account's links that hold ([`valid_links`]), keyed by id: what the core
     /// files invitations by. Read afresh on every call, so a link changed in Settings counts from
     /// the next invitation.

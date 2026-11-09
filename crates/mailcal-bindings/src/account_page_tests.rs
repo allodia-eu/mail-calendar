@@ -51,7 +51,6 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
         links: AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
-        endpoints: None,
         separate_server: None,
         distinction: None,
         mail_sync: None,
@@ -82,7 +81,7 @@ fn applies(_: AccountCapability, _: bool) -> Toggle {
 }
 
 fn idle(entry: &AccountEntry) -> AccountPage {
-    page(entry, Hold::default(), None, None, Ask, applies)
+    page(entry, Hold::default(), None, None, None, Ask, applies)
 }
 
 fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
@@ -98,6 +97,7 @@ fn a_switch_the_core_would_refuse_is_held_and_says_why_and_one_it_would_make_is_
     let page = page(
         &account,
         Hold::default(),
+        None,
         None,
         None,
         Ask,
@@ -144,6 +144,7 @@ fn a_switch_whose_grant_lacks_it_asks_the_provider_and_one_waiting_on_it_says_so
         Hold::default(),
         None,
         None,
+        None,
         Ask,
         |capability, on| match (capability, on) {
             (Calendar | Contacts, true) => Toggle::AsksProvider,
@@ -180,6 +181,7 @@ fn what_is_wrong_with_a_use_is_said_beside_why_it_cannot_be_pressed() {
         Hold::default(),
         None,
         None,
+        None,
         Ask,
         |capability, on| match (capability, on) {
             (Calendar, false) => Toggle::Refused(AccountUseBlock::LastUse),
@@ -202,6 +204,7 @@ fn a_use_the_server_does_not_offer_is_asked_about_switching_on() {
     let page = page(
         &account,
         Hold::default(),
+        None,
         None,
         None,
         Ask,
@@ -329,6 +332,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         }),
         None,
         None,
+        None,
         Ask,
         applies,
     );
@@ -355,6 +359,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
         }),
         None,
         None,
+        None,
         Ask,
         applies,
     );
@@ -371,7 +376,15 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             .all(|switch| !switch.control.enabled && !switch.control.running)
     );
 
-    let removing = page(&account, own(PageWork::Remove), None, None, Ask, applies);
+    let removing = page(
+        &account,
+        own(PageWork::Remove),
+        None,
+        None,
+        None,
+        Ask,
+        applies,
+    );
     assert!(removing.remove.running && !removing.remove.enabled);
 
     // A change running on another account holds this page too, and marks nothing here running:
@@ -382,6 +395,7 @@ fn work_running_on_the_page_holds_every_control_and_marks_its_own() {
             busy: true,
             own: Vec::new(),
         },
+        None,
         None,
         None,
         Ask,
@@ -402,7 +416,7 @@ fn an_account_used_for_its_calendar_says_what_happens_to_a_reply_its_server_cann
     );
 
     let calendar = entry(AccountKind::Imap, &[(Mail, On), (Calendar, On)]);
-    let chosen = page(&calendar, Hold::default(), None, None, Never, applies);
+    let chosen = page(&calendar, Hold::default(), None, None, None, Never, applies);
     assert_eq!(
         chosen
             .reply_fallback
@@ -413,6 +427,7 @@ fn an_account_used_for_its_calendar_says_what_happens_to_a_reply_its_server_cann
     let changing = page(
         &calendar,
         own(PageWork::ReplyFallback { choice: Always }),
+        None,
         None,
         None,
         Ask,

@@ -24,7 +24,6 @@ private func entry(
         linkedFrom: [],
         linkCandidates: LinkCandidates(
             calendar: candidates, contacts: [], mail: [], suggested: []),
-        endpoints: nil,
         separateServer: separate)
 }
 

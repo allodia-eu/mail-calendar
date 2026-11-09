@@ -49,7 +49,7 @@ fn showcase_lists_both_seeded_accounts_used_for_what_their_seeds_bind() {
             "a showcase account is read by its address"
         );
         assert!(
-            entry.endpoints.is_none(),
+            app.registry.endpoints(&entry.id).is_none(),
             "{}: no servers to edit, so nothing on its page dials",
             entry.address
         );
@@ -113,11 +113,12 @@ fn showcase_can_pause_its_calendar_for_a_server_change_it_will_not_allow() {
     crate::boot::pause_for_a_server_change(&app.app, &primary);
 
     let shown = app
-        .pending_server_change(primary.clone())
-        .expect("the calendar waits on a server change");
+        .account_server_change(primary.clone())
+        .expect("the calendar waits on a server change")
+        .change;
     assert!(shown.calendar && !shown.contacts);
-    assert!(app.accept_server_change(primary.clone(), shown).is_err());
-    assert!(app.pending_server_change(primary).is_some(), "still paused");
+    assert!(app.accept_server_change(&primary, &shown).is_err());
+    assert!(app.account_server_change(primary).is_some(), "still paused");
 }
 
 /// What `MAILCAL_SHOWCASE_REAUTH` puts in front of the UI suites and the help screenshots: the

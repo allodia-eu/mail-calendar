@@ -23,7 +23,7 @@ fn a_nextcloud_account_reads_by_its_profile_address_and_signs_in_through_nextclo
     assert!(entry.nextcloud);
     assert_eq!(entry.sign_in, SignInMethod::Provider);
     assert!(
-        entry.endpoints.is_none(),
+        app.registry.endpoints(&entry.id).is_none(),
         "its login is the server's to keep"
     );
     let options = app.account_sign_in_options(entry.id);
@@ -56,7 +56,7 @@ fn a_typed_password_at_a_nextcloud_server_can_switch_to_signing_in() {
     };
     let on_nextcloud = at(&nextcloud.base);
     assert!(!on_nextcloud.nextcloud);
-    assert!(on_nextcloud.endpoints.is_some());
+    assert!(app.registry.endpoints(&on_nextcloud.id).is_some());
     assert!(app.account_sign_in_options(on_nextcloud.id).nextcloud);
     assert!(
         !app.account_sign_in_options(at(&elsewhere.base).id)

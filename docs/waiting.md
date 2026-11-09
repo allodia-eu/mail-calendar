@@ -67,6 +67,12 @@ refused the stored sign-in, and a password typed into its field is a change on t
 (`UsePassword`), its Save running until the password has connected or been refused. A browser
 sign-in is still the client's to run, so its route's buttons and the password field are held by
 the client's own state while it completes one, on top of the section's control.
+The question that allows a calendar or address book onto a server found on another site is the
+core's too (`account_server_change`), whichever surface opened it: Allow is a change on the page
+(`AllowServerChange`), the question stays open while it runs with "Not now" waiting for it, says
+itself when the new server did not connect, asks again in place when a lookup replaced it, and
+closes once the account waits on none. A client re-reads it on the Settings and Notices signals
+and keeps only which question is open.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -97,6 +103,7 @@ record, not a state the client keeps.
 | An account's page: its servers drawn from `account_page`, saved as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its shared mailboxes drawn from `account_page`, switched and added as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its Sign-in section drawn from `account_page`, a typed password sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A server found on another site: the question drawn from `account_server_change`, Allow sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -132,6 +139,10 @@ record, not a state the client keeps.
   dropped;
   [`app_account_page_sign_in_tests.rs`](../crates/mailcal-bindings/src/app_account_page_sign_in_tests.rs)
   drives a typed password through `dispatch` and pins that it is never printed.
+- [`app_server_change_tests.rs`](../crates/mailcal-bindings/src/app_server_change_tests.rs) pins
+  the server-change question: an allow under way drawn with the change it allows and pressed once,
+  a refused one said by the question with the account where it was, and one a lookup replaced
+  moving nothing and asking the new change.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

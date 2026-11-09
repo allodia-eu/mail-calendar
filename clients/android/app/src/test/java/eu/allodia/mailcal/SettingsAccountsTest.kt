@@ -301,9 +301,9 @@ class SettingsAccountsTest {
 
     @Test
     fun saving_servers_sends_what_was_typed_and_keeps_the_stored_password() {
-        val entry = mailboxOnly(endpoints = imapEndpoints())
+        val entry = mailboxOnly()
         state.page = entry.id
-        show(entry)
+        show(entry, page = pageOf(entry, servers = AccountServers(imapEndpoints(), FREE)))
 
         compose.onNodeWithText("imap.example.org").performScrollTo().performTextReplacement("mail.example.org")
         compose.onNodeWithTag("account-servers-save").performScrollTo().performClick()
@@ -317,31 +317,31 @@ class SettingsAccountsTest {
 
     @Test
     fun a_saved_password_leaves_the_form() {
-        val entry = mailboxOnly(endpoints = imapEndpoints())
+        val entry = mailboxOnly()
         state.page = entry.id
-        show(entry)
+        show(entry, page = pageOf(entry, servers = AccountServers(imapEndpoints(), FREE)))
 
         compose.onNodeWithText("New password").performScrollTo().performTextInput("hunter2")
         compose.onNodeWithText("•••••••", substring = true).assertExists()
         // While it is tried the page draws the edit; once kept, what was saved, which holds no
         // password.
-        val stored = entry.endpoints!!
+        val stored = imapEndpoints()
         state.accountPage = pageOf(
             entry,
             servers = AccountServers(stored.copy(password = "hunter2"), ControlState(enabled = false, running = true)),
         )
         compose.waitForIdle()
         compose.onNodeWithTag("account-servers-save-running").assertExists()
-        state.accountPage = pageOf(entry)
+        state.accountPage = pageOf(entry, servers = AccountServers(stored, FREE))
         compose.waitForIdle()
         compose.onNodeWithText("•••••••", substring = true).assertDoesNotExist()
     }
 
     @Test
     fun what_the_servers_leave_out_is_said_and_holds_save() {
-        val entry = mailboxOnly(endpoints = imapEndpoints())
+        val entry = mailboxOnly()
         state.page = entry.id
-        show(entry, gap = AccountEndpointsGap.SMTP)
+        show(entry, page = pageOf(entry, servers = AccountServers(imapEndpoints(), FREE)), gap = AccountEndpointsGap.SMTP)
 
         compose.onNodeWithText("Fill in “Outgoing server (SMTP)” to save.").performScrollTo().assertExists()
         compose.onNodeWithTag("account-servers-save").performScrollTo().assertIsNotEnabled()

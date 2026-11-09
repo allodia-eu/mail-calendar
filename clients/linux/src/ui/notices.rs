@@ -12,7 +12,6 @@ use super::{
     account_consent::ConsentFrom,
     account_sign_in::Switch,
     notice_rules::{self, AccountMark, SignInFlow},
-    server_change::{Review, ReviewFrom},
     settings,
 };
 
@@ -154,7 +153,9 @@ impl AppModel {
             (NoticeAction::OpenAccountSettings, None) => {
                 self.settings.open(Some(settings::Category::Accounts));
             }
-            (NoticeAction::Review, Some(account)) => self.review(account, &sender),
+            (NoticeAction::Review, Some(account)) => {
+                self.review_server_change(account, &sender);
+            }
             _ => {}
         }
     }
@@ -193,27 +194,6 @@ impl AppModel {
             }
         };
         self.notices.running = Some((remedy, notice.id.clone()));
-    }
-
-    /// Asks whether to allow the account's new server, over the window the person is in.
-    fn review(&mut self, account: String, sender: &relm4::Sender<AppInput>) {
-        let Some(app) = &self.app else {
-            return;
-        };
-        let address = app
-            .accounts_snapshot()
-            .accounts
-            .into_iter()
-            .find(|entry| entry.id == account)
-            .map(|entry| entry.address);
-        match (app.pending_server_change(account.clone()), address) {
-            (Some(change), Some(address)) => {
-                let review = Review { address, change };
-                Self::ask_server_change_again(&account, &review, ReviewFrom::Notice, sender);
-            }
-            // Settled since the notice was drawn: the page says where the use stands now.
-            _ => self.settings.open_account(account),
-        }
     }
 
     /// A sign-in `remedy` ran for a notice has ended. One that was refused is said on the notice

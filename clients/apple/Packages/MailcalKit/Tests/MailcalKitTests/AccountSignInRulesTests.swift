@@ -12,8 +12,7 @@ private func entry(_ kind: AccountKind) -> AccountEntry {
         id: "alice@example.org@imap.example.org", address: "alice@example.org", kind: kind,
         signIn: .provider, uses: [AccountUse(capability: .mail, state: .on)],
         links: AccountLinksView(calendar: nil, contacts: nil, mail: nil), linkedFrom: [],
-        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
-        endpoints: nil)
+        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []))
 }
 
 @Suite struct AccountSignInRulesTests {
@@ -118,7 +117,7 @@ private func entry(_ kind: AccountKind) -> AccountEntry {
                 uses: [AccountUse(capability: .mail, state: .on)],
                 links: AccountLinksView(calendar: nil, contacts: nil, mail: nil), linkedFrom: [],
                 linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
-                endpoints: nil, distinction: .server(host: "mail.example.org")),
+                distinction: .server(host: "mail.example.org")),
         ])
         #expect(
             model.signInName("alice-imap")

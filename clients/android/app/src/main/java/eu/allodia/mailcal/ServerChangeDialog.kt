@@ -5,27 +5,25 @@ package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.ControlState
 
-/** [prompt]'s question while one is open; [onAllow] runs the blocking accept off the main thread. */
+/** [prompt]'s question while one is open, as the core drew it; [onAllow] sends the change it shows. */
 @Composable
-internal fun ServerChangeDialog(prompt: ServerChangePrompt, onAllow: () -> Unit) {
+internal fun ServerChangeDialog(prompt: ServerChangePrompt, onAllow: (ShownServerChange) -> Unit) {
     val shown = prompt.shown ?: return
     val ctx = LocalContext.current
-    val copy = ServerChangeRules.copy(ctx, shown.change, shown.address)
-    val allowing = prompt.allowing
+    val question = shown.question
+    val copy = ServerChangeRules.copy(ctx, question.change, shown.address)
     AlertDialog(
         onDismissRequest = { prompt.close() },
         modifier = Modifier.testTag("server-change-dialog"),
@@ -37,12 +35,12 @@ internal fun ServerChangeDialog(prompt: ServerChangePrompt, onAllow: () -> Unit)
             ) {
                 Column {
                     Text(copy.body)
-                    Text(ServerChangeRules.emphasised(copy.before, shown.change.previousSite))
-                    Text(ServerChangeRules.emphasised(copy.now, shown.change.proposedSite))
+                    Text(ServerChangeRules.emphasised(copy.before, question.change.previousSite))
+                    Text(ServerChangeRules.emphasised(copy.now, question.change.proposedSite))
                 }
                 Text(copy.advice)
                 Text(copy.unsure)
-                if (prompt.failed) {
+                if (question.failed) {
                     Text(
                         L10n.server_changed_failed(ctx),
                         color = MaterialTheme.colorScheme.error,
@@ -52,24 +50,19 @@ internal fun ServerChangeDialog(prompt: ServerChangePrompt, onAllow: () -> Unit)
             }
         },
         confirmButton = {
-            TextButton(
-                onClick = onAllow,
-                enabled = !allowing,
-                modifier = Modifier.testTag("server-change-allow"),
-            ) {
-                if (allowing) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                } else {
-                    Text(L10n.server_changed_allow(ctx))
-                }
-            }
+            ControlTextButton(
+                label = L10n.server_changed_allow(ctx),
+                control = question.allow,
+                tag = "server-change-allow",
+            ) { onAllow(shown) }
         },
         dismissButton = {
-            TextButton(
-                onClick = { prompt.close() },
-                enabled = !allowing,
-                modifier = Modifier.testTag("server-change-not-now"),
-            ) { Text(L10n.server_changed_not_now(ctx)) }
+            // Waits for an Allow under way, which closing would not stop.
+            ControlTextButton(
+                label = L10n.server_changed_not_now(ctx),
+                control = ControlState(enabled = !question.allow.running, running = false),
+                tag = "server-change-not-now",
+            ) { prompt.close() }
         },
     )
 }

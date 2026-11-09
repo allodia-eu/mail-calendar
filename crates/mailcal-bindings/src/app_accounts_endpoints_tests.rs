@@ -57,9 +57,8 @@ fn app_with(
 }
 
 fn endpoints(app: &MailcalApp) -> crate::AccountEndpoints {
-    app.accounts_snapshot().accounts[0]
-        .endpoints
-        .clone()
+    app.registry
+        .endpoints(&app.accounts_snapshot().accounts[0].id)
         .expect("a password account's servers are editable")
 }
 
@@ -127,7 +126,7 @@ fn an_edit_onto_servers_an_edited_account_already_uses_is_refused() {
         .into_iter()
         .find(|entry| entry.id == "bob@example.org@localhost")
         .expect("listed");
-    let mut onto_alice = bob.endpoints.expect("editable");
+    let mut onto_alice = app.registry.endpoints(&bob.id).expect("editable");
     onto_alice.username = "alice@example.org".to_owned();
 
     assert!(matches!(

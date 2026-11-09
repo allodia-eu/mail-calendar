@@ -20,8 +20,7 @@ private func entry(
         uses: uses.map { AccountUse(capability: $0.0, state: $0.1) },
         links: AccountLinksView(calendar: nil, contacts: nil, mail: nil),
         linkedFrom: [],
-        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
-        endpoints: nil
+        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: [])
     )
 }
 

@@ -1,11 +1,17 @@
 //! Allowing a server found on another site. Every server here is a local port nothing listens on,
 //! so allowing one reaches its dial and is refused there; what these pin is that a refused change
-//! leaves the account paused on the servers it had.
+//! leaves the account paused on the servers it had, and that the question says so.
 
-use std::sync::{Arc, mpsc};
+use std::{
+    sync::{Arc, mpsc},
+    time::{Duration, Instant},
+};
 
+use super::ServerChangeAnswer;
 use crate::{
-    LogLevel, MailcalApp, MailcalError,
+    AccountPageIntent, AccountServerChange, ControlState, Intent, LogLevel, MailcalApp,
+    MailcalError,
+    account_work::Start,
     tests::{
         ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
     },
@@ -59,24 +65,88 @@ fn shown() -> crate::ServerChange {
     }
 }
 
+fn allow(app: &MailcalApp, id: &str, shown: crate::ServerChange) {
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::AllowServerChange {
+            account: id.to_owned(),
+            shown,
+        },
+    });
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while app.account_work.of(id).0.busy {
+        assert!(Instant::now() < deadline, "the allow never ended");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+const FREE: ControlState = ControlState {
+    enabled: true,
+    running: false,
+};
+
 #[test]
-fn the_dialog_reads_the_change_the_account_waits_on() {
+fn the_question_reads_the_change_the_account_waits_on() {
     let (app, id) = app("server-change-read");
-    assert_eq!(app.pending_server_change(id.clone()), None);
+    assert_eq!(app.account_server_change(id.clone()), None);
 
     pause(&app, &id);
 
-    assert_eq!(app.pending_server_change(id), Some(shown()));
+    assert_eq!(
+        app.account_server_change(id),
+        Some(AccountServerChange {
+            change: shown(),
+            allow: FREE,
+            failed: false,
+        })
+    );
+}
+
+/// While an allow runs, the question shows the change it allows, running, and every page holds.
+#[test]
+fn an_allow_under_way_draws_the_change_it_allows_running() {
+    let (app, id) = app("server-change-running");
+    pause(&app, &id);
+    let intent = AccountPageIntent::AllowServerChange {
+        account: id.clone(),
+        shown: shown(),
+    };
+    assert!(matches!(
+        app.account_work.start(intent.clone()),
+        Start::Run(_)
+    ));
+    // A lookup replacing the question meanwhile does not move what is being allowed.
+    pause_on(&app, &id, "example.org");
+
+    let question = app.account_server_change(id.clone()).expect("open");
+    assert_eq!(question.change, shown());
+    assert_eq!(
+        question.allow,
+        ControlState {
+            enabled: false,
+            running: true,
+        }
+    );
+    assert!(
+        matches!(app.account_work.start(intent), Start::Dropped),
+        "one press"
+    );
+
+    app.account_work.finish(&id, None);
+    assert_eq!(
+        app.account_server_change(id)
+            .map(|question| question.change.proposed_site),
+        Some("example.org".to_owned())
+    );
 }
 
 /// An allow for a question already settled, from another surface or by the use connecting again,
-/// is not a failure: nothing waits, so the client closes the question.
+/// is not a failure: nothing waits, so the question closes.
 #[test]
 fn allowing_a_question_already_settled_says_it_is_settled() {
     let (app, id) = app("server-change-none");
     assert_eq!(
-        app.accept_server_change(id, shown()).ok(),
-        Some(crate::ServerChangeAnswer::Settled)
+        app.accept_server_change(&id, &shown()).ok(),
+        Some(ServerChangeAnswer::Settled)
     );
 }
 
@@ -84,39 +154,47 @@ fn allowing_a_question_already_settled_says_it_is_settled() {
 fn a_new_server_that_does_not_connect_leaves_the_account_paused_where_it_was() {
     let (app, id) = app("server-change-refused");
     pause(&app, &id);
-    let before = app.accounts_snapshot().accounts[0].endpoints.clone();
+    let before = app.registry.endpoints(&id);
 
-    assert!(app.accept_server_change(id.clone(), shown()).is_err());
+    allow(&app, &id, shown());
 
-    assert!(app.pending_server_change(id).is_some(), "still asked about");
-    assert_eq!(app.accounts_snapshot().accounts[0].endpoints, before);
+    assert_eq!(
+        app.account_server_change(id.clone()),
+        Some(AccountServerChange {
+            change: shown(),
+            allow: FREE,
+            failed: true,
+        }),
+        "still asked about, saying the allow failed"
+    );
+    assert_eq!(app.registry.endpoints(&id), before);
+    assert_eq!(app.account_page_notice(id), None, "said by the question");
 }
 
 /// A lookup can replace the question while it is on screen. Allowing what was shown must not
-/// move the account to a site it never named: nothing moves, and the answer is the new question.
+/// move the account to a site it never named: nothing moves, and the question asks the new one.
 #[test]
-fn allowing_a_question_a_lookup_replaced_moves_nothing_and_answers_the_new_one() {
+fn allowing_a_question_a_lookup_replaced_moves_nothing_and_asks_the_new_one() {
     let (app, id) = app("server-change-replaced");
     pause(&app, &id);
     pause_on(&app, &id, "example.org");
-    let before = app.accounts_snapshot().accounts[0].endpoints.clone();
+    let before = app.registry.endpoints(&id);
 
-    let answer = app.accept_server_change(id.clone(), shown());
+    allow(&app, &id, shown());
 
     let now = crate::ServerChange {
         proposed_site: "example.org".to_owned(),
         ..shown()
     };
-    assert!(matches!(
-        answer,
-        Ok(crate::ServerChangeAnswer::Replaced { change }) if change == now
-    ));
     assert_eq!(
-        app.pending_server_change(id),
-        Some(now),
-        "still asked about"
+        app.account_server_change(id.clone()),
+        Some(AccountServerChange {
+            change: now,
+            allow: FREE,
+            failed: false,
+        })
     );
-    assert_eq!(app.accounts_snapshot().accounts[0].endpoints, before);
+    assert_eq!(app.registry.endpoints(&id), before);
 }
 
 /// A mailbox that connects does not carry an allow on its own: a use that moves and did not

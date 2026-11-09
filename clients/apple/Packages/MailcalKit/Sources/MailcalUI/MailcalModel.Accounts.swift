@@ -148,6 +148,7 @@ extension MailboxModel {
             self.accountPage = nil
         }
         refreshAccountPage()
+        refreshServerChanges()
         refreshSetupLinks()
     }
 

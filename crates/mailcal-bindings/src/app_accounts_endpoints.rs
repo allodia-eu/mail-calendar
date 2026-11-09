@@ -32,8 +32,8 @@ impl MailcalApp {
     /// The account keeps its id, its uses, its links, its settings and its signatures. A use
     /// whose server moved to another host has what the device holds of it deleted and synced
     /// again from the new one; a new port, security, login or password keeps it. Start from the
-    /// entry's [`AccountEntry::endpoints`](crate::AccountEntry::endpoints) and leave `password`
-    /// `None` to keep the stored one.
+    /// page's [`AccountServers::form`](crate::AccountServers::form) and leave `password` `None` to
+    /// keep the stored one.
     ///
     /// **Blocking** (provider connect); call it off the UI thread.
     ///

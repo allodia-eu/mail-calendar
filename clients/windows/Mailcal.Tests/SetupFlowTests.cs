@@ -21,8 +21,7 @@ public class SetupFlowTests
             LinkedFrom: [],
             LinkCandidates: new LinkCandidates(
                 [AccountSettingsRulesTests.Linked("bob@dav"), AccountSettingsRulesTests.Linked("alice@dav")],
-                [], [], suggested ? ["alice@dav"] : []),
-            Endpoints: null),
+                [], [], suggested ? ["alice@dav"] : [])),
     ]);
 
     private static bool Standards(AccountKind kind) => kind is AccountKind.Imap or AccountKind.Dav;

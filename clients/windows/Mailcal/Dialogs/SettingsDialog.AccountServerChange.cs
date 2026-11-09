@@ -1,12 +1,11 @@
 // An account's page, a calendar or address book paused for a server found on another site
 // (docs/account-autodetect.md rule 14, docs/accounts.md rule 16): "Review" under the use's note
 // opens the question that allows the new server. Inline, because Settings is itself a
-// ContentDialog. The open question is kept on the dialog, so a redraw while the new server is
-// dialled draws it again, busy, and its answer lands on the one drawn last.
+// ContentDialog. Which question is open is the dialog's; what it says, whether Allow runs and
+// whether the last one failed are the core's record, so a redraw draws it as it stands.
 
 using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
-using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
@@ -14,15 +13,8 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    /// <summary>The question open on an account's page: whose, under which use's row, the change
-    /// it asks about, and where allowing it stands.</summary>
-    private sealed record ServerChangeOpen(
-        string AccountId, AccountCapability Row, ServerChange Change, bool Busy, string? Error);
-
-    private ServerChangeOpen? _serverChangeOpen;
-
-    // The question as drawn last, which an allow that ends after a redraw updates.
-    private (ServerChangePanel Panel, Button Allow, Button NotNow)? _serverChangeDrawn;
+    /// <summary>The question open on an account's page: whose, and under which use's row.</summary>
+    private (string AccountId, AccountCapability Row)? _serverChangeOpen;
 
     /// <summary>"Review" and, once pressed, the question under <paramref name="capability"/>'s
     /// row, when the core offers it there (<paramref name="reviews"/>): under the last of the uses
@@ -30,103 +22,50 @@ public sealed partial class SettingsDialog
     private StackPanel? ServerChangeAction(
         AccountEntry entry, AccountCapability capability, bool reviews, ControlState control)
     {
-        var kept = _serverChangeOpen is { } held && held.AccountId == entry.Id && held.Row == capability ? held : null;
-        if (!reviews)
+        var open = _serverChangeOpen is { } held && held.AccountId == entry.Id && held.Row == capability;
+        var question = open ? _model.ServerChangeQuestion(entry.Id) : null;
+        if (!reviews || (open && question is null))
         {
             // No longer paused, such as allowed meanwhile: a pause that comes back asks afresh.
-            if (kept is not null)
+            if (open)
             {
                 _serverChangeOpen = null;
             }
             return null;
         }
         var panel = new StackPanel { Spacing = 8 };
-        if (kept is not { } open)
+        if (question is null)
         {
             panel.Children.Add(ControlComponents.Button(
                 L10n.ServerChangedReview(), control, $"AccountUseServerChangeReview_{capability}",
-                () => _ = OpenServerChangeAsync(entry, capability)));
+                () =>
+                {
+                    _serverChangeOpen = (entry.Id, capability);
+                    NotifyAccounts(null);
+                }));
         }
         else
         {
-            panel.Children.Add(ServerChangeQuestion(entry, open));
+            panel.Children.Add(ServerChangeViews.Question(
+                question, entry.Address, titled: true,
+                () => _model.AllowServerChange(entry.Id, question.Change),
+                // "Not now" needs no call: the use stays paused.
+                () =>
+                {
+                    _serverChangeOpen = null;
+                    NotifyAccounts(null);
+                }));
         }
         return panel;
     }
 
-    private async Task OpenServerChangeAsync(AccountEntry entry, AccountCapability capability)
+    /// <summary>The open question as the core draws it, for the page's fingerprint: a lookup that
+    /// replaces it moves nothing else on the page.</summary>
+    private IEnumerable<string> ServerChangeFingerprint()
     {
-        var change = await _model.PendingServerChangeAsync(entry.Id);
-        // None pending: allowed meanwhile, and the next snapshot redraws the row without it.
-        _serverChangeOpen = change is null ? null : new ServerChangeOpen(entry.Id, capability, change, false, null);
-        NotifyAccounts(null);
-    }
-
-    private StackPanel ServerChangeQuestion(AccountEntry entry, ServerChangeOpen open)
-    {
-        var question = ServerChangeViews.Panel(ServerChangeViews.Copy(open.Change, entry.Address), titled: true);
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        // Neither is the accent button: allowing a server is never the easy press.
-        var allow = new Button { Content = L10n.ServerChangedAllow() };
-        AutomationProperties.SetAutomationId(allow, "ServerChangeAllow");
-        var notNow = new Button { Content = L10n.ServerChangedNotNow() };
-        AutomationProperties.SetAutomationId(notNow, "ServerChangeNotNow");
-        buttons.Children.Add(allow);
-        buttons.Children.Add(notNow);
-        question.Panel.Children.Add(buttons);
-        _serverChangeDrawn = (question, allow, notNow);
-        DrawServerChange(open);
-
-        // "Not now" needs no call: the use stays paused.
-        notNow.Click += (_, _) =>
+        if (_serverChangeOpen is { } open && _model.ServerChangeQuestion(open.AccountId) is { } question)
         {
-            _serverChangeOpen = null;
-            _serverChangeDrawn = null;
-            NotifyAccounts(null);
-        };
-        allow.Click += async (_, _) =>
-        {
-            _serverChangeOpen = open with { Busy = true, Error = null };
-            DrawServerChange(_serverChangeOpen);
-            var answer = await _model.AcceptServerChangeAsync(open.AccountId, open.Change);
-            if (answer is ServerChangeAnswer.Settled)
-            {
-                // The page redraws from the snapshot, in which the use is no longer paused.
-                _serverChangeOpen = null;
-                _serverChangeDrawn = null;
-                NotifyAccounts(null);
-                return;
-            }
-            if (answer is ServerChangeAnswer.Replaced replaced)
-            {
-                // A lookup replaced the question while it was shown, and nothing moved: the
-                // redraw asks the new one in its place.
-                _serverChangeOpen = _serverChangeOpen is { } shown
-                    ? shown with { Change = replaced.Change, Busy = false, Error = null }
-                    : null;
-                _serverChangeDrawn = null;
-                NotifyAccounts(null);
-                return;
-            }
-            _serverChangeOpen = _serverChangeOpen is { } still
-                ? still with { Busy = false, Error = L10n.ServerChangedFailed() }
-                : null;
-            if (_serverChangeOpen is { } failed)
-            {
-                DrawServerChange(failed);
-            }
-        };
-        return question.Panel;
-    }
-
-    private void DrawServerChange(ServerChangeOpen open)
-    {
-        if (_serverChangeDrawn is not { } drawn)
-        {
-            return;
+            yield return $"server-change:{open.AccountId}/{open.Row}/{question}";
         }
-        drawn.Panel.Busy(open.Busy);
-        drawn.Panel.Say(open.Error);
-        drawn.Allow.IsEnabled = drawn.NotNow.IsEnabled = !open.Busy;
     }
 }

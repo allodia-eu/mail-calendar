@@ -1,6 +1,7 @@
 // A calendar or address book server found on another site (docs/account-autodetect.md rule 14):
 // the dialog names what moved, both sites in bold, and allows the new server only from its Allow
-// button; Not now, back and a tap outside leave the use paused, and a failed Allow says so.
+// button; Not now, back and a tap outside leave the use paused. What it says is the core's record,
+// which these stand in for.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -9,6 +10,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -17,7 +19,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.text.font.FontWeight
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -26,11 +27,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountServerChange
 import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
+import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.ServerChange
-import uniffi.mailcal_bindings.ServerChangeAnswer
 import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
@@ -95,10 +97,16 @@ class ServerChangeTest {
         assertTrue(ServerChangeRules.emphasised("Before:", "icloud.com").spanStyles.isEmpty())
     }
 
-    private fun shown(prompt: ServerChangePrompt, allowed: MutableList<Unit>) {
-        prompt.open(ShownServerChange("acct-a", "ada@example.com", change(calendar = true, contacts = true)))
+    private fun question(
+        change: ServerChange = change(calendar = true, contacts = true),
+        allow: ControlState = FREE,
+        failed: Boolean = false,
+    ) = AccountServerChange(change, allow, failed)
+
+    private fun shown(prompt: ServerChangePrompt, allowed: MutableList<ShownServerChange>) {
+        prompt.open(ShownServerChange("acct-a", "ada@example.com", question()))
         compose.setContent {
-            AppTheme { ServerChangeDialog(prompt) { allowed += Unit } }
+            AppTheme { ServerChangeDialog(prompt) { allowed += it } }
         }
         compose.waitForIdle()
     }
@@ -106,7 +114,7 @@ class ServerChangeTest {
     @Test
     fun not_now_closes_the_question_without_allowing() {
         val prompt = ServerChangePrompt()
-        val allowed = mutableListOf<Unit>()
+        val allowed = mutableListOf<ShownServerChange>()
         shown(prompt, allowed)
 
         compose.onNodeWithText(L10n.server_changed_title_both(ctx())).assertIsDisplayed()
@@ -119,17 +127,18 @@ class ServerChangeTest {
     }
 
     @Test
-    fun allow_runs_once_and_holds_still_until_it_answers() {
+    fun allow_sends_the_change_shown_and_the_question_holds_while_it_runs() {
         val prompt = ServerChangePrompt()
-        val allowed = mutableListOf<Unit>()
+        val allowed = mutableListOf<ShownServerChange>()
         shown(prompt, allowed)
 
-        compose.onNodeWithText(L10n.server_changed_allow(ctx())).performClick()
-        assertEquals(1, allowed.size)
-        assertTrue(prompt.start())
-        assertFalse("a second Allow waits for the first", prompt.start())
+        compose.onNodeWithTag("server-change-allow").performClick()
+        assertEquals(change(calendar = true, contacts = true), allowed.single().question.change)
+
+        prompt.redraw(question(allow = ControlState(enabled = false, running = true)))
         compose.waitForIdle()
         compose.onNodeWithTag("server-change-allow").assertIsNotEnabled()
+        compose.onNodeWithTag("server-change-allow-running").assertExists()
         compose.onNodeWithTag("server-change-not-now").assertIsNotEnabled()
         prompt.close()
         assertNotNull("Not now cannot close it while Allow connects", prompt.shown)
@@ -140,38 +149,31 @@ class ServerChangeTest {
         val prompt = ServerChangePrompt()
         shown(prompt, mutableListOf())
 
-        assertTrue(prompt.start())
-        prompt.finished("acct-a", Result.failure(IllegalStateException("refused")))
+        prompt.redraw(question(failed = true))
         compose.waitForIdle()
 
         compose.onNodeWithText(L10n.server_changed_failed(ctx())).assertIsDisplayed()
-        assertNotNull(prompt.shown)
+        compose.onNodeWithTag("server-change-allow").assertIsEnabled()
     }
 
     @Test
-    fun a_successful_allow_closes_the_question_and_a_stale_answer_is_dropped() {
+    fun a_question_the_account_no_longer_waits_on_closes() {
         val prompt = ServerChangePrompt()
-        prompt.open(ShownServerChange("acct-a", "ada@example.com", change(calendar = true, contacts = false)))
-        assertTrue(prompt.start())
-        prompt.finished("acct-b", Result.success(ServerChangeAnswer.Settled))
-        assertTrue("an answer for another account changes nothing", prompt.allowing)
-        prompt.finished("acct-a", Result.success(ServerChangeAnswer.Settled))
+        prompt.open(ShownServerChange("acct-a", "ada@example.com", question()))
+        prompt.redraw(null)
         assertNull(prompt.shown)
-        assertFalse(prompt.allowing)
     }
 
     @Test
-    fun a_question_replaced_while_shown_asks_the_new_one_and_says_nothing_failed() {
+    fun a_question_replaced_while_shown_asks_the_new_one() {
         val prompt = ServerChangePrompt()
         shown(prompt, mutableListOf())
         val replaced = ServerChange("icloud.com", "example.org", calendar = true, contacts = true)
 
-        assertTrue(prompt.start())
-        prompt.finished("acct-a", Result.success(ServerChangeAnswer.Replaced(replaced)))
+        prompt.redraw(question(change = replaced))
         compose.waitForIdle()
 
-        assertEquals(replaced, prompt.shown?.change)
-        assertFalse(prompt.allowing)
+        assertEquals(replaced, prompt.shown?.question?.change)
         compose.onNodeWithText(L10n.server_changed_now(ctx(), "example.org")).assertExists()
         compose.onNodeWithText(L10n.server_changed_failed(ctx())).assertDoesNotExist()
     }

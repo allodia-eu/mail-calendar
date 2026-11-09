@@ -65,6 +65,7 @@ fn adding_an_account_that_is_already_set_up_is_refused_and_changes_nothing() {
     let store = Arc::new(RecordingCredentialStore::default());
     let app = app("duplicate-add", &store);
     let before = app.accounts_snapshot();
+    let before_servers = app.registry.endpoints(&before.accounts[0].id);
 
     let refused = app.add_account(ALICE_SIGNED_IN.to_owned());
 
@@ -80,7 +81,8 @@ fn adding_an_account_that_is_already_set_up_is_refused_and_changes_nothing() {
     let after = app.accounts_snapshot();
     assert_eq!(after.accounts.len(), before.accounts.len());
     assert_eq!(
-        after.accounts[0].endpoints, before.accounts[0].endpoints,
+        app.registry.endpoints(&after.accounts[0].id),
+        before_servers,
         "the password account keeps its servers"
     );
 }

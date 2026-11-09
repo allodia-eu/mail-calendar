@@ -112,7 +112,7 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                     )
                     // A calendar or address book server found on another site: asked from the
                     // calendar, the contacts list or the account's page, so drawn over all three.
-                    ServerChangeDialog(accountSettings.serverChange) { allowServerChange() }
+                    ServerChangeDialog(accountSettings.serverChange) { allowServerChange(it) }
                 }
               }
             }

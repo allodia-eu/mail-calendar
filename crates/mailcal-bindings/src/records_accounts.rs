@@ -37,9 +37,6 @@ pub struct AccountEntry {
     /// The accounts each link may name, for its picker: empty for a slot the account cannot
     /// hold, because it is used for that itself.
     pub link_candidates: LinkCandidates,
-    /// Its servers and login, for an account Settings can edit them on: one that signs in with a
-    /// password to servers of its own. `None` for one that signs in through its provider.
-    pub endpoints: Option<AccountEndpoints>,
     /// The calendar and contacts of a mailbox that need a sign-in of their own, and the server
     /// it would be made at: what its page offers to sign in to (`add_linked_calendar_account`,
     /// `docs/accounts.md` rule 18). `None` while every use connects, or for an account without a
@@ -170,7 +167,7 @@ pub enum UseProblem {
     Unreachable,
     /// Its server is gone, and looking again found it on another site: the use is paused until
     /// the person allows the new server
-    /// ([`MailcalApp::pending_server_change`](crate::MailcalApp::pending_server_change),
+    /// ([`MailcalApp::account_server_change`](crate::MailcalApp::account_server_change),
     /// `docs/account-autodetect.md` rule 14). Nothing is sent to it before they do.
     ServerChanged,
     /// Its server answered that it has none for this account: a start that is gone, no home, or

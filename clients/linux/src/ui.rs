@@ -200,6 +200,8 @@ pub(crate) struct AppModel {
     preferences: Arc<HostPreferences>,
     /// The core's notices, and what is drawn from them (`docs/notices.md`).
     notices: notices::NoticesState,
+    /// The question about an account's server found on another site, while it is open.
+    server_change: Option<server_change::Question>,
     /// Retained for the lifetime of the component so GIO keeps delivering default-network changes.
     _network_monitor: gtk::gio::NetworkMonitor,
     /// Retained so GLib keeps refreshing calendars throughout the foreground session.

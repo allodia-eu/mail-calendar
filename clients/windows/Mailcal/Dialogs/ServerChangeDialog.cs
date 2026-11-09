@@ -1,6 +1,7 @@
 // The question a calendar or address book server found on another site asks, as the calendar and
 // contacts screens open it (docs/account-autodetect.md rule 14). The account's page draws the same
-// question inline (SettingsDialog.AccountServerChange.cs).
+// question inline (SettingsDialog.AccountServerChange.cs). Both draw the core's record, read again
+// whenever the accounts change: an allow starting or ending, or a lookup replacing the question.
 
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
@@ -16,67 +17,53 @@ internal static class ServerChangeDialog
     /// is pending, such as one allowed meanwhile.</summary>
     internal static async Task AskAsync(XamlRoot root, MailboxModel model, string accountId)
     {
-        if (await model.PendingServerChangeAsync(accountId) is not { } pending)
+        if (model.ServerChangeQuestion(accountId) is not { } first)
         {
             return;
         }
-        // Declared, so the lambda below that replaces it reads it as never null.
-        ServerChange change = pending;
-        var copy = ServerChangeViews.Copy(change, model.AccountAddress(accountId));
-        var content = ServerChangeViews.Panel(copy, titled: false);
+        var address = model.AccountAddress(accountId);
+        var drawn = first;
         var dialog = new ContentDialog
         {
             XamlRoot = root,
-            Title = copy.Title,
-            Content = content.Panel,
-            PrimaryButtonText = L10n.ServerChangedAllow(),
+            Title = ServerChangeViews.Copy(first.Change, address).Title,
             CloseButtonText = L10n.ServerChangedNotNow(),
             // Enter and Escape both answer "Not now": allowing a server is never the easy press.
             DefaultButton = ContentDialogButton.Close,
         };
         AutomationProperties.SetAutomationId(dialog, "ServerChangePrompt");
-        var busy = false;
-        dialog.PrimaryButtonClick += async (_, args) =>
+        void Draw(AccountServerChange question)
         {
-            // Open until the core answers, so a failure is said where the question was asked.
-            var deferral = args.GetDeferral();
-            busy = true;
-            dialog.IsPrimaryButtonEnabled = false;
-            content.Say(null);
-            content.Busy(true);
-            var answer = await model.AcceptServerChangeAsync(accountId, change);
-            busy = false;
-            content.Busy(false);
-            dialog.IsPrimaryButtonEnabled = true;
-            switch (answer)
+            drawn = question;
+            dialog.Title = ServerChangeViews.Copy(question.Change, address).Title;
+            dialog.Content = ServerChangeViews.Question(
+                question, address, titled: false,
+                () => model.AllowServerChange(accountId, question.Change), notNow: null);
+        }
+        void Redraw()
+        {
+            switch (model.ServerChangeQuestion(accountId))
             {
-                case ServerChangeAnswer.Settled:
+                // Settled, here or elsewhere: nothing waits any more.
+                case null:
+                    dialog.Hide();
                     break;
-                case ServerChangeAnswer.Replaced replaced:
-                    // A lookup replaced the question while it was shown, and nothing moved: ask
-                    // the new one in its place.
-                    args.Cancel = true;
-                    change = replaced.Change;
-                    copy = ServerChangeViews.Copy(change, model.AccountAddress(accountId));
-                    content = ServerChangeViews.Panel(copy, titled: false);
-                    dialog.Title = copy.Title;
-                    dialog.Content = content.Panel;
-                    break;
-                default:
-                    args.Cancel = true;
-                    content.Say(L10n.ServerChangedFailed());
+                case var question when question != drawn:
+                    Draw(question);
                     break;
             }
-            deferral.Complete();
-        };
+        }
+        Draw(first);
+        model.AccountsChanged += Redraw;
         // Closing would not stop an allow already under way, so "Not now" waits for its answer.
         dialog.Closing += (_, args) =>
         {
-            if (busy)
+            if (model.ServerChangeQuestion(accountId) is { Allow.Running: true })
             {
                 args.Cancel = true;
             }
         };
+        dialog.Closed += (_, _) => model.AccountsChanged -= Redraw;
         await DialogHelper.ShowAsync(dialog);
     }
 }

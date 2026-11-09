@@ -34,8 +34,7 @@ private func jmapAccount(
                 AccountUse(capability: .contacts, state: contacts),
             ],
             links: AccountLinksView(calendar: nil, contacts: nil, mail: nil), linkedFrom: [],
-            linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
-            endpoints: nil)
+            linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []))
     ])
 }
 

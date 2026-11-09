@@ -193,6 +193,8 @@ final class MailboxModel {
     var accountPage: String?
     /// That page as the core decided it, and what its changes came to.
     var accountPageState = AccountPageState()
+    /// The server-change questions open, by account, as the core drew each last.
+    var serverChanges: [String: AccountServerChange] = [:]
     /// A removal whose stored sign-in could not be erased, until the person has read it.
     var removalFailure: String?
     /// The account a sign-in in place is waiting on the browser for, or `nil`.
