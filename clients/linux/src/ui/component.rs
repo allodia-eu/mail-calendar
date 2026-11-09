@@ -228,7 +228,6 @@ impl AppModel {
                 syncable: allodia_syncable,
                 accounts_synced: HashMap::new(),
             },
-            credential_repair_failed: None,
             settings: settings::SettingsState::default(),
             host_tasks: HostTasks::new(welcome_pending, flow.setup_after_welcome),
             #[cfg(any(debug_assertions, feature = "dev-harness"))]

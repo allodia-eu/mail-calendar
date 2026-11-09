@@ -357,42 +357,6 @@ impl AppModel {
             sender.emit(AppInput::CollectNewMail);
         }
     }
-
-    pub(super) fn replace_account_secret(
-        &mut self,
-        account: String,
-        secret: String,
-        sender: relm4::Sender<AppInput>,
-    ) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        self.credential_repair_failed = None;
-        std::thread::spawn(move || {
-            let repaired = account.clone();
-            let success = app.replace_account_secret(account, secret).is_ok();
-            sender.emit(AppInput::AccountSecretReplaced {
-                account: repaired,
-                success,
-            });
-        });
-    }
-
-    pub(super) fn account_secret_replaced(&mut self, account: String, success: bool) {
-        self.settings
-            .open(Some(super::settings::Category::Accounts));
-        if success {
-            self.credential_repair_failed = None;
-            self.notice = None;
-            if let Some(app) = &self.app {
-                self.snapshot.replace(app.mailbox_list());
-            }
-            self.pull_notices();
-        } else {
-            self.credential_repair_failed = Some(account);
-            self.notice = Some(crate::l10n::signin_expired_failed().to_owned());
-        }
-    }
 }
 
 #[cfg(test)]

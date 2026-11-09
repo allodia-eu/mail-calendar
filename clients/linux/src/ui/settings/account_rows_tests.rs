@@ -6,7 +6,7 @@ use mailcal_bindings::{
     CapabilityState, ControlState, LinkCandidates, LinkedAccount, UseProblem,
 };
 
-use super::{change_notice, signin_description, signs_in_at_provider, summary, switch_note};
+use super::{change_notice, summary, switch_note};
 use crate::{l10n, ui::settings::notice::Notice};
 
 fn linked(id: &str) -> LinkedAccount {
@@ -51,46 +51,6 @@ fn mailbox_only() -> AccountEntry {
             (AccountCapability::Contacts, CapabilityState::Off),
         ],
     )
-}
-
-#[test]
-fn signing_in_again_is_offered_where_the_provider_signs_in_and_says_what_is_wrong() {
-    assert!(signs_in_at_provider(AccountKind::Microsoft));
-    assert!(signs_in_at_provider(AccountKind::Google));
-    for kind in [AccountKind::Imap, AccountKind::Dav, AccountKind::Jmap] {
-        assert!(!signs_in_at_provider(kind), "{kind:?}");
-    }
-
-    let mut entry = entry(
-        AccountKind::Google,
-        &[
-            (AccountCapability::Mail, CapabilityState::On),
-            (AccountCapability::Calendar, CapabilityState::On),
-        ],
-    );
-    assert_eq!(
-        signin_description(&entry, false),
-        l10n::settings_account_signin_description()
-    );
-    entry.uses[1].state = CapabilityState::NeedsPermission;
-    assert_eq!(
-        signin_description(&entry, false),
-        l10n::settings_account_needs_permission()
-    );
-    assert_eq!(
-        signin_description(&entry, true),
-        l10n::signin_expired_prompt("alice@example.org")
-    );
-    entry.distinction = Some(mailcal_bindings::AccountDistinction::Server {
-        host: "imap.example.org".to_owned(),
-    });
-    assert_eq!(
-        signin_description(&entry, true),
-        l10n::signin_expired_prompt(&l10n::settings_account_distinguished(
-            "alice@example.org",
-            "imap.example.org"
-        ))
-    );
 }
 
 #[test]

@@ -264,17 +264,16 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia_sync::tests::every_health_row_is_reachable_from_the_keyboard();
     crate::ui::settings::about::assert_about_page_states_version_support_and_attributions();
     crate::ui::settings::general::assert_the_appearance_row_shows_the_stored_choice();
-    crate::ui::settings::account_mail::tests::
-        an_expired_password_is_replaced_without_removing_the_account();
     crate::ui::settings::accounts::tests::an_account_row_opens_its_page();
     crate::ui::controls::tests::
         a_control_spins_while_its_work_runs_and_tells_only_what_the_person_did();
     crate::ui::controls::tests::a_confirmation_closed_without_its_action_answers_no();
     crate::ui::settings::sign_in_section::tests::the_section_draws_the_switch_its_server_takes();
-    crate::ui::settings::sign_in_section::tests::
-        a_calendar_account_switches_to_signing_in_with_nextcloud();
+    crate::ui::settings::sign_in_section::tests::each_route_goes_to_the_sign_in_its_account_takes();
     crate::ui::settings::sign_in_section::tests::
         a_password_is_typed_into_an_empty_field_and_cleared_once_sent();
+    crate::ui::settings::sign_in_section::tests::
+        a_refused_password_is_typed_again_where_the_section_says_so();
     crate::ui::settings::sign_in_section::tests::a_running_change_holds_every_control();
     crate::ui::settings::sign_in_section::tests::
         a_change_waiting_on_the_browser_can_be_replaced_or_cancelled();

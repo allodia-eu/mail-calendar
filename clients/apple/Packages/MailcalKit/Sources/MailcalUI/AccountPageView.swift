@@ -75,24 +75,22 @@ struct AccountPageView: View {
             if let shared = page.shared {
                 AccountSharedMailboxesSection(model: model, entry: entry, shared: shared)
             }
-            if AccountSettingsRules.signsInAtProvider(entry.kind) {
-                signInSection
-            } else if AccountSignInRules.switchesSignIn(entry.kind) {
-                AccountSignInSection(model: model, entry: entry, alert: $alert)
-            } else if entry.kind == .dav {
-                AccountNextcloudSignInSection(model: model, entry: entry)
+            if let section = page.signIn {
+                switch entry.kind {
+                case .microsoft, .google: signInSection(section)
+                case .dav: AccountNextcloudSignInSection(model: model, entry: entry, section: section)
+                case .imap, .jmap:
+                    AccountSignInSection(model: model, entry: entry, section: section, alert: $alert)
+                }
             }
             if let technology = entry.mailSync {
                 AccountSyncTechnologySection(technology: technology)
             }
             if let servers = page.servers {
-                AccountServersSection(
-                    model: model, entry: entry, servers: servers,
-                    expired: model.signInExpired(entry.id)
-                )
+                AccountServersSection(model: model, entry: entry, servers: servers)
             }
             if let mail = page.mail {
-                AccountMailSection(model: model, entry: entry, mail: mail, alert: $alert)
+                AccountMailSection(model: model, entry: entry, mail: mail)
             }
             removeSection
         }
@@ -137,16 +135,21 @@ struct AccountPageView: View {
 
     /// "Sign in again", for an account that signs in at its provider's page: the remedy for an
     /// expired sign-in and for a permission the provider withheld.
-    private var signInSection: some View {
+    private func signInSection(_ section: AccountSignIn) -> some View {
         SettingsGroup(
             heading: L10n.settings_account_signin_heading(),
-            description: AccountSettingsLabels.signIn(entry, expired: model.signInExpired(entry.id))
+            description: AccountSettingsLabels.signInLine(section.line, entry)
         ) {
             VStack(alignment: .leading, spacing: 8) {
-                // Never disabled: a sign-in abandoned in the browser cannot be told from one in
-                // progress, so pressing again starts a fresh one (docs/provider-oauth.md rule 13).
-                Button(L10n.signin_expired_action()) {
-                    signIn(adding: [])
+                // Held only while a change runs on the page: a sign-in abandoned in the browser
+                // cannot be told from one in progress, so pressing again starts a fresh one
+                // (docs/provider-oauth.md rule 13).
+                ForEach(Array(section.routes.enumerated()), id: \.offset) { _, route in
+                    ControlButton(
+                        title: AccountSettingsLabels.signInRoute(route), control: section.control
+                    ) {
+                        signIn(adding: [])
+                    }
                 }
                 if model.signingInAgain == entry.id {
                     progress(L10n.settings_account_signin_waiting(

@@ -109,12 +109,6 @@ internal static class NoticeRules
     internal static bool OffersSecond(Notice notice) =>
         Offers(notice) && notice.SecondAction is not null && notice.SecondActionLabel is not null;
 
-    /// <summary>The accounts whose stored sign-in the server refuses, in the core's order, which an
-    /// account's page in Settings draws its sign-in section for. A grant that is merely narrower
-    /// is not one: the account still signs in.</summary>
-    internal static IReadOnlyList<string> SignInExpired(IReadOnlyList<Notice> notices) =>
-        AccountsOf<NoticeKind.SignInExpired>(notices);
-
     /// <summary>Whether the account service refused the Allodia sign-in, which the Allodia card
     /// draws.</summary>
     internal static bool AllodiaSignInEnded(IReadOnlyList<Notice> notices) =>

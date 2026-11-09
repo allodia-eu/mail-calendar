@@ -102,24 +102,9 @@ internal fun AccountPage(
         ReplyFallbackGroup(entry, picker, ui)
     }
     page.shared?.let { SharedMailboxesGroup(entry, it, ui) }
-    val expired = entry.id in ui.expired
-    if (AccountSettingsRules.signsInAtProvider(entry.kind)) {
+    page.signIn?.let { section ->
         Spacer(modifier = Modifier.height(8.dp))
-        SignInGroup(entry, expired, ui)
-    }
-    // Where Microsoft and Google sign in again, an IMAP or JMAP account says how it signs in and
-    // offers the other way (docs/accounts.md rule 17).
-    if (AccountSignInRules.switchable(entry.kind)) {
-        Spacer(modifier = Modifier.height(8.dp))
-        AccountSignInGroup(entry, ui)
-    } else if (AccountSignInRules.asksOptions(entry.kind)) {
-        // A calendar and contacts account has one only at a Nextcloud server, which its server is
-        // asked about as the page opens (docs/nextcloud-sign-in.md rule 7).
-        LaunchedEffect(entry.id) { ui.onAskSignInOptions(entry.id) }
-        if (AccountSignInRules.hasSection(entry, ui.state.signIn.options[entry.id])) {
-            Spacer(modifier = Modifier.height(8.dp))
-            AccountSignInGroup(entry, ui)
-        }
+        AccountSignInGroup(entry, section, ui)
     }
     entry.mailSync?.let { technology ->
         Spacer(modifier = Modifier.height(8.dp))
@@ -127,7 +112,7 @@ internal fun AccountPage(
     }
     page.servers?.let { servers ->
         Spacer(modifier = Modifier.height(8.dp))
-        ServersGroup(entry, servers, expired, ui)
+        ServersGroup(entry, servers, ui)
     }
     page.mail?.let { mail ->
         Spacer(modifier = Modifier.height(8.dp))
@@ -262,41 +247,6 @@ private fun ReplyFallbackGroup(entry: AccountEntry, picker: AccountReplyFallback
             control = picker.control,
             tag = "account-reply-fallback",
         ) { at -> ui.onChange(AccountPageIntent.SetReplyFallback(entry.id, replyFallbackChoices[at])) }
-    }
-}
-
-/**
- * "Sign in again", for an account that signs in at its provider's page: the remedy for an expired
- * sign-in and for a permission the provider withheld.
- */
-@Composable
-private fun SignInGroup(entry: AccountEntry, expired: Boolean, ui: AccountsSettingsUi) {
-    val ctx = LocalContext.current
-    val description = when {
-        expired -> L10n.signin_expired_prompt(ctx, accountName(ctx, entry))
-        AccountSettingsRules.needsPermission(entry) -> L10n.settings_account_needs_permission(ctx)
-        else -> L10n.settings_account_signin_description(ctx)
-    }
-    val signingIn = ui.state.signingIn == entry.id
-    SettingsGroupCard(L10n.settings_account_signin_heading(ctx), description) {
-        OutlinedButton(
-            onClick = { ui.onSignInAgain(entry.id, emptyList()) },
-            enabled = ui.state.signingIn == null,
-            modifier = Modifier.testTag("account-sign-in-again"),
-        ) {
-            if (signingIn) {
-                CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            Text(L10n.signin_expired_action(ctx))
-        }
-        if (signingIn) {
-            Text(
-                L10n.settings_account_signin_waiting(ctx, entry.address),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
     }
 }
 

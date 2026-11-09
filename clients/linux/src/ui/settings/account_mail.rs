@@ -1,9 +1,9 @@
-//! An account's mail settings, on its page: credentials, fetch depth, message size, live delivery
+//! An account's mail settings, on its page: fetch depth, message size, live delivery
 //! and watched folders, as the core's page record says them. Drawn only while the account is used
 //! for mail.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountMailSettings, AccountPageIntent, AccountProvider};
+use mailcal_bindings::{AccountMailSettings, AccountPageIntent};
 
 use super::{PageContext, account_page::change, group};
 use crate::{
@@ -15,33 +15,8 @@ pub(super) fn mail_group(
     ctx: &PageContext,
     account: &str,
     mail: &AccountMailSettings,
-    name: &str,
-    signin_expired: bool,
-    provider: Option<&AccountProvider>,
 ) -> adw::PreferencesGroup {
-    let can_replace_secret = signin_expired
-        && matches!(
-            provider,
-            Some(AccountProvider::Password | AccountProvider::Jmap)
-        );
-    let description = if can_replace_secret {
-        if ctx.credential_repair_failed.as_deref() == Some(account) {
-            l10n::signin_expired_failed().to_owned()
-        } else {
-            l10n::signin_expired_prompt(name)
-        }
-    } else {
-        l10n::settings_sync_description().to_owned()
-    };
-    let section = group(l10n::nav_mail(), &description);
-    if can_replace_secret {
-        add_secret_remedy(
-            &section,
-            account,
-            provider.expect("secret remedy has a provider"),
-            &ctx.sender,
-        );
-    }
+    let section = group(l10n::nav_mail(), l10n::settings_sync_description());
     let sender = &ctx.sender;
 
     let labels: Vec<String> = mail
@@ -156,59 +131,6 @@ fn pick(
     row
 }
 
-fn add_secret_remedy(
-    section: &adw::PreferencesGroup,
-    account_id: &str,
-    provider: &AccountProvider,
-    sender: &relm4::Sender<super::super::AppInput>,
-) {
-    section.add(&secret_remedy_row(account_id, provider, sender));
-}
-
-fn secret_remedy_row(
-    account_id: &str,
-    provider: &AccountProvider,
-    sender: &relm4::Sender<super::super::AppInput>,
-) -> adw::ActionRow {
-    let label = match provider {
-        AccountProvider::Jmap => l10n::setup_jmap_secret_placeholder(),
-        _ => l10n::setup_field_password(),
-    };
-    let row = adw::ActionRow::builder()
-        .title(label)
-        .use_markup(false)
-        .build();
-    let secret = gtk::PasswordEntry::new();
-    secret.set_placeholder_text(Some(label));
-    secret.set_show_peek_icon(true);
-    secret.set_valign(gtk::Align::Center);
-    secret.set_width_chars(24);
-    let save = gtk::Button::with_label(l10n::action_save());
-    save.add_css_class("suggested-action");
-    save.set_valign(gtk::Align::Center);
-    save.set_sensitive(false);
-    let button = save.clone();
-    secret.connect_changed(move |entry| button.set_sensitive(!entry.text().trim().is_empty()));
-    let input = sender.clone();
-    let account = account_id.to_owned();
-    let entered = secret.clone();
-    save.connect_clicked(move |button| {
-        let value = entered.text().to_string();
-        if value.trim().is_empty() {
-            return;
-        }
-        button.set_sensitive(false);
-        entered.set_sensitive(false);
-        input.emit(super::super::AppInput::ReplaceAccountSecret {
-            account: account.clone(),
-            secret: value,
-        });
-    });
-    row.add_suffix(&secret);
-    row.add_suffix(&save);
-    row
-}
-
 fn add_folder_rows(
     sender: &relm4::Sender<super::super::AppInput>,
     account: &str,
@@ -244,42 +166,5 @@ fn add_folder_rows(
                 );
             },
         ));
-    }
-}
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use adw::prelude::*;
-
-    use super::secret_remedy_row;
-    use crate::ui::{AppInput, setup_widget_tests::descendants};
-
-    pub(crate) fn an_expired_password_is_replaced_without_removing_the_account() {
-        let (sender, receiver) = relm4::channel();
-        let row = secret_remedy_row(
-            "account-id",
-            &mailcal_bindings::AccountProvider::Password,
-            &sender,
-        );
-        let entry = descendants::<gtk::PasswordEntry>(row.upcast_ref())
-            .into_iter()
-            .next()
-            .expect("password entry");
-        let save = descendants::<gtk::Button>(row.upcast_ref())
-            .into_iter()
-            .find(|button| button.label().as_deref() == Some(crate::l10n::action_save()))
-            .expect("save button");
-
-        assert!(!save.is_sensitive());
-        entry.set_text("replacement-secret");
-        assert!(save.is_sensitive());
-        save.emit_clicked();
-
-        assert!(matches!(
-            receiver.recv_sync(),
-            Some(AppInput::ReplaceAccountSecret { account, secret })
-                if account == "account-id" && secret == "replacement-secret"
-        ));
-        assert!(!entry.is_sensitive());
     }
 }

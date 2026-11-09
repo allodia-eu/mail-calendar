@@ -22,6 +22,8 @@ import uniffi.mailcal_bindings.AccountCapability.CALENDAR
 import uniffi.mailcal_bindings.AccountCapability.CONTACTS
 import uniffi.mailcal_bindings.AccountCapability.MAIL
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountSignIn
+import uniffi.mailcal_bindings.AccountSignInLine
 import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.SeparateServer
@@ -57,7 +59,11 @@ class SettingsSeparateServerTest {
     private fun show(entry: AccountEntry) {
         state.snapshot = AccountsSnapshot(listOf(entry))
         state.page = entry.id
-        state.accountPage = pageOf(entry)
+        // A mailbox always has a Sign-in section, which the switch's question is asked from.
+        state.accountPage = pageOf(
+            entry,
+            signIn = AccountSignIn(AccountSignInLine.PASSWORD, emptyList(), FREE, null, switches = false),
+        )
         val ui = AccountsSettingsUi(
             state = state,
             onSeparateSignIn = { opened += it },

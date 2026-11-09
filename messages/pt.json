@@ -1160,7 +1160,6 @@
 	"settings_account_switch_to_provider_named": "Iniciar antes sessão com {provider}",
 	"settings_account_switch_to_password": "Usar antes uma palavra-passe",
 	"settings_account_switch_password_save": "Usar esta palavra-passe",
-	"settings_account_switched_to_password": "Esta conta passa a iniciar sessão com uma palavra-passe.",
 	"settings_account_switched_to_provider": "Esta conta passa a iniciar sessão através do seu fornecedor.",
 	"settings_account_switch_failed": "Não foi possível mudar a forma como esta conta inicia sessão",
 	"signin_unreached_title_both": "O seu calendário e os seus contactos não funcionarão com este início de sessão",

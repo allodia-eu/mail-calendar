@@ -7,7 +7,6 @@ import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.LinkedAccount
-import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
 internal object AccountSettingsRules {
     /** Whether a use in [state] is one the account is used for. One the server lacks is not. */
@@ -32,10 +31,6 @@ internal object AccountSettingsRules {
     /** The uses waiting on the provider's permission, for the notice a sign-in ends with. */
     fun withheld(entry: AccountEntry): List<AccountCapability> =
         entry.uses.filter { it.state == CapabilityState.NEEDS_PERMISSION }.map { it.capability }
-
-    /** Whether the account signs in at its provider's own page, which "Sign in again" opens. */
-    fun signsInAtProvider(kind: CoreAccountKind): Boolean =
-        kind == CoreAccountKind.MICROSOFT || kind == CoreAccountKind.GOOGLE
 
     /**
      * The accounts that lose their link when this one is removed, each as [name] names it, joined;

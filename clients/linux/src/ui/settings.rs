@@ -77,7 +77,6 @@ pub(crate) enum Category {
 pub(super) struct RenderState<'a> {
     pub(super) generation: u64,
     pub(super) category: Category,
-    pub(super) credential_repair_failed: Option<&'a str>,
     pub(super) allodia_signing_in: bool,
     pub(super) allodia_failure: Option<&'a str>,
     pub(super) allodia_sync: &'a AllodiaSyncState,
@@ -133,7 +132,6 @@ struct PageContext {
     sender: relm4::Sender<AppInput>,
     window: gtk::Window,
     navigation: gtk::Stack,
-    credential_repair_failed: Option<String>,
     /// The Allodia sign-in's state. It lives in the model rather than in this window because the
     /// window is rebuilt from scratch on every change; a browser hop outlasts several rebuilds.
     allodia_signing_in: bool,
@@ -285,7 +283,6 @@ impl SettingsWindow {
             sender,
             window: window.clone(),
             navigation: navigation.clone(),
-            credential_repair_failed: state.credential_repair_failed.map(str::to_owned),
             allodia_signing_in: state.allodia_signing_in,
             allodia_failure: state.allodia_failure.map(str::to_owned),
             allodia_sync: state.allodia_sync.clone(),

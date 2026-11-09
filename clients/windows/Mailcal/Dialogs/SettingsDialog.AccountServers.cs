@@ -21,7 +21,7 @@ public sealed partial class SettingsDialog
     /// saved while a save runs, the one the last save refused so one field is corrected rather than
     /// all retyped, and otherwise what is stored. The page is not drawn again while the form holds
     /// edits Save has not sent.</summary>
-    private UIElement ServersGroup(AccountEntry entry, AccountServers servers, bool expired)
+    private UIElement ServersGroup(AccountEntry entry, AccountServers servers)
     {
         var form = servers.Form;
         var stack = new StackPanel { Spacing = 8 };
@@ -89,7 +89,7 @@ public sealed partial class SettingsDialog
         password.PasswordChanged += (_, _) => Follow();
         Follow();
         stack.Children.Add(save.Element);
-        var description = expired
+        var description = servers.SignInRefused
             ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry))
             : L10n.SettingsAccountServersDescription();
         return Group(L10n.SettingsAccountServersHeading(), description, stack);

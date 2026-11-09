@@ -64,6 +64,11 @@ impl MailcalApp {
             page.mail = Some(mail);
         }
         page.shared = self.shared_section(&account_id, &hold);
+        let sign_in_refused = self.sign_in_refused(&account_id);
+        page.sign_in = self.sign_in_section(&entry, sign_in_refused, &hold);
+        if let Some(servers) = &mut page.servers {
+            servers.sign_in_refused = sign_in_refused;
+        }
         Some(page)
     }
 
@@ -228,6 +233,9 @@ impl MailcalApp {
             }
             intent @ (AccountPageIntent::SetSharedMailbox { .. }
             | AccountPageIntent::AddSharedMailbox { .. }) => self.run_shared_change(intent),
+            AccountPageIntent::UsePassword { account, password } => {
+                self.use_password(account, password.text)
+            }
             // Tried before anything is kept; the page shows what was stored once it ends.
             AccountPageIntent::SaveServers { account, endpoints } => {
                 let error = self
@@ -278,3 +286,6 @@ mod tests;
 
 #[path = "app_account_page_shared.rs"]
 mod shared;
+
+#[path = "app_account_page_sign_in.rs"]
+mod sign_in;

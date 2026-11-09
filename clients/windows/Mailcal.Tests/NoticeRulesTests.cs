@@ -234,21 +234,6 @@ public class NoticeRulesTests
     }
 
     [Fact]
-    public void An_expired_sign_in_is_the_accounts_own_notice()
-    {
-        Notice[] notices =
-        [
-            Make("a-expired", nameof(NoticeScreens.Everywhere), account: "a", kind: new NoticeKind.SignInExpired()),
-            Make("b-mail", nameof(NoticeScreens.Mail), account: "b", kind: new NoticeKind.MailReauth()),
-            Make("c-unreachable", nameof(NoticeScreens.Mail), account: "c"),
-        ];
-
-        // A narrower grant is not a dead sign-in, and neither is a server out of reach.
-        Assert.Equal(["a"], NoticeRules.SignInExpired(notices));
-        Assert.Empty(NoticeRules.SignInExpired([]));
-    }
-
-    [Fact]
     public void The_allodia_card_follows_its_notice()
     {
         var offline = Make("offline", nameof(NoticeScreens.Everywhere), kind: new NoticeKind.Offline());

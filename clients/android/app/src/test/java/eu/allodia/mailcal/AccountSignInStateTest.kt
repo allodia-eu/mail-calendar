@@ -1,5 +1,5 @@
 // One sign-in at a time for an IMAP or JMAP account, and the redirect it waits for: who claims it,
-// what a return to the app does to it, and what a finished switch asks again.
+// and what a return to the app does to it.
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -7,30 +7,15 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import uniffi.mailcal_bindings.AccountSignInOptions
 
 class AccountSignInStateTest {
     private val state = AccountSignInState()
-    private val answer = AccountSignInOptions(signIn = true, providerLabel = null, password = true)
-
-    @Test
-    fun a_server_is_asked_once_at_a_time_and_its_answer_kept() {
-        assertTrue(state.startAsking("acct"))
-        assertFalse(state.startAsking("acct"))
-
-        state.answered("acct", answer)
-
-        assertEquals(answer, state.options["acct"])
-        // The page opening again asks again.
-        assertTrue(state.startAsking("acct"))
-    }
 
     @Test
     fun one_flow_runs_at_a_time() {
         assertTrue(state.begin("acct", switching = false))
 
         assertFalse(state.begin("other", switching = true))
-        assertFalse(state.beginPassword("acct"))
         assertFalse(state.idle)
     }
 
@@ -81,26 +66,4 @@ class AccountSignInStateTest {
         assertTrue(state.idle)
     }
 
-    @Test
-    fun a_switch_that_took_effect_asks_the_server_again_and_empties_the_password() {
-        state.answered("acct", answer)
-        state.beginPassword("acct")
-
-        state.finished(switched = true)
-
-        assertNull(state.options["acct"])
-        assertEquals(1, state.passwordsSaved)
-        assertTrue(state.idle)
-    }
-
-    @Test
-    fun a_failed_switch_keeps_what_the_server_said() {
-        state.answered("acct", answer)
-        state.beginPassword("acct")
-
-        state.finished(switched = false)
-
-        assertEquals(answer, state.options["acct"])
-        assertEquals(0, state.passwordsSaved)
-    }
 }

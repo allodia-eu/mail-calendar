@@ -41,25 +41,11 @@ enum AccountSettingsRules {
         entry.uses.filter { $0.state == .needsPermission }.map(\.capability)
     }
 
-    /// Whether the account signs in at its provider's own page, which "Sign in again" opens.
-    static func signsInAtProvider(_ kind: AccountKind) -> Bool {
-        kind == .microsoft || kind == .google
-    }
-
     /// The accounts that lose their link when this one is removed, joined for the confirmation;
     /// `nil` when none does.
     static func unlinked(_ entry: AccountEntry) -> String? {
         entry.linkedFrom.isEmpty
             ? nil : entry.linkedFrom.map { AccountSettingsLabels.name($0) }.joined(separator: ", ")
-    }
-
-    /// Whether the mail settings offer a new password or API token: a JMAP account whose pasted
-    /// secret the server stopped accepting. An account whose servers are editable takes its new
-    /// password there, and one that signs in at a provider signs in again instead.
-    static func replacesSecret(
-        _ entry: AccountEntry, expired: Bool, provider: AccountProvider?
-    ) -> Bool {
-        expired && entry.endpoints == nil && provider == .jmap
     }
 }
 
@@ -170,7 +156,7 @@ enum AccountSettingsLabels {
         case let .serversFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_servers_failed(), detail: refused(refusal))
-        case let .sharedMailboxFailed(refusal):
+        case let .sharedMailboxFailed(refusal), let .passwordFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
         case .sharedMailboxNotFound:
@@ -263,14 +249,5 @@ enum AccountSettingsLabels {
         let message = L10n.remove_account_message(email: address)
         guard let unlinked else { return message }
         return "\(message) \(L10n.remove_account_unlinks(accounts: unlinked))"
-    }
-
-    /// The sign-in section's line: what is wrong, when something is.
-    static func signIn(_ entry: AccountEntry, expired: Bool) -> String {
-        if expired { return L10n.signin_expired_prompt(accounts: name(entry)) }
-        if AccountSettingsRules.needsPermission(entry) {
-            return L10n.settings_account_needs_permission()
-        }
-        return L10n.settings_account_signin_description()
     }
 }

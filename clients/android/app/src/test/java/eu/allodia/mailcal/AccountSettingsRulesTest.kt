@@ -32,15 +32,6 @@ class AccountSettingsRulesTest {
     }
 
     @Test
-    fun signing_in_again_is_offered_where_the_provider_signs_in() {
-        assertTrue(AccountSettingsRules.signsInAtProvider(CoreAccountKind.MICROSOFT))
-        assertTrue(AccountSettingsRules.signsInAtProvider(CoreAccountKind.GOOGLE))
-        listOf(CoreAccountKind.IMAP, CoreAccountKind.DAV, CoreAccountKind.JMAP).forEach {
-            assertFalse(AccountSettingsRules.signsInAtProvider(it))
-        }
-    }
-
-    @Test
     fun the_row_names_the_uses_in_order_and_the_links() {
         val entry = mailboxOnly(links = AccountLinksView(linked("alice@cloud.example"), null, null))
         assertEquals(listOf(AccountCapability.MAIL), AccountSettingsRules.inUse(entry))

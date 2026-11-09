@@ -1,21 +1,13 @@
-// Switching a standards or JMAP account between a password and signing in through its provider,
-// and signing one in again in place (docs/accounts.md rule 17). The core tests the new credential,
-// stores it and replaces the account; this host owns only the browser hop. Every call blocks in
+// Signing a standards or JMAP account in through its provider, again or in place of its password
+// (docs/accounts.md rule 17). The core tests the new credential, stores it and replaces the
+// account; this host owns only the browser hop. A typed password is a change on the account's
+// page (`AccountPageIntent.usePassword`). Every call blocks in
 // the core, so each runs off the main actor.
 
 import Foundation
 import MailcalBindings
 
 extension MailboxModel {
-    /// Which ways in `id`'s server takes. Blocking in the core (detection, a capability probe and
-    /// issuer discovery); never fails, and `nil` only with no core to ask.
-    func accountSignInOptions(_ id: String) async -> AccountSignInOptions? {
-        guard let app else { return nil }
-        return await Task.detached(priority: .utility) {
-            app.accountSignInOptions(accountId: id)
-        }.value
-    }
-
     /// Signs `id` in through its provider: again, from its stored grant, or for the first time in
     /// place of its password. The account keeps its id, uses, links, settings and mail. A switch
     /// that would not reach the account's calendar or contacts asks through `ask` before the
@@ -90,25 +82,6 @@ extension MailboxModel {
         signInSwitchBusy = nil
         signingInAgain = nil
         consentBrowser = nil
-    }
-
-    /// Switches `id` to signing in with `password`, after proving it connects. Answers why not,
-    /// or `nil` once switched.
-    func switchAccountToPassword(_ id: String, _ password: String) async -> String? {
-        guard let app else { return L10n.app_unavailable() }
-        signInSwitchBusy = id
-        defer { if signInSwitchBusy == id { signInSwitchBusy = nil } }
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.switchAccountToPassword(accountId: id, password: password)
-            }.value
-            refreshAccountsSnapshot()
-            return nil
-        } catch {
-            // Never the password itself.
-            logAppleLifecycle("accounts: switching to a password failed (\(coreMessage(error)))")
-            return coreMessage(error)
-        }
     }
 
     // MARK: An account already set up

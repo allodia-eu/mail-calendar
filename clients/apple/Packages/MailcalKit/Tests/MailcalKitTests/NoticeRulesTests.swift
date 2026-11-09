@@ -55,16 +55,6 @@ import Testing
         #expect(NoticeRules.about("c", in: ranked).isEmpty)
     }
 
-    @Test func anExpiredSignInIsTheAccountsOwnNotice() {
-        let ranked = [
-            notice("a-expired", .everywhere, account: "a", kind: .signInExpired),
-            notice("b-mail", .mail, account: "b", kind: .mailReauth),
-        ]
-        #expect(NoticeRules.signInExpired("a", in: ranked))
-        #expect(!NoticeRules.signInExpired("b", in: ranked), "a narrower grant is not a dead sign-in")
-        #expect(!NoticeRules.signInExpired("c", in: ranked))
-    }
-
     @Test func theAllodiaCardFollowsItsNotice() {
         let ended = notice("allodia", .everywhere, kind: .allodiaSignInEnded(address: "anna@example.org"))
         #expect(NoticeRules.allodiaSignInEnded([notice("offline", .everywhere), ended]))

@@ -50,6 +50,8 @@ pub(crate) enum PageWork {
         on: bool,
     },
     AddShared(String),
+    /// A typed password, never kept: the same work asked twice is one press, whatever was typed.
+    Password,
 }
 
 impl PageWork {
@@ -85,6 +87,7 @@ impl PageWork {
                 on: *on,
             },
             AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
+            AccountPageIntent::UsePassword { .. } => Self::Password,
         }
     }
 }
@@ -136,6 +139,8 @@ pub(crate) struct AccountWork {
     refused_servers: Mutex<HashMap<String, crate::AccountEndpoints>>,
     /// What each account's server last said of the mailboxes its sign-in opens.
     pub(crate) shared: crate::account_page::shared::SharedAnswers,
+    /// What each account's server last said of the ways in it takes.
+    pub(crate) sign_in: crate::account_page::sign_in::SignInAnswers,
     raised: AtomicU64,
 }
 
@@ -214,6 +219,7 @@ impl AccountWork {
             .remove(account);
         self.servers_saved(account, None);
         self.shared.forget(account);
+        self.sign_in.forget(account);
     }
 
     /// What `account`'s last save of its servers came to: `refused` is the edit it did not keep,

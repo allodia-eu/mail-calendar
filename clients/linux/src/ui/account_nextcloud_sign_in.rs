@@ -21,18 +21,13 @@ use crate::{
 };
 
 impl AppModel {
-    /// Whether `account` signs in with Nextcloud: a Nextcloud sign-in made it, or its server
-    /// has answered that it is Nextcloud.
-    pub(super) fn signs_in_with_nextcloud(&self, app: &MailcalApp, account: &str) -> bool {
-        self.settings
-            .sign_in
-            .options(account)
-            .is_some_and(|options| options.nextcloud)
-            || app
-                .accounts_snapshot()
-                .accounts
-                .iter()
-                .any(|entry| entry.id == account && entry.nextcloud)
+    /// Whether `account` signs in through a browser with Nextcloud: a calendar and contacts
+    /// account, whose page offers no other browser sign-in.
+    pub(super) fn signs_in_with_nextcloud(app: &MailcalApp, account: &str) -> bool {
+        app.accounts_snapshot()
+            .accounts
+            .iter()
+            .any(|entry| entry.id == account && entry.kind == mailcal_bindings::AccountKind::Dav)
     }
 
     /// Starts signing `account` in with Nextcloud, replacing any other change. A grant kept from
@@ -113,7 +108,7 @@ impl AppModel {
                     cancel.store(true, std::sync::atomic::Ordering::Release);
                 }
                 let outcome = end.said().map_or(Outcome::Cancelled, Outcome::Failed);
-                self.account_sign_in_finished(&attempt, &outcome, sender);
+                self.account_sign_in_finished(&attempt, &outcome);
             }
         }
     }
@@ -154,12 +149,11 @@ impl AppModel {
         attempt: &Attempt,
         outcome: &Outcome,
         spent: bool,
-        sender: relm4::Sender<AppInput>,
     ) {
         if spent {
             self.settings.sign_in.take_grant(&attempt.account);
         }
-        self.account_sign_in_finished(attempt, outcome, sender);
+        self.account_sign_in_finished(attempt, outcome);
     }
 
     /// Withdraws the grant kept from a sign-in that did not go through, when there is one: its

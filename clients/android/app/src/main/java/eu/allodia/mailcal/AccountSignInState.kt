@@ -1,14 +1,12 @@
-// An IMAP or JMAP account's sign-in being switched or renewed (docs/accounts.md rule 17): what
-// each account's server said it takes, and the one flow running. Held by the activity, because a
+// An IMAP or JMAP account's browser sign-in, again or in place of a password (docs/accounts.md
+// rule 17): the one flow running. Which ways in its page offers is the core's. Held by the activity, because a
 // browser sign-in leaves the app and comes back through onNewIntent; Compose-free in its decisions,
 // so the JVM suite drives them.
 package eu.allodia.mailcal
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import uniffi.mailcal_bindings.AccountSignInOptions
 import uniffi.mailcal_bindings.UnreachedUses
 
 /** Where a running sign-in is. */
@@ -24,9 +22,6 @@ internal enum class SignInStep {
 
     /** The redirect arrived; the exchange and the connect run. */
     COMPLETING,
-
-    /** A password is being tried. */
-    PASSWORD,
 }
 
 /** A sign-in running for [accountId]. [switching] is a change of method, not a sign-in again. */
@@ -56,12 +51,6 @@ internal data class UnreachedQuestion(
 )
 
 internal class AccountSignInState {
-    /** What each account's server answered, by account id. */
-    var options by mutableStateOf<Map<String, AccountSignInOptions>>(emptyMap())
-        private set
-
-    private val asking = mutableSetOf<String>()
-
     /** The flow running, one at a time: a second browser would claim the first one's redirect. */
     var running by mutableStateOf<SignInRun?>(null)
         private set
@@ -83,19 +72,6 @@ internal class AccountSignInState {
      */
     var nextcloudGrant: Pair<String, String>? = null
 
-    /** Counts switches to a password, so the field empties after each. */
-    var passwordsSaved by mutableIntStateOf(0)
-        private set
-
-    /** Whether to ask [accountId]'s server now: false while a question is already out. */
-    fun startAsking(accountId: String): Boolean = asking.add(accountId)
-
-    /** The server answered for [accountId]. */
-    fun answered(accountId: String, answer: AccountSignInOptions) {
-        asking.remove(accountId)
-        options = options + (accountId to answer)
-    }
-
     /** Whether nothing runs, so a flow may start. */
     val idle: Boolean get() = running == null
 
@@ -103,13 +79,6 @@ internal class AccountSignInState {
     fun begin(accountId: String, switching: Boolean): Boolean {
         if (running != null) return false
         running = SignInRun(accountId, SignInStep.STARTING, switching)
-        return true
-    }
-
-    /** Starts trying a password for [accountId]; false when another flow runs. */
-    fun beginPassword(accountId: String): Boolean {
-        if (running != null) return false
-        running = SignInRun(accountId, SignInStep.PASSWORD, switching = true)
         return true
     }
 
@@ -195,16 +164,8 @@ internal class AccountSignInState {
         if (running?.step == SignInStep.BROWSER) running = null
     }
 
-    /**
-     * The flow ended. A switch that took effect asks the server again, since what it takes is
-     * asked of the way the account now signs in.
-     */
-    fun finished(switched: Boolean = false) {
-        val run = running
+    /** The flow ended. */
+    fun finished() {
         running = null
-        if (switched && run != null) {
-            options = options - run.accountId
-            if (run.step == SignInStep.PASSWORD) passwordsSaved += 1
-        }
     }
 }

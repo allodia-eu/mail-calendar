@@ -1,15 +1,13 @@
-// An account's page, how a standards or JMAP account signs in (docs/accounts.md rule 17): a
-// password, or through its provider, and the switch to the other where its server takes it, or
-// signing in again from its stored grant. Microsoft and Google keep "Sign in again" through their
-// own consent (AccountUses).
-//
-// What the server takes is a blocking question, so the section draws its heading and status line
-// at once and its buttons once the core answers. The answer is kept for the page's visit and keyed
-// by how the account signs in, so a redraw does not ask again and a switch does.
+// An account's page, how it signs in (docs/accounts.md rule 17), drawn from the core's record: the
+// line saying how it signs in or what is wrong, the ways in through a browser, and the field a
+// password is typed into. Which of them it offers is the core's. A browser sign-in is still this
+// client's to run: Microsoft and Google through their own consent (AccountUses), a calendar and
+// contacts account with Nextcloud, every other account through its own sign-in.
 //
 // A sign-in waiting on the browser leaves the buttons live, so a press supersedes it, and draws a
 // Cancel that retires it (AccountSignInProgress); only a blocking core call disables them.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -21,85 +19,66 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    // What each account's server takes, by account and current way of signing in.
-    private readonly Dictionary<string, AccountSignInOptions> _signInOptions = new();
-
-    // The section waiting on each question still out: what fills the latest drawing of it, so a
-    // redraw in the meantime neither asks twice nor loses the answer.
-    private readonly Dictionary<string, Action<AccountSignInOptions>> _signInWaiting = new();
-
     private bool _nextcloudClosedWired;
 
     // Where the page's sign-in is, which every drawing of the section reads.
     private readonly AccountSignInProgress _signInProgress = new();
 
-    // The controls and the Cancel of the section drawn last, and whose, which each step of the
-    // sign-in sets again.
+    // The browser routes and the Cancel of the section drawn last, whose, and whether a change on
+    // the page holds them; each step of the sign-in sets them again.
     private List<Control> _signInDrawn = [];
     private Button? _signInCancel;
     private string? _signInDrawnAccount;
+    private bool _signInPageFree = true;
 
-    private static readonly AccountSignInOptions NothingOffered = new(false, null, false);
-
-    /// <summary>
-    /// The Sign-in section of a standards or JMAP account's page, or of a calendar and contacts
-    /// account's at a Nextcloud server (docs/nextcloud-sign-in.md rule 7). One with a typed
-    /// password learns that from its server, so its section is drawn only once the server has
-    /// said so.
-    /// </summary>
-    private UIElement AccountSignInGroup(AccountEntry entry)
+    /// <summary>The Sign-in section the core gave <paramref name="entry"/>'s page.</summary>
+    private UIElement AccountSignInGroup(AccountEntry entry, AccountSignIn section)
     {
         WireNextcloudRelease();
-        var slot = new StackPanel();
         var controls = new StackPanel { Spacing = 8 };
-        void Draw(AccountSignInOptions? options)
+        var consent = entry.Kind is AccountKind.Microsoft or AccountKind.Google;
+        var all = new List<Control>();
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        _signInCancel = null;
+        foreach (var route in section.Routes)
         {
-            if (slot.Children.Count > 0
-                || (options is null && !AccountSettingsRules.SignInDrawnBeforeAnswer(entry))
-                || AccountSettingsRules.SignIn(entry, options) is not { } section)
+            var again = route is AccountSignInRoute.SignInAgain;
+            var button = new Button { Content = AccountUseText.SignInRoute(route) };
+            AutomationProperties.SetAutomationId(button, again ? "AccountSignInAgain" : "AccountSwitchToProvider");
+            button.Click += (_, _) => _ = consent
+                ? SignInAgainFromPageAsync(entry, [])
+                : BrowserSignInAsync(entry, switching: !again, nextcloud: entry.Kind == AccountKind.Dav);
+            buttons.Children.Add(button);
+            all.Add(button);
+        }
+        if (buttons.Children.Count > 0)
+        {
+            if (!consent)
             {
-                return;
+                var cancel = new Button { Content = L10n.ActionCancel(), Visibility = Visibility.Collapsed };
+                AutomationProperties.SetAutomationId(cancel, "AccountSignInCancel");
+                cancel.Click += (_, _) => _model.CancelAccountSignIn();
+                buttons.Children.Add(cancel);
+                _signInCancel = cancel;
             }
-            var status = section switch
-            {
-                { Nextcloud: true, ThroughProvider: true } => L10n.SettingsAccountSignsInNextcloud(),
-                { ThroughProvider: true } => L10n.SettingsAccountSignsInProvider(),
-                _ => L10n.SettingsAccountSignsInPassword(),
-            };
-            slot.Children.Add(Group(L10n.SettingsAccountSigninHeading(), status, controls));
+            controls.Children.Add(buttons);
         }
-        var key = $"{entry.Id}\n{entry.SignIn}";
-        if (_signInOptions.TryGetValue(key, out var options))
+        if (section.Password is { } field)
         {
-            Draw(options);
-            FillSignIn(controls, entry, options);
+            controls.Children.Add(PasswordEntry(entry, field, all));
         }
-        else
+        if (section.Switches)
         {
-            Draw(null);
-            var asking = _signInWaiting.ContainsKey(key);
-            _signInWaiting[key] = answer =>
-            {
-                Draw(answer);
-                FillSignIn(controls, entry, answer);
-            };
-            if (!asking)
-            {
-                _ = AskSignInOptionsAsync(entry.Id, key);
-            }
+            controls.Children.Add(Description(L10n.SettingsAccountSwitchDescription()));
         }
-        return slot;
-    }
-
-    private async Task AskSignInOptionsAsync(string accountId, string key)
-    {
-        var options = await _model.AccountSignInOptionsAsync(accountId) ?? NothingOffered;
-        _signInOptions[key] = options;
-        // Filling a section a redraw has since replaced is harmless: it is no longer on screen.
-        if (_signInWaiting.Remove(key, out var fill))
-        {
-            fill(options);
-        }
+        _signInDrawn = all;
+        _signInDrawnAccount = entry.Id;
+        _signInPageFree = section.Control.Enabled;
+        ShowSignInProgress(entry.Id);
+        return Group(
+            L10n.SettingsAccountSigninHeading(),
+            AccountUseText.SignInLine(section.Line, AccountNameText.Of(entry)),
+            controls);
     }
 
     // A Nextcloud grant the page held for another try becomes no account once Settings closes.
@@ -112,110 +91,77 @@ public sealed partial class SettingsDialog
         }
     }
 
-    /// <summary>The section's buttons, once the server has said what it takes.</summary>
-    private void FillSignIn(StackPanel controls, AccountEntry entry, AccountSignInOptions options)
-    {
-        if (AccountSettingsRules.SignIn(entry, options) is not { } section)
-        {
-            return;
-        }
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var all = new List<Control>();
-        _signInCancel = null;
-        if (section.SignInAgain)
-        {
-            var again = new Button { Content = L10n.SigninExpiredAction() };
-            AutomationProperties.SetAutomationId(again, "AccountSignInAgain");
-            again.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: false, section.Nextcloud);
-            buttons.Children.Add(again);
-            all.Add(again);
-        }
-        if (section.SwitchToProvider)
-        {
-            var label = section.ProviderLabel is { } provider
-                ? L10n.SettingsAccountSwitchToProviderNamed(provider)
-                : L10n.SettingsAccountSwitchToProvider();
-            var toProvider = new Button { Content = label };
-            AutomationProperties.SetAutomationId(toProvider, "AccountSwitchToProvider");
-            toProvider.Click += (_, _) => _ = BrowserSignInAsync(entry, switching: true, section.Nextcloud);
-            buttons.Children.Add(toProvider);
-            all.Add(toProvider);
-        }
-        if (buttons.Children.Count > 0)
-        {
-            var cancel = new Button { Content = L10n.ActionCancel(), Visibility = Visibility.Collapsed };
-            AutomationProperties.SetAutomationId(cancel, "AccountSignInCancel");
-            cancel.Click += (_, _) => _model.CancelAccountSignIn();
-            buttons.Children.Add(cancel);
-            controls.Children.Add(buttons);
-            _signInCancel = cancel;
-        }
-        if (section.SwitchToPassword)
-        {
-            controls.Children.Add(PasswordSwitch(entry, all));
-        }
-        if (section.OffersSwitch)
-        {
-            controls.Children.Add(Description(L10n.SettingsAccountSwitchDescription()));
-        }
-        _signInDrawn = all;
-        _signInDrawnAccount = entry.Id;
-        ShowSignInProgress(entry.Id);
-    }
-
-    /// <summary>"Use a password instead", which opens the field it is typed into. The field never
-    /// shows the credential the account holds.</summary>
-    private StackPanel PasswordSwitch(AccountEntry entry, List<Control> all)
+    /// <summary>The password field. One that switches from the provider's sign-in waits behind
+    /// "Use a password instead" until it runs; one that replaces a refused password is drawn at
+    /// once. It never shows the credential the account holds, and empties as it is sent; while it
+    /// holds text, a redraw waits. Its field and reveal join <paramref name="held"/>, which a
+    /// browser sign-in of the account's holds while the core works on it.</summary>
+    private StackPanel PasswordEntry(AccountEntry entry, AccountPasswordField field, List<Control> held)
     {
         var panel = new StackPanel { Spacing = 8 };
-        var reveal = new Button { Content = L10n.SettingsAccountSwitchToPassword() };
-        AutomationProperties.SetAutomationId(reveal, "AccountSwitchToPassword");
-        var form = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        var password = new PasswordBox { Header = L10n.SetupFieldPassword() };
-        AutomationProperties.SetAutomationId(password, "AccountSwitchPassword");
-        var save = new Button { Content = L10n.SettingsAccountSwitchPasswordSave(), Style = AccentButton() };
-        AutomationProperties.SetAutomationId(save, "AccountSwitchPasswordSave");
+        var form = new StackPanel { Spacing = 8 };
+        var unsent = ControlComponents.Form(form);
+        var password = new PasswordBox
+        {
+            Header = field.Kind == AccountSecretKind.PasswordOrToken
+                ? L10n.SetupJmapSecretPlaceholder()
+                : L10n.SetupFieldPassword(),
+        };
+        AutomationProperties.SetAutomationId(password, "AccountPassword");
+        // Held, too, while the core works on a browser sign-in of the account's.
+        var state = field.Save with { Enabled = field.Save.Enabled && _signInProgress.ControlsEnabled(entry.Id) };
+        ControlComponents.HoldFields(state, password);
+        held.Add(password);
+        var save = ControlComponents.FormButton(
+            field.Replaces ? L10n.ActionSave() : L10n.SettingsAccountSwitchPasswordSave(),
+            state, "AccountPasswordSave", AccentButton(), () =>
+            {
+                var typed = password.Password;
+                // A browser sign-in that began after the field was drawn holds it from here.
+                if (typed.Length == 0 || !_signInProgress.ControlsEnabled(entry.Id))
+                {
+                    return;
+                }
+                // The password replaces a sign-in still out in the browser for this account.
+                if (_signInProgress.IsOut(entry.Id))
+                {
+                    _model.CancelAccountSignIn();
+                }
+                EndUnreachedQuestion();
+                _model.ChangeAccount(new AccountPageIntent.UsePassword(entry.Id, new TypedPassword(typed)));
+                password.Password = string.Empty;
+            });
+        save.Ready(string.Empty);
+        password.PasswordChanged += (_, _) =>
+        {
+            unsent.Unsent = password.Password.Length > 0;
+            save.Ready(password.Password.Length == 0 ? string.Empty : null);
+        };
         form.Children.Add(password);
-        form.Children.Add(save);
+        form.Children.Add(save.Element);
+        if (field.Replaces || field.Save.Running)
+        {
+            panel.Children.Add(form);
+            return panel;
+        }
+        form.Visibility = Visibility.Collapsed;
+        StackPanel? reveal = null;
+        reveal = ControlComponents.Button(
+            L10n.SettingsAccountSwitchToPassword(),
+            state with { Running = false },
+            "AccountSwitchToPassword",
+            () =>
+            {
+                reveal!.Visibility = Visibility.Collapsed;
+                form.Visibility = Visibility.Visible;
+                password.Focus(FocusState.Programmatic);
+            });
+        if (reveal.Children[0] is Control revealButton)
+        {
+            held.Add(revealButton);
+        }
         panel.Children.Add(reveal);
         panel.Children.Add(form);
-        all.Add(reveal);
-        all.Add(save);
-        reveal.Click += (_, _) =>
-        {
-            reveal.Visibility = Visibility.Collapsed;
-            form.Visibility = Visibility.Visible;
-            password.Focus(FocusState.Programmatic);
-        };
-        save.Click += async (_, _) =>
-        {
-            if (password.Password.Length == 0)
-            {
-                return;
-            }
-            // The password replaces a sign-in still out in the browser for this account.
-            if (_signInProgress.IsOut(entry.Id))
-            {
-                _model.CancelAccountSignIn();
-            }
-            EndUnreachedQuestion();
-            var attempt = _signInProgress.Start(entry.Id);
-            ShowSignInProgress(entry.Id);
-            var error = await _model.SwitchAccountToPasswordAsync(entry.Id, password.Password);
-            _signInProgress.End(attempt);
-            ShowSignInProgress(entry.Id);
-            if (error is null)
-            {
-                password.Password = string.Empty;
-                NotifyAccounts(new AccountNotice(
-                    InfoBarSeverity.Success, L10n.SettingsAccountSwitchedToPassword(), string.Empty));
-            }
-            else
-            {
-                // The field keeps what was typed, so a mistyped password is corrected, not retyped.
-                SayOnAccounts(new AccountNotice(InfoBarSeverity.Error, L10n.SettingsAccountSwitchFailed(), error));
-            }
-        };
         return panel;
     }
 
@@ -287,7 +233,7 @@ public sealed partial class SettingsDialog
         {
             return;
         }
-        var enabled = _signInProgress.ControlsEnabled(accountId);
+        var enabled = _signInPageFree && _signInProgress.ControlsEnabled(accountId);
         foreach (var control in _signInDrawn)
         {
             control.IsEnabled = enabled;

@@ -93,11 +93,12 @@ internal static class ControlComponents
         internal StackPanel Element { get; } = element;
 
         /// <summary>The fields as they stand: <paramref name="leftOut"/> says what they leave
-        /// out, null when they can be sent.</summary>
+        /// out, null when they can be sent; empty holds the button and says nothing, for a field
+        /// with nothing typed yet.</summary>
         internal void Ready(string? leftOut)
         {
             missing.Text = leftOut ?? string.Empty;
-            missing.Visibility = leftOut is null ? Visibility.Collapsed : Visibility.Visible;
+            missing.Visibility = string.IsNullOrEmpty(leftOut) ? Visibility.Collapsed : Visibility.Visible;
             button.IsEnabled = control.Enabled && leftOut is null;
         }
     }

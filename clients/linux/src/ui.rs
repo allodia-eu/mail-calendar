@@ -285,7 +285,6 @@ pub(crate) struct AppModel {
     setup: SetupState,
     /// What this launch knows about the person's other devices, apart from the pass itself.
     allodia: allodia_sync::AllodiaLaunch,
-    credential_repair_failed: Option<String>,
     /// What the next Settings render should show, and whether it opens the window or only redraws
     /// an open one ([`settings::SettingsState`]).
     settings: settings::SettingsState,

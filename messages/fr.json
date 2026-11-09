@@ -1160,7 +1160,6 @@
 	"settings_account_switch_to_provider_named": "Se connecter plutôt avec {provider}",
 	"settings_account_switch_to_password": "Utiliser un mot de passe à la place",
 	"settings_account_switch_password_save": "Utiliser ce mot de passe",
-	"settings_account_switched_to_password": "Ce compte se connecte désormais avec un mot de passe.",
 	"settings_account_switched_to_provider": "Ce compte se connecte désormais via votre fournisseur.",
 	"settings_account_switch_failed": "Impossible de changer la façon dont ce compte se connecte",
 	"signin_unreached_title_both": "Votre calendrier et vos contacts ne fonctionneront pas avec cette connexion",

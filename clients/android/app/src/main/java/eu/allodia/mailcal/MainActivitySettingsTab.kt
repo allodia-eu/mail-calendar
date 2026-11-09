@@ -176,9 +176,6 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
 // (MainActivityAccountSettings.kt).
 private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     state = accountSettings,
-    expired = notices.expired,
-    // A JMAP account holding a pasted password or API token, while the server refuses it.
-    pastedSecret = notices.pastedSecret,
     // Its notices open its page (docs/notices.md rule 6).
     notices = notices.notices,
     noticeHandlers = noticeHandlers(),
@@ -199,10 +196,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     },
     onChange = { intent -> changeAccount(intent) },
     onSignInAgain = { id, adding -> signInAgain(id, adding) },
-    onReplaceSecret = { id, secret -> replaceAccountSecret(id, secret) },
-    onAskSignInOptions = { id -> askSignInOptions(id) },
     onAccountSignIn = { id, switching -> startAccountSignIn(id, switching) },
-    onSwitchToPassword = { id, password -> switchToPassword(id, password) },
     onUnreachedChoice = { choice -> answerUnreached(choice) },
     onSeparateSignIn = { id -> openPageSeparate(id) },
     onConnectSeparate = { username, password -> connectPageSeparate(username, password) },

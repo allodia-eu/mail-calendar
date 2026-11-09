@@ -15,10 +15,6 @@ public sealed partial class MailboxModel
 {
     private bool _offline;
     private List<ConnectionIssue> _connectionIssues = new();
-    // Accounts whose stored sign-in the server has stopped accepting, which an account's page in
-    // Settings draws its sign-in section for.
-    private IReadOnlyList<string> _signInExpired = [];
-
     /// <summary>One account that can't reach its server: its id, display email, and the technical
     /// detail (its connect error) revealed behind the footer status.</summary>
     private sealed record ConnectionIssue(string Id, string Email, string? Detail);
@@ -34,7 +30,6 @@ public sealed partial class MailboxModel
             var email = Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id;
             return new ConnectionIssue(id, email, _app?.ConnectionDetail(id));
         }).ToList();
-        _signInExpired = NoticeRules.SignInExpired(notices);
         UpdateAllodiaSignInEnded(NoticeRules.AllodiaSignInEnded(notices));
         RaiseConnectionStatus();
     }

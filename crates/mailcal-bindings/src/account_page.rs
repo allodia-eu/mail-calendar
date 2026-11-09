@@ -91,11 +91,13 @@ pub(crate) fn page(
                 _ => None,
             });
             AccountServers {
+                sign_in_refused: false,
                 save: control(saving.is_some(), true),
                 form: saving.or(refused_servers).unwrap_or(stored),
             }
         }),
         shared: None,
+        sign_in: None,
         reply_fallback: entry
             .uses
             .iter()
@@ -208,3 +210,6 @@ mod tests;
 
 #[path = "account_page_shared.rs"]
 pub(crate) mod shared;
+
+#[path = "account_page_sign_in.rs"]
+pub(crate) mod sign_in;

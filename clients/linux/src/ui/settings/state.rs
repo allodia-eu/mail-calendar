@@ -207,11 +207,10 @@ impl SettingsState {
         self.generation = self.generation.wrapping_add(1);
     }
 
-    /// What the window is rendered from. `credential_repair_failed` and `accounts_synced` ride
-    /// along because they live on the model beside this, and the window reads them together.
+    /// What the window is rendered from. `accounts_synced` rides along because it lives on the
+    /// model beside this, and the window reads them together.
     pub(in crate::ui) fn render_state<'a>(
         &'a self,
-        credential_repair_failed: Option<&'a str>,
         accounts_synced: &'a std::collections::HashMap<
             String,
             mailcal_bindings::AllodiaAccountSyncMode,
@@ -220,7 +219,6 @@ impl SettingsState {
         RenderState {
             generation: self.generation,
             category: self.category,
-            credential_repair_failed,
             allodia_signing_in: self.allodia_signing_in,
             allodia_failure: self.allodia_failure.as_deref(),
             allodia_sync: &self.allodia_sync,

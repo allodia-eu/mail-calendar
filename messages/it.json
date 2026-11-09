@@ -1160,7 +1160,6 @@
 	"settings_account_switch_to_provider_named": "Accedi invece con {provider}",
 	"settings_account_switch_to_password": "Usa invece una password",
 	"settings_account_switch_password_save": "Usa questa password",
-	"settings_account_switched_to_password": "Questo account ora accede con una password.",
 	"settings_account_switched_to_provider": "Questo account ora accede tramite il tuo provider.",
 	"settings_account_switch_failed": "Impossibile cambiare il modo in cui questo account accede",
 	"signin_unreached_title_both": "Il calendario e i contatti non funzioneranno con questo accesso",

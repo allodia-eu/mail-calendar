@@ -331,14 +331,6 @@ pub(crate) enum AppInput {
     JmapFinished(u64, JmapOutcome),
     JmapReauthPrepared(u64, Result<Box<JmapReauthPrepared>, String>),
     JmapReauthFinished(u64, JmapReauthOutcome),
-    ReplaceAccountSecret {
-        account: String,
-        secret: String,
-    },
-    AccountSecretReplaced {
-        account: String,
-        success: bool,
-    },
     StartAllodiaSignIn,
     StartAllodiaRegistration,
     ManageAllodiaAccount,

@@ -60,8 +60,6 @@ internal class AccountsUiState {
     /** The notice a change on the page left, which the core withdraws when the next one starts. */
     var changeNotice: AccountNotice? = null
 
-    /** The account whose pasted secret is being tried. */
-    var replacingSecret by mutableStateOf<String?>(null)
 
     /** The account being signed in again, from the browser hop until its connect answers. */
     var signingIn by mutableStateOf<String?>(null)

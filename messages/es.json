@@ -1160,7 +1160,6 @@
 	"settings_account_switch_to_provider_named": "Iniciar sesión con {provider} en su lugar",
 	"settings_account_switch_to_password": "Usar una contraseña en su lugar",
 	"settings_account_switch_password_save": "Usar esta contraseña",
-	"settings_account_switched_to_password": "Esta cuenta ahora inicia sesión con una contraseña.",
 	"settings_account_switched_to_provider": "Esta cuenta ahora inicia sesión a través de tu proveedor.",
 	"settings_account_switch_failed": "No se ha podido cambiar cómo inicia sesión esta cuenta",
 	"signin_unreached_title_both": "Tu calendario y tus contactos no funcionarán con este inicio de sesión",

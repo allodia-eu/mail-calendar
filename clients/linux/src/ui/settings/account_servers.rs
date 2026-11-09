@@ -72,11 +72,13 @@ pub(super) fn server_group(
     ctx: &PageContext,
     entry: &AccountEntry,
     servers: &AccountServers,
-    expired: bool,
 ) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_account_servers_heading(),
-        &description(&super::account_names::entry_name(entry), expired),
+        &description(
+            &super::account_names::entry_name(entry),
+            servers.sign_in_refused,
+        ),
     );
     let form = &servers.form;
     let imap = form.imap_host.as_deref().map(|address| {

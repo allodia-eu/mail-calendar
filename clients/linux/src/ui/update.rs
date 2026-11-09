@@ -420,12 +420,6 @@ impl AppModel {
             AppInput::DismissSenderNamePrompt => {
                 self.ask_next_sender_name(sender.input_sender().clone());
             }
-            AppInput::ReplaceAccountSecret { account, secret } => {
-                self.replace_account_secret(account, secret, sender.input_sender().clone());
-            }
-            AppInput::AccountSecretReplaced { account, success } => {
-                self.account_secret_replaced(account, success);
-            }
             AppInput::Accounts(input) => {
                 self.accounts_input(input, sender.input_sender().clone());
             }

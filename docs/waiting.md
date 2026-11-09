@@ -61,6 +61,12 @@ rather than all retyped), and otherwise from what is stored; and Save, held too 
 fields are held with Save, without its spinner, so nothing typed during a save is drawn over when
 it ends. Its `shared` mailboxes are switches and an address field of the same kind: switching one
 or adding one is a change on the page, and the server's answer is the core's to ask for and keep.
+Its `sign_in` section is decided the same way: which ways in its server takes is asked by the core
+as the page opens and kept, the section's line says how the account signs in or that its server
+refused the stored sign-in, and a password typed into its field is a change on the page
+(`UsePassword`), its Save running until the password has connected or been refused. A browser
+sign-in is still the client's to run, so its route's buttons and the password field are held by
+the client's own state while it completes one, on top of the section's control.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -90,6 +96,7 @@ record, not a state the client keeps.
 | An account's page: its name and mail settings drawn from `account_page` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its servers drawn from `account_page`, saved as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its shared mailboxes drawn from `account_page`, switched and added as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An account's page: its Sign-in section drawn from `account_page`, a typed password sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -118,6 +125,13 @@ record, not a state the client keeps.
   pins the shared mailboxes: the server asked once, and again only when the page opens or the
   account changed, an older answer never replacing a newer one, the rows and the line under them,
   and a running switch or add drawn where it goes.
+- [`account_page_sign_in_tests.rs`](../crates/mailcal-bindings/src/account_page_sign_in_tests.rs)
+  pins the Sign-in section: each kind's line and routes once its server has answered, a refused
+  password typed where the page takes it, a password being tried held and running, and the
+  server asked again when the page opens while an answer about a sign-in since changed is
+  dropped;
+  [`app_account_page_sign_in_tests.rs`](../crates/mailcal-bindings/src/app_account_page_sign_in_tests.rs)
+  drives a typed password through `dispatch` and pins that it is never printed.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

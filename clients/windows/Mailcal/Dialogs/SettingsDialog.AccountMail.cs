@@ -86,18 +86,9 @@ public sealed partial class SettingsDialog
 
     /// <summary>The mail settings, while the account is used for mail, as the core's page record
     /// says them.</summary>
-    private UIElement MailGroup(AccountEntry entry, AccountMailSettings mail, bool expired)
+    private UIElement MailGroup(AccountEntry entry, AccountMailSettings mail)
     {
-        // An account whose servers are editable takes its new password in that section, so this
-        // offers it only to a JMAP account holding a pasted password or API token.
-        var replacesSecret = expired
-            && entry.Endpoints is null
-            && _model.ProviderOf(entry.Id) == AccountProvider.Jmap;
         var panel = new StackPanel { Spacing = 8 };
-        if (replacesSecret)
-        {
-            panel.Children.Add(SecretRemedy(entry));
-        }
         var id = entry.Id;
         panel.Children.Add(Count(
             L10n.SettingsSyncDepthHeading(), L10n.SettingsSyncDepthDescription(), mail.Depth,
@@ -136,10 +127,7 @@ public sealed partial class SettingsDialog
         {
             panel.Children.Add(WatchedFolders(id, mail));
         }
-        return Group(
-            L10n.NavMail(),
-            replacesSecret ? L10n.SigninExpiredPrompt(AccountNameText.Of(entry)) : L10n.SettingsSyncDescription(),
-            panel);
+        return Group(L10n.NavMail(), L10n.SettingsSyncDescription(), panel);
     }
 
     /// <summary>A combo box over <paramref name="choice"/>'s counts, worded by
@@ -158,38 +146,6 @@ public sealed partial class SettingsDialog
             panel.Children.Add(Description(note));
         }
         return panel;
-    }
-
-    /// <summary>A new password or API token for a JMAP account the server stopped accepting,
-    /// tried before it is kept (replace_account_secret).</summary>
-    private UIElement SecretRemedy(AccountEntry entry)
-    {
-        var stack = new StackPanel { Spacing = 8 };
-        var secret = new PasswordBox { Header = L10n.SetupJmapSecretPlaceholder() };
-        AutomationProperties.SetAutomationId(secret, "AccountReplaceSecret");
-        var save = new Button { Content = L10n.SigninExpiredAction(), Style = AccentButton() };
-        AutomationProperties.SetAutomationId(save, "AccountReplaceSecretSave");
-        save.Click += async (_, _) =>
-        {
-            if (secret.Password.Length == 0)
-            {
-                return;
-            }
-            save.IsEnabled = false;
-            var error = await _model.ReplaceAccountSecretAsync(entry.Id, secret.Password);
-            save.IsEnabled = true;
-            if (error is null)
-            {
-                NotifyAccounts(new AccountNotice(InfoBarSeverity.Success, L10n.SettingsAccountSignedIn(), string.Empty));
-            }
-            else
-            {
-                SayOnAccounts(new AccountNotice(InfoBarSeverity.Error, L10n.SettingsAccountSigninFailed(), error));
-            }
-        };
-        stack.Children.Add(secret);
-        stack.Children.Add(save);
-        return stack;
     }
 
     private UIElement WatchedFolders(string id, AccountMailSettings mail)

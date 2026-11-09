@@ -1,5 +1,5 @@
-// How an IMAP or JMAP account signs in, changed or renewed from its page in Settings or from the
-// expired-sign-in banner, and the "already set up" refusal's offer to update the account already
+// An IMAP or JMAP account signed in through its provider, again or in place of a password, from its
+// page in Settings or from the expired-sign-in banner, and the "already set up" refusal's offer to update the account already
 // there (docs/accounts.md rule 17). Either asks first when the new sign-in will not reach the
 // account's calendar or contacts (rule 18). Every core call here blocks (detection, discovery, a token
 // exchange, a connect), so each runs off the main thread. The core stores the credential and
@@ -10,19 +10,6 @@ import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.UnreachedUses
-
-/** Asks account [accountId]'s server which ways in it takes, once per opening of its page. */
-internal fun MainActivity.askSignInOptions(accountId: String) {
-    val instance = app ?: return
-    val signIn = accountSettings.signIn
-    if (!AccountSignInRules.asksOptions(accountSettings.entry(accountId)?.kind)) return
-    if (!signIn.startAsking(accountId)) return
-    thread(name = "mailcal-sign-in-options") {
-        // Never throws, and bounded: an unanswered question offers nothing.
-        val options = instance.accountSignInOptions(accountId)
-        mainHandler.post { signIn.answered(accountId, options) }
-    }
-}
 
 /** The title a failed sign-in is said under: a change of method, or a sign-in again. */
 private fun MainActivity.signInFailedTitle(switching: Boolean): String =
@@ -106,7 +93,7 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
             instance.completeAccountSignIn(claimed.accountId, claimed.handle, callbackUrl, claimed.unreached)
         }
         mainHandler.post {
-            signIn.finished(switched = answer.isSuccess && claimed.switching)
+            signIn.finished()
             refreshAccountsSnapshot()
             pullNotices()
             noticeRemedyEnded(NoticeRemedy.ACCOUNT_SIGN_IN, claimed.accountId, failed = answer.isFailure)
@@ -118,7 +105,6 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
                     L10n.settings_account_signed_in(this)
                 }
                 say(AccountNotice(NoticeKind.SUCCESS, said, ""))
-                if (claimed.switching) askSignInOptions(claimed.accountId)
             }
             answer.onFailure {
                 logUiWarn("sign-in: completing an account's sign-in failed: ${coreErrorText(it)}")
@@ -132,36 +118,6 @@ internal fun MainActivity.completeAccountSignIn(callbackUrl: String) {
                         } else {
                             signInAgainSaid(it, this)
                         },
-                    ),
-                )
-            }
-        }
-    }
-}
-
-/** Switches account [accountId] to signing in with [password], which the core tests first. */
-internal fun MainActivity.switchToPassword(accountId: String, password: String) {
-    val instance = app ?: return
-    val signIn = accountSettings.signIn
-    if (!signIn.beginPassword(accountId)) return
-    thread(name = "mailcal-account-to-password") {
-        val answer = runCatching { instance.switchAccountToPassword(accountId, password) }
-        mainHandler.post {
-            signIn.finished(switched = answer.isSuccess)
-            refreshAccountsSnapshot()
-            answer.onSuccess {
-                logUiInfo("sign-in: an account now signs in with a password")
-                say(AccountNotice(NoticeKind.SUCCESS, L10n.settings_account_switched_to_password(this), ""))
-                pullNotices()
-                askSignInOptions(accountId)
-            }
-            answer.onFailure {
-                logUiWarn("sign-in: switching an account to a password failed: ${coreErrorText(it)}")
-                say(
-                    AccountNotice(
-                        NoticeKind.FAILURE,
-                        L10n.settings_account_switch_failed(this),
-                        coreErrorSaid(it, this) ?: L10n.error_unknown(this),
                     ),
                 )
             }

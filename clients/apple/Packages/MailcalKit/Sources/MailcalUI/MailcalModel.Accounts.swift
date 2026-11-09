@@ -187,11 +187,6 @@ extension MailboxModel {
         accountsSnapshot.accounts.first { $0.id == id }
     }
 
-    /// Whether the server refused `id`'s stored sign-in.
-    func signInExpired(_ id: String) -> Bool {
-        NoticeRules.signInExpired(id, in: notices ?? [])
-    }
-
     /// Switches one of an account's uses on or off, for setup's own steps, which wait on the
     /// answer. Blocking in the core: switching a use off deletes what the device holds of it.
     func setAccountUse(
@@ -233,21 +228,6 @@ extension MailboxModel {
     /// only what is stored, so the page asks it as the person types.
     func endpointsGap(_ id: String, _ endpoints: AccountEndpoints) -> AccountEndpointsGap? {
         app?.accountEndpointsGap(accountId: id, endpoints: endpoints)
-    }
-
-    /// Replaces a pasted password or API token the server stopped accepting, after proving it
-    /// connects. Answers why not, or `nil` once replaced.
-    func replaceAccountSecret(_ id: String, _ secret: String) async -> String? {
-        guard let app else { return L10n.app_unavailable() }
-        do {
-            try await Task.detached(priority: .userInitiated) {
-                try app.replaceAccountSecret(accountId: id, secret: secret)
-            }.value
-            return nil
-        } catch {
-            logAppleLifecycle("accounts: replacing a stored secret failed (\(coreMessage(error)))")
-            return coreMessage(error)
-        }
     }
 
     /// Signs an existing Microsoft or Google account in again at its provider, asking for what it
