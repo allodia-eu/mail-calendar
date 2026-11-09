@@ -100,14 +100,16 @@ know.
 
 | | macOS | Windows | Linux | iOS/iPadOS | Android |
 |---|:---:|:---:|:---:|:---:|:---:|
-| Bar drawn from `command_bar` (rule 1) | ✅ | ⬜ | ⬜ | ✅ | ✅ |
-| New Mail on the full-width bar, actions over the list column (rule 2) | ✅ | ⬜ | ⬜ | n/a: no standing bar | n/a: no standing bar |
-| Overflow into ⋯ from the end, no wrapping or scrolling (rule 4) | ✅ | ⬜ | ⬜ | n/a: icons only | n/a: icons only |
-| Delete permanently only in Trash, always confirmed (rule 6) | ✅ | ⬜ | ⬜ | ✅ | ✅ |
-| Reading pane's Delete follows the bar's (rule 8) | ✅ | ⬜ | ⬜ | ✅ | ✅ |
+| Bar drawn from `command_bar` (rule 1) | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| New Mail on the full-width bar, actions over the list column (rule 2) | ✅ | ⬜ | ✅ | n/a: no standing bar | n/a: no standing bar |
+| Overflow into ⋯ from the end, no wrapping or scrolling (rule 4) | ✅ | ⬜ | ✅ | n/a: icons only | n/a: icons only |
+| Delete permanently only in Trash, always confirmed (rule 6) | ✅ | ⬜ | ✅ | ✅ | ✅ |
+| Reading pane's Delete follows the bar's (rule 8) | ✅ | ⬜ | ✅ | ✅ | ✅ |
 
 Each desktop measures with its own toolkit: a `ViewThatFits` over the possible splits on macOS,
-`CommandBar`'s dynamic overflow on Windows, and a container that measures its children on Linux.
+`CommandBar`'s dynamic overflow on Windows, and on Linux a drawing area under the row that
+reports its width, with each item in a `GtkRevealer` so it is still measured while shut
+(`command_overflow.rs`).
 
 ## Enforcement
 

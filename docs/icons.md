@@ -126,9 +126,9 @@ noted beside it, and the two without one are this app's own drawings.
 | Remove the flag | `flag.slash` | — | `E7C1` Flag | `non-starred-symbolic` |
 | Report as junk | `xmark.bin` | — | `E733` Blocked | — |
 | Report as not junk | `tray.and.arrow.down` | — | `E715` Mail | — |
-| Move to folder… | `folder` | — | `E8DE` MoveToFolder | — |
+| Move to folder… | `folder` | — | `E8DE` MoveToFolder | `folder-symbolic` |
 | Delete permanently | `trash.slash` | — | `E74D` Delete, in the critical colour | `edit-delete-symbolic` |
-| Select all | `checklist` | — | `E8B3` SelectAll | `edit-select-all-symbolic` |
+| Select all | `checklist` | — | `E8B3` SelectAll | — |
 | Clear the selection | `xmark` | `ic_close` | `E711` Cancel | `window-close-symbolic` |
 | Sync | `arrow.clockwise` | — | `E72C` Refresh | `view-refresh-symbolic` |
 | Swipe: archive | `archivebox` | `ic_archive` | `Symbol.MoveToFolder` | — |
