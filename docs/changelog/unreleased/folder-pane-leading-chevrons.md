@@ -1,49 +1,50 @@
-# The folder pane's chevrons lead each row
+# The folder pane titles each account and lines its folders up beneath it
 
-Platforms: windows
+Platforms: macos, ios, windows, linux
 Bump: patch
 
-> The chevron that opens an account's or a folder's tree moves from the end of the row to its start,
-> so an account's folders stand a column in from it, as they do on the Mac.
+> An account's name is drawn semibold and its folders take the account's own columns, chevron under
+> chevron and icon under icon, with the chevrons at the start of each row; only a folder inside a
+> folder steps in (`docs/folder-pane.md`, rule 32).
 
 **English**
 
 ```
-In the folder pane the chevrons now sit at the start of each row, so an account's folders stand visibly beneath it.
+In the folder pane each account's name is now in bold, with its folders lined up beneath it and the chevrons at the start of each row.
 ```
 
 **Nederlands**
 
 ```
-In het mappenvenster staan de pijltjes nu aan het begin van elke rij, zodat de mappen van een account zichtbaar eronder vallen.
+In het mappenvenster staat de naam van elk account nu vetgedrukt, met de mappen er netjes onder en de pijltjes aan het begin van elke rij.
 ```
 
 **Deutsch**
 
 ```
-Im Ordnerbereich stehen die Pfeile jetzt am Anfang jeder Zeile, sodass die Ordner eines Kontos sichtbar darunter eingerückt sind.
+Im Ordnerbereich steht der Name jedes Kontos jetzt fett, seine Ordner stehen bündig darunter und die Pfeile am Anfang jeder Zeile.
 ```
 
 **Français**
 
 ```
-Dans le volet des dossiers, les chevrons se trouvent désormais au début de chaque ligne, si bien que les dossiers d’un compte apparaissent clairement en dessous de lui.
+Dans le volet des dossiers, le nom de chaque compte apparaît désormais en gras, ses dossiers alignés en dessous et les chevrons au début de chaque ligne.
 ```
 
 **Español**
 
 ```
-En el panel de carpetas, las flechas aparecen ahora al principio de cada fila, de modo que las carpetas de una cuenta quedan claramente debajo de ella.
+En el panel de carpetas, el nombre de cada cuenta aparece ahora en negrita, con sus carpetas alineadas debajo y las flechas al principio de cada fila.
 ```
 
 **Italiano**
 
 ```
-Nel riquadro delle cartelle le frecce si trovano ora all’inizio di ogni riga, così le cartelle di un account risultano chiaramente sotto di esso.
+Nel riquadro delle cartelle il nome di ogni account è ora in grassetto, con le sue cartelle allineate sotto e le frecce all’inizio di ogni riga.
 ```
 
 **Português**
 
 ```
-No painel de pastas, as setas ficam agora no início de cada linha, para que as pastas de uma conta apareçam claramente por baixo dela.
+No painel de pastas, o nome de cada conta aparece agora a negrito, com as pastas alinhadas por baixo e as setas no início de cada linha.
 ```
