@@ -346,10 +346,12 @@ public sealed partial class MainWindow
         }
     }
 
-    // A folder row takes its account's columns (docs/folder-pane.md, rule 32).
-    private void OnSidebarFolderLoaded(object sender, RoutedEventArgs e)
+    // Every row leads with its disclosure column, and a folder takes its account's columns
+    // (docs/folder-pane.md, rule 32). The footer destinations draw through the same template but
+    // belong to no tree, so they keep the framework's columns, as its own Settings gear does.
+    private void OnSidebarRowLoaded(object sender, RoutedEventArgs e)
     {
-        if (sender is NavigationViewItem item)
+        if (sender is NavigationViewItem item && !(item.DataContext is SidebarItem row && FooterItems.Contains(row)))
         {
             SidebarAccountColumns.Apply(item);
         }

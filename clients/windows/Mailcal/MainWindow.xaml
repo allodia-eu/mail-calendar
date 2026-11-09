@@ -240,7 +240,7 @@
                                 Drop="OnSidebarDrop"
                                 DragStarting="OnSidebarDragStarting"
                                 DropCompleted="OnSidebarDropCompleted"
-                                Loaded="OnSidebarFolderLoaded"
+                                Loaded="OnSidebarRowLoaded"
                                 AutomationProperties.Name="{Binding Content}"
                                 AutomationProperties.HelpText="{Binding PendingLabel}"
                                 AutomationProperties.AutomationId="{Binding AutomationId}">
@@ -307,6 +307,7 @@
                                 AllowDrop="True"
                                 DragOver="OnSidebarDragOver"
                                 Drop="OnSidebarDrop"
+                                Loaded="OnSidebarRowLoaded"
                                 MenuItemsSource="{Binding Children}">
                                 <NavigationViewItem.Icon>
                                     <FontIcon Glyph="{Binding Glyph}" />
@@ -350,10 +351,10 @@
                                  which is what a heading should do and what an account row, being a
                                  destination, needs a separate chevron for.
 
-                                 No Icon, deliberately: the framework's own trailing chevron is the
-                                 state, and a glyph beside the account rows' would make this read as
-                                 one more account. IsExpanded is TwoWay for the same reason the
-                                 account template's is. SemiBold, as the account rows are: the weight is
+                                 No Icon, deliberately: the chevron leading the row is the state, and
+                                 a glyph beside the account rows' would make this read as one more
+                                 account. IsExpanded is TwoWay for the same reason the account
+                                 template's is. SemiBold, as the account rows are: the weight is
                                  what titles a group whose folders stand in its own columns
                                  (docs/folder-pane.md, rule 32). -->
                             <NavigationViewItem
@@ -362,6 +363,7 @@
                                 SelectsOnInvoked="False"
                                 FontWeight="SemiBold"
                                 IsExpanded="{Binding IsExpanded, Mode=TwoWay}"
+                                Loaded="OnSidebarRowLoaded"
                                 MenuItemsSource="{Binding Children}" />
                         </DataTemplate>
                     </views:SidebarItemTemplateSelector.Group>
