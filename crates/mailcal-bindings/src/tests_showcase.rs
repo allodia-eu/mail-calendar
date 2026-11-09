@@ -480,3 +480,7 @@ fn a_client_is_handed_the_same_now_the_showcase_seeds_from() {
     let seeded = crate::showcase_data::seeded_now(&crate::device_zone(zone.clone()));
     assert_eq!(showcase_now(zone), seeded.unix_timestamp());
 }
+
+// The command bar over the seeded Inbox: its own file, as this one is near the line limit.
+#[path = "tests_showcase_command_bar.rs"]
+mod command_bar;

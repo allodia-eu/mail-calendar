@@ -479,9 +479,6 @@ mod tests_showcase_meeting;
 mod tests_showcase_sender_name;
 
 #[cfg(test)]
-mod tests_showcase_command_bar;
-
-#[cfg(test)]
 mod tests_boot;
 
 #[cfg(test)]
