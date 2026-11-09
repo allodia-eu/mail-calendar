@@ -16,19 +16,23 @@ including Linux boot, logs, screenshots, semantic AT-SPI control, and the headle
 
 **A reply to a seeded fixture opens with an EXTERNAL address already in To.** The harness's mail is
 deliberately real-looking (`news@example.com`, `ahmed.elamrani@example.eu`, …), a reply pre-fills its
-recipients from the original, and the harness's outbound queue will genuinely try to reach that
-domain, and keep retrying for days, filling the inbox with delay warnings. Nothing on screen says
-the recipient is not local.
+recipients from the original, and nothing on screen says the recipient is not local.
 
-So: **when `MAILCAL_DEV_ACCOUNT=stalwart*`, every recipient must be `@test.local`** (`alice@`,
-`bob@`). Clear the pre-filled To before sending, and check Cc: that is the one that gets left
-behind, because a plain reply leaves it empty and a *reply-all* does not.
+**The harness delivers nothing off the machine.** Its outbound route sends every recipient to local
+delivery ([`docker/stalwart/entrypoint.sh`](../docker/stalwart/entrypoint.sh)), so a message to any
+domain but `test.local` comes back at once as "Mailbox not found", and the server never looks up an
+MX or connects to one. A harness started before that line existed still has the default route:
+`scripts/dev/harness.sh down` and `up` again, or apply the line to the running server and reload
+its settings.
 
-On Windows this is now a **gate, not a rule to remember**: a DEBUG build connected to a harness dev
-account refuses such a send and logs which recipients were outside `test.local`
-(`Services/HarnessRecipientGate.cs`). It is compiled out of release builds and inactive under
-`--account personal`, which is real mail and must send wherever you say. The other clients do not
-have it yet; there, the discipline is manual.
+Send to `@test.local` all the same (`alice@`, `bob@`): a bounce is noise in the inbox the next run
+reads, and a `--account personal` run is real mail and has no such floor. Clear the pre-filled To
+before sending, and check Cc: that is the one that gets left behind, because a plain reply leaves it
+empty and a *reply-all* does not.
+
+On Windows a DEBUG build connected to a harness dev account also refuses such a send and logs which
+recipients were outside `test.local` (`Services/HarnessRecipientGate.cs`). It is compiled out of
+release builds and inactive under `--account personal`, which must send wherever you say.
 
 ## Prerequisites
 

@@ -629,6 +629,15 @@ traps that produce a false pass.
 | `device-interaction` | "It feels laggy", or before claiming any performance win. Needs a physical Android device. |
 | `apple-frame-budget` | The same on macOS or iOS: Release builds, the calendar's frame trace, the Mac Time Profiler (`calendar-perf-apple.sh`). |
 
+⚠️ **Nothing a test or a harness sends may leave the machine.** A send from a test, a fixture or a
+debugging session is addressed to `@test.local`, the harness's own domain, and never to a domain
+that resolves: not `example.com`, `example.org` or `example.eu`, which the seed uses as *senders*
+precisely because they look real. The harness enforces it whatever a client does: it routes every
+recipient to local delivery, so anything else bounces inside the container and no MX is looked up
+([`docker/stalwart/entrypoint.sh`](docker/stalwart/entrypoint.sh)). A test that needs an outside
+recipient asserts on the composer and does not press Send. A real delivery goes out from the
+developer's own address and costs its reputation.
+
 ⚠️ **This repo's harness is a different compose project** (`mailcal-core-harness`, ports
 `12xxx`/`28080`) from the engine repo's, because Compose keys a project on its `name:` and both
 repos ship a `docker/stalwart/docker-compose.yml`. Sharing one meant `up` adopted the other's
