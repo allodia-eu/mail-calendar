@@ -98,6 +98,33 @@ capture() {
   linux_session_capture "$ARTIFACT_DIR/$1.png"
 }
 
+# The mail command bar at two widths (docs/command-bar.md, rule 4). Wide, every item stands on
+# the bar and Report waits behind ⋯; narrowed by the compositor, the items that no longer fit
+# leave the bar from the end, Sync first, and are found behind ⋯ instead, under their own names.
+# A control that has moved leaves the accessibility tree with the bar, so `--absent` is the
+# question of whether it is still drawn there.
+command_bar_narrows() {
+  local bar=(--within-role "tool bar")
+  for item in "Delete" "Archive" "Move" "Flag" "Mark as read" "Sync"; do
+    "$PYTHON" "$ATSPI" wait --name "$item" --role "push button" "${bar[@]}" --showing --timeout 20
+  done
+  capture command-bar-wide
+
+  SWAYSOCK="$LINUX_SESSION_SWAYSOCK" swaymsg output HEADLESS-1 resolution 700x900 >/dev/null
+  "$PYTHON" "$ATSPI" wait --name "Sync" --role "push button" "${bar[@]}" --absent --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Delete" --role "push button" "${bar[@]}" --showing --timeout 20
+  "$PYTHON" "$ATSPI" activate --name "More actions" --role "toggle button" "${bar[@]}" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Sync" --role "push button" "${bar[@]}" --showing --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Mark as Spam" --role "push button" "${bar[@]}" --timeout 20
+  capture command-bar-narrow
+  # Sync from the menu runs as Sync from the bar, and picking it closes the menu.
+  "$PYTHON" "$ATSPI" activate --name "Sync" --role "push button" "${bar[@]}" --timeout 20
+  "$PYTHON" "$ATSPI" wait --name "Mark as Spam" --role "push button" "${bar[@]}" --absent --timeout 20
+
+  SWAYSOCK="$LINUX_SESSION_SWAYSOCK" swaymsg output HEADLESS-1 resolution 1440x900 >/dev/null
+  "$PYTHON" "$ATSPI" wait --name "Sync" --role "push button" "${bar[@]}" --showing --timeout 20
+}
+
 # Start the client on the private session, opening <subject> in the reading pane, and log to
 # <log-prefix>.stdout.log / .stderr.log.
 #
@@ -566,6 +593,7 @@ run_inside_session() {
   "$PYTHON" "$ATSPI" wait --name "New Mail" --role "push button" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Search mail" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" wait --name "Sync" --role "push button" --enabled --showing --timeout 20
+  command_bar_narrows
   "$PYTHON" "$ATSPI" wait \
     --name "All Accounts" --role "push button" --enabled --showing --timeout 20
   "$PYTHON" "$ATSPI" wait \
@@ -1388,7 +1416,7 @@ PY
   # Opening it read it, so the menu on its own row offers the way back rather than "Mark as read"
   #; the round trip, from a dispatch through the core to the snapshot the row is rebuilt from.
   #
-  # Both assertions are scoped to the row. The selection bar above the list carries a "Mark as
+  # Both assertions are scoped to the row. The command bar above the list carries a "Mark as
   # read" of its own, insensitive and naming the affirmative action while nothing is selected, so
   # an unscoped --absent is a question about that bar rather than about this menu.
   "$PYTHON" "$ATSPI" activate \

@@ -360,14 +360,14 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     folder_pane::a_nested_folder_is_indented_and_a_shut_one_is_not_drawn();
     folder_pane::a_folder_chevron_toggles_without_navigating();
 
-    crate::ui::selection_bar::tests::
-        an_empty_selection_disables_only_the_actions_that_need_a_selection();
-    crate::ui::selection_bar::tests::sync_is_after_the_selection_actions_and_always_live();
-    crate::ui::selection_bar::tests::the_bar_spans_both_panes_rather_than_riding_the_list();
-    crate::ui::selection_bar::tests::
+    crate::ui::command_bar::tests::the_bar_draws_the_cores_items_in_order_and_adds_none();
+    crate::ui::command_bar::tests::items_that_do_not_fit_move_from_the_end_into_the_menu();
+    crate::ui::command_bar::tests::new_mail_leads_the_bar_as_wide_as_the_folder_pane();
+    crate::ui::selection_pane::tests::
         the_pane_states_the_count_only_while_it_covers_something_worth_covering();
 
-    crate::ui::mail_toolbar::tests::new_mail_and_search_belong_to_the_window_toolbar();
+    crate::ui::mail_toolbar::tests::search_and_the_window_controls_belong_to_the_header_bar();
+    crate::ui::mail_toolbar::tests::the_header_and_the_command_bar_span_every_pane();
 
     destinations::the_switcher_navigates_on_a_press_and_stays_quiet_when_the_model_moves();
     destinations::the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_them();

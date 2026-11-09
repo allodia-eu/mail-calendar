@@ -1,14 +1,17 @@
-//! What a row menu's items do, and what the selection bar reads off the same answer.
+//! What a row menu's items do, and how a command bar item is run as one.
 
 use mailcal_bindings::{
-    BulkAction, MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection,
-    SelectedRow,
+    BulkAction, Command, CommandBar, CommandItem, CommandSection, MenuMessage, MessageKind,
+    RowAction, RowMenu, RowMenuItem, RowMenuSection, SelectedRow,
 };
 
-use super::{BarActions, BarAnswer, RowMenuSource, RowPick, pick};
-use crate::ui::{
-    composer_model::ComposeKind,
-    mail_actions::{ActionKind, MailActionRequest, MessageTarget},
+use super::{BarAnswer, RowMenuSource, RowPick, as_menu_item, bar_label, label, pick};
+use crate::{
+    l10n,
+    ui::{
+        composer_model::ComposeKind,
+        mail_actions::{ActionKind, MailActionRequest, MessageTarget},
+    },
 };
 
 fn message(kind: MessageKind) -> MenuMessage {
@@ -24,6 +27,7 @@ fn item(action: RowAction, enabled: bool, target: Option<MenuMessage>) -> RowMen
         action,
         enabled,
         target,
+        confirm: action == RowAction::PermanentlyDelete,
     }
 }
 
@@ -107,53 +111,70 @@ fn an_item_naming_no_message_acts_on_the_rows_the_menu_was_asked_about() {
     assert_eq!(pick(&item(RowAction::MarkAsSpam, false, None), &rows), None);
 }
 
+/// A bar item runs as the same item in a row's menu: the one message it names, else the batch
+/// over the selection, with the core's `confirm` carried through (`docs/command-bar.md`, rule 1).
 #[test]
-fn the_bar_reads_its_toggles_and_what_responds_off_the_selections_menu() {
-    let menu = RowMenu {
-        sections: vec![
-            RowMenuSection {
-                items: vec![
-                    item(RowAction::MarkUnread, true, None),
-                    item(RowAction::Unflag, true, None),
-                ],
-            },
-            RowMenuSection {
-                items: vec![
-                    item(RowAction::MoveToFolder, true, None),
-                    item(RowAction::Archive, false, None),
-                    item(RowAction::Delete, true, None),
-                    item(RowAction::PermanentlyDelete, true, None),
-                ],
-            },
-        ],
+fn a_bar_item_is_picked_as_the_menu_item_it_stands_for() {
+    let rows = conversation();
+    let received = message(MessageKind::Received);
+    let flag = CommandItem {
+        command: Command::Act {
+            action: RowAction::Flag,
+        },
+        enabled: true,
+        target: Some(received.clone()),
+        confirm: false,
     };
+    let as_item = as_menu_item(&flag).expect("an action is a menu item");
+    assert_eq!(as_item, item(RowAction::Flag, true, Some(received)));
+    assert!(matches!(
+        pick(&as_item, &rows),
+        Some(RowPick::Message(request)) if request.action == ActionKind::SetFlagged(true)
+    ));
+
+    let purge = CommandItem {
+        command: Command::Act {
+            action: RowAction::PermanentlyDelete,
+        },
+        enabled: true,
+        target: None,
+        confirm: true,
+    };
+    let as_item = as_menu_item(&purge).expect("an action is a menu item");
+    assert!(as_item.confirm, "a question first, as the core says");
     assert_eq!(
-        BarActions::of(&menu),
-        BarActions {
-            read: (BulkAction::MarkUnread, true),
-            flag: (BulkAction::Unflag, true),
-            archive: false,
-            delete: true,
-            permanently_delete: true,
-        }
+        pick(&as_item, &rows),
+        Some(RowPick::Rows {
+            rows,
+            action: BulkAction::PermanentlyDelete,
+        })
     );
+
+    let sync = CommandItem {
+        command: Command::Sync,
+        enabled: true,
+        target: None,
+        confirm: false,
+    };
+    assert_eq!(as_menu_item(&sync), None, "no row menu carries Sync");
 }
 
-/// The bar stands whether or not anything is picked. "Mark as unread" over nothing is the wrong
-/// sentence to leave on screen: the affirmative action is the one it names until a selection
-/// says otherwise, and nothing responds.
+/// Delete reads "Delete" everywhere it moves to Trash; only Move is worded for the bar.
 #[test]
-fn an_empty_menu_names_the_affirmative_actions_and_enables_none() {
+fn the_bar_words_move_for_a_button_and_delete_as_delete() {
+    let act = |action| Command::Act { action };
+    assert_eq!(label(RowAction::Delete), l10n::action_delete());
+    assert_eq!(bar_label(act(RowAction::Delete)), l10n::action_delete());
     assert_eq!(
-        BarActions::of(&RowMenu::default()),
-        BarActions {
-            read: (BulkAction::MarkRead, false),
-            flag: (BulkAction::Flag, false),
-            archive: false,
-            delete: false,
-            permanently_delete: false,
-        }
+        bar_label(act(RowAction::PermanentlyDelete)),
+        l10n::action_delete_permanently()
     );
+    assert_eq!(
+        label(RowAction::MoveToFolder),
+        l10n::action_move_to_folder()
+    );
+    assert_eq!(bar_label(act(RowAction::MoveToFolder)), l10n::action_move());
+    assert_eq!(bar_label(Command::Sync), l10n::action_refresh());
 }
 
 #[test]
@@ -179,27 +200,33 @@ fn a_menu_asked_before_the_core_exists_holds_nothing() {
 /// it is asked again only for a different selection or a newly published list.
 #[test]
 fn the_bar_asks_again_only_when_the_selection_or_the_list_changes() {
-    let archive = RowMenu {
-        sections: vec![RowMenuSection {
-            items: vec![item(RowAction::Archive, true, None)],
+    let answer = CommandBar {
+        sections: vec![CommandSection {
+            items: vec![CommandItem {
+                command: Command::Sync,
+                enabled: true,
+                target: None,
+                confirm: false,
+            }],
         }],
+        menu: Vec::new(),
     };
     let asked = std::cell::Cell::new(0);
-    let menu = |_: Vec<SelectedRow>| {
+    let bar = |_: Vec<SelectedRow>| {
         asked.set(asked.get() + 1);
-        archive.clone()
+        answer.clone()
     };
-    let bar = BarAnswer::default();
+    let cache = BarAnswer::default();
     let other = vec![SelectedRow::Message {
         account: "acct".to_owned(),
         key: "other".to_owned(),
     }];
 
-    assert!(bar.answer(1, conversation(), menu).archive);
-    assert!(bar.answer(1, conversation(), menu).archive);
+    assert_eq!(cache.answer(1, conversation(), bar), answer);
+    assert_eq!(cache.answer(1, conversation(), bar), answer);
     assert_eq!(asked.get(), 1, "an unchanged redraw asks nothing");
-    bar.answer(1, other.clone(), menu);
+    cache.answer(1, other.clone(), bar);
     assert_eq!(asked.get(), 2, "a different selection asks");
-    bar.answer(2, other, menu);
+    cache.answer(2, other, bar);
     assert_eq!(asked.get(), 3, "a newly published list asks");
 }

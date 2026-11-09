@@ -185,6 +185,7 @@ pub(crate) fn every_message_row_offers_the_window_by_name() {
                     action: RowAction::OpenInWindow,
                     enabled: true,
                     target: Some(target),
+                    confirm: false,
                 }],
             }],
         }

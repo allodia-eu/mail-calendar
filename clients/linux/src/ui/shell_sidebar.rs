@@ -22,6 +22,9 @@ pub(super) fn sidebar_pane(
     destinations: &DestinationBar,
 ) -> adw::ToolbarView {
     let pane = adw::ToolbarView::new();
+    // The sidebar's own surface, which the mail window's header band shares
+    // (`docs/command-bar.md`, rule 2).
+    pane.add_css_class("sidebar-pane");
     let header = adw::HeaderBar::new();
     header.set_show_start_title_buttons(false);
     header.set_show_end_title_buttons(false);

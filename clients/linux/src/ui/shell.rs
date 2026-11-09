@@ -8,6 +8,7 @@ use gtk::accessible::Property as AccessibleProperty;
 use super::{
     AppInput, AppModel, PrimaryView,
     calendar::CalendarPane,
+    command_bar::CommandBarRow,
     composer::ComposerPane,
     composer_discard::DiscardDraftDialog,
     contacts::ContactsPane,
@@ -16,7 +17,7 @@ use super::{
     folder_actions,
     folder_pane::{self, FolderPaneRendering, FolderPaneSelection},
     mail_actions::PermanentDeleteDialog,
-    mail_toolbar::MailToolbar,
+    mail_toolbar::{self, MailToolbar},
     mailbox::MailboxRendering,
     mailbox_empty,
     mailbox_progressive::ProgressiveRenderer,
@@ -25,8 +26,8 @@ use super::{
     reader::{ComposerHost, ReadingSource},
     reading::{InvitationClock, ReadingPane},
     search::SearchBar,
-    selection_bar::{self, SelectionBar, SelectionCountPane},
     selection_input::{selection_gesture, selection_keys, sync_list},
+    selection_pane::SelectionCountPane,
     settings::{PaneComposer, SettingsWindow},
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
@@ -43,7 +44,8 @@ pub(crate) struct AppWidgets {
     sidebar: gtk::ListBox,
     messages: gtk::ListBox,
     search: SearchBar,
-    selection_bar: SelectionBar,
+    mail_band: gtk::Box,
+    command_bar: CommandBarRow,
     selection_pane: SelectionCountPane,
     primary: gtk::Stack,
     detail: gtk::Stack,
@@ -110,7 +112,7 @@ impl AppWidgets {
         messages.update_property(&[AccessibleProperty::Label(l10n::a11y_message_list())]);
         selection_gesture(&messages, &sender);
         selection_keys(&messages, &sender);
-        let selection_bar = SelectionBar::new(&sender);
+        let command_bar = CommandBarRow::new(&sender);
         let message_scroll = gtk::ScrolledWindow::new();
         message_scroll.set_min_content_width(340);
         message_scroll.set_child(Some(&messages));
@@ -190,18 +192,13 @@ impl AppWidgets {
         inner.set_position(390);
         inner.set_resize_start_child(false);
         inner.set_shrink_start_child(false);
-        // The actions bar sits over both panes rather than inside the list; `mail_surface` holds
-        // why.
-        let mail = selection_bar::mail_surface(&selection_bar, &inner);
-        let mail_toolbar = MailToolbar::new(&sender, search.entry());
-        let mail_view = adw::ToolbarView::new();
-        mail_view.add_top_bar(mail_toolbar.widget());
-        mail_view.set_content(Some(&mail));
+        inner.set_vexpand(true);
+        let mail_header = MailToolbar::new(search.entry()).widget().clone();
         let calendar = CalendarPane::new(&root, sender.clone());
         let contacts = ContactsPane::new(&root, sender.clone());
         let primary = gtk::Stack::new();
         primary.set_transition_type(gtk::StackTransitionType::Crossfade);
-        primary.add_named(&mail_view, Some("mail"));
+        primary.add_named(&inner, Some("mail"));
         primary.add_named(calendar.widget(), Some("calendar"));
         primary.add_named(contacts.widget(), Some("contacts"));
         let outer = gtk::Paned::new(gtk::Orientation::Horizontal);
@@ -212,8 +209,14 @@ impl AppWidgets {
         outer.set_vexpand(true);
         outer.update_property(&[AccessibleProperty::Label(l10n::a11y_resize_folder_pane())]);
         restore_pane_width(&outer, &root);
+        command_bar.follow(&outer);
         shell.append(&outer);
-        root.set_content(Some(&shell));
+        // The header bar and the command bar span the window, over the folder pane too, so the
+        // actions stand over the panes they act on and move with the folder pane's divider
+        // (`docs/command-bar.md`, rule 2).
+        let (frame, mail_band) =
+            mail_toolbar::window_frame(&mail_header, command_bar.widget(), &shell);
+        root.set_content(Some(&frame));
         // The reading and composer windows were opened out of this one, and leaving them behind
         // would leave the app running as a scatter of message windows with no way back to the
         // list (`docs/reading-window.md`). Each window's own close is what frees the body
@@ -231,7 +234,8 @@ impl AppWidgets {
             sidebar,
             messages,
             search,
-            selection_bar,
+            mail_band,
+            command_bar,
             selection_pane,
             primary,
             detail,
@@ -283,6 +287,7 @@ impl AppWidgets {
                 self.primary.set_visible_child_name("contacts");
             }
         }
+        mail_toolbar::show_mail_chrome(&self.mail_band, model.primary == PrimaryView::Mail);
         self.rendered_primary = Some(model.primary);
         self.subtitle.set_title(&model.list_title());
         self.subtitle.set_subtitle(&model.subtitle());
@@ -333,10 +338,11 @@ impl AppWidgets {
         // After the rows, always: a plain click has already moved the widget's own selection, and
         // this is what brings it back to what the model says (`selection_gesture`).
         sync_list(&self.messages, model, &self.mailbox_renderer);
-        self.mailbox_renderer.set_moves(model.move_context());
+        let moves = model.move_context();
+        self.mailbox_renderer.set_moves(moves.clone());
         self.mailbox_renderer.answer_menus_from(model.app.as_ref());
         let selection = model.selection.summary();
-        self.selection_bar.render(selection, model.bar_actions());
+        self.command_bar.render(&model.command_bar(), moves);
         self.selection_pane.render(selection, &model.snapshot.mode);
         let pane = PaneComposer::of(
             model.composer.is_some(),
