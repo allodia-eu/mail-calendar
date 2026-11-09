@@ -91,7 +91,7 @@ extension ContentView {
             .labelStyle(.titleAndIcon)
             .fixedSize()
             .help(L10n.action_compose())
-            .padding(.leading, 12)
+            .padding(.leading, chromeLeading)
             .frame(width: sidebarWidth, alignment: .leading)
             CommandOverflowRow(bar: currentCommandBar, run: runBarItem)
                 .padding(.horizontal, 12)
@@ -102,6 +102,7 @@ extension ContentView {
         // it follows dark mode and the desktop's tint as the sidebar does. A colour cannot: the
         // window's background colour is white on current macOS.
         .background { SidebarMaterial().ignoresSafeArea(edges: .top) }
+        .background(WindowButtonsLeading(leading: $chromeLeading))
     }
     #endif
 
@@ -139,19 +140,6 @@ extension ContentView {
 }
 
 #if os(macOS)
-/// The material AppKit draws a source-list sidebar with.
-private struct SidebarMaterial: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = .sidebar
-        view.blendingMode = .behindWindow
-        view.state = .followsWindowActiveState
-        return view
-    }
-
-    func updateNSView(_ view: NSVisualEffectView, context: Context) {}
-}
-
 /// The actions of a `CommandBar` on one line, with as many on the bar as fit and the rest behind
 /// ⋯ (`docs/command-bar.md`, rule 4). Every split is offered to `ViewThatFits`, most items first,
 /// so the measuring is SwiftUI's own and follows the language and the text size.

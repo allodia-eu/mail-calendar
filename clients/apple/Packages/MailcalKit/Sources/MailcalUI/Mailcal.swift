@@ -80,6 +80,9 @@ public struct ContentView: View {
     @State var pendingPurge: PurgeRequest? // a delete for good, waiting on its question
     /// The sidebar's width, which the Mac's command bar gives its New Mail slot.
     @State var sidebarWidth: CGFloat = 240
+    /// Where the window's close button starts, which the Mac's sidebar and command bar line up on
+    /// (Mailcal.PaneAlignment.swift). Read from AppKit once the window is up.
+    @State var chromeLeading: CGFloat = 18
     /// The folder sheet (a name dialog, or Move to…) and the folder a delete-confirmation is open
     /// for (Mailcal.FolderActions.swift).
     @State var folderSheet: FolderSheet?

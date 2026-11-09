@@ -19,12 +19,22 @@ import SwiftUI
 // underneath the list is not one of its rows, and SwiftUI publishes neither number. A pointer also
 // hits what it is aimed at where a finger needs the platform's minimum target, which the padding
 // alone does not reach. A change here is checked by looking at the pane.
+//
+// On the Mac the leading inset is not one of these: the glyph starts where the window's close button
+// does, read at run time (Mailcal.PaneAlignment.swift), so it is the row's own.
 #if os(macOS)
-private let pinnedRowPadding = EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20)
+private let pinnedRowPadding = EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 20)
 private let pinnedRowMinHeight: CGFloat = 28
 #else
 private let pinnedRowPadding = EdgeInsets(top: 10, leading: 34, bottom: 10, trailing: 20)
 private let pinnedRowMinHeight: CGFloat = 44
+#endif
+
+/// Where a glyph sits in its column: on the Mac at the start, on the window buttons' line.
+#if os(macOS)
+private let pinnedIconAlignment = Alignment.leading
+#else
+private let pinnedIconAlignment = Alignment.center
 #endif
 
 /// A label whose glyph sits in a column of a fixed width, so the names beside three different
@@ -36,7 +46,7 @@ private let pinnedRowMinHeight: CGFloat = 44
 private struct PinnedRowLabelStyle: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 6) {
-            configuration.icon.frame(width: 18)
+            configuration.icon.frame(width: 18, alignment: pinnedIconAlignment)
             configuration.title
         }
     }
@@ -50,7 +60,7 @@ private struct PinnedRowLabelStyle: LabelStyle {
 /// in the middle of a vibrant pane, so this is the pane's own material rather than a colour
 /// matched to it: a match would be right in one appearance and wrong in the other, and wrong again
 /// behind a desktop picture.
-private struct SidebarMaterial: NSViewRepresentable {
+struct SidebarMaterial: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .sidebar
@@ -126,6 +136,9 @@ extension ContentView {
         Button(action: action) {
             sidebarRowLabel(title: title, icon: icon, unread: 0)
                 .padding(pinnedRowPadding)
+                #if os(macOS)
+                .padding(.leading, chromeLeading)
+                #endif
                 .frame(minHeight: pinnedRowMinHeight)
                 .background(selected ? Color.accentColor.opacity(0.2) : Color.clear)
         }
