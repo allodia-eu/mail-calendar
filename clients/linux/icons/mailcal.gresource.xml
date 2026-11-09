@@ -15,6 +15,7 @@
     <file preprocess="xml-stripblanks">scalable/actions/mailcal-inbox-symbolic.svg</file>
     <file alias="scalable/actions/mailcal-bell-symbolic.svg" preprocess="xml-stripblanks">idk/bell.svg</file>
     <file alias="scalable/actions/mailcal-cogged-wheel-symbolic.svg" preprocess="xml-stripblanks">idk/cogged-wheel.svg</file>
+    <file alias="scalable/actions/mailcal-external-link-symbolic.svg" preprocess="xml-stripblanks">idk/external-link.svg</file>
     <file alias="scalable/actions/mailcal-mail-read-symbolic.svg" preprocess="xml-stripblanks">idk/mail-read.svg</file>
     <file alias="scalable/actions/mailcal-moon-symbolic.svg" preprocess="xml-stripblanks">idk/moon.svg</file>
     <file alias="scalable/actions/mailcal-signature-symbolic.svg" preprocess="xml-stripblanks">idk/signature.svg</file>

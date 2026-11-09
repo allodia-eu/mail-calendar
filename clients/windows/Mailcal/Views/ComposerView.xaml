@@ -40,9 +40,26 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock x:Name="TitleText" Grid.Row="0" Style="{StaticResource SubtitleTextBlockStyle}"
-                           AutomationProperties.AutomationId="ComposerTitle"
-                           TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                <!-- The heading, and at its right the pop-out, where Outlook puts it: moving the
+                     composer into a window of its own is about the composer as a whole, not an action
+                     on the message (docs/reading-window.md, "Popping a composer out"). Shown only in
+                     the reading pane: a composer already in a window has nowhere further to go. -->
+                <Grid Grid.Row="0" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="TitleText" Style="{StaticResource SubtitleTextBlockStyle}"
+                               AutomationProperties.AutomationId="ComposerTitle" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                    <Button x:Name="PopOutButton" Grid.Column="1" Visibility="Collapsed" Click="OnPopOut"
+                            Background="Transparent" BorderBrush="Transparent" Padding="8,6"
+                            AutomationProperties.AutomationId="PopOutButton"
+                            AutomationProperties.Name="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}"
+                            ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}">
+                        <FontIcon Glyph="&#xE8A7;" FontSize="16" />
+                    </Button>
+                </Grid>
 
                 <!-- Which account the message is sent from. The core sends as, and through, that account
                      (its identity AND its outbox), so this is an account picker, not a free-text From
@@ -136,15 +153,6 @@
                      draft at all. -->
                 <Button x:Name="SaveDraftButton" Visibility="Collapsed"
                         Content="{x:Bind l10n:L10n.ActionSaveDraft(), Mode=OneTime}" Click="OnSaveDraft" />
-                <!-- Moves the composer into a window of its own, holding everything it holds
-                     (docs/reading-window.md, "Popping a composer out"). Shown only in the reading
-                     pane: a composer already in a window has nowhere further to go. -->
-                <Button x:Name="PopOutButton" Visibility="Collapsed" Click="OnPopOut"
-                        AutomationProperties.AutomationId="PopOutButton"
-                        AutomationProperties.Name="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}"
-                        ToolTipService.ToolTip="{x:Bind l10n:L10n.ActionOpenInWindow(), Mode=OneTime}">
-                    <FontIcon Glyph="&#xE8A7;" FontSize="14" />
-                </Button>
             </StackPanel>
             <ListView x:Name="AttachmentList" MaxHeight="92" SelectionMode="Single"
                       DisplayMemberPath="DisplayName" SelectionChanged="OnAttachmentSelectionChanged" />

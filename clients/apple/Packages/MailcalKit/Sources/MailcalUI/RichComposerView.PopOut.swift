@@ -7,16 +7,17 @@ import MailcalBindings
 import SwiftUI
 
 extension RichComposeView {
-    /// The pop-out button, at the trailing end of the action bar. Only where a host offers
-    /// somewhere to move the composer to: the main window's inline composer on the Mac.
+    /// The pop-out button, at the composer's top right. Only where a host offers somewhere to move
+    /// the composer to: the main window's inline composer on the Mac.
     @ViewBuilder var popOutButton: some View {
         if popOut != nil {
             Button {
                 popOutTapped()
             } label: {
-                Label(L10n.action_open_in_window(), systemImage: "macwindow.on.rectangle")
+                Label(L10n.action_open_in_window(), systemImage: "arrow.up.forward.app")
             }
             .labelStyle(.iconOnly)
+            .imageScale(.large)
             .buttonStyle(.borderless)
             .help(L10n.action_open_in_window())
         }

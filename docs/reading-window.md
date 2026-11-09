@@ -98,11 +98,13 @@ replacing it. The person moves it, below.
 
 ## Popping a composer out
 
-**The composer in the main window carries a button that moves it into a window of its own**,
-named as the row menu's item is (`action_open_in_window`). Every composer the pane hosts has it, a
-new message included, and no composer already in a window does. This is how a new message gets a
-window: New Mail opens where it always did, and the person decides when a draft needs the mailbox
-back beside it.
+**The composer in the main window carries a button that moves it into a window of its own**, at
+its top right, where Outlook puts it: it is about the composer as a whole, not an action on the
+message, so it stays out of the action bar. It is drawn as a box with an arrow leaving it
+([`icons.md`](icons.md)) and named as the row menu's item is (`action_open_in_window`). Every
+composer the pane hosts has it, a new message included, and no composer already in a window does.
+This is how a new message gets a window: New Mail opens where it always did, and the person decides
+when a draft needs the mailbox back beside it.
 
 **The message moves, not a copy of it.** The window opens through `open_composer` like every
 composer ([`drafts.md`](drafts.md)), with `ComposeOrigin::Moved` and **the composition the pane's

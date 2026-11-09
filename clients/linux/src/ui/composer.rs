@@ -23,7 +23,7 @@ use super::{
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_labels::editor_labels,
     composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
-    composer_pop_out::connect_pop_out,
+    composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
     composer_signature::SignatureControl,
     editor_paste,
@@ -125,6 +125,11 @@ impl ComposerPane {
         // once the guard that answers it exists.
         let discard = gtk::Button::with_label(l10n::action_discard());
         header.pack_start(&discard);
+        // Packed first, so it is the bar's last item, past Send.
+        let pop_out = pop_out_button(request);
+        if let Some(button) = &pop_out {
+            header.pack_end(button);
+        }
         let send_button = gtk::Button::with_label(l10n::action_send());
         send_button.add_css_class("suggested-action");
         header.pack_end(&send_button);
@@ -271,7 +276,9 @@ impl ComposerPane {
         let input = sender.clone();
         let answer = Rc::clone(&guard);
         discard.connect_clicked(move |_| answer.discard(&input));
-        connect_pop_out(&actions, request, &guard, signature.as_ref(), &sender);
+        if let Some(button) = &pop_out {
+            connect_pop_out(button, request, &guard, signature.as_ref(), &sender);
+        }
         self.draft.replace(Some(guard));
         connect_send(
             &send_button,

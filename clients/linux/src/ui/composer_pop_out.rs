@@ -18,6 +18,7 @@ use super::{
     composer_model::{ComposeContext, ComposerSubmission},
     composer_open::ComposerTarget,
     composer_signature::SignatureControl,
+    icons,
     reader::ComposerHost,
 };
 use crate::l10n;
@@ -32,20 +33,30 @@ pub(crate) struct PoppedOut {
     pub(crate) written: bool,
 }
 
-/// Adds the pop-out button to the composer's action bar, for the pane's composer only: a composer
-/// already in a window has nowhere further to go.
+/// The pop-out button, at the right end of the composer's header bar, where Outlook puts it: it
+/// is about the composer as a whole, not an action on the message. Only the pane's composer has
+/// one: a composer already in a window has nowhere further to go.
+pub(super) fn pop_out_button(request: &ComposeContext) -> Option<gtk::Button> {
+    if request.host != ComposerHost::Pane {
+        return None;
+    }
+    let button = gtk::Button::from_icon_name(icons::POP_OUT);
+    button.add_css_class("flat");
+    button.set_tooltip_text(Some(l10n::action_open_in_window()));
+    button.update_property(&[gtk::accessible::Property::Label(
+        l10n::action_open_in_window(),
+    )]);
+    Some(button)
+}
+
+/// Moves the composer into a window when `button` is pressed.
 pub(super) fn connect_pop_out(
-    actions: &gtk::Box,
+    button: &gtk::Button,
     request: &ComposeContext,
     guard: &Rc<DraftGuard>,
     signature: Option<&Rc<SignatureControl>>,
     sender: &relm4::Sender<AppInput>,
 ) {
-    if request.host != ComposerHost::Pane {
-        return;
-    }
-    let button = gtk::Button::with_label(l10n::action_open_in_window());
-    actions.append(&button);
     let manages = request.manages_signature();
     let guard = Rc::downgrade(guard);
     let signature = signature.map(Rc::downgrade);

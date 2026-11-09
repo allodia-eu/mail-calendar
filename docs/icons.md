@@ -168,6 +168,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Show / hide Cc and Bcc | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | `E70D` ChevronDown / `E70E` ChevronUp | `pan-down-symbolic` / `pan-up-symbolic` |
 | Remove an attachment | `xmark.circle` | — | — | `user-trash-symbolic` |
 | Remove a recipient | `xmark.circle.fill` | `ic_close` | `E711` Cancel | `window-close-symbolic` |
+| Pop the composer out into a window | `arrow.up.forward.app` | — | `E8A7` OpenInNewWindow | `mailcal-external-link-symbolic` (`external-link`) |
 
 ### Calendar
 

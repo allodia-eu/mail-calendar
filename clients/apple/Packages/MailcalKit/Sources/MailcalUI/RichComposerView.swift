@@ -259,7 +259,13 @@ struct RichComposeView: View {
         // Send and Cancel live in the action bar above the editor now (see `actionBar`), not in a
         // row under it, so the message's actions sit together instead of straddling the body.
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.headline)
+            // The pop-out sits at the composer's top right, where Outlook puts it: it is about the
+            // composer as a whole, not an action on the message the bar below holds.
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                popOutButton
+            }
             composerHeader
             RichComposerWebView(editor: editor)
                 .frame(minHeight: 240, maxHeight: .infinity)

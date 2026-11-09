@@ -91,6 +91,9 @@ icons! {
     CLOSE = "window-close-symbolic";
     PREVIOUS = "go-previous-symbolic";
     NEXT = "go-next-symbolic";
+    /// The composer popped out of the pane into a window of its own: the box-and-arrow every
+    /// platform draws for "open this elsewhere" (docs/reading-window.md).
+    POP_OUT = "mailcal-external-link-symbolic";
 
     // State a row or page reports.
     SENDING = SENT;
