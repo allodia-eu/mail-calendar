@@ -113,6 +113,7 @@
 	"action_mark_read": "Mark as read",
 	"action_mark_unread": "Mark as unread",
 	"action_move_to_trash": "Move to Trash",
+	"action_move": "Move",
 	"action_move_to_folder": "Move to folder…",
 	"message_move_title": "Move to folder",
 	"action_mark_as_spam": "Mark as Spam",

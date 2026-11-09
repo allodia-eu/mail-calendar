@@ -8,7 +8,7 @@
 //! device this is.
 
 use engine_api::{AccountId, Provider};
-use mailcal_viewmodel::{AccountPlaces, AccountRow, MenuMessage, MenuRow, RowMenu};
+use mailcal_viewmodel::{AccountPlaces, AccountRow, CommandBar, MenuMessage, MenuRow, RowMenu};
 
 use super::folders::account_places;
 use crate::{
@@ -28,6 +28,16 @@ impl<P: Provider> App<P> {
         // whole list to answer about one row is a cost paid on every right-click.
         self.mailbox_list
             .read(|snapshot| mailcal_viewmodel::row_menu(snapshot, &rows, desktop))
+    }
+
+    /// The mail command bar over `rows`, the selection (`docs/command-bar.md`): read off the
+    /// same menu a right-click over them opens, so the two never disagree.
+    #[must_use]
+    pub fn command_bar(&self, rows: &[RowRef]) -> CommandBar {
+        let rows: Vec<MenuRow> = rows.iter().map(menu_row).collect();
+        let desktop = FormFactor::current() == FormFactor::Desktop;
+        self.mailbox_list
+            .read(|snapshot| mailcal_viewmodel::command_bar(snapshot, &rows, desktop))
     }
 
     /// The message the reading pane opens once `removed` leaves the list: the next one down, else

@@ -238,6 +238,23 @@ impl Found<'_> {
             .is_some_and(|folder| !self.moving(Some(folder)).is_empty())
     }
 
+    /// What Delete does here, and whether it takes anything. It moves to Trash; only what is
+    /// in Trash already, or on an account with no Trash, it deletes for good. So nothing is
+    /// lost by one click outside Trash, and Trash itself can still be emptied.
+    fn delete(&self) -> (RowAction, bool) {
+        // Folders not known yet (no Inbox found) say nothing about a Trash being absent.
+        let Some(places) = self.places.filter(|p| p.inbox.is_some()) else {
+            return (RowAction::Delete, false);
+        };
+        let taken = !self.moving(None).is_empty();
+        match places.trash.as_deref() {
+            None => (RowAction::PermanentlyDelete, taken),
+            Some(trash) if !self.moving(Some(trash)).is_empty() => (RowAction::Delete, true),
+            Some(_) if taken => (RowAction::PermanentlyDelete, true),
+            Some(_) => (RowAction::Delete, false),
+        }
+    }
+
     /// The one message a report is about: the row's own message, or a conversation's newest
     /// received one.
     fn report_target(&self) -> Option<&Fact<'_>> {
@@ -297,12 +314,10 @@ fn one_row(row: &Found<'_>, desktop: bool) -> Vec<Vec<RowMenuItem>> {
             row.moves_to(|p| p.archive.as_ref()),
             own,
         ),
-        item(RowAction::Delete, row.moves_to(|p| p.trash.as_ref()), own),
-        item(
-            RowAction::PermanentlyDelete,
-            !row.moving(None).is_empty(),
-            own,
-        ),
+        {
+            let (delete, enabled) = row.delete();
+            item(delete, enabled, own)
+        },
     ];
     vec![open, respond, state, vec![report], filing]
 }
@@ -350,23 +365,26 @@ fn many_rows(rows: &[Found<'_>]) -> Vec<Vec<RowMenuItem>> {
             None,
         ));
     }
-    filing.extend([
-        item(
-            RowAction::Archive,
-            any(&|row| row.moves_to(|p| p.archive.as_ref())),
-            None,
-        ),
-        item(
-            RowAction::Delete,
-            any(&|row| row.moves_to(|p| p.trash.as_ref())),
-            None,
-        ),
-        item(
-            RowAction::PermanentlyDelete,
-            any(&|row| !row.moving(None).is_empty()),
-            None,
-        ),
-    ]);
+    filing.push(item(
+        RowAction::Archive,
+        any(&|row| row.moves_to(|p| p.archive.as_ref())),
+        None,
+    ));
+    // Delete goes to Trash while anything selected can; only a selection that is all in Trash
+    // already (or on accounts with none) deletes for good.
+    let deletes: Vec<(RowAction, bool)> = rows.iter().map(Found::delete).collect();
+    let delete = if deletes
+        .iter()
+        .all(|(action, _)| *action == RowAction::PermanentlyDelete)
+    {
+        RowAction::PermanentlyDelete
+    } else {
+        RowAction::Delete
+    };
+    let enabled = deletes
+        .iter()
+        .any(|&(action, enabled)| action == delete && enabled);
+    filing.push(item(delete, enabled, None));
     vec![state, filing]
 }
 
