@@ -721,16 +721,19 @@ build_once() {
 # times come from the device's own clock, and Windows' exe is found by showcase.ps1's own newest-
 # first search. A staleness check that has to guess is worse than none; it either cries wolf until
 # it is ignored, or reassures wrongly.
+#
+# Every arm returns 0 when there is no binary: the caller assigns this under `set -e`, so a non-zero
+# status would end the run silently instead of reaching the refusal that explains it.
 installed_app_binary() { # <platform>
   case "$1" in
-    macos) [[ -x "$MACOS_BIN" ]] && printf '%s\n' "$MACOS_BIN" ;;
+    macos) [[ ! -x "$MACOS_BIN" ]] || printf '%s\n' "$MACOS_BIN" ;;
     iphone | ipad)
       local container
       container="$(xcrun simctl get_app_container "$SIM_UDID" "$APPLE_BUNDLE_ID" app 2>/dev/null)" ||
         return 0
-      [[ -x "$container/AllodiaMail" ]] && printf '%s\n' "$container/AllodiaMail"
+      [[ ! -x "$container/$APPLE_PRODUCT_NAME" ]] || printf '%s\n' "$container/$APPLE_PRODUCT_NAME"
       ;;
-    linux) [[ -x "$LINUX_BIN" ]] && printf '%s\n' "$LINUX_BIN" ;;
+    linux) [[ ! -x "$LINUX_BIN" ]] || printf '%s\n' "$LINUX_BIN" ;;
   esac
 }
 
