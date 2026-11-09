@@ -1,12 +1,12 @@
 // A draft in a window of its own (docs/reading-window.md), raised by replying or forwarding from
-// inside a reading window.
+// inside a reading window, or popped out of the reading pane.
 //
 // It hosts ComposerView, the same composer the shell renders in the reading pane's column, built
 // from the same ComposeContext: so a reply raised in a window is seeded, signed, submitted and
 // discarded by the paths that already existed. What this file adds is the window around it.
 //
-// THE MAIN WINDOW'S COMPOSER DOES NOT MOVE. A reply raised in the reading pane still replaces that
-// pane, which is a shipped capability; this is beside it, not instead of it.
+// THE MAIN WINDOW'S COMPOSER DOES NOT MOVE ON ITS OWN. A reply raised in the reading pane still
+// replaces that pane, which is a shipped capability; it comes here only when the person pops it out.
 
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;

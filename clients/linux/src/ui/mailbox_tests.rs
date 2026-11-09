@@ -426,6 +426,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         .expect("register test application");
     let window = adw::ApplicationWindow::new(&application);
     crate::ui::composer_draft::widget_tests::a_reply_nobody_typed_into_is_not_a_draft(&window);
+    crate::ui::composer_draft::widget_tests::only_the_panes_composer_offers_to_pop_out(&window);
 
     crate::ui::setup_widget_tests::the_setup_window_offers_each_route_its_own_surface();
     crate::ui::setup_onboarding_tests::the_first_account_screen_offers_an_allodia_account(&window);

@@ -91,9 +91,42 @@ way out, and the composer's own Discard is the one way to throw it away
 **The window is named after the draft**, so two open drafts are distinguishable in the window list
 the OS draws.
 
-**The main window's composer does not move.** Where a client renders the composer inline in place
-of the reading pane, it keeps doing so for a reply raised there: that is a shipped capability
-(`capabilities.md`) and this contract adds to it rather than replacing it.
+**The main window's composer does not move on its own.** Where a client renders the composer
+inline in place of the reading pane, it keeps doing so for a new message and for a reply raised
+there: that is a shipped capability (`capabilities.md`) and this contract adds to it rather than
+replacing it. The person moves it, below.
+
+## Popping a composer out
+
+**The composer in the main window carries a button that moves it into a window of its own**, at
+its top right, where Outlook puts it: it is about the composer as a whole, not an action on the
+message, so it stays out of the action bar. It is drawn as a box with an arrow leaving it
+([`icons.md`](icons.md)) and named as the row menu's item is (`action_open_in_window`). Every
+composer the pane hosts has it, a new message included, and no composer already in a window does.
+This is how a new message gets a window: New Mail opens where it always did, and the person decides
+when a draft needs the mailbox back beside it.
+
+**The message moves, not a copy of it.** The window opens through `open_composer` like every
+composer ([`drafts.md`](drafts.md)), with `ComposeOrigin::Moved` and **the composition the pane's
+composer had**, which the core keeps as it was: the key its last save is stored under, the
+conversation it joined, the parts its quote's pictures came from. The window's next save supersedes
+what the pane saved, so Drafts holds one copy, and a reply is still a reply. A move into a
+composition the core does not know is refused.
+
+**It opens holding exactly what the pane held.** From, To, Cc, Bcc and Subject; the editor's
+document, handed from one editor to the other through `setComposerDocument` and never read back
+out of HTML, so the quote, the signature and every picture arrive as they were; the files; the
+signature choice, so a signature picked for this message stays picked and one that followed the
+account goes on following it; and whether anything had been written, so closing the window
+untouched still keeps a draft written in the pane. What belongs to the view rather than to the
+message starts again: the caret, the scroll position, a revealed Cc row, and the body's undo
+history, which is the editor's own and stays with the web view it was made in
+([`undo.md`](undo.md), rule 7).
+
+**The pane lets go without leaving.** Leaving saves and forgets the composition, and the window
+has just opened on it, so the pane's composer is released instead: it saves nothing, forgets
+nothing, and the pane shows the reading view again. Until the core has answered, the composer stays
+where it is; a move that did not happen leaves it there, saying so.
 
 ## Closing
 
@@ -179,6 +212,7 @@ capability matrix claims.
 | "Open in new window" on the row's context menu | ✅ | ✅ | ✅ | — | — |
 | Full action row in the window | ✅ | ✅ | ✅ | — | — |
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
+| The pane's composer pops out into a window, holding all it held | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
 | A closed window is freed, with what it held | composer ✅; reading window not yet checked | ✅ | ❌ | — | — |
 | A window stays in front of the mailbox | ✅ | ✅ | ✅ | — | — |
@@ -241,9 +275,6 @@ none either, and `GApplication` hands a second launch to the process already run
   else leaves the window showing what it had; only an invitation's own card is republished. The
   window is closed by the archive and delete on *its* action row, not by the same action taken
   elsewhere.
-- **No "New message" window.** A new message opens where it always did. Only a reply or a forward
-  raised inside a reading window gets a window, because that is the case where the inline composer
-  would land somewhere the user is not looking.
 - **On macOS a composer window's close is not held open.** The draft is kept by the composer as
   it goes, through the same way out a composer in the pane takes. Windows holds its close on
   `AppWindow.Closing`, the toolkit's own hook, while the composer saves.

@@ -28,7 +28,7 @@ import {
 import { installImageResize } from "./resize";
 import { installRevisionCounter } from "./revision";
 import { setScheme } from "./scheme";
-import { type BodySeed, focusComposerBody, setComposerBody, setPlainText } from "./seeds";
+import { type BodySeed, focusComposerBody, setComposerBody, setComposerDocument, setPlainText } from "./seeds";
 import {
   routeClickBelowSignature,
   setComposerSignature,
@@ -37,7 +37,7 @@ import {
 } from "./signature";
 import { moveToAdjacentCell } from "./tables";
 import { installToolbar } from "./toolbar";
-import type { QuoteAttribution, SignatureValue } from "./types";
+import type { ComposerDocument, QuoteAttribution, SignatureValue } from "./types";
 
 const doc = document;
 const editor = doc.getElementById("editor") as HTMLElement;
@@ -182,6 +182,7 @@ declare global {
     focusComposerBody: () => void;
     setPlainText: (text: unknown) => void;
     setComposerBody: (seed: string | BodySeed) => void;
+    setComposerDocument: (document: string | ComposerDocument) => void;
     useNativeComposerChrome: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
@@ -240,6 +241,8 @@ window.focusComposerBody = () => focusComposerBody(editor);
 window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
 window.setComposerBody = (seed) =>
   history.restart(() => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {}));
+window.setComposerDocument = (document) =>
+  history.restart(() => setComposerDocument(editor, attachments, parsed<ComposerDocument>(document) ?? {}));
 /// The body's history for a host whose right-click menu carries Undo and Redo (Windows): the
 /// WebView's own items would read the engine's stack, which this editor never uses
 /// (`docs/undo.md` rule 3), so the host draws them and asks here.

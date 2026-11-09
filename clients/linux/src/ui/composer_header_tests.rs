@@ -129,6 +129,7 @@ pub(crate) fn request(initial_cc: &str) -> ComposeContext {
         files: Vec::new(),
         opening_files: 0,
         attachments_failed: false,
+        moved: None,
     }
 }
 

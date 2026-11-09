@@ -10,8 +10,9 @@ use std::sync::Arc;
 
 use mailcal_app::{
     ComposeKind as AppComposeKind, ComposeOpening as AppComposeOpening,
-    ComposeOrigin as AppComposeOrigin, ComposePrefill as AppComposePrefill, CompositionId,
-    QuoteSource as AppQuoteSource,
+    ComposeOrigin as AppComposeOrigin, ComposePrefill as AppComposePrefill,
+    ComposerState as AppComposerState, CompositionId, MovedSignature as AppMovedSignature,
+    QuoteSource as AppQuoteSource, StagedAttachment,
 };
 
 use crate::{
@@ -50,6 +51,66 @@ pub enum ComposeOrigin {
         account: String,
         /// The stored draft.
         key: String,
+    },
+    /// A composer already open in another view, moved here holding everything it held: the
+    /// inline composer popped out into a window (`docs/reading-window.md`). Opened into the
+    /// composition that view had, which the move keeps, so the two views are one draft.
+    Moved {
+        /// What the composer it left was holding.
+        state: ComposerState,
+    },
+}
+
+/// Everything a composer holds that its composition does not, read off it as it moves to another
+/// view: the fields, the editor's document, the files, and what it was doing with the signature.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct ComposerState {
+    /// The From dropdown's account, or `None` where it follows the default.
+    pub from: Option<String>,
+    /// The `To` field, comma-joined.
+    pub to: String,
+    /// The `Cc` field, comma-joined.
+    pub cc: String,
+    /// The `Bcc` field, comma-joined.
+    pub bcc: String,
+    /// The subject.
+    pub subject: String,
+    /// The editor's document, as its `composerDocument()` wrote it.
+    pub document_json: String,
+    /// The files the composer holds, where they are now. They stay there.
+    pub files: Vec<ComposerFileAttachment>,
+    /// What the composer was doing with the signature.
+    pub signature: MovedSignature,
+    /// Whether anything was written in it, against what it opened with.
+    pub written: bool,
+}
+
+/// What a moved composer opens with beyond its fields and its files.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct MovedComposer {
+    /// The editor's document, for `setComposerDocument`: the message exactly as it stood.
+    pub document_json: String,
+    /// Whether anything was written in the composer it left, so leaving this one keeps the draft
+    /// even when nothing more is typed in it.
+    pub written: bool,
+    /// What the composer it left was doing with the signature, which this one carries on doing.
+    pub signature: MovedSignature,
+}
+
+/// What a composer does with the message's signature, carried across a move.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum MovedSignature {
+    /// Leaves the signature region alone and offers no picker: a stored message's, or an
+    /// assistant's own sign-off.
+    Untouched,
+    /// The From account's signature, swapped when the From changes.
+    FollowsAccount,
+    /// No signature on this message, chosen by the user.
+    NoSignature,
+    /// This signature, chosen by the user for this message.
+    Chosen {
+        /// The signature's id.
+        id: String,
     },
 }
 
@@ -153,12 +214,18 @@ pub struct ComposeOpening {
     pub attachments_failed: bool,
     /// Whether to seed the account's signature. A stored message already carries its own.
     pub seeds_signature: bool,
+    /// A moved composer's document, written state and signature choice; `None` for every other
+    /// opening. When set, the editor is seeded from it alone, through `setComposerDocument`, and
+    /// nothing else is seeded: not the body, not the quote, not a signature.
+    #[uniffi(default = None)]
+    pub moved: Option<MovedComposer>,
 }
 
 #[uniffi::export]
 impl MailcalApp {
     /// Opens a composer on `origin` into `composition`, the host's own id for the composer it is
-    /// about to show, used from then on by every save, the discard, the close and the send.
+    /// about to show, used from then on by every save, the discard, the close and the send. A
+    /// moved composer opens into the id the composer it left had.
     ///
     /// **Open the composer with what this returns, not before it.** A forward's and a draft's
     /// files are staged into `staging_directory` before it answers, and a stored draft's composer
@@ -175,9 +242,10 @@ impl MailcalApp {
     ///
     /// Returns [`MailcalError::Engine`] if `composition` is blank, a reference or account id is
     /// malformed, the message cannot be resolved, there is no account to write from, or, for a
-    /// draft, when it is not one, its body cannot be read or a file cannot be staged. Nothing is
+    /// draft, when it is not one, its body cannot be read or a file cannot be staged; and for a
+    /// moved composer, when `composition` is not open or the document is not one. Nothing is
     /// joined on an error: show it rather than opening an empty composer, which for a draft would
-    /// save over it.
+    /// save over it. A refused move leaves the composer where it was, still open.
     #[uniffi::method(default(prefill = None))]
     pub fn open_composer(
         &self,
@@ -216,7 +284,54 @@ fn app_origin(origin: ComposeOrigin) -> Result<AppComposeOrigin, MailcalError> {
         ComposeOrigin::Draft { account, key } => AppComposeOrigin::Draft {
             message: message_ref(&account, key)?,
         },
+        ComposeOrigin::Moved { state } => AppComposeOrigin::Moved {
+            state: Box::new(app_state(state)?),
+        },
     })
+}
+
+fn app_state(state: ComposerState) -> Result<AppComposerState, MailcalError> {
+    Ok(AppComposerState {
+        from: send_account(state.from)?,
+        to: state.to,
+        cc: state.cc,
+        bcc: state.bcc,
+        subject: state.subject,
+        document: state.document_json,
+        attachments: state
+            .files
+            .into_iter()
+            .map(|file| StagedAttachment {
+                path: file.path,
+                file_name: file.file_name,
+                media_type: file.media_type,
+            })
+            .collect(),
+        signature: state.signature.into(),
+        written: state.written,
+    })
+}
+
+impl From<MovedSignature> for AppMovedSignature {
+    fn from(signature: MovedSignature) -> Self {
+        match signature {
+            MovedSignature::Untouched => Self::Untouched,
+            MovedSignature::FollowsAccount => Self::FollowsAccount,
+            MovedSignature::NoSignature => Self::NoSignature,
+            MovedSignature::Chosen { id } => Self::Chosen(id),
+        }
+    }
+}
+
+impl From<AppMovedSignature> for MovedSignature {
+    fn from(signature: AppMovedSignature) -> Self {
+        match signature {
+            AppMovedSignature::Untouched => Self::Untouched,
+            AppMovedSignature::FollowsAccount => Self::FollowsAccount,
+            AppMovedSignature::NoSignature => Self::NoSignature,
+            AppMovedSignature::Chosen(id) => Self::Chosen { id },
+        }
+    }
 }
 
 fn app_prefill(prefill: ComposePrefill) -> Result<AppComposePrefill, MailcalError> {
@@ -280,6 +395,11 @@ impl From<AppComposeOpening> for ComposeOpening {
                 .collect(),
             attachments_failed: opening.attachments_failed,
             seeds_signature: opening.seeds_signature,
+            moved: opening.moved.map(|moved| MovedComposer {
+                document_json: moved.document,
+                written: moved.written,
+                signature: moved.signature.into(),
+            }),
         }
     }
 }

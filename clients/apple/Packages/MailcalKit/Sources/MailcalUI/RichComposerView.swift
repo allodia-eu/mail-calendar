@@ -69,6 +69,12 @@ struct RichComposeView: View {
     /// The core verbs this composer keeps its draft on the server with, or `nil` to turn draft
     /// saving off (a preview, a screenshot run).
     var drafts: ComposerDrafts?
+    /// Moves this composer into a window of its own, answering whether it moved; `nil` hides the
+    /// pop-out button. Not `private`: RichComposerView.PopOut.swift calls it.
+    let popOut: ((ComposerState) async -> Bool)?
+    /// Whether the composer this one was moved from had been written in: then this one has too,
+    /// whatever it opened holding (`MovedComposer.written`).
+    let openedWritten: Bool
     /// Whether this compose shows the per-message quote-style picker: it carries a quoted original
     /// (reply/forward) *and* the user opted into per-message styling in Settings.
     private let showsStylePicker: Bool
@@ -152,6 +158,10 @@ struct RichComposeView: View {
         suggestionsFor: ((String) async -> [RecipientMatch])? = nil,
         signatures: ComposerSignatures? = nil,
         drafts: ComposerDrafts? = nil,
+        /// What a composer moved from another view brings besides its fields and files
+        /// (`ComposeOpening.moved`): it opens on that document and nothing else is seeded.
+        moved: MovedComposer? = nil,
+        popOut: ((ComposerState) async -> Bool)? = nil,
         send: @escaping (ComposerSubmission) -> Bool,
         cancel: @escaping () -> Void
     ) {
@@ -163,8 +173,12 @@ struct RichComposeView: View {
         self.suggestionsFor = suggestionsFor
         self.signatures = signatures
         self.drafts = drafts
+        self.popOut = popOut
+        self.openedWritten = moved?.written ?? false
+        // A moved composer's quote is in its document, in the style it was left in.
+        let movedQuoteStyle = moved.flatMap { ComposeOpeningSeed.quoteStyle(ofDocument: $0.documentJson) }
         self.showsStylePicker = ComposerQuote.showsStylePicker(
-            hasQuote: quote != nil || quoteAttribution != nil,
+            hasQuote: quote != nil || quoteAttribution != nil || movedQuoteStyle != nil,
             perMessage: quoteStylePerMessage
         )
         self.focusesTo = !Self.opensInBody(mode: mode, to: initialTo)
@@ -173,14 +187,17 @@ struct RichComposeView: View {
         editor.pendingPlainBody = initialBody.isEmpty ? nil : initialBody
         editor.pendingStoredHTML = initialHTML.isEmpty ? nil : initialHTML
         editor.pendingQuoteAttribution = quoteAttribution
+        editor.pendingDocument = moved?.documentJson
         // The opening signature is resolved here, not in `onAppear`: it has to be injected before
         // the editor snapshots its "nothing written yet" seed, or the composer opens dirty. The
         // account is resolved the same way `resolvedFrom` does below, the From dropdown and the
-        // signature must agree about who is sending.
+        // signature must agree about who is sending. A moved composer's document already carries
+        // the signature it had, so nothing is seeded over it.
         let opening = FromAccountField.sender(initialFrom, in: accounts)
-        editor.pendingSignature = opening
+        editor.pendingSignature = moved != nil ? nil : opening
             .flatMap { signatures?.forAccount($0, signatureSlot(for: mode)) }
             .flatMap(Self.signatureSeed)
+        _signatureChoice = State(initialValue: moved.flatMap { Self.signatureChoice($0.signature) })
         // The caret opens where the work starts. A reply/forward is already addressed, so writing
         // is the only thing left to do and the body takes it; a new message's To is empty and is
         // where the user has to begin. An assistant's draft is the exception among new messages:
@@ -211,7 +228,10 @@ struct RichComposeView: View {
             )
         )
         _composition = State(initialValue: composition)
-        _quoteStyle = State(initialValue: quoteStyle)
+        // What its save last came to: a moved composer's is the one it left's, and any other's is
+        // `.idle` until it saves.
+        _draftStatus = State(initialValue: drafts?.status(composition) ?? .idle)
+        _quoteStyle = State(initialValue: movedQuoteStyle ?? quoteStyle)
         _attachments = State(
             initialValue: (initialAttachments + addedAttachments).map(PickedAttachment.init(staged:))
         )
@@ -249,7 +269,13 @@ struct RichComposeView: View {
         // Send and Cancel live in the action bar above the editor now (see `actionBar`), not in a
         // row under it, so the message's actions sit together instead of straddling the body.
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(.headline)
+            // The pop-out sits at the composer's top right, where Outlook puts it: it is about the
+            // composer as a whole, not an action on the message the bar below holds.
+            HStack {
+                Text(title).font(.headline)
+                Spacer()
+                popOutButton
+            }
             composerHeader
             RichComposerWebView(editor: editor)
                 .frame(minHeight: 240, maxHeight: .infinity)

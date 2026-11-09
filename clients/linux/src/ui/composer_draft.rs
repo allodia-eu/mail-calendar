@@ -98,8 +98,8 @@ pub(crate) fn body_edited(seed: Option<&str>, current: &str) -> bool {
 
 /// The live draft, held by the composer pane for as long as one is open.
 pub(crate) struct DraftGuard {
-    editor: webkit6::WebView,
-    fields: ComposerFields,
+    pub(super) editor: webkit6::WebView,
+    pub(super) fields: ComposerFields,
     opening: HeaderValues,
     /// How many of the files the composer opened holding are **not** the user's own work: the ones
     /// the core staged, which are still in the mailbox. The baseline the live count is measured
@@ -175,9 +175,10 @@ impl DraftGuard {
     /// Answers "has anything been written here?", handing `answer` the one boolean.
     ///
     /// The header half settles it on its own when it is dirty, so a draft with a typed recipient
-    /// never pays for the round trip.
-    fn edited(&self, answer: impl FnOnce(bool) + 'static) {
-        if self.header_edited() {
+    /// never pays for the round trip, and a composer moved from one that was written in has been
+    /// written in.
+    pub(super) fn edited(&self, answer: impl FnOnce(bool) + 'static) {
+        if self.fields.request.opened_written() || self.header_edited() {
             answer(true);
             return;
         }

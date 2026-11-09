@@ -33,6 +33,9 @@ pub(crate) struct ComposerOpened {
     pub(crate) target: ComposerTarget,
     /// Whether it was a stored draft being reopened, which has its own failure line.
     pub(crate) draft: bool,
+    /// The composition of the pane's composer this one was popped out of, which the pane lets go
+    /// of once the window has it.
+    pub(crate) moved_from: Option<String>,
     pub(crate) opening: Result<ComposeOpening, ()>,
     /// Files the composer opens holding on top of the ones the core staged: a share's.
     pub(crate) extra_files: Vec<PickedFile>,
@@ -82,13 +85,32 @@ impl AppModel {
         extra_files: Vec<PickedFile>,
         sender: &relm4::Sender<AppInput>,
     ) {
+        self.open_composer_into(None, origin, prefill, target, extra_files, sender);
+    }
+
+    /// [`Self::open_composer_on`], into `composition` when one is named: a moved composer opens
+    /// on the composition the composer it left had. Every other opening mints its own.
+    pub(super) fn open_composer_into(
+        &self,
+        composition: Option<String>,
+        origin: ComposeOrigin,
+        prefill: Option<ComposePrefill>,
+        target: ComposerTarget,
+        extra_files: Vec<PickedFile>,
+        sender: &relm4::Sender<AppInput>,
+    ) {
         let Some(app) = self.app.clone() else {
             return;
         };
         let sender = sender.clone();
         let draft = matches!(origin, ComposeOrigin::Draft { .. });
+        let moved_from = if matches!(origin, ComposeOrigin::Moved { .. }) {
+            composition.clone()
+        } else {
+            None
+        };
         std::thread::spawn(move || {
-            let composition = new_composition();
+            let composition = composition.unwrap_or_else(new_composition);
             let directory = staging_dir(&composition);
             // Owner-only, before the core writes any of the user's mail into it, exactly as for
             // an attachment decoded to be opened.
@@ -109,6 +131,7 @@ impl AppModel {
             sender.emit(AppInput::ComposerOpened(Box::new(ComposerOpened {
                 target,
                 draft,
+                moved_from,
                 opening,
                 extra_files,
             })));
@@ -123,6 +146,7 @@ impl AppModel {
         let ComposerOpened {
             target,
             draft,
+            moved_from,
             opening,
             extra_files,
         } = opened;
@@ -143,6 +167,9 @@ impl AppModel {
         };
         let mut request = self.compose_context(&app, opening, host);
         request.files.extend(extra_files);
+        if let Some(composition) = moved_from {
+            self.release_popped_out_composer(&composition);
+        }
         self.place_composer(request);
     }
 

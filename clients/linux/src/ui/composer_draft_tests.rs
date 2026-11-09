@@ -1,6 +1,7 @@
-//! Widget assertions for leaving a composer: that one navigation leaves it once, and that a reply
-//! nobody typed into is not a draft. The pure dirtiness rule is unit-tested beside it in
-//! [`super`], and the Discard question's own two buttons in [`super::super::composer_discard`].
+//! Widget assertions for leaving a composer: that one navigation leaves it once, that a reply
+//! nobody typed into is not a draft, and that only the pane's composer can be popped out. The pure
+//! dirtiness rule is unit-tested beside it in [`super`], and the Discard question's own two buttons
+//! in [`super::super::composer_discard`].
 
 use adw::prelude::*;
 
@@ -8,8 +9,11 @@ use super::super::{
     AppInput,
     composer::ComposerPane,
     composer_model::{ComposeContext, ComposeKind, new_composition},
+    icons,
     reader::ComposerHost,
+    setup_widget_tests::descendants,
 };
+use crate::l10n;
 
 /// The pane answers a request once and ignores the re-renders that follow it, which is why each
 /// navigation away from a draft has to arrive with its own number. Give two of them the same one,
@@ -53,25 +57,7 @@ pub(crate) fn each_navigation_gets_its_own_answer() {
 pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::ApplicationWindow) {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let pane = ComposerPane::new();
-    let request = ComposeContext {
-        kind: ComposeKind::Reply,
-        host: ComposerHost::Pane,
-        initial_to: "recipient@example.test".to_owned(),
-        initial_cc: String::new(),
-        initial_bcc: String::new(),
-        subject: "Re: fixture".to_owned(),
-        initial_body: None,
-        stored_html: None,
-        quote: None,
-        quote_attribution: None,
-        has_quote: false,
-        initial_from: Some("fixture".to_owned()),
-        seeds_signature: true,
-        composition: new_composition(),
-        files: Vec::new(),
-        opening_files: 0,
-        attachments_failed: false,
-    };
+    let request = reply(ComposerHost::Pane);
     pane.show(
         42,
         &request,
@@ -94,4 +80,55 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
     );
     pane.teardown();
     assert!(pane.widget().first_child().is_none());
+}
+
+fn reply(host: ComposerHost) -> ComposeContext {
+    ComposeContext {
+        kind: ComposeKind::Reply,
+        host,
+        initial_to: "recipient@example.test".to_owned(),
+        initial_cc: String::new(),
+        initial_bcc: String::new(),
+        subject: "Re: fixture".to_owned(),
+        initial_body: None,
+        stored_html: None,
+        quote: None,
+        quote_attribution: None,
+        has_quote: false,
+        initial_from: Some("fixture".to_owned()),
+        seeds_signature: true,
+        composition: new_composition(),
+        files: Vec::new(),
+        opening_files: 0,
+        attachments_failed: false,
+        moved: None,
+    }
+}
+
+/// Only the pane's composer offers to pop out, as a button carrying the vendored glyph and the
+/// name a screen reader reads: a composer already in a window has nowhere further to go.
+pub(crate) fn only_the_panes_composer_offers_to_pop_out(window: &adw::ApplicationWindow) {
+    for (host, offered) in [(ComposerHost::Pane, true), (ComposerHost::Window(7), false)] {
+        let (sender, _receiver) = relm4::channel::<AppInput>();
+        let pane = ComposerPane::new();
+        pane.show(
+            43,
+            &reply(host),
+            &[("fixture".to_owned(), "sender@example.test".to_owned())],
+            None,
+            window,
+            sender,
+        );
+        let pop_out: Vec<gtk::Button> = descendants::<gtk::Button>(pane.widget().upcast_ref())
+            .into_iter()
+            .filter(|button| {
+                button.tooltip_text().as_deref() == Some(l10n::action_open_in_window())
+            })
+            .collect();
+        assert_eq!(pop_out.len(), usize::from(offered), "{host:?}");
+        if let Some(button) = pop_out.first() {
+            assert_eq!(button.icon_name().as_deref(), Some(icons::POP_OUT));
+        }
+        pane.teardown();
+    }
 }

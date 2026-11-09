@@ -4,6 +4,7 @@ import type { Attachments } from "./attachments";
 import { setBlocks } from "./blocks_dom";
 import { caretInto, documentOf, focusEditor, rangeWithin } from "./dom";
 import { blocksFromHtml } from "./read_html";
+import type { ComposerDocument } from "./types";
 
 /// Focuses the message area so the composer opens ready to type; a host calls this when it opens a
 /// reply or forward, where the addresses and subject are already filled in and writing is the only
@@ -60,4 +61,17 @@ export function setComposerBody(editor: HTMLElement, attachments: Attachments, s
     return;
   }
   setBlocks(editor, blocksFromHtml(editor, html, attachments), attachments);
+}
+
+/// Seeds the body with a composer moved from another view of it (the inline composer popped out
+/// into a window): the document that view's `composerDocument()` wrote, put back as it was, quote,
+/// signature and pictures included. Nothing is read back out of HTML, so nothing can be lost on
+/// the way (`docs/reading-window.md`).
+export function setComposerDocument(
+  editor: HTMLElement,
+  attachments: Attachments,
+  document: Partial<ComposerDocument>,
+): void {
+  for (const attachment of document.attachments ?? []) attachments.restore(attachment);
+  setBlocks(editor, document.blocks ?? [], attachments);
 }

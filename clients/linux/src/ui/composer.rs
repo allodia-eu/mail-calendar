@@ -23,6 +23,7 @@ use super::{
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_labels::editor_labels,
     composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
+    composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
     composer_signature::SignatureControl,
     editor_paste,
@@ -124,6 +125,11 @@ impl ComposerPane {
         // once the guard that answers it exists.
         let discard = gtk::Button::with_label(l10n::action_discard());
         header.pack_start(&discard);
+        // Packed first, so it is the bar's last item, past Send.
+        let pop_out = pop_out_button(request);
+        if let Some(button) = &pop_out {
+            header.pack_end(button);
+        }
         let send_button = gtk::Button::with_label(l10n::action_send());
         send_button.add_css_class("suggested-action");
         header.pack_end(&send_button);
@@ -215,7 +221,7 @@ impl ComposerPane {
         web.widget()
             .update_property(&[AccessibleProperty::Label(l10n::compose_body())]);
         let signature = request
-            .seeds_signature
+            .manages_signature()
             .then(|| SignatureControl::new(app, request.kind, accounts, &from, web.widget()))
             .flatten();
         if let Some(control) = &signature {
@@ -271,6 +277,9 @@ impl ComposerPane {
         let input = sender.clone();
         let answer = Rc::clone(&guard);
         discard.connect_clicked(move |_| answer.discard(&input));
+        if let Some(button) = &pop_out {
+            connect_pop_out(button, request, &guard, signature.as_ref(), &sender);
+        }
         self.draft.replace(Some(guard));
         connect_send(
             &send_button,
@@ -397,6 +406,7 @@ fn seed_editor(
     let attribution = attribution_script(request);
     // Read here, not in the closure: the request is borrowed, the closure outlives this call.
     let opens_in_body = request.opens_in_body();
+    let moved_signature = request.moved.as_ref().map(|moved| moved.signature.clone());
     let editor_host = editor_host.clone();
     // Weak: the control owns the view this closure is attached to.
     let signature = signature.map(Rc::downgrade);
@@ -408,10 +418,13 @@ fn seed_editor(
         if let Some(body) = &body {
             script.push_str(body);
         }
-        // Only a composer that seeds a signature has a control; one that does not never touches
-        // the region its body already carries.
+        // Only a composer that manages a signature has a control; one that does not never touches
+        // the region its body already carries, and a moved one carries on without seeding it.
         if let Some(control) = signature.as_ref().and_then(std::rc::Weak::upgrade) {
-            script.push_str(&control.seed_script());
+            match &moved_signature {
+                Some(moved) => control.carry_on(moved),
+                None => script.push_str(&control.seed_script()),
+            }
         }
         if let Some(attribution) = &attribution {
             script.push_str(attribution);

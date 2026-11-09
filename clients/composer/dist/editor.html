@@ -936,6 +936,12 @@
       focusEditor(editor);
       insertAtCaret(editor, image);
     }
+    restore(attachment) {
+      this.remember({ ...attachment });
+      const seq = /^captured-(\d+)$/.exec(attachment.id)?.[1];
+      if (seq !== undefined)
+        this.captured = Math.max(this.captured, Number(seq) + 1);
+    }
     addCapturedImage(meta) {
       const seq = this.captured;
       this.captured += 1;
@@ -4309,6 +4315,11 @@
     }
     setBlocks(editor, blocksFromHtml(editor, html, attachments), attachments);
   }
+  function setComposerDocument(editor, attachments, document2) {
+    for (const attachment of document2.attachments ?? [])
+      attachments.restore(attachment);
+    setBlocks(editor, document2.blocks ?? [], attachments);
+  }
 
   // src/tables.ts
   function cellsOf(row) {
@@ -4979,6 +4990,7 @@
   window.focusComposerBody = () => focusComposerBody(editor);
   window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
   window.setComposerBody = (seed) => history.restart(() => setComposerBody(editor, attachments, parsed(seed) ?? {}));
+  window.setComposerDocument = (document2) => history.restart(() => setComposerDocument(editor, attachments, parsed(document2) ?? {}));
   window.composerHistorySteps = () => JSON.stringify(history.steps());
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();

@@ -108,6 +108,7 @@ impl<P: Provider> App<P> {
             attachments,
             attachments_failed,
             seeds_signature,
+            moved: None,
         }
     }
 
