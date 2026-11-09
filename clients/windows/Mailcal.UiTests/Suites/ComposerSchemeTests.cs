@@ -62,6 +62,16 @@ public sealed class ComposerSchemeTests(ComposerSchemeApp showcase) : IClassFixt
     private static void AssertScheme(App app, bool dark, string because)
     {
         var (toolbar, page) = (0d, 0d);
+        // The page first. A web view that has not painted yet is black from edge to edge, which a
+        // toolbar sampled on its own reads as dark: on a slow runner the editor had signalled its
+        // seed and drawn nothing at all.
+        App.Eventually(() =>
+        {
+            (toolbar, page) = Sample(app);
+            return page > PageFloor;
+        }, TimeSpan.FromSeconds(30));
+        Assert.True(page > PageFloor,
+            $"the page sampled at {page} for 30 s; it stays light in either scheme (docs/settings.md), and an editor that never paints reads black");
         App.Eventually(() =>
         {
             (toolbar, page) = Sample(app);
