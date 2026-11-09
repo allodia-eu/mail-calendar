@@ -1,8 +1,7 @@
-// How a standards or JMAP account signs in, changed in place (docs/accounts.md rule 17): what its
-// server accepts, signing it in through its provider (again, or in place of its password), a
-// password in place of its grant, and the credential an add refused as a duplicate, put on the
-// account already there. The core connects with the new credential, stores it and replaces the
-// account itself; nothing here calls add_account or writes the Credential Manager.
+// The credential an add refused as a duplicate, put on the account already there
+// (docs/accounts.md rule 17). The core connects with the new credential, stores it and replaces
+// the account itself; nothing here calls add_account or writes the Credential Manager. Signing an
+// account in through its browser is the core's (MailboxModel.BrowserSignIn.cs).
 
 using uniffi.mailcal_bindings;
 
@@ -30,110 +29,6 @@ public sealed partial class MailboxModel
     /// <summary>Shows the offer to update the account already set up.</summary>
     public Microsoft.UI.Xaml.Visibility SetupUpdateVisibility =>
         _setupExisting is null ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
-
-    /// <summary>
-    /// Signs a standards or JMAP account in through its provider in the browser: again from its
-    /// stored grant when it already signs in that way, in place of its password otherwise.
-    /// </summary>
-    /// <param name="ask">Asked, before the browser opens, what becomes of the calendar and
-    /// contacts a switch from a password will not reach (docs/accounts.md rule 18). Without it
-    /// such a switch is abandoned; only Settings, where a switch starts, passes one.</param>
-    /// <param name="step">Told where the sign-in is, for a page that draws its controls from it
-    /// (<see cref="AccountSignInProgress"/>): a blocking call, a question, or the browser.</param>
-    /// <remarks>
-    /// Through the shared <see cref="SignInFlight"/>, for the reason recorded on
-    /// <see cref="SignInWithJmapAsync"/>: every protocol-activation flow shares one redirect slot.
-    /// </remarks>
-    internal Task<ConsentEnded> AccountSignInAsync(
-        string accountId,
-        Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask = null,
-        Action<SignInStep>? step = null)
-    {
-        if (_connecting || _app is null)
-        {
-            return Task.FromResult(new ConsentEnded(false, L10n.AppUnavailable()));
-        }
-        return _signIn.RunAsync(cancel => AccountSignInFlowAsync(_app, accountId, ask, step ?? (_ => { }), cancel));
-    }
-
-    /// <summary>Retires the sign-in waiting on the browser, from the account page's Cancel. Safe
-    /// to call when none is out.</summary>
-    internal void CancelAccountSignIn() => _signIn.Cancel();
-
-    private async Task<ConsentEnded> AccountSignInFlowAsync(
-        MailcalApp app,
-        string accountId,
-        Func<IReadOnlyList<AccountCapability>, Task<UnreachedAnswer>>? ask,
-        Action<SignInStep> step,
-        CancellationToken cancel)
-    {
-        IsSigningIn = true;
-        try
-        {
-            // A password account is redirected where setup would send its kind. One that already
-            // signs in through its provider replays the redirect its grant was registered with,
-            // whichever of the two that was, so the slot waits on both.
-            var jmap = AccountsSnapshot().Accounts
-                .FirstOrDefault(entry => entry.Id == accountId)?.Kind == AccountKind.Jmap;
-            var redirect = jmap ? JmapOAuthConfig.RedirectUri : ImapOAuthConfig.RedirectUri;
-            using var callback = ProtocolAuthCallback.Expect(ImapOAuthConfig.CallbackHost, JmapOAuthConfig.CallbackHost);
-            // Discovery and registration, for a password account, block.
-            var start = await Task.Run(() => app.BeginAccountSignIn(accountId, redirect));
-            // An attempt retired while begin dialled opens no browser.
-            cancel.ThrowIfCancellationRequested();
-            UnreachedUses? choice = null;
-            var unreached = UnreachedUsesRules.Dav(start.Unreached);
-            if (UnreachedUsesRules.Asks(unreached))
-            {
-                step(SignInStep.Asking);
-                // A sign-in started meanwhile supersedes this one, unanswered.
-                var answer = ask is null ? UnreachedAnswer.Cancel : await ask(unreached).WaitAsync(cancel);
-                if (UnreachedUsesRules.Choice(answer) is not { } chosen)
-                {
-                    Log.Info("an account's sign-in was abandoned before the browser opened");
-                    return new ConsentEnded(false, null);
-                }
-                choice = chosen;
-            }
-            if (!await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl)))
-            {
-                Log.Warn("the browser did not open for an account's sign-in");
-                return new ConsentEnded(false, L10n.AccountSigninBrowserFailed());
-            }
-            step(SignInStep.Browser);
-            var callbackUrl = await callback.WaitAsync(cancel);
-            step(SignInStep.Calling);
-            // The exchange, the connect and storing the new credential all block, and the core
-            // stores the grant as part of them, so nothing after this point can retire it.
-            await Task.Run(() => app.CompleteAccountSignIn(accountId, start.Pending, callbackUrl, choice));
-            Log.Info($"an account was signed in through its provider in place: {LogHandle(accountId)}");
-            if (choice == UnreachedUses.KeepOnPassword)
-            {
-                // The calendar and contacts kept on the password are an account of their own now.
-                SyncAfterAccountChange();
-            }
-            return new ConsentEnded(true, null);
-        }
-        catch (OperationCanceledException)
-        {
-            Log.Info("an account's sign-in was cancelled");
-            return new ConsentEnded(false, null);
-        }
-        catch (TimeoutException)
-        {
-            Log.Warn("an account's sign-in timed out waiting for the browser");
-            return ConsentEnded.TimedOut();
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"an account's sign-in failed: {CoreError.Describe(ex)}");
-            return ConsentEnded.Failed(ex);
-        }
-        finally
-        {
-            IsSigningIn = false;
-        }
-    }
 
     /// <summary>
     /// The refused add's offer, taken: the sign-in or password just given replaces the credential

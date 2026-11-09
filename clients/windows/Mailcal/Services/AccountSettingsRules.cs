@@ -1,5 +1,5 @@
 // What Settings → Accounts' list says about an account, decided from its snapshot entry alone
-// (docs/accounts.md rules 11 to 13), and what an expired sign-in and a refused duplicate offer.
+// (docs/accounts.md rules 11 to 13), and what a refused duplicate offers.
 // An account's page, its Sign-in section included (rule 17), is the core's (`account_page`) and
 // carries no rule here. WinUI-free and L10n-free on purpose, so each
 // rule is reachable from Mailcal.Tests: the words are the dialog's, the decisions are here.
@@ -7,22 +7,6 @@
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
-
-/// <summary>What an expired sign-in's banner button runs.</summary>
-internal enum SignInRemedy
-{
-    /// <summary>No browser flow: the password or API token is replaced in Settings.</summary>
-    Settings,
-    /// <summary>Microsoft's or Google's own consent, in place.</summary>
-    ProviderConsent,
-    /// <summary>A JMAP account's stored grant, authorised again.</summary>
-    JmapReauth,
-    /// <summary>A standards account's stored grant, through the account sign-in.</summary>
-    AccountSignIn,
-    /// <summary>A calendar and contacts account a Nextcloud sign-in made, signed in with
-    /// Nextcloud again (docs/nextcloud-sign-in.md rule 8).</summary>
-    Nextcloud,
-}
 
 /// <summary>The account an add was refused for, and the config the add was given, which the
 /// refusal offers to put on it (docs/accounts.md rule 17).</summary>
@@ -78,19 +62,6 @@ internal static class AccountSettingsRules
     internal static IReadOnlyList<AccountCapability> Withheld(AccountEntry entry) =>
         entry.Uses.Where(use => use.State == CapabilityState.NeedsPermission)
             .Select(use => use.Capability).ToList();
-
-    /// <summary>What the expired-sign-in banner runs for an account of <paramref name="provider"/>,
-    /// or for one a Nextcloud sign-in made (<paramref name="nextcloud"/>), which reports a provider
-    /// as well. Null, a provider the core could not name, has nothing to run.</summary>
-    internal static SignInRemedy Remedy(AccountProvider? provider, bool nextcloud = false) =>
-        nextcloud ? SignInRemedy.Nextcloud : provider switch
-        {
-            AccountProvider.Microsoft or AccountProvider.Google => SignInRemedy.ProviderConsent,
-            AccountProvider.JmapOauth => SignInRemedy.JmapReauth,
-            AccountProvider.ImapOauth => SignInRemedy.AccountSignIn,
-            AccountProvider.Password or AccountProvider.Jmap => SignInRemedy.Settings,
-            _ => SignInRemedy.Settings,
-        };
 
     /// <summary>What a refused add offers: putting <paramref name="configToml"/> on the account
     /// already there, when the refusal is that it is set up already.</summary>
@@ -198,6 +169,7 @@ internal static class AccountSettingsRules
             {
                 yield return $"password:{field.Kind}/{field.Replaces}/{Control(field.Save)}";
             }
+            yield return $"browser:{BrowserSignInRules.Fingerprint(signIn.Browser)}";
         }
         if (page.Shared is { } shared)
         {

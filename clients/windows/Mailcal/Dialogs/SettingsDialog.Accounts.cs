@@ -2,7 +2,8 @@
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
 // partials of their own: what the account is used for and linked to (AccountUses), the mailboxes
 // shared with it (AccountShared), how it signs in (AccountSignIn), its servers and its removal
-// (AccountServers), and its mail settings (AccountMail).
+// (AccountServers), and its mail settings (AccountMail). What a change on it came to is worded in
+// AccountChangeNotices.
 //
 // State lives in the core. A use, a link and a removal are dispatched and the page says they run
 // (docs/waiting.md); every other change forwards to the core off the UI thread. The page is drawn
@@ -277,30 +278,6 @@ public sealed partial class SettingsDialog
         }
     }
 
-    /// <summary>A change the page could not make, and why.</summary>
-    private static AccountNotice ChangeFailed(string detail) =>
-        new(InfoBarSeverity.Error, L10n.SettingsAccountChangeFailedTitle(), detail);
-
-    /// <summary>What a change on the page came to, in the core's words for why.</summary>
-    private static AccountNotice ChangeFailed(AccountChangeNotice notice) => notice switch
-    {
-        AccountChangeNotice.UseFailed use => ChangeFailed(AccountUseText.Refused(use.Refusal)),
-        AccountChangeNotice.LinkFailed link => ChangeFailed(AccountUseText.Refused(link.Refusal)),
-        AccountChangeNotice.RemoveFailed removal => RemovalFailed(L10n.RemoveAccountFailed(removal.Detail)),
-        AccountChangeNotice.ServersFailed servers => new(
-            InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), AccountUseText.Refused(servers.Refusal)),
-        AccountChangeNotice.SharedMailboxFailed shared => ChangeFailed(AccountUseText.Refused(shared.Refusal)),
-        AccountChangeNotice.PasswordFailed password => ChangeFailed(AccountUseText.Refused(password.Refusal)),
-        // Not a failure of the app: the address is the person's to check.
-        AccountChangeNotice.SharedMailboxNotFound => new(
-            InfoBarSeverity.Warning, L10n.SettingsAccountSharedNotFound(), string.Empty),
-        _ => ChangeFailed(L10n.ErrorUnknown()),
-    };
-
-    /// <summary>A removal whose stored sign-in could not be erased, so it comes back at the next
-    /// launch: said rather than left to surprise.</summary>
-    private static AccountNotice RemovalFailed(string message) => new(InfoBarSeverity.Error, string.Empty, message);
-
     /// <summary>The model says a removal's erase failed; said on the list while Accounts is open.</summary>
     private void OnRemovalFailed(string message)
     {
@@ -339,6 +316,7 @@ public sealed partial class SettingsDialog
         }
         _hadAccounts = any;
         var page = OpenPage();
+        AskUnreached(page);
         if (_model.TakeChangeNotice(page) is { } notice)
         {
             _accountNotice = _changeNotice = ChangeFailed(notice);

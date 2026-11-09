@@ -229,10 +229,11 @@
          and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
     <Compile Include="..\Mailcal\Services\MeetingAccountLabels.cs" Link="Services\MeetingAccountLabels.cs" />
-    <!-- What an account page's Sign-in section lets the person press while its sign-in is out
-         (docs/provider-oauth.md rule 13): buttons disabled only for a blocking call, so a sign-in
-         abandoned in the browser is superseded by the next press rather than wedging the page. -->
-    <Compile Include="..\Mailcal\Services\AccountSignInProgress.cs" Link="Services\AccountSignInProgress.cs" />
+    <!-- An account's browser sign-in, which the core holds (docs/waiting.md): the redirect each
+         kind starts with, the browser opened once per attempt, a redirect handed to the core
+         rather than to a setup flow, and the line its section waits with. A redirect routed to the
+         wrong side completes nothing, and a browser opened on every redraw opens a tab a second. -->
+    <Compile Include="..\Mailcal\Services\BrowserSignInRules.cs" Link="Services\BrowserSignInRules.cs" />
     <!-- What a link, a picker and a removal's confirmation name an account by where another has its
          address (docs/accounts.md rule 8). The words arrive as parameters; a mailbox whose calendar
          was split off would otherwise read as linked to itself. -->

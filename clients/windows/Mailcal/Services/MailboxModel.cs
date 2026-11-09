@@ -186,10 +186,10 @@ public sealed partial class MailboxModel : INotifyPropertyChanged
         }
     }
 
-    // The single browser sign-in in flight, shared by the Microsoft and Google flows: only one may
+    // The single browser sign-in setup and the separate-server form have in flight: only one may
     // be outstanding (they compete for one redirect rendezvous), and a fresh request supersedes an
-    // attempt the user abandoned by closing the browser tab, which is undetectable, so refusing
-    // the second request left the reconnect banner's button dead. See SignInFlight.
+    // attempt the user abandoned by closing the browser tab, which is undetectable. See
+    // SignInFlight. An existing account's own sign-in is the core's (MailboxModel.BrowserSignIn.cs).
     private readonly SignInFlight _signIn = new();
 
     private bool _signingIn;

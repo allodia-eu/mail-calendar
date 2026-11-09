@@ -1,23 +1,12 @@
 // Settings → Accounts' traffic with the core: the one snapshot every account is drawn from, and the
-// changes an account's page makes (docs/accounts.md rules 11 to 14). A use, a link and a removal
-// are the core's to run (docs/waiting.md): dispatched, they answer at once and the page says they
-// run. Every other change may touch the Credential Manager or dial a server, so it runs off the UI
+// changes an account's page makes (docs/accounts.md rules 11 to 14). A use, a link, a removal and
+// a browser sign-in are the core's to run (docs/waiting.md): dispatched, they answer at once and
+// the page says they run. Every other change may touch the Credential Manager or dial a server, so it runs off the UI
 // thread and answers with what the page should say.
 
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
-
-/// <summary>How signing an account in again ended. A cancelled one carries neither: the person
-/// closed it, and nothing is said. <paramref name="Cause"/> is the core's error.
-/// <paramref name="Unanswered"/> is a wait for the browser that ran out, which says so but is not
-/// a failure: a closed tab ends there too (docs/notices.md rule 10).</summary>
-internal sealed record ConsentEnded(bool SignedIn, string? Error, Exception? Cause = null, bool Unanswered = false)
-{
-    internal static ConsentEnded Failed(Exception error) => new(false, CoreErrorCopy.Said(error), error);
-
-    internal static ConsentEnded TimedOut() => new(false, L10n.AccountSigninTimeout(), Unanswered: true);
-}
 
 public sealed partial class MailboxModel
 {
@@ -57,6 +46,7 @@ public sealed partial class MailboxModel
                 RemovalFailed?.Invoke(L10n.RemoveAccountFailed(failed.Detail));
             }
         }
+        DriveBrowserSignIn();
         AccountsChanged?.Invoke();
         RefreshSetupLinks();
         RefreshSetupSeparateServer();
@@ -75,7 +65,7 @@ public sealed partial class MailboxModel
             return null;
         }
         _accountNoticeSaid = raised.Id;
-        Log.Warn("accounts: a change on an account's page did not take");
+        Log.Info($"accounts: a change on an account's page has something to say ({raised.Notice.GetType().Name})");
         return raised.Notice;
     }
 
@@ -144,74 +134,4 @@ public sealed partial class MailboxModel
     /// would refuse it. Reads only what is stored, so the page asks it as the person types.</summary>
     internal AccountEndpointsGap? EndpointsGap(string accountId, AccountEndpoints endpoints) =>
         _app?.AccountEndpointsGap(accountId, endpoints);
-
-    /// <summary>
-    /// Signs an existing Microsoft or Google account in again at its provider, asking for what it
-    /// is used for plus <paramref name="adding"/>. The account keeps its id, settings, links and
-    /// downloaded mail (docs/provider-oauth.md rule 11), so this never touches the setup form.
-    /// </summary>
-    /// <remarks>
-    /// Through the shared <see cref="SignInFlight"/>: a sign-in abandoned in the browser cannot be
-    /// told from one in progress, so the next request supersedes it rather than waiting on it.
-    /// </remarks>
-    internal Task<ConsentEnded> SignInAgainAsync(
-        string accountId, AccountCapability[] adding, Action<SignInStep>? step = null)
-    {
-        if (_connecting || _app is null)
-        {
-            return Task.FromResult(new ConsentEnded(false, L10n.AppUnavailable()));
-        }
-        return _signIn.RunAsync(cancel => ConsentFlowAsync(_app, accountId, adding, step ?? (_ => { }), cancel));
-    }
-
-    private async Task<ConsentEnded> ConsentFlowAsync(
-        MailcalApp app, string accountId, AccountCapability[] adding, Action<SignInStep> step, CancellationToken cancel)
-    {
-        IsSigningIn = true;
-        try
-        {
-            string callbackUrl;
-            AccountConsentStart start;
-            if (app.AccountProvider(accountId) == AccountProvider.Google)
-            {
-                using var loopback = NewGoogleLoopback();
-                start = app.BeginAccountConsent(accountId, loopback.RedirectUri, adding);
-                await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-                step(SignInStep.Browser);
-                callbackUrl = await WaitForGoogleCallbackAsync(loopback, cancel);
-            }
-            else
-            {
-                using var callback = ProtocolAuthCallback.Expect(MicrosoftOAuthConfig.CallbackHost);
-                start = app.BeginAccountConsent(accountId, MicrosoftOAuthConfig.RedirectUri, adding);
-                await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
-                step(SignInStep.Browser);
-                callbackUrl = await callback.WaitAsync(cancel);
-            }
-            step(SignInStep.Calling);
-            // The exchange, the connect and the catch-up all block.
-            await Task.Run(() => app.CompleteAccountConsent(start.Pending, callbackUrl));
-            Log.Info("an account was signed in again in place");
-            return new ConsentEnded(true, null);
-        }
-        catch (OperationCanceledException)
-        {
-            Log.Info("signing an account in again was cancelled");
-            return new ConsentEnded(false, null);
-        }
-        catch (TimeoutException)
-        {
-            Log.Warn("signing an account in again timed out waiting for the browser");
-            return ConsentEnded.TimedOut();
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"signing an account in again failed: {CoreError.Describe(ex)}");
-            return ConsentEnded.Failed(ex);
-        }
-        finally
-        {
-            IsSigningIn = false;
-        }
-    }
 }

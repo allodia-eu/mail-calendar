@@ -7,8 +7,9 @@
 // single-instanced by default, so without this the callback would land in a second process that
 // knows nothing about the sign-in in flight. We rendezvous every launch on a single-instance key,
 // redirect any secondary activation into the already-running instance, and hand the redirect URI to
-// the waiting OAuth flow (ProtocolAuthCallback, which matches it to the flow that armed it by the
-// redirect's host). A normal launch falls straight through to Application.Start.
+// the waiting OAuth flow: an existing account's sign-in, which the core holds, when it waits at that
+// redirect, and otherwise ProtocolAuthCallback, which matches it to the setup flow that armed it by
+// the redirect's host. A normal launch falls straight through to Application.Start.
 //
 // The single-instancing + redirect boilerplate mirrors the Microsoft AppLifecycle sample; the
 // OAuth delivery and the unpackaged-dev protocol registration are ours.
@@ -148,8 +149,8 @@ public static class Program
 
     // A redirected protocol activation carries the OAuth redirect URI
     // (eu.allodia.mailcal://auth?code=...&state=..., or //jmap-oauth for a JMAP sign-in); pass it
-    // to the waiting sign-in and bring the app forward. Fires on a background thread,
-    // ProtocolAuthCallback is thread-safe, and the window touch is marshaled onto its dispatcher.
+    // to the waiting sign-in and bring the app forward. Fires on a background thread; the hand-off
+    // and the window touch are marshalled onto the window's dispatcher.
     private static void OnActivated(AppActivationArguments activation)
     {
         // A second launch of an already-running app, a shortcut, a tile, `Mailcal.exe --calendar`
@@ -227,13 +228,24 @@ public static class Program
         }
         // Log arrival only, never the query, which carries the one-time auth code.
         Log.Info($"protocol activation received ({protocol.Uri.Scheme})");
-        ProtocolAuthCallback.Deliver(protocol.Uri);
-        // Raise the app to the foreground after the browser hand-off, the default browser (unlike
-        // macOS/Android's session APIs) can't dismiss its own tab, so at least bring us forward.
-        if (App.MainWindow is MainWindow window)
+        var uri = protocol.Uri;
+        if (App.MainWindow is not MainWindow window)
         {
-            window.DispatcherQueue.TryEnqueue(window.BringToForeground);
+            ProtocolAuthCallback.Deliver(uri);
+            return;
         }
+        window.DispatcherQueue.TryEnqueue(() =>
+        {
+            // An existing account's sign-in is the core's, and its redirect goes there first; any
+            // other is the setup flow's waiting on it.
+            if (!window.Model.TakeSignInRedirect(uri))
+            {
+                ProtocolAuthCallback.Deliver(uri);
+            }
+            // The default browser, unlike macOS's and Android's sign-in sessions, cannot dismiss
+            // its own tab, so the app at least comes forward.
+            window.BringToForeground();
+        });
     }
 
     // The mail link an activation carries, or null when it carries none, which is the common case
