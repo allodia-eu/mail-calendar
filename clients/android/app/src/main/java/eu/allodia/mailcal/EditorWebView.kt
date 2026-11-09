@@ -75,3 +75,10 @@ internal open class EditorWebViewClient : WebViewClient() {
         }
     }
 }
+
+// The app's light or dark, which the editor's chrome follows (clients/composer/src/scheme.ts).
+// Taken from `LocalAppDark`, which carries an appearance chosen in the app; the WebView's own
+// `prefers-color-scheme` answers the device's. Each host sends it on page-finished and again from
+// its AndroidView's update block, which runs when the value changes.
+internal fun composerSchemeScript(dark: Boolean): String =
+    "window.setComposerScheme(\"${if (dark) "dark" else "light"}\")"

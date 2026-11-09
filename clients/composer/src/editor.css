@@ -1,11 +1,45 @@
+/* Two palettes. The chrome (toolbar, popovers) follows the app's appearance, so in a dark app it
+   reads as part of the window. The page is the message as its recipient will see it, so it stays
+   light in both: a colour picked on it is the colour that is sent.
+
+   Which one the chrome takes is the root's `color-scheme`, and every chrome colour is a
+   `light-dark()` pair that resolves against it. The host names the app's scheme through
+   `setComposerScheme` (`scheme.ts`), because a web view's own `prefers-color-scheme` follows the
+   system on some platforms and misses a Light or Dark chosen in the app. Until a host has named it,
+   the system's is used, so the first frame is already close. */
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
+
+  /* The page. */
   --border: #d8dde3;
   --text: #152330;
   --muted: #5f6b73;
-  --surface: #fbfbf8;
-  --control: #ffffff;
-  --active: #16598d;
+  --page: #ffffff;
+  --page-accent: #16598d;
+
+  /* The chrome: light, dark. */
+  --chrome: light-dark(#fafafa, #252528);
+  --chrome-text: light-dark(#1f1f1f, #e8e8e8);
+  --chrome-muted: light-dark(#6b6b6b, #9b9b9b);
+  --chrome-separator: light-dark(rgba(0, 0, 0, 0.1), rgba(255, 255, 255, 0.12));
+  --chrome-hover: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.08));
+  --chrome-pressed: light-dark(rgba(0, 0, 0, 0.11), rgba(255, 255, 255, 0.15));
+  --field: light-dark(#ffffff, #2a2a2a);
+  --field-border: light-dark(rgba(0, 0, 0, 0.16), rgba(255, 255, 255, 0.16));
+  --popover: light-dark(#ffffff, #2a2a2a);
+  --popover-border: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.12));
+  --popover-shade: light-dark(rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.5));
+  --swatch-edge: light-dark(rgba(0, 0, 0, 0.18), rgba(255, 255, 255, 0.28));
+  --accent: light-dark(#16598d, #4b93e6);
+  --accent-text: #ffffff;
+}
+
+:root[data-scheme="light"] {
+  color-scheme: light;
+}
+
+:root[data-scheme="dark"] {
+  color-scheme: dark;
 }
 
 * {
@@ -16,8 +50,8 @@ html,
 body {
   height: 100%;
   margin: 0;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--chrome);
+  color: var(--chrome-text);
   font: 15px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -40,89 +74,17 @@ body {
   flex-direction: column;
 }
 
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: center;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-  background: #f6f8fa;
-}
+/* The toolbar and its controls are in `toolbar.css`. */
 
-button,
-select {
-  min-height: 30px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--control);
-  color: var(--text);
-  font: inherit;
-}
-
-button {
-  min-width: 32px;
-  padding: 0 9px;
-}
-
-button:active,
-select:focus,
-button:focus {
-  outline: 2px solid color-mix(in srgb, var(--active) 35%, transparent);
-  outline-offset: 1px;
-}
-
-select {
-  padding: 0 8px;
-  max-width: 9em;
-}
-
-/* A hairline between groups of related controls, so eleven buttons read as four groups. */
-.toolbar .sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 2px 2px;
-  background: var(--border);
-}
-
-.toolbar svg {
-  display: block;
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* The colour buttons show the colour they will apply as a bar under the glyph, so the control
-   says what it does without opening it. */
-.swatch-button {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 0 8px;
-  line-height: 1;
-}
-
-.swatch-button .bar {
-  width: 16px;
-  height: 3px;
-  border-radius: 1px;
-  background: var(--text);
-  /* A pale colour needs an edge or it looks like an empty control on the white button. */
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
-}
-
+/* The page keeps the light scheme in a dark host, caret, selection and spelling marks included. */
 .editor {
   flex: 1;
   min-height: 180px;
   padding: 14px;
   overflow: auto;
-  background: #ffffff;
+  color-scheme: light;
+  background: var(--page);
+  color: var(--text);
   outline: none;
   word-break: break-word;
 }
@@ -160,7 +122,7 @@ body.native-chrome .toolbar {
   right: 0;
   bottom: 0;
   z-index: 2;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--chrome-separator);
   border-bottom: none;
   /* One row that scrolls sideways. Wrapped, every control on a phone took three rows above the
      keyboard and left the message two lines. */
@@ -346,7 +308,7 @@ pre {
   position: fixed;
   z-index: 1;
   pointer-events: none;
-  outline: 1px solid var(--active);
+  outline: 1px solid var(--page-accent);
 }
 
 .allodia-resize[hidden] {
@@ -358,9 +320,9 @@ pre {
   width: 12px;
   height: 12px;
   margin: -6px;
-  border: 1px solid var(--active);
+  border: 1px solid var(--page-accent);
   border-radius: 50%;
-  background: var(--control);
+  background: var(--page);
   box-shadow: 0 1px 3px rgba(21, 35, 48, 0.3);
   pointer-events: auto;
   /* The gesture is the grip's from the first touch: without this a finger on one scrolls the

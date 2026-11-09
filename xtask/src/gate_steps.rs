@@ -73,6 +73,7 @@ const LATE_CHECKS: &[&str] = &[
     "check-british-english",
     "check-dash-hygiene",
     "check-composer-labels",
+    "check-composer-scheme",
     "check-surface-publish",
 ];
 

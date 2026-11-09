@@ -29,6 +29,7 @@ mod british_english;
 mod british_english_words;
 mod compiler_cache;
 mod composer_labels;
+mod composer_scheme;
 mod control_components;
 mod dash_hygiene;
 mod desktop_handoff;
@@ -173,6 +174,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-composer-labels",
         label: "composer labels (every client sends every one)",
         run: composer_labels::run,
+    },
+    Task {
+        name: "check-composer-scheme",
+        label: "composer scheme (every editor host names the app's light or dark)",
+        run: composer_scheme::run,
     },
     Task {
         name: "check-control-components",

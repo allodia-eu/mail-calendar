@@ -195,6 +195,7 @@ impl ComposerPane {
 
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
         super::composer_host::install(web.widget());
+        super::composer_scheme::follow(web.widget());
         // One route into the composer for files, taken twice, so a drop and a paste differ in the
         // one place they should: a drop asks what a picture is for, a paste has already been told.
         let take_files = |answer| {
@@ -412,6 +413,7 @@ fn seed_editor(
     web.connect_finished(move |view| {
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
+        script.push_str(&super::composer_scheme::current_script());
         script.push_str(&super::composer_host::announce_script());
         if let Some(body) = &body {
             script.push_str(body);

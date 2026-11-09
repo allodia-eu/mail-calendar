@@ -28,6 +28,9 @@ final class EditorHost: NSObject, WKNavigationDelegate {
     private let makeView: (WKWebViewConfiguration) -> WKWebView
     private let fallbackHTML: String
     private var expectingInitialLoad = true
+    private var loaded = false
+    /// The app's scheme as last named, `nil` until a representable has named one.
+    private var dark: Bool?
 
     /// - Parameters:
     ///   - makeView: builds the web view from the hardened configuration, for a host that needs a
@@ -105,7 +108,26 @@ final class EditorHost: NSObject, WKNavigationDelegate {
         return literal
     }
 
+    /// Names the app's light or dark, which the editor's chrome follows
+    /// (`clients/composer/src/scheme.ts`): sent now if the bundle is up, else as it loads. The
+    /// representable passes SwiftUI's colour scheme, which carries a Light or Dark chosen in the app.
+    func setDark(_ dark: Bool) {
+        guard dark != self.dark else { return }
+        self.dark = dark
+        if loaded {
+            evaluate(Self.schemeScript(dark))
+        }
+    }
+
+    nonisolated static func schemeScript(_ dark: Bool) -> String {
+        "window.setComposerScheme(\"\(dark ? "dark" : "light")\")"
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        loaded = true
+        if let dark {
+            evaluate(Self.schemeScript(dark))
+        }
         onLoad()
     }
 
