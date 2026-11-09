@@ -84,6 +84,8 @@ impl fmt::Debug for AppInput {
             Self::DiscardComposer(..) => "DiscardComposer",
             Self::ComposerUntouched(_) => "ComposerUntouched",
             Self::LeaveComposer(_) => "LeaveComposer",
+            Self::PopOutComposer(_) => "PopOutComposer",
+            Self::ComposerPopOutFailed => "ComposerPopOutFailed",
             Self::DiscardDraft => "DiscardDraft",
             Self::KeepEditing => "KeepEditing",
             Self::SubmitComposer(_) => "SubmitComposer",

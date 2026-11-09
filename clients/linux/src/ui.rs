@@ -36,6 +36,7 @@ mod composer_labels;
 mod composer_model;
 mod composer_notice;
 mod composer_open;
+mod composer_pop_out;
 mod composer_prefill;
 mod composer_quote;
 mod composer_quote_style;

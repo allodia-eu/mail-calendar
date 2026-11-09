@@ -17,15 +17,19 @@ extension MailboxModel {
     /// The core is asked off the main actor: a reply may fetch the message it quotes, and a draft
     /// the copy on the server. The composer appears when the answer does, holding everything: one
     /// shown before its files arrived could be sent, or a draft saved, without them.
+    ///
+    /// Every composer opens on a composition of its own, except a moved one, which names the
+    /// composition the composer it left had (`docs/reading-window.md`).
     func openComposer(
         _ origin: ComposeOrigin,
+        composition existing: String? = nil,
         prefill: ComposePrefill? = nil,
         addedAttachments: [ComposerFileAttachment] = [],
         notice: String? = nil,
         isShare: Bool = false
     ) async -> ComposeContext? {
         guard let app else { return nil }
-        let composition = UUID().uuidString
+        let composition = existing ?? UUID().uuidString
         let directory = composerStagingDirectory().path
         let opening: ComposeOpening? = await Task.detached(priority: .userInitiated) {
             do {

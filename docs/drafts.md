@@ -130,7 +130,9 @@ an edge.
 
 **One call opens every composer, and one call sends from it.** A new message, a reply, a reply to
 all, a forward and a draft resumed from Drafts all open through `open_composer`, and a queued send
-moved back out of the Outbox raises the same answer, `ComposeOpening`. A mail link, a share and an
+moved back out of the Outbox raises the same answer, `ComposeOpening`. So does a composer moved from
+one view to another, the pane's popped out into a window: it opens on the composition it already
+had, holding what the view it left held ([`reading-window.md`](reading-window.md)). A mail link, a share and an
 assistant's draft are a new message, or a reply when the assistant names the message it answers,
 with a prefill laid over it field by field. A client builds its composer from that one record in
 one way, and every composer sends through `submit_composition` on the composition it opened on.
@@ -303,6 +305,10 @@ server, so a question at that point would offer only one way to lose them.
 **The save and the close are one call**, `save_draft_and_close`. Each intent is its own task, so
 a close sent after a save could land first, leaving the save no stored key to supersede and the
 server two copies. A composer whose words are already saved writes nothing on the way out.
+
+**Moving a composer is not leaving it.** A composer popped out of the pane into a window takes its
+composition with it, so the pane neither saves nor forgets it on the way out; the window does both
+when it is left in turn ([`reading-window.md`](reading-window.md)).
 
 **A composer nothing was written in closes without saving.** The test is the one the composer
 already makes: a header edited, or a body that differs from what it opened with. So a reply that

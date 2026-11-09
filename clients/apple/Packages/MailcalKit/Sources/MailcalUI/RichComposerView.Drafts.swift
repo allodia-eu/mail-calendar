@@ -133,10 +133,10 @@ extension RichComposeView {
     }
 
     /// Whether anything was written in this composer: a header that differs from what it opened
-    /// with, or a body that differs from its seed. A reply holding only its quoted original was
-    /// not written in.
+    /// with, or a body that differs from its seed, or anything written in the composer it was
+    /// moved from. A reply holding only its quoted original was not written in.
     func isWritten() async -> Bool {
-        if currentHeaders != openingHeaders { return true }
+        if openedWritten || currentHeaders != openingHeaders { return true }
         return await editor.bodyChangedFromSeed()
     }
 
@@ -149,7 +149,7 @@ extension RichComposeView {
         guard let drafts else { return }
         let composition = composition
         let editor = editor
-        let written = currentHeaders != openingHeaders
+        let written = openedWritten || currentHeaders != openingHeaders
         let recipients = Recipients(to: to, cc: cc, bcc: bcc)
         let subject = subject
         let files = attachments.map(\.composerFile)

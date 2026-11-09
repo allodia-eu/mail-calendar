@@ -65,7 +65,9 @@ for every kind of change.
 
 7. **The history starts with the body the composer opened with.** A reopened draft, a quoted
    original, a mail link's body and an assistant's draft are where undo stops, not a step: they are
-   seeded through `history.restart`, and the first Ctrl+Z after opening does nothing.
+   seeded through `history.restart`, and the first Ctrl+Z after opening does nothing. So is the
+   document of a composer moved into a window of its own ([`reading-window.md`](reading-window.md)):
+   its steps are mutations of the web view they were made in, and mean nothing in another.
 
 8. **A change the host makes from its own controls is not undone from the body.** The signature a
    From change swaps in, a quote style chosen in the composer, the quote attribution completed: each

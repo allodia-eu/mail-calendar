@@ -77,6 +77,9 @@ public sealed partial class ComposerView
         };
         _draftSampler.Tick += async (_, _) => await SampleEditorAsync();
         _draftSampler.Start();
+        // What this composition's last save came to: a moved composer's is the one it left's, and
+        // any other's says nothing until it saves.
+        ShowDraftHint(model.DraftStatusOf(_composition));
     }
 
     /// <summary>Notes that something in the message changed, and starts the interval again.</summary>

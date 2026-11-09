@@ -151,6 +151,7 @@ public sealed partial class MainWindow
 
         var composer = new ComposerView();
         composer.Init(Model, context, ClosedByComposer);
+        composer.PopOut = state => PopOutComposerAsync(composer, context, state);
         _composer = composer;
         ComposerHost.Content = composer;
         ComposerHost.Visibility = Visibility.Visible;
@@ -189,6 +190,32 @@ public sealed partial class MainWindow
     {
         CloseComposer();
         MailView.FollowReadingPane();
+    }
+
+    /// <summary>
+    /// Moves the pane's composer into a window of its own, on the composition it already has, and
+    /// gives the column back to the reading pane (docs/reading-window.md, "Popping a composer
+    /// out"). Answers whether it moved; one that did not stays where it was.
+    /// </summary>
+    /// <remarks>
+    /// The pane is given back only while it still holds <paramref name="composer"/>: another
+    /// compose may have taken the column while the core answered, and that one is not leaving.
+    /// </remarks>
+    private async Task<bool> PopOutComposerAsync(ComposerView composer, ComposeContext context, ComposerState state)
+    {
+        var origin = new ComposeOrigin.Moved(state);
+        var opening = await Task.Run(() => Model.OpenComposer(
+            context.Composition, origin, null, ComposerStaging.NewDirectory()));
+        if (opening is null)
+        {
+            return false;
+        }
+        OpenComposerWindow(ContextFor(opening));
+        if (ReferenceEquals(_composer, composer))
+        {
+            ClosedByComposer();
+        }
+        return true;
     }
 
     private void TeardownComposer()

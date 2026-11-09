@@ -98,6 +98,15 @@ export class Attachments {
     insertAtCaret(editor, image);
   }
 
+  /// Takes back an attachment a document already names, as that document recorded it: a composer
+  /// moved from another view brings its pictures with it. A picture captured in that view keeps
+  /// its id, and the next one captured here is numbered past it, so the two never collide.
+  restore(attachment: DraftAttachment): void {
+    this.remember({ ...attachment });
+    const seq = /^captured-(\d+)$/.exec(attachment.id)?.[1];
+    if (seq !== undefined) this.captured = Math.max(this.captured, Number(seq) + 1);
+  }
+
   /// Records a picture whose bytes travel in the document, returning the id the `<img>` must
   /// carry. No `blob`: there is no staged file, and Rust requires exactly one of the two.
   ///
