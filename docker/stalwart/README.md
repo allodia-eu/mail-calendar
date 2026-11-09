@@ -102,6 +102,15 @@ unchanged. Dial `127.0.0.1:12993` (Android emulator `10.0.2.2:12993`) with
 `server_name = localhost`. Supported on **every** platform: macOS, the iOS/iPad simulators,
 Windows, and the Android emulator (see [`../../docs/debugging.md`](../../docs/debugging.md)).
 
+## Nothing leaves the machine
+
+Every recipient is routed to **local delivery** (`MtaOutboundStrategy.route`, set in
+[`entrypoint.sh`](entrypoint.sh) on both servers), so a message to any domain but `test.local`
+bounces inside the container ("Mailbox not found") and the server never looks up an MX or opens a
+connection to one. The seed's senders (`news@example.com`, `organiser@example.org`,
+`ahmed.elamrani@example.eu`) look real on purpose, and a reply is addressed to them; without this
+route the harness would try to deliver it from the developer's own IP address.
+
 ## Host ports (loopback only)
 
 | Protocol                      | Container | Host    | Transport          |
