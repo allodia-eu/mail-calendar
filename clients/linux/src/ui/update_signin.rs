@@ -85,12 +85,6 @@ impl AppModel {
             AppInput::JmapFinished(attempt, outcome) => {
                 self.jmap_finished(attempt, outcome, sender.input_sender().clone());
             }
-            AppInput::JmapReauthPrepared(attempt, prepared) => {
-                self.jmap_reauth_prepared(attempt, prepared, sender.input_sender().clone());
-            }
-            AppInput::JmapReauthFinished(attempt, outcome) => {
-                self.jmap_reauth_finished(attempt, outcome);
-            }
             AppInput::AlreadySetUp(input) => {
                 self.existing_account_input(input, sender.input_sender().clone());
             }

@@ -10,10 +10,16 @@ use mailcal_bindings::{
     AccountPageIntent, AccountSeparateServer, AccountSeparateSignIn, Intent, TypedPassword,
 };
 
-use super::{
-    AppInput, AppModel, account_sign_in::Password, separate_server_sign_in::SignInStage,
-    setup_state::Phase,
-};
+use super::{AppInput, AppModel, separate_server_sign_in::SignInStage, setup_state::Phase};
+
+/// A password on its way to the core. Never printed: an input can reach a log through `Debug`.
+pub(crate) struct Password(pub(crate) String);
+
+impl std::fmt::Debug for Password {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Password(..)")
+    }
+}
 
 /// Where a sign-in of its own was asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

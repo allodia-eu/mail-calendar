@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
 use mailcal_bindings::{
-    AccountProvider, Intent, InvitationResponse, Notice, NoticeAction, NoticeIntent, NoticeKind,
-    NoticeScreens, NoticeSeverity, NoticeText, UseProblem,
+    Intent, InvitationResponse, Notice, NoticeAction, NoticeIntent, NoticeKind, NoticeScreens,
+    NoticeSeverity, NoticeText, UseProblem,
 };
 
 use super::{
-    Announcements, SignInFlow, about, allodia_sign_in_ended, answer, asks, belongs, beneath,
-    core_remedy, glyph, marks, more, offers, prominent, screen_of, sign_in_flow, words,
+    Announcements, about, allodia_sign_in_ended, answer, asks, belongs, beneath, core_remedy,
+    glyph, marks, more, offers, prominent, screen_of, words,
 };
 use crate::{
     l10n,
@@ -309,48 +309,6 @@ fn only_a_retry_is_run_by_the_core() {
     retry.action = None;
     retry.action_label = None;
     assert!(!offers(&retry));
-}
-
-#[test]
-fn signing_in_again_runs_the_flow_the_account_signs_in_by() {
-    use SignInFlow::{AccountSignIn, Consent, Jmap, Settings};
-    let expired = NoticeKind::SignInExpired;
-    // A grant too narrow for mail or the calendar is widened at its provider, whatever it is.
-    assert_eq!(sign_in_flow(&NoticeKind::MailReauth, None, false), Consent);
-    assert_eq!(
-        sign_in_flow(&NoticeKind::CalendarReauth, None, false),
-        Consent
-    );
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::Microsoft), false),
-        Consent
-    );
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::Google), false),
-        Consent
-    );
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::JmapOauth), false),
-        Jmap
-    );
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::ImapOauth), false),
-        AccountSignIn
-    );
-    // A Nextcloud sign-in made it, so signing in again is that sign-in.
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::Password), true),
-        AccountSignIn
-    );
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::Password), false),
-        Settings
-    );
-    assert_eq!(
-        sign_in_flow(&expired, Some(&AccountProvider::Jmap), false),
-        Settings
-    );
-    assert_eq!(sign_in_flow(&expired, None, false), Settings);
 }
 
 /// A question's notice: `kind` with its two answers.

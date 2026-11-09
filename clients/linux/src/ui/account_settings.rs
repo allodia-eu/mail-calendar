@@ -7,11 +7,7 @@ use mailcal_bindings::{
     AccountCapability, AccountChangeNoticeRaised, AccountPageIntent, Intent, LinkSlot,
 };
 
-use super::{
-    AppInput, AppModel,
-    account_consent::{ConsentFinished, ConsentFrom},
-    settings::notice::Notice,
-};
+use super::{AppInput, AppModel, settings::notice::Notice};
 use crate::l10n;
 
 /// One input rather than several, so the dispatch has a single arm: they are one page's traffic
@@ -29,17 +25,14 @@ pub(crate) enum AccountsInput {
         account: String,
         links: Vec<(LinkSlot, String)>,
     },
-    /// Sign the account in again at its provider, asking for what it is used for plus `adding`.
-    SignInAgain {
+    /// Sign the account in through its browser sign-in, asking its provider for what it is used
+    /// for plus `adding` (`super::browser_sign_in`).
+    SignIn {
         account: String,
         adding: Vec<AccountCapability>,
     },
-    /// A sign-in asked for here or by a banner ended.
-    Consented(ConsentFinished),
     /// A change finished, with what the page should say about it, if anything.
     Changed(Option<Notice>),
-    /// The Sign-in section of an IMAP or JMAP account (`super::account_sign_in`).
-    SignIn(super::account_sign_in::SignInInput),
     /// A sign-in of its own for a mailbox's calendar and contacts, from its page or from setup
     /// (`super::separate_sign_in`).
     Separate(super::separate_sign_in::SeparateInput),
@@ -90,10 +83,6 @@ impl AppModel {
     pub(super) fn accounts_input(&mut self, input: AccountsInput, sender: relm4::Sender<AppInput>) {
         match input {
             AccountsInput::Show(account) => {
-                // A grant kept for another try is for the page being left.
-                if account != self.settings.account {
-                    self.abandon_held_nextcloud_grant();
-                }
                 if let Some(account) = &account {
                     // Its server is asked again which mailboxes the account's sign-in opens.
                     if let Some(app) = &self.app {
@@ -112,13 +101,9 @@ impl AppModel {
             AccountsInput::LinkFromSetup { account, links } => {
                 self.link_from_setup(account, links, sender);
             }
-            AccountsInput::SignInAgain { account, adding } => {
-                self.start_account_consent(account, adding, ConsentFrom::Settings, sender);
-            }
-            AccountsInput::Consented(finished) => self.account_consent_finished(&finished),
+            AccountsInput::SignIn { account, adding } => self.sign_in_in_browser(account, adding),
             AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
             AccountsInput::Changed(None) => self.settings.refresh_in_place(),
-            AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
             AccountsInput::Separate(input) => self.separate_input(input, sender),
             AccountsInput::ReviewServerChange(account) => {
                 self.review_server_change(account, &sender);

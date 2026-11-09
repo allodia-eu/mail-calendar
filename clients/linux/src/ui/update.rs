@@ -35,6 +35,10 @@ impl AppModel {
                 if matches!(surface, Surface::Settings | Surface::Notices) {
                     self.separate_signalled(sender.input_sender());
                 }
+                // The browser opens for a sign-in the core now waits on.
+                if matches!(surface, Surface::Settings) {
+                    self.browser_sign_in_signalled(sender.input_sender());
+                }
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
                     // After the pull, so the rows this snapshot brought are the ones searched.
@@ -371,8 +375,6 @@ impl AppModel {
             | AppInput::JmapPrepared(..)
             | AppInput::JmapCallbackReceived(_)
             | AppInput::JmapFinished(..)
-            | AppInput::JmapReauthPrepared(..)
-            | AppInput::JmapReauthFinished(..)
             | AppInput::ProbeManualImapSignIn(_)
             | AppInput::ImapAuthAnswered { .. }
             | AppInput::StartImapLogin(_)

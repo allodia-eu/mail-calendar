@@ -93,6 +93,24 @@ pub(super) fn button_row(
     row
 }
 
+/// A row that starts work: a button row while it can be pressed, and a row with a spinner before
+/// its title while the work it started runs.
+pub(super) fn work_row(
+    title: &str,
+    control: ControlState,
+    activated: impl Fn() + 'static,
+) -> gtk::Widget {
+    match spinner(control) {
+        Some(spinner) => {
+            let row = plain_row(title);
+            row.add_prefix(&spinner);
+            row.set_sensitive(control.enabled);
+            row.upcast()
+        }
+        None => button_row(title, control.enabled, activated).upcast(),
+    }
+}
+
 /// Marks a field that sends what was typed itself, so a redraw of the page does not wait on it
 /// once it has.
 const SENDS_ITSELF: &str = "sends-itself";

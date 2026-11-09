@@ -79,9 +79,13 @@ impl MailcalApp {
                 SignInBrowserEnd::Closed => {
                     browser.end(attempt);
                 }
+                // Said on a thread of its own: the notices it marks are read from the store.
                 SignInBrowserEnd::NotOpened => {
                     if let Some(ended) = browser.end(attempt) {
-                        self.sign_in_ended(&ended, AccountChangeRefusal::BrowserNotOpened);
+                        std::thread::spawn(move || {
+                            app.sign_in_ended(&ended, AccountChangeRefusal::BrowserNotOpened);
+                            app.signal_sign_in();
+                        });
                     }
                 }
             },

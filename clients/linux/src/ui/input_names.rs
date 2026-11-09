@@ -165,8 +165,6 @@ impl fmt::Debug for AppInput {
             Self::ReadAccountsSynced => "ReadAccountsSynced",
             Self::SettingsCategoryShown(_) => "SettingsCategoryShown",
             Self::SetUpOfferedAccount(_) => "SetUpOfferedAccount",
-            Self::JmapReauthPrepared(..) => "JmapReauthPrepared",
-            Self::JmapReauthFinished(..) => "JmapReauthFinished",
             Self::Accounts(_) => "Accounts",
             Self::AnalyticsDecided(_) => "AnalyticsDecided",
             Self::CollectNewMail => "CollectNewMail",

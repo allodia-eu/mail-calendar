@@ -6,8 +6,8 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AccountKind, AccountPageIntent, AccountPasswordField, AccountSecretKind, AccountSignIn,
-    AccountSignInLine, AccountSignInRoute, ControlState,
+    AccountCapability, AccountPageIntent, AccountPasswordField, AccountSecretKind, AccountSignIn,
+    AccountSignInLine, AccountSignInRoute, BrowserSignIn, BrowserSignInStage, ControlState,
 };
 
 use super::{draw, label, line};
@@ -16,7 +16,6 @@ use crate::{
     ui::{
         AppInput,
         account_settings::AccountsInput,
-        account_sign_in::{SignInInput, Stage, Switch},
         mailbox::tests::{every_row_belongs_to_a_list, rendered_labels},
         setup_widget_tests::descendants,
     },
@@ -43,6 +42,7 @@ fn section(
         routes,
         control: IDLE,
         password,
+        browser: None,
     }
 }
 
@@ -94,13 +94,25 @@ fn rendered(group: &adw::PreferencesGroup) -> Vec<String> {
     rendered_labels(group.upcast_ref())
 }
 
-fn browser(input: Option<AppInput>) -> Option<(String, Switch)> {
+fn browser(input: Option<AppInput>) -> Option<(String, Vec<AccountCapability>)> {
     match input {
-        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Browser {
-            account,
-            switch,
-        }))) => Some((account, switch)),
+        Some(AppInput::Accounts(AccountsInput::SignIn { account, adding })) => {
+            Some((account, adding))
+        }
         _ => None,
+    }
+}
+
+/// The account's sign-in, waiting on the browser: for its redirect, or for a Nextcloud server.
+fn waiting(redirects: bool) -> BrowserSignIn {
+    BrowserSignIn {
+        attempt: 7,
+        account: ACCOUNT.to_owned(),
+        stage: BrowserSignInStage::InBrowser {
+            url: "https://example.org/authorize".to_owned(),
+            redirect_uri: redirects.then(|| "http://127.0.0.1:4/".to_owned()),
+        },
+        cancel: IDLE,
     }
 }
 
@@ -115,7 +127,7 @@ pub(crate) fn the_section_draws_the_switch_its_server_takes() {
         }],
         None,
     );
-    let group = draw(&switch, AccountKind::Imap, ACCOUNT, ACCOUNT, None, &sender);
+    let group = draw(&switch, ACCOUNT, ACCOUNT, &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     let labels = rendered(&group);
     assert!(labels.contains(&l10n::settings_account_signs_in_password().to_owned()));
@@ -134,12 +146,12 @@ pub(crate) fn the_section_draws_the_switch_its_server_takes() {
     row.emit_by_name::<()>("activated", &[]);
     assert_eq!(
         browser(receiver.recv_sync()),
-        Some((ACCOUNT.to_owned(), Switch::ToProvider))
+        Some((ACCOUNT.to_owned(), Vec::new()))
     );
 }
 
-/// A calendar account at a Nextcloud server draws the switch to signing in with Nextcloud, which
-/// sends the browser sign-in for it; a Microsoft account signs in again through its consent.
+/// Every route is the account's one browser sign-in, which the core runs whatever the account:
+/// a calendar account's switch to Nextcloud and a Microsoft account's sign-in again alike.
 pub(crate) fn each_route_goes_to_the_sign_in_its_account_takes() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let typed = section(
@@ -147,13 +159,13 @@ pub(crate) fn each_route_goes_to_the_sign_in_its_account_takes() {
         vec![AccountSignInRoute::ToNextcloud],
         None,
     );
-    let group = draw(&typed, AccountKind::Dav, ACCOUNT, ACCOUNT, None, &sender);
+    let group = draw(&typed, ACCOUNT, ACCOUNT, &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     assert!(!rendered(&group).contains(&l10n::settings_account_switch_description().to_owned()));
     descendants::<adw::ButtonRow>(group.upcast_ref())[0].emit_by_name::<()>("activated", &[]);
     assert_eq!(
         browser(receiver.recv_sync()),
-        Some((ACCOUNT.to_owned(), Switch::ToProvider))
+        Some((ACCOUNT.to_owned(), Vec::new()))
     );
 
     let consent = section(
@@ -161,21 +173,13 @@ pub(crate) fn each_route_goes_to_the_sign_in_its_account_takes() {
         vec![AccountSignInRoute::SignInAgain],
         None,
     );
-    let group = draw(
-        &consent,
-        AccountKind::Microsoft,
-        ACCOUNT,
-        ACCOUNT,
-        None,
-        &sender,
-    );
+    let group = draw(&consent, ACCOUNT, ACCOUNT, &sender);
     assert!(rendered(&group).contains(&l10n::settings_account_signin_description().to_owned()));
     descendants::<adw::ButtonRow>(group.upcast_ref())[0].emit_by_name::<()>("activated", &[]);
-    assert!(matches!(
-        receiver.recv_sync(),
-        Some(AppInput::Accounts(AccountsInput::SignInAgain { account, adding }))
-            if account == ACCOUNT && adding.is_empty()
-    ));
+    assert_eq!(
+        browser(receiver.recv_sync()),
+        Some((ACCOUNT.to_owned(), Vec::new()))
+    );
 }
 
 fn password_entry(group: &adw::PreferencesGroup) -> adw::PasswordEntryRow {
@@ -209,14 +213,7 @@ fn sent_password(input: Option<AppInput>) -> Option<(String, String)> {
 /// change on the page, and the field is emptied as it goes.
 pub(crate) fn a_password_is_typed_into_an_empty_field_and_cleared_once_sent() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let group = draw(
-        &signed_in(),
-        AccountKind::Imap,
-        ACCOUNT,
-        ACCOUNT,
-        None,
-        &sender,
-    );
+    let group = draw(&signed_in(), ACCOUNT, ACCOUNT, &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     let reveal = descendants::<adw::ButtonRow>(group.upcast_ref())
         .into_iter()
@@ -252,14 +249,7 @@ pub(crate) fn a_refused_password_is_typed_again_where_the_section_says_so() {
         Vec::new(),
         Some(field(true, IDLE)),
     );
-    let group = draw(
-        &refused,
-        AccountKind::Jmap,
-        ACCOUNT,
-        "alice@example.org",
-        None,
-        &sender,
-    );
+    let group = draw(&refused, ACCOUNT, "alice@example.org", &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     assert!(rendered(&group).contains(&l10n::signin_expired_prompt("alice@example.org")));
     let field = password_entry(&group);
@@ -273,8 +263,8 @@ pub(crate) fn a_refused_password_is_typed_again_where_the_section_says_so() {
     );
 }
 
-/// While a password is tried its field stays open and its button spins; while the core completes
-/// a browser sign-in, every route waits.
+/// While a password is tried its field stays open and its button spins; while the core starts or
+/// completes the account's browser sign-in, its route spins instead and the field is held.
 pub(crate) fn a_running_change_holds_every_control() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
     let mut trying = signed_in();
@@ -289,52 +279,45 @@ pub(crate) fn a_running_change_holds_every_control() {
             running: true,
         },
     ));
-    let group = draw(&trying, AccountKind::Imap, ACCOUNT, ACCOUNT, None, &sender);
+    let group = draw(&trying, ACCOUNT, ACCOUNT, &sender);
     let entry = password_entry(&group);
     assert!(entry.is_visible() && !entry.is_sensitive());
     assert_ne!(descendants::<adw::Spinner>(group.upcast_ref()).len(), 0);
 
-    let group = draw(
-        &signed_in(),
-        AccountKind::Imap,
-        ACCOUNT,
-        ACCOUNT,
-        Some(Stage::Core),
-        &sender,
-    );
+    let mut starting = signed_in();
+    starting.control = ControlState {
+        enabled: false,
+        running: true,
+    };
+    starting.password = Some(field(
+        true,
+        ControlState {
+            enabled: false,
+            running: false,
+        },
+    ));
+    let group = draw(&starting, ACCOUNT, ACCOUNT, &sender);
     assert!(
         descendants::<adw::ButtonRow>(group.upcast_ref())
             .iter()
             .filter(|row| row.is_visible())
             .all(|row| !row.is_sensitive())
     );
-
-    // A password is not tried while the core completes a browser sign-in of the account's.
-    let mut refused = signed_in();
-    refused.password = Some(field(true, IDLE));
-    let group = draw(
-        &refused,
-        AccountKind::Imap,
-        ACCOUNT,
-        ACCOUNT,
-        Some(Stage::Core),
-        &sender,
+    assert_ne!(
+        descendants::<adw::Spinner>(group.upcast_ref()).len(),
+        0,
+        "the route that started it spins"
     );
     assert!(!password_entry(&group).is_sensitive());
 }
 
-/// While the browser holds a change, nobody is stranded: every route stays live, so a fresh press
-/// replaces the attempt, and Cancel beside the line saying where it waits drops it.
+/// While the browser holds the sign-in, nobody is stranded: every route stays live, so a fresh
+/// press replaces the attempt, and Cancel beside the line saying where it waits drops it.
 pub(crate) fn a_change_waiting_on_the_browser_can_be_replaced_or_cancelled() {
     let (sender, receiver) = relm4::channel::<AppInput>();
-    let group = draw(
-        &signed_in(),
-        AccountKind::Imap,
-        ACCOUNT,
-        "alice@example.org",
-        Some(Stage::Browser),
-        &sender,
-    );
+    let mut out = signed_in();
+    out.browser = Some(waiting(true));
+    let group = draw(&out, ACCOUNT, "alice@example.org", &sender);
     every_row_belongs_to_a_list(group.upcast_ref());
     assert!(rendered(&group).contains(&l10n::settings_account_signin_waiting("alice@example.org")));
     let again = descendants::<adw::ButtonRow>(group.upcast_ref())
@@ -345,17 +328,28 @@ pub(crate) fn a_change_waiting_on_the_browser_can_be_replaced_or_cancelled() {
     again.emit_by_name::<()>("activated", &[]);
     assert_eq!(
         browser(receiver.recv_sync()),
-        Some((ACCOUNT.to_owned(), Switch::Again))
+        Some((ACCOUNT.to_owned(), Vec::new()))
     );
 
-    let cancel = descendants::<gtk::Button>(group.upcast_ref())
-        .into_iter()
-        .find(|button| button.label().as_deref() == Some(l10n::action_cancel()))
-        .expect("a Cancel");
-    cancel.emit_clicked();
+    button(&group, l10n::action_cancel()).emit_clicked();
     assert!(matches!(
         receiver.recv_sync(),
-        Some(AppInput::Accounts(AccountsInput::SignIn(SignInInput::Cancel { account })))
-            if account == ACCOUNT
+        Some(AppInput::Accounts(AccountsInput::Change(AccountPageIntent::CancelSignIn {
+            account,
+            attempt: 7,
+        }))) if account == ACCOUNT
     ));
+
+    // A Nextcloud sign-in waits on its server, which the line says instead.
+    out.browser = Some(waiting(false));
+    let group = draw(&out, ACCOUNT, "alice@example.org", &sender);
+    assert!(rendered(&group).contains(&l10n::nextcloud_sign_in_waiting().to_owned()));
+
+    // Being completed, it no longer waits on the browser, and cannot be cancelled.
+    out.browser = Some(BrowserSignIn {
+        stage: BrowserSignInStage::Completing,
+        ..waiting(true)
+    });
+    let group = draw(&out, ACCOUNT, "alice@example.org", &sender);
+    assert!(!rendered(&group).contains(&l10n::action_cancel().to_owned()));
 }

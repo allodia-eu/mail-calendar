@@ -139,6 +139,18 @@ pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notic
             title: l10n::settings_account_servers_failed().to_owned(),
             detail: crate::ui::core_error::refusal_said(refusal),
         },
+        AccountChangeNotice::SignInFailed { switching, refusal } => super::notice::Notice::Error {
+            title: if *switching {
+                l10n::settings_account_switch_failed()
+            } else {
+                l10n::settings_account_signin_failed()
+            }
+            .to_owned(),
+            detail: crate::ui::core_error::refusal_said(refusal),
+        },
+        AccountChangeNotice::SignedInWithheld { uses } => {
+            crate::ui::oauth_actions::withheld_said(uses)
+        }
         // Not a failure of the app: the address is the person's to check.
         AccountChangeNotice::SharedMailboxNotFound { .. } => {
             super::notice::Notice::Toast(l10n::settings_account_shared_not_found().to_owned())

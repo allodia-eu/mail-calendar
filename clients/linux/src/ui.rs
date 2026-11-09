@@ -13,14 +13,13 @@ use crate::{
     secrets::SecretStore,
 };
 
-mod account_consent;
 mod account_settings;
-mod account_sign_in;
 mod allodia;
 mod allodia_subscription;
 mod allodia_subscription_facts;
 mod allodia_sync;
 mod avatar;
+mod browser_sign_in;
 mod calendar;
 mod calendar_actions;
 mod command_bar;

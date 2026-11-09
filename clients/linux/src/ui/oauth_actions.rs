@@ -222,16 +222,19 @@ impl AppModel {
 
 /// What to say about the uses a grant withheld, or nothing when it withheld none.
 fn withheld_notice(withheld: &[AccountCapability]) -> Option<super::settings::notice::Notice> {
-    (!withheld.is_empty()).then(|| {
-        let names: Vec<&str> = withheld
-            .iter()
-            .map(|capability| super::settings::use_name(*capability))
-            .collect();
-        super::settings::notice::Notice::Error {
-            title: l10n::setup_withheld_title().to_owned(),
-            detail: l10n::setup_withheld_detail(&names.join(", ")),
-        }
-    })
+    (!withheld.is_empty()).then(|| withheld_said(withheld))
+}
+
+/// What is said about the uses a grant `withheld`.
+pub(super) fn withheld_said(withheld: &[AccountCapability]) -> super::settings::notice::Notice {
+    let names: Vec<&str> = withheld
+        .iter()
+        .map(|capability| super::settings::use_name(*capability))
+        .collect();
+    super::settings::notice::Notice::Error {
+        title: l10n::setup_withheld_title().to_owned(),
+        detail: l10n::setup_withheld_detail(&names.join(", ")),
+    }
 }
 
 #[cfg(test)]

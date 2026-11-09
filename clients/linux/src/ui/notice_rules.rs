@@ -7,8 +7,8 @@
 use std::collections::{HashMap, HashSet};
 
 use mailcal_bindings::{
-    AccountProvider, Intent, Notice, NoticeAction, NoticeIntent, NoticeKind, NoticeScreens,
-    NoticeSeverity, NoticeText,
+    Intent, Notice, NoticeAction, NoticeIntent, NoticeKind, NoticeScreens, NoticeSeverity,
+    NoticeText,
 };
 
 use super::{PrimaryView, icons, invitation::reply_subject};
@@ -182,42 +182,6 @@ pub(super) fn answer(notice: &Notice, action: NoticeAction) -> Option<Intent> {
         _ => return None,
     };
     Some(intent)
-}
-
-/// The flow a notice's Sign in again runs.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum SignInFlow {
-    /// The provider's consent, which keeps the account and asks again for everything it is used
-    /// for: a Microsoft or Google sign-in, and a grant that withholds mail or the calendar.
-    Consent,
-    /// A JMAP account's own stored grant, authorised again.
-    Jmap,
-    /// The account's own browser sign-in: an IMAP account that signs in at its provider, and one
-    /// a Nextcloud sign-in made.
-    AccountSignIn,
-    /// No browser flow to run: the password is entered again on the account's page.
-    Settings,
-}
-
-/// Which flow signs `kind`'s account in again. A grant too narrow for mail or the calendar is
-/// widened at its provider; a dead sign-in runs whatever flow the account signs in by.
-pub(super) fn sign_in_flow(
-    kind: &NoticeKind,
-    provider: Option<&AccountProvider>,
-    nextcloud: bool,
-) -> SignInFlow {
-    if matches!(kind, NoticeKind::MailReauth | NoticeKind::CalendarReauth) {
-        return SignInFlow::Consent;
-    }
-    if nextcloud {
-        return SignInFlow::AccountSignIn;
-    }
-    match provider {
-        Some(AccountProvider::Microsoft | AccountProvider::Google) => SignInFlow::Consent,
-        Some(AccountProvider::JmapOauth) => SignInFlow::Jmap,
-        Some(AccountProvider::ImapOauth) => SignInFlow::AccountSignIn,
-        Some(AccountProvider::Password | AccountProvider::Jmap) | None => SignInFlow::Settings,
-    }
 }
 
 /// Which notices are new since the last snapshot, so each is announced to assistive technology
