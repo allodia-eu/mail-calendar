@@ -1133,7 +1133,6 @@
 	"settings_account_field_carddav": "Adresboekserver (CardDAV)",
 	"settings_account_field_login": "Gebruikersnaam",
 	"settings_account_field_new_password": "Nieuw wachtwoord",
-	"settings_account_servers_trying": "De nieuwe instellingen worden geprobeerd…",
 	"settings_account_servers_failed": "Kon deze instellingen niet opslaan",
 	"settings_account_servers_gap": "Vul ‘{field}’ in om op te slaan.",
 	"settings_account_signin_heading": "Aanmelding",

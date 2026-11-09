@@ -20,9 +20,6 @@ pub(in crate::ui) enum Redraw {
     /// As [`InPlace`](Self::InPlace), for the core's signal rather than a change made in the
     /// window: skipped when the accounts are as drawn, and held while the person is typing.
     Signalled,
-    /// Show the notice raised last over the window on screen, and rebuild nothing: what the
-    /// person typed stays as they left it.
-    NoticeOnly,
 }
 
 /// Everything the model holds about Settings: which generation is pending, what it should show,
@@ -185,14 +182,6 @@ impl SettingsState {
     pub(in crate::ui) fn notify(&mut self, notice: super::notice::Notice) {
         self.raise(notice);
         self.refresh_in_place();
-    }
-
-    /// Says `notice` over the window, once, and leaves the page as it is: for progress, and for a
-    /// refusal of what the person typed, which they will want to correct rather than retype.
-    pub(in crate::ui) fn say(&mut self, notice: super::notice::Notice) {
-        self.raise(notice);
-        self.redraw = Redraw::NoticeOnly;
-        self.bump();
     }
 
     fn raise(&mut self, notice: super::notice::Notice) {

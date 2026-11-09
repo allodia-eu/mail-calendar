@@ -92,13 +92,6 @@ internal class AccountsUiState {
     fun entry(id: String): AccountEntry? = snapshot.accounts.firstOrNull { it.id == id }
 
     /**
-     * What a person reads account [id] by (docs/accounts.md rule 8): its address from the snapshot,
-     * which names every account, mail or not, then [fallback], then the id.
-     */
-    fun addressOf(id: String, fallback: String? = null): String =
-        entry(id)?.address ?: fallback ?: id
-
-    /**
      * What a prompt asking account [id] to sign in again names it by: [accountName], apart from an
      * account that shares its address, while the snapshot lists it; else [fallback], then the id.
      */

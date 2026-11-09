@@ -20,8 +20,7 @@ private func entry(
         uses: uses.map { AccountUse(capability: $0.0, state: $0.1) },
         links: AccountLinksView(calendar: nil, contacts: nil, mail: nil),
         linkedFrom: [],
-        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: []),
-        endpoints: nil
+        linkCandidates: LinkCandidates(calendar: [], contacts: [], mail: [], suggested: [])
     )
 }
 
@@ -104,14 +103,13 @@ private func mailboxOnly() -> AccountEntry {
                 == L10n.signin_expired_prompt(accounts: named))
     }
 
-    @Test func theSignInBannerNamesAnAccountTheSnapshotHoldsWithItsDistinction() {
+    @Test func anAccountIsNamedWithItsDistinction() {
         var mailbox = mailboxOnly()
         mailbox.distinction = .kind(kind: .imap)
         #expect(
-            AccountSettingsLabels.name(mailbox, or: "alice@example.org")
+            AccountSettingsLabels.name(mailbox)
                 == L10n.settings_account_distinguished(
                     address: "alice@example.org", detail: AccountSettingsLabels.kind(.imap)))
-        #expect(AccountSettingsLabels.name(nil, or: "alice@example.org") == "alice@example.org")
     }
 
     @Test func theKindLineGainsTheHostOnlyForAServerDistinction() {

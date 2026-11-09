@@ -20,8 +20,7 @@ public class AccountSettingsRulesTests
         Uses: uses.Select(use => new AccountUse(use.Item1, use.Item2, null)).ToArray(),
         Links: new AccountLinksView(null, null, null),
         LinkedFrom: [],
-        LinkCandidates: new LinkCandidates([], [], [], []),
-        Endpoints: null);
+        LinkCandidates: new LinkCandidates([], [], [], []));
 
     internal static AccountEntry MailboxOnly() => Entry(
         AccountKind.Imap,

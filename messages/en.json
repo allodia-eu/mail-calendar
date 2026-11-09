@@ -1133,7 +1133,6 @@
 	"settings_account_field_carddav": "Address book server (CardDAV)",
 	"settings_account_field_login": "Login",
 	"settings_account_field_new_password": "New password",
-	"settings_account_servers_trying": "Trying the new settings…",
 	"settings_account_servers_failed": "Couldn’t save these settings",
 	"settings_account_servers_gap": "Fill in “{field}” to save.",
 	"settings_account_signin_heading": "Sign-in",

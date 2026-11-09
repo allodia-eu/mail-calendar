@@ -236,22 +236,24 @@ feeds the *existing* connect path (`account_config_toml` / `jmap_account_config_
     - **What is asked.** A server found on **another site** is never followed silently: that is
       how a provider moving looks, and also how a changed or tampered DNS answer looks, and
       RFC 6764 §8 has a client "verify with the user" when a server falls outside the domain it
-      expected. The use is paused (`UseProblem::ServerChanged`, `pending_server_change`) and
+      expected. The use is paused (`UseProblem::ServerChanged`, `account_server_change`) and
       nothing is sent to the new server. Each client says "Calendar paused: waiting for you to
       confirm a new server." under the use's switch and above the calendar or contacts, with a
       **Review** action that asks the question naming both sites (`server_changed_title_*`,
       `_body_*`, `_before`, `_now`, `_advice`, `_unsure_*`): in a dialog, or inline on the account's
       page where Settings is itself a dialog that cannot open another (Windows).
       **Not now** is the default response, so a stray Return or tap never allows; it needs no
-      call and leaves the use paused. **Allow new server** (`accept_server_change`) moves the
-      account as above, and a refused new server leaves it paused as it was
-      (`server_changed_failed`). Every use the change moves has to connect on its new server,
-      not only the mailbox. Allow hands back the question the client showed, because a lookup
-      can replace it while it is on screen: a replaced one moves nothing and is asked in its
-      place (`ServerChangeAnswer::Replaced`), so the credential never goes to a site the person
-      was not shown. One already settled, from another surface or by the use connecting again,
-      answers `Settled`, which closes the question rather than reporting a failure, and a change a
-      lookup found while the allowed one was connecting stays to be asked. A paused use that
+      call and leaves the use paused. **Allow new server** (`AllowServerChange`, a change on the
+      account's page) moves the account as above, and a refused new server leaves it paused as
+      it was, which the question says (`failed`, `server_changed_failed`). The question stays
+      open while Allow runs, and "Not now" waits for it, since closing would not stop it. Every
+      use the change moves has to connect on its new server, not only the mailbox. Allow hands
+      back the question the client showed, because a lookup can replace it while it is on screen:
+      a replaced one moves nothing and the question asks the new one in its place, so the
+      credential never goes to a site the person was not shown. One already settled, from
+      another surface or by the use connecting again, closes the question rather than reporting
+      a failure, and a change a lookup found while the allowed one was connecting stays to be
+      asked. A paused use that
       connects again by itself is no longer paused, and a failed dial of the whole account keeps
       the pause, since it answers nothing.
     - The lookup needs the host's DNS for the SRV records, which each client hands the core once,

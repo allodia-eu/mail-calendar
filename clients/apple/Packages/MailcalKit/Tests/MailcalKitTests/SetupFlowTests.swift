@@ -22,8 +22,7 @@ private func snapshot(_ kind: AccountKind = .imap, suggested: Bool = true) -> Ac
             linkedFrom: [],
             linkCandidates: LinkCandidates(
                 calendar: [linked("bob@dav"), linked("alice@dav")], contacts: [], mail: [],
-                suggested: suggested ? ["alice@dav"] : []),
-            endpoints: nil)
+                suggested: suggested ? ["alice@dav"] : []))
     ])
 }
 

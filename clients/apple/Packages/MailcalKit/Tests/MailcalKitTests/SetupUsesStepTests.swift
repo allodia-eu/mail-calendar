@@ -80,8 +80,7 @@ private func noLinks(_: String) -> SetupLinkStep? { nil }
                 linkedFrom: [],
                 linkCandidates: LinkCandidates(
                     calendar: [LinkedAccount(id: "alice@jmap", address: "alice@example.org")],
-                    contacts: [], mail: [], suggested: []),
-                endpoints: nil)
+                    contacts: [], mail: [], suggested: []))
         ])
         let stepFor = { SetupLinkStep.step(snapshot, account: $0, offersLinks: { _ in true }) }
         var flow = SetupFlow()

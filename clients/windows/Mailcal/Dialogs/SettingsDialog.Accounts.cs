@@ -483,6 +483,7 @@ public sealed partial class SettingsDialog
     {
         var beside = _model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}")
             .Concat(AccountNoticesFingerprint())
+            .Concat(ServerChangeFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));
         return AccountSettingsRules.Fingerprint(snapshot, beside);
     }

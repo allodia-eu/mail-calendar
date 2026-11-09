@@ -312,7 +312,7 @@ pub(crate) mod tests {
         running: false,
     };
 
-    fn spins(widget: &impl IsA<gtk::Widget>) -> bool {
+    pub(crate) fn spins(widget: &impl IsA<gtk::Widget>) -> bool {
         let mut child = widget.as_ref().first_child();
         while let Some(widget) = child {
             if widget.is::<adw::Spinner>() || spins(&widget) {

@@ -1133,7 +1133,6 @@
 	"settings_account_field_carddav": "Servidor de livro de endereços (CardDAV)",
 	"settings_account_field_login": "Nome de utilizador",
 	"settings_account_field_new_password": "Nova palavra-passe",
-	"settings_account_servers_trying": "A experimentar as novas definições…",
 	"settings_account_servers_failed": "Não foi possível guardar estas definições",
 	"settings_account_servers_gap": "Preencha «{field}» para guardar.",
 	"settings_account_signin_heading": "Início de sessão",

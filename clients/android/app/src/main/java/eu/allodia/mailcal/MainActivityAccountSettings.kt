@@ -38,6 +38,7 @@ internal fun MainActivity.refreshAccountsSnapshot() {
         accountSettings.page = null
     }
     refreshAccountPage()
+    refreshServerChange()
     // A suggestion the core found after the link step was drawn reaches it.
     setupFlow.links?.let { setupFlow.refresh(linkStepFor(it.account)) }
 }

@@ -46,10 +46,13 @@ impl MailcalApp {
             .map_or(ReplyFallbackChoice::Ask, |id| {
                 self.app.reply_fallback(&id).into()
             });
+        let stored_servers = self.registry.endpoints(&account_id);
+        let edits_servers = stored_servers.is_some();
         let mut page = account_page::page(
             &entry,
             hold.clone(),
             notice,
+            stored_servers,
             refused_servers,
             reply_fallback,
             |capability, on| {
@@ -65,7 +68,7 @@ impl MailcalApp {
         }
         page.shared = self.shared_section(&account_id, &hold);
         let sign_in_refused = self.sign_in_refused(&account_id);
-        page.sign_in = self.sign_in_section(&entry, sign_in_refused, &hold);
+        page.sign_in = self.sign_in_section(&entry, sign_in_refused, edits_servers, &hold);
         if let Some(servers) = &mut page.servers {
             servers.sign_in_refused = sign_in_refused;
         }
@@ -235,6 +238,10 @@ impl MailcalApp {
             | AccountPageIntent::AddSharedMailbox { .. }) => self.run_shared_change(intent),
             AccountPageIntent::UsePassword { account, password } => {
                 self.use_password(account, password.text)
+            }
+            AccountPageIntent::AllowServerChange { account, shown } => {
+                self.allow_server_change(&account, &shown);
+                None
             }
             // Tried before anything is kept; the page shows what was stored once it ends.
             AccountPageIntent::SaveServers { account, endpoints } => {

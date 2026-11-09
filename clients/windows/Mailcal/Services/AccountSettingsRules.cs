@@ -135,9 +135,6 @@ internal static class AccountSettingsRules
             parts.AddRange(entry.LinkCandidates.Contacts.Select(Linked));
             parts.AddRange(entry.LinkCandidates.Mail.Select(Linked));
             parts.AddRange(entry.LinkCandidates.Suggested);
-            parts.Add(entry.Endpoints is { } e
-                ? $"{e.ImapHost}|{e.ImapSecurity}|{e.SmtpHost}|{e.SmtpSecurity}|{e.CaldavUrl}|{e.CarddavUrl}|{e.Username}"
-                : "-");
             parts.Add(entry.SeparateServer is { } separate
                 ? $"{string.Join(',', separate.Uses)}|{separate.Host}|{separate.Username}"
                 : "-");

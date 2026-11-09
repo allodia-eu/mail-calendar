@@ -37,6 +37,15 @@ impl MailcalApp {
             questions: &questions,
         };
         let raised = raise(&facts);
+        // A pause ending, or a lookup replacing the question, reaches every client as this
+        // signal, so this is where a failed allow it made stale is let go.
+        self.account_work
+            .keep_server_change_failures(|account, failed| {
+                engine_api::AccountId::try_from(account)
+                    .ok()
+                    .and_then(|id| self.app.server_change(&id))
+                    .is_some_and(|waiting| crate::ServerChange::from(&waiting) == *failed)
+            });
         self.notice_book
             .lock()
             .expect("notice-book mutex poisoned")

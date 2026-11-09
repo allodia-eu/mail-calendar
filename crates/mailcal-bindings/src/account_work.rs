@@ -52,6 +52,8 @@ pub(crate) enum PageWork {
     AddShared(String),
     /// A typed password, never kept: the same work asked twice is one press, whatever was typed.
     Password,
+    /// Allowing the new servers the question showed.
+    ServerChange(crate::ServerChange),
 }
 
 impl PageWork {
@@ -88,6 +90,7 @@ impl PageWork {
             },
             AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
             AccountPageIntent::UsePassword { .. } => Self::Password,
+            AccountPageIntent::AllowServerChange { shown, .. } => Self::ServerChange(shown.clone()),
         }
     }
 }
@@ -141,6 +144,8 @@ pub(crate) struct AccountWork {
     pub(crate) shared: crate::account_page::shared::SharedAnswers,
     /// What each account's server last said of the ways in it takes.
     pub(crate) sign_in: crate::account_page::sign_in::SignInAnswers,
+    /// The server change each account's last allow did not move it onto.
+    server_change_failed: Mutex<HashMap<String, crate::ServerChange>>,
     raised: AtomicU64,
 }
 
@@ -220,6 +225,42 @@ impl AccountWork {
         self.servers_saved(account, None);
         self.shared.forget(account);
         self.sign_in.forget(account);
+        self.server_change_tried(account, None);
+    }
+
+    /// What `account`'s last allow of a server change came to: `failed` is the change it did not
+    /// move the account onto, `None` once one settled.
+    pub(crate) fn server_change_tried(&self, account: &str, failed: Option<crate::ServerChange>) {
+        let mut kept = self
+            .server_change_failed
+            .lock()
+            .expect("account work mutex poisoned");
+        match failed {
+            Some(change) => kept.insert(account.to_owned(), change),
+            None => kept.remove(account),
+        };
+    }
+
+    /// Keeps a failed allow only while `waits` says its account still waits on that very change:
+    /// a pause that ended, or a question a lookup replaced, leaves nothing for a later one to
+    /// inherit, though the lookup may propose the same servers again.
+    pub(crate) fn keep_server_change_failures(
+        &self,
+        waits: impl Fn(&str, &crate::ServerChange) -> bool,
+    ) {
+        self.server_change_failed
+            .lock()
+            .expect("account work mutex poisoned")
+            .retain(|account, failed| waits(account, failed));
+    }
+
+    /// Whether `account`'s last allow was of `change`, and did not move it.
+    pub(crate) fn server_change_failed(&self, account: &str, change: &crate::ServerChange) -> bool {
+        self.server_change_failed
+            .lock()
+            .expect("account work mutex poisoned")
+            .get(account)
+            == Some(change)
     }
 
     /// What `account`'s last save of its servers came to: `refused` is the edit it did not keep,

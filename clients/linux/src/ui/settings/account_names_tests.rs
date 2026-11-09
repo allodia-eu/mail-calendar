@@ -33,7 +33,6 @@ fn mailbox(distinction: Option<AccountDistinction>) -> AccountEntry {
         links: AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
-        endpoints: None,
         separate_server: None,
         distinction,
         mail_sync: None,

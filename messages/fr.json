@@ -1133,7 +1133,6 @@
 	"settings_account_field_carddav": "Serveur de carnet d’adresses (CardDAV)",
 	"settings_account_field_login": "Identifiant",
 	"settings_account_field_new_password": "Nouveau mot de passe",
-	"settings_account_servers_trying": "Essai des nouveaux réglages…",
 	"settings_account_servers_failed": "Impossible d’enregistrer ces réglages",
 	"settings_account_servers_gap": "Renseignez « {field} » pour enregistrer.",
 	"settings_account_signin_heading": "Connexion",

@@ -79,16 +79,12 @@ impl MailcalApp {
     ///
     /// **Blocking** (discovery and connect); call it off the runtime's threads.
     pub(crate) fn rediscover_servers(&self, account_id: &str) {
-        let Some(entry) = self
-            .accounts_snapshot()
-            .accounts
-            .into_iter()
-            .find(|entry| entry.id == account_id)
-        else {
+        let Some(address) = self.registry.address(account_id) else {
             return;
         };
-        let Some(stored) = entry
-            .endpoints
+        let Some(stored) = self
+            .registry
+            .endpoints(account_id)
             .filter(|endpoints| endpoints.caldav_url.is_some() || endpoints.carddav_url.is_some())
         else {
             return;
@@ -122,8 +118,9 @@ impl MailcalApp {
             .or(stored.carddav_url.as_deref())
             .and_then(|url| url::Url::parse(url).ok())
             .and_then(|url| url.host_str().map(str::to_owned));
-        let address = entry.address.clone();
+        let looked_up = address.clone();
         let found = self.runtime.block_on(|| async move {
+            let address = looked_up;
             mailcal_autodetect::discover_dav(
                 &address,
                 host.as_deref(),
@@ -139,7 +136,7 @@ impl MailcalApp {
                 return;
             }
         };
-        let (moved, change) = moved_endpoints(&stored, &found, &entry.address);
+        let (moved, change) = moved_endpoints(&stored, &found, &address);
         if let Some(change) = change {
             // Paused, not followed: a server on another site is what a provider moving looks
             // like, and also what a changed or tampered DNS answer looks like.

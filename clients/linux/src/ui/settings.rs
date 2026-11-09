@@ -16,7 +16,7 @@ use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
 pub(super) mod account_mail;
-mod account_names;
+pub(in crate::ui) mod account_names;
 mod account_notices;
 pub(super) use account_names::entry_name;
 mod account_page;
@@ -196,13 +196,6 @@ impl SettingsWindow {
             return;
         }
         if state.redraw != Redraw::Open && !self.is_on_screen() {
-            return;
-        }
-        if state.redraw == Redraw::NoticeOnly {
-            if let Some((window, toasts)) = self.window.clone().zip(self.toasts.clone()) {
-                notice::show_due(&window, &toasts, state.notice, &mut self.shown_notice);
-            }
-            self.rendered_generation = state.generation;
             return;
         }
         let Some(app) = app.cloned() else {

@@ -80,6 +80,13 @@ pub enum AccountPageIntent {
         account: String,
         password: crate::TypedPassword,
     },
+    /// Allow the servers found on another site for the account's calendar or contacts, if they
+    /// are still `shown`, the change its question drew (`AccountServerChange`). What it came to
+    /// is said by the question, which stays open until the account waits on none.
+    AllowServerChange {
+        account: String,
+        shown: crate::ServerChange,
+    },
 }
 
 impl AccountPageIntent {
@@ -99,7 +106,8 @@ impl AccountPageIntent {
             | Self::SaveServers { account, .. }
             | Self::SetSharedMailbox { account, .. }
             | Self::AddSharedMailbox { account, .. }
-            | Self::UsePassword { account, .. } => account,
+            | Self::UsePassword { account, .. }
+            | Self::AllowServerChange { account, .. } => account,
         }
     }
 }

@@ -38,29 +38,16 @@ pub(crate) enum AccountsInput {
     Consented(ConsentFinished),
     /// A change finished, with what the page should say about it, if anything.
     Changed(Option<Notice>),
-    /// A change was refused: say so, and leave the page as the person left it.
-    Refused(Notice),
     /// The Sign-in section of an IMAP or JMAP account (`super::account_sign_in`).
     SignIn(super::account_sign_in::SignInInput),
     /// A sign-in of its own for a mailbox's calendar and contacts, from its page or from setup
     /// (`super::separate_sign_in`).
     Separate(super::separate_sign_in::SeparateInput),
-    /// Allow the server found on another site for an account's calendar or contacts
-    /// (`super::server_change`).
-    AllowServerChange {
-        account: String,
-        review: super::server_change::Review,
-        from: super::server_change::ReviewFrom,
-    },
-    /// A lookup replaced the question while it was shown, so the allow moved nothing: ask the
-    /// new one.
-    ServerChangeReplaced {
-        account: String,
-        review: super::server_change::Review,
-        from: super::server_change::ReviewFrom,
-    },
-    /// Allowing it failed, asked from outside Settings: the account's page says so.
-    ServerChangeFailed(String),
+    /// Ask whether to allow the server found on another site for an account's calendar or
+    /// contacts (`super::server_change`).
+    ReviewServerChange(String),
+    /// The question opened as this number closed.
+    ServerChangeClosed(u64),
 }
 
 /// A change the account's page could not make, and why.
@@ -131,25 +118,12 @@ impl AppModel {
             AccountsInput::Consented(finished) => self.account_consent_finished(&finished),
             AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
             AccountsInput::Changed(None) => self.settings.refresh_in_place(),
-            AccountsInput::Refused(notice) => self.settings.say(notice),
             AccountsInput::SignIn(input) => self.sign_in_input(input, sender),
             AccountsInput::Separate(input) => self.separate_input(input, sender),
-            AccountsInput::AllowServerChange {
-                account,
-                review,
-                from,
-            } => {
-                self.allow_server_change(account, review, from, sender);
+            AccountsInput::ReviewServerChange(account) => {
+                self.review_server_change(account, &sender);
             }
-            AccountsInput::ServerChangeReplaced {
-                account,
-                review,
-                from,
-            } => Self::ask_server_change_again(&account, &review, from, &sender),
-            AccountsInput::ServerChangeFailed(account) => {
-                self.settings
-                    .open_on_account(account, super::server_change::failed());
-            }
+            AccountsInput::ServerChangeClosed(serial) => self.server_change_closed(serial),
         }
     }
 

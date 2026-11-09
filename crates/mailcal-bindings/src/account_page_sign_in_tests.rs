@@ -7,10 +7,9 @@ use AccountSignInRoute::{SignInAgain, ToNextcloud, ToProvider};
 
 use super::{SignInAnswers, section};
 use crate::{
-    AccountCapability, AccountEndpoints, AccountEntry, AccountKind, AccountLinksView,
-    AccountPasswordField, AccountSecretKind, AccountSignIn, AccountSignInLine,
-    AccountSignInOptions, AccountSignInRoute, AccountUse, CapabilityState, ConnectionSecurity,
-    ControlState, LinkCandidates, SignInMethod,
+    AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountPasswordField,
+    AccountSecretKind, AccountSignIn, AccountSignInLine, AccountSignInOptions, AccountSignInRoute,
+    AccountUse, CapabilityState, ControlState, LinkCandidates, SignInMethod,
     account_work::{Hold, PageWork},
 };
 
@@ -33,26 +32,11 @@ fn entry(kind: AccountKind, sign_in: SignInMethod) -> AccountEntry {
         links: AccountLinksView::default(),
         linked_from: Vec::new(),
         link_candidates: LinkCandidates::default(),
-        endpoints: None,
         separate_server: None,
         distinction: None,
         mail_sync: None,
         nextcloud: false,
     }
-}
-
-fn editable(mut entry: AccountEntry) -> AccountEntry {
-    entry.endpoints = Some(AccountEndpoints {
-        username: "alice".to_owned(),
-        password: None,
-        imap_host: Some("imap.example.org:993".to_owned()),
-        imap_security: ConnectionSecurity::ImplicitTls,
-        smtp_host: None,
-        smtp_security: ConnectionSecurity::ImplicitTls,
-        caldav_url: None,
-        carddav_url: None,
-    });
-    entry
 }
 
 fn options(sign_in: bool, password: bool, nextcloud: bool) -> AccountSignInOptions {
@@ -69,7 +53,7 @@ fn drawn(
     answer: Option<&AccountSignInOptions>,
     refused: bool,
 ) -> AccountSignIn {
-    section(entry, answer, refused, &Hold::default()).expect("a section")
+    section(entry, answer, refused, false, &Hold::default()).expect("a section")
 }
 
 fn field(kind: AccountSecretKind, replaces: bool) -> Option<AccountPasswordField> {
@@ -155,8 +139,8 @@ fn a_password_account_switches_to_its_provider_named_when_the_build_knows_it() {
 #[test]
 fn a_refused_password_is_typed_where_the_page_offers_it() {
     // Its servers are edited on the page, so the new password goes in with them.
-    let imap = editable(entry(AccountKind::Imap, SignInMethod::Password));
-    let servers = drawn(&imap, None, true);
+    let imap = entry(AccountKind::Imap, SignInMethod::Password);
+    let servers = section(&imap, None, true, true, &Hold::default()).expect("a section");
     assert_eq!((servers.line, servers.password), (Password, None));
 
     // A JMAP account has no servers to edit, so its section takes it, a token as well.
@@ -177,11 +161,12 @@ fn a_refused_password_is_typed_where_the_page_offers_it() {
 #[test]
 fn a_calendar_account_has_a_section_only_at_a_nextcloud_server() {
     let mut dav = entry(AccountKind::Dav, SignInMethod::Password);
-    assert_eq!(section(&dav, None, false, &Hold::default()), None);
+    assert_eq!(section(&dav, None, false, false, &Hold::default()), None);
     assert_eq!(
         section(
             &dav,
             Some(&options(false, false, false)),
+            false,
             false,
             &Hold::default()
         ),
@@ -211,7 +196,7 @@ fn a_password_being_tried_runs_its_save_and_holds_the_rest() {
         busy: true,
         own: vec![PageWork::Password],
     };
-    let trying = section(&account, Some(&answer), false, &hold).expect("a section");
+    let trying = section(&account, Some(&answer), false, false, &hold).expect("a section");
     assert_eq!(
         trying.password.map(|field| field.save),
         Some(ControlState {
@@ -231,7 +216,7 @@ fn a_password_being_tried_runs_its_save_and_holds_the_rest() {
         busy: true,
         own: Vec::new(),
     };
-    let held = section(&account, Some(&answer), false, &elsewhere).expect("a section");
+    let held = section(&account, Some(&answer), false, false, &elsewhere).expect("a section");
     assert!(!held.password.expect("a field").save.running);
 }
 

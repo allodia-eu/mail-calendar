@@ -38,7 +38,6 @@ internal fun accountEntry(
     links: AccountLinksView = AccountLinksView(null, null, null),
     linkedFrom: List<LinkedAccount> = emptyList(),
     candidates: LinkCandidates = LinkCandidates(emptyList(), emptyList(), emptyList(), emptyList()),
-    endpoints: AccountEndpoints? = null,
     signIn: SignInMethod = SignInMethod.PASSWORD,
     distinction: AccountDistinction? = null,
     nextcloud: Boolean = false,
@@ -51,7 +50,6 @@ internal fun accountEntry(
     links = links,
     linkedFrom = linkedFrom,
     linkCandidates = candidates,
-    endpoints = endpoints,
     distinction = distinction,
     nextcloud = nextcloud,
 )
@@ -60,7 +58,6 @@ internal fun mailboxOnly(
     links: AccountLinksView = AccountLinksView(null, null, null),
     linkedFrom: List<LinkedAccount> = emptyList(),
     candidates: LinkCandidates = LinkCandidates(emptyList(), emptyList(), emptyList(), emptyList()),
-    endpoints: AccountEndpoints? = null,
 ) = accountEntry(
     CoreAccountKind.IMAP,
     AccountCapability.MAIL to CapabilityState.ON,
@@ -69,7 +66,6 @@ internal fun mailboxOnly(
     links = links,
     linkedFrom = linkedFrom,
     candidates = candidates,
-    endpoints = endpoints,
 )
 
 internal fun imapEndpoints() = AccountEndpoints(
@@ -125,7 +121,7 @@ internal fun pageOf(
     remove: ControlState = FREE,
     senderName: AccountSenderName? = null,
     mail: AccountMailSettings? = null,
-    servers: AccountServers? = entry.endpoints?.let { AccountServers(form = it, save = FREE) },
+    servers: AccountServers? = null,
     shared: AccountSharedMailboxes? = null,
     signIn: AccountSignIn? = null,
 ) = AccountPage(

@@ -69,6 +69,7 @@ impl AppModel {
                 self.account_work_signalled();
                 // A link suggestion the core found after the link step was drawn.
                 self.refresh_link_step();
+                self.server_change_signalled();
             }
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).
@@ -79,6 +80,8 @@ impl AppModel {
             Surface::Notices => {
                 self.settings.signalled();
                 self.pull_notices();
+                // A lookup that replaced the question on screen arrives as a connectivity fact.
+                self.server_change_signalled();
             }
         }
     }

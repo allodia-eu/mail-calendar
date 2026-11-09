@@ -10,12 +10,7 @@ use mailcal_bindings::{
 use super::{PageContext, account_mail, account_rows, account_servers, group, page_box};
 use crate::{
     l10n,
-    ui::{
-        AppInput,
-        account_settings::AccountsInput,
-        controls,
-        server_change::{self, Review, ReviewFrom},
-    },
+    ui::{AppInput, account_settings::AccountsInput, controls},
 };
 
 /// `entry`'s page: its uses, links and removal as the core decided them (`account`), the rest
@@ -151,27 +146,21 @@ fn uses_group(
             section.add(&action);
         }
         // Under the note that says it is paused: the question about the server found elsewhere.
-        if switch.reviews_server_change
-            && let Some(action) = review_row(ctx, entry, switch.control.enabled)
-        {
-            section.add(&action);
+        if switch.reviews_server_change {
+            section.add(&review_row(ctx, entry, switch.control.enabled));
         }
     }
     section
 }
 
 /// "Review", which asks whether to allow the server the calendar or contacts was found on.
-fn review_row(ctx: &PageContext, entry: &AccountEntry, enabled: bool) -> Option<adw::ButtonRow> {
-    let review = Review {
-        address: entry.address.clone(),
-        change: ctx.app.pending_server_change(entry.id.clone())?,
-    };
-    let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
-    Some(controls::button_row(
-        l10n::server_changed_review(),
-        enabled,
-        move || server_change::ask(&parent, &account, &review, ReviewFrom::Settings, &sender),
-    ))
+fn review_row(ctx: &PageContext, entry: &AccountEntry, enabled: bool) -> adw::ButtonRow {
+    let (sender, account) = (ctx.sender.clone(), entry.id.clone());
+    controls::button_row(l10n::server_changed_review(), enabled, move || {
+        sender.emit(AppInput::Accounts(AccountsInput::ReviewServerChange(
+            account.clone(),
+        )));
+    })
 }
 
 /// A picker per link slot the account can hold.
@@ -317,7 +306,6 @@ mod tests {
             links: mailcal_bindings::AccountLinksView::default(),
             linked_from: Vec::new(),
             link_candidates: mailcal_bindings::LinkCandidates::default(),
-            endpoints: None,
             separate_server: None,
             distinction: None,
             mail_sync: None,

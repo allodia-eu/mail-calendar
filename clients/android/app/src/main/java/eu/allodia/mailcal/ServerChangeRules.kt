@@ -1,6 +1,7 @@
 // A calendar or address book server found on another site, waiting for the person to allow it
-// (docs/account-autodetect.md rule 14): which words the dialog says, and the question's state,
-// held by the activity because the calendar, the contacts list and the account's page all open it.
+// (docs/account-autodetect.md rule 14): which words the dialog says, and which account's question
+// is open, held by the activity because the calendar, the contacts list and the account's page all
+// open it.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -10,8 +11,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.font.FontWeight
+import uniffi.mailcal_bindings.AccountServerChange
 import uniffi.mailcal_bindings.ServerChange
-import uniffi.mailcal_bindings.ServerChangeAnswer
 
 /** The dialog's words, in the order it draws them. */
 internal data class ServerChangeCopy(
@@ -65,59 +66,34 @@ internal object ServerChangeRules {
     }
 }
 
-/** The change being asked about, for account [accountId] read as [address]. */
+/** The question on screen, for account [accountId], as the core drew it last. */
 internal data class ShownServerChange(
     val accountId: String,
-    val address: String,
-    val change: ServerChange,
+    val question: AccountServerChange,
 )
 
+/**
+ * Which account's question is open. What it says, whether Allow runs and whether the last one
+ * failed are the core's ([AccountServerChange]), read again on every Settings and Notices signal.
+ */
 internal class ServerChangePrompt {
     /** The question on screen, or null. */
     var shown by mutableStateOf<ShownServerChange?>(null)
         private set
 
-    /** Whether Allow is connecting the new server; the dialog holds still meanwhile. */
-    var allowing by mutableStateOf(false)
-        private set
-
-    /** Whether the last Allow failed, which the dialog says. */
-    var failed by mutableStateOf(false)
-        private set
-
     fun open(question: ShownServerChange) {
         shown = question
-        allowing = false
-        failed = false
     }
 
-    /** Whether Allow may start now: a question is open and no Allow runs. */
-    fun start(): Boolean {
-        if (shown == null || allowing) return false
-        allowing = true
-        failed = false
-        return true
+    /** What the core says of the open question now; null once the account waits on none, which closes it. */
+    fun redraw(question: AccountServerChange?) {
+        val open = shown ?: return
+        shown = question?.let { open.copy(question = it) }
     }
 
-    /**
-     * Allow answered for [accountId]; an answer for a question no longer open is dropped. A question
-     * that was replaced stays open, asking the new one.
-     */
-    fun finished(accountId: String, answer: Result<ServerChangeAnswer>) {
-        val question = shown ?: return
-        if (question.accountId != accountId) return
-        allowing = false
-        when (val answered = answer.getOrNull()) {
-            null -> failed = true
-            is ServerChangeAnswer.Settled -> shown = null
-            is ServerChangeAnswer.Replaced -> shown = question.copy(change = answered.change)
-        }
-    }
-
-    /** Not now, or the question closing: nothing is asked of the core. */
+    /** Not now, or the question closing: nothing is asked of the core. Not while Allow runs, which closing would not stop. */
     fun close() {
-        if (allowing) return
+        if (shown?.question?.allow?.running == true) return
         shown = null
-        failed = false
     }
 }

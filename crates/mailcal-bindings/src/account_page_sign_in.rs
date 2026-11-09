@@ -84,12 +84,14 @@ impl SignInAnswers {
 }
 
 /// `entry`'s Sign-in section, from what its server said it takes (`None` until it has answered)
-/// and whether it refused the stored sign-in (`refused`), held as `hold` says. `None` for an
-/// account with no section: a calendar and contacts account that is not at a Nextcloud server.
+/// and whether it refused the stored sign-in (`refused`), held as `hold` says. `edits_servers`:
+/// its page has a servers form, which takes a new password itself. `None` for an account with no
+/// section: a calendar and contacts account that is not at a Nextcloud server.
 pub(crate) fn section(
     entry: &AccountEntry,
     options: Option<&AccountSignInOptions>,
     refused: bool,
+    edits_servers: bool,
     hold: &Hold,
 ) -> Option<AccountSignIn> {
     let control = ControlState {
@@ -166,7 +168,7 @@ pub(crate) fn section(
                         Vec::new()
                     };
                     // An account whose servers its page edits takes its new password there.
-                    let replaces = refused && entry.endpoints.is_none();
+                    let replaces = refused && !edits_servers;
                     let password = replaces.then_some(AccountPasswordField {
                         kind: if entry.kind == AccountKind::Jmap {
                             AccountSecretKind::PasswordOrToken

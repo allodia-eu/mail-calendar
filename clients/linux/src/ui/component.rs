@@ -184,6 +184,7 @@ impl AppModel {
             secrets,
             preferences: preferences::global(),
             notices: notices::NoticesState::default(),
+            server_change: None,
             _network_monitor: network_monitor,
             _calendar_refresh_timer: calendar_refresh_timer,
             _device_timezone_timer: device_timezone_timer,

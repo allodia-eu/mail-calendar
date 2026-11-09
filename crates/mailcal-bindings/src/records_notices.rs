@@ -182,7 +182,7 @@ pub enum NoticeAction {
     /// Refresh what the notice's screen shows, which dials the account again.
     Retry,
     /// Ask whether to allow the account's new server, found on another site
-    /// (`MailcalApp::pending_server_change`, `docs/account-autodetect.md` rule 14).
+    /// (`MailcalApp::account_server_change`, `docs/account-autodetect.md` rule 14).
     Review,
     /// Save the sent message's copy to Sent: `Intent::RetryUnfiledCopy`. Sends nothing.
     FileSentCopy,

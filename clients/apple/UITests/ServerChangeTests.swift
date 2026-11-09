@@ -41,6 +41,13 @@ final class ServerChangeTests: XCTestCase {
         XCTAssertTrue(
             refused.waitForExistence(timeout: ShowcaseApp.timeout), "the refusal was not said"
         )
+        // Said is not seen: on a phone the sheet opens at half height, where a line at the foot of
+        // the scrolled text sits under the buttons. `isHittable` passes a line cut in half, so the
+        // frames are compared instead.
+        XCTAssertLessThanOrEqual(
+            refused.frame.maxY, app.buttons["Not now"].frame.minY,
+            "the refusal is hidden behind the buttons"
+        )
         XCTAssertTrue(title.exists, "a refused allow closed the question")
     }
 

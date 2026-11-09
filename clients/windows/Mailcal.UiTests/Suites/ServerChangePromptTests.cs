@@ -9,8 +9,9 @@
 // reached it. ServerChangeTests drives the allow that moves an account on the harness; the
 // calendar's notice is out of its reach, and this is where it is asserted.
 //
-// Neither key a person might press to get past the dialog allows anything: Escape is its close
-// response and Enter its default, and both are "Not now". The twins are
+// Neither key a person might press to get past the question allows anything, on first sight or
+// after a refused Allow has drawn it again: Escape is the dialog's own (on the account's page,
+// Settings'), and Enter presses "Not now", which every drawing of the question focuses. The twins are
 // clients/apple/UITests/ServerChangeTests.swift and the server-change leg of
 // scripts/dev/test-linux-ui.sh.
 
@@ -36,7 +37,18 @@ public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : 
     private static readonly string NowLine = Catalog.English("server_changed_now").Replace("{site}", "example.net");
 
     private void Case(string name, Action<App, SetupFlow> body) =>
-        showcase.Case(name, app => body(app, new SetupFlow(app)), app => app.CloseDialogs());
+        showcase.Case(name, app => body(app, new SetupFlow(app)), app =>
+        {
+            // The dialog has no close button of its own for CloseDialogs to press: its "Not now" is
+            // the question's.
+            if (app.Agent.Find(Filter.ById("ServerChangePrompt")) is { } prompt
+                && app.Agent.Find(new Filter { Id = "ServerChangeNotNow", Type = "Button", Under = prompt }) is { } notNow)
+            {
+                app.Agent.Invoke(notNow);
+                app.Agent.WaitGone(Filter.ById("ServerChangePrompt"), TimeSpan.FromSeconds(10));
+            }
+            app.CloseDialogs();
+        });
 
     /// <summary>Whether any element under <paramref name="root"/> is named <paramref name="text"/>,
     /// or with <paramref name="within"/> has a name containing it.</summary>
@@ -86,6 +98,39 @@ public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : 
         Assert.Equal(ReviewLabel, ReviewOn(app, line).Name);
     }
 
+    /// <summary>Presses Allow in the question under <paramref name="root"/>, which the showcase
+    /// refuses, and asserts the refusal is said there, the question stays, and "Not now" holds the
+    /// focus again: the redraw took away the Allow just pressed.</summary>
+    private static void RefuseAllow(App app, Element root)
+    {
+        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = root })
+            ?? throw new InvalidOperationException("the question has no Allow (#ServerChangeAllow)"));
+        var refused = Catalog.English("server_changed_failed");
+        Assert.True(App.Eventually(
+            () => app.Agent.Find(new Filter { Id = "ServerChangeError", Under = root }) is { } error && Says(app, error, refused),
+            TimeSpan.FromSeconds(10)),
+            "a refused Allow says nothing was changed, where it was asked");
+        Assert.True(app.Agent.Find(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = root }) is not null, "and the question stays open to be answered again");
+        Assert.True(App.Eventually(
+            () => app.Agent.Find(new Filter { Id = "ServerChangeNotNow", Type = "Button", Under = root }) is { } notNow && app.Agent.Read(notNow).Focused,
+            TimeSpan.FromSeconds(5)),
+            "the question drawn again gives \"Not now\" the focus, so the next Return declines");
+    }
+
+    [OfflineFact]
+    public void ARefusedAllowInTheDialogIsSaidThereAndEnterIsStillNotNow() => Case(nameof(ARefusedAllowInTheDialogIsSaidThereAndEnterIsStillNotNow), (app, _) =>
+    {
+        RefuseAllow(app, OpenPrompt(app));
+        AssertKeyLeavesItPaused(app, Input.Enter, "Enter after a refused Allow");
+    });
+
+    [OfflineFact]
+    public void ARefusedAllowInTheDialogLeavesEscapeNotNowToo() => Case(nameof(ARefusedAllowInTheDialogLeavesEscapeNotNowToo), (app, _) =>
+    {
+        RefuseAllow(app, OpenPrompt(app));
+        AssertKeyLeavesItPaused(app, Input.Escape, "Escape after a refused Allow");
+    });
+
     [OfflineFact]
     public void TheCalendarSaysItIsPausedAndReviewAsksNamingBothSites() => Case(nameof(TheCalendarSaysItIsPausedAndReviewAsksNamingBothSites), (app, _) =>
     {
@@ -110,17 +155,45 @@ public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : 
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountUseServerChangeReview_Calendar", Under = dialog })
             ?? throw new InvalidOperationException("the account page offers no Review under the calendar (#AccountUseServerChangeReview_Calendar)"));
         // The question is a layout panel, which has no automation peer: it is found by its parts.
-        var allow = app.Agent.Wait(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = dialog }, TimeSpan.FromSeconds(10))
-            ?? throw new InvalidOperationException("Review drew no question on the account page (#ServerChangeAllow)");
+        if (app.Agent.Wait(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = dialog }, TimeSpan.FromSeconds(10)) is null)
+        {
+            throw new InvalidOperationException("Review drew no question on the account page (#ServerChangeAllow)");
+        }
         Assert.Equal(BeforeLine, NameOf(app, dialog, "ServerChangeBefore"));
         Assert.Equal(NowLine, NameOf(app, dialog, "ServerChangeNow"));
-        app.Agent.Invoke(allow);
-        var refused = Catalog.English("server_changed_failed");
-        Assert.True(App.Eventually(
-            () => app.Agent.Find(new Filter { Id = "ServerChangeError", Under = dialog }) is { } error && Says(app, error, refused),
-            TimeSpan.FromSeconds(10)),
-            "a refused Allow says nothing was changed, where it was asked");
-        Assert.True(app.Agent.Find(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = dialog }) is not null, "and the question stays open to be answered again");
+        RefuseAllow(app, dialog);
         Assert.True(Says(app, dialog, Paused), "and the calendar is still paused");
+
+        Input.BringToFront(app.Mailbox.Hwnd);
+        Input.Press(Input.Enter);
+        Assert.True(app.Agent.WaitGone(new Filter { Id = "ServerChangeAllow", Under = dialog }, TimeSpan.FromSeconds(10)),
+            "Enter after a refused Allow answers \"Not now\" and puts the question away");
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountUseServerChangeReview_Calendar", Under = dialog }) is not null,
+            "and Review is offered again, since the calendar still waits on the person");
+        Assert.True(Says(app, dialog, Paused), "and the calendar is still paused: Enter is Not now, never Allow");
+    });
+
+    [OfflineFact]
+    public void EscapeOnTheAccountPageLeavesSettingsAndAllowsNothing() => Case(nameof(EscapeOnTheAccountPageLeavesSettingsAndAllowsNothing), (app, settings) =>
+    {
+        var name = settings.AccountRows()[0].Name;
+        var dialog = settings.OpenAccount(name);
+        app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountUseServerChangeReview_Calendar", Under = dialog })
+            ?? throw new InvalidOperationException("the account page offers no Review under the calendar (#AccountUseServerChangeReview_Calendar)"));
+        if (app.Agent.Wait(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = dialog }, TimeSpan.FromSeconds(10)) is null)
+        {
+            throw new InvalidOperationException("Review drew no question on the account page (#ServerChangeAllow)");
+        }
+        RefuseAllow(app, dialog);
+        // Escape is Settings' own: it closes the dialog the question is drawn in.
+        Input.BringToFront(app.Mailbox.Hwnd);
+        Input.Press(Input.Escape);
+        Assert.True(app.Agent.WaitGone(Filter.ById("ServerChangeAllow"), TimeSpan.FromSeconds(10)), "Escape puts the question away with Settings");
+        // Waited out before Settings is opened again: a press while it is still closing opens nothing.
+        app.CloseDialogs();
+        dialog = settings.OpenAccount(name);
+        Assert.True(Says(app, dialog, Paused), "and the calendar is still paused: Escape is Not now, never Allow");
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountUseServerChangeReview_Calendar", Under = dialog }) is not null,
+            "and Review is offered again");
     });
 }

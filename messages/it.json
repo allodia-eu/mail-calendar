@@ -1133,7 +1133,6 @@
 	"settings_account_field_carddav": "Server della rubrica (CardDAV)",
 	"settings_account_field_login": "Nome utente",
 	"settings_account_field_new_password": "Nuova password",
-	"settings_account_servers_trying": "Prova delle nuove impostazioni…",
 	"settings_account_servers_failed": "Impossibile salvare queste impostazioni",
 	"settings_account_servers_gap": "Compila «{field}» per salvare.",
 	"settings_account_signin_heading": "Accesso",
