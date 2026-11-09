@@ -171,8 +171,8 @@ record, not a state the client keeps.
   [`app_account_page_browser_tests.rs`](../crates/mailcal-bindings/src/app_account_page_browser_tests.rs)
   drives one through `dispatch`: the browser returning where the stored grant was registered, a
   return from another request, a superseded attempt's return dropped, a cancel, a browser that
-  did not open, one left until the cap, and the notice it answers running and then saying it
-  failed.
+  did not open, one left until the cap, the notice it answers running and then saying it failed,
+  and a Nextcloud server asked by the core with a grant for somebody else withdrawn.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

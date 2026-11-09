@@ -122,9 +122,17 @@ fn over(app: &MailcalApp) {
     waits_for(app, |out| out.is_none());
 }
 
+/// What the account's page says once the sign-in has ended, which a sign-in that ended before its
+/// completion says on a thread of its own.
 fn said(app: &MailcalApp, id: &str) -> Option<AccountChangeNotice> {
-    app.account_page_notice(id.to_owned())
-        .map(|raised| raised.notice)
+    let deadline = Instant::now() + Duration::from_millis(500);
+    loop {
+        let notice = app.account_page_notice(id.to_owned());
+        if notice.is_some() || Instant::now() > deadline {
+            return notice.map(|raised| raised.notice);
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
 
 fn failed(refusal: AccountChangeRefusal) -> Option<AccountChangeNotice> {
@@ -288,4 +296,58 @@ fn the_notice_it_answers_runs_while_it_is_out_and_says_when_it_did_not_work() {
     let after = notice(&app);
     assert!(!after.running);
     assert!(after.remedy_failed);
+}
+
+/// A calendar account a Nextcloud sign-in made signs in again with nothing coming back from the
+/// browser: the core asks the server itself, and a grant for somebody else is refused, said, and
+/// its password withdrawn rather than kept for another try.
+#[test]
+fn a_nextcloud_sign_in_is_polled_by_the_core_and_a_grant_for_somebody_else_withdrawn() {
+    use crate::nextcloud_mock::{boot, mock_nextcloud, nextcloud_account};
+    const BOB: &str = r#"{"server":"{base}","loginName":"bob","appPassword":"bob-password"}"#;
+    let server = mock_nextcloud(vec![
+        (
+            "POST /index.php/login/v2 ",
+            200,
+            crate::nextcloud::nextcloud_tests::STARTED,
+        ),
+        ("POST /login/v2/poll ", 200, BOB),
+        (
+            "GET /ocs/v2.php/cloud/user",
+            200,
+            r#"{"ocs":{"data":{"id":"bob"}}}"#,
+        ),
+        ("DELETE /ocs/v2.php/core/apppassword ", 200, ""),
+    ]);
+    let (app, _) = boot(
+        "browser-sign-in-nextcloud",
+        vec![nextcloud_account(&server.base)],
+    );
+    let id = app.accounts_snapshot().accounts[0].id.clone();
+    send(
+        &app,
+        AccountPageIntent::SignIn {
+            account: id.clone(),
+            adding: Vec::new(),
+            redirect_uri: String::new(),
+        },
+    );
+    let out = in_browser(&app);
+    assert_eq!(
+        out.stage,
+        BrowserSignInStage::InBrowser {
+            url: format!("{}/login/v2/flow/login-token", server.base),
+            redirect_uri: None,
+        }
+    );
+    over(&app);
+    assert_eq!(
+        said(&app, &id),
+        failed(AccountChangeRefusal::DifferentAccount)
+    );
+    server.wait_for("DELETE /ocs/v2.php/core/apppassword ");
+    assert!(
+        app.account_work.browser.forget(&id).is_none(),
+        "a grant for somebody else is not kept"
+    );
 }
