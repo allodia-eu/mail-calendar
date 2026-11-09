@@ -13,7 +13,9 @@
 
 using System;
 using System.Threading.Tasks;
+using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
+using Microsoft.UI.Xaml;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.ViewModels;
@@ -23,7 +25,7 @@ namespace Allodia.Mailcal.ViewModels;
 /// <param name="Reply">Reply, or reply-all when the flag is set.</param>
 /// <param name="Forward">Forward the message.</param>
 /// <param name="Archive">Archive it, and settle whatever was showing it.</param>
-/// <param name="Delete">Move it to Trash, and settle whatever was showing it.</param>
+/// <param name="Delete">Delete it as the command bar would (<see cref="DeleteAsync"/>), and settle whatever was showing it.</param>
 /// <param name="Retry">Re-run the open behind the load-error panel, into this host's own slot.</param>
 internal sealed record ReadingActions(
     Action<OpenedMessage, bool> Reply,
@@ -51,8 +53,33 @@ internal sealed record ReadingActions(
         (opened, all) => App.Shell?.ComposeReply(opened.Account, opened.Key, all),
         opened => App.Shell?.ComposeForward(opened.Account, opened.Key),
         opened => _ = MoveOnAsync(model, opened, () => model.Archive(opened.Account, opened.Key)),
-        opened => _ = MoveOnAsync(model, opened, () => model.Delete(opened.Account, opened.Key)),
+        opened => _ = DeleteAsync(model, opened, App.Shell?.Content?.XamlRoot, remove => MoveOnAsync(model, opened, remove)),
         model.RetryOpen);
+
+    /// <summary>
+    /// A reading view's Delete, which is the command bar's Delete over that message's row
+    /// (docs/command-bar.md, rule 8): in Trash, or on an account with no Trash, it asks first and
+    /// deletes for good; anywhere else it moves the message to Trash. <paramref name="settle"/> runs
+    /// the removal and leaves the view as its host leaves it.
+    /// </summary>
+    /// <remarks>Anything but the bar's Delete permanently is the move to Trash, so a message the
+    /// snapshot no longer lists, in a window left open on it, still goes to Trash.</remarks>
+    internal static async Task DeleteAsync(MailboxModel model, OpenedMessage opened, XamlRoot? root, Func<Action, Task> settle)
+    {
+        var item = CommandBarPresentation.Delete(
+            model.CommandBarOver([new SelectedRow.Message(opened.Account, opened.Key)]));
+        if (item is { Command: Command.Act { Action: RowAction.PermanentlyDelete } })
+        {
+            if (!item.Enabled
+                || (item.Confirm && (root is null || !await PurgeQuestion.AskAsync(root, PermanentDeleteWording.Message, 1))))
+            {
+                return;
+            }
+            await settle(() => model.PermanentlyDelete(opened.Account, opened.Key));
+            return;
+        }
+        await settle(() => model.Delete(opened.Account, opened.Key));
+    }
 
     /// <summary>
     /// Runs <paramref name="dispatch"/>, which takes <paramref name="opened"/> out of the list, and

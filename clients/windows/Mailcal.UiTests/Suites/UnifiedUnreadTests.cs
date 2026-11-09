@@ -34,7 +34,7 @@ public sealed class UnifiedUnreadTests(ImapHarnessApp harness)
     /// <paramref name="expect"/>, which is the snapshot the unified row has to agree with.</summary>
     private static void SwitchReadState(App app, string expect)
     {
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("SelectionMarkRead", "Button")) ?? throw new InvalidOperationException("the toolbar has no read toggle"));
+        app.Agent.Invoke(app.Agent.Find(Filter.ById("CommandRead", "Button")) ?? throw new InvalidOperationException("the toolbar has no read toggle"));
         if (!App.Eventually(() => AccountInbox(app) == expect, TimeSpan.FromSeconds(15)))
         {
             throw new InvalidOperationException($"alice's Inbox never read '{expect}'; it reads '{AccountInbox(app)}'");

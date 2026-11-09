@@ -13,6 +13,7 @@ using System.Collections.ObjectModel;
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.ViewModels;
+using Allodia.Mailcal.Views;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -342,6 +343,15 @@ public sealed partial class MainWindow
         if (result == ContentDialogResult.Primary)
         {
             Model.RemoveAccount(id);
+        }
+    }
+
+    // A folder row takes its account's columns (docs/folder-pane.md, rule 32).
+    private void OnSidebarFolderLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is NavigationViewItem item)
+        {
+            SidebarAccountColumns.Apply(item);
         }
     }
 

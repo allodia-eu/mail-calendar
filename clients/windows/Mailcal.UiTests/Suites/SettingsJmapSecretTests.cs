@@ -42,7 +42,7 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         var expired = App.Eventually(() =>
         {
             app.CloseDialogs();
-            if (app.Agent.Find(Filter.ById("SelectionSync", "Button")) is { } sync)
+            if (app.Agent.Find(Filter.ById("CommandSync", "Button")) is { } sync)
             {
                 app.Agent.Invoke(sync);
             }

@@ -1,8 +1,9 @@
 // The message list's multi-selection half of MailboxModel (split out to keep each file under the
-// 500-line limit): what is selected, what the bar over the list says (the core's row menu over the
-// selection, docs/row-actions.md), and the one batched intent every one of its buttons dispatches. The selection itself lives in the ListView, which is what
-// gives Ctrl/Shift-click, Ctrl+A and the narrator's own selected state (docs/list-selection.md);
-// this holds the projection the bar binds to and the rules the write follows.
+// 500-line limit): what is selected, the command bar over it (the core's, docs/command-bar.md), and
+// the one batched intent a batch over it dispatches. The selection itself lives in the ListView,
+// which is what gives Ctrl/Shift-click, Ctrl+A and the narrator's own selected state
+// (docs/list-selection.md); this holds the projection the bar is drawn from and the rules the
+// write follows.
 
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -25,7 +26,7 @@ public sealed partial class MailboxModel
 
     /// <summary>
     /// Whether anything is selected. The bar itself stands whether or not it is true, and which of
-    /// its actions respond is the core's (<see cref="SelectionBar"/>; docs/list-selection.md, rule 5).
+    /// its actions respond is the core's (<see cref="Bar"/>; docs/command-bar.md, rule 5).
     /// </summary>
     public bool HasSelection => _selectedRows.Length > 0;
 
@@ -45,55 +46,39 @@ public sealed partial class MailboxModel
             ? L10n.SelectionSelectedConversations(SelectionCount)
             : L10n.SelectionSelectedMessages(SelectionCount);
 
-    private SelectionBarActions _bar = SelectionBarActions.None;
+    private static readonly CommandBar NoBar = new([], []);
+
+    private CommandBar _bar = NoBar;
 
     /// <summary>
-    /// The bar's buttons as the core's menu over the selection decides them: which half of each
-    /// toggle is offered and which respond (docs/list-selection.md, rule 5).
+    /// The mail command bar over the selection, as the core decides it (docs/command-bar.md): which
+    /// items stand on it, in which order, which half of each toggle is offered and which respond.
     /// </summary>
-    internal SelectionBarActions SelectionBar => _bar;
+    internal CommandBar Bar => _bar;
 
-    /// <summary>
-    /// The label on the bar's read button. One button for the pair, never both: the useful one is
-    /// whichever changes something, which the core answers.
-    /// </summary>
-    public string SelectionReadText =>
-        _bar.ReadAction == BulkAction.MarkRead ? L10n.ActionMarkRead() : L10n.ActionMarkUnread();
-
-    /// <summary>The label on the bar's flag button, on the same terms as the read one.</summary>
-    public string SelectionFlagText =>
-        _bar.FlagAction == BulkAction.Flag ? L10n.ActionFlag() : L10n.ActionUnflag();
-
-    /// <summary>Whether the bar's read button responds.</summary>
-    public bool SelectionReadEnabled => _bar.Read.Enabled;
-
-    /// <summary>Whether the bar's flag button responds.</summary>
-    public bool SelectionFlagEnabled => _bar.Flag.Enabled;
-
-    /// <summary>Whether the bar's Archive responds: disabled when it would move nothing.</summary>
-    public bool SelectionArchiveEnabled => _bar.Archive.Enabled;
-
-    /// <summary>Whether the bar's Move to Trash responds.</summary>
-    public bool SelectionDeleteEnabled => _bar.Delete.Enabled;
-
-    /// <summary>Whether the bar's Delete permanently responds.</summary>
-    public bool SelectionPermanentlyDeleteEnabled => _bar.PermanentlyDelete.Enabled;
+    /// <summary>Raised when <see cref="Bar"/> changes, for the window that draws it.</summary>
+    internal event Action? BarChanged;
 
     // What the bar was last read over: each selected row with the state the core's answer turns
     // on. A conversation's sub-rows are immutable and replaced only when one of them changes
     // (MailRow.CopyFrom), so the list itself stands for them.
     private ImmutableArray<(MailRow Row, bool Unread, bool Flagged, IReadOnlyList<ThreadMessageItem> Messages)> _barReadOver = [];
 
+    // Whether the bar has been asked for at all: before the first answer it is drawn over nothing.
+    private bool _barRead;
+
     /// <summary>
     /// Re-reads the bar from the core. Run when the selection changes and when a snapshot lands,
-    /// since a flag or a read state the selection holds moves without the selection moving; a
-    /// snapshot that changed none of the selected rows asks nothing, because a Ctrl+A selection is
-    /// the whole list and a sync lands many snapshots.
+    /// since a flag or a read state the selection holds moves without the selection moving, and the
+    /// folder decides whether Delete is Delete permanently. A snapshot that changed none of the
+    /// selected rows asks nothing, because a Ctrl+A selection is the whole list and a sync lands many
+    /// snapshots.
     /// </summary>
     private void RefreshSelectionBar()
     {
         var over = _selectedRows.Select(row => (row, row.Unread, row.Flagged, row.Messages)).ToImmutableArray();
-        if (over.Length == _barReadOver.Length
+        if (_barRead
+            && over.Length == _barReadOver.Length
             && over.Zip(_barReadOver).All(pair => ReferenceEquals(pair.First.row, pair.Second.Row)
                 && pair.First.Unread == pair.Second.Unread
                 && pair.First.Flagged == pair.Second.Flagged
@@ -101,24 +86,34 @@ public sealed partial class MailboxModel
         {
             return;
         }
+        _barRead = true;
         _barReadOver = over;
-        var next = _selectedRows.IsEmpty
-            ? SelectionBarActions.None
-            : SelectionBarActions.Of(RowMenu(SelectionActions.Rows(_selectedRows)));
-        if (next == _bar)
+        var next = CommandBarOver(SelectionActions.Rows(_selectedRows));
+        if (CommandBarPresentation.Same(next, _bar))
         {
             return;
         }
         _bar = next;
-        Raise(nameof(SelectionReadText));
-        Raise(nameof(SelectionFlagText));
-        Raise(nameof(SelectionReadEnabled));
-        Raise(nameof(SelectionFlagEnabled));
-        Raise(nameof(SelectionArchiveEnabled));
-        Raise(nameof(SelectionDeleteEnabled));
-        Raise(nameof(SelectionPermanentlyDeleteEnabled));
+        BarChanged?.Invoke();
     }
 
+    /// <summary>
+    /// The bar over <paramref name="rows"/>, as the core decides it. Read from the published
+    /// snapshot without waiting; the reading pane asks it over the message it shows, so its Delete
+    /// is the bar's (docs/command-bar.md, rule 8).
+    /// </summary>
+    internal CommandBar CommandBarOver(SelectedRow[] rows)
+    {
+        try
+        {
+            return _app?.CommandBar(rows) ?? NoBar;
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"command bar failed: {ex.GetType().Name}");
+            return NoBar;
+        }
+    }
     /// <summary>
     /// The menu over <paramref name="rows"/>, as the core decides it (docs/row-actions.md). Read
     /// from the published snapshot without waiting, so it is asked for as a menu opens.
