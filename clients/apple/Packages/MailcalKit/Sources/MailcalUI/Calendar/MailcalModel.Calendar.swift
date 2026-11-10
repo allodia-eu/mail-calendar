@@ -155,6 +155,15 @@ extension MailboxModel {
         app?.setCalendarVisibleHours(hours: clamped)
     }
 
+    /// Every calendar the core knows, in its order, with the one a new event is filed on marked.
+    func calendars() -> [CalendarRow] { app?.calendars() ?? [] }
+
+    /// Chooses the calendar a new event is filed on. The core signals the calendar surface, so
+    /// the list and the grid redraw from its answer.
+    func setDefaultCalendar(account: String, calendar: String) {
+        app?.setDefaultCalendar(account: account, calendar: calendar)
+    }
+
     // MARK: - The calendar manager
 
     /// Shows or hides one calendar's events. Applied at page-read time, so the grid redraws at once:

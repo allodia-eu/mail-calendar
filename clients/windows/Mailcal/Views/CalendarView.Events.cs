@@ -212,11 +212,11 @@ public sealed partial class CalendarView
         }
     }
 
-    // The first writable calendar, as the create editor's default target (null if none, the New
-    // event button is disabled in that case, so this only runs when at least one exists).
+    // The calendar the core marked as the default, as the create editor's target (null if none
+    // can be written, and the New event button is disabled in that case).
     private CalendarChoice? DefaultChoice()
     {
-        var row = Model?.Calendars().FirstOrDefault(c => c.CanWrite);
+        var row = Model?.Calendars().FirstOrDefault(c => c.IsDefault);
         return row is null ? null : CalendarChoice.Of(row);
     }
 

@@ -118,7 +118,7 @@ struct CalendarScreenView: View {
             onMode: { setMode($0, calendar: calendar) },
             onBackToToday: { backToToday(today: today, calendar: calendar) },
             onNewEvent: {
-                let def = currentCalendars(pager: pager, anchor: anchor).first { $0.canWrite }.map(\.choice)
+                let def = currentCalendars(pager: pager, anchor: anchor).first { $0.isDefault }.map(\.choice)
                 editor = EventEditorState.create(default: def, zone: TimeZone.current.identifier, now: today)
             },
             onManage: { managing = true },
@@ -290,7 +290,7 @@ struct CalendarScreenView: View {
             let preview = drag.preview()
             let days = model.calendarPage(from: anchor, columns: daysInWeek)?.days ?? []
             let cals = currentCalendars(pager: pager, anchor: anchor)
-            let def = cals.first { $0.canWrite }
+            let def = cals.first { $0.isDefault }
                 .map(\.choice)
             guard
                 preview.day >= 0, preview.day < days.count,
