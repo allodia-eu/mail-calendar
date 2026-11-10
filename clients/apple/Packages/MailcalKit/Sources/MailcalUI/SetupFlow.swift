@@ -191,9 +191,9 @@ struct SetupFlow: Equatable {
         return links != nil
     }
 
-    /// The separate-server step answered, by Connect or Skip: on to the link step it held back,
-    /// read afresh so it shows what the answer changed. Answers whether a link step is to be
-    /// shown; otherwise the flow ends.
+    /// The separate-server step answered, by Connect, Skip or the sign-in: on to the link step
+    /// it held back, read afresh so it shows what the answer changed. Answers whether a link step
+    /// is to be shown; otherwise the flow ends.
     mutating func separateServerDone(stepFor: (String) -> SetupLinkStep?) -> Bool {
         guard let ask = separateServer else { return links != nil }
         let target = linksAfterSeparateServer ?? ask.account

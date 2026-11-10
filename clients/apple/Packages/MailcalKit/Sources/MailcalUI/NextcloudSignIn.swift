@@ -17,8 +17,7 @@ enum NextcloudCompleted: Equatable {
 
 /// The decisions, apart from the tasks that act on them, so each is tested without a core.
 struct NextcloudSignInState: Equatable {
-    /// A grant no account was made of yet, and what it was for: a server, a mailbox's uses, or an
-    /// account.
+    /// A grant no account was made of yet, and the server it was for.
     struct Held: Equatable {
         let key: String
         let grant: NextcloudGrant

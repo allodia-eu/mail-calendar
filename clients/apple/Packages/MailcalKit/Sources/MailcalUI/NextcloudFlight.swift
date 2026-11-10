@@ -1,11 +1,12 @@
-// The browser half of a sign-in with Nextcloud, which setup and a separate server share
-// (docs/nextcloud-sign-in.md rules 5 and 6). The core starts the sign-in, the login page opens in
-// an in-app browser tab, and the core is asked whether the person has finished: every poll
-// interval, at once when the app is active again, and once more when the person closes the tab.
-// There is no redirect back, so the poll is all the waiting there is.
+// The browser half of setup's sign-in with Nextcloud (docs/nextcloud-sign-in.md rules 5 and 6).
+// The core starts the sign-in, the login page opens in an in-app browser tab, and the core is
+// asked whether the person has finished: every poll interval, at once when the app is active
+// again, and once more when the person closes the tab. There is no redirect back, so the poll is
+// all the waiting there is. Every other sign-in with Nextcloud is the core's
+// (MailcalModel.BrowserSignIn.swift).
 //
-// What a surface does with the grant is its own (`NextcloudSignIn`). What they share is that the
-// server hands the grant out once, so one arriving for an attempt nobody waits on is withdrawn.
+// What setup does with the grant is `NextcloudSignIn`'s. The server hands the grant out once, so
+// one arriving for an attempt nobody waits on is withdrawn.
 
 #if os(macOS)
 import AppKit

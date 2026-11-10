@@ -3,8 +3,8 @@
 // on a server of its own"), and an inline form on the account's page under the use that needs it.
 // One set of fields for both, so the two cannot drift. Both draw the core's section, which the
 // model reads again on every signal; the form ends once the core draws none. Where that server's
-// own provider may sign it in (docs/mail-oauth.md rule 13), the sign-in leads and the password
-// waits behind it.
+// own provider or Nextcloud may sign it in (docs/mail-oauth.md rule 13), the sign-in leads and
+// the password waits behind it. Leaving the form cancels a sign-in the browser still holds.
 
 import MailcalBindings
 import SwiftUI
@@ -16,7 +16,6 @@ private struct SeparateServerFields: View {
     @Bindable var form: SeparateServerFormModel
     let ask: SeparateServerAsk
     var takesReturn: Bool
-    let done: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -24,28 +23,19 @@ private struct SeparateServerFields: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if form.signIn.offersSignIn(ask) {
-                SeparateServerSignInButton(form: form, ask: ask, takesReturn: takesReturn) {
-                    form.startSignIn(model, ask, done: done)
-                }
-            } else if form.signIn.offersNextcloud(ask) {
-                NextcloudSignInControl(
-                    signIn: form.nextcloud, leads: form.signIn.signInLeads(ask),
-                    takesReturn: takesReturn,
-                    passwordInstead: form.signIn.signInLeads(ask) ? { form.choosePassword() } : nil
-                ) {
-                    form.startNextcloud(model, ask, done: done)
-                }
-                .disabled(form.holding)
+            if let way = form.signIn.offers(ask) {
+                SeparateServerSignInButton(
+                    model: model, form: form, ask: ask, way: way, takesReturn: takesReturn)
             }
             if form.signIn.showsPasswordFields(ask) {
-                TextField(L10n.setup_field_username(), text: $form.username)
-                    .setupField(.email)
-                    .disabled(form.holding)
-                SecureField(L10n.setup_field_password(), text: $form.password)
-                    .setupField(.password)
-                    .disabled(form.holding)
-                    .onTouchKeyboardSubmit { form.connect(model, ask) }
+                // Held while the core holds Connect: a change runs, or a sign-in is out.
+                HeldFields(control: form.section.connect) {
+                    TextField(L10n.setup_field_username(), text: $form.username)
+                        .setupField(.email)
+                    SecureField(L10n.setup_field_password(), text: $form.password)
+                        .setupField(.password)
+                        .onTouchKeyboardSubmit { form.connect(model, ask) }
+                }
             }
             if let said = form.said {
                 Text(said).font(.callout).foregroundStyle(.red)
@@ -57,8 +47,8 @@ private struct SeparateServerFields: View {
 }
 
 /// The setup step: Skip switches the uses off, Connect or the sign-in moves them to an account of
-/// their own. Either way the core draws no section after it, and setup goes on to the link step,
-/// whose pickers already show the new link.
+/// their own. Either way the core draws no section after it, and setup goes on to the link step
+/// (`MailboxModel.refreshSeparateServers`), whose pickers already show the new link.
 struct SeparateServerStepView: View {
     var model: MailboxModel
     let ask: SeparateServerAsk
@@ -78,18 +68,16 @@ struct SeparateServerStepView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             SetupCard {
-                SeparateServerFields(
-                    model: model, form: form, ask: ask, takesReturn: true,
-                    done: { model.setupSeparateServerDone() })
+                SeparateServerFields(model: model, form: form, ask: ask, takesReturn: true)
             }
             SetupFooter {
                 ControlButton(
-                    title: L10n.separate_server_skip(), control: form.skipControl,
+                    title: L10n.separate_server_skip(), control: form.section.stopUsing,
                     shortcut: .cancelAction
                 ) { form.skip(model, ask) }
                 if form.signIn.showsPasswordFields(ask) {
                     ControlButton(
-                        title: L10n.action_connect(), control: form.connectControl,
+                        title: L10n.action_connect(), control: form.section.connect,
                         ready: form.canConnect, shortcut: .defaultAction
                     ) { form.connect(model, ask) }
                     .buttonStyle(.borderedProminent)
@@ -127,22 +115,20 @@ struct AccountSeparateServerForm: View {
                     Text(SeparateServerLabels.formTitle(set)).font(.headline)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                SeparateServerFields(
-                    model: model, form: form, ask: ask, takesReturn: false, done: moved)
+                SeparateServerFields(model: model, form: form, ask: ask, takesReturn: false)
                     .frame(maxWidth: 320, alignment: .leading)
                 HStack(spacing: 10) {
                     if form.signIn.showsPasswordFields(ask) {
                         ControlButton(
-                            title: L10n.action_connect(), control: form.connectControl,
+                            title: L10n.action_connect(), control: form.section.connect,
                             ready: form.canConnect
                         ) { form.connect(model, ask) }
                         .buttonStyle(.borderedProminent)
                     }
-                    Button(L10n.action_cancel()) {
-                        form.retire()
+                    // It folds the form away, and leaving it cancels a sign-in still out.
+                    ControlButton(title: L10n.action_cancel(), control: .free(form.canLeave)) {
                         close()
                     }
-                    .disabled(!form.canLeave)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,10 +138,5 @@ struct AccountSeparateServerForm: View {
             form.leave(model)
             close()
         }
-    }
-
-    private func moved() {
-        form.password = ""
-        close()
     }
 }

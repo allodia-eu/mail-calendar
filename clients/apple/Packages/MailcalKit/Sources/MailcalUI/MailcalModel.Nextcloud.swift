@@ -1,6 +1,6 @@
 // Signing in with Nextcloud on the model (docs/nextcloud-sign-in.md): whether a server offers it,
-// and setup's and a separate server's completion of a grant. The browser half is
-// NextcloudFlight.swift's. An existing account's sign-in with Nextcloud is the core's
+// and setup's completion of a grant. The browser half is NextcloudFlight.swift's. An existing
+// account's sign-in with Nextcloud, and a mailbox's separate server's, are the core's
 // (MailcalModel.BrowserSignIn.swift). Every core call blocks, so each runs off the main actor; a
 // grant is never logged.
 
@@ -83,28 +83,6 @@ extension MailboxModel {
     /// Setup is left: its attempt retires and a grant it kept is withdrawn.
     func leaveSetupNextcloud() {
         setupNextcloud.leave(app)
-    }
-
-    // MARK: A mailbox's separate server
-
-    /// Moves `ask`'s uses to an account of their own that `grant` signs in to, linked to the
-    /// mailbox. Answers why not, or `nil` once moved.
-    func addLinkedNextcloudAccount(_ ask: SeparateServerAsk, _ grant: NextcloudGrant) async
-        -> String?
-    {
-        guard let app else { return L10n.app_unavailable() }
-        do {
-            _ = try await Task.detached(priority: .userInitiated) {
-                try app.addLinkedNextcloudAccount(
-                    accountId: ask.account, uses: ask.uses, grant: grant.value)
-            }.value
-            syncAfterAccountChange()
-            refreshAccountsSnapshot()
-            return nil
-        } catch {
-            logBrowserSignIn("nextcloud", "the separate server was not signed in (\(coreMessage(error)))")
-            return SeparateServerRules.signInFailure(error)
-        }
     }
 }
 
