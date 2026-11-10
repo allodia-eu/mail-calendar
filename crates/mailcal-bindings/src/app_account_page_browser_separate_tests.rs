@@ -44,10 +44,13 @@ fn section_when(
 ) -> AccountSeparateServer {
     let deadline = Instant::now() + Duration::from_secs(20);
     loop {
+        // Idle before the read and after it, so the section was drawn with nothing running.
+        let idle = !app.account_work.of(id).0.busy;
         let section = app
             .account_page(id.to_owned())
             .and_then(|page| page.separate_server);
         if let Some(section) = section.clone().filter(|section| until(section))
+            && idle
             && !app.account_work.of(id).0.busy
         {
             return section;
