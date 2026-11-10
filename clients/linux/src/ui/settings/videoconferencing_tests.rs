@@ -160,6 +160,9 @@ pub(crate) fn a_meeting_account_row_names_the_service_and_account_and_opens_its_
     ));
 }
 
+/// An account and the default meeting stored for it.
+type Stored = (String, Option<String>);
+
 #[test]
 fn no_account_that_offers_a_meeting_draws_no_default_group() {
     assert!(default_meeting_group(&[], |_, _| {}).is_none());
@@ -184,7 +187,7 @@ pub(crate) fn an_accounts_default_meeting_opens_on_the_stored_choice_and_stores_
         ],
         chosen: Some("jitsi".to_owned()),
     };
-    let stored: Rc<RefCell<Vec<(String, Option<String>)>>> = Rc::default();
+    let stored: Rc<RefCell<Vec<Stored>>> = Rc::default();
     let sink = Rc::clone(&stored);
     let group = default_meeting_group(&[default], move |account, choice| {
         sink.borrow_mut().push((account, choice));
