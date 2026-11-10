@@ -1,6 +1,6 @@
-// What this host still decides about an existing account's browser sign-in, which the core runs:
-// where it returns, which tab opens it, that the tab opens once for each attempt, and whether an
-// arriving redirect is the core's or a setup flow's.
+// What this host still decides about a browser sign-in the core runs, an existing account's or a
+// separate server's: where it returns, which tab opens it, that the tab opens once for each
+// attempt, and whether an arriving redirect is the core's or a setup flow's.
 package eu.allodia.mailcal
 
 import org.junit.Assert.assertEquals
@@ -87,6 +87,21 @@ class BrowserSignInDriverTest {
         assertNull(BrowserSignInRules.redirected(null, url, app, "imap-oauth"))
         assertNull(BrowserSignInRules.redirected(record(3uL, BrowserSignInStage.Starting), url, app, "imap-oauth"))
         assertNull(BrowserSignInRules.redirected(waiting(3uL, null), url, app, "imap-oauth"))
+    }
+
+    @Test
+    fun a_separate_servers_sign_in_opens_as_the_imap_sign_in_does_and_its_redirect_is_the_cores() {
+        // What `signInSeparate` sends, for a provider sign-in and for Nextcloud alike.
+        val sent = ImapOAuthConfig.REDIRECT_URI
+        val opening = BrowserSignInDriver().toOpen(waiting(8uL, sent), schemes)
+        assertEquals(SignInBrowser.IMAP, opening?.browser)
+
+        val url = "$sent?code=abc&state=xyz"
+        val (scheme, host) = java.net.URI(url).let { it.scheme to it.host }
+        assertEquals(
+            AccountPageIntent.SignInBrowserEnded("acct", 8uL, SignInBrowserEnd.Redirected(url)),
+            BrowserSignInRules.redirected(waiting(8uL, sent), url, scheme, host),
+        )
     }
 
     @Test

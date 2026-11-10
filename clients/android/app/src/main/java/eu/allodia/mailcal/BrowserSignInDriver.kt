@@ -1,8 +1,8 @@
-// An existing account's browser sign-in, which the core holds from the press to the account it
-// changes (docs/waiting.md, docs/provider-oauth.md rule 13): this host opens the browser once for
-// each attempt the core names, and hands back what came to the redirect it listens on. Which step
-// the sign-in is at, how long it waits and what it came to are the core's. Compose-free and
-// catalog-free, so the JVM suite reaches every decision.
+// A browser sign-in, an existing account's or a separate server's, which the core holds from the
+// press to the account it changes (docs/waiting.md, docs/provider-oauth.md rule 13): this host
+// opens the browser once for each attempt the core names, and hands back what came to the
+// redirect it listens on. Which step the sign-in is at, how long it waits and what it came to are
+// the core's. Compose-free and catalog-free, so the JVM suite reaches every decision.
 package eu.allodia.mailcal
 
 import java.net.URI

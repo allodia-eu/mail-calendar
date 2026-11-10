@@ -66,8 +66,8 @@ internal class AccountsSettingsUi(
     // [adding] (docs/accounts.md rule 17). The core runs it; the activity names where it returns.
     val onSignIn: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
     // A sign-in of their own for a calendar or address book that needs one (docs/accounts.md
-    // rule 18): the form, its Connect, and the sign-in at its own provider (docs/mail-oauth.md
-    // rule 13).
+    // rule 18): the form, its Connect, and the sign-in in the browser the server offers, which the
+    // core runs (docs/mail-oauth.md rule 13).
     val onSeparateSignIn: (accountId: String) -> Unit = {},
     val onConnectSeparate: (username: String, password: String) -> Unit = { _, _ -> },
     val onSeparateProviderSignIn: () -> Unit = {},
