@@ -229,11 +229,17 @@ impl AccountWork {
         queue.running = Some((account.clone(), work));
         drop(queue);
         // Only the notice: what the page is drawn from outlives a change.
+        self.unsay(&account);
+        Start::Run(intent)
+    }
+
+    /// Takes away what `account`'s page last said, because its next change has started: one
+    /// queued here, or a browser sign-in, which reaches the queue only once it completes.
+    pub(crate) fn unsay(&self, account: &str) {
         self.notices
             .lock()
             .expect("account notice mutex poisoned")
-            .remove(&account);
-        Start::Run(intent)
+            .remove(account);
     }
 
     /// The change for `account` ended, saying `notice` when it needs saying: on the account's

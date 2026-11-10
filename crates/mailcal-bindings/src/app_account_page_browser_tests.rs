@@ -255,6 +255,33 @@ fn a_browser_that_did_not_open_is_said() {
 }
 
 #[test]
+fn a_fresh_sign_in_takes_away_what_the_last_one_said() {
+    let (app, id) = booted("browser-sign-in-unsays");
+    sign_in(&app, &id);
+    let out = in_browser(&app);
+    send(
+        &app,
+        AccountPageIntent::SignInBrowserEnded {
+            account: id.clone(),
+            attempt: out.attempt,
+            end: SignInBrowserEnd::NotOpened,
+        },
+    );
+    over(&app);
+    assert_eq!(
+        said(&app, &id),
+        failed(AccountChangeRefusal::BrowserNotOpened)
+    );
+    sign_in(&app, &id);
+    in_browser(&app);
+    assert_eq!(
+        app.account_page_notice(id),
+        None,
+        "a notice stands until the page's next change starts, and a sign-in is one"
+    );
+}
+
+#[test]
 fn a_sign_in_with_nowhere_to_return_is_not_started() {
     let (app, id) = booted("browser-sign-in-no-redirect");
     send(

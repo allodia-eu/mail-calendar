@@ -128,6 +128,8 @@ impl MailcalApp {
             Start::Refused => {}
             Start::Complete { attempt } => self.queue_change(Change::SignIn { account, attempt }),
             Start::Begin { attempt, withdraw } => {
+                // The page's next change has started, so what the last one said goes.
+                self.account_work.unsay(&account);
                 if let Some(grant) = withdraw {
                     self.abandon_nextcloud_sign_in(grant);
                 }
