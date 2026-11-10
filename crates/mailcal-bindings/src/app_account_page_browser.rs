@@ -7,10 +7,10 @@
 use std::{sync::Arc, time::Duration};
 
 use crate::{
-    AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountPage, AccountPageIntent,
-    AccountProvider, BrowserSignIn, CapabilityState, ControlState, MailcalApp, MailcalError,
-    NextcloudSignInPoll, NoticeAction, SignInBrowserEnd,
-    account_page::browser::{Began, Completion, Ended, Out, Pending, Start},
+    AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountPageIntent,
+    AccountProvider, BrowserSignIn, CapabilityState, MailcalApp, MailcalError, NextcloudSignInPoll,
+    NoticeAction, SignInBrowserEnd,
+    account_page::browser::{Began, Completion, Ended, Pending, Start, Target},
     account_work::Change,
 };
 
@@ -23,6 +23,17 @@ enum Way {
     Nextcloud,
     /// A standards or JMAP account at its provider.
     Account,
+    /// A mailbox's separate server, at its own provider.
+    SeparateProvider,
+    /// A mailbox's separate server, with Nextcloud.
+    SeparateNextcloud,
+}
+
+impl Way {
+    /// Whether the browser returns nothing, and the core asks the server whether it is done.
+    const fn asks_server(self) -> bool {
+        matches!(self, Self::Nextcloud | Self::SeparateNextcloud)
+    }
 }
 
 #[uniffi::export]
@@ -52,6 +63,10 @@ impl MailcalApp {
                 adding,
                 redirect_uri,
             } => app.start_sign_in(account, adding, redirect_uri),
+            AccountPageIntent::SignInSeparateServer {
+                account,
+                redirect_uri,
+            } => app.start_separate_sign_in(account, redirect_uri),
             AccountPageIntent::AnswerUnreached {
                 attempt, answer, ..
             } => {
@@ -110,12 +125,36 @@ impl MailcalApp {
             log::warn!("sign-in: a browser sign-in was asked for an account that is gone");
             return;
         };
+        let sign_in = Launch {
+            account,
+            target: Target::Account,
+            way,
+            adding,
+            switching,
+        };
+        self.launch(sign_in, redirect_uri);
+    }
+
+    /// Starts `sign_in` in place of the one out, or completes it at once from the grant its
+    /// last one kept.
+    fn launch(self: Arc<Self>, sign_in: Launch, redirect_uri: String) {
+        let Launch {
+            account,
+            target,
+            way,
+            adding,
+            switching,
+        } = sign_in;
         // A client with nowhere to listen for the browser's return sends no redirect: the
         // browser is not opened, and the page says so.
-        if redirect_uri.is_empty() && way != Way::Nextcloud {
+        if redirect_uri.is_empty() && !way.asks_server() {
             log::warn!("sign-in: no redirect was given for the browser's return");
             std::thread::spawn(move || {
-                let ended = Ended { account, switching };
+                let ended = Ended {
+                    account,
+                    target,
+                    switching,
+                };
                 self.sign_in_ended(&ended, AccountChangeRefusal::BrowserNotOpened);
                 self.signal_sign_in();
             });
@@ -124,18 +163,20 @@ impl MailcalApp {
         match self
             .account_work
             .browser
-            .start(&account, &adding, switching)
+            .start(&account, target.clone(), &adding, switching)
         {
             Start::Refused => {}
             Start::Complete { attempt } => self.queue_change(Change::SignIn { account, attempt }),
             Start::Begin { attempt, withdraw } => {
                 // The page's next change has started, so what the last one said goes.
                 self.account_work.unsay(&account);
+                self.account_work.separate.tried(&account, None);
                 if let Some(grant) = withdraw {
                     self.abandon_nextcloud_sign_in(grant);
                 }
                 std::thread::spawn(move || {
-                    self.begin_sign_in(attempt, &account, way, adding, redirect_uri)
+                    let began = self.begin_way(&account, way, &target, adding, redirect_uri);
+                    self.begun(attempt, began);
                 });
             }
         }
@@ -155,17 +196,16 @@ impl MailcalApp {
         })
     }
 
-    /// Asks the server to start `attempt`, then waits on the browser: for its redirect, or by
-    /// asking a Nextcloud server whether the person has finished.
-    fn begin_sign_in(
-        self: Arc<Self>,
-        attempt: u64,
+    /// Asks the server to start a sign-in of `target` for `account` the way `way` does.
+    fn begin_way(
+        &self,
         account: &str,
         way: Way,
+        target: &Target,
         adding: Vec<AccountCapability>,
         redirect_uri: String,
-    ) {
-        let began = match way {
+    ) -> Result<Began, MailcalError> {
+        match way {
             Way::Consent => self
                 .begin_account_consent(account.to_owned(), redirect_uri.clone(), adding)
                 .map(|start| Began {
@@ -194,7 +234,15 @@ impl MailcalApp {
                     url: start.authorization_url,
                     unreached: start.unreached,
                 }),
-        };
+            Way::SeparateProvider | Way::SeparateNextcloud => {
+                self.begin_separate(account, way, target, redirect_uri)
+            }
+        }
+    }
+
+    /// The server answered `attempt`'s start: it waits on the browser, for its redirect or by
+    /// asking a Nextcloud server whether the person has finished.
+    fn begun(self: Arc<Self>, attempt: u64, began: Result<Began, MailcalError>) {
         let browser = &self.account_work.browser;
         match began {
             Err(error) => {
@@ -302,6 +350,12 @@ impl MailcalApp {
         let browser = &self.account_work.browser;
         let run = browser.take(attempt)?;
         let account = run.account.clone();
+        if let Target::Separate { uses } = run.target {
+            let kept = self.complete_separate(&account, uses, run.completion);
+            browser.completed(attempt, kept);
+            self.app.signal_notices();
+            return None;
+        }
         let (answer, kept) = match run.completion {
             Completion::Consent {
                 pending,
@@ -323,6 +377,7 @@ impl MailcalApp {
                 let spent = matches!(answer, Ok(()) | Err(MailcalError::DifferentAccount));
                 (answer, (!spent).then_some(grant))
             }
+            Completion::Separate { .. } => return None,
         };
         browser.completed(attempt, kept);
         self.app.signal_notices();
@@ -359,6 +414,9 @@ impl MailcalApp {
     /// Says on its account's page why a sign-in ended before its completion, and on the notices
     /// whose remedy it was.
     fn sign_in_ended(&self, ended: &Ended, refusal: AccountChangeRefusal) {
+        if let Target::Separate { .. } = ended.target {
+            return self.separate_ended(&ended.account, refusal);
+        }
         self.account_work.say(
             &ended.account,
             AccountChangeNotice::SignInFailed {
@@ -392,40 +450,6 @@ impl MailcalApp {
         self.app.accounts_changed();
         self.app.signal_notices();
     }
-
-    /// Draws `account`'s sign-in on its page: the control that started it running while the
-    /// server starts or completes it, the password field held while it is out, and the section
-    /// saying it waits on the browser.
-    pub(crate) fn draw_browser_sign_in(&self, page: &mut AccountPage) {
-        let Some(Out {
-            record: browser,
-            adding,
-            working,
-        }) = self.account_work.browser.of(&page.account)
-        else {
-            return;
-        };
-        let running = ControlState {
-            enabled: false,
-            running: true,
-        };
-        if working {
-            for switch in &mut page.uses {
-                if adding.contains(&switch.capability) {
-                    switch.control = running;
-                }
-            }
-        }
-        if let Some(section) = &mut page.sign_in {
-            if working && adding.is_empty() {
-                section.control = running;
-            }
-            if let Some(field) = &mut section.password {
-                field.save.enabled = false;
-            }
-            section.browser = Some(browser);
-        }
-    }
 }
 
 /// The `redirect_uri` an authorization URL names.
@@ -436,6 +460,12 @@ fn redirect_of(authorization_url: &str) -> Option<String> {
         .find(|(key, _)| key == "redirect_uri")
         .map(|(_, value)| value.into_owned())
 }
+
+#[path = "app_account_page_browser_draw.rs"]
+mod draw;
+#[path = "app_account_page_browser_separate.rs"]
+mod separate;
+use separate::Launch;
 
 #[cfg(test)]
 #[path = "app_account_page_browser_tests.rs"]

@@ -31,7 +31,6 @@ const CLIENT_NAME: &str = env!("MAILCAL_APP_NAME");
 
 /// What [`MailcalApp::begin_separate_server_sign_in`] returns: the URL to open in the platform
 /// auth session, and an opaque handle to pass back to the completion.
-#[derive(uniffi::Record)]
 pub struct SeparateServerSignInStart {
     /// The authorization URL to open in the platform auth session.
     pub authorization_url: String,
@@ -149,12 +148,12 @@ impl MailcalApp {
     }
 }
 
-#[uniffi::export]
 impl MailcalApp {
     /// Starts signing `uses` of `account_id` in at their server's own provider: discovers the
-    /// issuer, registers this app with it, and returns the authorization URL.
+    /// issuer, registers this app with it, and returns the authorization URL. Not exported: a
+    /// client sends `AccountPageIntent::SignInSeparateServer`. Public for the integration tests.
     ///
-    /// **Blocking**; call it off the UI thread.
+    /// **Blocking**.
     ///
     /// # Errors
     ///
@@ -211,9 +210,9 @@ impl MailcalApp {
     /// Completes the sign-in [`begin_separate_server_sign_in`](Self::begin_separate_server_sign_in)
     /// started: exchanges the code, adds the calendar account with the grant, and moves the uses
     /// to it as [`add_linked_calendar_account`](Self::add_linked_calendar_account) does. Returns
-    /// the new account's id.
+    /// the new account's id. Not exported, as its start is not.
     ///
-    /// **Blocking**; call it off the UI thread.
+    /// **Blocking**.
     ///
     /// # Errors
     ///

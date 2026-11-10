@@ -120,9 +120,17 @@ pub struct AccountSeparateServer {
     /// Setup's Skip, sent as `AccountPageIntent::StopUsingSeparateServer`: the account stops
     /// being used for `uses`, running while they are switched off.
     pub stop_using: ControlState,
-    /// Why the last Connect or Skip left the uses where they are, until another is pressed. One
-    /// that worked leaves no form to draw.
+    /// Why the last Connect, Skip or browser sign-in left the uses where they are, until another
+    /// is pressed. One that worked leaves no form to draw.
     pub failed: Option<crate::AccountChangeRefusal>,
+    /// The `sign_in` way in, sent as `AccountPageIntent::SignInSeparateServer`: running while the
+    /// core starts the sign-in, while the browser comes up and while it completes, and pressable
+    /// again while the browser waits, which starts a fresh one.
+    pub sign_in_control: ControlState,
+    /// The browser sign-in out for these uses, drawn as the line saying it waits on the browser
+    /// with its Cancel. Connect is held while it is out.
+    #[uniffi(default = None)]
+    pub browser: Option<crate::BrowserSignIn>,
 }
 
 /// The way in a separate server offers besides its password. Signing in through it is still the

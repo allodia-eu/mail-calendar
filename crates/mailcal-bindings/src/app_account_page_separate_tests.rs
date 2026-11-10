@@ -8,14 +8,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use engine_api::AccountId;
-
 use crate::{
     AccountCapability, AccountChangeRefusal, AccountPage, AccountPageIntent, CapabilityState,
     Intent, LogLevel, MailcalApp, TypedPassword, UseProblem,
     tests::{
         ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
     },
+    tests_boot::note_after_boot_dial,
 };
 
 const WITH_CALENDAR: &str = r#"
@@ -49,8 +48,9 @@ fn app(name: &str) -> Arc<MailcalApp> {
         ))),
     )
     .expect("the app boots");
-    app.app.note_use_problems(
-        &AccountId::try_from(ID).unwrap(),
+    note_after_boot_dial(
+        &app,
+        ID,
         mailcal_app::UseProblems {
             calendar: Some(mailcal_app::UseProblem::NeedsOwnSignIn),
             contacts: None,

@@ -160,6 +160,11 @@ pub(crate) fn section(
             running: stopping,
         },
         failed: failure.map(|failure| failure.refusal.clone()),
+        sign_in_control: ControlState {
+            enabled: !hold.busy,
+            running: false,
+        },
+        browser: None,
         uses: need.uses,
         host: need.host,
     }

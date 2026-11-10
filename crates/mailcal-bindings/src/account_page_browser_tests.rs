@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use super::{Began, BrowserSignIns, Completion, Ended, Pending, Start};
+use super::{Began, BrowserSignIns, Completion, Ended, Pending, Start, Target};
 use crate::{AccountCapability, BrowserSignInStage, UnreachedUses};
 
 fn began(pending: Pending, unreached: Vec<AccountCapability>) -> Began {
@@ -21,7 +21,7 @@ fn began(pending: Pending, unreached: Vec<AccountCapability>) -> Began {
 }
 
 fn begun(sign_ins: &BrowserSignIns, account: &str) -> u64 {
-    match sign_ins.start(account, &[], false) {
+    match sign_ins.start(account, Target::Account, &[], false) {
         Start::Begin { attempt, .. } => attempt,
         other => panic!("expected a sign-in to begin, got {other:?}"),
     }
@@ -125,7 +125,10 @@ fn a_sign_in_being_completed_is_neither_superseded_nor_cancelled() {
     let record = sign_ins.record().expect("still out");
     assert_eq!(record.stage, BrowserSignInStage::Completing);
     assert!(!record.cancel.enabled);
-    assert_eq!(sign_ins.start("a", &[], false), Start::Refused);
+    assert_eq!(
+        sign_ins.start("a", Target::Account, &[], false),
+        Start::Refused
+    );
     assert_eq!(sign_ins.end(attempt), None);
     sign_ins.take(attempt);
     sign_ins.completed(attempt, None);
@@ -153,6 +156,7 @@ fn a_wait_ends_on_its_cap_only_if_nothing_moved_it_since() {
         sign_ins.timed_out(attempt, browsing),
         Some(Ended {
             account: "a".to_owned(),
+            target: Target::Account,
             switching: false,
         })
     );
@@ -194,7 +198,7 @@ fn a_kept_grant_completes_its_accounts_next_sign_in_and_is_withdrawn_by_anothers
     sign_ins.take(attempt);
     sign_ins.completed(attempt, Some("grant".into()));
 
-    let again = match sign_ins.start("a", &[], true) {
+    let again = match sign_ins.start("a", Target::Account, &[], true) {
         Start::Complete { attempt } => attempt,
         other => panic!("expected the kept grant to complete it, got {other:?}"),
     };
@@ -203,7 +207,7 @@ fn a_kept_grant_completes_its_accounts_next_sign_in_and_is_withdrawn_by_anothers
     sign_ins.completed(again, Some("grant".into()));
 
     assert!(matches!(
-        sign_ins.start("b", &[], false),
+        sign_ins.start("b", Target::Account, &[], false),
         Start::Begin {
             withdraw: Some(grant),
             ..
@@ -214,7 +218,7 @@ fn a_kept_grant_completes_its_accounts_next_sign_in_and_is_withdrawn_by_anothers
 #[test]
 fn the_page_reads_only_its_own_accounts_sign_in_with_what_it_asks_for() {
     let sign_ins = BrowserSignIns::default();
-    sign_ins.start("a", &[AccountCapability::Calendar], false);
+    sign_ins.start("a", Target::Account, &[AccountCapability::Calendar], false);
     assert_eq!(sign_ins.of("b"), None);
     assert_eq!(
         sign_ins.of("a").map(|out| out.adding),

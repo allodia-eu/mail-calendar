@@ -80,7 +80,11 @@ it completes it; a line saying it waits on the browser with its Cancel (`CancelS
 password field held while it is out. Between those, the control can be pressed again, which
 starts a fresh sign-in, as after a tab closed by accident. What it came to is the page's notice, a
 failure or a use the provider still withholds, and a notice it answers is drawn running exactly
-when that control is, and says when it failed.
+when that control is, and says when it failed. A separate server's browser sign-in, at its own
+provider or with Nextcloud (`SignInSeparateServer`), is the same sign-in drawn on the separate
+server's section: its `sign_in_control` runs as the route does, its `browser` draws the line and
+the Cancel, Connect and Skip are held while it is out, and what it came to is the section's
+`failed`, as Connect's is.
 The question that allows a calendar or address book onto a server found on another site is the
 core's too (`account_server_change`), whichever surface opened it: Allow is a change on the page
 (`AllowServerChange`), the question stays open while it runs with "Not now" waiting for it, says
@@ -118,7 +122,7 @@ record, not a state the client keeps.
 | An account's page: its shared mailboxes drawn from `account_page`, switched and added as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's page: its Sign-in section drawn from `account_page`, a typed password sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A server found on another site: the question drawn from `account_server_change`, Allow sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
-| A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes, its browser sign-in run by the core (`SignInSeparateServer`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement

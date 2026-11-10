@@ -31,19 +31,19 @@ impl MailcalApp {
     }
 }
 
-#[uniffi::export]
 impl MailcalApp {
     /// Starts a Nextcloud sign-in at the server holding `uses` of the mailbox `account_id`,
     /// completed with
-    /// [`add_linked_nextcloud_account`](MailcalApp::add_linked_nextcloud_account).
+    /// [`add_linked_nextcloud_account`](MailcalApp::add_linked_nextcloud_account). Not exported:
+    /// a client sends `AccountPageIntent::SignInSeparateServer`.
     ///
-    /// **Blocking** (the server is located, then asked to start one); call it off the UI thread.
+    /// **Blocking** (the server is located, then asked to start one).
     ///
     /// # Errors
     ///
     /// Returns [`MailcalError::Config`] for an account that is not a standards mailbox or `uses`
     /// naming no server it has, and [`MailcalError::Connect`] when the server starts no sign-in.
-    pub fn begin_separate_server_nextcloud_sign_in(
+    pub(crate) fn begin_separate_server_nextcloud_sign_in(
         &self,
         account_id: String,
         uses: Vec<AccountCapability>,
