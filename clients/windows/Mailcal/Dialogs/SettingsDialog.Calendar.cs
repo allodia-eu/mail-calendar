@@ -1,6 +1,6 @@
 // The display pickers, first day of the week, the 12/24-hour clock, and the default horizon,
-// the Windows twin of Android's SettingsCalendar.kt. The week start and horizon fill Settings →
-// Calendar; the clock is built here beside them (the three are one family) but drawn by
+// the Windows twin of Android's SettingsCalendar.kt. The week start, the horizon and the default
+// calendar fill Settings → Calendar; the clock is built here beside them (the three are one family) but drawn by
 // BuildGeneral, because it spans mail AND calendar and every platform files it under General
 // (docs/settings.md). Split into its own partial to keep SettingsDialog.cs under the 500-line
 // limit.
@@ -12,7 +12,9 @@
 // the core re-signals Settings + Calendar, and the calendar re-applies (CalendarView reacts to
 // MailboxModel.DisplaySettingsVersion).
 using System.Globalization;
+using Allodia.Mailcal.Calendar;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 
@@ -64,8 +66,38 @@ public sealed partial class SettingsDialog
                 () => _model.SetCalendarVisibleHours(hours)));
         }
         panel.Children.Add(Group(L10n.SettingsHorizonHeading(), L10n.SettingsHorizonDescription(), horizonStack));
+        panel.Children.Add(Group(
+            L10n.SettingsDefaultCalendarHeading(), L10n.SettingsDefaultCalendarDescription(), DefaultCalendarChoices()));
 
         return panel;
+    }
+
+    // Which calendar a new event is filed on. The checked row is the core's IsDefault, which it
+    // resolves against the calendars that exist and can be written, so no fallback is kept here.
+    private UIElement DefaultCalendarChoices()
+    {
+        var groups = CalendarWriteGating.DefaultChoices(_model.Calendars());
+        if (groups.Count == 0)
+        {
+            return Description(L10n.SettingsDefaultCalendarNone());
+        }
+        var stack = new StackPanel { Spacing = 4 };
+        foreach (var (header, rows) in groups)
+        {
+            if (header is not null)
+            {
+                stack.Children.Add(new TextBlock { Text = header, Margin = new Thickness(0, 8, 0, 0) });
+            }
+            foreach (var calendar in rows)
+            {
+                var radio = Radio(
+                    calendar.Name, "default-calendar", calendar.IsDefault,
+                    () => _model.SetDefaultCalendar(calendar.Account, calendar.Id));
+                AutomationProperties.SetAutomationId(radio, $"DefaultCalendar_{calendar.Account}_{calendar.Id}");
+                stack.Children.Add(radio);
+            }
+        }
+        return stack;
     }
 
     // The 12/24-hour clock group, drawn by BuildGeneral, under General, not Calendar, because it

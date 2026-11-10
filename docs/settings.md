@@ -69,13 +69,6 @@ if another platform grows summaries it uses the same keys.
   **Add account** that opens its Accounts category. Apple, Linux and Android add a later account
   from Settings alone: Apple's folder pane, Linux's folder pane and Android's switcher have no add.
 
-- **The Calendar category's default calendar ships on Android and Linux.** The setting itself is in
-  the core (`Preferences::default_calendar`, resolved onto `CalendarRow::is_default`), so Apple and
-  Windows need client wiring only: list the writable calendars **grouped by account** (an
-  account id is `address@provider-host`, so it belongs above a group, not beside every row), show
-  the row the core marked, and call `set_default_calendar`. Until they do, those clients keep filing
-  new events on the first writable calendar, which is what `is_default` already resolves to when
-  nobody has chosen.
 - **A shortcut into a category ships on Android only.** The calendar's overflow menu offers
   **Calendar settings**, which opens Settings on the Calendar category rather than the hub: the
   settings governing that screen are otherwise reached by leaving it. Back still unwinds through the

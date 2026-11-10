@@ -92,7 +92,7 @@ struct SettingsCategoryDetail: View {
         }
     }
 
-    // MARK: Calendar, the week's first day, and how much of the day the grid shows
+    // MARK: Calendar, the week's first day, how much of the day the grid shows, the default calendar
 
     @ViewBuilder
     private var calendarDetail: some View {
@@ -104,6 +104,11 @@ struct SettingsCategoryDetail: View {
             }
             settingsGroup(L10n.settings_horizon_heading(), L10n.settings_horizon_description()) {
                 CalendarHorizonPicker(model: model)
+            }
+            settingsGroup(
+                L10n.settings_default_calendar_heading(), L10n.settings_default_calendar_description()
+            ) {
+                DefaultCalendarPicker(model: model)
             }
         }
     }

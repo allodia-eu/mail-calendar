@@ -5,6 +5,7 @@
 // can, an empty calendar list (nothing synced yet) also disables it. The core stamps the flag;
 // these tests pin that the client reads it off the exact record it renders. They are also the
 // proof of the read-only branch: the local harness has no read-only account to exercise it against.
+using System.Linq;
 using Allodia.Mailcal.Calendar;
 using uniffi.mailcal_bindings;
 using Xunit;
@@ -32,6 +33,33 @@ public class CalendarWriteGatingTests
     {
         Assert.True(CalendarWriteGating.CanCreate([Calendar("a", canWrite: false), Calendar("b", canWrite: true)]));
         Assert.False(CalendarWriteGating.CanCreate([Calendar("a", canWrite: false), Calendar("b", canWrite: false)]));
+    }
+
+    private static CalendarRow CalendarOf(string account, string id, bool canWrite = true)
+    {
+        var swatch = new Swatch("#336699", "#ffffff", "#224466");
+        return new CalendarRow(
+            account, account + "@test.local", id, id, new CalendarColor("#336699", swatch, swatch),
+            true, canWrite, false, false);
+    }
+
+    [Fact]
+    public void The_default_is_chosen_among_writable_calendars_only()
+    {
+        var groups = CalendarWriteGating.DefaultChoices(
+            [CalendarOf("a", "work"), CalendarOf("a", "holidays", canWrite: false)]);
+        var group = Assert.Single(groups);
+        Assert.Null(group.Header);
+        Assert.Equal(["work"], group.Rows.Select(row => row.Id));
+    }
+
+    [Fact]
+    public void Two_accounts_are_two_groups_named_by_address()
+    {
+        var groups = CalendarWriteGating.DefaultChoices(
+            [CalendarOf("a", "work"), CalendarOf("b", "work"), CalendarOf("a", "home")]);
+        Assert.Equal(["a@test.local", "b@test.local"], groups.Select(group => group.Header));
+        Assert.Equal(["work", "home"], groups[0].Rows.Select(row => row.Id));
     }
 
     [Fact]

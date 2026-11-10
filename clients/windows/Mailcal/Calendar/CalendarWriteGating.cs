@@ -22,6 +22,25 @@ internal static class CalendarWriteGating
     public static bool CanCreate(IReadOnlyList<CalendarRow> calendars) =>
         calendars.Any(calendar => calendar.CanWrite);
 
+    /// <summary>
+    /// The calendars Settings offers as the default, grouped by account in the core's order: only
+    /// those a new event can be written to. A calendar id is unique only within its account, so a
+    /// group carries its account's address, or null while every calendar is one account's.
+    /// </summary>
+    public static IReadOnlyList<(string? Header, IReadOnlyList<CalendarRow> Rows)> DefaultChoices(
+        IReadOnlyList<CalendarRow> calendars)
+    {
+        var groups = calendars
+            .Where(calendar => calendar.CanWrite)
+            .GroupBy(calendar => calendar.Account)
+            .ToArray();
+        return groups
+            .Select(group => (
+                groups.Length > 1 ? group.First().AccountAddress : (string?)null,
+                (IReadOnlyList<CalendarRow>)group.ToArray()))
+            .ToArray();
+    }
+
     /// <summary>Whether this agenda row offers a delete: the flag stamped on this exact record.</summary>
     public static bool OffersDelete(EventRow row) => row.CanWrite;
 }
