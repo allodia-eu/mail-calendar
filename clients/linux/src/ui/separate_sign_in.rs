@@ -3,14 +3,14 @@
 //! the add, and the form the account's page opens. Both draw the core's section
 //! (`AccountPage::separate_server`) and send Connect and Skip to the core as changes on the page;
 //! the form ends once the core draws no section, whichever way the sign-in was given. Signing in
-//! at the server's own provider, or with Nextcloud, is still run here
-//! ([`super::separate_server_sign_in`]). The widgets are [`super::separate_sign_in_view`].
+//! at the server's own provider, or with Nextcloud, is the core's browser sign-in, whose browser
+//! half is [`super::browser_sign_in`]'s. The widgets are [`super::separate_sign_in_view`].
 
 use mailcal_bindings::{
     AccountPageIntent, AccountSeparateServer, AccountSeparateSignIn, Intent, TypedPassword,
 };
 
-use super::{AppInput, AppModel, separate_server_sign_in::SignInStage, setup_state::Phase};
+use super::{AppInput, AppModel, setup_state::Phase};
 
 /// A password on its way to the core. Never printed: an input can reach a log through `Debug`.
 pub(crate) struct Password(pub(crate) String);
@@ -45,14 +45,13 @@ pub(crate) enum SeparateInput {
     },
     /// Setup's step was skipped: the mailbox stops being used for what needs the sign-in.
     Skip,
-    /// The sign-in at the server's own provider, for the form `from` names.
-    Provider {
-        from: SeparateFrom,
-        input: super::separate_server_sign_in::ProviderInput,
-    },
+    /// Sign in the way the server offers, in the browser, for the form `from` names.
+    SignIn { from: SeparateFrom },
+    /// Cancel that sign-in while the browser holds it.
+    CancelSignIn { from: SeparateFrom },
 }
 
-/// The form for one mailbox: the core's section, and the browser sign-in this client runs.
+/// The form for one mailbox: the core's section.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SeparateForm {
     /// Which form this is, so a window drawing it can tell a new one from a redraw.
@@ -60,13 +59,6 @@ pub(crate) struct SeparateForm {
     pub(super) account: String,
     /// The section as the core last drew it.
     pub(super) section: AccountSeparateServer,
-    /// A Nextcloud grant no account was made from yet, kept so the next press tries it again
-    /// without the browser; the server hands it out once.
-    pub(super) grant: Option<super::nextcloud_flight::Grant>,
-    /// Where that sign-in stands.
-    pub(super) stage: SignInStage,
-    /// Why the last sign-in in the browser failed; a Connect's failure is the section's.
-    pub(super) error: Option<String>,
     /// The account whose link step comes after setup's step.
     pub(super) next: String,
 }
@@ -82,25 +74,21 @@ impl SeparateForm {
             id,
             account,
             section,
-            grant: None,
-            stage: SignInStage::Idle,
-            error: None,
             next,
         }
     }
 
-    pub(super) fn failed(&mut self, error: String) {
-        self.error = Some(error);
+    /// What the form says under its fields: why the last Connect, Skip or sign-in failed.
+    pub(super) fn said(&self) -> Option<String> {
+        self.section
+            .failed
+            .as_ref()
+            .map(super::core_error::refusal_said)
     }
 
-    /// What the form says under its fields: the browser sign-in's failure, else the core's.
-    pub(super) fn said(&self) -> Option<String> {
-        self.error.clone().or_else(|| {
-            self.section
-                .failed
-                .as_ref()
-                .map(super::core_error::refusal_said)
-        })
+    /// Whether the core holds the form: a change runs on the page, or a sign-in is out.
+    pub(super) const fn held(&self) -> bool {
+        !self.section.connect.enabled
     }
 
     /// The sign-in the server offers in the browser, when it has said so.
@@ -178,10 +166,9 @@ impl AppModel {
             .separate_server
     }
 
-    pub(super) fn separate_input(&mut self, input: SeparateInput, sender: relm4::Sender<AppInput>) {
+    pub(super) fn separate_input(&mut self, input: SeparateInput) {
         match input {
             SeparateInput::Open { account } => {
-                self.retire_provider_sign_in(SeparateFrom::Page);
                 let Some(section) = self.separate_section(&account) else {
                     return;
                 };
@@ -190,11 +177,17 @@ impl AppModel {
                 self.settings.separate =
                     Some(SeparateForm::new(id, account, section, String::new()));
             }
+            // A sign-in the browser holds goes with the form that started it.
             SeparateInput::Close => {
-                self.retire_provider_sign_in(SeparateFrom::Page);
+                self.cancel_separate_sign_in(SeparateFrom::Page);
                 self.settings.separate = None;
             }
-            SeparateInput::Provider { from, input } => self.provider_input(from, input, sender),
+            SeparateInput::SignIn { from } => {
+                if let Some(account) = self.separate_form(from).map(|form| form.account.clone()) {
+                    self.sign_in_separately(account);
+                }
+            }
+            SeparateInput::CancelSignIn { from } => self.cancel_separate_sign_in(from),
             SeparateInput::Connect {
                 from,
                 username,
@@ -216,17 +209,27 @@ impl AppModel {
         from: SeparateFrom,
         change: impl FnOnce(String) -> AccountPageIntent,
     ) {
-        if self.separate_form(from).is_none_or(|form| form.held()) {
-            return;
-        }
-        // A password typed while the browser holds the sign-in is the person's answer instead.
-        self.retire_provider_sign_in(from);
-        let Some(form) = self.separate_form(from) else {
+        let Some(form) = self.separate_form(from).filter(|form| !form.held()) else {
             return;
         };
-        form.error = None;
         let intent = change(form.account.clone());
         self.dispatch(Intent::AccountPage { intent });
+    }
+
+    /// Cancels the sign-in the browser holds for the form `from` names, if one does.
+    fn cancel_separate_sign_in(&mut self, from: SeparateFrom) {
+        let Some(browser) = self
+            .separate_form(from)
+            .and_then(|form| form.section.browser.clone())
+        else {
+            return;
+        };
+        self.dispatch(Intent::AccountPage {
+            intent: AccountPageIntent::CancelSignIn {
+                account: browser.account,
+                attempt: browser.attempt,
+            },
+        });
     }
 
     /// Draws each open form again from the core, after a signal that may have moved it. One the
@@ -268,7 +271,6 @@ impl AppModel {
         match from {
             SeparateFrom::Setup => self.leave_separate_step(sender),
             SeparateFrom::Page => {
-                self.retire_provider_sign_in(from);
                 self.settings.separate = None;
                 self.settings.refresh_in_place();
             }
@@ -286,7 +288,7 @@ impl AppModel {
 
     /// On from setup's step, when it is on screen, to the link step that comes after it.
     pub(super) fn leave_separate_step(&mut self, sender: relm4::Sender<AppInput>) {
-        self.retire_provider_sign_in(SeparateFrom::Setup);
+        self.cancel_separate_sign_in(SeparateFrom::Setup);
         let Some((account, next)) = self.setup.leave_separate() else {
             return;
         };

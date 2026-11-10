@@ -3,7 +3,8 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AccountCapability, AccountChangeRefusal, AccountSeparateSignIn, ControlState,
+    AccountCapability, AccountChangeRefusal, AccountSeparateSignIn, BrowserSignIn,
+    BrowserSignInStage, ControlState,
 };
 
 use super::{Prompts, page_action};
@@ -14,14 +15,13 @@ use crate::{
         account_settings::AccountsInput,
         controls::tests::spins,
         mailbox::tests::rendered_labels,
-        separate_server_sign_in::ProviderInput,
         separate_sign_in::{
             SeparateFrom, SeparateInput,
             tests::{form, section},
         },
         setup::SetupWindow,
         setup_state::SetupState,
-        setup_widget_tests::{descendant_button, descendants, visible_entries},
+        setup_widget_tests::{descendants, visible_entries},
     },
 };
 
@@ -251,21 +251,53 @@ fn precedes(root: &gtk::Widget, first: &gtk::Widget, second: &gtk::Widget) -> bo
     at(first) < at(second)
 }
 
-fn provider_sent(
+/// What the step or form sent about its browser sign-in: a press of it (`true`) or of its
+/// Cancel (`false`), and from where.
+fn sign_in_sent(
     sender: &relm4::Sender<AppInput>,
     receiver: &relm4::Receiver<AppInput>,
-) -> Option<(SeparateFrom, ProviderInput)> {
+) -> Option<(SeparateFrom, bool)> {
     match sent(sender, receiver)? {
-        AppInput::Accounts(AccountsInput::Separate(SeparateInput::Provider { from, input })) => {
-            Some((from, input))
+        AppInput::Accounts(AccountsInput::Separate(SeparateInput::SignIn { from })) => {
+            Some((from, true))
+        }
+        AppInput::Accounts(AccountsInput::Separate(SeparateInput::CancelSignIn { from })) => {
+            Some((from, false))
         }
         _ => panic!("an input that is not the sign-in's"),
     }
 }
 
-/// The step stands as drawn until the server answers; a `true` answer adds the sign-in above
-/// the fields, in place, so a password being typed stands. While the browser holds it nothing
-/// is held and Cancel is offered; the core's own calls hold every control.
+const HELD: ControlState = ControlState {
+    enabled: false,
+    running: false,
+};
+
+const RUNNING: ControlState = ControlState {
+    enabled: false,
+    running: true,
+};
+
+/// The core's sign-in waiting on the browser, `redirect_uri` `None` for Nextcloud's.
+fn in_browser(redirect_uri: Option<&str>) -> BrowserSignIn {
+    BrowserSignIn {
+        attempt: 7,
+        account: "alice@example.test@imap.example.test".to_owned(),
+        stage: BrowserSignInStage::InBrowser {
+            url: "https://dav.example.test/authorize".to_owned(),
+            redirect_uri: redirect_uri.map(str::to_owned),
+        },
+        cancel: ControlState {
+            enabled: true,
+            running: false,
+        },
+    }
+}
+
+/// The step stands as drawn until the server answers; an answer adds the sign-in above the
+/// fields, in place, so a password being typed stands. It runs as the core says, and while the
+/// browser holds it a line and its Cancel are drawn, the fields held as the core holds Connect,
+/// and a fresh press is still sent.
 pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::ApplicationWindow) {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let mut state = SetupState::closed();
@@ -279,8 +311,8 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
         .current_window()
         .and_then(|window| window.child())
         .expect("the step");
-    let sign_in = descendant_button(&child, l10n::setup_imap_signin_button());
-    assert!(!shown(&sign_in), "nothing is offered before the answer");
+    let sign_in = || button(&child, l10n::setup_imap_signin_button());
+    assert!(!shown(&sign_in()), "nothing is offered before the answer");
     let fields = visible_entries(&child);
     let username = entry_for(&fields, l10n::setup_field_username()).clone();
     let password = entry_for(&fields, l10n::setup_field_password()).clone();
@@ -296,14 +328,14 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
         "updated in place"
     );
     assert_eq!(password.text(), "half typed", "what was typed stands");
-    assert!(shown(&sign_in) && shown(&password));
+    assert!(shown(&sign_in()) && shown(&password));
     assert!(precedes(
         &child,
-        sign_in.upcast_ref(),
+        sign_in().upcast_ref(),
         username.upcast_ref()
     ));
     assert!(
-        sign_in.has_css_class("suggested-action"),
+        sign_in().has_css_class("suggested-action"),
         "the sign-in leads"
     );
     assert!(
@@ -311,44 +343,57 @@ pub(crate) fn the_setup_step_offers_the_sign_in_in_place(window: &adw::Applicati
             .iter()
             .any(|text| text == l10n::setup_imap_signin_note())
     );
-    let cancel = descendants::<gtk::Button>(&child)
-        .into_iter()
-        .find(|button| button.label().as_deref() == Some(l10n::action_cancel()))
-        .expect("the sign-in's Cancel");
-    assert!(!shown(&cancel), "nothing to cancel yet");
-    sign_in.emit_clicked();
-    assert!(matches!(
-        provider_sent(&sender, &receiver),
-        Some((SeparateFrom::Setup, ProviderInput::Start))
-    ));
-
-    let step = state.separate.as_mut().expect("the step");
-    assert!(step.begin_sign_in(1));
-    state.report();
-    setup.render(&state, window, &sender);
-    assert!(!sign_in.is_sensitive() && !password.is_sensitive());
-    assert!(!shown(&cancel), "a core call has no Cancel");
-
-    let step = state.separate.as_mut().expect("the step");
-    assert!(step.sign_in_prepared(1, Ok(())));
-    state.report();
-    setup.render(&state, window, &sender);
-    assert!(shown(&cancel));
-    assert!(
-        sign_in.is_sensitive() && password.is_sensitive(),
-        "the browser's wait holds nothing"
+    let cancel = || {
+        descendants::<gtk::Button>(&child)
+            .into_iter()
+            .find(|button| {
+                descendants::<gtk::Label>(button.upcast_ref())
+                    .iter()
+                    .any(|text| text.label() == l10n::action_cancel())
+            })
+    };
+    assert!(cancel().is_none(), "nothing to cancel yet");
+    sign_in().emit_clicked();
+    assert_eq!(
+        sign_in_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, true))
     );
-    cancel.emit_clicked();
-    assert!(matches!(
-        provider_sent(&sender, &receiver),
-        Some((SeparateFrom::Setup, ProviderInput::Cancel))
-    ));
-    sign_in.emit_clicked();
+
+    let step = state.separate.as_mut().expect("the step");
+    step.section.sign_in_control = RUNNING;
+    step.section.connect = HELD;
+    state.report();
+    setup.render(&state, window, &sender);
+    assert!(spins(&sign_in()) && !sign_in().is_sensitive());
+    assert!(!password.is_sensitive(), "held as the core holds Connect");
+
+    let step = state.separate.as_mut().expect("the step");
+    step.section.sign_in_control = ControlState {
+        enabled: true,
+        running: false,
+    };
+    step.section.browser = Some(in_browser(Some("http://127.0.0.1:1/")));
+    state.report();
+    setup.render(&state, window, &sender);
     assert!(
-        matches!(
-            provider_sent(&sender, &receiver),
-            Some((SeparateFrom::Setup, ProviderInput::Start))
-        ),
+        rendered_labels(&child)
+            .iter()
+            .any(|text| text == &l10n::settings_account_signin_waiting("alice")),
+        "the line says it waits on the browser"
+    );
+    assert!(
+        sign_in().is_sensitive(),
+        "pressable again while the browser waits"
+    );
+    cancel().expect("the sign-in's Cancel").emit_clicked();
+    assert_eq!(
+        sign_in_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, false))
+    );
+    sign_in().emit_clicked();
+    assert_eq!(
+        sign_in_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, true)),
         "a fresh press is sent while the browser waits"
     );
 }
@@ -362,24 +407,24 @@ pub(crate) fn the_page_form_offers_the_sign_in_in_place() {
     prompts.sync(None, Some(&shown_form), &parent, &sender);
     let window = prompts.form_window().expect("the form");
     let child = window.child().expect("the form's content");
-    let sign_in = descendant_button(&child, l10n::setup_imap_signin_button());
-    assert!(!shown(&sign_in));
+    let sign_in = || button(&child, l10n::setup_imap_signin_button());
+    assert!(!shown(&sign_in()));
 
     shown_form.section.sign_in = Some(AccountSeparateSignIn::Provider);
     prompts.sync(None, Some(&shown_form), &parent, &sender);
     assert_eq!(prompts.form_window().as_ref(), Some(&window));
-    assert!(shown(&sign_in));
+    assert!(shown(&sign_in()));
     let connect = button(&child, l10n::action_connect());
     assert!(shown(&connect) && !connect.has_css_class("suggested-action"));
     assert!(
         shown(&button(&child, l10n::action_cancel())),
         "the form's own Cancel stays"
     );
-    sign_in.emit_clicked();
-    assert!(matches!(
-        provider_sent(&sender, &receiver),
-        Some((SeparateFrom::Page, ProviderInput::Start))
-    ));
+    sign_in().emit_clicked();
+    assert_eq!(
+        sign_in_sent(&sender, &receiver),
+        Some((SeparateFrom::Page, true))
+    );
     window.close();
     assert!(matches!(
         sent(&sender, &receiver),
@@ -412,22 +457,22 @@ pub(crate) fn the_setup_step_offers_nextcloud_in_place(window: &adw::Application
     state.report();
     setup.render(&state, window, &sender);
     assert_eq!(password.text(), "half typed", "what was typed stands");
-    let sign_in = descendant_button(&child, l10n::nextcloud_sign_in_button());
-    assert!(shown(&sign_in) && sign_in.has_css_class("suggested-action"));
+    let sign_in = || button(&child, l10n::nextcloud_sign_in_button());
+    assert!(shown(&sign_in()) && sign_in().has_css_class("suggested-action"));
     let labels = rendered_labels(&child);
     assert!(
         labels
             .iter()
             .any(|text| text == l10n::nextcloud_sign_in_note())
     );
-    sign_in.emit_clicked();
-    assert!(matches!(
-        provider_sent(&sender, &receiver),
-        Some((SeparateFrom::Setup, ProviderInput::Start))
-    ));
+    sign_in().emit_clicked();
+    assert_eq!(
+        sign_in_sent(&sender, &receiver),
+        Some((SeparateFrom::Setup, true))
+    );
 
     let step = state.separate.as_mut().expect("the step");
-    assert!(step.begin_sign_in(1) && step.sign_in_prepared(1, Ok(())));
+    step.section.browser = Some(in_browser(None));
     state.report();
     setup.render(&state, window, &sender);
     let labels = rendered_labels(&child);
@@ -436,5 +481,5 @@ pub(crate) fn the_setup_step_offers_nextcloud_in_place(window: &adw::Application
             .iter()
             .any(|text| text == l10n::nextcloud_sign_in_waiting())
     );
-    assert!(shown(&descendant_button(&child, l10n::action_cancel())));
+    assert!(shown(&button(&child, l10n::action_cancel())));
 }
