@@ -281,6 +281,15 @@ pub enum AccountChangeNotice {
     /// The password typed into the Sign-in section was not kept: the server refused it, or could
     /// not be reached. The account signs in as it did.
     PasswordFailed { refusal: AccountChangeRefusal },
+    /// Signing in through the browser did not complete, and the account signs in as it did.
+    /// `switching`: it was to move the account from a password to its provider or Nextcloud.
+    SignInFailed {
+        switching: bool,
+        refusal: AccountChangeRefusal,
+    },
+    /// The sign-in worked, and the provider still withholds `uses` the account is used for: the
+    /// person left them unticked on its consent page, or an administrator does not allow them.
+    SignedInWithheld { uses: Vec<AccountCapability> },
     /// Nothing the account's sign-in opens answers to `address`. The server will not say
     /// whether no such mailbox exists or it was not shared with the account, so neither does this.
     SharedMailboxNotFound { address: String },
@@ -309,6 +318,10 @@ pub enum AccountChangeRefusal {
     Withheld,
     /// The shared mailbox is no longer one the account's sign-in opens.
     NoLongerShared,
+    /// The browser could not be opened.
+    BrowserNotOpened,
+    /// Nothing came back from the browser before the sign-in's wait ran out.
+    NotFinished,
     /// Anything else, as the core renders it.
     Other { detail: String },
 }

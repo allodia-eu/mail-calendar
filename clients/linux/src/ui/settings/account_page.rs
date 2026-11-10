@@ -109,7 +109,7 @@ fn uses_group(
                     on,
                 };
                 if on && asks {
-                    sender.emit(AppInput::Accounts(AccountsInput::SignInAgain {
+                    sender.emit(AppInput::Accounts(AccountsInput::SignIn {
                         account: account.clone(),
                         adding: vec![capability],
                     }));

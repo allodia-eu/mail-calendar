@@ -51,7 +51,7 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
                 activity.pendingImapLogin = start.pending
                 // Asked about when the add is refused as already set up (docs/accounts.md rule 18).
                 activity.setupFlow.signInUnreached = start.unreached
-                activity.yieldAccountSignIn()
+                activity.yieldBrowserSignIn(ImapOAuthConfig.REDIRECT_URI)
                 logUiInfo("imap sign-in: opening the browser")
                 openImapSignIn(activity, start.authorizationUrl)
             }

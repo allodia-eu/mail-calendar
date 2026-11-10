@@ -53,11 +53,9 @@ pub(super) struct HostTasks {
     pub(super) jmap: AttemptSlot,
     pub(super) imap: AttemptSlot,
     pub(super) allodia: AttemptSlot,
-    /// Signing an existing Microsoft or Google account in again (`super::account_consent`).
-    pub(super) consent: AttemptSlot,
-    /// Changing how an IMAP or JMAP account signs in, or signing it in again
-    /// (`super::account_sign_in`).
-    pub(super) account_sign_in: AttemptSlot,
+    /// The attempt of an account's browser sign-in this client opened the browser for
+    /// (`super::browser_sign_in`).
+    pub(super) browser: super::browser_sign_in::BrowserDriver,
     /// Signing a separate calendar server in at its own provider
     /// (`super::separate_server_sign_in`).
     pub(super) separate: AttemptSlot,
@@ -148,8 +146,7 @@ impl HostTasks {
             jmap: AttemptSlot::empty(),
             imap: AttemptSlot::empty(),
             allodia: AttemptSlot::empty(),
-            consent: AttemptSlot::empty(),
-            account_sign_in: AttemptSlot::empty(),
+            browser: super::browser_sign_in::BrowserDriver::new(),
             separate: AttemptSlot::empty(),
             nextcloud: AttemptSlot::empty(),
             jmap_loopback: None,

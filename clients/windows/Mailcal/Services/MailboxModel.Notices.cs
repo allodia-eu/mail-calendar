@@ -89,7 +89,9 @@ public sealed partial class MailboxModel
         switch (action)
         {
             case NoticeAction.SignInAgain when notice.Account is { } account:
-                _ = ReportUnlessDoneAsync(notice, SignInAgainFromNoticeAsync(notice.Kind, account));
+                // The core runs it, draws the notice running while it is out and marks the remedy
+                // failed when it fails.
+                SignIn(account, []);
                 break;
             case NoticeAction.SignInToAllodia:
                 _ = ReportUnlessDoneAsync(notice, SignInToAllodiaFromNoticeAsync());
@@ -104,43 +106,6 @@ public sealed partial class MailboxModel
                 break;
         }
     }
-
-    /// <summary>
-    /// The account's sign-in again, in place: it keeps its id, mail and settings. A grant that
-    /// withholds mail or the calendar is widened at its provider; a dead sign-in runs whatever
-    /// flow the account signs in by.
-    /// </summary>
-    /// <returns>Whether it failed. A browser the person closed, or never came back from, is not a
-    /// failure.</returns>
-    private async Task<bool> SignInAgainFromNoticeAsync(NoticeKind kind, string accountId)
-    {
-        var remedy = kind is NoticeKind.MailReauth or NoticeKind.CalendarReauth
-            ? SignInRemedy.ProviderConsent
-            : AccountSettingsRules.Remedy(
-                _app?.AccountProvider(accountId),
-                AccountsSnapshot().Accounts.Any(entry => entry.Id == accountId && entry.Nextcloud));
-        switch (remedy)
-        {
-            case SignInRemedy.Nextcloud:
-                // Nothing to refresh: a new app password, through the browser.
-                return Failed(await AccountNextcloudSignInAsync(accountId));
-            case SignInRemedy.ProviderConsent:
-                return Failed(await SignInAgainAsync(accountId, []));
-            case SignInRemedy.JmapReauth:
-                // Addressed to the account id, not the address: the core re-authorises this
-                // account's own stored grant, so there is no discovery and no second registration.
-                return await ReconnectJmapAsync(accountId);
-            case SignInRemedy.AccountSignIn:
-                return Failed(await AccountSignInAsync(accountId));
-            default:
-                // No browser flow to run: the password is entered again on the account's page.
-                AccountSettingsRequested?.Invoke(accountId);
-                return false;
-        }
-    }
-
-    private static bool Failed(ConsentEnded ended) =>
-        NoticeRules.RemedyFailed(ended.SignedIn, ended.Error, ended.Unanswered);
 
     private async Task ReportUnlessDoneAsync(Notice notice, Task<bool> remedy)
     {

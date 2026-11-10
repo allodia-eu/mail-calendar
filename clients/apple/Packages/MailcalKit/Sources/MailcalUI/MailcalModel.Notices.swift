@@ -55,8 +55,10 @@ extension MailboxModel {
             case .cancelled: break
             case .failed: remedyFailed(notice)
             }
+        // The core draws the notice running while the sign-in is out, and marks its remedy
+        // failed if it fails, whichever surface started it.
         case .signInAgain:
-            if await !signInAgain(fromNotice: notice) { remedyFailed(notice) }
+            if let account = notice.account { signInThroughBrowser(account) }
         // A question's answers (rule 8), each an intent this client already sends.
         case .fileSentCopy: retryUnfiledCopy()
         case .leaveSentCopy: dismissUnfiledCopy()
@@ -70,38 +72,5 @@ extension MailboxModel {
     /// Tells the core `notice`'s remedy did not complete, so it says so beside the notice.
     private func remedyFailed(_ notice: Notice) {
         app?.dispatch(intent: .notices(intent: .remedyFailed(id: notice.id)))
-    }
-
-    /// Signs `account` in again the way its sign-in was made, answering whether that either
-    /// worked or was left by the person; only a failure is said on the notice. A password or
-    /// pasted-secret account has no sign-in to run here, so its page opens instead.
-    private func signInAgain(fromNotice notice: Notice) async -> Bool {
-        guard let account = notice.account else { return true }
-        let provider = app?.accountProvider(accountId: account)
-        let nextcloud = accountEntry(account)?.nextcloud == true
-        switch AccountSignInRules.remedy(provider, nextcloud: nextcloud) {
-        case .consent:
-            return await signInAgain(account).completedOrLeft
-        case .accountSignIn:
-            return await signInThroughProvider(account, redirectURI: ImapOAuthConfig.redirectURI)
-                .completedOrLeft
-        case .jmapReauth:
-            return await reconnectJmap(accountId: account)
-        case .nextcloud:
-            // Reports a failure through its own callback, after the browser round trip.
-            signInAccountWithNextcloud(account) { [weak self] _ in self?.remedyFailed(notice) }
-            return true
-        case .settings:
-            openAccountPage(account)
-            return true
-        }
-    }
-}
-
-extension ConsentEnded {
-    /// The sign-in worked, or the person closed it: neither is a failure to report.
-    var completedOrLeft: Bool {
-        if case .failed = self { return false }
-        return true
     }
 }

@@ -46,6 +46,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             // raise this signal (docs/accounts.md rule 11).
             refreshAccountsSnapshot()
             refreshSeparate()
+            // An account's browser sign-in moved: its browser opens once the core waits on it.
+            driveBrowserSignIn()
         }
         // The reading body (a potentially large HTML string) only changes on a
         // Reading signal, pull it just then, not on every other refresh.

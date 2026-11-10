@@ -60,7 +60,7 @@ internal fun MainActivity.signInSeparate(state: SeparateSignIn) {
  * sign-ins that share its redirect stop waiting for it.
  */
 private fun MainActivity.claimImapRedirect(state: SeparateSignIn) {
-    yieldAccountSignIn()
+    yieldBrowserSignIn(ImapOAuthConfig.REDIRECT_URI)
     if (pendingImapLogin != null) {
         pendingImapLogin = null
         signingInImap = false

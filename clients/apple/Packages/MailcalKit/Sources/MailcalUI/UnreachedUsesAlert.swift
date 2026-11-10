@@ -70,9 +70,76 @@ private struct UnreachedUsesAlert: ViewModifier {
     }
 }
 
+/// The question a sign-in the core holds asks (`BrowserSignInStage.asking`), drawn while the core
+/// asks it and answered once for its attempt.
+private struct SignInQuestionAlert: ViewModifier {
+    let question: SignInQuestion?
+    let answer: @MainActor (_ attempt: UInt64, _ answer: UnreachedAnswer) -> Void
+
+    /// The attempt whose question was answered.
+    @State private var answered: UInt64?
+    /// The attempt whose alert went away, so it is not drawn again while its answer is on its way.
+    @State private var hidden: UInt64?
+
+    private var shown: SignInQuestion? {
+        question.flatMap { $0.attempt == answered || $0.attempt == hidden ? nil : $0 }
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .alert(
+                shown.map { SeparateServerLabels.unreachedTitle($0.set) } ?? "",
+                isPresented: Binding(
+                    get: { shown != nil },
+                    set: { visible in if !visible, let shown { dismissed(shown.attempt) } }
+                ),
+                presenting: shown
+            ) { question in
+                Button(L10n.signin_unreached_keep()) { give(question.attempt, .keep) }
+                    .keyboardShortcut(.defaultAction)
+                Button(L10n.signin_unreached_stop(), role: .destructive) {
+                    give(question.attempt, .stop)
+                }
+                Button(L10n.action_cancel(), role: .cancel) { give(question.attempt, .cancel) }
+            } message: { _ in
+                Text(L10n.signin_unreached_body())
+            }
+            // A view that leaves while asking cancels the sign-in rather than leave it waiting.
+            .onDisappear {
+                if let question { give(question.attempt, .cancel) }
+            }
+    }
+
+    /// The first answer for an attempt stands.
+    private func give(_ attempt: UInt64, _ given: UnreachedAnswer) {
+        guard answered != attempt else { return }
+        answered = attempt
+        answer(attempt, given)
+    }
+
+    /// The alert went away. A button's own answer may arrive in the same event, so the cancel
+    /// waits a turn and is ignored when it does.
+    private func dismissed(_ attempt: UInt64) {
+        hidden = attempt
+        Task { @MainActor in
+            await Task.yield()
+            give(attempt, .cancel)
+        }
+    }
+}
+
 extension View {
     /// Draws `question` while it is set.
     func unreachedUsesAlert(_ question: Binding<UnreachedQuestion?>) -> some View {
         modifier(UnreachedUsesAlert(question: question))
+    }
+
+    /// Draws the question the core's sign-in asks, handing `answer` the first answer given for
+    /// its attempt.
+    func signInQuestion(
+        _ question: SignInQuestion?,
+        answer: @escaping @MainActor (_ attempt: UInt64, _ answer: UnreachedAnswer) -> Void
+    ) -> some View {
+        modifier(SignInQuestionAlert(question: question, answer: answer))
     }
 }

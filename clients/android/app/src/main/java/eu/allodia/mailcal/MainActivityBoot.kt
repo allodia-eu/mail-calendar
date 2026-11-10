@@ -264,7 +264,12 @@ internal fun notificationDeepLink(intent: AndroidIntent?): Pair<String, String>?
 // the captured URL, dispatching by the redirect scheme. The decision is a pure function of the
 // scheme and the host (OAuthRedirect) so the JVM suite can assert it, in particular that JMAP and
 // the Allodia account, which share the application-id scheme, are told apart by their host.
+//
+// An existing account's sign-in from Settings or a notice is the core's, and takes the redirect it
+// waits on before any setup flow does; a setup flow opening its browser on the same redirect
+// cancelled it first (MainActivityBrowserSignIn.kt).
 internal fun MainActivity.completeOAuthRedirect(data: Uri) {
+    if (redirectToSignIn(data)) return
     when (
         OAuthRedirect.of(
             scheme = data.scheme,
@@ -274,45 +279,20 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
             appScheme = JmapOAuthConfig.REDIRECT_SCHEME,
         )
     ) {
-        // Each provider's redirect completes either a first sign-in from the setup form or an
-        // existing account signed in again from Settings or a banner; whichever started last
-        // claimed it (MainActivityAccountSettings.kt).
-        OAuthRedirect.GOOGLE -> if (awaitsConsent(google = true)) {
-            completeAccountConsent(data.toString())
-        } else {
-            completeGoogleLogin(data.toString())
-        }
-        OAuthRedirect.MICROSOFT -> if (awaitsConsent(google = false)) {
-            completeAccountConsent(data.toString())
-        } else {
-            completeMicrosoftLogin(data.toString())
-        }
+        OAuthRedirect.GOOGLE -> completeGoogleLogin(data.toString())
+        OAuthRedirect.MICROSOFT -> completeMicrosoftLogin(data.toString())
         OAuthRedirect.ALLODIA -> completeAllodiaSignIn(data.toString())
-        // An existing IMAP or JMAP account signing in from its page or the banner waits on
-        // either host, because a sign-in again comes back to its grant's own redirect; one waits
-        // only when it started after every setup sign-in, which yield it the redirect
-        // (MainActivityAccountSignIn.kt).
         // A separate server signed in to at its own provider rides this host as well, and waits
-        // only while no IMAP sign-in does: its browser opening took the redirect from both.
+        // only while setup's IMAP sign-in does not: its browser opening took the redirect from it.
         OAuthRedirect.IMAP -> {
             val separate = awaitingSeparateSignIn()
-            when {
-                awaitsAccountSignIn() -> completeAccountSignIn(data.toString())
-                pendingImapLogin == null && separate != null -> completeSeparateSignIn(separate, data.toString())
-                else -> completeImapSignIn(data.toString())
+            if (pendingImapLogin == null && separate != null) {
+                completeSeparateSignIn(separate, data.toString())
+            } else {
+                completeImapSignIn(data.toString())
             }
         }
-        // One host, three flows: a first sign-in from the setup form, a re-authentication from
-        // the expired-sign-in banner, and an account's sign-in above. `pendingJmapReauthAccount`
-        // tells the first two apart.
-        OAuthRedirect.JMAP -> {
-            val reauth = pendingJmapReauthAccount
-            when {
-                awaitsAccountSignIn() -> completeAccountSignIn(data.toString())
-                reauth == null -> completeJmapSignIn(data.toString())
-                else -> completeJmapReauth(reauth, data.toString())
-            }
-        }
+        OAuthRedirect.JMAP -> completeJmapSignIn(data.toString())
         null -> Unit
     }
 }

@@ -4,6 +4,10 @@
 
 use crate::ControlState;
 
+#[path = "records_browser_sign_in.rs"]
+mod browser;
+pub use browser::{BrowserSignIn, BrowserSignInStage, SignInBrowserEnd};
+
 /// An account's Sign-in section.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountSignIn {
@@ -13,14 +17,18 @@ pub struct AccountSignIn {
     /// Google account in again waits on its server saying it takes it, which the core asks when
     /// the page opens.
     pub routes: Vec<AccountSignInRoute>,
-    /// The routes' control: held while a change runs on the page. A browser sign-in is still the
-    /// client's to run, and it holds them while the core completes one.
+    /// The routes' control: held while a change runs on the page, and running while the account's
+    /// own sign-in starts or completes. A route pressed while the browser waits starts it again.
     pub control: ControlState,
     /// A password typed here, for an account that takes one in this section.
     pub password: Option<AccountPasswordField>,
     /// Another way in is offered, so the page says beneath the section that the account keeps
     /// its mail, settings and links whichever it uses.
     pub switches: bool,
+    /// The account's browser sign-in, while one is out: the section says it waits on the browser
+    /// and offers its Cancel, whichever control started it.
+    #[uniffi(default = None)]
+    pub browser: Option<BrowserSignIn>,
 }
 
 /// The line under the Sign-in heading.
@@ -42,7 +50,7 @@ pub enum AccountSignInLine {
     Refused,
 }
 
-/// A way in through a browser, which the client starts as it does today.
+/// A way in through a browser, sent as `AccountPageIntent::SignIn`.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum AccountSignInRoute {
     /// Sign in again the way the account already does: through its provider, or with Nextcloud.

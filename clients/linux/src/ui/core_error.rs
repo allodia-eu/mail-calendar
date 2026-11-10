@@ -28,6 +28,8 @@ pub(super) fn refusal_said(refusal: &AccountChangeRefusal) -> String {
         AccountChangeRefusal::NoLongerShared => {
             l10n::settings_account_shared_withdrawn().to_owned()
         }
+        AccountChangeRefusal::BrowserNotOpened => l10n::account_signin_browser_failed().to_owned(),
+        AccountChangeRefusal::NotFinished => l10n::account_signin_timeout().to_owned(),
         AccountChangeRefusal::Other { detail } => detail.clone(),
     }
 }

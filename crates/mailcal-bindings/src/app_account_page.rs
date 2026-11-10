@@ -13,7 +13,7 @@ use crate::{
     AccountPage, AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp,
     MailcalError, ReplyFallbackChoice, SyncStrategyKind, account_page, account_page_mail,
     account_registry::Toggle,
-    account_work::{PageWork, Start},
+    account_work::{Change, PageWork, Start},
 };
 
 #[uniffi::export]
@@ -72,6 +72,7 @@ impl MailcalApp {
         if let Some(servers) = &mut page.servers {
             servers.sign_in_refused = sign_in_refused;
         }
+        self.draw_browser_sign_in(&mut page);
         page.separate_server = self.separate_section(&account_id, &hold);
         let separate_after = page
             .separate_server
@@ -100,16 +101,28 @@ impl MailcalApp {
 
 impl MailcalApp {
     /// Starts `intent`'s change, or queues it behind the one running; every page's controls are
-    /// held from now until the last of them ends.
+    /// held from now until the last of them ends. A step of a browser sign-in is not a change: it
+    /// queues only its completion.
     pub(crate) fn dispatch_account(&self, intent: AccountPageIntent) {
+        match intent {
+            AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::AnswerUnreached { .. }
+            | AccountPageIntent::SignInBrowserEnded { .. }
+            | AccountPageIntent::CancelSignIn { .. } => self.dispatch_sign_in(intent),
+            intent => self.queue_change(intent.into()),
+        }
+    }
+
+    /// Starts `change`, or queues it behind the one running.
+    pub(crate) fn queue_change(&self, change: Change) {
         let Some(app) = self.rediscovery.app() else {
             log::warn!("accounts: a change to an account was asked for while the app shuts down");
             return;
         };
-        match self.account_work.start(intent) {
-            Start::Run(intent) => {
+        match self.account_work.start(change) {
+            Start::Run(change) => {
                 self.app.accounts_changed();
-                Self::run_from(app, intent);
+                Self::run_from(app, change);
             }
             // Drawn running from now, at the value it is moving to.
             Start::Waits => self.app.accounts_changed(),
@@ -119,17 +132,19 @@ impl MailcalApp {
 
     /// Runs `intent`, then each change that waited behind it, on a thread of their own: each
     /// change blocks on the runtime itself.
-    fn run_from(app: Arc<Self>, intent: AccountPageIntent) {
+    fn run_from(app: Arc<Self>, change: Change) {
         std::thread::spawn(move || {
-            let mut next = Some(intent);
-            while let Some(intent) = next {
-                let account = intent.account().to_owned();
+            let mut next = Some(change);
+            while let Some(change) = next {
+                let account = change.account().to_owned();
                 // Freed even when the change panics, or every page would stay held until a
                 // restart; the panic still goes on to the crash hook, after the next change is
                 // handed a thread of its own.
-                let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    app.run_account_change(intent)
-                }));
+                let outcome =
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| match change {
+                        Change::Page(intent) => app.run_account_change(intent),
+                        Change::SignIn { attempt, .. } => app.complete_sign_in(attempt),
+                    }));
                 next = app
                     .account_work
                     .finish(&account, outcome.as_ref().ok().cloned().flatten());
@@ -189,6 +204,9 @@ impl MailcalApp {
             // The account is gone whatever this answers: an error says its stored credential
             // could not be erased, which the accounts list says.
             AccountPageIntent::Remove { account } => {
+                if let Some(grant) = self.account_work.browser.forget(&account) {
+                    self.abandon_nextcloud_sign_in(grant);
+                }
                 self.remove_account(account)
                     .err()
                     .map(|error| AccountChangeNotice::RemoveFailed {
@@ -265,6 +283,11 @@ impl MailcalApp {
                 None
             }
             // Tried before anything is kept; the page shows what was stored once it ends.
+            // Handled before the queue (`dispatch_sign_in`); only their completion is queued.
+            AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::AnswerUnreached { .. }
+            | AccountPageIntent::SignInBrowserEnded { .. }
+            | AccountPageIntent::CancelSignIn { .. } => None,
             AccountPageIntent::SaveServers { account, endpoints } => {
                 let error = self
                     .update_account_endpoints(account.clone(), endpoints.clone())
@@ -320,3 +343,6 @@ mod sign_in;
 
 #[path = "app_account_page_separate.rs"]
 mod separate;
+
+#[path = "app_account_page_browser.rs"]
+mod browser;

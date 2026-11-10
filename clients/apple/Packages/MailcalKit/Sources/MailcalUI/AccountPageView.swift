@@ -23,8 +23,6 @@ struct AccountPageView: View {
     let remove: (String) -> Void
 
     @State private var alert: AccountPageAlert?
-    /// The line the sign-in section shows once a sign-in has answered.
-    @State private var signInResult: String?
     @State private var confirmingRemoval: String?
 
     var body: some View {
@@ -65,7 +63,7 @@ struct AccountPageView: View {
             if let name = page.senderName {
                 SenderNameSection(model: model, accountId: entry.id, name: name)
             }
-            AccountUsesSection(model: model, entry: entry, uses: page.uses, signIn: signIn)
+            AccountUsesSection(model: model, entry: entry, uses: page.uses)
             if !page.links.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: page.links)
             }
@@ -76,12 +74,7 @@ struct AccountPageView: View {
                 AccountSharedMailboxesSection(model: model, entry: entry, shared: shared)
             }
             if let section = page.signIn {
-                switch entry.kind {
-                case .microsoft, .google: signInSection(section)
-                case .dav: AccountNextcloudSignInSection(model: model, entry: entry, section: section)
-                case .imap, .jmap:
-                    AccountSignInSection(model: model, entry: entry, section: section, alert: $alert)
-                }
+                AccountSignInSection(model: model, entry: entry, section: section)
             }
             if let technology = entry.mailSync {
                 AccountSyncTechnologySection(technology: technology)
@@ -131,62 +124,6 @@ struct AccountPageView: View {
         }
     }
 
-    // MARK: Sign-in
-
-    /// "Sign in again", for an account that signs in at its provider's page: the remedy for an
-    /// expired sign-in and for a permission the provider withheld.
-    private func signInSection(_ section: AccountSignIn) -> some View {
-        SettingsGroup(
-            heading: L10n.settings_account_signin_heading(),
-            description: AccountSettingsLabels.signInLine(section.line, entry)
-        ) {
-            VStack(alignment: .leading, spacing: 8) {
-                // Held only while a change runs on the page: a sign-in abandoned in the browser
-                // cannot be told from one in progress, so pressing again starts a fresh one
-                // (docs/provider-oauth.md rule 13).
-                ForEach(Array(section.routes.enumerated()), id: \.offset) { _, route in
-                    ControlButton(
-                        title: AccountSettingsLabels.signInRoute(route), control: section.control
-                    ) {
-                        signIn(adding: [])
-                    }
-                }
-                if model.signingInAgain == entry.id {
-                    progress(L10n.settings_account_signin_waiting(
-                        email: AccountSettingsLabels.name(entry)))
-                } else if let signInResult {
-                    Text(signInResult)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    /// Signs the account in again at its provider, asking for what it is used for plus `adding`,
-    /// and says how it ended. A cancelled one says nothing: the person closed it.
-    private func signIn(adding: [AccountCapability]) {
-        signInResult = nil
-        let id = entry.id
-        Task {
-            switch await model.signInAgain(id, adding: adding) {
-            case .signedIn:
-                // A sign-in can complete while the provider still withholds a use; that is said,
-                // rather than "Signed in again".
-                let withheld = model.accountEntry(id).map(AccountSettingsRules.withheld) ?? []
-                signInResult = withheld.isEmpty
-                    ? L10n.settings_account_signed_in()
-                    : L10n.setup_withheld_detail(
-                        uses: withheld.map(AccountSettingsLabels.use).joined(separator: ", "))
-            case .cancelled:
-                break
-            case let .failed(detail, _):
-                alert = AccountPageAlert(title: L10n.settings_account_signin_failed(), detail: detail)
-            }
-        }
-    }
-
     // MARK: Removal
 
     /// Last, and the only destructive control on the page: a remove sits below the things you
@@ -214,21 +151,9 @@ struct AccountUsesSection: View {
     var model: MailboxModel
     let entry: AccountEntry
     let uses: [AccountUseSwitch]
-    /// Signs the account in again, asking for these as well.
-    let signIn: ([AccountCapability]) -> Void
 
     @State private var confirmingOff: AccountCapability?
     @State private var serverChange: ServerChangeReview?
-
-    init(
-        model: MailboxModel, entry: AccountEntry, uses: [AccountUseSwitch],
-        signIn: @escaping (_ adding: [AccountCapability]) -> Void
-    ) {
-        self.model = model
-        self.entry = entry
-        self.uses = uses
-        self.signIn = signIn
-    }
 
     var body: some View {
         SettingsGroup(
@@ -253,8 +178,7 @@ struct AccountUsesSection: View {
 
     private func row(_ toggle: AccountUseSwitch) -> some View {
         let capability = toggle.capability
-        // A sign-in at the provider for this account holds its switches until it answers.
-        let control = toggle.control.held(model.signingInAgain == entry.id)
+        let control = toggle.control
         return VStack(alignment: .leading, spacing: 2) {
             ControlToggle(
                 title: AccountSettingsLabels.use(capability),
@@ -263,7 +187,7 @@ struct AccountUsesSection: View {
                 control: control
             ) { on in
                 if on, toggle.asksProvider {
-                    signIn([capability])
+                    model.signInThroughBrowser(entry.id, adding: [capability])
                 } else if !on, toggle.confirmsOff {
                     confirmingOff = capability
                 } else {

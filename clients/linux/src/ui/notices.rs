@@ -9,9 +9,7 @@ use mailcal_bindings::{Intent, Notice, NoticeAction, NoticeIntent};
 
 use super::{
     AppInput, AppModel,
-    account_consent::ConsentFrom,
-    account_sign_in::Switch,
-    notice_rules::{self, AccountMark, SignInFlow},
+    notice_rules::{self, AccountMark},
     settings,
 };
 
@@ -26,13 +24,11 @@ pub(crate) enum NoticeInput {
     Dismiss(String),
 }
 
-/// A sign-in this client runs for a notice, by the flow that runs it, so the flow's end is
-/// matched to the notice that started it.
+/// A sign-in this client runs for a notice, so the flow's end is matched to the notice that
+/// started it. An account's own sign-in is the core's, which draws its notice running and says
+/// when it failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Remedy {
-    Consent,
-    AccountSignIn,
-    Jmap,
     Allodia,
 }
 
@@ -138,7 +134,7 @@ impl AppModel {
         }
         match (action, notice.account.clone()) {
             (NoticeAction::SignInAgain, Some(account)) => {
-                self.sign_in_again(&notice, account, sender);
+                self.sign_in_in_browser(account, Vec::new());
             }
             // A hop already outstanding answers for it.
             (NoticeAction::SignInToAllodia, _) if !self.settings.allodia_signing_in => {
@@ -158,42 +154,6 @@ impl AppModel {
             }
             _ => {}
         }
-    }
-
-    /// The account's sign-in again, in place: it keeps its id, mail and settings.
-    fn sign_in_again(&mut self, notice: &Notice, account: String, sender: relm4::Sender<AppInput>) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        let nextcloud = app
-            .accounts_snapshot()
-            .accounts
-            .iter()
-            .any(|entry| entry.id == account && entry.nextcloud);
-        let flow = notice_rules::sign_in_flow(
-            &notice.kind,
-            app.account_provider(account.clone()).as_ref(),
-            nextcloud,
-        );
-        let remedy = match flow {
-            SignInFlow::Consent => {
-                self.start_account_consent(account, Vec::new(), ConsentFrom::Notice, sender);
-                Remedy::Consent
-            }
-            SignInFlow::Jmap => {
-                self.start_jmap_reauth(account, sender);
-                Remedy::Jmap
-            }
-            SignInFlow::AccountSignIn => {
-                self.start_account_sign_in(account, Switch::Again, ConsentFrom::Notice, sender);
-                Remedy::AccountSignIn
-            }
-            SignInFlow::Settings => {
-                self.settings.open_account(account);
-                return;
-            }
-        };
-        self.notices.running = Some((remedy, notice.id.clone()));
     }
 
     /// A sign-in `remedy` ran for a notice has ended. One that was refused is said on the notice

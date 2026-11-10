@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use super::{
     AppInput, AppModel,
-    jmap::{self, JmapOutcome, JmapPrepared, JmapReauthOutcome, JmapReauthPrepared},
+    jmap::{self, JmapOutcome, JmapPrepared},
     oauth_loopback::CallbackOutcome,
     setup_model::{DetectedForm, ImapForm, ManualForm, SetupForm, detected_form},
 };
@@ -253,99 +253,6 @@ impl AppModel {
                 log::warn!("jmap sign-in succeeded, but the account was not added");
                 self.setup.connect_failed(*failure);
             }
-        }
-    }
-
-    pub(super) fn start_jmap_reauth(
-        &mut self,
-        account_id: String,
-        sender: relm4::Sender<AppInput>,
-    ) {
-        let Some(app) = self.app.clone() else {
-            return;
-        };
-        let (attempt, _) = self.host_tasks.jmap.start();
-        self.notice = None;
-        std::thread::spawn(move || {
-            let prepared = jmap::prepare_reauth(&app, account_id).map(Box::new);
-            sender.emit(AppInput::JmapReauthPrepared(attempt, prepared));
-        });
-    }
-
-    pub(super) fn jmap_reauth_prepared(
-        &mut self,
-        attempt: u64,
-        prepared: Result<Box<JmapReauthPrepared>, String>,
-        sender: relm4::Sender<AppInput>,
-    ) {
-        if !self.host_tasks.jmap.holds(attempt) {
-            return;
-        }
-        let Ok(prepared) = prepared else {
-            self.jmap_reauth_failed(attempt);
-            return;
-        };
-        let JmapReauthPrepared {
-            account_id,
-            authorization_url,
-            pending,
-            expected_state,
-            redirect_uri,
-        } = *prepared;
-        let Ok(loopback) = self.host_tasks.oauth_loopback_for_redirect(&redirect_uri) else {
-            log::warn!("jmap re-authentication loopback bind failed");
-            self.jmap_reauth_failed(attempt);
-            return;
-        };
-        let failed = sender.clone();
-        jmap::launch_browser(&authorization_url, move || {
-            failed.emit(AppInput::JmapReauthFinished(
-                attempt,
-                JmapReauthOutcome::Failed,
-            ));
-        });
-        let (Some(app), Some(cancel)) =
-            (self.app.clone(), self.host_tasks.jmap.cancel_token(attempt))
-        else {
-            self.jmap_reauth_failed(attempt);
-            return;
-        };
-        std::thread::spawn(move || {
-            let outcome = match jmap::wait(loopback, &cancel, &expected_state) {
-                CallbackOutcome::Received(callback_url) => {
-                    jmap::complete_reauth(&app, account_id, pending, callback_url)
-                }
-                // A browser left until the wait ran out is not a failure (`docs/notices.md` rule
-                // 10).
-                CallbackOutcome::Cancelled | CallbackOutcome::TimedOut(_) => {
-                    JmapReauthOutcome::Cancelled
-                }
-                CallbackOutcome::Failed(_) => JmapReauthOutcome::Failed,
-            };
-            sender.emit(AppInput::JmapReauthFinished(attempt, outcome));
-        });
-    }
-
-    pub(super) fn jmap_reauth_finished(&mut self, attempt: u64, outcome: JmapReauthOutcome) {
-        if !self.host_tasks.jmap.finish(attempt) {
-            return;
-        }
-        let failed = outcome == JmapReauthOutcome::Failed;
-        if outcome == JmapReauthOutcome::Reauthenticated
-            && let Some(app) = &self.app
-        {
-            self.snapshot.replace(app.mailbox_list());
-            self.pull_notices();
-        }
-        if failed {
-            log::warn!("jmap re-authentication failed");
-        }
-        self.notice_remedy_ended(super::notices::Remedy::Jmap, failed);
-    }
-
-    fn jmap_reauth_failed(&mut self, attempt: u64) {
-        if self.host_tasks.jmap.finish(attempt) {
-            self.notice_remedy_ended(super::notices::Remedy::Jmap, true);
         }
     }
 }

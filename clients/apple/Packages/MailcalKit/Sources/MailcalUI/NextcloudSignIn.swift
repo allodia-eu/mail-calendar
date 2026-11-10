@@ -113,10 +113,6 @@ final class NextcloudSignIn {
     private(set) var state = NextcloudSignInState()
     /// What the last attempt or completion said, drawn under the sign-in.
     var failure: String?
-    /// The key the browser or the core is busy for, so a page can tell its own sign-in apart.
-    private(set) var key: String?
-    /// The key whose last completion succeeded, until the next attempt.
-    private(set) var succeeded: String?
     @ObservationIgnored private var task: Task<Void, Never>?
 
     var waiting: Bool { state.waiting }
@@ -125,20 +121,16 @@ final class NextcloudSignIn {
 
     /// Signs in for `key`: with the grant kept for it when there is one, else through the
     /// browser, `begin` starting the flight off the main actor. `complete` makes the account.
-    /// `reported` hears each failure as it is drawn.
     func start(
         _ app: MailcalApp?,
         key: String,
         begin: @escaping @Sendable (MailcalApp) throws -> NextcloudSignInStart,
-        complete: @escaping (NextcloudGrant) async -> NextcloudCompleted,
-        reported: ((String) -> Void)? = nil
+        complete: @escaping (NextcloudGrant) async -> NextcloudCompleted
     ) {
         guard let app, !state.completing else { return }
         failure = nil
-        succeeded = nil
-        self.key = key
         if let grant = state.retry(key) {
-            task = Task { await finish(app, key, grant, complete, reported) }
+            task = Task { await finish(app, grant, complete) }
             return
         }
         task?.cancel()
@@ -148,11 +140,11 @@ final class NextcloudSignIn {
             let end = await flyNextcloudSignIn(app, begin: begin)
             switch state.landed(attempt, key: key, end) {
             case let .complete(grant):
-                await finish(app, key, grant, complete, reported)
+                await finish(app, grant, complete)
             case let .withdraw(grant):
                 app.abandonNextcloudSignIn(grant: grant.value)
             case let .ended(end):
-                report(end.said, reported)
+                failure = end.said
             case .dropped:
                 break
             }
@@ -166,7 +158,7 @@ final class NextcloudSignIn {
         _ app: MailcalApp?, _ complete: @escaping (NextcloudGrant) async -> NextcloudCompleted
     ) async -> Bool {
         guard let app, let grant = state.retry(nil) else { return false }
-        await finish(app, key ?? "", grant, complete, nil)
+        await finish(app, grant, complete)
         return true
     }
 
@@ -190,23 +182,14 @@ final class NextcloudSignIn {
     }
 
     private func finish(
-        _ app: MailcalApp, _ key: String, _ grant: NextcloudGrant,
-        _ complete: (NextcloudGrant) async -> NextcloudCompleted,
-        _ reported: ((String) -> Void)?
+        _ app: MailcalApp, _ grant: NextcloudGrant,
+        _ complete: (NextcloudGrant) async -> NextcloudCompleted
     ) async {
         let result = await complete(grant)
         if let withdraw = state.completed(result) {
             app.abandonNextcloudSignIn(grant: withdraw.value)
         }
-        switch result {
-        case .done: succeeded = key
-        case let .failed(said): report(said, reported)
-        }
-    }
-
-    private func report(_ said: String?, _ reported: ((String) -> Void)?) {
-        failure = said
-        if let said { reported?(said) }
+        if case let .failed(said) = result { failure = said }
     }
 }
 

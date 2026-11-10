@@ -22,12 +22,16 @@ import uniffi.mailcal_bindings.AccountCapability.CALENDAR
 import uniffi.mailcal_bindings.AccountCapability.CONTACTS
 import uniffi.mailcal_bindings.AccountCapability.MAIL
 import uniffi.mailcal_bindings.AccountEntry
+import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.AccountSignIn
 import uniffi.mailcal_bindings.AccountSignInLine
 import uniffi.mailcal_bindings.AccountsSnapshot
+import uniffi.mailcal_bindings.BrowserSignIn
+import uniffi.mailcal_bindings.BrowserSignInStage
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.AccountSeparateServer
 import uniffi.mailcal_bindings.AccountSeparateSignIn
+import uniffi.mailcal_bindings.UnreachedUses
 import uniffi.mailcal_bindings.UseProblem
 import uniffi.mailcal_bindings.AccountKind as CoreAccountKind
 
@@ -39,8 +43,11 @@ class SettingsSeparateServerTest {
 
     private val state = AccountsUiState()
     private val opened = mutableListOf<String>()
-    private val choices = mutableListOf<UnreachedChoice>()
+    private val changes = mutableListOf<AccountPageIntent>()
     private var signIns = 0
+
+    /** The account's browser sign-in, as the core would put it on the page. */
+    private var browser: BrowserSignIn? = null
 
     private fun mailbox(server: AccountSeparateServer?): AccountEntry {
         val base = accountEntry(
@@ -66,13 +73,13 @@ class SettingsSeparateServerTest {
             uses = entry.uses.map {
                 useSwitch(it.capability, it.state == CapabilityState.ON, separately = section?.uses?.last() == it.capability)
             },
-            signIn = AccountSignIn(AccountSignInLine.PASSWORD, emptyList(), FREE, null, switches = false),
+            signIn = AccountSignIn(AccountSignInLine.PASSWORD, emptyList(), FREE, null, switches = false, browser = browser),
             separate = section,
         )
         val ui = AccountsSettingsUi(
             state = state,
             onSeparateSignIn = { opened += it },
-            onUnreachedChoice = { choices += it },
+            onChange = { changes += it },
             onSeparateProviderSignIn = { signIns++ },
         )
         compose.setContent {
@@ -125,14 +132,16 @@ class SettingsSeparateServerTest {
     @Test
     fun a_switch_that_leaves_the_calendar_behind_asks_on_the_page() {
         val entry = mailbox(null)
-        state.signIn.begin(entry.id, switching = true)
-        state.signIn.ask(UnreachedQuestion(entry.id, UnreachedSet.CALENDAR, "handle", "https://auth", "redirect"))
+        browser = BrowserSignIn(7uL, entry.id, BrowserSignInStage.Asking(listOf(CALENDAR)), FREE)
         show(entry)
 
         compose.onNodeWithText(L10n.signin_unreached_title_calendar(ctx())).assertExists()
         compose.onNodeWithTag("signin-unreached-keep").performClick()
 
-        assertEquals(listOf(UnreachedChoice.KEEP), choices)
+        assertEquals(
+            listOf(AccountPageIntent.AnswerUnreached(entry.id, 7uL, UnreachedUses.KEEP_ON_PASSWORD)),
+            changes,
+        )
     }
 
     @Test

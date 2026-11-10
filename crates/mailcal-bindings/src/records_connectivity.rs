@@ -11,23 +11,24 @@
 pub enum AccountProvider {
     /// An IMAP/SMTP (+ CalDAV) account authenticated with a stored password.
     Password,
-    /// A Microsoft 365 account (Graph, OAuth); re-run `begin_microsoft_login`.
+    /// A Microsoft 365 account (Graph, OAuth); signed in again as `AccountPageIntent::SignIn`.
     Microsoft,
-    /// A Google account (Gmail + Google Calendar, OAuth); re-run `begin_google_login`.
+    /// A Google account (Gmail + Google Calendar, OAuth); signed in again as
+    /// `AccountPageIntent::SignIn`.
     Google,
     /// A JMAP account authenticated with a **stored secret** (a password or an API token). There
     /// is no browser flow to re-run, so a host offers the account's own settings.
     Jmap,
     /// A JMAP account connected by **signing in with the provider**: the discovered
-    /// RFC 9728 → 8414 → 7591 → PKCE flow. Its sign-in *is* re-runnable, in place: re-run
-    /// `begin_jmap_reauth` + `complete_jmap_reauth`, which reuse the grant's persisted endpoints
-    /// and registered client id rather than repeating discovery. Split from [`Self::Jmap`]
+    /// RFC 9728 → 8414 → 7591 → PKCE flow. Its sign-in *is* re-runnable, in place, as
+    /// `AccountPageIntent::SignIn`, which reuses the grant's persisted endpoints and registered
+    /// client id rather than repeating discovery. Split from [`Self::Jmap`]
     /// because the two need opposite remedies and only the account's own config can tell them
     /// apart.
     JmapOauth,
     /// An IMAP account connected by **signing in with its provider**. Signed in again in place
-    /// with `begin_account_sign_in` + `complete_account_sign_in`, from its stored grant; it has
-    /// no password for a host to ask for.
+    /// as `AccountPageIntent::SignIn`, from its stored grant; it has no password for a host to
+    /// ask for.
     ImapOauth,
 }
 

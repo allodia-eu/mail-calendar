@@ -24,6 +24,8 @@ public class CoreErrorTests
         "contacts server changed",
         "calendar none on server",
         "contacts none on server",
+        "browser not opened",
+        "nothing came back",
         error => $"couldn't connect: {error}");
 
     [Fact]
@@ -112,6 +114,17 @@ public class CoreErrorTests
         Assert.Equal(
             "config: no such account",
             CoreError.Refused(new uniffi.mailcal_bindings.AccountChangeRefusal.Other("config: no such account"), Words));
+    }
+
+    [Fact]
+    public void A_browser_sign_in_that_ended_before_completing_says_why()
+    {
+        Assert.Equal(
+            "browser not opened",
+            CoreError.Refused(new uniffi.mailcal_bindings.AccountChangeRefusal.BrowserNotOpened(), Words));
+        Assert.Equal(
+            "nothing came back",
+            CoreError.Refused(new uniffi.mailcal_bindings.AccountChangeRefusal.NotFinished(), Words));
     }
 
     [Fact]

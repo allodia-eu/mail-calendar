@@ -5,7 +5,6 @@
 // parameter, so the JVM suite reaches every rule.
 package eu.allodia.mailcal
 
-import uniffi.mailcal_bindings.AccountProvider
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.Notice
@@ -21,24 +20,6 @@ import uniffi.mailcal_bindings.NoticeText
  * [label] (that notice's mark, or how many there are) and every sentence, for a screen reader.
  */
 internal data class AccountMark(val severity: NoticeSeverity, val label: String, val detail: String)
-
-/** A flow a notice's action runs that ends later, and can end refused (rule 10). */
-internal enum class NoticeRemedy {
-    /** Microsoft or Google, signed in again through their own consent. */
-    CONSENT,
-
-    /** A JMAP account's own grant authorised again. */
-    JMAP,
-
-    /** An IMAP or JMAP account's sign-in, or a Nextcloud one. */
-    ACCOUNT_SIGN_IN,
-
-    /** The Allodia account's sign-in. */
-    ALLODIA,
-}
-
-/** A remedy running for notice [noticeId], about [account] (null for the Allodia account). */
-internal data class RunningRemedy(val remedy: NoticeRemedy, val noticeId: String, val account: String?)
 
 internal object NoticeRules {
     /** The screens a notice can name, for the destination on show. */
@@ -111,8 +92,9 @@ internal object NoticeRules {
     fun offersSecond(notice: Notice): Boolean = notice.secondAction != null && notice.secondActionLabel != null
 
     /**
-     * Whether a notice's buttons are held: an answer the core is carrying out, or a flow this
-     * client started from it ([running] names that notice), so neither can start a second one.
+     * Whether a notice's buttons are held: an answer or a sign-in the core is carrying out, or the
+     * Allodia sign-in this client started from it ([running] names that notice), so neither can
+     * start a second one.
      */
     fun held(notice: Notice, running: String?): Boolean = notice.running || running == notice.id
 
@@ -144,14 +126,6 @@ internal object NoticeRules {
             NoticeAction.RETRY, NoticeAction.REVIEW,
             -> null
         }
-
-    /**
-     * The flow Sign in again runs for an account of [provider]; [nextcloud] for one a Nextcloud
-     * sign-in made. The same answer a dead sign-in takes: a narrowed Microsoft or Google grant is
-     * widened through that provider's consent, which is what the dead sign-in runs too.
-     */
-    fun signInFlow(provider: AccountProvider?, nextcloud: Boolean): ExpiredRemedy =
-        AccountSignInRules.expiredRemedy(provider, nextcloud)
 }
 
 /**

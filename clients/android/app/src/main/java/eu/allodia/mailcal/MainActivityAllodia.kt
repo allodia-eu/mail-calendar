@@ -98,7 +98,7 @@ internal fun MainActivity.cancelAllodiaSignIn() {
     signingInAllodia = false
     allodiaSignInSlow = false
     pendingAllodiaSignIn = null
-    noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = false)
+    allodiaRemedyEnded(failed = false)
 }
 
 // Completes a sign-in from the redirect [callbackUrl]: the core exchanges the code, asks the
@@ -131,7 +131,7 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
                 activity.allodiaFailure = null
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
-                activity.noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = false)
+                activity.allodiaRemedyEnded(failed = false)
                 // The first thing a new sign-in is for: this device's accounts go up, and whatever
                 // the person's other devices hold comes back.
                 activity.syncAllodiaAccounts()
@@ -157,7 +157,7 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
 // here.
 private fun MainActivity.allodiaSignInFailed(e: Exception) {
     allodiaFailure = allodiaFailureSaid(e, this)
-    noticeRemedyEnded(NoticeRemedy.ALLODIA, null, failed = true)
+    allodiaRemedyEnded(failed = true)
 }
 
 // Signs out: the core forgets the account and erases its stored grant before it touches the

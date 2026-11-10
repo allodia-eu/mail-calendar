@@ -3,10 +3,11 @@
 // Google flow does not use it, Google's Desktop client redirects to an http://127.0.0.1 loopback
 // listener instead (GoogleOAuth.cs).
 //
-// The OS delivers the redirect by ACTIVATING this app, which `Program` routes into Deliver on a
-// background thread; the in-flight sign-in awaits the armed slot. One slot is enough because the
-// model only ever lets one browser sign-in run at a time, but the slot is armed for specific
-// redirect hosts, so a stray or late activation from another flow can never complete this one.
+// The OS delivers the redirect by ACTIVATING this app, which `Program` routes into Deliver; the
+// in-flight sign-in awaits the armed slot. An existing account's sign-in never arms it: the core
+// holds that one, and Program hands it its redirect first. One slot is enough because setup's
+// flows run one at a time (SignInFlight), and the slot is armed for specific redirect hosts, so a
+// stray or late activation from another flow can never complete this one.
 
 using System;
 using System.Threading;
@@ -42,7 +43,7 @@ internal static class ProtocolAuthCallback
     {
         lock (Gate)
         {
-            // RunContinuationsAsynchronously: Deliver runs on the activation background thread, so
+            // RunContinuationsAsynchronously: Deliver runs inside the activation hand-off, so
             // don't resume the awaiting sign-in inline on it.
             _pending = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
             _hosts = hosts;

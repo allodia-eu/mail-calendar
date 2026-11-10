@@ -18,7 +18,6 @@ pub(super) mod about;
 pub(super) mod account_mail;
 pub(in crate::ui) mod account_names;
 mod account_notices;
-pub(super) use account_names::entry_name;
 mod account_page;
 pub(super) mod account_rows;
 pub(super) mod sign_in_section;
@@ -87,7 +86,6 @@ pub(super) struct RenderState<'a> {
         &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
-    pub(super) sign_in: &'a super::account_sign_in::SignInSwitchState,
     /// The form for a sign-in of its own an account's page opened.
     pub(super) separate: Option<&'a super::separate_sign_in::SeparateForm>,
     pub(super) notice: Option<&'a notice::Raised>,
@@ -146,8 +144,6 @@ struct PageContext {
         std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
-    /// What that page's Sign-in section knows: what the server accepts, and a change running.
-    sign_in: super::account_sign_in::SignInSwitchState,
     /// The page of the account Accounts shows, read once for the redraw.
     page: Option<mailcal_bindings::AccountPage>,
 }
@@ -186,8 +182,9 @@ impl SettingsWindow {
         if let Some(app) = app {
             dark_messages::follow(app);
         }
+        let browser = app.and_then(|app| app.browser_sign_in());
         self.prompts.sync(
-            state.sign_in.question(),
+            super::browser_sign_in::question(browser.as_ref()),
             state.separate,
             &self.front_or(parent),
             &sender,
@@ -256,15 +253,6 @@ impl SettingsWindow {
                     returning.emit(AppInput::AllodiaSubscription(SubscriptionInput::Returned));
                 }
             });
-            let closing = sender.clone();
-            window.connect_close_request(move |_| {
-                closing.emit(AppInput::Accounts(
-                    crate::ui::account_settings::AccountsInput::SignIn(
-                        crate::ui::account_sign_in::SignInInput::Closed,
-                    ),
-                ));
-                gtk::glib::Propagation::Proceed
-            });
             window
         };
         let navigation = gtk::Stack::new();
@@ -282,7 +270,6 @@ impl SettingsWindow {
             allodia_subscription: state.allodia_subscription.clone(),
             allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
-            sign_in: state.sign_in.clone(),
             page: None,
         };
         // Read before the pages are built, which draw the account's page from it: a change

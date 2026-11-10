@@ -21,13 +21,6 @@ internal enum class NoticeKind { SUCCESS, WARNING, FAILURE }
 /** What an account's page or the list says about the last change. */
 internal data class AccountNotice(val kind: NoticeKind, val title: String, val message: String)
 
-/** A sign-in in the browser for an existing account, waiting for its redirect. */
-internal data class PendingConsent(
-    val accountId: String,
-    val google: Boolean,
-    val handle: String,
-)
-
 internal class AccountsUiState {
     /** Every account, mail or not, as the core last listed it. */
     var snapshot by mutableStateOf(AccountsSnapshot(emptyList()))
@@ -35,18 +28,8 @@ internal class AccountsUiState {
     /** Whether the last snapshot listed an account: the last one going returns to setup. */
     var hadAccounts = false
 
-    private var pageState by mutableStateOf<String?>(null)
-
-    /**
-     * The account whose page is open in Settings → Accounts, or null for the list. Leaving a page
-     * withdraws a Nextcloud grant kept there for another try.
-     */
-    var page: String?
-        get() = pageState
-        set(value) {
-            if (value != pageState) signIn.leaveNextcloud(keeping = value)
-            pageState = value
-        }
+    /** The account whose page is open in Settings → Accounts, or null for the list. */
+    var page by mutableStateOf<String?>(null)
 
     /** What the last change said, until it is dismissed or the page closes. */
     var notice by mutableStateOf<AccountNotice?>(null)
@@ -60,33 +43,11 @@ internal class AccountsUiState {
     /** The notice a change on the page left, which the core withdraws when the next one starts. */
     var changeNotice: AccountNotice? = null
 
-
-    /** The account being signed in again, from the browser hop until its connect answers. */
-    var signingIn by mutableStateOf<String?>(null)
-
-    /** The consent sign-in the next Microsoft or Google redirect completes, if any. */
-    var consent: PendingConsent? = null
-
-    /** An IMAP or JMAP account's sign-in, switched or renewed, and what each server takes. */
-    val signIn = AccountSignInState()
-
     /** A calendar or address book being given a sign-in of its own, from its account's page. */
     val separate = SeparateSignIn()
 
     /** A calendar or address book server found on another site, being asked about. */
     val serverChange = ServerChangePrompt()
-
-
-    /**
-     * A first sign-in from the setup form claims the redirect a sign-in again was waiting for. That
-     * one can no longer finish, so its page stops saying it is under way, or "Sign in again" would
-     * stay disabled with nothing left to enable it.
-     */
-    fun yieldConsent() {
-        if (consent == null) return
-        consent = null
-        signingIn = null
-    }
 
     /** The account [id] names, if it is still listed. */
     fun entry(id: String): AccountEntry? = snapshot.accounts.firstOrNull { it.id == id }
@@ -140,18 +101,6 @@ internal fun coreErrorSaid(error: Throwable, ctx: Context): String? = when (erro
 internal fun signInFailedSaid(error: Throwable, ctx: Context, fallback: String): String = when (error) {
     is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
     else -> fallback
-}
-
-/**
- * What signing an existing account in again says when it did not complete, from a banner or its
- * page: a browser returning from another sign-in, a sign-in as another account and a refusal each
- * have words of their own; anything else is the plain retry line, the cause being for the log.
- */
-internal fun signInAgainSaid(error: Throwable, ctx: Context): String = when (error) {
-    is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
-    is MailcalException.DifferentAccount -> L10n.signin_different_account(ctx)
-    is MailcalException.SignInRefused -> L10n.signin_refused(ctx)
-    else -> L10n.signin_expired_failed(ctx)
 }
 
 /**

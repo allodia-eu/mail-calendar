@@ -523,6 +523,14 @@ that same file.
   registered. macOS therefore calls `NSWorkspace.shared.open` from inside the extension, which a
   sandboxed process may do for a URL; iOS keeps the context call, where the host is UIKit's own
   share sheet and it works.
+- **On the Mac, `ASWebAuthenticationSession.cancel()` can leave the browser's prompt up.** With
+  Brave as the default browser, the browser first asks whether the app may use the host "to Sign
+  In". A session cancelled while that prompt is showing leaves it on
+  screen, and its completion arrives only once the person answers; holding the session until then
+  changes nothing. It is cosmetic: Continue on a cancelled session brings the browser forward and
+  opens no sign-in. So an account page that has gone back to idle beside that prompt is not a
+  sign-in still running: `account sign-in: the sign-in no longer waits on the browser` in the log
+  says the session was closed.
 
 - **A `NavigationViewItem` opens only what it already holds, and cannot be told twice.** It
   realises its children when `IsExpanded` turns true, so a row already on screen that is told it is

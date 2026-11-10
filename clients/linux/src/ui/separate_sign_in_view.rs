@@ -12,10 +12,9 @@ use mailcal_bindings::{AccountCapability, AccountSeparateSignIn, ControlState};
 use super::{
     AppInput,
     account_settings::AccountsInput,
-    account_sign_in::{Password, SignInInput},
     controls,
     separate_server_sign_in::{ProviderInput, SignInStage},
-    separate_sign_in::{SeparateForm, SeparateFrom, SeparateInput},
+    separate_sign_in::{Password, SeparateForm, SeparateFrom, SeparateInput},
     setup_widgets::{body, entry, heading, page},
     unreached,
 };
@@ -289,19 +288,23 @@ impl Prompts {
     /// closes the form. `parent` is the window they are raised over.
     pub(super) fn sync(
         &mut self,
-        question: Option<(u64, &[AccountCapability])>,
+        question: Option<(&str, u64, &[AccountCapability])>,
         form: Option<&SeparateForm>,
         parent: &gtk::Window,
         sender: &relm4::Sender<AppInput>,
     ) {
-        if let Some((attempt, unreached)) = question
+        if let Some((account, attempt, unreached)) = question
             && self.asked != Some(attempt)
         {
             self.asked = Some(attempt);
-            let sender = sender.clone();
+            let (sender, account) = (sender.clone(), account.to_owned());
             unreached::ask(parent, unreached, move |answer| {
-                sender.emit(AppInput::Accounts(AccountsInput::SignIn(
-                    SignInInput::Answered { attempt, answer },
+                sender.emit(AppInput::Accounts(AccountsInput::Change(
+                    mailcal_bindings::AccountPageIntent::AnswerUnreached {
+                        account: account.clone(),
+                        attempt,
+                        answer: answer.choice(),
+                    },
                 )));
             });
         }

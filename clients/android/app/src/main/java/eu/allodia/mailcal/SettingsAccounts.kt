@@ -62,15 +62,12 @@ internal class AccountsSettingsUi(
     // A use, a link or the removal, for the core to run: it answers at once, and the page says
     // it runs (docs/waiting.md).
     val onChange: (AccountPageIntent) -> Unit = {},
-    val onSignInAgain: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
-    // An account's browser sign-in (docs/accounts.md rule 17), again or in place of a password
-    // ([switching]).
-    val onAccountSignIn: (accountId: String, switching: Boolean) -> Unit = { _, _ -> },
-    // What a switch's sign-in will not reach, answered before the browser opens, and a sign-in of
-    // their own for a calendar or address book that needs one (docs/accounts.md rule 18): the
-    // form, its Connect, whether its server is asked to offer a sign-in at its own provider once it
-    // is drawn, and that sign-in (docs/mail-oauth.md rule 13).
-    val onUnreachedChoice: (UnreachedChoice) -> Unit = {},
+    // An account's browser sign-in, from a route or a use's switch that asks the provider for
+    // [adding] (docs/accounts.md rule 17). The core runs it; the activity names where it returns.
+    val onSignIn: (accountId: String, adding: List<AccountCapability>) -> Unit = { _, _ -> },
+    // A sign-in of their own for a calendar or address book that needs one (docs/accounts.md
+    // rule 18): the form, its Connect, and the sign-in at its own provider (docs/mail-oauth.md
+    // rule 13).
     val onSeparateSignIn: (accountId: String) -> Unit = {},
     val onConnectSeparate: (username: String, password: String) -> Unit = { _, _ -> },
     val onSeparateProviderSignIn: () -> Unit = {},

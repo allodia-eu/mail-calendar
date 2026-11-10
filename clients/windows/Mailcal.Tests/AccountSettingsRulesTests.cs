@@ -137,6 +137,16 @@ public class AccountSettingsRulesTests
         Assert.NotEqual(
             AccountSettingsRules.PageFingerprint(typing),
             AccountSettingsRules.PageFingerprint(free with { SignIn = signIn with { Password = field with { Save = new ControlState(false, true) } } }));
+        // A browser sign-in moving on, which the section draws: its step and its Cancel.
+        var starting = free with { SignIn = signIn with { Browser = BrowserSignInRulesTests.At(new BrowserSignInStage.Starting()) } };
+        Assert.NotEqual(AccountSettingsRules.PageFingerprint(section), AccountSettingsRules.PageFingerprint(starting));
+        var waiting = BrowserSignInRulesTests.At(new BrowserSignInStage.InBrowser("https://auth.example.org", "app://imap-oauth"));
+        Assert.NotEqual(
+            AccountSettingsRules.PageFingerprint(starting),
+            AccountSettingsRules.PageFingerprint(free with { SignIn = signIn with { Browser = waiting } }));
+        Assert.NotEqual(
+            AccountSettingsRules.PageFingerprint(free with { SignIn = signIn with { Browser = waiting } }),
+            AccountSettingsRules.PageFingerprint(free with { SignIn = signIn with { Browser = waiting with { Cancel = new ControlState(false, false) } } }));
         // And a notice raised, which the page says once.
         var notice = new AccountChangeNoticeRaised(1, new AccountChangeNotice.LinkFailed(LinkSlot.Calendar, new AccountChangeRefusal.Other("gone")));
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Notice = notice }));

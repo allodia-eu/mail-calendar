@@ -33,10 +33,9 @@ public class UnreachedUsesRulesTests
     {
         Assert.True(UnreachedUsesRules.Asks([AccountCapability.Calendar]));
         Assert.True(UnreachedUsesRules.Asks([AccountCapability.Contacts]));
-        // A start that names nothing (or a record built without the field) behaves as before.
+        // A start that names nothing behaves as before.
         Assert.False(UnreachedUsesRules.Asks([]));
         Assert.False(UnreachedUsesRules.Asks(null));
-        Assert.False(UnreachedUsesRules.Asks(new AccountSignInStart("https://auth.example.org", "pending").Unreached));
     }
 
     [Fact]

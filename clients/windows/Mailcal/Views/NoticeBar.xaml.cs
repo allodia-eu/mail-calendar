@@ -70,8 +70,13 @@ public sealed partial class NoticeBar : UserControl
         var question = NoticeRules.OffersSecond(notice);
         if (NoticeRules.Offers(notice) && !question)
         {
-            ActionButton.Content = MailboxModel.Words(notice.ActionLabel!);
+            var label = MailboxModel.Words(notice.ActionLabel!);
+            ActionLabel.Text = label;
+            // Its content is not a string, so the name is given.
+            AutomationProperties.SetName(ActionButton, label);
             ActionButton.IsEnabled = !notice.Running;
+            ActionRunning.IsActive = notice.Running;
+            ActionRunning.Visibility = notice.Running ? Visibility.Visible : Visibility.Collapsed;
             Bar.ActionButton = ActionButton;
         }
         else

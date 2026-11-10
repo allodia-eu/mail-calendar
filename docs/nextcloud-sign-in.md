@@ -74,16 +74,20 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    only to the root the flow ran at, over TLS.
 
 5. **The browser half is the platform's, and the wait is a poll.** There is no redirect back to
-   the app. The client opens the login page in the platform's browser and polls
-   `poll_nextcloud_sign_in` every `nextcloud_poll_interval_ms()`, and once more when it returns to
-   the foreground. Twenty minutes after it started the server lets the flow go, and the poll
+   the app. The client opens the login page in the platform's browser. For an account that exists,
+   signed in again or switched over from its page or a prompt, the core polls the server itself
+   at `nextcloud_poll_interval_ms()`, and once more when the person closes a browser that tells
+   the app so (`SignInBrowserEnded` with `Closed`, [`waiting.md`](waiting.md)); setup and the
+   separate server's form still poll `poll_nextcloud_sign_in` from the client at that interval,
+   and once more when it returns to the foreground. Twenty minutes after it started the server lets the flow go, and the poll
    answers `Expired` without asking. The way out of the wait is the one
    [`onboarding.md`](onboarding.md) requires of every browser sign-in.
 
 6. **The grant comes once, so it is kept until it is an account.** The server answers the grant to
-   one poll and forgets it. The client holds the grant in memory; a completion that fails keeps it,
-   so Connect can try again without a second trip to the browser; a grant that becomes no account
-   is withdrawn (`abandon_nextcloud_sign_in`).
+   one poll and forgets it. Whoever polled holds the grant in memory (the core, for an account
+   that exists); a completion that fails keeps it, so the next try completes it without a second
+   trip to the browser; a grant that becomes no account is withdrawn
+   (`abandon_nextcloud_sign_in`), as the core does when another account's sign-in starts.
 
 7. **The account is a calendar and contacts account, named by its profile address.** Both uses
    connect at `{root}/remote.php/dav/`, an account switched over from a typed password included,
@@ -130,8 +134,8 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
 | Manual form asks once a URL is entered | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Separate-server step offers it above the password | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
 | Account page and sign-in-again prompt | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Browser opened, polled, and polled again on return | n/a | ✅ | ✅ | ✅ | ✅ |
-| A held grant retried, or withdrawn when abandoned | ✅ | 🚧 | ✅ | 🚧 | 🚧 |
+| Browser opened, polled, and polled again on return or close | ✅ an account's page and prompt | ✅ | ✅ | ✅ | ✅ |
+| A held grant retried, or withdrawn when abandoned | ✅ an account's page and prompt | 🚧 | ✅ | 🚧 | 🚧 |
 | Remote wipe answered | ✅ | n/a | n/a | n/a | n/a |
 | Password withdrawn on removal and on a new sign-in | ✅ | n/a | n/a | n/a | n/a |
 

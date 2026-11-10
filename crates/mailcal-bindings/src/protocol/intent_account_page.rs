@@ -98,6 +98,33 @@ pub enum AccountPageIntent {
     /// Stop using the account for the calendar and contacts its sign-in does not reach, as
     /// setup's step offers in place of a sign-in: what the device holds of them is deleted.
     StopUsingSeparateServer { account: String },
+    /// Sign the account in through its browser sign-in: again the way it does, through its
+    /// provider in place of its password, or with Nextcloud, whichever its page offers; asking
+    /// the provider for `adding` besides what it is used for, for a use whose switch
+    /// `asks_provider`. `redirect_uri` is where the client listens for the browser's return, for
+    /// the account's provider (empty for a calendar and contacts account, which returns nothing).
+    /// It supersedes a sign-in still out (`BrowserSignIn`).
+    SignIn {
+        account: String,
+        #[uniffi(default = [])]
+        adding: Vec<AccountCapability>,
+        redirect_uri: String,
+    },
+    /// Answer sign-in `attempt`'s question (`BrowserSignInStage::Asking`): what becomes of the
+    /// uses the switch would cost, or `None` to cancel it.
+    AnswerUnreached {
+        account: String,
+        attempt: u64,
+        answer: Option<crate::UnreachedUses>,
+    },
+    /// What became of the browser a client opened for sign-in `attempt`.
+    SignInBrowserEnded {
+        account: String,
+        attempt: u64,
+        end: crate::SignInBrowserEnd,
+    },
+    /// Cancel sign-in `attempt`, from its Cancel.
+    CancelSignIn { account: String, attempt: u64 },
 }
 
 impl AccountPageIntent {
@@ -120,7 +147,11 @@ impl AccountPageIntent {
             | Self::UsePassword { account, .. }
             | Self::AllowServerChange { account, .. }
             | Self::ConnectSeparateServer { account, .. }
-            | Self::StopUsingSeparateServer { account } => account,
+            | Self::StopUsingSeparateServer { account }
+            | Self::SignIn { account, .. }
+            | Self::AnswerUnreached { account, .. }
+            | Self::SignInBrowserEnded { account, .. }
+            | Self::CancelSignIn { account, .. } => account,
         }
     }
 }

@@ -78,6 +78,8 @@ internal static class CoreError
             uniffi.mailcal_bindings.AccountChangeRefusal.StaleSignIn => words.StaleSignIn,
             uniffi.mailcal_bindings.AccountChangeRefusal.UseNotConnected use =>
                 NotConnected(use.Capability, use.Problem, words),
+            uniffi.mailcal_bindings.AccountChangeRefusal.BrowserNotOpened => words.BrowserNotOpened,
+            uniffi.mailcal_bindings.AccountChangeRefusal.NotFinished => words.NotFinished,
             uniffi.mailcal_bindings.AccountChangeRefusal.Other other => other.Detail,
             _ => refusal.ToString() ?? string.Empty,
         };
@@ -157,6 +159,8 @@ internal static class CoreError
 /// because L10n cannot be linked into the test assembly; the app builds them from the catalog in
 /// <c>CoreErrorCopy</c>.
 /// </summary>
+/// <param name="BrowserNotOpened">A browser sign-in whose browser could not be opened.</param>
+/// <param name="NotFinished">A browser sign-in nothing came back from in time.</param>
 /// <param name="ConnectFailed">"Couldn't connect: {error}".</param>
 internal sealed record CoreErrorWords(
     string SignInRefused,
@@ -171,4 +175,6 @@ internal sealed record CoreErrorWords(
     string ServerChangedContacts,
     string NoneOnServerCalendar,
     string NoneOnServerContacts,
+    string BrowserNotOpened,
+    string NotFinished,
     Func<string, string> ConnectFailed);

@@ -101,7 +101,8 @@ Windows: [`NoticeBar`](../clients/windows/Mailcal/Views/NoticeBar.xaml.cs) above
 [`MailboxModel.Notices.cs`](../clients/windows/Mailcal/Services/MailboxModel.Notices.cs), and the
 account's page in
 [`SettingsDialog.AccountNotices.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.AccountNotices.cs).
-An `InfoBar` holds one action button, so a question draws both answers in its content instead, the
+An `InfoBar` holds one action button and nothing beside it, so a single action carries its spinner
+inside the button while `running`, and a question draws both answers in its content instead, the
 first in the accent style, held with a spinner beside them while `running`. The event detail is a
 `ContentDialog` whose overlay hides the bar, so it draws the reply question about an answer given
 there as well

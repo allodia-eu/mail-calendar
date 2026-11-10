@@ -70,45 +70,6 @@ class UnreachedRulesTest {
     }
 
     @Test
-    fun a_switch_waits_for_its_answer_and_carries_it_to_the_redirect() {
-        val state = AccountSignInState()
-        state.begin("acct", switching = true)
-        state.ask(UnreachedQuestion("acct", UnreachedSet.CALENDAR, "handle", "https://auth", "redirect"))
-
-        assertEquals(SignInStep.ASKING, state.running?.step)
-        assertNull("the browser is not open yet", state.pending)
-
-        val asked = state.decided(UnreachedUses.KEEP_ON_PASSWORD)
-
-        assertEquals("https://auth", asked?.authorizationUrl)
-        assertNull(state.question)
-        assertEquals(SignInStep.BROWSER, state.running?.step)
-        assertEquals(UnreachedUses.KEEP_ON_PASSWORD, state.claim()?.unreached)
-    }
-
-    @Test
-    fun cancel_ends_the_switch_with_the_browser_never_opened() {
-        val state = AccountSignInState()
-        state.begin("acct", switching = true)
-        state.ask(UnreachedQuestion("acct", UnreachedSet.BOTH, "handle", "https://auth", "redirect"))
-
-        assertNull(state.decided(null))
-
-        assertNull(state.question)
-        assertNull(state.pending)
-        assertTrue(state.idle)
-    }
-
-    @Test
-    fun a_sign_in_that_asks_nothing_completes_without_an_answer() {
-        val state = AccountSignInState()
-        state.begin("acct", switching = true)
-        state.opened("handle")
-
-        assertNull(state.claim()?.unreached)
-    }
-
-    @Test
     fun setup_holds_the_separate_step_ahead_of_the_link_step() {
         val entry = accountEntry(
             CoreAccountKind.IMAP,

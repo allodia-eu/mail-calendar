@@ -15,14 +15,6 @@ pub(crate) struct JmapPrepared {
     pub(super) loopback: OAuthLoopback,
 }
 
-pub(crate) struct JmapReauthPrepared {
-    pub(super) account_id: String,
-    pub(super) authorization_url: String,
-    pub(super) pending: String,
-    pub(super) expected_state: String,
-    pub(super) redirect_uri: String,
-}
-
 #[derive(Debug)]
 pub(crate) enum JmapOutcome {
     Added(String),
@@ -33,14 +25,6 @@ pub(crate) enum JmapOutcome {
     /// Signed in, but the add was refused; what to tell the person, and the account already
     /// set up when that is why.
     NotAdded(Box<super::setup_model::ConnectFailure>),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum JmapReauthOutcome {
-    Reauthenticated,
-    Cancelled,
-    /// Said on the notice that started it (`docs/notices.md` rule 10).
-    Failed,
 }
 
 pub(super) fn prepare(
@@ -92,41 +76,6 @@ pub(super) fn authorization_state(authorization_url: &str) -> Option<String> {
         .find_map(|(key, value)| (key == "state").then(|| value.into_owned()))
 }
 
-pub(super) fn authorization_redirect_uri(authorization_url: &str) -> Option<String> {
-    let redirect = Url::parse(authorization_url)
-        .ok()?
-        .query_pairs()
-        .find_map(|(key, value)| (key == "redirect_uri").then(|| value.into_owned()))?;
-    let uri = Url::parse(&redirect).ok()?;
-    (uri.scheme() == "http"
-        && uri.host_str() == Some("127.0.0.1")
-        && uri.port().is_some()
-        && uri.path() == "/"
-        && uri.query().is_none()
-        && uri.fragment().is_none())
-    .then_some(redirect)
-}
-
-pub(super) fn prepare_reauth(
-    app: &Arc<MailcalApp>,
-    account_id: String,
-) -> Result<JmapReauthPrepared, String> {
-    let start = app
-        .begin_jmap_reauth(account_id.clone())
-        .map_err(|_| l10n::signin_expired_failed().to_owned())?;
-    let expected_state = authorization_state(&start.authorization_url)
-        .ok_or_else(|| l10n::signin_expired_failed().to_owned())?;
-    let redirect_uri = authorization_redirect_uri(&start.authorization_url)
-        .ok_or_else(|| l10n::signin_expired_failed().to_owned())?;
-    Ok(JmapReauthPrepared {
-        account_id,
-        authorization_url: start.authorization_url,
-        pending: start.pending,
-        expected_state,
-        redirect_uri,
-    })
-}
-
 pub(super) fn complete(
     app: &Arc<MailcalApp>,
     pending: String,
@@ -149,23 +98,11 @@ pub(super) fn complete(
     }
 }
 
-pub(super) fn complete_reauth(
-    app: &Arc<MailcalApp>,
-    account_id: String,
-    pending: String,
-    callback_url: String,
-) -> JmapReauthOutcome {
-    match app.complete_jmap_reauth(account_id, pending, callback_url) {
-        Ok(()) => JmapReauthOutcome::Reauthenticated,
-        Err(_) => JmapReauthOutcome::Failed,
-    }
-}
-
 pub(super) use super::oauth_loopback::CallbackOutcome;
 
 #[cfg(test)]
 mod tests {
-    use super::{authorization_redirect_uri, authorization_state};
+    use super::authorization_state;
 
     #[test]
     fn authorization_state_is_taken_from_the_url_without_logging_the_pending_handle() {
@@ -175,23 +112,5 @@ mod tests {
             Some("expected")
         );
         assert!(authorization_state("https://auth.example.test/?client_id=x").is_none());
-    }
-
-    #[test]
-    fn a_reauthentication_names_the_persisted_loopback_listener_to_bind() {
-        assert_eq!(
-            authorization_redirect_uri(
-                "https://auth.example.test/?state=expected&redirect_uri=http%3A%2F%2F127.0.0.1%3A32145%2F"
-            )
-            .as_deref(),
-            Some("http://127.0.0.1:32145/")
-        );
-        assert!(
-            authorization_redirect_uri(
-                "https://auth.example.test/?state=expected&redirect_uri=https%3A%2F%2Fevil.example%2F"
-            )
-            .is_none(),
-            "the host must never bind or trust a non-loopback redirect"
-        );
     }
 }

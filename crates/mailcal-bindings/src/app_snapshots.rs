@@ -115,10 +115,10 @@ impl MailcalApp {
 
     /// Which sign-in `account_id` was connected with, or `None` when the account is unknown.
     ///
-    /// A host asks this when running a notice's `SignInAgain`, since the remedy differs by
-    /// family: `Microsoft` and `Google` re-run their browser sign-in with the address as a login
-    /// hint, while `Password` and `Jmap` are re-entered in the account's settings. Reads the
-    /// binding layer's own registry: the only layer that knows what a `dyn Provider` speaks.
+    /// A host asks this for the redirect it listens on when it sends the account's browser
+    /// sign-in (`AccountPageIntent::SignIn`), which returns where its provider's registration
+    /// says. Reads the binding layer's own registry: the only layer that knows what a
+    /// `dyn Provider` speaks.
     #[must_use]
     pub fn account_provider(&self, account_id: String) -> Option<AccountProvider> {
         self.registry.provider(&account_id)

@@ -223,3 +223,6 @@ pub(crate) mod separate;
 
 #[path = "account_page_answers.rs"]
 pub(crate) mod answers;
+
+#[path = "account_page_browser.rs"]
+pub(crate) mod browser;

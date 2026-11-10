@@ -62,7 +62,7 @@ public sealed partial class SettingsDialog
                 if (on && use.AsksProvider)
                 {
                     // Chosen, and waiting on the provider: switching it on asks again.
-                    _ = SignInAgainFromPageAsync(entry, [capability]);
+                    _model.SignIn(entry.Id, [capability]);
                 }
                 else if (!on && use.ConfirmsOff)
                 {
@@ -156,34 +156,4 @@ public sealed partial class SettingsDialog
         LinkSlot.Contacts => L10n.SettingsAccountLinkContacts(),
         _ => L10n.SettingsAccountLinkMail(),
     };
-
-    /// <summary>Signs the account in again at its provider, asking for what it is used for plus
-    /// <paramref name="adding"/>, and says how it ended. A cancelled sign-in says nothing.</summary>
-    private async Task SignInAgainFromPageAsync(AccountEntry entry, AccountCapability[] adding)
-    {
-        SayOnAccounts(null);
-        var ended = await _model.SignInAgainAsync(entry.Id, adding, step => SaySignInStep(entry, step));
-        NotifyAccounts(ended switch
-        {
-            { SignedIn: true } => SignedInNotice(entry.Id),
-            { Error: { } error } => new AccountNotice(InfoBarSeverity.Error, L10n.SettingsAccountSigninFailed(), error),
-            _ => null,
-        });
-    }
-
-    /// <summary>What a completed sign-in says: that it worked, or, when the provider still did
-    /// not allow a use the account is chosen for, which ones, since the sign-in alone does not
-    /// mean the person got what they asked for.</summary>
-    private AccountNotice SignedInNotice(string accountId)
-    {
-        var entry = _model.AccountsSnapshot().Accounts.FirstOrDefault(account => account.Id == accountId);
-        if (entry is not null && AccountSettingsRules.Withheld(entry) is { Count: > 0 } withheld)
-        {
-            return new AccountNotice(
-                InfoBarSeverity.Warning,
-                L10n.SetupWithheldTitle(),
-                L10n.SetupWithheldDetail(string.Join(", ", withheld.Select(UseName))));
-        }
-        return new AccountNotice(InfoBarSeverity.Success, L10n.SettingsAccountSignedIn(), string.Empty);
-    }
 }

@@ -195,9 +195,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
         refreshAccountPage()
     },
     onChange = { intent -> changeAccount(intent) },
-    onSignInAgain = { id, adding -> signInAgain(id, adding) },
-    onAccountSignIn = { id, switching -> startAccountSignIn(id, switching) },
-    onUnreachedChoice = { choice -> answerUnreached(choice) },
+    onSignIn = { id, adding -> signInInBrowser(id, adding) },
     onSeparateSignIn = { id -> openPageSeparate(id) },
     onConnectSeparate = { username, password -> connectSeparate(accountSettings.separate, username, password) },
     onSeparateProviderSignIn = { signInSeparate(accountSettings.separate) },

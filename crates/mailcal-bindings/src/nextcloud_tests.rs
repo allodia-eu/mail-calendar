@@ -10,7 +10,7 @@ use crate::{
 
 pub(crate) const STATUS: &str =
     r#"{"installed":true,"maintenance":false,"version":"35.0.2.2","productname":"Nextcloud"}"#;
-const STARTED: &str = r#"{"poll":{"token":"poll-token","endpoint":"{base}\/login\/v2\/poll"},"login":"{base}\/login\/v2\/flow\/login-token"}"#;
+pub(crate) const STARTED: &str = r#"{"poll":{"token":"poll-token","endpoint":"{base}\/login\/v2\/poll"},"login":"{base}\/login\/v2\/flow\/login-token"}"#;
 const GRANTED: &str = r#"{"server":"{base}","loginName":"f3a9c1","appPassword":"app-password"}"#;
 const USER: &str = r#"{"ocs":{"data":{"id":"alice","email":"alice@example.org"}}}"#;
 

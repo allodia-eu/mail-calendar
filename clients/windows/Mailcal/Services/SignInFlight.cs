@@ -4,15 +4,15 @@
 // The problem it exists to solve is invisible from the code that had the bug. A sign-in waiting on
 // the browser CANNOT TELL that the user closed the tab: neither the loopback listener (Google) nor
 // the protocol-activation rendezvous (Microsoft, JMAP) receives any signal, so the wait simply runs
-// to its five-minute cap. Guarding a second attempt behind "one is already running" therefore left
-// the reconnect banner's button dead for minutes with no feedback, and the only escape a user found
-// was restarting the app.
+// to its five-minute cap. Guarding a second attempt behind "one is already running" leaves the
+// button dead for minutes with no feedback.
 //
 // So a fresh request SUPERSEDES the outstanding one: cancel it, wait for it to unwind, then start.
-// That preserves the invariant the guard was there for, never two flows racing for one rendezvous
-// That lets the second click do the obvious thing. It is the only correct reading of the
-// gesture: a user who clicks "sign in again" while an invisible attempt is pending means the new
-// one.
+// That keeps two flows from racing for one rendezvous and lets the second click do the obvious
+// thing: a user who clicks "sign in" while an invisible attempt is pending means the new one.
+//
+// It serves setup's add flows and the separate-server form. An existing account's sign-in is held
+// by the core, which supersedes in the same way.
 //
 // Threading: UI thread only. Every entry point runs on the WinUI dispatcher and each continuation
 // resumes there, so the cancel → await → start sequence cannot interleave with another caller's.

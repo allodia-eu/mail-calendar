@@ -33,7 +33,7 @@ pub struct AccountSignInOptions {
 
 /// The browser half of signing an existing account in: the URL to open in the platform auth
 /// session, and the handle to pass back to [`MailcalApp::complete_account_sign_in`].
-#[derive(Debug, Clone, uniffi::Record)]
+#[derive(Debug, Clone)]
 pub struct AccountSignInStart {
     /// The authorization URL to open.
     pub authorization_url: String,
@@ -43,7 +43,6 @@ pub struct AccountSignInStart {
     /// reach their server. When it names any, the client asks what becomes of them before it
     /// opens the browser, and passes the answer to `complete_account_sign_in`
     /// (`docs/accounts.md` rule 18).
-    #[uniffi(default = [])]
     pub unreached: Vec<crate::AccountCapability>,
 }
 
@@ -62,7 +61,8 @@ pub(crate) enum Replacement {
     Jmap(JmapAccountConfig),
 }
 
-#[uniffi::export]
+/// Not exported: a client sends `AccountPageIntent::SignIn`, which runs these off its thread.
+/// Public for the integration tests.
 impl MailcalApp {
     /// Starts signing `account_id` in through its provider: again, from its stored grant and with
     /// no discovery, when it already signs in that way; for the first time, discovered as setup
@@ -139,7 +139,6 @@ impl MailcalApp {
     /// server that says the sign-in was for another account; [`MailcalError::SignInRefused`] or
     /// [`MailcalError::Connect`] when the grant does not connect. The account is unchanged on
     /// every failure.
-    #[uniffi::method(default(unreached = None))]
     pub fn complete_account_sign_in(
         &self,
         account_id: String,
@@ -181,7 +180,10 @@ impl MailcalApp {
         };
         self.install_credential(&account_id, replacement, &[])
     }
+}
 
+#[uniffi::export]
+impl MailcalApp {
     /// Puts the credential of `config_toml`, a config a setup just produced for the mailbox
     /// `account_id` already is, on that account: what the "This account is already set up"
     /// refusal offers, so the sign-in or password just given replaces the existing account's

@@ -1,6 +1,7 @@
-// What an expired sign-in's banner runs (docs/accounts.md rule 17), what a refused duplicate offers
-// (rule 15), and that switching how an account signs in redraws its page. Which ways in the page
-// offers is the core's, pinned in mailcal-bindings' account_page_sign_in_tests.rs.
+// What a refused duplicate offers (docs/accounts.md rule 15), and that switching how an account
+// signs in redraws its page. Which ways in the page offers, and what an expired sign-in's banner
+// runs, are the core's, pinned in mailcal-bindings' account_page_sign_in_tests.rs and
+// app_account_page_browser_tests.rs.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -12,19 +13,6 @@ public class AccountSignInRulesTests
 {
     private static AccountEntry Account(AccountKind kind, SignInMethod signIn) =>
         AccountSettingsRulesTests.Entry(kind, (AccountCapability.Mail, CapabilityState.On)) with { SignIn = signIn };
-
-    [Fact]
-    public void AnExpiredSignInIsRemediedByTheFlowItsProviderNeeds()
-    {
-        Assert.Equal(SignInRemedy.ProviderConsent, AccountSettingsRules.Remedy(AccountProvider.Microsoft));
-        Assert.Equal(SignInRemedy.ProviderConsent, AccountSettingsRules.Remedy(AccountProvider.Google));
-        Assert.Equal(SignInRemedy.JmapReauth, AccountSettingsRules.Remedy(AccountProvider.JmapOauth));
-        // A standards account signed in through its provider has no password to ask for.
-        Assert.Equal(SignInRemedy.AccountSignIn, AccountSettingsRules.Remedy(AccountProvider.ImapOauth));
-        Assert.Equal(SignInRemedy.Settings, AccountSettingsRules.Remedy(AccountProvider.Password));
-        Assert.Equal(SignInRemedy.Settings, AccountSettingsRules.Remedy(AccountProvider.Jmap));
-        Assert.Equal(SignInRemedy.Settings, AccountSettingsRules.Remedy(null));
-    }
 
     [Fact]
     public void ARefusedDuplicateOffersTheConfigToTheAccountAlreadyThere()
@@ -47,15 +35,6 @@ public class AccountSignInRulesTests
     private static AccountEntry Calendar(bool nextcloud, SignInMethod signIn) =>
         AccountSettingsRulesTests.Entry(AccountKind.Dav, (AccountCapability.Calendar, CapabilityState.On))
             with { SignIn = signIn, Nextcloud = nextcloud };
-
-    [Fact]
-    public void AnExpiredNextcloudSignInIsSignedInWithNextcloudWhateverProviderItReports()
-    {
-        foreach (var provider in new AccountProvider?[] { AccountProvider.Password, AccountProvider.ImapOauth, null })
-        {
-            Assert.Equal(SignInRemedy.Nextcloud, AccountSettingsRules.Remedy(provider, nextcloud: true));
-        }
-    }
 
     [Fact]
     public void ARefusedNextcloudSignInOffersItsGrantAndNeverPrintsIt()

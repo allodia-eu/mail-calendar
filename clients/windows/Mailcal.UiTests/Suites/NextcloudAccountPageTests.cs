@@ -119,32 +119,37 @@ public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassF
             App.Eventually(() => (toNextcloud = app.Agent.Find(new Filter { Id = "AccountSwitchToProvider", Under = dialog })) is not null, TimeSpan.FromSeconds(15));
             var before = NextcloudBrowser.NewestLoginToken();
             app.Agent.Invoke(toNextcloud ?? throw new InvalidOperationException("the page offers no switch to Nextcloud"));
-            // The section sits below the fold of a long page: a Cancel scrolled out of view and a
-            // collapsed one both read as offscreen, so it is scrolled to before it is asked about.
-            bool CancelDrawn()
-            {
-                if (app.Agent.Find(new Filter { Id = "AccountSignInCancel", Under = dialog }) is not { } cancel)
-                {
-                    return false;
-                }
-                // A button has no scroll item of its own: the page's pane is scrolled instead.
-                var pane = app.Agent.Parent(cancel);
-                while (pane is not null && pane.Type != "Pane")
-                {
-                    pane = app.Agent.Parent(pane);
-                }
-                if (pane is not null)
-                {
-                    app.Agent.ScrollToEnd(pane);
-                }
-                return app.Agent.Find(new Filter { Id = "AccountSignInCancel", Under = dialog }) is { Rendered: true };
-            }
-            Assert.True(App.Eventually(CancelDrawn, TimeSpan.FromSeconds(15)),
+            Assert.True(App.Eventually(() => CancelDrawn(app, dialog), TimeSpan.FromSeconds(15)),
                 "while the browser holds the sign-in the section draws its Cancel");
+            Assert.True(Says(app, dialog, "nextcloud_sign_in_waiting"), "and says the app notices when the person has finished");
             NextcloudBrowser.GrantNext(Fixture, before, User, Password);
             Assert.True(SaysEventually(app, dialog, "settings_account_signs_in_nextcloud"),
                 "once the poll has the grant and the core has put it on the account, the page says it signs in with Nextcloud");
         });
+
+    /// <summary>
+    /// Whether the Sign-in section draws its Cancel on screen. The section sits below the fold of a
+    /// long page: a Cancel scrolled out of view and a collapsed one both read as offscreen, so it
+    /// is scrolled to before it is asked about.
+    /// </summary>
+    private static bool CancelDrawn(App app, Element dialog)
+    {
+        if (app.Agent.Find(new Filter { Id = "AccountSignInCancel", Under = dialog }) is not { } cancel)
+        {
+            return false;
+        }
+        // A button has no scroll item of its own: the page's pane is scrolled instead.
+        var pane = app.Agent.Parent(cancel);
+        while (pane is not null && pane.Type != "Pane")
+        {
+            pane = app.Agent.Parent(pane);
+        }
+        if (pane is not null)
+        {
+            app.Agent.ScrollToEnd(pane);
+        }
+        return app.Agent.Find(new Filter { Id = "AccountSignInCancel", Under = dialog }) is { Rendered: true };
+    }
 
     [NextcloudFixtureFact]
     public void ItSignsInWithNextcloudAgainFromItsPage() => Case(nameof(ItSignsInWithNextcloudAgainFromItsPage), (app, flow) =>
@@ -155,8 +160,14 @@ public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassF
             "rule 8: an account a Nextcloud sign-in made signs in again with Nextcloud");
         var before = NextcloudBrowser.NewestLoginToken();
         app.Agent.Invoke(again!);
+        Assert.True(App.Eventually(() => CancelDrawn(app, dialog), TimeSpan.FromSeconds(15)),
+            "while the browser holds the sign-in the section draws its Cancel");
         NextcloudBrowser.GrantNext(Fixture, before, User, Password);
-        Assert.True(SaysEventually(app, dialog, "settings_account_signed_in"), "and says it was signed in again");
+        // A sign-in that worked says nothing (docs/waiting.md): the wait ends, and no failure is said.
+        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountSignInCancel", Under = dialog }) is null, TimeSpan.FromSeconds(30)),
+            "once the core has put the grant on the account the section no longer waits on the browser");
+        Assert.False(Says(app, dialog, "settings_account_signin_failed"), "and the page says nothing failed");
+        Assert.True(Says(app, dialog, "settings_account_signs_in_nextcloud"), "it still signs in with Nextcloud");
     });
 
     [NextcloudFixtureFact]

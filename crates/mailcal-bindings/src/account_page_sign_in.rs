@@ -128,6 +128,7 @@ pub(crate) fn section(
         control,
         password,
         switches,
+        browser: None,
     })
 }
 

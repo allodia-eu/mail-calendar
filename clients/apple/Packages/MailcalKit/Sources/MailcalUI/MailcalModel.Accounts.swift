@@ -18,27 +18,6 @@ struct AccountPageState {
     var noticeSaid: UInt64 = 0
 }
 
-/// How signing an account in again ended. A cancelled one says nothing: the person closed it.
-enum ConsentEnded: Equatable {
-    case signedIn
-    case cancelled
-    /// `remedy` is whether signing in again as `detail` says settles it.
-    case failed(String, remedy: Bool = false)
-
-    /// A failure, said through the core's mapping.
-    static func failure(_ error: Error) -> ConsentEnded {
-        .failed(coreMessage(error), remedy: signInRemedy(error) != nil)
-    }
-
-    /// What the notice above the list says for a sign-in again started from a banner: nothing
-    /// unless it failed, a reason signing in again settles in its own words, and anything else as
-    /// one plain line, because the core's text is an OAuth protocol string.
-    var bannerNotice: String? {
-        guard case let .failed(detail, remedy) = self else { return nil }
-        return remedy ? detail : L10n.signin_expired_failed()
-    }
-}
-
 /// What switching a use on or off answered.
 enum UseChangeOutcome: Equatable {
     /// Done; the page redraws from the next snapshot.
@@ -48,23 +27,6 @@ enum UseChangeOutcome: Equatable {
     /// The account has no server for it.
     case needsEndpoint
     case failed(String)
-}
-
-/// The browser half of a sign-in in place, held so a newer request can end it.
-@MainActor
-enum ConsentBrowser {
-    case microsoft(MicrosoftSignIn)
-    case google(any GoogleBrowserFlow)
-    /// A standards or JMAP account's sign-in, from its page or the banner.
-    case standards(JmapSignIn)
-
-    func cancel() {
-        switch self {
-        case let .microsoft(signIn): signIn.cancel()
-        case let .google(flow): flow.cancel()
-        case let .standards(signIn): signIn.cancel()
-        }
-    }
 }
 
 /// What a person reads for a core error: its own message, without the enum around it. A refused
@@ -151,6 +113,7 @@ extension MailboxModel {
         refreshServerChanges()
         refreshSeparateServers()
         refreshSetupLinks()
+        driveBrowserSignIn()
     }
 
     /// Reads the open account's page again, and says what a change came to, once: on its page,
@@ -161,7 +124,7 @@ extension MailboxModel {
         if fresh != accountPageState.record { accountPageState.record = fresh }
         if let raised = fresh?.notice, raised.id > accountPageState.noticeSaid {
             accountPageState.noticeSaid = raised.id
-            logAppleLifecycle("accounts: a change on an account's page did not take")
+            logAppleLifecycle("accounts: an account's page has something to say")
             accountPageState.failure = AccountSettingsLabels.changeFailed(raised.notice)
         }
         if let raised = app.accountsNotice(), raised.id > accountPageState.noticeSaid {
@@ -232,70 +195,10 @@ extension MailboxModel {
         app?.accountEndpointsGap(accountId: id, endpoints: endpoints)
     }
 
-    /// Signs an existing Microsoft or Google account in again at its provider, asking for what it
-    /// is used for plus `adding`. The account keeps its id, settings, links and downloaded mail
-    /// (docs/provider-oauth.md rule 11), so this never touches the setup form.
-    ///
-    /// Never guarded: a sign-in abandoned in the browser cannot be told from one in progress, so a
-    /// newer request ends it rather than waiting behind it (rule 13).
-    func signInAgain(_ id: String, adding: [AccountCapability] = []) async -> ConsentEnded {
-        guard let app else { return .failed(L10n.app_unavailable()) }
-        consentBrowser?.cancel()
-        consentAttempt &+= 1
-        let attempt = consentAttempt
-        signingInAgain = id
-        // The newest sign-in in place owns every marker, including one a standards account's
-        // sign-in it just ended was holding.
-        signInSwitchBusy = nil
-        let google = app.accountProvider(accountId: id) == .google
-        let route = google ? "google" : "microsoft"
-        do {
-            let start: AccountConsentStart
-            let callbackURL: String
-            if google {
-                let flow = makeGoogleBrowserFlow()
-                consentBrowser = .google(flow)
-                let redirect = try await flow.redirectURI()
-                start = try app.beginAccountConsent(
-                    accountId: id, redirectUri: redirect, adding: adding)
-                callbackURL = try await flow.authorize(authorizationURL: start.authorizationUrl)
-            } else {
-                let signIn = MicrosoftSignIn()
-                consentBrowser = .microsoft(signIn)
-                start = try app.beginAccountConsent(
-                    accountId: id, redirectUri: MicrosoftOAuthConfig.redirectURI, adding: adding)
-                callbackURL = try await signIn.authorize(authorizationURL: start.authorizationUrl)
-            }
-            // The exchange, the connect and the catch-up all block.
-            try await Task.detached(priority: .userInitiated) {
-                try app.completeAccountConsent(pending: start.pending, callbackUrl: callbackURL)
-            }.value
-            logBrowserSignIn(route, "the account was signed in again in place")
-            endConsent(attempt)
-            refreshAccountsSnapshot()
-            return .signedIn
-        } catch GoogleSignInError.cancelled, MicrosoftSignInError.cancelled {
-            endConsent(attempt)
-            return .cancelled
-        } catch {
-            logBrowserSignIn(route, "signing in again did not complete (\(coreMessage(error)))")
-            endConsent(attempt)
-            return .failure(error)
-        }
-    }
-
-    /// Clears the in-flight markers, unless a newer request has taken them.
-    private func endConsent(_ attempt: Int) {
-        guard consentAttempt == attempt else { return }
-        signingInAgain = nil
-        consentBrowser = nil
-    }
-
     /// Opens Settings → Accounts on `id`'s page, from a prompt in the main window that points at
     /// it. The shell watches `settingsRequest` and presents Settings.
     func openAccountPage(_ id: String) {
         accountPage = id
         settingsRequest = .accounts
     }
-
 }

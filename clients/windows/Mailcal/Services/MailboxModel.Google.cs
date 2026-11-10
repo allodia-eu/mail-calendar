@@ -27,8 +27,7 @@ public sealed partial class MailboxModel
     /// Deliberately NOT guarded on <see cref="IsSubmitting"/>: a request that arrives while one is
     /// outstanding supersedes it (see <see cref="SignInFlight"/>), because a sign-in abandoned in
     /// the browser is indistinguishable from one still in progress. The setup form's own buttons
-    /// are already disabled while submitting, so the removed guard cost no double-fire protection
-    /// there, its only remaining effect was to make the reconnect banner's button dead.
+    /// are already disabled while submitting, so a guard here would add no double-fire protection.
     /// </remarks>
     internal void SignInWithGoogle(string? loginHint = null, AccountCapability[]? uses = null)
     {

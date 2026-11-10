@@ -60,12 +60,53 @@ pub(crate) enum PageWork {
     },
     /// Switching off the uses the separate server holds.
     StopSeparate,
+    /// Completing the browser sign-in `attempt`.
+    SignIn {
+        attempt: u64,
+    },
+}
+
+/// A change the page queue runs: one an account's page asked for, or the completion of a browser
+/// sign-in, which waits its turn like any change since it writes the account too.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Change {
+    Page(AccountPageIntent),
+    SignIn { account: String, attempt: u64 },
+}
+
+impl From<AccountPageIntent> for Change {
+    fn from(intent: AccountPageIntent) -> Self {
+        Self::Page(intent)
+    }
+}
+
+impl Change {
+    /// The account the change is to.
+    pub(crate) fn account(&self) -> &str {
+        match self {
+            Self::Page(intent) => intent.account(),
+            Self::SignIn { account, .. } => account,
+        }
+    }
+
+    fn work(&self) -> PageWork {
+        match self {
+            Self::Page(intent) => PageWork::of(intent),
+            Self::SignIn { attempt, .. } => PageWork::SignIn { attempt: *attempt },
+        }
+    }
 }
 
 impl PageWork {
     /// The work `intent` starts, with where it takes its control.
     pub(crate) fn of(intent: &AccountPageIntent) -> Self {
         match intent {
+            // Never queued: each is a step of the browser sign-in, which queues only its
+            // completion.
+            AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::AnswerUnreached { .. }
+            | AccountPageIntent::SignInBrowserEnded { .. }
+            | AccountPageIntent::CancelSignIn { .. } => Self::SignIn { attempt: 0 },
             AccountPageIntent::SetUse { capability, on, .. } => Self::Use {
                 capability: *capability,
                 on: *on,
@@ -127,7 +168,7 @@ impl Hold {
 #[derive(Debug)]
 pub(crate) enum Start {
     /// Nothing else runs: run it now.
-    Run(AccountPageIntent),
+    Run(Change),
     /// It runs once the changes ahead of it end.
     Waits,
     /// The same work is already running or waiting.
@@ -138,7 +179,7 @@ pub(crate) enum Start {
 #[derive(Debug, Default)]
 struct Queue {
     running: Option<(String, PageWork)>,
-    waiting: VecDeque<(String, PageWork, AccountPageIntent)>,
+    waiting: VecDeque<(String, PageWork, Change)>,
 }
 
 /// Every account page's state.
@@ -159,6 +200,8 @@ pub(crate) struct AccountWork {
     /// What each account's separate server last said of the ways in it takes besides a password,
     /// and what its last Connect or Skip came to.
     pub(crate) separate: crate::account_page::separate::SeparateState,
+    /// The browser sign-in out, and the Nextcloud grant kept from the last.
+    pub(crate) browser: crate::account_page::browser::BrowserSignIns,
     raised: AtomicU64,
 }
 
@@ -166,8 +209,9 @@ impl AccountWork {
     /// Asks for `intent`'s change: it runs now when nothing else does, and takes away the notice
     /// the last change on its page left; otherwise it waits its turn, unless the same work is
     /// already running or waiting.
-    pub(crate) fn start(&self, intent: AccountPageIntent) -> Start {
-        let (account, work) = (intent.account().to_owned(), PageWork::of(&intent));
+    pub(crate) fn start(&self, change: impl Into<Change>) -> Start {
+        let intent = change.into();
+        let (account, work) = (intent.account().to_owned(), intent.work());
         let mut queue = self.queue.lock().expect("account work mutex poisoned");
         let same = |id: &String, other: &PageWork| *id == account && *other == work;
         if queue
@@ -185,11 +229,17 @@ impl AccountWork {
         queue.running = Some((account.clone(), work));
         drop(queue);
         // Only the notice: what the page is drawn from outlives a change.
+        self.unsay(&account);
+        Start::Run(intent)
+    }
+
+    /// Takes away what `account`'s page last said, because its next change has started: one
+    /// queued here, or a browser sign-in, which reaches the queue only once it completes.
+    pub(crate) fn unsay(&self, account: &str) {
         self.notices
             .lock()
             .expect("account notice mutex poisoned")
-            .remove(&account);
-        Start::Run(intent)
+            .remove(account);
     }
 
     /// The change for `account` ended, saying `notice` when it needs saying: on the account's
@@ -200,7 +250,7 @@ impl AccountWork {
         &self,
         account: &str,
         notice: Option<AccountChangeNotice>,
-    ) -> Option<AccountPageIntent> {
+    ) -> Option<Change> {
         let mut queue = self.queue.lock().expect("account work mutex poisoned");
         let removed = matches!(queue.running, Some((_, PageWork::Remove)));
         let raised = notice.map(|notice| AccountChangeNoticeRaised {
@@ -226,6 +276,19 @@ impl AccountWork {
         };
         queue.running = Some((next_account, work));
         Some(intent)
+    }
+
+    /// Raises `notice` on `account`'s page outside a change: what a browser sign-in came to before
+    /// it reached its completion.
+    pub(crate) fn say(&self, account: &str, notice: AccountChangeNotice) {
+        let raised = AccountChangeNoticeRaised {
+            id: self.raised.fetch_add(1, Ordering::Relaxed) + 1,
+            notice,
+        };
+        self.notices
+            .lock()
+            .expect("account notice mutex poisoned")
+            .insert(account.to_owned(), raised);
     }
 
     /// Drops what `account`'s page had to say, for an account that is gone: one added again later
