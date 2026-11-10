@@ -285,9 +285,9 @@ fn teams_meetings_count_whatever_else_is_on_and_only_while_on() {
         "a personal address is never offered them"
     );
     assert!(
-        provider_setup_choices(AccountKind::Google, "alice@example.org".to_owned())
+        provider_setup_choices(AccountKind::Google, "someone@gmail.com".to_owned())
             .iter()
-            .all(|choice| choice.capability != AccountCapability::Meetings),
-        "nor is a Google one"
+            .any(|choice| choice.capability == AccountCapability::Meetings),
+        "a Google address is, personal or not"
     );
 }
