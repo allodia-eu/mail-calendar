@@ -20,7 +20,8 @@ use crate::App;
 
 /// The loaded per-calendar preferences and where to persist them.
 pub(crate) struct CalendarPrefsState {
-    prefs: Preferences,
+    /// Boxed: the app is held by value in many futures, and this is its largest field.
+    prefs: Box<Preferences>,
     prefs_path: Option<PathBuf>,
 }
 
@@ -31,7 +32,10 @@ impl CalendarPrefsState {
         let prefs = prefs_path
             .as_ref()
             .map_or_else(Preferences::default, load_preferences);
-        Self { prefs, prefs_path }
+        Self {
+            prefs: Box::new(prefs),
+            prefs_path,
+        }
     }
 
     /// What the user decided about one calendar: the default for one they never touched.
@@ -55,6 +59,24 @@ impl CalendarPrefsState {
     /// Records the Jitsi server (already checked), and persists it.
     pub(crate) fn set_jitsi_server(&mut self, server: Option<String>) {
         self.prefs.jitsi_server = server;
+        self.persist();
+    }
+
+    /// The video meeting `account`'s new events take, as stored: it may name a choice no calendar
+    /// of the account offers any more, which [`crate::calendar_colors`] resolves.
+    pub(crate) fn default_meeting(&self, account: &str) -> Option<&str> {
+        self.prefs.default_meetings.get(account).map(String::as_str)
+    }
+
+    /// Records the video meeting `account`'s new events take, or none, and persists it.
+    pub(crate) fn set_default_meeting(&mut self, account: &str, choice: Option<String>) {
+        match choice {
+            Some(choice) => self
+                .prefs
+                .default_meetings
+                .insert(account.to_owned(), choice),
+            None => self.prefs.default_meetings.remove(account),
+        };
         self.persist();
     }
 
@@ -85,6 +107,13 @@ impl CalendarPrefsState {
             // decisions above are cleared to avoid.
             self.prefs.default_calendar = None;
         }
+        // The account's own default, and every default that names a meeting made through it.
+        let through = format!(":{account}");
+        let before = self.prefs.default_meetings.len();
+        self.prefs.default_meetings.retain(|of, choice| {
+            of != account && !(choice.starts_with("account:") && choice.ends_with(&through))
+        });
+        let named_it = named_it || self.prefs.default_meetings.len() != before;
         if self.prefs.remove_account_calendars(account) || named_it {
             self.persist();
         }
@@ -101,6 +130,9 @@ impl CalendarPrefsState {
                 .default_calendar
                 .clone_from(&self.prefs.default_calendar);
             on_disk.jitsi_server.clone_from(&self.prefs.jitsi_server);
+            on_disk
+                .default_meetings
+                .clone_from(&self.prefs.default_meetings);
             let _ = save_preferences(path, &on_disk);
         }
     }

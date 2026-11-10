@@ -6,7 +6,9 @@ use engine_api::ConferenceText;
 use mailcal_account::{
     EditorMeeting as AppEditorMeeting, MeetingChange as AppMeetingChange, MeetingChoice,
 };
-use mailcal_viewmodel::calendar::MeetingOption as AppMeetingOption;
+use mailcal_viewmodel::calendar::{
+    MeetingDefault as AppMeetingDefault, MeetingOption as AppMeetingOption,
+};
 
 use crate::MailcalApp;
 
@@ -30,6 +32,31 @@ impl From<AppMeetingOption> for MeetingOption {
             id: option.id,
             name: option.name,
             through: option.through,
+        }
+    }
+}
+
+/// One account's default video meeting, as Settings → Videoconferencing lists it
+/// (`docs/conferencing.md`, rule 10).
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct MeetingDefault {
+    /// The account whose calendars the default is for.
+    pub account: String,
+    /// What a person reads the account by.
+    pub account_address: String,
+    /// Every meeting a calendar of the account offers, in order; a client lists None first.
+    pub choices: Vec<MeetingOption>,
+    /// The `MeetingOption::id` of the chosen one, or `None` for none.
+    pub chosen: Option<String>,
+}
+
+impl From<AppMeetingDefault> for MeetingDefault {
+    fn from(default: AppMeetingDefault) -> Self {
+        Self {
+            account: default.account,
+            account_address: default.account_address,
+            choices: default.choices.into_iter().map(Into::into).collect(),
+            chosen: default.chosen,
         }
     }
 }
@@ -140,6 +167,22 @@ impl MailcalApp {
     /// fragment; the calendar rows offer Jitsi once one is stored.
     pub fn set_jitsi_server(&self, server: Option<String>) -> bool {
         self.app.set_jitsi_server(server.as_deref()).is_ok()
+    }
+
+    /// Every account whose calendars offer a video meeting, each with the meetings they offer
+    /// and the one its new events take once they have an invitee. Read from memory.
+    pub fn meeting_defaults(&self) -> Vec<MeetingDefault> {
+        self.app
+            .meeting_defaults()
+            .into_iter()
+            .map(Into::into)
+            .collect()
+    }
+
+    /// Stores `account`'s default video meeting, one of its `MeetingDefault::choices` ids, or
+    /// none for `None`. The calendar surface is signalled, and the rows carry the new default.
+    pub fn set_default_meeting(&self, account: String, choice: Option<String>) {
+        self.app.set_default_meeting(&account, choice.as_deref());
     }
 }
 

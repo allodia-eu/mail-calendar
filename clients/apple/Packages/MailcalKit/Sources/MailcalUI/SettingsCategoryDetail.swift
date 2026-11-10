@@ -37,6 +37,12 @@ struct SettingsCategoryDetail: View {
                 settingsGroup(L10n.settings_jitsi_server(), L10n.settings_jitsi_server_hint()) {
                     JitsiServerField(model: model)
                 }
+                let _ = model.calendarVersion
+                if !model.meetingDefaults().isEmpty {
+                    settingsGroup(L10n.settings_default_meeting(), L10n.settings_default_meeting_hint()) {
+                        DefaultMeetingList(model: model)
+                    }
+                }
             }
         case .reading: readingDetail
         case .composing: composingDetail

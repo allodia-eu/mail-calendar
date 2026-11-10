@@ -36,12 +36,14 @@ pub(super) type Invitees = Rc<RefCell<Vec<MeetingInvitee>>>;
 /// be invited, and the section has said why.
 pub(super) type TakeTyped = Rc<dyn Fn() -> bool>;
 
-/// Appends the attendee section to `form`, beneath the calendar picker it depends on.
+/// Appends the attendee section to `form`, beneath the calendar picker it depends on. `invited`
+/// hears whether anybody is on the list, at the start and each time the list changes.
 pub(super) fn append_invitee_section(
     form: &gtk::Box,
     editor: &EventEditor,
     calendar: &gtk::DropDown,
     app: Option<Arc<MailcalApp>>,
+    invited: Rc<dyn Fn(bool)>,
 ) -> (Invitees, TakeTyped) {
     let invitees: Invitees = Rc::new(RefCell::new(editor.initial_invitees()));
     let attendees = editor
@@ -89,6 +91,7 @@ pub(super) fn append_invitee_section(
         rows: RefCell::new(Vec::new()),
         field,
         error: error.clone(),
+        invited,
     });
     section.rebuild();
     section.connect();
@@ -140,6 +143,7 @@ struct Section {
     rows: RefCell<Vec<adw::ActionRow>>,
     field: RecipientField,
     error: gtk::Label,
+    invited: Rc<dyn Fn(bool)>,
 }
 
 impl Section {
@@ -227,6 +231,8 @@ impl Section {
             self.group.add(row);
         }
         self.rows.replace(rows);
+        let anybody = !self.invitees.borrow().is_empty();
+        (self.invited)(anybody);
     }
 
     fn invitee_row(

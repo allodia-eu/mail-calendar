@@ -23,6 +23,9 @@ struct CalendarChoice: Equatable {
     var canInvite = false
     /// The video meetings the core says the editor may put on an event here.
     var meetingChoices: [MeetingOption] = []
+    /// The one of them a new event here takes once it has an invitee: the core's
+    /// `CalendarRow.defaultMeeting`.
+    var defaultMeeting: String? = nil
 }
 
 extension CalendarRow {
@@ -30,7 +33,7 @@ extension CalendarRow {
     var choice: CalendarChoice {
         CalendarChoice(
             account: account, id: id, name: name, address: accountAddress, canInvite: canInvite,
-            meetingChoices: meetingChoices
+            meetingChoices: meetingChoices, defaultMeeting: defaultMeeting
         )
     }
 }
@@ -125,8 +128,11 @@ struct EventEditorState: Identifiable {
     var repeatDraft: RepeatDraft?
     /// Who is invited, as the controls hold it.
     var roster: InviteeRoster
-    /// What the Video meeting row holds; see `EventEditorMeeting.swift`.
-    var meeting: MeetingSelection = .none
+    /// The person's pick in the Video meeting row; see `EventEditorMeeting.swift`.
+    var meeting: MeetingSelection = .none { didSet { meetingChosen = true } }
+    /// Whether the person picked in the row. Until they do, a new event's row follows its
+    /// calendar's default (docs/conferencing.md, rule 10).
+    private(set) var meetingChosen = false
 
     var isEditing: Bool { editing != nil }
 

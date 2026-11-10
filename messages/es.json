@@ -1221,6 +1221,8 @@
 	"settings_jitsi_server": "Servidor Jitsi",
 	"settings_jitsi_server_hint": "Una reunión de Jitsi que añadas a un evento es una sala en este servidor. Si lo dejas vacío, ningún calendario ofrecerá Jitsi.",
 	"settings_jitsi_server_invalid": "Introduce una dirección que empiece por https:// y no contenga ? ni #.",
+	"settings_default_meeting": "Videoconferencia predeterminada",
+	"settings_default_meeting_hint": "La videoconferencia que recibe un evento nuevo en cuanto invitas a alguien, para los calendarios de cada cuenta. Puedes cambiarla en el propio evento.",
 	"settings_meeting_accounts": "A través de tus cuentas",
 	"settings_meeting_accounts_hint": "Las reuniones de Microsoft Teams y Nextcloud Talk que tus cuentas crean para eventos de cualquier calendario. Actívalas o desactívalas en la página de cada cuenta.",
 	"settings_meeting_account_needs_permission": "Necesita permiso",

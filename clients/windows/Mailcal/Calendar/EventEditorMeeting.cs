@@ -78,8 +78,22 @@ internal sealed record MeetingRowOption(MeetingSelection Selection, string? Name
 
 internal sealed partial class EventEditorState
 {
-    /// <summary>What the Video meeting row holds.</summary>
-    internal MeetingSelection Meeting { get; set; } = new MeetingSelection.None();
+    private MeetingSelection _meeting = new MeetingSelection.None();
+
+    /// <summary>The person's pick in the Video meeting row.</summary>
+    internal MeetingSelection Meeting
+    {
+        get => _meeting;
+        set
+        {
+            _meeting = value;
+            MeetingChosen = true;
+        }
+    }
+
+    /// <summary>Whether the person picked in the row. Until they do, a new event's row follows its
+    /// calendar's default (docs/conferencing.md, rule 10).</summary>
+    internal bool MeetingChosen { get; private set; }
 
     /// <summary>What this editor opened with.</summary>
     internal MeetingSelection OpenedMeeting => MeetingSelection.Of(Editing?.Meeting);
@@ -111,16 +125,36 @@ internal sealed partial class EventEditorState
     internal bool ShowsMeetingRow => MeetingChoices.Count > 0 || Editing?.Meeting is not null;
 
     /// <summary>
-    /// The pick a save reads: one the chosen calendar does not offer goes back to None when the
-    /// calendar changes (rule 9), unless it is what the editor opened with.
+    /// What the row holds before the calendar is asked whether it offers it: the person's pick
+    /// once they made one, and until then, on a new event with an invitee, the calendar's default
+    /// (rule 10). An event being edited keeps the meeting it has.
+    /// </summary>
+    private MeetingSelection HeldMeeting
+    {
+        get
+        {
+            if (IsEditing || MeetingChosen)
+            {
+                return Meeting;
+            }
+            return CanInvite && Roster.Invitees.Count > 0 && Calendar?.DefaultMeeting is { } id
+                ? new MeetingSelection.Choice(id)
+                : new MeetingSelection.None();
+        }
+    }
+
+    /// <summary>
+    /// What the row shows and a save reads: a pick the chosen calendar does not offer goes back to
+    /// None when the calendar changes (rule 9), unless it is what the editor opened with.
     /// </summary>
     internal MeetingSelection EffectiveMeeting
     {
         get
         {
-            if (Meeting is not MeetingSelection.Choice pick || pick == OpenedMeeting)
+            var held = HeldMeeting;
+            if (held is not MeetingSelection.Choice pick || pick == OpenedMeeting)
             {
-                return Meeting;
+                return held;
             }
             return MeetingChoices.Any(choice => choice.Id == pick.Id) ? pick : new MeetingSelection.None();
         }

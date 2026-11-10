@@ -1221,6 +1221,8 @@
 	"settings_jitsi_server": "Jitsi-server",
 	"settings_jitsi_server_hint": "Een Jitsi-vergadering die je aan een afspraak toevoegt, is een ruimte op deze server. Laat je het leeg, dan biedt geen enkele agenda Jitsi aan.",
 	"settings_jitsi_server_invalid": "Voer een adres in dat met https:// begint en geen ? of # bevat.",
+	"settings_default_meeting": "Standaard videovergadering",
+	"settings_default_meeting_hint": "De videovergadering die een nieuwe afspraak krijgt zodra je iemand uitnodigt, per account. Je kunt dit per afspraak nog wijzigen.",
 	"settings_meeting_accounts": "Via je accounts",
 	"settings_meeting_accounts_hint": "Microsoft Teams- en Nextcloud Talk-vergaderingen die je accounts maken voor afspraken in elke agenda. Zet ze aan of uit op de pagina van het account.",
 	"settings_meeting_account_needs_permission": "Toestemming nodig",

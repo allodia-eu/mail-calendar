@@ -164,6 +164,14 @@ extension MailboxModel {
         app?.setDefaultCalendar(account: account, calendar: calendar)
     }
 
+    /// Every account whose calendars offer a video meeting, with the one its new events take.
+    func meetingDefaults() -> [MeetingDefault] { app?.meetingDefaults() ?? [] }
+
+    /// Chooses the video meeting `account`'s new events take once they have an invitee.
+    func setDefaultMeeting(account: String, choice: String?) {
+        app?.setDefaultMeeting(account: account, choice: choice)
+    }
+
     // MARK: - The calendar manager
 
     /// Shows or hides one calendar's events. Applied at page-read time, so the grid redraws at once:

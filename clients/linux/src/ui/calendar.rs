@@ -10,7 +10,7 @@ mod dialogs;
 mod dialogs_series;
 mod drag;
 mod editor;
-mod editor_meeting;
+pub(super) mod editor_meeting;
 mod grid;
 pub(super) mod invitees_editor;
 mod manager;

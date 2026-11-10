@@ -65,6 +65,7 @@ fn a_calendar_is_named_by_its_accounts_address_even_when_the_account_has_no_mail
         can_write: true,
         can_invite: true,
         meeting_choices: Vec::new(),
+        default_meeting: None,
         is_default: true,
     }];
     model.begin_create();

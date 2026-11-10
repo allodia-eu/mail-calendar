@@ -64,8 +64,14 @@ nobody has to dig a link out of the notes.
    calendar has a choice: **None** first, then each choice by the core's `name`. Changing the
    calendar redraws the row from the new calendar's choices, and a choice the new one lacks goes
    back to None.
-10. **A new event starts with no meeting.** The person adds one by choosing it; nothing is added
-    on their behalf. A chosen meeting is made when the event is saved, never when it is chosen,
+10. **A new event starts with no meeting, and takes its account's default once it has an
+    invitee.** Settings → Videoconferencing holds a default per account (`meeting_defaults`),
+    none until the person chooses one, and the core resolves it against what each calendar
+    offers into `CalendarRow.default_meeting`. A new event's row holds None while nobody is
+    invited and the chosen calendar's default from the first invitee on, so an event of the
+    person's own makes no meeting at any service. A pick in the row, None included, stands from
+    then on; a row nobody picked in follows the calendar when it changes. An event being edited
+    never takes a default. A meeting is made when the event is saved, never when it is chosen,
     so nothing is filled into the location or notes before the save: while the row holds a
     choice the event does not have yet, a line beneath it says the link is added when the
     person saves (`event_meeting_added_on_save`).
@@ -125,6 +131,7 @@ nobody has to dig a link out of the notes.
 | The camera in a time-grid block's top-right corner (rule 7) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The editor's Video meeting row (rules 9 to 12) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Jitsi server in Settings (rule 13) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A default meeting per account, in Settings and on a new event with an invitee (rule 10) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Teams and Talk through an account, in the editor (rules 14 and 15) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Teams offered on at a work account's setup ([`accounts.md`](accounts.md) rule 19) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The accounts that make meetings, in Settings → Videoconferencing ([`settings.md`](settings.md) category 4) | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -153,5 +160,7 @@ GTK-free `editor_meeting.rs`, which its unit tests drive, and the Jitsi server i
 - [`tests_calendar_conference.rs`](../crates/mailcal-app/src/tests_calendar_conference.rs) reads
   a meeting through the app: the detail offers it and the grid marks its block, and the
   block's notes stay out of `display_notes`.
+- [`tests_calendar_meeting_default.rs`](../crates/mailcal-app/src/tests_calendar_meeting_default.rs)
+  pins rule 10's default: it is one account's alone, and one no calendar offers is not applied.
 - A field added to `EventConference` is drawn on every client that ships rule 2, or it is not
   added.

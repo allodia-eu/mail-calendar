@@ -128,6 +128,11 @@ pub struct Preferences {
     /// Empty until they set it: no server is a default (`docs/conferencing.md`, rule 13).
     #[serde(default)]
     pub jitsi_server: Option<String>,
+    /// The video meeting each account's new events take once they have an invitee, as a
+    /// `MeetingChoice` id keyed by account id (`docs/conferencing.md`, rule 10). An account
+    /// absent here has none.
+    #[serde(default)]
+    pub default_meetings: BTreeMap<String, String>,
     /// Per-account synchronisation behaviour (push vs. poll), keyed by account id. An
     /// account absent here has not been customised and uses the [`effective`] default.
     /// A [`BTreeMap`] so the serialized TOML order is stable across writes.
@@ -302,6 +307,7 @@ impl Default for Preferences {
             calendars: BTreeMap::new(),
             default_calendar: None,
             jitsi_server: None,
+            default_meetings: BTreeMap::new(),
             accounts: BTreeMap::new(),
             notify_marks: BTreeMap::new(),
             analytics_consent: None,

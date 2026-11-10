@@ -91,7 +91,10 @@ struct EventEditorView: View {
                     // (docs/conferencing.md, rules 9 to 11). Drawn only while there is something to
                     // choose or a meeting to take off.
                     if editor.showsMeetingRow {
-                        Picker(L10n.event_video_meeting(), selection: $editor.meeting) {
+                        Picker(
+                            L10n.event_video_meeting(),
+                            selection: Binding(get: { editor.effectiveMeeting }, set: { editor.meeting = $0 })
+                        ) {
                             ForEach(editor.meetingOptions, id: \.selection) { option in
                                 Text(option.label).tag(option.selection)
                             }
@@ -200,8 +203,9 @@ struct EventEditorView: View {
             .sheet(isPresented: $picking) {
                 CalendarPickerView(calendars: calendars, selected: editor.calendar) { choice in
                     editor.calendar = choice
-                    // A meeting the new calendar does not offer goes back to None (rule 9).
-                    editor.meeting = editor.effectiveMeeting
+                    // A picked meeting the new calendar does not offer goes back to None (rule 9);
+                    // a row nobody picked in follows the new calendar's default.
+                    if editor.meetingChosen { editor.meeting = editor.effectiveMeeting }
                     picking = false
                 }
             }

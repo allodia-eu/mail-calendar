@@ -88,6 +88,63 @@ import Testing
         #expect(replaced.announcesMeeting)
     }
 
+    private func inviting(_ choices: [MeetingOption], default defaultMeeting: String?, id: String = "work")
+        -> CalendarChoice
+    {
+        CalendarChoice(
+            account: "acct", id: id, name: id, canInvite: true, meetingChoices: choices,
+            defaultMeeting: defaultMeeting
+        )
+    }
+
+    private func invite(_ editor: inout EventEditorState) {
+        editor.inviteeFieldChanged("grace@test.local")
+        let taken = editor.takeTypedInvitee()
+        #expect(taken)
+    }
+
+    @Test func aNewEventTakesItsCalendarsDefaultOnceItHasAnInvitee() {
+        var editor = EventEditorState.create(
+            default: inviting([teams, jitsi], default: "jitsi"), zone: "UTC", now: now)
+        editor.title = "Review"
+        #expect(editor.effectiveMeeting == .none, "an event with nobody invited makes no meeting")
+        #expect(editor.createArgs().meeting == nil)
+
+        invite(&editor)
+        #expect(editor.effectiveMeeting == .choice("jitsi"))
+        #expect(editor.announcesMeeting)
+        #expect(editor.createArgs().meeting == .set(choice: "jitsi", words: .catalog))
+    }
+
+    @Test func aPickInTheRowOutranksTheDefault() {
+        var editor = EventEditorState.create(
+            default: inviting([teams, jitsi], default: "jitsi"), zone: "UTC", now: now)
+        editor.title = "Review"
+        editor.meeting = .none
+        invite(&editor)
+        #expect(editor.effectiveMeeting == .none)
+        #expect(editor.createArgs().meeting == nil)
+
+        editor.meeting = .choice("server:teams")
+        #expect(editor.createArgs().meeting == .set(choice: "server:teams", words: .catalog))
+    }
+
+    @Test func anUntouchedRowFollowsTheNewCalendarsDefault() {
+        var editor = EventEditorState.create(
+            default: inviting([teams, jitsi], default: "jitsi"), zone: "UTC", now: now)
+        invite(&editor)
+        editor.calendar = inviting([teams], default: "server:teams", id: "office")
+        #expect(editor.effectiveMeeting == .choice("server:teams"))
+        editor.calendar = inviting([teams], default: nil, id: "plain")
+        #expect(editor.effectiveMeeting == .none)
+    }
+
+    @Test func anEditNeverTakesADefault() {
+        let editor = editing(nil, choices: [teams, jitsi])
+        #expect(editor.effectiveMeeting == .none)
+        #expect(editor.updateArgs(thisOccurrenceOnly: false).meeting == nil)
+    }
+
     @Test func aCalendarWithNoChoicesDrawsNoRow() {
         let editor = EventEditorState.create(default: calendar([]), zone: "UTC", now: now)
         #expect(!editor.showsMeetingRow)
