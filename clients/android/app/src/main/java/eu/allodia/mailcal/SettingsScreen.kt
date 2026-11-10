@@ -51,6 +51,7 @@ import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.MeetingDefault
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SignatureSlotKind
@@ -82,6 +83,9 @@ internal fun SettingsScreen(
     // core, which answers `false` for an address it will not keep.
     jitsiServer: () -> String?,
     onSetJitsiServer: (String) -> Boolean,
+    // Videoconferencing, the video meeting each account's new events take, as the core lists it.
+    meetingDefaults: List<MeetingDefault>,
+    onSetDefaultMeeting: (account: String, choice: String?) -> Unit,
     // Reading
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
@@ -225,6 +229,8 @@ internal fun SettingsScreen(
                     onSetDefaultCalendar = onSetDefaultCalendar,
                     jitsiServer = jitsiServer,
                     onSetJitsiServer = onSetJitsiServer,
+                    meetingDefaults = meetingDefaults,
+                    onSetDefaultMeeting = onSetDefaultMeeting,
                     mode = mode,
                     onSetMode = onSetMode,
                     onSetDarkMessages = onSetDarkMessages,

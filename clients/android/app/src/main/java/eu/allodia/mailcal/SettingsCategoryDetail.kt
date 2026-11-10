@@ -24,6 +24,7 @@ import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.MeetingDefault
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SignatureSlotKind
@@ -55,6 +56,9 @@ internal fun CategoryDetail(
     // core, which answers `false` for an address it will not keep.
     jitsiServer: () -> String?,
     onSetJitsiServer: (String) -> Boolean,
+    // Videoconferencing, the video meeting each account's new events take, as the core lists it.
+    meetingDefaults: List<MeetingDefault>,
+    onSetDefaultMeeting: (account: String, choice: String?) -> Unit,
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
     onSetDarkMessages: (Boolean) -> Unit,
@@ -157,7 +161,8 @@ internal fun CategoryDetail(
         }
 
         // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md
-        // category 4), then the person's Jitsi server (docs/conferencing.md, rule 13).
+        // category 4), then the person's Jitsi server (docs/conferencing.md, rule 13), then each
+        // account's default (rule 10).
         SettingsCategory.VIDEOCONFERENCING -> {
             MeetingAccountsCard(accountsUi.state.snapshot.meetingAccounts, onOpenAccount)
             SettingsGroupCard(
@@ -166,6 +171,7 @@ internal fun CategoryDetail(
             ) {
                 JitsiServerRow(jitsiServer = jitsiServer, onSetJitsiServer = onSetJitsiServer)
             }
+            DefaultMeetingCard(meetingDefaults, onSetDefaultMeeting)
         }
 
         // Reading, conversation grouping (list <-> thread), the message-row swipe gestures and the

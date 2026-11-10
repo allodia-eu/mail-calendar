@@ -68,12 +68,22 @@ extension EventEditorState {
         return effectiveMeeting != openedMeeting
     }
 
-    /// The pick a save reads: one the chosen calendar does not offer goes back to None when the
-    /// calendar changes (rule 9), unless it is what the editor opened with.
+    /// What the row holds before the calendar is asked whether it offers it: the person's pick
+    /// once they made one, and until then, on a new event with an invitee, the calendar's
+    /// default (rule 10). An event being edited keeps the meeting it has.
+    private var heldMeeting: MeetingSelection {
+        if isEditing || meetingChosen { return meeting }
+        guard canInvite, !roster.invitees.isEmpty, let id = calendar?.defaultMeeting else { return .none }
+        return .choice(id)
+    }
+
+    /// What the row shows and a save reads: a pick the chosen calendar does not offer goes back
+    /// to None when the calendar changes (rule 9), unless it is what the editor opened with.
     var effectiveMeeting: MeetingSelection {
-        guard case .choice(let id) = meeting, meeting != openedMeeting else { return meeting }
+        let held = heldMeeting
+        guard case .choice(let id) = held, held != openedMeeting else { return held }
         let offered = calendar?.meetingChoices.contains { $0.id == id } ?? false
-        return offered ? meeting : .none
+        return offered ? held : .none
     }
 
     /// What a save sends for the meeting, or `nil` to leave it alone: None takes the event's

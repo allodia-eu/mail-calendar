@@ -19,6 +19,8 @@ mod colors;
 mod account_meeting;
 #[path = "tests_calendar_conference.rs"]
 mod conference;
+#[path = "tests_calendar_meeting_default.rs"]
+mod meeting_default;
 #[path = "tests_calendar_video_meeting.rs"]
 mod video_meeting;
 

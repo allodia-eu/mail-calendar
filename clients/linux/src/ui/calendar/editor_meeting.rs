@@ -1,9 +1,10 @@
 //! The editor's Video meeting row (`docs/conferencing.md`, rules 9 to 14): which meetings it
 //! offers, what it opens showing, and what a save sends.
 //!
-//! The core decides what a calendar offers (`CalendarRow::meeting_choices`) and which meeting an
-//! editor opens on (`EventDetail::editor_meeting`); this only holds the person's pick and compares
-//! it with what the editor opened with. Free of GTK, so the unit tests drive it directly.
+//! The core decides what a calendar offers (`CalendarRow::meeting_choices`), which of them a new
+//! event takes (`CalendarRow::default_meeting`) and which meeting an editor opens on
+//! (`EventDetail::editor_meeting`); this only holds the person's pick and compares it with what
+//! the editor opened with. Free of GTK, so the unit tests drive it directly.
 
 use mailcal_bindings::{MeetingChange, MeetingOption, MeetingWords};
 
@@ -44,7 +45,7 @@ impl MeetingRowOption {
 
 /// A choice as the row names it: the service, and the account that makes it for one made through
 /// an account, so two work accounts are two entries a person can tell apart.
-pub(super) fn choice_label(choice: &MeetingOption) -> String {
+pub(crate) fn choice_label(choice: &MeetingOption) -> String {
     choice.through.as_ref().map_or_else(
         || choice.name.clone(),
         |account| l10n::event_meeting_through(&choice.name, account),
@@ -121,7 +122,7 @@ impl EventEditor {
         .collect()
     }
 
-    /// The pick a save reads: one the calendar at `index` does not offer goes back to None
+    /// `pick` as the calendar at `index` allows it: one it does not offer goes back to None
     /// (rule 9), unless it is what the editor opened with.
     pub(super) fn effective_meeting(
         &self,
@@ -142,6 +143,29 @@ impl EventEditor {
         MeetingSelection::None
     }
 
+    /// What the row shows and a save reads (rule 10): the person's `pick` once they have `chosen`
+    /// one, and until then, on a new event with somebody `invited`, the default of the calendar
+    /// at `index`. An event being edited keeps the meeting it has.
+    pub(super) fn held_meeting(
+        &self,
+        index: u32,
+        pick: &MeetingSelection,
+        chosen: bool,
+        invited: bool,
+    ) -> MeetingSelection {
+        let held = if self.editing.is_some() || chosen {
+            pick.clone()
+        } else {
+            usize::try_from(index)
+                .ok()
+                .and_then(|index| self.choices.get(index))
+                .filter(|calendar| invited && calendar.can_invite)
+                .and_then(|calendar| calendar.default_meeting.clone())
+                .map_or(MeetingSelection::None, MeetingSelection::Choice)
+        };
+        self.effective_meeting(index, &held)
+    }
+
     /// Whether the row says the link is added at the save: it holds a choice the event does not
     /// have yet, which is made only when the event is saved (rule 10).
     pub(super) fn announces_meeting(&self, index: u32, pick: &MeetingSelection) -> bool {
@@ -152,7 +176,12 @@ impl EventEditor {
     /// What a save of `form` does to the meeting, or `None` to leave it alone: None takes the
     /// event's meeting off, a choice replaces it, and leaving the row as it opened changes nothing.
     pub(super) fn meeting_change(&self, form: &EventForm) -> Option<MeetingChange> {
-        let pick = self.effective_meeting(form.calendar_index, &form.meeting);
+        let pick = self.held_meeting(
+            form.calendar_index,
+            &form.meeting,
+            form.meeting_chosen,
+            !form.invitees.is_empty(),
+        );
         if pick == self.opened_meeting() {
             return None;
         }

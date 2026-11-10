@@ -47,6 +47,10 @@ public sealed class EventEditorDialog : ContentDialog
     private readonly EventInviteeSection _invitees;
     private readonly StackPanel _meetingRow = new();
 
+    // What the Video meeting row was last drawn showing, so a roster change redraws it only when
+    // the first invitee brought the calendar's default in or the last one took it out.
+    private MeetingSelection? _meetingDrawn;
+
     /// <summary>The editor state, mutated in place, the caller reads its args after a Primary result.</summary>
     internal EventEditorState State => _state;
 
@@ -68,7 +72,12 @@ public sealed class EventEditorDialog : ContentDialog
         // An address typed and not added is meant to be on the list; one that cannot be invited
         // keeps the editor open, with the field saying why.
         PrimaryButtonClick += (_, args) => args.Cancel = !_invitees.TakeTyped();
-        Closed += (_, _) => _invitees.Detach();
+        state.Roster.Changed += FollowMeetingDefault;
+        Closed += (_, _) =>
+        {
+            _invitees.Detach();
+            _state.Roster.Changed -= FollowMeetingDefault;
+        };
 
         // The default ContentDialog max-width (548) is narrower than the Start/End row needs, and would
         // clip the time picker even with a wide form. Lift it so the form width below is what decides.
@@ -368,18 +377,33 @@ public sealed class EventEditorDialog : ContentDialog
             _state.Calendar = CalendarChoice.Of(row);
             RefreshCalendarButton();
             // Whether people can be invited, and who organises, follow the calendar, and so do
-            // the meetings on offer: one the new calendar does not offer goes back to None.
+            // the meetings on offer: a picked one the new calendar does not offer goes back to
+            // None, and a row nobody picked in follows the new calendar's default.
             _invitees.Rebuild();
-            _state.Meeting = _state.EffectiveMeeting;
+            if (_state.MeetingChosen)
+            {
+                _state.Meeting = _state.EffectiveMeeting;
+            }
             RebuildMeetingRow();
             flyout.Hide();
         };
         return button;
     }
 
+    // A new event's row takes its calendar's default with the first invitee and gives it back with
+    // the last (docs/conferencing.md, rule 10).
+    private void FollowMeetingDefault()
+    {
+        if (_state.EffectiveMeeting != _meetingDrawn)
+        {
+            RebuildMeetingRow();
+        }
+    }
+
     // The Video meeting row over the chosen calendar's choices, redrawn when the calendar changes.
     private void RebuildMeetingRow()
     {
+        _meetingDrawn = _state.EffectiveMeeting;
         _meetingRow.Children.Clear();
         _meetingRow.Visibility = _state.ShowsMeetingRow ? Visibility.Visible : Visibility.Collapsed;
         if (!_state.ShowsMeetingRow)
@@ -418,6 +442,7 @@ public sealed class EventEditorDialog : ContentDialog
             if (box.SelectedIndex >= 0)
             {
                 _state.Meeting = options[box.SelectedIndex].Selection;
+                _meetingDrawn = _state.EffectiveMeeting;
             }
             addedOnSave.Visibility = _state.AnnouncesMeeting ? Visibility.Visible : Visibility.Collapsed;
         };

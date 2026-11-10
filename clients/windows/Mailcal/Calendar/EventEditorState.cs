@@ -25,18 +25,21 @@ namespace Allodia.Mailcal.Calendar;
 /// owning account's, the organiser of a meeting created here, and <c>CanInvite</c> is the core's
 /// <c>CalendarRow.CanInvite</c>: whether a meeting may be organised here at all.
 /// </summary>
-/// <c>MeetingChoices</c> are the video meetings the core says the editor may put on an event here.
+/// <c>MeetingChoices</c> are the video meetings the core says the editor may put on an event here,
+/// and <c>DefaultMeeting</c> the one a new event takes once it has an invitee.
 internal sealed record CalendarChoice(
     string Account,
     string Id,
     string Name,
     string Address = "",
     bool CanInvite = false,
-    IReadOnlyList<MeetingOption>? MeetingChoices = null)
+    IReadOnlyList<MeetingOption>? MeetingChoices = null,
+    string? DefaultMeeting = null)
 {
     /// <summary>The choice a calendar row offers.</summary>
     internal static CalendarChoice Of(CalendarRow row) =>
-        new(row.Account, row.Id, row.Name, row.AccountAddress, row.CanInvite, row.MeetingChoices);
+        new(row.Account, row.Id, row.Name, row.AccountAddress, row.CanInvite, row.MeetingChoices,
+            row.DefaultMeeting);
 }
 
 /// <summary>The event an editor is editing (absent when creating).</summary>

@@ -10,6 +10,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.EditorMeeting
 import uniffi.mailcal_bindings.EventDetail
+import uniffi.mailcal_bindings.InviteeCheck
 import uniffi.mailcal_bindings.MeetingChange
 import uniffi.mailcal_bindings.MeetingOption
 import uniffi.mailcal_bindings.MeetingWords
@@ -71,6 +72,65 @@ class EventEditorMeetingTest {
 
         editor.meeting = MeetingSelection.Choice("jitsi")
         assertEquals(MeetingPick.Set("jitsi"), editor.createArgs().meeting)
+    }
+
+    private fun inviting(choices: List<MeetingOption>, defaultMeeting: String?, id: String = "work") =
+        CalendarChoice("acct", id, id, canInvite = true, meetingChoices = choices, defaultMeeting = defaultMeeting)
+
+    /** A new event on a calendar that invites, its address check standing in for the core's. */
+    private fun newEvent(defaultMeeting: String?) = EventEditorState.create(
+        inviting(listOf(TEAMS, JITSI), defaultMeeting),
+        "UTC",
+        NOW,
+        inviteeCheckOf = { typed, _, _ -> InviteeCheck.Valid(typed.trim()) },
+    )
+
+    private fun invite(editor: EventEditorState) {
+        editor.roster.fieldChanged("grace@test.local")
+        assertTrue(editor.roster.takeTyped())
+    }
+
+    @Test
+    fun a_new_event_takes_its_calendars_default_once_it_has_an_invitee() {
+        val editor = newEvent("jitsi")
+        editor.title = "Review"
+        assertEquals("an event with nobody invited makes no meeting", MeetingSelection.None, editor.effectiveMeeting)
+        assertNull(editor.createArgs().meeting)
+
+        invite(editor)
+        assertEquals(MeetingSelection.Choice("jitsi"), editor.effectiveMeeting)
+        assertTrue(editor.announcesMeeting)
+        assertEquals(MeetingPick.Set("jitsi"), editor.createArgs().meeting)
+    }
+
+    @Test
+    fun a_pick_in_the_row_outranks_the_default() {
+        val editor = newEvent("jitsi")
+        editor.title = "Review"
+        editor.meeting = MeetingSelection.None
+        invite(editor)
+        assertEquals(MeetingSelection.None, editor.effectiveMeeting)
+        assertNull(editor.createArgs().meeting)
+
+        editor.meeting = MeetingSelection.Choice("server:teams")
+        assertEquals(MeetingPick.Set("server:teams"), editor.createArgs().meeting)
+    }
+
+    @Test
+    fun an_untouched_row_follows_the_new_calendars_default() {
+        val editor = newEvent("jitsi")
+        invite(editor)
+        editor.calendar = inviting(listOf(TEAMS), "server:teams", id = "office")
+        assertEquals(MeetingSelection.Choice("server:teams"), editor.effectiveMeeting)
+        editor.calendar = inviting(listOf(TEAMS), null, id = "plain")
+        assertEquals(MeetingSelection.None, editor.effectiveMeeting)
+    }
+
+    @Test
+    fun an_edit_never_takes_a_default() {
+        val editor = editing(null, listOf(TEAMS, JITSI))
+        assertEquals(MeetingSelection.None, editor.effectiveMeeting)
+        assertNull(editor.updateArgs(thisOccurrenceOnly = false).meeting)
     }
 
     @Test

@@ -239,6 +239,7 @@ impl From<AppCalendarRow> for CalendarRow {
             can_write: row.can_write,
             can_invite: row.can_invite,
             meeting_choices: row.meeting_choices.into_iter().map(Into::into).collect(),
+            default_meeting: row.default_meeting,
             is_default: row.is_default,
         }
     }

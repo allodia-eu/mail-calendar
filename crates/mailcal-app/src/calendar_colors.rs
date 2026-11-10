@@ -133,6 +133,14 @@ impl<P: Provider> App<P> {
                 if debug {
                     sources.push(format!("{}={}({})", calendar.id, source, color.hex));
                 }
+                let meeting_choices = crate::calendar_ops::video_meeting::meeting_choices(
+                    calendar,
+                    prefs.jitsi_server().is_some(),
+                );
+                let default_meeting = prefs
+                    .default_meeting(&calendar.account)
+                    .filter(|id| meeting_choices.iter().any(|choice| choice.id == *id))
+                    .map(str::to_owned);
                 CalendarRow {
                     account: calendar.account.clone(),
                     account_address: calendar.account_address.clone(),
@@ -142,10 +150,8 @@ impl<P: Provider> App<P> {
                     color,
                     can_write: calendar.can_write,
                     can_invite: calendar.can_invite,
-                    meeting_choices: crate::calendar_ops::video_meeting::meeting_choices(
-                        calendar,
-                        prefs.jitsi_server().is_some(),
-                    ),
+                    meeting_choices,
+                    default_meeting,
                     is_default: false,
                 }
             })
@@ -199,6 +205,7 @@ mod default_calendar_tests {
             can_write,
             can_invite: false,
             meeting_choices: Vec::new(),
+            default_meeting: None,
             is_default: false,
         }
     }

@@ -1,5 +1,6 @@
 //! Settings → Videoconferencing (`docs/settings.md`, category 4): the accounts that make video
-//! meetings, and the person's Jitsi server (`docs/conferencing.md`, rule 13).
+//! meetings, the person's Jitsi server (`docs/conferencing.md`, rule 13) and each account's
+//! default video meeting (rule 10).
 //!
 //! An account's row only opens its page, where the one switch for its meetings is: two switches
 //! for one setting would be two places to change it, and two places to ask a provider for its
@@ -12,12 +13,12 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use mailcal_bindings::{CapabilityState, MeetingAccount};
+use mailcal_bindings::{CapabilityState, MeetingAccount, MeetingDefault};
 
 use super::{PageContext, account_names::linked_name, group, page_box};
 use crate::{
     l10n,
-    ui::{AppInput, account_settings::AccountsInput},
+    ui::{AppInput, account_settings::AccountsInput, calendar::editor_meeting::choice_label},
 };
 
 pub(super) fn page(ctx: &PageContext) -> gtk::Box {
@@ -26,12 +27,40 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
     if let Some(section) = meeting_accounts_group(&accounts, &ctx.sender) {
         content.append(&section);
     }
+    // Drawn again after the Jitsi server is stored: every calendar that offers Jitsi then does,
+    // or no longer does.
+    let defaults = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let draw_defaults = {
+        let app = ctx.app.clone();
+        let defaults = defaults.clone();
+        move || {
+            if let Some(drawn) = defaults.first_child() {
+                defaults.remove(&drawn);
+            }
+            let store = app.clone();
+            let section = default_meeting_group(&app.meeting_defaults(), move |account, choice| {
+                store.set_default_meeting(account, choice);
+            });
+            defaults.set_visible(section.is_some());
+            if let Some(section) = section {
+                defaults.append(&section);
+            }
+        }
+    };
+    draw_defaults();
     let read = ctx.app.clone();
     let write = ctx.app.clone();
     content.append(&jitsi_server_group(
         move || read.jitsi_server(),
-        move |typed| write.set_jitsi_server(Some(typed)),
+        move |typed| {
+            let stored = write.set_jitsi_server(Some(typed));
+            if stored {
+                draw_defaults();
+            }
+            stored
+        },
     ));
+    content.append(&defaults);
     content
 }
 
@@ -140,6 +169,57 @@ pub(super) fn jitsi_server_group(
     controller.connect_leave(move |_| commit(&focused));
     row.add_controller(controller);
     section
+}
+
+/// Each account's default video meeting, None first and then what its calendars offer; no group
+/// while no account's calendars offer one. `store` is asked to keep an account's new choice.
+pub(super) fn default_meeting_group(
+    defaults: &[MeetingDefault],
+    store: impl Fn(String, Option<String>) + 'static,
+) -> Option<adw::PreferencesGroup> {
+    if defaults.is_empty() {
+        return None;
+    }
+    let section = group(
+        l10n::settings_default_meeting(),
+        l10n::settings_default_meeting_hint(),
+    );
+    let store = Rc::new(store);
+    for default in defaults {
+        let labels = std::iter::once(l10n::event_meeting_none().to_owned())
+            .chain(default.choices.iter().map(choice_label))
+            .collect::<Vec<_>>();
+        let labels = labels.iter().map(String::as_str).collect::<Vec<_>>();
+        // A combo row carries its own title, so a screen reader hears whose default this is.
+        let row = adw::ComboRow::new();
+        row.set_use_markup(false);
+        row.set_title(&default.account_address);
+        row.set_model(Some(&gtk::StringList::new(&labels)));
+        let chosen = default
+            .chosen
+            .as_ref()
+            .and_then(|id| default.choices.iter().position(|choice| choice.id == *id))
+            .and_then(|index| u32::try_from(index + 1).ok())
+            .unwrap_or(0);
+        row.set_selected(chosen);
+        let store = Rc::clone(&store);
+        let account = default.account.clone();
+        let ids = default
+            .choices
+            .iter()
+            .map(|choice| choice.id.clone())
+            .collect::<Vec<_>>();
+        // Connected after the stored choice is selected, so drawing the row stores nothing.
+        row.connect_selected_notify(move |row| {
+            let choice = usize::try_from(row.selected())
+                .ok()
+                .and_then(|index| index.checked_sub(1))
+                .and_then(|index| ids.get(index).cloned());
+            store(account.clone(), choice);
+        });
+        section.add(&row);
+    }
+    Some(section)
 }
 
 #[cfg(test)]

@@ -1,7 +1,10 @@
 //! The editor's Video meeting row, tested without drawing it: what it offers, what it opens
 //! showing, and what a save sends.
 
-use mailcal_bindings::{EditorMeeting, EventIntent, Intent, MeetingChange, MeetingOption};
+use mailcal_bindings::{
+    EditorMeeting, EventIntent, Intent, MeetingChange, MeetingInvitee, MeetingInviteeRole,
+    MeetingOption,
+};
 
 use super::{MeetingRowOption, MeetingSelection};
 use crate::{
@@ -53,6 +56,28 @@ fn editing(
 fn with_meeting(meeting: MeetingSelection) -> EventForm {
     EventForm {
         meeting,
+        meeting_chosen: true,
+        ..form(false)
+    }
+}
+
+/// A calendar whose server sends invitations, with the account's default meeting.
+fn inviting(id: &str, choices: Vec<MeetingOption>, default: Option<&str>) -> CalendarChoice {
+    CalendarChoice {
+        can_invite: true,
+        default_meeting: default.map(str::to_owned),
+        ..calendar(id, choices)
+    }
+}
+
+/// A form nobody picked a meeting in, with one invitee.
+fn invited() -> EventForm {
+    EventForm {
+        invitees: vec![MeetingInvitee {
+            name: None,
+            email: "grace@test.local".to_owned(),
+            role: MeetingInviteeRole::Required,
+        }],
         ..form(false)
     }
 }
@@ -319,4 +344,112 @@ fn an_edit_reads_its_own_calendar_whatever_the_picker_holds() {
     );
     assert!(editor.shows_meeting_row(0));
     assert_eq!(labels(&editor.meeting_options(0)).len(), 2);
+}
+
+#[test]
+fn a_new_event_takes_its_calendars_default_once_it_has_an_invitee() {
+    let editor = EventEditor::create(
+        vec![inviting("work", vec![teams(), jitsi()], Some("jitsi"))],
+        String::new(),
+    );
+    let untouched = MeetingSelection::None;
+    assert_eq!(
+        editor.held_meeting(0, &untouched, false, false),
+        MeetingSelection::None,
+        "an event with nobody invited makes no meeting"
+    );
+    assert_eq!(sent_meeting(&editor, &form(false), false), None);
+
+    let held = editor.held_meeting(0, &untouched, false, true);
+    assert_eq!(held, MeetingSelection::Choice("jitsi".to_owned()));
+    assert!(editor.announces_meeting(0, &held));
+    assert_eq!(
+        set_choice(sent_meeting(&editor, &invited(), false)),
+        "jitsi"
+    );
+}
+
+#[test]
+fn a_pick_in_the_row_outranks_the_default() {
+    let editor = EventEditor::create(
+        vec![inviting("work", vec![teams(), jitsi()], Some("jitsi"))],
+        String::new(),
+    );
+    let none = EventForm {
+        meeting_chosen: true,
+        ..invited()
+    };
+    assert_eq!(
+        editor.held_meeting(0, &none.meeting, true, true),
+        MeetingSelection::None
+    );
+    assert_eq!(sent_meeting(&editor, &none, false), None);
+
+    let teams_pick = EventForm {
+        meeting: MeetingSelection::Choice("server:teams".to_owned()),
+        ..none
+    };
+    assert_eq!(
+        set_choice(sent_meeting(&editor, &teams_pick, false)),
+        "server:teams"
+    );
+}
+
+#[test]
+fn an_untouched_row_follows_the_new_calendars_default() {
+    let editor = EventEditor::create(
+        vec![
+            inviting("work", vec![teams(), jitsi()], Some("jitsi")),
+            inviting("office", vec![teams()], Some("server:teams")),
+            inviting("plain", vec![teams()], None),
+            CalendarChoice {
+                can_invite: false,
+                ..inviting("feeds", vec![jitsi()], Some("jitsi"))
+            },
+        ],
+        String::new(),
+    );
+    // What the row held on the first calendar, which nobody picked.
+    let shown = editor.held_meeting(0, &MeetingSelection::None, false, true);
+    assert_eq!(shown, MeetingSelection::Choice("jitsi".to_owned()));
+    assert_eq!(
+        editor.held_meeting(1, &shown, false, true),
+        MeetingSelection::Choice("server:teams".to_owned())
+    );
+    assert_eq!(
+        editor.held_meeting(2, &shown, false, true),
+        MeetingSelection::None
+    );
+    assert_eq!(
+        editor.held_meeting(3, &shown, false, true),
+        MeetingSelection::None,
+        "a calendar that cannot invite has nobody to meet"
+    );
+    let moved = EventForm {
+        calendar_index: 1,
+        meeting: shown,
+        ..invited()
+    };
+    assert_eq!(
+        set_choice(sent_meeting(&editor, &moved, false)),
+        "server:teams"
+    );
+}
+
+#[test]
+fn an_edit_never_takes_a_default() {
+    let detail = editing_with("", None).editing.expect("an edit");
+    let editor = EventEditor::edit(
+        detail,
+        vec![inviting(
+            "calendar-a",
+            vec![teams(), jitsi()],
+            Some("jitsi"),
+        )],
+    );
+    assert_eq!(
+        editor.held_meeting(0, &editor.opened_meeting(), false, true),
+        MeetingSelection::None
+    );
+    assert_eq!(sent_meeting(&editor, &invited(), false), None);
 }

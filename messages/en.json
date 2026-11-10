@@ -1206,6 +1206,8 @@
 	"settings_jitsi_server": "Jitsi server",
 	"settings_jitsi_server_hint": "A Jitsi meeting you add to an event is a room on this server. Leave it empty and no calendar offers Jitsi.",
 	"settings_jitsi_server_invalid": "Enter an address that starts with https:// and has no ? or #.",
+	"settings_default_meeting": "Default video meeting",
+	"settings_default_meeting_hint": "The video meeting a new event gets once you invite someone, for each account’s calendars. You can still change it on the event.",
 	"settings_meeting_accounts": "Through your accounts",
 	"settings_meeting_accounts_hint": "Microsoft Teams and Nextcloud Talk meetings that your accounts make for events on any calendar. Switch each on or off on its account’s page.",
 	"settings_meeting_account_needs_permission": "Needs permission",

@@ -51,6 +51,76 @@ public class EventEditorMeetingTests
         Assert.Equal(new MeetingPick.Set("jitsi"), editor.CreateArgs().Meeting);
     }
 
+    private static CalendarChoice Inviting(MeetingOption[] choices, string? defaultMeeting, string id = "work") =>
+        new("acct", id, id, CanInvite: true, MeetingChoices: choices, DefaultMeeting: defaultMeeting);
+
+    // A new event whose invitee field takes any address, so nothing here loads the cdylib.
+    private static EventEditorState Creating(CalendarChoice calendar) =>
+        EventEditorState.Create(
+            calendar, "UTC", Now, inviteeCheckOf: (typed, _, _) => new InviteeCheck.Valid(typed.Trim()));
+
+    private static void Invite(EventEditorState editor)
+    {
+        editor.Roster.FieldChanged("grace@test.local");
+        Assert.True(editor.Roster.TakeTyped());
+    }
+
+    [Fact]
+    public void A_new_event_takes_its_calendars_default_once_it_has_an_invitee()
+    {
+        var editor = Creating(Inviting([Teams, Jitsi], "jitsi"));
+        editor.Title = "Review";
+        // An event with nobody invited makes no meeting.
+        Assert.Equal(new MeetingSelection.None(), editor.EffectiveMeeting);
+        Assert.Null(editor.CreateArgs().Meeting);
+
+        Invite(editor);
+        Assert.Equal(new MeetingSelection.Choice("jitsi"), editor.EffectiveMeeting);
+        Assert.True(editor.AnnouncesMeeting);
+        Assert.Equal(new MeetingPick.Set("jitsi"), editor.CreateArgs().Meeting);
+    }
+
+    [Fact]
+    public void A_default_needs_a_calendar_that_can_invite()
+    {
+        var editor = Creating(Inviting([Teams, Jitsi], "jitsi") with { CanInvite = false });
+        Invite(editor);
+        Assert.Equal(new MeetingSelection.None(), editor.EffectiveMeeting);
+    }
+
+    [Fact]
+    public void A_pick_in_the_row_outranks_the_default()
+    {
+        var editor = Creating(Inviting([Teams, Jitsi], "jitsi"));
+        editor.Title = "Review";
+        editor.Meeting = new MeetingSelection.None();
+        Invite(editor);
+        Assert.Equal(new MeetingSelection.None(), editor.EffectiveMeeting);
+        Assert.Null(editor.CreateArgs().Meeting);
+
+        editor.Meeting = new MeetingSelection.Choice("server:teams");
+        Assert.Equal(new MeetingPick.Set("server:teams"), editor.CreateArgs().Meeting);
+    }
+
+    [Fact]
+    public void An_untouched_row_follows_the_new_calendars_default()
+    {
+        var editor = Creating(Inviting([Teams, Jitsi], "jitsi"));
+        Invite(editor);
+        editor.Calendar = Inviting([Teams], "server:teams", id: "office");
+        Assert.Equal(new MeetingSelection.Choice("server:teams"), editor.EffectiveMeeting);
+        editor.Calendar = Inviting([Teams], null, id: "plain");
+        Assert.Equal(new MeetingSelection.None(), editor.EffectiveMeeting);
+    }
+
+    [Fact]
+    public void An_edit_never_takes_a_default()
+    {
+        var editor = Editing(null, [Teams, Jitsi]);
+        Assert.Equal(new MeetingSelection.None(), editor.EffectiveMeeting);
+        Assert.Null(editor.UpdateArgs(thisOccurrenceOnly: false).Meeting);
+    }
+
     [Fact]
     public void A_calendar_with_no_choices_draws_no_row()
     {

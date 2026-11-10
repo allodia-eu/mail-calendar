@@ -300,7 +300,7 @@ pub use records_recurrence::{
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
 pub use records_video_meeting::{
-    EditorMeeting, MeetingAccount, MeetingChange, MeetingOption, MeetingWords,
+    EditorMeeting, MeetingAccount, MeetingChange, MeetingDefault, MeetingOption, MeetingWords,
 };
 pub use rendering::{
     LinkedText, MessageCanvas, MessageScheme, PrintHeaderLine, linked_text, message_canvas,

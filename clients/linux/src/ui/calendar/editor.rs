@@ -26,6 +26,9 @@ pub(super) struct CalendarChoice {
     pub(super) can_invite: bool,
     /// The video meetings an event here can have: the core's `CalendarRow::meeting_choices`.
     pub(super) meeting_choices: Vec<MeetingOption>,
+    /// The one of them a new event here takes once it has an invitee: the core's
+    /// `CalendarRow::default_meeting`.
+    pub(super) default_meeting: Option<String>,
 }
 
 /// One stored event, reduced to the fields the Linux detail/editor needs.
@@ -138,6 +141,8 @@ pub(crate) struct EventForm {
     pub(crate) invitees: Vec<MeetingInvitee>,
     /// What the Video meeting row holds.
     pub(crate) meeting: MeetingSelection,
+    /// Whether the person picked in that row, None included.
+    pub(crate) meeting_chosen: bool,
 }
 
 /// An open create/edit form. All validation and date-shape decisions stay outside GTK.

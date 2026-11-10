@@ -275,8 +275,9 @@ internal fun EventEditorScreen(
             selected = editor.calendar,
             onPick = { choice ->
                 editor.calendar = choice
-                // A meeting the new calendar does not offer goes back to None (rule 9).
-                editor.meeting = editor.effectiveMeeting
+                // A picked meeting the new calendar does not offer goes back to None (rule 9); a
+                // row nobody picked in follows the new calendar's default.
+                if (editor.meetingChosen) editor.meeting = editor.effectiveMeeting
                 picking = false
             },
             onDismiss = { picking = false },

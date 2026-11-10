@@ -150,8 +150,13 @@ fn present_editor(
         note.set_xalign(0.0);
         form.append(&note);
     }
-    let (invitees, take_typed) =
-        invitees_editor::append_invitee_section(&form, editor, &calendar, app.clone());
+    let (invitees, take_typed) = invitees_editor::append_invitee_section(
+        &form,
+        editor,
+        &calendar,
+        app.clone(),
+        Rc::clone(&meeting.invited),
+    );
     let error = gtk::Label::new(Some(l10n::event_editor_invalid()));
     error.add_css_class("error");
     error.set_xalign(0.0);
@@ -186,7 +191,8 @@ fn present_editor(
             calendar_index: calendar.selected(),
             repeat: repeat_draft.borrow().clone(),
             invitees: invitees.borrow().clone(),
-            meeting: meeting.borrow().clone(),
+            meeting: meeting.pick.borrow().clone(),
+            meeting_chosen: meeting.chosen.get(),
         };
         if editor.intent(&form, false).is_err() {
             error.set_visible(true);
