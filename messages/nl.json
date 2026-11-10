@@ -576,7 +576,7 @@
 	"setup_microsoft_choice_note": "Meld je aan met je Microsoft-account in je browser: hier wordt niets bewaard behalve een beveiligd token. Microsoft wordt alleen gevraagd om toe te staan wat je kiest.",
 	"setup_google_choice_note": "Meld je aan met je Google-account in je browser: hier wordt niets bewaard behalve een beveiligd token. Google wordt alleen gevraagd om toe te staan wat je kiest.",
 	"setup_detect_colleagues_enable": "Ook collega’s uit de adreslijst van je organisatie",
-	"setup_detect_teams_enable": "Voeg ook Microsoft Teams-vergaderingen toe aan je afspraken",
+	"setup_detect_meetings_enable": "Maak via dit account ook videovergaderingen voor je afspraken",
 	"setup_withheld_title": "Niet alles wat je koos is toegestaan",
 	"setup_withheld_detail": "Je provider stond dit niet toe: {uses}. Het account werkt zonder, en als je er hier een aanzet, wordt het opnieuw gevraagd.",
 	"setup_links_title": "Gebruik een ander account met dit account",
@@ -1209,7 +1209,7 @@
 	"settings_default_meeting": "Standaard videovergadering",
 	"settings_default_meeting_hint": "De videovergadering die een nieuwe afspraak krijgt zodra je iemand uitnodigt, per account. Je kunt dit per afspraak nog wijzigen.",
 	"settings_meeting_accounts": "Via je accounts",
-	"settings_meeting_accounts_hint": "Microsoft Teams- en Nextcloud Talk-vergaderingen die je accounts maken voor afspraken in elke agenda. Zet ze aan of uit op de pagina van het account.",
+	"settings_meeting_accounts_hint": "Microsoft Teams-, Google Meet- en Nextcloud Talk-vergaderingen die je accounts maken voor afspraken in elke agenda. Zet ze aan of uit op de pagina van het account.",
 	"settings_meeting_account_needs_permission": "Toestemming nodig",
 	"settings_meeting_account_not_offered": "Niet aangeboden"
 }

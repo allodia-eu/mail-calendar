@@ -1,7 +1,7 @@
 //! Which of mail, calendar and contacts a setup route offers, and how each starts: decided once
 //! here, so four clients drawing the found card do not decide it four ways.
 
-use crate::{Capabilities, Capability, ConfigError, SetupRecommendation};
+use crate::{Capabilities, Capability, ConfigError, SetupRecommendation, affiliation::MeetingsFor};
 
 /// One use a setup route offers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,30 +66,39 @@ pub fn standards_choices(mail: bool, caldav: bool, carddav: bool) -> Vec<SetupCh
 /// mailboxes and Teams meetings only when the address is not a personal one.
 #[must_use]
 pub fn microsoft_choices(email: &str) -> Vec<SetupChoice> {
-    provider_choices(is_microsoft_consumer_domain(email), true, true)
+    provider_choices(
+        is_microsoft_consumer_domain(email),
+        true,
+        MeetingsFor::Organisations,
+    )
 }
 
 /// The uses a Google sign-in for `email` offers, as [`microsoft_choices`] does for Microsoft, less
-/// shared mailboxes, which a Gmail sign-in cannot open, and video meetings, which this app makes
-/// through no Google account.
+/// shared mailboxes, which a Gmail sign-in cannot open, and with Meet meetings for a personal
+/// address too.
 #[must_use]
 pub fn google_choices(email: &str) -> Vec<SetupChoice> {
     provider_choices(
         crate::autodetect::is_google_consumer_domain(email),
         false,
-        false,
+        MeetingsFor::Everyone,
     )
 }
 
-/// Every use, all on; colleagues, shared mailboxes and video meetings left out for a personal
-/// account, which has no organisation to have any of them (`docs/accounts.md` rules 3 and 19).
-fn provider_choices(personal: bool, shared_mailboxes: bool, meetings: bool) -> Vec<SetupChoice> {
+/// Every use, all on; colleagues and shared mailboxes left out for a personal account, which
+/// has no organisation to have either, and video meetings where the provider makes none for it
+/// (`docs/accounts.md` rules 3 and 19).
+fn provider_choices(
+    personal: bool,
+    shared_mailboxes: bool,
+    meetings: MeetingsFor,
+) -> Vec<SetupChoice> {
     Capability::ALL
         .into_iter()
         .filter(|capability| match capability {
             Capability::Colleagues => !personal,
             Capability::SharedMailboxes => shared_mailboxes && !personal,
-            Capability::Meetings => meetings && !personal,
+            Capability::Meetings => meetings.offers(personal),
             _ => true,
         })
         .map(|capability| found(capability, true))

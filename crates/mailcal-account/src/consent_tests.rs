@@ -158,15 +158,19 @@ fn a_grant_without_the_shared_mail_scope_withholds_shared_mailboxes_alone() {
 }
 
 #[test]
-fn video_meetings_ask_for_online_meetings_at_microsoft_alone_and_only_when_chosen() {
+fn video_meetings_ask_for_their_scope_only_when_chosen() {
     const ONLINE_MEETINGS: &str = "https://graph.microsoft.com/OnlineMeetings.ReadWrite";
+    const MEET_SPACES: &str = "https://www.googleapis.com/auth/meetings.space.created";
     let legacy: Capabilities = Capability::LEGACY.into_iter().collect();
     assert!(!requested_scopes(&MICROSOFT, &legacy).contains(&ONLINE_MEETINGS.to_owned()));
     let with = set(&[Capability::Calendar, Capability::Meetings]);
     assert!(requested_scopes(&MICROSOFT, &with).contains(&ONLINE_MEETINGS.to_owned()));
+    assert!(!requested_scopes(&GOOGLE, &legacy).contains(&MEET_SPACES.to_owned()));
+    assert!(requested_scopes(&GOOGLE, &with).contains(&MEET_SPACES.to_owned()));
+    let calendar = vec!["https://www.googleapis.com/auth/calendar".to_owned()];
     assert_eq!(
-        as_set(&requested_scopes(&GOOGLE, &with)),
-        as_set(&requested_scopes(&GOOGLE, &set(&[Capability::Calendar])))
+        withheld(&GOOGLE, &with, Some(&calendar)),
+        set(&[Capability::Meetings])
     );
     let granted = vec!["https://graph.microsoft.com/Calendars.ReadWrite".to_owned()];
     assert_eq!(

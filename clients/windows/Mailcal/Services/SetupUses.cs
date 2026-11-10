@@ -28,8 +28,8 @@ internal sealed record UseOffer(IReadOnlyList<SetupChoice> Choices, string Calda
 internal readonly record struct PickedUse(bool On, string Typed);
 
 /// <summary>The choices beside the three uses: shared mailboxes within mail, colleagues within
-/// contacts, and Teams meetings, which a Microsoft work account's card offers within no use; null
-/// for one the card did not offer.</summary>
+/// contacts, and video meetings, which a Microsoft work account's card and a Google account's
+/// offer within no use; null for one the card did not offer.</summary>
 internal readonly record struct Subchoices(bool? SharedMailboxes, bool? Colleagues, bool? Meetings = null);
 
 /// <summary>What the person chose, as the account is set up with it.</summary>

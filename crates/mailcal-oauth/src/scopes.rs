@@ -111,8 +111,11 @@ pub const GOOGLE: ProviderScopes = ProviderScopes {
     // A Gmail account opens another mailbox only through a service account holding
     // domain-wide delegation, never through a user's own grant.
     shared_mailboxes: None,
-    // Meet on a calendar that is not Google's is not made through a Google account.
-    meetings: None,
+    // A Meet space made for an event on a calendar that is not Google's.
+    meetings: Some(ScopeGroup {
+        requested: &["https://www.googleapis.com/auth/meetings.space.created"],
+        needed: "https://www.googleapis.com/auth/meetings.space.created",
+    }),
     implied_resource: None,
 };
 

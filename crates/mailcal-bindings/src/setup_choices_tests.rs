@@ -86,6 +86,7 @@ fn a_provider_sign_in_offers_colleagues_too() {
             AccountCapability::Calendar,
             AccountCapability::Contacts,
             AccountCapability::Colleagues,
+            AccountCapability::Meetings,
         ]
     );
     assert!(setup.choices.iter().all(|choice| choice.on));

@@ -232,3 +232,59 @@ fn videoconferencing_lists_each_account_that_makes_meetings_in_its_state() {
     let personal = microsoft(&[], Some(engine_api::Affiliation::Personal), CALENDAR);
     assert!(overview(&personal).is_empty());
 }
+
+const CALENDAR_SCOPE: &str = "https://www.googleapis.com/auth/calendar";
+const MEET_SCOPE: &str = "https://www.googleapis.com/auth/meetings.space.created";
+
+/// A personal Google account whose grant holds `granted`, used for `uses`.
+fn google(granted: &[&str], uses: &str) -> (String, Arc<AccountRegistry>) {
+    let config = mailcal_account::GoogleConfig {
+        email: "alice@gmail.com".to_owned(),
+        client_id: "client-abc".to_owned(),
+        client_secret: None,
+        redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
+        scopes: Vec::new(),
+        refresh_token: mailcal_account::Secret::new("refresh".to_owned()),
+        granted_scopes: Some(granted.iter().map(|&scope| scope.to_owned()).collect()),
+        affiliation: Some(engine_api::Affiliation::Personal),
+        shape: mailcal_account::AccountShape::read(&format!("capabilities = {uses}")).unwrap(),
+    };
+    let id = config.account_id().unwrap();
+    let tokens = mailcal_account::google_token_source(
+        &config,
+        id.clone(),
+        None,
+        mailcal_account::CredentialOrigin::FreshSignIn,
+    )
+    .unwrap();
+    let registry = AccountRegistry::new();
+    registry
+        .pre_register(
+            id.as_str().to_owned(),
+            crate::ConnectedAccount::Google { config, tokens },
+        )
+        .commit();
+    (id.as_str().to_owned(), registry)
+}
+
+#[test]
+fn meet_meetings_ask_a_google_account_for_their_scope_before_they_switch_on() {
+    // A personal account is offered them too: Google makes a Meet space for any account.
+    let (id, registry) = google(&[CALENDAR_SCOPE], CALENDAR);
+    assert_eq!(meetings(&registry), Some(CapabilityState::Off));
+    let asked = registry.set_use(&id, Capability::Meetings, true, &Capabilities::default());
+    assert!(matches!(asked, Ok(UseChange::NeedsConsent)));
+
+    let (id, granted) = google(&[CALENDAR_SCOPE, MEET_SCOPE], CALENDAR);
+    let on = granted.set_use(&id, Capability::Meetings, true, &Capabilities::default());
+    assert!(matches!(on, Ok(UseChange::Changed { .. })));
+    assert_eq!(meetings(&granted), Some(CapabilityState::On));
+    assert_eq!(
+        overview(&granted),
+        [(
+            "Google Meet".to_owned(),
+            "alice@gmail.com".to_owned(),
+            CapabilityState::On
+        )]
+    );
+}

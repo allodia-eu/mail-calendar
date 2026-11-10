@@ -1,7 +1,7 @@
 // What the account is used for, chosen on the setup screen: mail, calendar and contacts on the found
 // card and the calendar-and-contacts card, colleagues too before a Microsoft or Google sign-in and
-// shared mailboxes and, for a work address, Teams meetings before a Microsoft one
-// (docs/shared-mailboxes.md rule 2, docs/accounts.md rule 19), and
+// shared mailboxes before a Microsoft one for a work address, video meetings before a Microsoft
+// work sign-in or a Google one (docs/shared-mailboxes.md rule 2, docs/accounts.md rule 19), and
 // the uses a JMAP server offers after one (docs/account-autodetect.md rule 8, docs/accounts.md rule
 // 10). Which uses are offered and how each starts is the core's; what the toggles make of the
 // account is SetupUses, which the JVM suite drives. This file holds the toggles and draws them.
@@ -90,10 +90,10 @@ internal class UseToggles(val offer: UseOffer) {
      */
     fun canFlip(on: Boolean): Boolean = !on || primaryOn > 1
 
-    /** Whether the card offers Teams meetings, which the calendar's section draws. */
+    /** Whether the card offers video meetings, which the calendar's section draws. */
     val offersMeetings: Boolean get() = offered(AccountCapability.MEETINGS)
 
-    /** Whether the card draws a calendar section for Teams meetings to sit in. */
+    /** Whether the card draws a calendar section for video meetings to sit in. */
     val offersCalendar: Boolean get() = offered(AccountCapability.CALENDAR)
 }
 
@@ -134,7 +134,7 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     },
                     flagged = toggles.flagged == MissingServer.CALENDAR,
                 )
-                // Teams meetings are made for an event on any calendar, so they do not wait for
+                // Video meetings are made for an event on any calendar, so they do not wait for
                 // this one.
                 if (toggles.offersMeetings) MeetingsBox(toggles)
             }
@@ -187,7 +187,7 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
 @Composable
 private fun MeetingsBox(toggles: UseToggles) {
     val ctx = LocalContext.current
-    UseBox(L10n.setup_detect_teams_enable(ctx), toggles.meetings, true, "MEETINGS") { toggles.meetings = it }
+    UseBox(L10n.setup_detect_meetings_enable(ctx), toggles.meetings, true, "MEETINGS") { toggles.meetings = it }
 }
 
 @Composable

@@ -274,6 +274,13 @@ impl AccountDial {
                     },
                 );
                 let assembled = assemble(mail, calendar, contacts)?;
+                // Opened only where the grant holds its scope, which `on` already says.
+                let meetings = on(Capability::Meetings)
+                    .then(|| mailcal_account::meet_meetings(Arc::clone(&tokens)))
+                    .and_then(|made| {
+                        made.inspect_err(|err| log::warn!("google: no Meet meetings: {err}"))
+                            .ok()
+                    });
                 Ok(outcome(
                     id,
                     on(Capability::Mail),
@@ -282,7 +289,8 @@ impl AccountDial {
                     None,
                     false,
                     mailcal_account::DavLearned::default(),
-                ))
+                )
+                .with_meetings(meetings))
             }
             Self::Jmap {
                 config,

@@ -1,7 +1,7 @@
 // What the account is used for, chosen on the setup form: mail, calendar and contacts on the IMAP
 // and calendar-and-contacts cards, colleagues too before a Microsoft or Google sign-in, and shared
-// mailboxes and, for a work address, Teams meetings before a Microsoft one
-// (docs/account-autodetect.md rule 8, docs/accounts.md rules 10 and 19,
+// mailboxes before a Microsoft one for a work address, video meetings before a Microsoft work
+// sign-in or a Google one (docs/account-autodetect.md rule 8, docs/accounts.md rules 10 and 19,
 // docs/shared-mailboxes.md rule 2). Which uses are offered and how
 // each starts is the core's; what the toggles make of the account is SetupUses, which the unit
 // suite drives. This partial draws the toggles and reads them back.
@@ -93,7 +93,7 @@ public sealed partial class AccountSetupView
                     (_calendarUse, _calendarTyped) = DavUse(
                         choice, offer.CaldavUrl, L10n.SetupDetectCalendarEnable(), L10n.SetupDetectCalendarAdd(),
                         L10n.SetupHintCaldav(), "SetupUseCalendar");
-                    // Teams meetings are made for an event on any calendar, so they sit with the
+                    // Video meetings are made for an event on any calendar, so they sit with the
                     // calendar without waiting for it.
                     if (offer.For(AccountCapability.Meetings) is { } meetings)
                     {
@@ -233,11 +233,11 @@ public sealed partial class AccountSetupView
         return box;
     }
 
-    /// <summary>Teams meetings, not indented: they depend on no other use, and are never the use
+    /// <summary>Video meetings, not indented: they depend on no other use, and are never the use
     /// <see cref="KeepOneOn"/> holds on.</summary>
     private CheckBox MeetingsUse(SetupChoice choice)
     {
-        var box = UseBox(L10n.SetupDetectTeamsEnable(), choice.On, "SetupUseMeetings");
+        var box = UseBox(L10n.SetupDetectMeetingsEnable(), choice.On, "SetupUseMeetings");
         UsesPanel.Children.Add(box);
         return box;
     }

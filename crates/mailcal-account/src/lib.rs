@@ -58,7 +58,7 @@ mod stream_redial;
 mod throttle;
 mod tls;
 
-pub use account_meetings::{TalkAtConnect, talk_at_connect, teams_meetings};
+pub use account_meetings::{TalkAtConnect, meet_meetings, talk_at_connect, teams_meetings};
 pub use account_shape::{AccountLinks, AccountShape, Capabilities, Capability};
 pub use autodetect::{MissReason, OauthRoutes, ServerSummary, SetupRecommendation, recommend};
 pub use calendar::{

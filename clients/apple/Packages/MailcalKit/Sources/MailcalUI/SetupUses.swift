@@ -78,8 +78,8 @@ struct UseChoices: Equatable {
     var contacts: PickedUse?
     var colleagues: Bool?
     var sharedMailboxes: Bool?
-    /// Teams meetings, which only a Microsoft work account's setup offers (docs/accounts.md
-    /// rule 19).
+    /// Video meetings, which a Microsoft work account's setup and a Google account's offer
+    /// (docs/accounts.md rule 19).
     var meetings: Bool?
 
     /// Each use as the core said it starts.

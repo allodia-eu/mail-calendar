@@ -99,6 +99,9 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 /// after verification is a **new assessment**, not an amendment. The three contact scopes are
 /// **sensitive**, which is a declaration, a justification and a demo video, so they do not
 /// deepen the gate either.
+///
+/// `meetings.space.created` makes a Meet space for an event on a calendar that is not Google's
+/// (`docs/conferencing.md` rule 14). It reaches only the spaces this app made.
 pub const GOOGLE_SCOPES: &[&str] = &[
     "https://mail.google.com/",
     "https://www.googleapis.com/auth/gmail.settings.basic",
@@ -107,6 +110,7 @@ pub const GOOGLE_SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/contacts.other.readonly",
     "https://www.googleapis.com/auth/directory.readonly",
     "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/meetings.space.created",
 ];
 
 /// How a provider wants its authorization request shaped, beyond the shared

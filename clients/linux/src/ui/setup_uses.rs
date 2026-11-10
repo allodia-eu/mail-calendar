@@ -215,7 +215,7 @@ pub(super) fn append(
                     l10n::setup_detect_calendar_add(),
                     l10n::setup_hint_caldav(),
                 ));
-                // Teams meetings are made for an event on any calendar, so they do not wait for
+                // Video meetings are made for an event on any calendar, so they do not wait for
                 // this one; they are drawn beneath what the calendar itself shows.
                 if toggles.meetings.is_none() {
                     toggles.meetings = meetings.map(|choice| meetings_toggle(content, choice));
@@ -291,9 +291,9 @@ fn dav_toggle(
     }
 }
 
-/// The Teams meetings choice, which is never the last use and so is always free to flip.
+/// The video meetings choice, which is never the last use and so is always free to flip.
 fn meetings_toggle(content: &gtk::Box, choice: &SetupChoice) -> gtk::CheckButton {
-    let enabled = gtk::CheckButton::with_label(l10n::setup_detect_teams_enable());
+    let enabled = gtk::CheckButton::with_label(l10n::setup_detect_meetings_enable());
     enabled.set_active(choice.on);
     content.append(&enabled);
     enabled

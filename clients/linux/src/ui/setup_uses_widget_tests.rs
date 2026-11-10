@@ -286,7 +286,7 @@ pub(super) fn a_provider_card_asks_only_for_what_is_chosen(window: &adw::Applica
     let colleagues = toggle(l10n::setup_detect_colleagues_enable());
     let mail = toggle(l10n::setup_detect_mail_enable());
     let shared = toggle(l10n::setup_detect_shared_mailboxes_enable());
-    let teams = toggle(l10n::setup_detect_teams_enable());
+    let teams = toggle(l10n::setup_detect_meetings_enable());
     assert!(mail.is_active() && shared.is_active() && shared.is_sensitive());
     assert!(
         teams.is_active() && teams.is_sensitive(),
