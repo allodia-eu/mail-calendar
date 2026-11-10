@@ -8,9 +8,9 @@ use std::{sync::Arc, time::Duration};
 
 use crate::{
     AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountPage, AccountPageIntent,
-    AccountProvider, BrowserSignIn, BrowserSignInStage, CapabilityState, ControlState, MailcalApp,
-    MailcalError, NextcloudSignInPoll, NoticeAction, SignInBrowserEnd,
-    account_page::browser::{Began, Completion, Ended, Pending, Start},
+    AccountProvider, BrowserSignIn, CapabilityState, ControlState, MailcalApp, MailcalError,
+    NextcloudSignInPoll, NoticeAction, SignInBrowserEnd,
+    account_page::browser::{Began, Completion, Ended, Out, Pending, Start},
     account_work::Change,
 };
 
@@ -56,6 +56,7 @@ impl MailcalApp {
                 attempt, answer, ..
             } => {
                 if let Some(serial) = browser.answered(attempt, answer) {
+                    Self::opened(&app, attempt, serial);
                     Self::cap_wait(app, attempt, serial);
                 }
             }
@@ -210,6 +211,9 @@ impl MailcalApp {
                     return;
                 };
                 self.signal_sign_in();
+                if !asking {
+                    Self::opened(&self, attempt, serial);
+                }
                 if asks_server {
                     self.poll_until_over(attempt);
                 } else if !asking {
@@ -217,6 +221,18 @@ impl MailcalApp {
                 }
             }
         }
+    }
+
+    /// Draws `attempt`'s control as no longer running once its browser has had time to come up,
+    /// if it still waits on it at `serial`.
+    fn opened(app: &Arc<Self>, attempt: u64, serial: u64) {
+        let app = Arc::clone(app);
+        std::thread::spawn(move || {
+            std::thread::sleep(app.account_work.browser.opening());
+            if app.account_work.browser.at(attempt, serial) {
+                app.signal_sign_in();
+            }
+        });
     }
 
     /// Ends `attempt` if it still waits on the browser at `serial` once its cap has passed: a
@@ -381,13 +397,14 @@ impl MailcalApp {
     /// server starts or completes it, the password field held while it is out, and the section
     /// saying it waits on the browser.
     pub(crate) fn draw_browser_sign_in(&self, page: &mut AccountPage) {
-        let Some((browser, adding)) = self.account_work.browser.of(&page.account) else {
+        let Some(Out {
+            record: browser,
+            adding,
+            working,
+        }) = self.account_work.browser.of(&page.account)
+        else {
             return;
         };
-        let working = matches!(
-            browser.stage,
-            BrowserSignInStage::Starting | BrowserSignInStage::Completing
-        );
         let running = ControlState {
             enabled: false,
             running: true,

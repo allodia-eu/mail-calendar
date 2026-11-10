@@ -1,6 +1,7 @@
 // A notice's Sign in again while the sign-in it starts is out (docs/notices.md rule 7,
 // docs/waiting.md rule 1): the bar's button is held with its spinner from the press until the
-// browser sign-in the core runs for it ends, and pressable again afterwards.
+// browser has had time to come up, and pressable again while the browser waits, so a tab closed
+// by accident is one more press away.
 //
 // WHY THIS STAGING. Only an account that signs in through a browser is offered Sign in again, and
 // the harness's sign-in server (stalwart-oauth, http://localhost:28081) is the one here that runs
@@ -89,7 +90,7 @@ public sealed class NoticeSignInRunningTests(RefusedSignInHarnessApp harness) : 
     private static Element? Action(App app) => app.NoticeBar() is { } bar && app.Says(bar, Expired) ? app.NoticeAction(bar) : null;
 
     [HarnessFact]
-    public void SignInAgainSpinsFromThePressUntilTheSignInEnds() => harness.Case(nameof(SignInAgainSpinsFromThePressUntilTheSignInEnds), app =>
+    public void SignInAgainSpinsFromThePressUntilTheBrowserIsUp() => harness.Case(nameof(SignInAgainSpinsFromThePressUntilTheBrowserIsUp), app =>
     {
         app.RowsList();
         var bar = app.WaitNotice(Expired, TimeSpan.FromSeconds(45))
@@ -100,8 +101,9 @@ public sealed class NoticeSignInRunningTests(RefusedSignInHarnessApp harness) : 
 
         app.Agent.Invoke(action);
         Assert.True(App.Eventually(() => Ring(app) is { Rendered: true }, TimeSpan.FromSeconds(20)),
-            "from the press, while the browser holds the sign-in, the button shows it is working: greying alone is not that");
-        Assert.True(Action(app) is { Enabled: false }, "and it cannot start the same sign-in twice");
+            "from the press, while the browser comes up, the button shows it is working: greying alone is not that");
+        Assert.True(App.Eventually(() => Ring(app) is null && Action(app) is { Enabled: true }, TimeSpan.FromSeconds(15)),
+            "once the browser has had time to come up, the spinner goes and a press starts the sign-in again");
 
         // The account page is where a sign-in out in the browser is cancelled.
         var flow = new SetupFlow(app);
@@ -118,6 +120,6 @@ public sealed class NoticeSignInRunningTests(RefusedSignInHarnessApp harness) : 
         app.Agent.Invoke(cancel ?? throw new InvalidOperationException("neither of alice's account pages offers to cancel the sign-in out"));
         app.CloseDialogs();
         Assert.True(App.Eventually(() => Ring(app) is null && Action(app) is { Enabled: true }, TimeSpan.FromSeconds(15)),
-            "once the sign-in ends the spinner goes and Sign in again can be pressed again");
+            "once the sign-in ends Sign in again can still be pressed");
     }, _ => StoredAccounts.Remove(RefusedSignInHarnessApp.Namespace, RefusedSignInHarnessApp.StoredAs));
 }

@@ -74,10 +74,13 @@ on the browser (`InBrowser`) for at most five minutes, asks a Nextcloud server i
 person has finished, and completes it as a change on the page (`Completing`). A client opens the
 browser once for each attempt, listens where it returns and hands back what came
 (`SignInBrowserEnded`); it keeps no step, timer or handle of its own. The page draws it from the
-section's `browser`: the control that started it running while the core starts or completes it,
-a line saying it waits on the browser with its Cancel (`CancelSignIn`), and the password field
-held while it is out. What it came to is the page's notice, a failure or a use the provider still
-withholds, and a notice it answers is drawn running while it is out and says when it failed.
+section's `browser`: the control that started it running while the core starts it, for two
+seconds after it sends the browser out (`OPENING`, the time a browser takes to come up), and while
+it completes it; a line saying it waits on the browser with its Cancel (`CancelSignIn`); and the
+password field held while it is out. Between those, the control can be pressed again, which
+starts a fresh sign-in, as after a tab closed by accident. What it came to is the page's notice, a
+failure or a use the provider still withholds, and a notice it answers is drawn running exactly
+when that control is, and says when it failed.
 The question that allows a calendar or address book onto a server found on another site is the
 core's too (`account_server_change`), whichever surface opened it: Allow is a change on the page
 (`AllowServerChange`), the question stays open while it runs with "Not now" waiting for it, says

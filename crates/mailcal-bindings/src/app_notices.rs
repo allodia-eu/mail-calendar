@@ -28,7 +28,7 @@ impl MailcalApp {
                 .unwrap_or_else(|| account.to_owned())
         };
         let questions = self.questions();
-        let signing_in = self.account_work.browser.account();
+        let signing_in = self.account_work.browser.working_account();
         let facts = NoticeFacts {
             connectivity: &connectivity,
             skipped_at_launch,

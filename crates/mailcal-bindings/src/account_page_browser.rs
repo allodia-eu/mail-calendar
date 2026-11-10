@@ -3,14 +3,27 @@
 //! in a client. What it returns is never handed to a client: the handle that completes it and a
 //! Nextcloud grant stay on this side.
 
-use std::{sync::Mutex, time::Duration};
+use std::{
+    sync::Mutex,
+    time::{Duration, Instant},
+};
 
-use crate::{AccountCapability, BrowserSignIn, BrowserSignInStage, ControlState, UnreachedUses};
+use crate::{AccountCapability, BrowserSignIn, UnreachedUses};
+
+#[path = "account_page_browser_out.rs"]
+mod out;
+pub(crate) use out::Out;
+use out::{record, working};
 
 /// How long a sign-in waits on the browser before it is over: what a closed browser tab costs,
 /// since closing one tells nobody. The question before the browser waits until it is answered,
 /// since it is on screen, or a fresh press replaces it.
 pub(crate) const WAIT_CAP: Duration = Duration::from_mins(5);
+
+/// How long the control that started a sign-in stays running once the browser is sent out: a
+/// browser takes a moment to come up, and once it has, a fresh press starts the sign-in again, as
+/// after a tab closed by accident.
+pub(crate) const OPENING: Duration = Duration::from_secs(2);
 
 /// The handle a started sign-in is completed with.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +81,8 @@ enum Stage {
     InBrowser {
         began: Began,
         unreached: Option<UnreachedUses>,
+        /// When the browser was sent out.
+        since: Instant,
     },
     /// The completion waits in the page queue until it is taken.
     Completing(Option<Completion>),
@@ -94,6 +109,8 @@ struct Slot {
     kept: Option<(String, String)>,
     /// A shorter cap than [`WAIT_CAP`], for a test.
     cap: Option<Duration>,
+    /// Another time than [`OPENING`], for a test.
+    opening: Option<Duration>,
 }
 
 /// What starting a sign-in came to.
@@ -185,6 +202,7 @@ impl BrowserSignIns {
             Stage::InBrowser {
                 began,
                 unreached: None,
+                since: Instant::now(),
             }
         } else {
             Stage::Asking { began }
@@ -209,6 +227,7 @@ impl BrowserSignIns {
             stage: Stage::InBrowser {
                 began,
                 unreached: Some(answer),
+                since: Instant::now(),
             },
             serial,
             ..current
@@ -228,7 +247,9 @@ impl BrowserSignIns {
             return false;
         };
         let completion = match &current.stage {
-            Stage::InBrowser { began, unreached } => match &began.pending {
+            Stage::InBrowser {
+                began, unreached, ..
+            } => match &began.pending {
                 Pending::Consent(pending) => Completion::Consent {
                     pending: pending.clone(),
                     callback_url,
@@ -332,12 +353,19 @@ impl BrowserSignIns {
 
     /// Ends `attempt` if it is still at the wait `serial` timed.
     pub(crate) fn timed_out(&self, attempt: u64, serial: u64) -> Option<Ended> {
-        let still = self
-            .slot()
+        if self.at(attempt, serial) {
+            self.end(attempt)
+        } else {
+            None
+        }
+    }
+
+    /// Whether `attempt` is the sign-in out, still at the stage `serial` names.
+    pub(crate) fn at(&self, attempt: u64, serial: u64) -> bool {
+        self.slot()
             .current
             .as_ref()
-            .is_some_and(|current| current.id == attempt && current.serial == serial);
-        if still { self.end(attempt) } else { None }
+            .is_some_and(|current| current.id == attempt && current.serial == serial)
     }
 
     /// Whether `attempt` waits on its browser for a redirect, rather than for its server.
@@ -373,14 +401,38 @@ impl BrowserSignIns {
         self.slot().current.as_ref().map(record)
     }
 
-    /// The sign-in out for `account`, with the uses it asks for besides what the account is used
-    /// for.
-    pub(crate) fn of(&self, account: &str) -> Option<(BrowserSignIn, Vec<AccountCapability>)> {
-        self.slot()
-            .current
+    /// The sign-in out for `account`.
+    pub(crate) fn of(&self, account: &str) -> Option<Out> {
+        let slot = self.slot();
+        let opening = slot.opening.unwrap_or(OPENING);
+        slot.current
             .as_ref()
             .filter(|current| current.account == account)
-            .map(|current| (record(current), current.adding.clone()))
+            .map(|current| Out {
+                record: record(current),
+                adding: current.adding.clone(),
+                working: working(current, opening),
+            })
+    }
+
+    /// The account whose sign-in is out while the control that started it is running.
+    pub(crate) fn working_account(&self) -> Option<String> {
+        let slot = self.slot();
+        let opening = slot.opening.unwrap_or(OPENING);
+        slot.current
+            .as_ref()
+            .filter(|current| working(current, opening))
+            .map(|current| current.account.clone())
+    }
+
+    /// How long the control that started a sign-in stays running once its browser is sent out.
+    pub(crate) fn opening(&self) -> Duration {
+        self.slot().opening.unwrap_or(OPENING)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_opening(&self, opening: Duration) {
+        self.slot().opening = Some(opening);
     }
 
     /// How long a sign-in waits on its browser.
@@ -401,14 +453,6 @@ impl BrowserSignIns {
             .filter(|current| current.id == attempt)
             .map(|current| current.account.clone())
     }
-
-    /// The account whose sign-in is out.
-    pub(crate) fn account(&self) -> Option<String> {
-        self.slot()
-            .current
-            .as_ref()
-            .map(|current| current.account.clone())
-    }
 }
 
 /// A sign-in that ended before its completion.
@@ -416,30 +460,6 @@ impl BrowserSignIns {
 pub(crate) struct Ended {
     pub(crate) account: String,
     pub(crate) switching: bool,
-}
-
-fn record(attempt: &Attempt) -> BrowserSignIn {
-    let stage = match &attempt.stage {
-        Stage::Starting => BrowserSignInStage::Starting,
-        Stage::Asking { began } => BrowserSignInStage::Asking {
-            unreached: began.unreached.clone(),
-        },
-        Stage::InBrowser { began, .. } => BrowserSignInStage::InBrowser {
-            url: began.url.clone(),
-            redirect_uri: began.redirect_uri.clone(),
-        },
-        Stage::Completing(_) => BrowserSignInStage::Completing,
-    };
-    let completing = matches!(stage, BrowserSignInStage::Completing);
-    BrowserSignIn {
-        attempt: attempt.id,
-        account: attempt.account.clone(),
-        stage,
-        cancel: ControlState {
-            enabled: !completing,
-            running: false,
-        },
-    }
 }
 
 #[cfg(test)]

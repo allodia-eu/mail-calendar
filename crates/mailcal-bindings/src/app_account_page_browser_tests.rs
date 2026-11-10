@@ -145,6 +145,9 @@ fn failed(refusal: AccountChangeRefusal) -> Option<AccountChangeNotice> {
 #[test]
 fn the_browser_returns_where_the_grant_was_registered_and_the_page_says_it_waits() {
     let (app, id) = booted("browser-sign-in-waits");
+    app.account_work
+        .browser
+        .set_opening(Duration::from_millis(200));
     sign_in(&app, &id);
     let out = in_browser(&app);
     assert_eq!(out.account, id);
@@ -158,13 +161,23 @@ fn the_browser_returns_where_the_grant_was_registered_and_the_page_says_it_waits
         Some(REDIRECT),
         "where the stored grant returns, not where this client asked"
     );
-    let section = app
-        .account_page(id.clone())
-        .and_then(|page| page.sign_in)
-        .expect("a section");
-    assert_eq!(section.browser.map(|out| out.attempt), Some(out.attempt));
+    let section = || {
+        app.account_page(id.clone())
+            .and_then(|page| page.sign_in)
+            .expect("a section")
+    };
+    assert_eq!(section().browser.map(|out| out.attempt), Some(out.attempt));
     assert!(
-        section.control.enabled && !section.control.running,
+        section().control.running,
+        "the route runs while the browser comes up"
+    );
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while section().control.running {
+        assert!(Instant::now() < deadline, "the route never stopped running");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        section().control.enabled,
         "a route pressed while the browser waits starts it again"
     );
 }
@@ -324,9 +337,25 @@ fn the_notice_it_answers_runs_while_it_is_out_and_says_when_it_did_not_work() {
     assert_eq!(notice(&app).action, Some(NoticeAction::SignInAgain));
     assert!(!notice(&app).running);
 
+    app.account_work
+        .browser
+        .set_opening(Duration::from_millis(200));
     sign_in(&app, &id);
     let out = in_browser(&app);
-    assert!(notice(&app).running);
+    assert!(notice(&app).running, "while the browser comes up");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while notice(&app).running {
+        assert!(
+            Instant::now() < deadline,
+            "the notice never stopped running"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(
+        app.browser_sign_in().map(|out| out.attempt),
+        Some(out.attempt),
+        "pressable again while the sign-in waits on the browser"
+    );
     send(
         &app,
         AccountPageIntent::SignInBrowserEnded {

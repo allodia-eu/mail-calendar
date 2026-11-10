@@ -2,6 +2,8 @@
 //! superseding it, a question before the browser, a completion nothing supersedes, and a
 //! Nextcloud grant kept for the next try.
 
+use std::time::Duration;
+
 use super::{Began, BrowserSignIns, Completion, Ended, Pending, Start};
 use crate::{AccountCapability, BrowserSignInStage, UnreachedUses};
 
@@ -215,10 +217,41 @@ fn the_page_reads_only_its_own_accounts_sign_in_with_what_it_asks_for() {
     sign_ins.start("a", &[AccountCapability::Calendar], false);
     assert_eq!(sign_ins.of("b"), None);
     assert_eq!(
-        sign_ins.of("a").map(|(_, adding)| adding),
+        sign_ins.of("a").map(|out| out.adding),
         Some(vec![AccountCapability::Calendar])
     );
-    assert_eq!(sign_ins.account().as_deref(), Some("a"));
+    assert_eq!(sign_ins.working_account().as_deref(), Some("a"));
     assert_eq!(sign_ins.forget("a"), None);
     assert_eq!(sign_ins.record(), None);
+}
+
+#[test]
+fn the_control_that_started_it_runs_until_the_browser_has_had_time_to_come_up() {
+    let sign_ins = BrowserSignIns::default();
+    sign_ins.set_opening(Duration::from_millis(50));
+    let working = |sign_ins: &BrowserSignIns| sign_ins.of("a").is_some_and(|out| out.working);
+    let attempt = begun(&sign_ins, "a");
+    assert!(working(&sign_ins), "while its server starts it");
+    sign_ins.began(
+        attempt,
+        began(
+            Pending::Account("p".into()),
+            vec![AccountCapability::Calendar],
+        ),
+    );
+    assert!(
+        !working(&sign_ins),
+        "the question on screen is the person's"
+    );
+    sign_ins.answered(attempt, Some(UnreachedUses::KeepOnPassword));
+    assert!(working(&sign_ins), "while the browser comes up");
+    assert_eq!(sign_ins.working_account().as_deref(), Some("a"));
+    std::thread::sleep(Duration::from_millis(60));
+    assert!(
+        !working(&sign_ins),
+        "once it has, a fresh press starts it again"
+    );
+    assert_eq!(sign_ins.working_account(), None);
+    sign_ins.returned(attempt, "app://imap-oauth?code=1".into());
+    assert!(working(&sign_ins), "while it completes");
 }
