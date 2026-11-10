@@ -67,6 +67,7 @@ final class SignInBrowser: NSObject, ASWebAuthenticationPresentationContextProvi
     func close() {
         guard !done else { return }
         done = true
+        logBrowserSignIn("account", "the sign-in no longer waits on the browser; closing it")
         session?.cancel()
         session = nil
         #if os(macOS)
@@ -105,6 +106,8 @@ final class SignInBrowser: NSObject, ASWebAuthenticationPresentationContextProvi
     }
 
     private func sessionEnded(callback: String?, closedByPerson: Bool, returns: Bool) {
+        // A session this host closed still reports its end; it is not the person's.
+        guard !done else { return }
         if let callback, returns {
             logBrowserSignIn("account", "the browser came back with the redirect")
             finish(.redirected(callbackUrl: callback))
