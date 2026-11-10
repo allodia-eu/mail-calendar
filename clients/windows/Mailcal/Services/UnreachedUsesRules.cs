@@ -31,8 +31,8 @@ internal enum UnreachedAnswer
 /// <summary>The form that gives a calendar or an address book a sign-in of its own, as the core
 /// last drew it.</summary>
 /// <param name="AccountId">The mailbox they move from.</param>
-/// <param name="Section">The core's section: what moves, the server, the login, Connect and Skip,
-/// and what the last of them came to.</param>
+/// <param name="Section">The core's section: what moves, the server, the login, Connect, Skip and
+/// the browser sign-in, and what the last of them came to.</param>
 internal sealed record SeparateServerStep(string AccountId, AccountSeparateServer Section, UnreachedTitle Title)
 {
     /// <summary>What moves: the calendar, the contacts or both.</summary>
@@ -90,5 +90,6 @@ internal static class UnreachedUsesRules
         ? "-"
         : string.Join('/', string.Join(',', section.Uses), section.Host, section.Username, section.SignIn,
             $"{section.Connect.Enabled}{section.Connect.Running}", $"{section.StopUsing.Enabled}{section.StopUsing.Running}",
-            section.Failed?.ToString() ?? "-");
+            section.Failed?.ToString() ?? "-", $"{section.SignInControl.Enabled}{section.SignInControl.Running}",
+            BrowserSignInRules.Fingerprint(section.Browser));
 }

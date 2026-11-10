@@ -14,7 +14,7 @@ public class UnreachedUsesRulesTests
 
     /// <summary>The core's section for <paramref name="uses"/>, nothing running.</summary>
     internal static AccountSeparateServer Section(params AccountCapability[] uses) =>
-        new(uses, "dav.example.org:8443", "alice", null, Free, Free, null);
+        new(uses, "dav.example.org:8443", "alice", null, Free, Free, null, Free);
 
     [Fact]
     public void ATitleNamesWhatTheSetHolds()
