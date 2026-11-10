@@ -24,9 +24,21 @@
         AutomationProperties.AutomationId="NoticeBar"
         CloseButtonClick="OnClose">
         <InfoBar.ActionButton>
+            <!-- The InfoBar takes one button and nothing beside it, so the spinner of the remedy
+                 it starts sits inside it. -->
             <Button x:Name="ActionButton"
                     AutomationProperties.AutomationId="NoticeAction"
-                    Click="OnAction" />
+                    Click="OnAction">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock x:Name="ActionLabel" />
+                    <ProgressRing x:Name="ActionRunning"
+                                  Width="16"
+                                  Height="16"
+                                  IsActive="False"
+                                  Visibility="Collapsed"
+                                  AutomationProperties.AutomationId="NoticeAction_Running" />
+                </StackPanel>
+            </Button>
         </InfoBar.ActionButton>
         <InfoBar.Content>
             <StackPanel>
