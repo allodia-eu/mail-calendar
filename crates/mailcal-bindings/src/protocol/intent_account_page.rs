@@ -101,8 +101,8 @@ pub enum AccountPageIntent {
     /// Move what the account needs a sign-in of its own for (`AccountSeparateServer`) to an
     /// account its server signs in through the browser, the way the section's `sign_in` names:
     /// at the server's own provider, or with Nextcloud. `redirect_uri` is where the client listens
-    /// for the browser's return from the provider, the one an IMAP account's sign-in returns to
-    /// (empty for Nextcloud, which returns nothing). It supersedes a sign-in still out
+    /// for the browser's return from the provider, the one an IMAP account's sign-in returns to;
+    /// Nextcloud returns nothing, so it is not read there. It supersedes a sign-in still out
     /// (`BrowserSignIn`), whose steps are the same as `SignIn`'s.
     SignInSeparateServer {
         account: String,

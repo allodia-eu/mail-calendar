@@ -133,8 +133,8 @@ pub struct AccountSeparateServer {
     pub browser: Option<crate::BrowserSignIn>,
 }
 
-/// The way in a separate server offers besides its password. Signing in through it is still the
-/// client's to run.
+/// The way in a separate server offers besides its password, signed in through as
+/// `AccountPageIntent::SignInSeparateServer`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
 pub enum AccountSeparateSignIn {
     /// At the server's own provider, in the browser (`docs/mail-oauth.md` rule 13).
