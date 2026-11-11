@@ -36,6 +36,14 @@ SOURCED_ONLY = frozenset(
         "scripts/dev/brand.sh",
         "scripts/dev/showcase-android.sh",
         "clients/apple/Scripts/provisioning.sh",
+        # The Linux UI suite's parts, sourced by test-linux-ui.sh after it has sourced lib.sh.
+        *(
+            f"scripts/dev/linux-ui/{part}.sh"
+            for part in (
+                "agent", "app", "fixtures", "session", "legs_start", "legs_mail",
+                "legs_calendar", "legs_people", "legs_desktop",
+            )
+        ),
     }
 )
 
