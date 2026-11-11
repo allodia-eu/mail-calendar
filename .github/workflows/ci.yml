@@ -190,8 +190,8 @@ jobs:
   # rewrites store copy and user documentation, and it switches every gated job off. A
   # Windows-only PR is what lands an over-long C# file, or a log line naming this tree, and it
   # touches no Rust. A comment breaking the spelling or dash rule is written in whichever file
-  # someone happened to be in. `scripts/dev/*` maps to no area whatsoever. A gate that the change
-  # most likely to break it can skip is not a gate.
+  # someone happened to be in. `scripts/dev/*` maps to no area, bar the headless session the Linux
+  # job starts. A gate that the change most likely to break it can skip is not a gate.
   #
   # `if: ${{ !cancelled() }}` on every step buys back the one thing separate jobs gave: a failing
   # step no longer hides the steps behind it, so a PR still learns every rule it broke in a
@@ -247,7 +247,8 @@ jobs:
         run: python3 -m unittest discover -s scripts/ci/tests -v
 
       # The accessibility-tree selection rules each platform's `control.sh ui-dump|find` is built
-      # on. `scripts/dev/*` maps to no area, so nothing else in this workflow ever runs them.
+      # on. `scripts/dev/*` maps to no area (bar the Linux job's headless session), so nothing else
+      # in this workflow ever runs them.
       - name: Unit-test the scripts/dev helpers
         if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s scripts/dev/tests -v
@@ -994,8 +995,9 @@ jobs:
   #
   # Gated on `rust` rather than `android`: the code under test is the shared core, and a
   # Compose-only change cannot break it. `crates/*` turns on every area, so any core change lands
-  # here. The one shape this misses is an edit to the script ALONE — scripts/dev/* deliberately
-  # enables no area — which is acceptable because the way you change that script is by running it.
+  # here. The one shape this misses is an edit to the script ALONE (scripts/dev/* enables no area
+  # outside the Linux job's headless session), which is acceptable because the way you change that
+  # script is by running it.
   #
   # An emulator in CI is also the prerequisite the `android` job's release-build comment asks for:
   # a release-variant smoke test that would catch R8 dropping a reflectively-reached member. This

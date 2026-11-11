@@ -139,20 +139,22 @@ class ChangedAreas(unittest.TestCase):
         for path, linux in (
             ("scripts/dev/linux_session.sh", "true"),
             ("scripts/dev/with-headless-session.sh", "true"),
+            ("scripts/dev/lib.sh", "true"),
             ("scripts/dev/showcase.sh", "false"),
         ):
-            result = subprocess.run(
-                bash_argv(str(SCRIPT), "--files", "-"),
-                check=True,
-                capture_output=True,
-                text=True,
-                input=f"{path}\n",
-                env={**os.environ, "FORCE_AREAS": ""},
-            )
-            self.assertRegex(result.stdout, rf"linux\s+{linux}", path)
-            for area in AREAS:
-                if area != "linux":
-                    self.assertRegex(result.stdout, rf"{area}\s+false", path)
+            with self.subTest(path=path):
+                result = subprocess.run(
+                    bash_argv(str(SCRIPT), "--files", "-"),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    input=f"{path}\n",
+                    env={**os.environ, "FORCE_AREAS": ""},
+                )
+                self.assertRegex(result.stdout, rf"linux\s+{linux}")
+                for area in AREAS:
+                    if area != "linux":
+                        self.assertRegex(result.stdout, rf"{area}\s+false")
 
     def test_the_dotnet_settings_build_only_windows(self) -> None:
         """Only the Windows job runs dotnet, so the SDK's settings need no other client's build."""
