@@ -754,10 +754,12 @@ jobs:
           Get-PSDrive -PSProvider FileSystem |
             Select-Object Name, @{n='FreeGB';e={[math]::Round($_.Free/1GB,1)}} | Format-Table | Out-String | Write-Host
 
-      - name: Set up .NET 10
+      # The SDK global.json pins, read from it rather than restated here. Whatever other SDKs the
+      # runner image carries, the pin is what keeps every dotnet below on this one.
+      - name: Set up .NET (the SDK global.json pins)
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '10.0.x'
+          global-json-file: global.json
 
       - name: Set up Rust (pinned + x64 MSVC target)
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master

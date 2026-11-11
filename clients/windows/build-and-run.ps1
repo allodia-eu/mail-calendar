@@ -33,6 +33,8 @@ $root = (Resolve-Path "$here/../..").Path  # the repository root
 # Assert the cdylib links the CRT statically (the flags live in the workspace .cargo/config.toml).
 # A dynamic CRT crashes the app at launch on any machine lacking the Visual C++ Redistributable.
 . (Join-Path $here 'rust-crt.ps1')
+# Every dotnet below runs from the checkout, under the SDK /global.json pins.
+. (Join-Path $here 'dotnet-sdk.ps1')
 
 # The app reads its dev switches from the environment exactly once, at startup, and a stray one
 # quietly opens a *different mailbox* than the developer expects, the showcase dataset, or the
@@ -182,7 +184,7 @@ finally {
 #    executes natively (a cross-arch console can't run here).
 if ($Arch -eq $hostArch) {
   Write-Host "==> Running the headless binding verifier (the gate)" -ForegroundColor Cyan
-  & dotnet run --project (Join-Path $here 'MailcalVerify') -c $Configuration "-p:NativeLib=$nativeLib"
+  Invoke-WithPinnedSdk { & dotnet run --project (Join-Path $here 'MailcalVerify') -c $Configuration "-p:NativeLib=$nativeLib" }
   if ($LASTEXITCODE -ne 0) { throw "the binding verifier failed (exit $LASTEXITCODE)" }
 }
 else {
@@ -208,14 +210,14 @@ if ($LASTEXITCODE -ne 0) { throw "l10n resource generation failed" }
 Write-Host "==> Running the calendar unit tests" -ForegroundColor Cyan
 # Run as the program it is (xUnit v3) rather than through `dotnet test`, which finds its runner in
 # /global.json only when started from inside the repository.
-& dotnet run --project (Join-Path $here 'Mailcal.Tests') -c $Configuration -v q -- -noLogo
+Invoke-WithPinnedSdk { & dotnet run --project (Join-Path $here 'Mailcal.Tests') -c $Configuration -v q -- -noLogo }
 if ($LASTEXITCODE -ne 0) { throw "calendar unit tests failed" }
 
 # 5a. The UI suites that reach the app through its test agent (Mailcal.UiTests) need a running app
 #     and most of them the harness, so they run in uitests/run-ui-tests.ps1, not here. Compiling them here is
 #     what keeps a change to the app's ids or the agent's protocol from breaking them unseen.
 Write-Host "==> Compiling the agent UI suites" -ForegroundColor Cyan
-& dotnet build (Join-Path $here 'Mailcal.UiTests') -c $Configuration --nologo
+Invoke-WithPinnedSdk { & dotnet build (Join-Path $here 'Mailcal.UiTests') -c $Configuration --nologo }
 if ($LASTEXITCODE -ne 0) { throw "the agent UI suites failed to compile" }
 
 # 5b. The screenshot frame geometry, the crop that keeps the invisible window border out of a store
@@ -293,7 +295,7 @@ if ($SelfContained) {
   Write-Host "==> Self-contained: this build bundles the Windows App SDK rather than using the installed runtime" -ForegroundColor Yellow
   $appArgs += '-p:WindowsAppSDKSelfContained=true'
 }
-& dotnet build (Join-Path $here 'Mailcal') -c $Configuration -r $rid @appArgs
+Invoke-WithPinnedSdk { & dotnet build (Join-Path $here 'Mailcal') -c $Configuration -r $rid @appArgs }
 if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
 # Locate the built exe robustly (the Platform + RID nest into the output path).
