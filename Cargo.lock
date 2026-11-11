@@ -2343,6 +2343,7 @@ name = "mailcal-linux"
 version = "0.17.0"
 dependencies = [
  "ashpd",
+ "base64 0.23.1",
  "futures",
  "gtk4",
  "jiff",
