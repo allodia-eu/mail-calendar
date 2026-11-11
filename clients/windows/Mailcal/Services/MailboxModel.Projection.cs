@@ -49,6 +49,13 @@ public sealed partial class MailboxModel
             OtherDevicesChanged?.Invoke();
             return;
         }
+        // The Allodia account's card moved: its sign-in or sign-out, or the service refusing the
+        // stored sign-in. Only the two cards that draw it read it again.
+        if (changed == Surface.Allodia)
+        {
+            OnAllodiaSignal();
+            return;
+        }
         // A change on an account's page started, waited or ended, or a server answered what the
         // page asked: only what draws the accounts and their pages reads it again. What a change
         // stores raises Surface.Settings besides.

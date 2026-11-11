@@ -19,8 +19,8 @@
                      address field, in that order (docs/onboarding.md). The whole panel is hidden
                      when this build carries no registration, or when this is not the first
                      account: a lone "or connect directly" heading under nothing is what a wrongly
-                     gated client looks like. Its contents are built in the code-behind, which is
-                     where the sign-in states live. -->
+                     gated client looks like. Its contents are built in the code-behind, from the
+                     core's Allodia card. -->
                 <StackPanel x:Name="OnboardingAllodiaPanel" Spacing="12" Visibility="Collapsed" />
 
                 <TextBlock

@@ -240,6 +240,10 @@
          rather than to a setup flow, and the line its section waits with. A redirect routed to the
          wrong side completes nothing, and a browser opened on every redraw opens a tab a second. -->
     <Compile Include="..\Mailcal\Services\BrowserSignInRules.cs" Link="Services\BrowserSignInRules.cs" />
+    <!-- The Allodia account's card, which the core keeps: which state each card draws from it, the
+         first-run card's way back only once the core says so, the service's sign-out page opened
+         once, and the words a failure is said in. -->
+    <Compile Include="..\Mailcal\Services\AllodiaCardRules.cs" Link="Services\AllodiaCardRules.cs" />
     <!-- What a link, a picker and a removal's confirmation name an account by where another has its
          address (docs/accounts.md rule 8). The words arrive as parameters; a mailbox whose calendar
          was split off would otherwise read as linked to itself. -->
