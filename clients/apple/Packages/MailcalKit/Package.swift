@@ -29,6 +29,9 @@ let package = Package(
         // libresolv, wrapped so SystemMxResolver can send an MX query via the system resolver
         // for the autodetect MX fallback (the raw answer is parsed in Swift by DnsMessage).
         .systemLibrary(name: "CResolv", path: "Sources/CResolv"),
+        // The test agent's one call into SwiftUI that Swift source cannot spell
+        // (Sources/MailcalUI/TestAgent). Compiled empty outside a debug build.
+        .target(name: "MailcalAgentShim"),
         // Where a share waits between the Share Extension staging it and the app opening a
         // composer for it (docs/os-integration.md). It has NO dependencies, and that is the
         // point: an iOS Share Extension has a far smaller memory budget than an app, so it links
@@ -45,7 +48,7 @@ let package = Package(
         // tightly coupled through observable state, so a Core/UI split would only add churn.
         .target(
             name: "MailcalUI",
-            dependencies: ["MailcalBindings", "CResolv", "MailcalShareBox"],
+            dependencies: ["MailcalBindings", "CResolv", "MailcalShareBox", "MailcalAgentShim"],
             resources: [
                 // The rich-composer editor bundle (copied from clients/composer by
                 // build-core.sh), loaded via Bundle.module.

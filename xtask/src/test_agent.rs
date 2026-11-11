@@ -1,5 +1,5 @@
 //! Fails when the Windows app's test agent could reach a release build, or the Linux client's
-//! (`test_agent_linux`).
+//! (`test_agent_linux`), or the Apple client's (`test_agent_apple`).
 //!
 //! The agent (`clients/windows/Mailcal/Services/TestAgent*.cs`) answers anyone on the machine who
 //! names its pipe, and acts on the app's windows for them. It is for the UI suites alone, so a
@@ -74,10 +74,12 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
     }
 
     let linux = crate::test_agent_linux::check(root, &mut report)?;
+    let apple = crate::test_agent_apple::check(root, &mut report)?;
 
     if !report.failed() {
         println!(
-            "Test agent: {} Windows and {linux} Linux file(s), none of it in a release build.",
+            "Test agent: {} Windows, {linux} Linux and {apple} Apple file(s), none of it in a \
+             release build.",
             agent.len()
         );
         return Ok(true);
@@ -104,7 +106,17 @@ pub(crate) fn debug_regions(text: &str) -> Vec<(bool, &str)> {
     for line in text.lines() {
         let directive = line.trim_start();
         if let Some(condition) = directive.strip_prefix("#if ") {
-            open.push(condition.trim() == "DEBUG");
+            open.push(is_debug(condition));
+            lines.push((false, ""));
+            continue;
+        }
+        if let Some(condition) = directive
+            .strip_prefix("#elseif ")
+            .or_else(|| directive.strip_prefix("#elif "))
+        {
+            if let Some(top) = open.last_mut() {
+                *top = is_debug(condition);
+            }
             lines.push((false, ""));
             continue;
         }
@@ -123,6 +135,13 @@ pub(crate) fn debug_regions(text: &str) -> Vec<(bool, &str)> {
         lines.push((open.iter().any(|debug| *debug), line));
     }
     lines
+}
+
+/// Whether a condition holds only in a debug build: `DEBUG`, or `DEBUG && …` as Swift writes one
+/// that also names a platform.
+fn is_debug(condition: &str) -> bool {
+    let condition = condition.trim();
+    condition == "DEBUG" || condition.starts_with("DEBUG &&")
 }
 
 /// Whether a line outside a region is code that would be compiled: not blank, not a comment, not
