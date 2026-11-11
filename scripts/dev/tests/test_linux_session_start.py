@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Tests that `linux_session_start` hands sway's config over before taking it away, and starts
-sway without its file capabilities.
+"""Tests how `linux_session_start` starts sway: the config is still there when sway reads it, sway
+runs without its file capabilities and without the developer's environment, and a sway that ends
+early is reported with how it ended.
 
 sway opens its Wayland socket before it reads the config it was given, so a start that deletes the
 file as soon as the socket appears races the compositor: a loaded runner loses, sway exits with
@@ -10,11 +11,16 @@ then it answers `swaymsg`, as sway does once its event loop runs.
 
 sway is installed with `cap_sys_nice` and takes realtime scheduling with it; under a hard
 `RLIMIT_RTTIME` of 0 the kernel then SIGKILLs it during startup. `no_new_privs` is what keeps the
-capability from applying, and the stand-in records whether it was set.
+capability from applying, and the stand-in records whether it was set. A process the kernel
+SIGKILLs prints nothing, so the report names the signal.
+
+The stand-in reads its instructions from a file in the runtime directory, because sway starts with
+an environment of its own.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -32,19 +38,24 @@ DEV = REPO_ROOT / "scripts" / "dev"
 FAKE_SWAY = textwrap.dedent(
     """\
     #!/usr/bin/env python3
-    import os, socket, sys, time
+    import json, os, signal, socket, sys, time
     runtime = os.environ["XDG_RUNTIME_DIR"]
+    fake = json.load(open(os.path.join(runtime, "fake-sway.json")))
+    with open(fake["env"], "w") as record:
+        json.dump(dict(os.environ), record)
     config = sys.argv[sys.argv.index("-c") + 1]
     server = socket.socket(socket.AF_UNIX)
     server.bind(os.path.join(runtime, "wayland-1"))
-    if os.environ["FAKE_SWAY_MODE"] == "exit":
-        sys.exit(1)
-    with open(os.environ["FAKE_SWAY_NNP"], "w") as record:
+    if fake["mode"] == "exit":
+        sys.exit(3)
+    if fake["mode"] == "killed":
+        os.kill(os.getpid(), signal.SIGKILL)
+    with open(fake["nnp"], "w") as record:
         record.write(next(line.split()[1] for line in open("/proc/self/status")
                           if line.startswith("NoNewPrivs:")))
     time.sleep(1)
     found = os.path.exists(config)
-    with open(os.environ["FAKE_SWAY_RECORD"], "w") as record:
+    with open(fake["record"], "w") as record:
         record.write("read" if found else "missing")
     if not found:
         sys.exit(1)
@@ -67,6 +78,7 @@ class LinuxSessionStart(unittest.TestCase):
         self.bin.mkdir()
         self.record = root / "record"
         self.nnp = root / "nnp"
+        self.env = root / "env.json"
         for name, body in (("sway", FAKE_SWAY), ("swaymsg", FAKE_SWAYMSG), ("grim", "#!/bin/sh\n")):
             path = self.bin / name
             path.write_text(body)
@@ -75,7 +87,12 @@ class LinuxSessionStart(unittest.TestCase):
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def start(self, mode: str) -> subprocess.CompletedProcess[str]:
+    def start(self, mode: str, **extra_env: str) -> subprocess.CompletedProcess[str]:
+        (self.runtime / "fake-sway.json").write_text(
+            json.dumps(
+                {"mode": mode, "record": str(self.record), "nnp": str(self.nnp), "env": str(self.env)}
+            )
+        )
         script = "\n".join(
             (
                 "set -euo pipefail",
@@ -90,9 +107,7 @@ class LinuxSessionStart(unittest.TestCase):
             **os.environ,
             "PATH": f"{self.bin}:{os.environ['PATH']}",
             "XDG_RUNTIME_DIR": str(self.runtime),
-            "FAKE_SWAY_MODE": mode,
-            "FAKE_SWAY_RECORD": str(self.record),
-            "FAKE_SWAY_NNP": str(self.nnp),
+            **extra_env,
         }
         return subprocess.run(
             bash_argv("-c", script), capture_output=True, text=True, timeout=60, env=env
@@ -113,6 +128,29 @@ class LinuxSessionStart(unittest.TestCase):
         done = self.start("exit")
         self.assertNotEqual(done.returncode, 0)
         self.assertIn("did not finish starting", done.stderr)
+        self.assertIn("exited with status 3", done.stderr)
+
+    def test_a_sway_the_kernel_kills_is_reported_with_its_signal(self) -> None:
+        done = self.start("killed")
+        self.assertNotEqual(done.returncode, 0)
+        self.assertIn("was killed by SIGKILL", done.stderr)
+        self.assertIn("ulimit -R", done.stderr)
+
+    def test_sway_gets_none_of_the_developers_session(self) -> None:
+        done = self.start(
+            "slow",
+            DISPLAY=":0",
+            WAYLAND_DISPLAY="wayland-0",
+            SWAYSOCK="/run/developer/sway.sock",
+            XKB_DEFAULT_LAYOUT="de",
+            WLR_RENDERER="pixman",
+        )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        env = json.loads(self.env.read_text())
+        for name in ("DISPLAY", "WAYLAND_DISPLAY", "SWAYSOCK", "XKB_DEFAULT_LAYOUT"):
+            self.assertNotIn(name, env)
+        self.assertEqual(env["WLR_RENDERER"], "pixman")
+        self.assertEqual(env["WLR_BACKENDS"], "headless")
 
 
 if __name__ == "__main__":
