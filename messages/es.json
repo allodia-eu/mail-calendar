@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "Su libreta de direcciones dejará de venir de esta cuenta.",
 	"settings_account_stop_linking_both": "Su calendario y su libreta de direcciones dejarán de venir de esta cuenta.",
 	"settings_account_stop_linking_left_without": "No tiene servidor propio para ello, así que no tendrá ninguno hasta que vincules otra cuenta o añadas un servidor.",
+	"settings_account_signed_in_separately_title": "Sesión iniciada por separado",
 	"settings_account_signed_in_separately_calendar": "Tu calendario inicia sesión por separado de tu correo, así que ahora es una cuenta propia, vinculada a esta. Lo sigues viendo junto al correo de esta cuenta.",
 	"settings_account_signed_in_separately_contacts": "Tu libreta de direcciones inicia sesión por separado de tu correo, así que ahora es una cuenta propia, vinculada a esta. La sigues viendo junto al correo de esta cuenta.",
 	"settings_account_signed_in_separately_both": "Tu calendario y tu libreta de direcciones inician sesión por separado de tu correo, así que ahora son una cuenta propia, vinculada a esta. Los sigues viendo junto al correo de esta cuenta.",

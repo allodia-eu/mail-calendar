@@ -17,6 +17,8 @@ pub(crate) enum Notice {
     Toast(String),
     /// A failure, with what failed and why.
     Error { title: String, detail: String },
+    /// What a change did that the person needs to know about, too long for a toast.
+    Explained { title: String, detail: String },
 }
 
 /// A notice and the number it was raised under.
@@ -79,7 +81,7 @@ pub(super) fn show(window: &gtk::Window, toasts: &adw::ToastOverlay, notice: &No
         Notice::Toast(text) => {
             toasts.add_toast(adw::Toast::builder().title(text).use_markup(false).build());
         }
-        Notice::Error { title, detail } => {
+        Notice::Error { title, detail } | Notice::Explained { title, detail } => {
             let dialog = adw::AlertDialog::new(Some(title), Some(detail));
             dialog.add_response("close", l10n::action_close());
             dialog.set_close_response("close");

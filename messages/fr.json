@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "Son carnet d’adresses ne viendra plus de ce compte.",
 	"settings_account_stop_linking_both": "Son calendrier et son carnet d’adresses ne viendront plus de ce compte.",
 	"settings_account_stop_linking_left_without": "Il n’a pas de serveur à lui pour cela : il n’en aura aucun tant que vous n’aurez pas lié un autre compte ou ajouté un serveur.",
+	"settings_account_signed_in_separately_title": "Connexion séparée",
 	"settings_account_signed_in_separately_calendar": "Votre calendrier se connecte séparément de votre messagerie : c’est donc désormais un compte à part, lié à celui-ci. Vous le voyez toujours avec les e-mails de ce compte.",
 	"settings_account_signed_in_separately_contacts": "Votre carnet d’adresses se connecte séparément de votre messagerie : c’est donc désormais un compte à part, lié à celui-ci. Vous le voyez toujours avec les e-mails de ce compte.",
 	"settings_account_signed_in_separately_both": "Votre calendrier et votre carnet d’adresses se connectent séparément de votre messagerie : ils forment donc désormais un compte à part, lié à celui-ci. Vous les voyez toujours avec les e-mails de ce compte.",

@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "Os seus contactos deixarão de vir desta conta.",
 	"settings_account_stop_linking_both": "O seu calendário e os seus contactos deixarão de vir desta conta.",
 	"settings_account_stop_linking_left_without": "Não tem servidor próprio para isso, pelo que ficará sem até associar outra conta ou adicionar um servidor.",
+	"settings_account_signed_in_separately_title": "Sessão iniciada em separado",
 	"settings_account_signed_in_separately_calendar": "O seu calendário inicia sessão separadamente do seu e-mail, por isso é agora uma conta própria, associada a esta. Continua a vê-lo junto ao e-mail desta conta.",
 	"settings_account_signed_in_separately_contacts": "Os seus contactos iniciam sessão separadamente do seu e-mail, por isso são agora uma conta própria, associada a esta. Continua a vê-los junto ao e-mail desta conta.",
 	"settings_account_signed_in_separately_both": "O seu calendário e os seus contactos iniciam sessão separadamente do seu e-mail, por isso são agora uma conta própria, associada a esta. Continua a vê-los junto ao e-mail desta conta.",

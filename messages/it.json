@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "La sua rubrica non verrà più da questo account.",
 	"settings_account_stop_linking_both": "Il suo calendario e la sua rubrica non verranno più da questo account.",
 	"settings_account_stop_linking_left_without": "Non ha un server proprio per questo, quindi ne resterà senza finché non colleghi un altro account o aggiungi un server.",
+	"settings_account_signed_in_separately_title": "Accesso separato",
 	"settings_account_signed_in_separately_calendar": "Il tuo calendario accede separatamente dalla posta, quindi ora è un account a sé, collegato a questo. Lo vedi ancora insieme alla posta di questo account.",
 	"settings_account_signed_in_separately_contacts": "La tua rubrica accede separatamente dalla posta, quindi ora è un account a sé, collegato a questo. La vedi ancora insieme alla posta di questo account.",
 	"settings_account_signed_in_separately_both": "Il tuo calendario e la tua rubrica accedono separatamente dalla posta, quindi ora sono un account a sé, collegato a questo. Li vedi ancora insieme alla posta di questo account.",

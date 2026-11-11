@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "Het adresboek komt dan niet meer uit dit account.",
 	"settings_account_stop_linking_both": "De agenda en het adresboek komen dan niet meer uit dit account.",
 	"settings_account_stop_linking_left_without": "Het heeft daar geen eigen server voor, dus het heeft er geen totdat je een ander account koppelt of een server toevoegt.",
+	"settings_account_signed_in_separately_title": "Apart aangemeld",
 	"settings_account_signed_in_separately_calendar": "Je agenda meldt zich apart van je e-mail aan en is daarom nu een eigen account, gekoppeld aan dit account. Je ziet hem nog steeds naast de e-mail van dit account.",
 	"settings_account_signed_in_separately_contacts": "Je adresboek meldt zich apart van je e-mail aan en is daarom nu een eigen account, gekoppeld aan dit account. Je ziet het nog steeds naast de e-mail van dit account.",
 	"settings_account_signed_in_separately_both": "Je agenda en adresboek melden zich apart van je e-mail aan en zijn daarom nu een eigen account, gekoppeld aan dit account. Je ziet ze nog steeds naast de e-mail van dit account.",

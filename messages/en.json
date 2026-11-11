@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "Its address book will no longer come from this account.",
 	"settings_account_stop_linking_both": "Its calendar and address book will no longer come from this account.",
 	"settings_account_stop_linking_left_without": "It has no server of its own for that, so it will have none until you link another account or add a server.",
+	"settings_account_signed_in_separately_title": "Signed in separately",
 	"settings_account_signed_in_separately_calendar": "Your calendar signs in separately from your mail, so it is now an account of its own, linked to this one. You still see it alongside this account’s mail.",
 	"settings_account_signed_in_separately_contacts": "Your address book signs in separately from your mail, so it is now an account of its own, linked to this one. You still see it alongside this account’s mail.",
 	"settings_account_signed_in_separately_both": "Your calendar and address book sign in separately from your mail, so they are now an account of their own, linked to this one. You still see them alongside this account’s mail.",

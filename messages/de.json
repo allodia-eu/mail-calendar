@@ -1184,6 +1184,7 @@
 	"settings_account_stop_linking_contacts": "Sein Adressbuch kommt dann nicht mehr aus diesem Konto.",
 	"settings_account_stop_linking_both": "Sein Kalender und sein Adressbuch kommen dann nicht mehr aus diesem Konto.",
 	"settings_account_stop_linking_left_without": "Es hat dafür keinen eigenen Server und bleibt daher ohne, bis Sie ein anderes Konto verknüpfen oder einen Server hinzufügen.",
+	"settings_account_signed_in_separately_title": "Getrennt angemeldet",
 	"settings_account_signed_in_separately_calendar": "Ihr Kalender meldet sich getrennt von Ihren E-Mails an und ist daher jetzt ein eigenes Konto, mit diesem verknüpft. Sie sehen ihn weiterhin zusammen mit den E-Mails dieses Kontos.",
 	"settings_account_signed_in_separately_contacts": "Ihr Adressbuch meldet sich getrennt von Ihren E-Mails an und ist daher jetzt ein eigenes Konto, mit diesem verknüpft. Sie sehen es weiterhin zusammen mit den E-Mails dieses Kontos.",
 	"settings_account_signed_in_separately_both": "Ihr Kalender und Ihr Adressbuch melden sich getrennt von Ihren E-Mails an und sind daher jetzt ein eigenes Konto, mit diesem verknüpft. Sie sehen sie weiterhin zusammen mit den E-Mails dieses Kontos.",

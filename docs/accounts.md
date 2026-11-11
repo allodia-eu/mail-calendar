@@ -95,9 +95,9 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 | Editing a password account's servers, tested before applied | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Setting up an account without mail, or with an address book of its own | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Choosing capabilities, and linking accounts, in Settings | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| A use a link fills reads as the account it comes from, and opens its page | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The account a use is taken from lists who takes it, with Stop linking, confirmed first | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| A completed separate sign-in says on the mailbox's page that its uses are an account of their own | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| A use a link fills reads as the account it comes from, and opens its page | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| The account a use is taken from lists who takes it, with Stop linking, confirmed first | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
+| A completed separate sign-in says on the mailbox's page that its uses are an account of their own | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Linking a new account as the last step of setting it up ([`onboarding.md`](onboarding.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
