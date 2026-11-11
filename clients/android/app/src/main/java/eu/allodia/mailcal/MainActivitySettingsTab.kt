@@ -6,7 +6,6 @@ package eu.allodia.mailcal
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import uniffi.mailcal_bindings.AboutPlatform
-import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.aboutInfo
@@ -138,28 +137,12 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onAllodiaSwitch = { switchAllodiaInterval(it) },
                             // Accounts, what the person's other devices have to say, drawn above
                             // their own accounts because an offer becomes one of them.
-                            allodiaSync = allodiaSync,
+                            allodiaDevices = allodiaDevices,
                             onAllodiaSetUp = { offer ->
                                 settingsCategory = SettingsCategory.ACCOUNTS
                                 setupStartEmail = offer.email
                                 setupStartOffer = offer
                                 addingAccount = true
-                            },
-                            // "Keep what I have" is Paused: the other devices keep the account,
-                            // and this one stops exchanging changes about it, which is exactly
-                            // what the question asked.
-                            onAllodiaKeepLocal = { accountId ->
-                                setAllodiaAccountSyncMode(
-                                    accountId,
-                                    AllodiaAccountSyncMode.PAUSED,
-                                )
-                            },
-                            // How each account is shared, and the control that changes it. Absent
-                            // in a build with no Allodia sign-in, which draws nothing at all.
-                            accountsSyncMode =
-                                if (allodiaSignInOffered()) accountsSyncMode else emptyMap(),
-                            onSetAccountSyncMode = { accountId, mode ->
-                                setAllodiaAccountSyncMode(accountId, mode)
                             },
                             // Diagnostics, the log viewer/share + debug-detail screen.
                             onOpenDiagnostics = { showingDiagnostics = true },

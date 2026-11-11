@@ -184,7 +184,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · n/a not applicable.
 
 ## What signing in here does
 
-The card is not a detour. Signing in on this screen runs a sync pass at once, and what the person's
+The card is not a detour. Signing in on this screen runs a sync pass at once (the core starts it), and what the person's
 other devices hold replaces the card: each account they already have becomes a row with the address
 and a **Set up** button.
 
@@ -220,9 +220,10 @@ so no error styling, no retry, and no apology.
 
 **Only a pass that answered may say this.** "We have not looked" and "there is nothing" are
 different answers, and a pass that failed (the service down, the network gone) has given neither.
-A client that flattens the two (`report?.offers ?? []` and its equivalents) tells somebody their
+A client that flattens the two (`devices?.offers ?? []` and its equivalents) tells somebody their
 account is empty on the strength of a question that was never answered, and invites them to fix it
-by typing an address. Until a pass has answered, this state draws nothing at all.
+by typing an address. The core decides it: the card says it exactly when `allodia_devices()`
+answers `nothing_found`, and until a pass has answered it draws nothing at all.
 
 ## The trap this screen sits in
 

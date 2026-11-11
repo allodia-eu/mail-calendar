@@ -44,12 +44,8 @@ internal class SharedPrefsSyncStateStore(
 }
 
 /**
- * Which preferences file this launch's bookkeeping belongs in, or null for a launch that must not
- * sync at all.
- *
- * A dev-account launch connects a canned harness account. Sending that to the person's real Allodia
- * account would put `admin@localhost` on their phone, so those launches get their own file, and
- * the caller does not run a pass in them either.
+ * The preferences file the bookkeeping belongs in. Only an ordinary launch has one: a dev-account
+ * launch installs no bookkeeping, since its canned harness accounts would otherwise reach the
+ * person's real Allodia account and put `admin@localhost` on their phone.
  */
-internal fun syncStateFile(dataSubdir: String?): String =
-    if (dataSubdir == null) "mailcal_prefs" else "mailcal_prefs_$dataSubdir"
+internal const val SYNC_STATE_FILE = "mailcal_prefs"

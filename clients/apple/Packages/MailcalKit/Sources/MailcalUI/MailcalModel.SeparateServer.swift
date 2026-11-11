@@ -35,17 +35,13 @@ extension MailboxModel {
 
     /// Reads every open form again: a Connect, Skip or browser sign-in starting or ending, or the
     /// server's answer about its ways in. One the core draws no section for is over: the uses
-    /// have an account of their own, or were switched off, so the person's other devices hear of
-    /// it and setup goes on.
+    /// have an account of their own, or were switched off, and setup goes on.
     func refreshSeparateServers() {
         for (place, shown) in separateServers {
             let fresh = separateServerAsk(shown.account)
             guard fresh != shown else { continue }
             separateServers[place] = fresh
-            if fresh == nil {
-                syncAfterAccountChange()
-                if place == .setup { setupSeparateServerDone() }
-            }
+            if fresh == nil, place == .setup { setupSeparateServerDone() }
         }
     }
 

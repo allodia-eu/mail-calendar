@@ -17,11 +17,14 @@ pub(super) enum Signalled<T> {
 }
 
 /// What Accounts is drawn from: every account, the open account's page, whose controls a
-/// running change holds without changing any account, and the notices at that page's top.
+/// running change holds without changing any account, the notices at that page's top, and, on
+/// the list, what the person's other devices have to say. An account's page does not draw that
+/// card, so a pass starting or ending is no reason to rebuild it.
 pub(super) type Drawn = (
     mailcal_bindings::AccountsSnapshot,
     Option<mailcal_bindings::AccountPage>,
     Vec<mailcal_bindings::Notice>,
+    Option<mailcal_bindings::AllodiaDevices>,
 );
 
 pub(super) fn drawn(app: &mailcal_bindings::MailcalApp, account: Option<&str>) -> Drawn {
@@ -29,6 +32,7 @@ pub(super) fn drawn(app: &mailcal_bindings::MailcalApp, account: Option<&str>) -
         app.accounts_snapshot(),
         account.and_then(|id| app.account_page(id.to_owned())),
         account.map_or_else(Vec::new, |id| super::account_notices::of(app, id)),
+        account.is_none().then(|| app.allodia_devices()).flatten(),
     )
 }
 
@@ -124,6 +128,14 @@ pub(super) fn watch_edits(root: &gtk::Widget, edited: &Rc<Cell<bool>>) {
         }
         child = widget.next_sibling();
     }
+}
+
+/// The page named `name` when it is the one on screen, which a redraw of it alone fills in place.
+pub(super) fn shown_page(pages: &gtk::Stack, name: &str) -> Option<gtk::ScrolledWindow> {
+    (pages.visible_child_name().as_deref() == Some(name))
+        .then(|| pages.child_by_name(name))
+        .flatten()
+        .and_downcast()
 }
 
 /// Scrolls a newly built page to `offset`, before its first allocation: the viewport places its

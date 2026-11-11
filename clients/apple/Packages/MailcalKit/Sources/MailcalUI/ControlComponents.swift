@@ -142,11 +142,13 @@ struct HeldFields<Content: View>: View {
 
 /// A menu picker under its title, and `note` when there is one: `labels` listed, `selected`
 /// shown. `pick` is told the position the person picked, and only when it differs from `selected`.
+/// `segmented` draws every position at once, for a choice of a few short ones.
 struct ControlPicker: View {
     let title: String
     var note: String?
     let labels: [String]
     let selected: Int
+    var segmented = false
     let control: ControlState
     let pick: (Int) -> Void
 
@@ -162,22 +164,33 @@ struct ControlPicker: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 8) {
-                Picker(
-                    title,
-                    selection: Binding(
-                        get: { selected },
-                        set: { if $0 != selected { pick($0) } }
-                    )
-                ) {
-                    ForEach(labels.indices, id: \.self) { index in
-                        Text(labels[index]).tag(index)
-                    }
+                if segmented {
+                    picker
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .disabled(!control.enabled)
+                } else {
+                    picker
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                        .disabled(!control.enabled)
                 }
-                .pickerStyle(.menu)
-                .labelsHidden()
-                .fixedSize()
-                .disabled(!control.enabled)
                 Running(control: control)
+            }
+        }
+    }
+
+    private var picker: some View {
+        Picker(
+            title,
+            selection: Binding(
+                get: { selected },
+                set: { if $0 != selected { pick($0) } }
+            )
+        ) {
+            ForEach(labels.indices, id: \.self) { index in
+                Text(labels[index]).tag(index)
             }
         }
     }

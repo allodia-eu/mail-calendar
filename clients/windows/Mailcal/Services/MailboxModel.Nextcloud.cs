@@ -167,7 +167,6 @@ public sealed partial class MailboxModel
         {
             var row = await Task.Run(() => app.AddNextcloudAccount(grant, start.Uses));
             _setupNextcloud.Completed(spent: true);
-            SyncAfterAccountChange();
             IsSubmitting = false;
             Log.Info($"account added through a Nextcloud sign-in: {LogHandle(row.Id)}");
             AccountAdded(row.Id);

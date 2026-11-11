@@ -19,15 +19,10 @@ use super::{
 #[test]
 fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
     let mut state = SettingsState::default();
-    let synced = std::collections::HashMap::new();
-    assert_eq!(
-        state.render_state(&synced).generation,
-        0,
-        "nothing pending yet"
-    );
+    assert_eq!(state.render_state().generation, 0, "nothing pending yet");
 
     state.refresh(Category::Accounts);
-    let refreshed = state.render_state(&synced);
+    let refreshed = state.render_state();
     assert_eq!(refreshed.redraw, Redraw::InPlace);
     assert_eq!(refreshed.category, Category::Accounts);
     assert_eq!(refreshed.generation, 1);
@@ -35,7 +30,7 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
     // The Settings button, which names no category: it must still open, and on the category
     // the refresh left behind.
     state.open(None);
-    let opened = state.render_state(&synced);
+    let opened = state.render_state();
     assert_eq!(
         opened.redraw,
         Redraw::Open,
@@ -45,7 +40,7 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
     assert_eq!(opened.generation, 2);
 
     state.open(Some(Category::General));
-    assert_eq!(state.render_state(&synced).category, Category::General);
+    assert_eq!(state.render_state().category, Category::General);
 }
 
 /// Answering a question on one page must not move the person to another.
@@ -58,11 +53,10 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
 #[test]
 fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
     let mut state = SettingsState::default();
-    let synced = std::collections::HashMap::new();
 
     state.open(Some(Category::Accounts));
     state.refresh_in_place();
-    let redrawn = state.render_state(&synced);
+    let redrawn = state.render_state();
     assert_eq!(
         redrawn.category,
         Category::Accounts,
@@ -73,7 +67,7 @@ fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
 
     // The contrast, which is the behaviour worth keeping: a hop coming back names its page.
     state.refresh(Category::Allodia);
-    assert_eq!(state.render_state(&synced).category, Category::Allodia);
+    assert_eq!(state.render_state().category, Category::Allodia);
 }
 
 /// The core's settings signal redraws Accounts, whose rows it describes, and no other page: the
@@ -82,19 +76,14 @@ fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
 #[test]
 fn the_cores_signal_redraws_the_accounts_page_and_no_other() {
     let mut state = SettingsState::default();
-    let synced = std::collections::HashMap::new();
 
     state.open(Some(Category::Signatures));
     state.signalled();
-    assert_eq!(
-        state.render_state(&synced).generation,
-        1,
-        "nothing to redraw"
-    );
+    assert_eq!(state.render_state().generation, 1, "nothing to redraw");
 
     state.record_category(Category::Accounts);
     state.signalled();
-    let signalled = state.render_state(&synced);
+    let signalled = state.render_state();
     assert_eq!(signalled.generation, 2);
     assert_eq!(
         signalled.redraw,
@@ -185,45 +174,43 @@ pub(crate) fn setup_opens_over_settings_while_settings_is_open() {
 fn every_notice_is_raised_anew_and_redraws_the_page_in_place() {
     use super::notice::Notice;
     let mut state = SettingsState::default();
-    let synced = std::collections::HashMap::new();
     state.open(Some(Category::Accounts));
 
     state.notify(Notice::Toast("Signed in again.".to_owned()));
-    let first = state.render_state(&synced);
+    let first = state.render_state();
     assert_eq!(first.redraw, Redraw::InPlace, "a redraw, never an open");
     assert_eq!(first.generation, 2, "and it does redraw");
     let first = first.notice.map(|raised| raised.id);
 
     // The same words again are a second notice, so the window shows them a second time.
     state.notify(Notice::Toast("Signed in again.".to_owned()));
-    let second = state.render_state(&synced).notice.map(|raised| raised.id);
+    let second = state.render_state().notice.map(|raised| raised.id);
     assert!(first.is_some() && second.is_some());
     assert_ne!(second, first);
 
     // A window opened afresh does not greet the person with one raised while it was closed,
     // and the next notice still carries a number the window has not shown.
     state.open(Some(Category::Accounts));
-    assert!(state.render_state(&synced).notice.is_none());
+    assert!(state.render_state().notice.is_none());
     state.notify(Notice::Toast("Signed in again.".to_owned()));
-    let third = state.render_state(&synced).notice.map(|raised| raised.id);
+    let third = state.render_state().notice.map(|raised| raised.id);
     assert!(third.is_some() && third != second && third != first);
 }
 
 #[test]
 fn state_only_one_page_draws_redraws_that_page_and_no_other() {
     let mut state = SettingsState::default();
-    let synced = std::collections::HashMap::new();
     state.open(Some(Category::Accounts));
-    let opened = state.render_state(&synced).generation;
+    let opened = state.render_state().generation;
 
     // The subscription section is the Allodia page's: an account page is left alone, so a
     // dropdown open on it stays open.
     state.refresh_if_showing(Category::Allodia);
-    assert_eq!(state.render_state(&synced).generation, opened);
+    assert_eq!(state.render_state().generation, opened);
 
     state.record_category(Category::Allodia);
     state.refresh_if_showing(Category::Allodia);
-    let redrawn = state.render_state(&synced);
+    let redrawn = state.render_state();
     assert!(redrawn.generation > opened);
     assert_eq!(redrawn.redraw, Redraw::InPlace);
 }
@@ -327,7 +314,6 @@ fn taxonomy_order_matches_the_cross_platform_contract() {
 fn an_account_can_be_opened_with_something_to_say_about_it() {
     use super::notice::Notice;
     let mut state = SettingsState::default();
-    let synced = std::collections::HashMap::new();
     state.open_on_account(
         "alice@example.com".to_owned(),
         Notice::Error {
@@ -335,7 +321,7 @@ fn an_account_can_be_opened_with_something_to_say_about_it() {
             detail: "Calendar".to_owned(),
         },
     );
-    let opened = state.render_state(&synced);
+    let opened = state.render_state();
     assert_eq!(opened.redraw, Redraw::Open);
     assert_eq!(state.account.as_deref(), Some("alice@example.com"));
     assert!(

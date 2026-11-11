@@ -32,6 +32,7 @@ mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
 mod allodia;
+mod allodia_devices;
 #[cfg(feature = "allodia-license")]
 mod allodia_entitlement;
 mod allodia_health;
@@ -54,6 +55,7 @@ mod app_accounts_microsoft;
 mod app_accounts_uses;
 mod app_accounts_view;
 mod app_allodia;
+mod app_allodia_devices;
 mod app_allodia_purchase;
 mod app_allodia_subscription;
 mod app_allodia_sync;
@@ -175,6 +177,7 @@ pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
 };
+pub use allodia_devices::*;
 pub use allodia_health::AllodiaGrantHealth;
 pub use allodia_purchase::{
     AllodiaOffer, AllodiaPlan, AllodiaPurchaseError, AllodiaPurchaseReport, AllodiaStore,
@@ -186,8 +189,7 @@ pub use allodia_subscription::{
     AllodiaSubscription, AllodiaSubscriptionActions, AllodiaSubscriptionRefusal,
 };
 pub use allodia_sync::{
-    AllodiaAccountChange, AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode,
-    AllodiaSyncReport, setup_from_offer,
+    AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode, setup_from_offer,
 };
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
@@ -255,8 +257,9 @@ pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
     AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
     AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
-    AccountSharedMailbox, AccountSharedMailboxes, AccountToggle, AccountUseBlock, AccountUseStatus,
-    AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
+    AccountSharedMailbox, AccountSharedMailboxes, AccountSharing, AccountToggle, AccountUseBlock,
+    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
+    SharedMailboxesNote,
 };
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,
@@ -390,10 +393,8 @@ pub struct MailcalApp {
     /// The entitlement this device last read; see [`allodia_entitlement`].
     #[cfg(feature = "allodia-license")]
     allodia_entitlement: allodia_entitlement::EntitlementState,
-    /// Where this device remembers what it has synced with the account service, once a host has
-    /// installed somewhere to keep it. `None` until then, which is a wiring bug rather than a
-    /// state a pass may quietly run in; see [`crate::app_allodia_sync`].
-    allodia_sync: Mutex<Option<Arc<sync_state::SyncBookkeeping>>>,
+    /// What this device has synced with the account service; see [`crate::allodia_devices`].
+    allodia_sync: allodia_devices::Devices,
     /// The signed-in **Allodia account**, restored from the host's store at boot and replaced by a
     /// sign-in. `None` when nobody is signed in, which is every build from source and every
     /// install that has not asked.

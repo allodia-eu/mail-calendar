@@ -43,6 +43,12 @@ pub enum AccountPageIntent {
         /// The choice.
         choice: crate::ReplyFallbackChoice,
     },
+    /// Share the account with the person's other devices as `mode` (`AccountSharing`): what
+    /// "Keep what I have" on a question about it sends too, as `Paused`.
+    SetSharing {
+        account: String,
+        mode: crate::AllodiaAccountSyncMode,
+    },
     /// Remove the account from this device.
     Remove {
         /// The account's id.
@@ -153,6 +159,7 @@ impl AccountPageIntent {
             | Self::SetLink { account, .. }
             | Self::StopLinking { account, .. }
             | Self::SetReplyFallback { account, .. }
+            | Self::SetSharing { account, .. }
             | Self::Remove { account }
             | Self::SetSenderName { account, .. }
             | Self::SetSyncDepth { account, .. }

@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 use adw::prelude::*;
 use mailcal_bindings::{AccountEntry, AccountKind, AccountsSnapshot};
 
-use super::{Signalled, keep_offset, offset, signalled, typing, watch_edits};
+use super::{Signalled, keep_offset, offset, shown_page, signalled, typing, watch_edits};
 
 fn snapshot(addresses: &[&str]) -> AccountsSnapshot {
     AccountsSnapshot {
@@ -58,6 +58,7 @@ fn a_signal_redraws_only_what_changed_and_never_under_typing() {
 pub(crate) fn a_redraw_keeps_the_persons_place() {
     a_redrawn_page_opens_where_the_last_one_was_scrolled_to();
     a_second_redraw_in_one_frame_keeps_the_offset_the_first_was_given();
+    only_the_page_on_screen_is_redrawn_in_place();
     a_field_being_typed_in_holds_a_signalled_redraw();
     a_field_that_sends_itself_holds_a_redraw_only_until_it_has();
     a_form_holds_a_redraw_until_its_button_sends_it();
@@ -100,6 +101,24 @@ fn a_second_redraw_in_one_frame_keeps_the_offset_the_first_was_given() {
         Some(300.0),
         "not laid out yet, and still owed"
     );
+}
+
+/// A signal redraws Accounts alone, inside the window, and only while it is the page on screen:
+/// building every page again costs long enough that a change's running frame never paints.
+fn only_the_page_on_screen_is_redrawn_in_place() {
+    let pages = gtk::Stack::new();
+    let general = gtk::ScrolledWindow::new();
+    let accounts = gtk::ScrolledWindow::new();
+    pages.add_named(&general, Some("general"));
+    pages.add_named(&accounts, Some("accounts"));
+    pages.set_visible_child_name("general");
+    assert_eq!(
+        shown_page(&pages, "accounts"),
+        None,
+        "another page is on screen"
+    );
+    pages.set_visible_child_name("accounts");
+    assert_eq!(shown_page(&pages, "accounts"), Some(accounts));
 }
 
 fn a_field_being_typed_in_holds_a_signalled_redraw() {

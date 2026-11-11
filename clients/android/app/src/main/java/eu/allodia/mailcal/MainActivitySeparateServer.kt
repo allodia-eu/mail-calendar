@@ -13,9 +13,6 @@ import uniffi.mailcal_bindings.TypedPassword
 internal fun MainActivity.separateAccountAdded() {
     refreshAccountsSnapshot()
     pullNotices()
-    // The account list changed, so the person's other devices should hear about it.
-    readAccountsSynced()
-    syncAllodiaAccounts()
 }
 
 /**

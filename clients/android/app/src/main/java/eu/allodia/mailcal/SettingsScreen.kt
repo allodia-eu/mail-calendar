@@ -44,10 +44,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.AllodiaAccountOffer
+import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
@@ -132,11 +132,8 @@ internal fun SettingsScreen(
     onAllodiaCancel: () -> Unit,
     onAllodiaResubscribe: () -> Unit,
     onAllodiaSwitch: (AllodiaPlan) -> Unit,
-    allodiaSync: AllodiaSyncState,
+    allodiaDevices: AllodiaDevices?,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
-    onAllodiaKeepLocal: (String) -> Unit,
-    accountsSyncMode: Map<String, AllodiaAccountSyncMode>,
-    onSetAccountSyncMode: (account: String, mode: AllodiaAccountSyncMode) -> Unit,
     // Diagnostics, opens the Diagnostics screen (log viewer/share, debug toggle).
     onOpenDiagnostics: () -> Unit,
     // Advanced
@@ -266,11 +263,8 @@ internal fun SettingsScreen(
                     onAllodiaCancel = onAllodiaCancel,
                     onAllodiaResubscribe = onAllodiaResubscribe,
                     onAllodiaSwitch = onAllodiaSwitch,
-                    allodiaSync = allodiaSync,
+                    allodiaDevices = allodiaDevices,
                     onAllodiaSetUp = onAllodiaSetUp,
-                    onAllodiaKeepLocal = onAllodiaKeepLocal,
-                    accountsSyncMode = accountsSyncMode,
-                    onSetAccountSyncMode = onSetAccountSyncMode,
                     onRequestReset = { confirmingReset = true },
                     accountsUi = accountsUi,
                     onOpenAccount = { id ->

@@ -8,7 +8,7 @@
 //! Called from the crate's single `gtk::init` test.
 
 use adw::prelude::*;
-use mailcal_bindings::AllodiaGrantHealth;
+use mailcal_bindings::AllodiaSyncFailure;
 
 use super::add_failure;
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// Renders one health into a group of its own and returns the group and the channel behind it.
-fn drawn(health: AllodiaGrantHealth) -> (adw::PreferencesGroup, relm4::Receiver<AppInput>) {
+fn drawn(health: AllodiaSyncFailure) -> (adw::PreferencesGroup, relm4::Receiver<AppInput>) {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let section = adw::PreferencesGroup::new();
     add_failure(&section, &sender, health);
@@ -42,7 +42,7 @@ fn press(section: &adw::PreferencesGroup, label: &str) {
 /// A grant that predates a permission is an **offer**: they are signed in, and one feature is
 /// asleep. The remedy is the ordinary sign-in, which asks for the full current scope set.
 pub(crate) fn a_grant_that_predates_the_feature_offers_the_one_thing_that_fixes_it() {
-    let (section, receiver) = drawn(AllodiaGrantHealth::NeedsReauth);
+    let (section, receiver) = drawn(AllodiaSyncFailure::NeedsReauth);
     let labels = shown(&section);
 
     for expected in [
@@ -66,7 +66,7 @@ pub(crate) fn a_grant_that_predates_the_feature_offers_the_one_thing_that_fixes_
 /// A grant that is gone is a **statement** about the account; revoked here, or removed on another
 /// device; and carries the same one way back.
 pub(crate) fn a_revoked_grant_says_they_are_signed_out() {
-    let (section, receiver) = drawn(AllodiaGrantHealth::SignedOut);
+    let (section, receiver) = drawn(AllodiaSyncFailure::SignedOut);
     let labels = shown(&section);
 
     for expected in [
@@ -89,12 +89,12 @@ pub(crate) fn a_revoked_grant_says_they_are_signed_out() {
 
 /// A failure that says nothing about the sign-in gets one plain sentence and no button.
 ///
-/// `Ok` means the grant is fine and the pass failed for its own reasons: a dead network, a bad
-/// afternoon at the service. Offering "sign in again" there sends somebody through a browser to
+/// `Unavailable` means the grant is fine and the pass failed for its own reasons: a dead network, a
+/// bad afternoon at the service. Offering "sign in again" there sends somebody through a browser to
 /// fix something that is not broken, and quoting the failure is how a generated OAuth field name
 /// became product copy.
 pub(crate) fn a_failure_that_says_nothing_about_the_grant_offers_no_remedy() {
-    let (section, _receiver) = drawn(AllodiaGrantHealth::Ok);
+    let (section, _receiver) = drawn(AllodiaSyncFailure::Unavailable);
     let labels = shown(&section);
 
     assert!(
@@ -124,9 +124,9 @@ pub(crate) fn a_failure_that_says_nothing_about_the_grant_offers_no_remedy() {
 /// Every state's row belongs in a list, or the keyboard walks past the remedy.
 pub(crate) fn every_health_row_is_reachable_from_the_keyboard() {
     for health in [
-        AllodiaGrantHealth::NeedsReauth,
-        AllodiaGrantHealth::SignedOut,
-        AllodiaGrantHealth::Ok,
+        AllodiaSyncFailure::NeedsReauth,
+        AllodiaSyncFailure::SignedOut,
+        AllodiaSyncFailure::Unavailable,
     ] {
         let (section, _receiver) = drawn(health);
         every_row_belongs_to_a_list(section.upcast_ref::<gtk::Widget>());

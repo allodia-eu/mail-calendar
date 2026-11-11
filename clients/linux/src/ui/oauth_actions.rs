@@ -79,7 +79,7 @@ impl AppModel {
         if !self.host_tasks.google.finish(attempt) {
             // A cancelled attempt whose exchange had already started still stores the account,
             // so pick it up rather than leaving the mailbox showing one account too few.
-            self.adopt_abandoned(matches!(outcome, GoogleOutcome::Added(_)), sender);
+            self.adopt_abandoned(matches!(outcome, GoogleOutcome::Added(_)));
             return;
         }
         match outcome {
@@ -152,7 +152,7 @@ impl AppModel {
         sender: relm4::Sender<AppInput>,
     ) {
         if !self.host_tasks.microsoft.finish(attempt) {
-            self.adopt_abandoned(matches!(outcome, MicrosoftOutcome::Added(_)), sender);
+            self.adopt_abandoned(matches!(outcome, MicrosoftOutcome::Added(_)));
             return;
         }
         match outcome {
@@ -165,24 +165,19 @@ impl AppModel {
         }
     }
 
-    /// A completed sign-in: close setup, select the new account, and repaint from the core.
-    ///
-    /// Every provider route ends here; Google, Microsoft and JMAP; which is why the account
-    /// list's own bookkeeping belongs here rather than at each of them. Without it an account
-    /// added by a provider sign-in reaches the person's other devices only at the next launch,
-    /// and Settings draws no sharing control for it until then.
+    /// A completed sign-in: close setup, select the new account, and repaint from the core. Every
+    /// provider route ends here; Google, Microsoft and JMAP.
     pub(super) fn account_signed_in(&mut self, account: String, sender: relm4::Sender<AppInput>) {
         self.say_what_was_withheld(&account);
         // The link step, then the name, as the password route: every way in asks the same
         // questions (`docs/sending.md`).
-        self.after_account_added(&account, sender.clone());
+        self.after_account_added(&account, sender);
         self.dispatch(mailcal_bindings::Intent::SelectAccount {
             account: Some(account),
         });
         if let Some(app) = &self.app {
             self.snapshot.replace(app.mailbox_list());
         }
-        self.sync_after_account_change(sender);
     }
 
     /// A use the person chose that the provider's grant did not allow is said on the account's
@@ -212,10 +207,9 @@ impl AppModel {
     /// A sign-in the user cancelled after the exchange had already stored the account. Nothing
     /// is on screen to update, but the mailbox would otherwise show one account too few; and the
     /// account is stored, so it travels like any other.
-    fn adopt_abandoned(&mut self, added: bool, sender: relm4::Sender<AppInput>) {
+    fn adopt_abandoned(&mut self, added: bool) {
         if added && let Some(app) = self.app.clone() {
             self.snapshot.replace(app.mailbox_list());
-            self.sync_after_account_change(sender);
         }
     }
 }

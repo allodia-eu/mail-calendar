@@ -420,7 +420,7 @@ impl AppWidgets {
             .set_visible(model.sync_bar.is_some() || model.sync_status.is_some());
         self.settings.give_way_to_setup(model.setup.required_open());
         self.settings.render(
-            model.settings.render_state(&model.allodia.accounts_synced),
+            model.settings.render_state(),
             &self.root,
             model.app.as_ref(),
             model.preferences.clone(),

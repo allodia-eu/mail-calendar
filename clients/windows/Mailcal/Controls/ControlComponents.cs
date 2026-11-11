@@ -1,5 +1,5 @@
 // The controls a page draws from the core's ControlState (docs/waiting.md): a switch, a button, a
-// text box, a combo box, a row that opens another page and a confirmation. Each is held while it
+// text box, a combo box, a single choice, a row that opens another page and a confirmation. Each is held while it
 // cannot be used and shows a ring beside it while work it started runs, so every page waits the
 // same way.
 //
@@ -259,6 +259,33 @@ internal static class ControlComponents
             }
         };
         return Beside(box, control, automationId);
+    }
+
+    /// <summary>
+    /// A single choice under its header, <paramref name="labels"/> side by side in one row, the
+    /// segmented control's equivalent. <paramref name="pick"/> is told the position the person
+    /// picked, and only when it differs from <paramref name="selected"/>.
+    /// </summary>
+    internal static StackPanel RadioButtons(
+        string header, IReadOnlyList<string> labels, int selected, ControlState control, string automationId,
+        Action<int> pick)
+    {
+        var choice = new RadioButtons { Header = header, MaxColumns = labels.Count, IsEnabled = control.Enabled };
+        AutomationProperties.SetName(choice, header);
+        AutomationProperties.SetAutomationId(choice, automationId);
+        foreach (var label in labels)
+        {
+            choice.Items.Add(label);
+        }
+        choice.SelectedIndex = selected;
+        choice.SelectionChanged += (_, _) =>
+        {
+            if (choice.SelectedIndex >= 0 && choice.SelectedIndex != selected)
+            {
+                pick(choice.SelectedIndex);
+            }
+        };
+        return Beside(choice, control, automationId);
     }
 }
 

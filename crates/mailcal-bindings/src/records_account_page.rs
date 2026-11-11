@@ -391,10 +391,25 @@ pub struct AccountReplyFallback {
     pub control: ControlState,
 }
 
+/// How the account is shared with the person's other devices, on the page of an account they can
+/// hold while someone is signed in to an Allodia account.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountSharing {
+    /// Where it is, or where a change running is moving it.
+    pub mode: crate::AllodiaAccountSyncMode,
+    pub control: ControlState,
+    /// Why the last change did not take; the account is shared as it was.
+    pub failed: Option<crate::AllodiaSyncFailure>,
+}
+
 /// An account's page: what [`crate::MailcalApp::account_page`] answers for the page on screen.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountPage {
     pub account: String,
+    /// How it is shared with the person's other devices: first on the page, since it decides
+    /// whether anything below is anybody else's business.
+    #[uniffi(default = None)]
+    pub sharing: Option<AccountSharing>,
     pub uses: Vec<AccountUseSwitch>,
     /// The pickers for links nothing fills yet, and a calendar's mail account while two or more
     /// link it. A filled calendar or contacts slot is said on its use's row instead.

@@ -91,6 +91,14 @@ core's too (`account_server_change`), whichever surface opened it: Allow is a ch
 itself when the new server did not connect, asks again in place when a lookup replaced it, and
 closes once the account waits on none. A client re-reads it on the Settings and Notices signals
 and keeps only which question is open.
+How the account is shared with the person's other devices is the page's `sharing`, for an account
+they can hold while someone is signed in to an Allodia account, and moving it is a change on the
+page (`SetSharing`). What the other devices have to say is the core's too
+(`MailcalApp::allodia_devices`), read again on `Surface::OtherDevices`, which a pass raises as it starts and ends and which moves nothing else, and on `Surface::Settings` for each Keep: the core runs the pass whenever what it compares may have moved,
+one asked for while another runs running once more after it, and a pass that ends after the
+sign-in it ran for has gone says nothing. It is `None` until a pass has answered, and says `nothing_found` once one answered with nothing, on which Settings draws no card and the first-run card says there are no accounts. The card draws `checking` while one runs, and each
+question's Keep is the same change on its account's page, running and held as one; what did not
+take is said on the control and the question, as `failed`.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -124,6 +132,7 @@ record, not a state the client keeps.
 | A server found on another site: the question drawn from `account_server_change`, Allow sent as a page change | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes, its browser sign-in run by the core (`SignInSeparateServer`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An account's sharing and the other devices' card: drawn from `account_page` and `allodia_devices`, a change sent as a page change, the pass run by the core | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -180,6 +189,14 @@ record, not a state the client keeps.
   return from another request, a superseded attempt's return dropped, a cancel, a browser that
   did not open, one left until the cap, the notice it answers running and then saying it failed,
   and a Nextcloud server asked by the core with a grant for somebody else withdrawn.
+- [`allodia_devices_tests.rs`](../crates/mailcal-bindings/src/allodia_devices_tests.rs) pins the
+  other devices' card: nothing drawn before a pass has answered or once one found nothing, a pass
+  asked for during another run once more after it, one that ends after a sign-out saying nothing,
+  and a sharing change or a removal answering the questions about its account;
+  [`app_allodia_devices_tests.rs`](../crates/mailcal-bindings/src/app_allodia_devices_tests.rs)
+  drives it through the app: no card or control while nobody is signed in, a pass when the
+  bookkeeping arrives, Keep pausing the account through `dispatch`, and no control for an account
+  the other devices cannot hold.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

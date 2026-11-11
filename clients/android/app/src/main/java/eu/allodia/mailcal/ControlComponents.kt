@@ -1,6 +1,7 @@
 // The controls a page draws from the core's ControlState (docs/waiting.md): a switch row, a row
-// that opens another page, a button, a dropdown and a confirmation. Each is held while it cannot
-// be used and shows a spinner while work it started runs, so every page waits the same way.
+// that opens another page, a button, a dropdown, a segmented choice and a confirmation. Each is
+// held while it cannot be used and shows a spinner while work it started runs, so every page waits
+// the same way.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.clickable
@@ -21,6 +22,9 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -272,6 +276,35 @@ internal fun ControlDropdown(
             }
         }
         Running(control, tag)
+    }
+}
+
+/**
+ * A single choice drawn as a segmented row: [labels] side by side, [selected] marked, each segment
+ * tagged `"$tag-<position>"`. [onPick] is told the position the person picked, and only when it
+ * differs from [selected].
+ */
+@Composable
+internal fun ControlSegmented(
+    labels: List<String>,
+    selected: Int,
+    control: ControlState,
+    tag: String,
+    onPick: (Int) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.testTag(tag)) {
+        Running(control, tag)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.weight(1f)) {
+            labels.forEachIndexed { index, label ->
+                SegmentedButton(
+                    selected = index == selected,
+                    onClick = { if (index != selected) onPick(index) },
+                    enabled = control.enabled,
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = labels.size),
+                    modifier = Modifier.testTag("$tag-$index"),
+                ) { Text(label, maxLines = 1) }
+            }
+        }
     }
 }
 

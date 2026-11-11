@@ -29,11 +29,11 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     }
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (`docs/settings.md`).
-    if let Some(status) = ctx.allodia_accounts_synced.get(&entry.id).copied() {
+    if let Some(sharing) = &account.sharing {
         content.append(&super::account_sync_mode::synced_group(
             &ctx.sender,
             &entry.id,
-            status,
+            sharing,
         ));
     }
     if let Some(name) = &account.sender_name {

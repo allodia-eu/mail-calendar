@@ -14,6 +14,10 @@ pub enum Surface {
     Calendar,
     /// The settings surface: the active display timezone and any pending change.
     Settings,
+    /// What the person's other devices have to say (pulled via `MailcalApp::allodia_devices`):
+    /// a pass starting or ending. Nothing else moves with it, so a host redraws only the
+    /// Accounts card and the first-run card, which also follow `Settings` for each Keep.
+    OtherDevices,
     /// The reading view: the open message's fetched, sanitised body.
     Reading,
     /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.

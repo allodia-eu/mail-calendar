@@ -25,6 +25,9 @@ public sealed partial class MailboxModel
     // call is elided by the compiler.
     partial void ApplyLaunchHooks();
 
+    // What the agenda and the grid were last drawn with (CalendarSettingsRules).
+    private string? _calendarSettingsDrawn;
+
     /// <summary>Pulls each surface's snapshot and reconciles it into the bound collections.</summary>
     private void Reload(Surface? changed = null)
     {
@@ -37,6 +40,13 @@ public sealed partial class MailboxModel
         if (changed == Surface.Notices)
         {
             PullNotices();
+            return;
+        }
+        // A pass over the other devices starting or ending moves only the cards that draw what
+        // they said; each reads it again itself.
+        if (changed == Surface.OtherDevices)
+        {
+            OtherDevicesChanged?.Invoke();
             return;
         }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
@@ -152,8 +162,19 @@ public sealed partial class MailboxModel
         // `Events` collection on the UI thread, on *every* mailbox signal, and an account sync fires
         // those dozens of times a second, froze the app for seconds. So do it only when the calendar,
         // or the timezone it is formatted against, actually changed (§5: "a refresh that changed
-        // nothing signals nothing"). A mailbox refresh leaves the agenda and the grid untouched.
-        if (changed is null or Surface.Calendar or Surface.Settings)
+        // nothing signals nothing"). A mailbox refresh leaves the agenda and the grid untouched,
+        // and so does a settings signal that moved nothing they are drawn with: most are a change
+        // on an account's page (CalendarSettingsRules).
+        var calendarSettings = changed is null or Surface.Calendar or Surface.Settings
+            ? CalendarSettingsRules.Fingerprint(zone, use24Hour, _app.DisplaySettings(), Calendars())
+            : null;
+        var calendarMoved = changed is null or Surface.Calendar
+            || (changed == Surface.Settings && calendarSettings != _calendarSettingsDrawn);
+        if (calendarSettings is not null)
+        {
+            _calendarSettingsDrawn = calendarSettings;
+        }
+        if (calendarMoved)
         {
             var events = _app.CalendarList().Events.Select(item => new EventItem
             {
@@ -187,7 +208,10 @@ public sealed partial class MailboxModel
         // deliberately does NOT do, so a background sync cannot jerk the grid back to today.
         if (changed == Surface.Settings)
         {
-            BumpDisplaySettings();
+            if (calendarMoved)
+            {
+                BumpDisplaySettings();
+            }
             RaiseAccountsChanged();
         }
 
@@ -220,7 +244,7 @@ public sealed partial class MailboxModel
         }
 
         Log.Info($"reload: rows={Rows.Count} ({Mode}), folders={Folders.Count}, "
-            + $"queued={Outbox.Count}, events={Events.Count}, zone={zone} "
+            + $"queued={Outbox.Count}, events={Events.Count}{(calendarMoved ? "" : " (unchanged)")}, zone={zone} "
             + $"(FFI pull {pullMs}ms, total {reloadSw.ElapsedMilliseconds}ms)");
 
         // DEBUG-only: honour any MAILCAL_* launch hook now that this surface has populated

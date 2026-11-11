@@ -132,9 +132,9 @@ internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
                 activity.signingInAllodia = false
                 activity.allodiaSignInSlow = false
                 activity.allodiaRemedyEnded(failed = false)
-                // The first thing a new sign-in is for: this device's accounts go up, and whatever
-                // the person's other devices hold comes back.
-                activity.syncAllodiaAccounts()
+                // The core has started the pass this sign-in is for; the card and each account's
+                // sharing control appear with the sign-in.
+                activity.refreshAccountsSnapshot()
                 // A sign-in is also the remedy the subscription card offers, for a grant that
                 // predates the permission that read needs or one recorded before the account id
                 // was. Re-read here, because the card asks once when it appears and somebody who
@@ -181,9 +181,8 @@ internal fun MainActivity.signOutOfAllodia() {
         allodiaFailureSaid(e, this)
     }
     allodiaAccount = instance.allodiaAccount()
-    // Nothing left to say about other devices once this one is signed out of the account that
-    // linked them.
-    allodiaSync = AllodiaSyncState()
+    // The core forgets what the other devices said, and each account's sharing control goes.
+    refreshAccountsSnapshot()
     endSession?.let { url ->
         logUiInfo("allodia: ending the browser session")
         openAllodiaAccountPage(this, url)

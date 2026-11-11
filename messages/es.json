@@ -834,6 +834,7 @@
 	"settings_account_sync_paused_hint": "Tus otros dispositivos conservan esta cuenta, pero los cambios dejan de viajar en ambos sentidos. Útil cuando los ajustes de aquí deben ser distintos.",
 	"settings_account_sync_off": "Desactivado",
 	"settings_account_sync_off_hint": "Esta cuenta solo está en este dispositivo. Se quita de tus otros dispositivos y Allodia no guarda ningún registro de ella.",
+	"settings_account_sync_failed": "No se pudo cambiar cómo se sincroniza esta cuenta con tus otros dispositivos. No ha cambiado nada.",
 	"settings_allodia_sync_heading": "Desde tus otros dispositivos",
 	"settings_allodia_sync_description": "Cuentas que añadiste en otro dispositivo. Configurar una aquí pide su contraseña: las contraseñas nunca salen del dispositivo en el que se escribieron.",
 	"settings_allodia_sync_set_up": "Configurar",

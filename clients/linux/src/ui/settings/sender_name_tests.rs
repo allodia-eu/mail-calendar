@@ -87,10 +87,10 @@ pub(crate) fn re_asserting_the_stored_name_asks_for_nothing() {
         .emit_activate();
     // A sentinel behind it, because the channel has no non-blocking read: anything the commit
     // emitted is already queued, so the sentinel arriving first is the assertion.
-    sender.emit(AppInput::ReadAccountsSynced);
+    sender.emit(AppInput::CollectNewMail);
 
     assert!(
-        matches!(receiver.recv_sync(), Some(AppInput::ReadAccountsSynced)),
+        matches!(receiver.recv_sync(), Some(AppInput::CollectNewMail)),
         "an unchanged name is not an edit"
     );
 }

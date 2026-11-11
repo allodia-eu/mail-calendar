@@ -150,7 +150,7 @@ impl AppModel {
         let AllodiaPrepared { loopback, start } = match prepared {
             Ok(prepared) => *prepared,
             Err(error) => {
-                self.allodia_sign_in_finished(attempt, AllodiaOutcome::Failed(error), sender);
+                self.allodia_sign_in_finished(attempt, AllodiaOutcome::Failed(error));
                 return;
             }
         };
@@ -182,12 +182,7 @@ impl AppModel {
         });
     }
 
-    pub(super) fn allodia_sign_in_finished(
-        &mut self,
-        attempt: u64,
-        outcome: AllodiaOutcome,
-        sender: relm4::Sender<AppInput>,
-    ) {
+    pub(super) fn allodia_sign_in_finished(&mut self, attempt: u64, outcome: AllodiaOutcome) {
         if !self.host_tasks.allodia.finish(attempt) {
             // A superseded or cancelled attempt. Nothing of its own to publish over the newer one,
             // but a sign-in the user cancelled after the exchange had already run IS stored, so the
@@ -209,9 +204,6 @@ impl AppModel {
                 // What the last read said was about the grant this one replaces, which may have
                 // been refused or may belong to another account, so the section asks again.
                 self.forget_allodia_subscription();
-                // The first thing a new sign-in is for: this device's accounts go up, and whatever
-                // the person's other devices hold comes back.
-                self.sync_allodia_accounts(sender);
             }
             // A dismissed browser is not a failure; say nothing about it.
             AllodiaOutcome::Cancelled => {}
@@ -256,9 +248,8 @@ impl AppModel {
         match app.sign_out_of_allodia() {
             Ok(end_session) => {
                 self.settings.allodia_failure = None;
-                // Nothing left to say about other devices, or about what was being charged, once
-                // this one leaves the account that linked them.
-                self.forget_allodia_sync();
+                // Nothing left to say about what was being charged once this device leaves the
+                // account; what the other devices said, the core forgets itself.
                 self.forget_allodia_subscription();
                 // Best-effort and deliberately unreported: this device is signed out whatever
                 // happens to the browser. What it buys is the next sign-in asking who you are
@@ -319,13 +310,14 @@ impl AppModel {
             .app
             .as_ref()
             .is_some_and(|app| app.allodia_account().is_some());
+        let devices = self.app.as_ref().and_then(|app| app.allodia_devices());
         let progress = if self.settings.allodia_signing_in {
             Progress::SigningIn {
                 escapable: self.settings.allodia_sign_in_slow,
             }
         } else if !signed_in {
             Progress::Offering
-        } else if self.settings.allodia_sync.checking {
+        } else if devices.as_ref().is_some_and(|devices| devices.checking) {
             Progress::Checking
         } else {
             Progress::SignedIn
@@ -337,12 +329,9 @@ impl AppModel {
                 failure: self.settings.allodia_failure.clone(),
                 // `None` until a pass has answered, which is not the same as a pass that answered
                 // with nothing: only the second one may be reported as an empty account.
-                offers: self
-                    .settings
-                    .allodia_sync
-                    .report
-                    .as_ref()
-                    .map(|report| report.offers.clone()),
+                offers: devices
+                    .filter(|devices| devices.nothing_found || !devices.offers.is_empty())
+                    .map(|devices| devices.offers),
             });
     }
 }

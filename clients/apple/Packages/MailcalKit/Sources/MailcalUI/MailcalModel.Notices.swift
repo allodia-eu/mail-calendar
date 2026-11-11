@@ -51,8 +51,7 @@ extension MailboxModel {
             app?.dispatch(intent: .notices(intent: .retry(id: notice.id)))
         case .signInToAllodia:
             switch await signInToAllodia() {
-            case .signedIn: await syncAllodiaAccounts()
-            case .cancelled: break
+            case .signedIn, .cancelled: break
             case .failed: remedyFailed(notice)
             }
         // The core draws the notice running while the sign-in is out, and marks its remedy

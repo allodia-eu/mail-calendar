@@ -38,6 +38,7 @@ pub(crate) enum PageWork {
     ReplyFallback {
         choice: crate::ReplyFallbackChoice,
     },
+    Sharing(crate::AllodiaAccountSyncMode),
     Remove,
     SenderName(String),
     Depth(u16),
@@ -124,6 +125,7 @@ impl PageWork {
             AccountPageIntent::SetReplyFallback { choice, .. } => {
                 Self::ReplyFallback { choice: *choice }
             }
+            AccountPageIntent::SetSharing { mode, .. } => Self::Sharing(*mode),
             AccountPageIntent::Remove { .. } => Self::Remove,
             AccountPageIntent::SetSenderName { name, .. } => Self::SenderName(name.clone()),
             AccountPageIntent::SetSyncDepth { months, .. } => Self::Depth(*months),

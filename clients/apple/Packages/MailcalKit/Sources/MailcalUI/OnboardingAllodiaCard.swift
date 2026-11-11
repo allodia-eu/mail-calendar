@@ -83,7 +83,7 @@ struct OnboardingAllodiaCard: View {
 
     @ViewBuilder
     private var content: some View {
-        if signingIn || (account != nil && model.allodiaSync.checking) {
+        if signingIn || (account != nil && model.allodiaDevices?.checking == true) {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text(
@@ -109,14 +109,16 @@ struct OnboardingAllodiaCard: View {
         }
     }
 
-    /// What the last pass answered with, or `nil` while none has answered.
+    /// What the last pass offered, empty when the core says it found nothing, and `nil` otherwise.
     ///
     /// The distinction is the whole of the empty state's correctness: an empty array is "this
-    /// account has no mail accounts", `nil` is "we have not looked", and only the first may say
-    /// so. Its own property rather than a `let` inside the builder below, so nothing about it
+    /// account has no mail accounts", `nil` is "we have not looked" or "there is something else to
+    /// say", and only the first may say so. Its own property rather than a `let` inside the builder below, so nothing about it
     /// depends on what a result builder accepts.
     private var found: [AllodiaAccountOffer]? {
-        model.allodiaSync.report?.offers
+        guard let devices = model.allodiaDevices else { return nil }
+        if devices.nothingFound { return [] }
+        return devices.offers.isEmpty ? nil : devices.offers
     }
 
     /// What a signed-in person is offered, which for a first device is a sentence rather than rows.
@@ -219,9 +221,9 @@ struct OnboardingAllodiaCard: View {
             signingIn = false
             switch outcome {
             case let .signedIn(signedIn):
+                // The core asks what their other devices hold as soon as the sign-in is stored,
+                // before they are asked to type anything.
                 account = signedIn
-                // What their other devices hold, before they are asked to type anything.
-                await model.syncAllodiaAccounts()
             // A dismissed browser is not a failure, say nothing and leave the card as it was.
             case .cancelled: break
             case let .failed(error): failure = error

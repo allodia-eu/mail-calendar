@@ -128,9 +128,6 @@ public sealed partial class MailboxModel
             // not end the grant at the service, a refresh token carrying offline_access outlives
             // it by design.
             var endSession = _app?.SignOutOfAllodia();
-            // Nothing left to say about other devices once this one leaves the account that linked
-            // them. Cleared whatever the browser hop below does.
-            ForgetAllodiaSync();
             if (endSession is { } url)
             {
                 _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url));

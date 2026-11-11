@@ -9,7 +9,6 @@ use widgets::{choice, dialog_box, group, group_titled, page_box};
 use super::{
     AppInput,
     allodia_subscription::{SubscriptionInput, SubscriptionState},
-    allodia_sync::AllodiaSyncState,
     icons,
 };
 use crate::{l10n, preferences::HostPreferences};
@@ -78,12 +77,9 @@ pub(super) struct RenderState<'a> {
     pub(super) category: Category,
     pub(super) allodia_signing_in: bool,
     pub(super) allodia_failure: Option<&'a str>,
-    pub(super) allodia_sync: &'a AllodiaSyncState,
     /// What the subscription section has learned, for the same reason: a read and a write each
     /// outlive several window rebuilds.
     pub(super) allodia_subscription: &'a SubscriptionState,
-    pub(super) allodia_accounts_synced:
-        &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     /// The form for a sign-in of its own an account's page opened.
@@ -134,18 +130,14 @@ struct PageContext {
     /// window is rebuilt from scratch on every change; a browser hop outlasts several rebuilds.
     allodia_signing_in: bool,
     allodia_failure: Option<String>,
-    /// What the person's other devices have to say, for the same reason.
-    allodia_sync: AllodiaSyncState,
     /// What the subscription section has learned, likewise.
     allodia_subscription: SubscriptionState,
-    /// Where each account stands. Empty in a build with no Allodia sign-in, and the block is then
-    /// absent rather than dead.
-    allodia_accounts_synced:
-        std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
     /// The page of the account Accounts shows, read once for the redraw.
     page: Option<mailcal_bindings::AccountPage>,
+    /// What the person's other devices have to say, read with it.
+    devices: Option<mailcal_bindings::AllodiaDevices>,
 }
 
 #[derive(Debug, Default)]
@@ -163,6 +155,8 @@ pub(super) struct SettingsWindow {
     waiting_on: Option<gtk::glib::WeakRef<gtk::Popover>>,
     /// Where toasts are shown: above the pages, which every redraw replaces.
     toasts: Option<adw::ToastOverlay>,
+    /// What an account's page pushes a form onto, kept so a redraw of Accounts alone can too.
+    navigation: Option<gtk::Stack>,
     /// The last notice shown.
     shown_notice: u64,
     /// The switch's question and the form for a sign-in of its own, raised over this window or,
@@ -227,6 +221,13 @@ impl SettingsWindow {
         let reuse = state.redraw != Redraw::Open && self.is_on_screen();
         let offset = reuse.then(|| self.offset(&state)).flatten();
         let standing = reuse.then(|| self.window.clone()).flatten();
+        // The core's signal changes Accounts alone, so only that page is built again, inside the
+        // window on screen: the whole window costs ten times as much, long enough that the frame
+        // a change is drawn running in never reaches the screen.
+        let accounts = (state.redraw == Redraw::Signalled && reuse)
+            .then(|| redraw::shown_page(self.pages.as_ref()?, Category::Accounts.name()))
+            .flatten()
+            .zip(self.navigation.clone());
         let window = if let Some(standing) = standing {
             standing
         } else {
@@ -255,9 +256,15 @@ impl SettingsWindow {
             });
             window
         };
-        let navigation = gtk::Stack::new();
-        navigation.set_hexpand(true);
-        navigation.set_vexpand(true);
+        let navigation = accounts.as_ref().map_or_else(
+            || {
+                let navigation = gtk::Stack::new();
+                navigation.set_hexpand(true);
+                navigation.set_vexpand(true);
+                navigation
+            },
+            |(_, navigation)| navigation.clone(),
+        );
         let mut ctx = PageContext {
             app,
             preferences,
@@ -266,17 +273,33 @@ impl SettingsWindow {
             navigation: navigation.clone(),
             allodia_signing_in: state.allodia_signing_in,
             allodia_failure: state.allodia_failure.map(str::to_owned),
-            allodia_sync: state.allodia_sync.clone(),
             allodia_subscription: state.allodia_subscription.clone(),
-            allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
             page: None,
+            devices: None,
         };
         // Read before the pages are built, which draw the account's page from it: a change
         // landing in between then reads as one the window has not drawn, and the next signal
         // draws it.
         let drawn = read.unwrap_or_else(|| redraw::drawn(&ctx.app, state.account));
         ctx.page.clone_from(&drawn.1);
+        ctx.devices.clone_from(&drawn.3);
+        if let Some((scroll, _)) = accounts {
+            let content = accounts::accounts(&ctx);
+            scroll.set_child(Some(&content));
+            if let Some(offset) = offset {
+                redraw::keep_offset(&scroll, offset);
+            }
+            if let Some(toasts) = &self.toasts {
+                notice::show_due(&window, toasts, state.notice, &mut self.shown_notice);
+            }
+            self.edited = std::rc::Rc::default();
+            redraw::watch_edits(content.upcast_ref(), &self.edited);
+            self.drawn = Some(drawn);
+            self.drawn_account = state.account.map(str::to_owned);
+            self.rendered_generation = state.generation;
+            return;
+        }
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");
@@ -303,6 +326,7 @@ impl SettingsWindow {
         self.drawn = Some(drawn);
         self.drawn_account = state.account.map(str::to_owned);
         self.pages = Some(pages);
+        self.navigation = Some(navigation);
         self.rendered_generation = state.generation;
         self.window = Some(window);
     }

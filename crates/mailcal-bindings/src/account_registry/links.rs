@@ -51,6 +51,20 @@ impl AccountRegistry {
             .map(|entry| entry.identity().email)
     }
 
+    /// `id`'s config as the host's store holds it; `None` for one not registered or one that
+    /// could not be serialized.
+    #[cfg_attr(
+        not(feature = "allodia-license"),
+        expect(dead_code, reason = "only a build that can sign in shares an account")
+    )]
+    pub(crate) fn stored_config(&self, id: &str) -> Option<String> {
+        self.entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get(id)
+            .and_then(|entry| entry.to_toml().ok())
+    }
+
     /// Every registered account's links that hold ([`valid_links`]), keyed by id: what the core
     /// files invitations by. Read afresh on every call, so a link changed in Settings counts from
     /// the next invitation.

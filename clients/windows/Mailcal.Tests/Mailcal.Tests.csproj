@@ -228,6 +228,9 @@
          fails silently on screen, most sharply a page that keeps spinning after its change ended,
          and a save that adds a server the account never had. -->
     <Compile Include="..\Mailcal\Services\AccountSettingsRules.cs" Link="Services\AccountSettingsRules.cs" />
+    <!-- Whether a Settings signal redraws the agenda and the grid. WinUI-free and L10n-free: a
+         page change that redrew the calendar held the UI thread through the press. -->
+    <Compile Include="..\Mailcal\Services\CalendarSettingsRules.cs" Link="Services\CalendarSettingsRules.cs" />
     <Compile Include="..\Mailcal\Services\MeetingAccountLabels.cs" Link="Services\MeetingAccountLabels.cs" />
     <!-- An account's browser sign-in, which the core holds (docs/waiting.md): the redirect each
          kind starts with, the browser opened once per attempt, a redirect handed to the core

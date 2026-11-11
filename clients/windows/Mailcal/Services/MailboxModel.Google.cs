@@ -77,10 +77,6 @@ public sealed partial class MailboxModel
             var row = await Task.Run(() => _app!.CompleteGoogleLogin(start.Pending, callbackUrl));
             Log.Info($"google account added: {LogHandle(row.Id)}");
             AccountAdded(row.Id);
-            // This route never touches AddAccountAsync, so the pass is owed here: without it the
-            // account stays on this device until the next launch, and its card in Settings draws
-            // no sharing control at all (docs/settings.md, category 9).
-            SyncAfterAccountChange();
             // Land directly in the newly connected account rather than the unified inbox, so the
             // user sees their mail arriving where they just signed in (the core owns selection; this
             // dispatches the select intent and the snapshot expands the account in the sidebar).

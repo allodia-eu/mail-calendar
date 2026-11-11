@@ -177,51 +177,46 @@ struct SettingsGroup<Content: View>: View {
     }
 }
 
-/// How an account is shared with the person's other devices: one control in three positions.
+/// How an account is shared with the person's other devices: one control in three positions, as
+/// the page's `sharing` draws it.
 ///
 /// A segmented picker rather than a switch and a button: the two questions underneath, is this
 /// account on my other devices, and does this device exchange changes about it, are not independent
 /// in any way somebody can act on, and splitting them produced a screen where turning the switch
 /// off changed nothing the person could see.
 ///
-/// One subtext, the selected position's: three at once is a paragraph nobody reads, and the one
-/// that matters is the one in force.
-struct AccountSyncModePicker: View {
+/// One subtext, the shown position's: three at once is a paragraph nobody reads, and the one that
+/// matters is the one in force. The position is the core's, which is where a change running is
+/// moving it, so the control never snaps back while it runs.
+struct AccountSharingControl: View {
     var model: MailboxModel
     let accountId: String
-    let mode: AllodiaAccountSyncMode
+    let sharing: AccountSharing
+
+    private static let modes: [AllodiaAccountSyncMode] = [.on, .paused, .off]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.settings_account_sync_heading()).font(.subheadline).bold()
-            Picker(
-                L10n.settings_account_sync_heading(),
-                selection: Binding(
-                    get: { mode },
-                    set: { picked in
-                        guard picked != mode else { return }
-                        Task { await model.setAllodiaAccountSyncMode(accountId, picked) }
-                    }
-                )
-            ) {
-                Text(L10n.settings_account_sync_on()).tag(AllodiaAccountSyncMode.on)
-                Text(L10n.settings_account_sync_paused()).tag(AllodiaAccountSyncMode.paused)
-                Text(L10n.settings_account_sync_off()).tag(AllodiaAccountSyncMode.off)
+            ControlPicker(
+                title: L10n.settings_account_sync_heading(),
+                labels: [
+                    L10n.settings_account_sync_on(),
+                    L10n.settings_account_sync_paused(),
+                    L10n.settings_account_sync_off(),
+                ],
+                selected: Self.modes.firstIndex(of: sharing.mode) ?? 0,
+                segmented: true,
+                control: sharing.control
+            ) { at in
+                model.changeAccount(.setSharing(account: accountId, mode: Self.modes[at]))
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            Text(hint)
+            Text(AccountSettingsLabels.sharingHint(sharing.mode))
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var hint: String {
-        switch mode {
-        case .on: L10n.settings_account_sync_on_hint()
-        case .paused: L10n.settings_account_sync_paused_hint()
-        case .off: L10n.settings_account_sync_off_hint()
+            if let failed = sharing.failed {
+                SharingFailedLine(failure: failed)
+            }
         }
     }
 }

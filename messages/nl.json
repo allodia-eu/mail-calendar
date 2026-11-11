@@ -834,6 +834,7 @@
 	"settings_account_sync_paused_hint": "Je andere apparaten houden dit account, maar wijzigingen gaan geen kant meer op. Handig als de instellingen hier moeten afwijken van die van hen.",
 	"settings_account_sync_off": "Uit",
 	"settings_account_sync_off_hint": "Dit account staat alleen op dit apparaat. Het wordt van je andere apparaten gehaald en Allodia bewaart er niets over.",
+	"settings_account_sync_failed": "Kon niet wijzigen hoe dit account met je andere apparaten wordt gesynchroniseerd. Er is niets veranderd.",
 	"settings_allodia_sync_heading": "Van je andere apparaten",
 	"settings_allodia_sync_description": "Accounts die je op een ander apparaat hebt toegevoegd. Als je er hier een instelt, wordt om het wachtwoord gevraagd. Wachtwoorden verlaten nooit het apparaat waarop ze zijn getypt.",
 	"settings_allodia_sync_set_up": "Instellen",

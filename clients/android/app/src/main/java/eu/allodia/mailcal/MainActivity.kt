@@ -27,7 +27,7 @@ import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaAccountOffer
-import uniffi.mailcal_bindings.AllodiaAccountSyncMode
+import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AnalyticsConsent
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.ComposeOpening
@@ -328,9 +328,9 @@ class MainActivity : AppCompatActivity() {
     // What the Allodia card says about the last sign-in or sign-out that failed (allodiaFailureSaid),
     // or null. Cleared when a new attempt starts.
     internal var allodiaFailure by mutableStateOf<String?>(null)
-    // What the person's other devices have to say about their mail accounts. Empty until a pass
-    // has run, which is not the same as a pass that found nothing.
-    internal var allodiaSync by mutableStateOf(AllodiaSyncState())
+    // What the person's other devices have to say about this device's accounts, as the core keeps
+    // it (`allodia_devices`), read again on every Settings signal. Null until a pass has answered.
+    internal var allodiaDevices by mutableStateOf<AllodiaDevices?>(null)
     // This build's shop, and the scope its purchases and reads run in. Both flows leave the app,
     // for Play's sheet or for a browser, so neither may belong to a screen that was recomposed
     // while somebody was away (MainActivityAllodiaPurchases.kt).
@@ -340,14 +340,6 @@ class MainActivity : AppCompatActivity() {
     // period has a sheet up. Checking until the card is first opened; the read is a network round
     // trip, and a category nobody opened is not worth one.
     internal var allodiaSubscription by mutableStateOf(AllodiaSubscriptionUi())
-    // How each account is shared with the other devices, keyed by account id, what the
-    // per-account three-position control draws. A local read; it never asks the service.
-    internal var accountsSyncMode by
-        mutableStateOf<Map<String, AllodiaAccountSyncMode>>(emptyMap())
-    // Whether this launch may sync its account list at all. False in a dev-account launch, whose
-    // accounts are canned harness ones: sending those up would put a harness mailbox on the
-    // developer's own phone.
-    internal var allodiaSyncAllowed = false
     // The address an offer from another device put into the setup flow, so it opens with the
     // typing done. Empty for every other way in.
     internal var setupStartEmail by mutableStateOf("")

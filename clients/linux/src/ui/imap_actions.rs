@@ -157,7 +157,6 @@ impl AppModel {
                 && let Some(app) = self.app.clone()
             {
                 self.snapshot.replace(app.mailbox_list());
-                self.sync_after_account_change(sender);
             }
             return;
         }

@@ -80,7 +80,7 @@ class SettingsAccountSignInTest {
         compose.setContent {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 AccountsSettings(ui, allodiaSyncCard = {}) { shown, record ->
-                    AccountPage(shown, record, ui, syncMode = null, onSetSyncMode = {})
+                    AccountPage(shown, record, ui)
                 }
             }
         }

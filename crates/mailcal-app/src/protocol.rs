@@ -34,6 +34,9 @@ pub enum Surface {
     /// The settings surface; currently the active display timezone and any pending
     /// device-zone change the host prompts on.
     Settings,
+    /// What the person's other devices have to say (pulled via the binding's
+    /// `allodia_devices`): a pass starting or ending, which moves nothing else a host draws.
+    OtherDevices,
     /// The reading view: the open message's fetched, sanitised body.
     Reading,
     /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.

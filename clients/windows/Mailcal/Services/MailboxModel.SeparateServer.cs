@@ -25,10 +25,6 @@ public sealed partial class MailboxModel
     internal void SkipSeparateServer(string accountId) =>
         ChangeAccount(new AccountPageIntent.StopUsingSeparateServer(accountId));
 
-    /// <summary>A form is over: the uses have an account of their own, or were switched off, so the
-    /// person's other devices hear of it.</summary>
-    internal void SeparateServerOver() => SyncAfterAccountChange();
-
     /// <summary>Draws the setup step again from the core, after a signal that may have moved it,
     /// and goes on to the link step once the core draws none.</summary>
     private void RefreshSetupSeparateServer()
@@ -39,7 +35,6 @@ public sealed partial class MailboxModel
         }
         if (SeparateServerStepOf(shown.AccountId) is not { } fresh)
         {
-            SeparateServerOver();
             SeparateServerDone();
             return;
         }

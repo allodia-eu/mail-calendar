@@ -301,6 +301,8 @@ impl MailcalApp {
         self.runtime.spawn(async move {
             background::sync_added_account(&app_sync, &background, &sync_id).await;
         });
+        // The person's other devices hear of it now, not at the next launch.
+        self.request_allodia_pass();
         // Closes the narration the way the Microsoft path does: connected, stored, registered,
         // and how long the whole transaction took: so the next line in the log being a sync is
         // an expected continuation rather than the first evidence that anything worked.

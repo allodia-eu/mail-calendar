@@ -1,82 +1,82 @@
-//! The per-account choice of how it is shared with the person's other devices.
+//! How an account is shared with the person's other devices, as its page's `sharing` says it.
 //!
-//! Split from [`super::accounts`] to keep that file inside the 500-line limit; it is one control
-//! with one rule, and the rule is in its doc comment.
+//! Split from [`super::account_page`] to keep that file inside the 500-line limit.
 
 use adw::prelude::*;
-use mailcal_bindings::AllodiaAccountSyncMode;
+use mailcal_bindings::{
+    AccountPageIntent, AccountSharing, AllodiaAccountSyncMode, AllodiaSyncFailure,
+};
 
 use crate::{
     l10n,
-    ui::{AppInput, mailbox::plain_text_row},
+    ui::{AppInput, account_settings::AccountsInput, controls, mailbox::plain_text_row},
 };
 
-/// How one account is shared with the person's other devices, as three linked buttons.
-///
-/// A single choice rather than a switch and a button: the two questions underneath; is this
-/// account on my other devices, and does this device exchange changes about it; are not
-/// independent in any way somebody can act on, and splitting them produced a screen where turning
-/// the switch off changed nothing the person could see. Its Apple, Android and Windows twins use
-/// each platform's own equivalent of this control.
-///
-/// A **linked box** of toggle buttons, the GNOME idiom for one choice among a few; it draws what
-/// `AdwToggleGroup` draws.
-///
-/// The description carries the selected position's meaning only: three at once is a paragraph
-/// nobody reads, and the one that matters is the one in force.
+const MODES: [AllodiaAccountSyncMode; 3] = [
+    AllodiaAccountSyncMode::On,
+    AllodiaAccountSyncMode::Paused,
+    AllodiaAccountSyncMode::Off,
+];
+
+/// The control, one choice of three rather than a switch and a button: the two questions
+/// underneath (is this account on my other devices, does this device exchange changes about it)
+/// are not independent in any way somebody can act on. The description carries the position in
+/// force only: three at once is a paragraph nobody reads.
 pub(super) fn synced_group(
     sender: &relm4::Sender<AppInput>,
     account_id: &str,
-    mode: AllodiaAccountSyncMode,
+    sharing: &AccountSharing,
 ) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::builder()
         .title(gtk::glib::markup_escape_text(l10n::settings_account_sync_heading()).as_str())
-        .description(gtk::glib::markup_escape_text(sync_mode_hint(mode)).as_str())
+        .description(gtk::glib::markup_escape_text(sync_mode_hint(sharing.mode)).as_str())
         .build();
-
-    let row = plain_text_row();
-    row.set_title(l10n::settings_account_sync_heading());
-    let choices = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-    choices.add_css_class("linked");
-    choices.set_valign(gtk::Align::Center);
-
-    let mut first: Option<gtk::ToggleButton> = None;
-    for (option, label) in [
-        (AllodiaAccountSyncMode::On, l10n::settings_account_sync_on()),
-        (
-            AllodiaAccountSyncMode::Paused,
-            l10n::settings_account_sync_paused(),
-        ),
-        (
-            AllodiaAccountSyncMode::Off,
-            l10n::settings_account_sync_off(),
-        ),
-    ] {
-        let button = gtk::ToggleButton::with_label(label);
-        // One group, so picking one releases the others; and so the keyboard treats the three as
-        // a single choice rather than three unrelated switches.
-        match &first {
-            Some(anchor) => button.set_group(Some(anchor)),
-            None => first = Some(button.clone()),
-        }
-        button.set_active(mode == option);
-        let sender = sender.clone();
-        let account_id = account_id.to_owned();
-        button.connect_toggled(move |button| {
-            // Releasing one raises another, so only the press that *selects* is acted on; and a
-            // press on the position already in force is not a change at all.
-            if button.is_active() && mode != option {
-                sender.emit(AppInput::SetAllodiaAccountSyncMode(
-                    account_id.clone(),
-                    option,
-                ));
-            }
-        });
-        choices.append(&button);
+    let labels = [
+        l10n::settings_account_sync_on(),
+        l10n::settings_account_sync_paused(),
+        l10n::settings_account_sync_off(),
+    ];
+    let selected = MODES
+        .iter()
+        .position(|mode| *mode == sharing.mode)
+        .unwrap_or(0);
+    let sender = sender.clone();
+    let account = account_id.to_owned();
+    group.add(&controls::choice_row(
+        l10n::settings_account_sync_heading(),
+        &labels,
+        selected,
+        sharing.control,
+        move |position| {
+            sender.emit(AppInput::Accounts(AccountsInput::Change(
+                AccountPageIntent::SetSharing {
+                    account: account.clone(),
+                    mode: MODES[position],
+                },
+            )));
+        },
+    ));
+    if let Some(failed) = sharing.failed {
+        group.add(&failed_row(failed));
     }
-    row.add_suffix(&choices);
-    group.add(&row);
     group
+}
+
+/// Why a change to how an account is shared, or the pass over the other devices, did not take.
+pub(super) fn sync_failed(failure: AllodiaSyncFailure) -> &'static str {
+    match failure {
+        AllodiaSyncFailure::NeedsReauth => l10n::settings_allodia_reauth(),
+        AllodiaSyncFailure::SignedOut => l10n::settings_allodia_signed_out_elsewhere(),
+        AllodiaSyncFailure::Unavailable => l10n::settings_account_sync_failed(),
+    }
+}
+
+/// A line saying a change did not take.
+pub(super) fn failed_row(failure: AllodiaSyncFailure) -> adw::ActionRow {
+    let row = plain_text_row();
+    row.set_title(sync_failed(failure));
+    row.add_css_class("error");
+    row
 }
 
 /// What the selected position means, in one line.

@@ -30,9 +30,12 @@ final class AccountPageTests: XCTestCase {
             "the suggestion is not alice's calendar account"
         )
         reveal(links.firstMatch, in: app).tap()
+        // A filled slot is no longer a picker: the use's row says where it comes from.
+        let linked = app.buttons.matching(NSPredicate(
+            format: "label BEGINSWITH 'Calendar' AND label CONTAINS %@",
+            "From alice@test.local (CalDAV/CardDAV)"))
         XCTAssertTrue(
-            app.buttons["Calendar for invitations, alice@test.local (CalDAV/CardDAV)"]
-                .waitForExistence(timeout: ShowcaseApp.timeout),
+            linked.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout),
             "Link did not pick alice's calendar account"
         )
         XCTAssertTrue(

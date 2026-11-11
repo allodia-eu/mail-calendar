@@ -42,10 +42,6 @@ internal fun MainActivity.addAccount(configToml: String, unreached: List<Account
             activity.mainHandler.post {
                 activity.isConnecting = false
                 activity.addError = null
-                // The account list changed, so the person's other devices should hear about
-                // it now rather than at the next launch. A no-op when nobody is signed in.
-                activity.readAccountsSynced()
-                activity.syncAllodiaAccounts()
                 // Its uses, its link step, or the end of setup (MainActivitySetupFlow.kt).
                 activity.afterAccountAdded(row.id)
             }
@@ -121,10 +117,6 @@ internal fun MainActivity.completeMicrosoftLogin(callbackUrl: String) {
             activity.mainHandler.post {
                 activity.signingInMicrosoft = false
                 activity.addError = null
-                // The account list changed, so the person's other devices should hear about
-                // it now rather than at the next launch. A no-op when nobody is signed in.
-                activity.readAccountsSynced()
-                activity.syncAllodiaAccounts()
                 activity.pullNotices()
                 activity.afterAccountAdded(row.id, signedInAtProvider = true)
             }
@@ -184,10 +176,6 @@ internal fun MainActivity.completeGoogleLogin(callbackUrl: String) {
             activity.mainHandler.post {
                 activity.signingInGoogle = false
                 activity.addError = null
-                // The account list changed, so the person's other devices should hear about
-                // it now rather than at the next launch. A no-op when nobody is signed in.
-                activity.readAccountsSynced()
-                activity.syncAllodiaAccounts()
                 activity.afterAccountAdded(row.id, signedInAtProvider = true)
             }
         } catch (e: Exception) {

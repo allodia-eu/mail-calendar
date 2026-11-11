@@ -193,6 +193,8 @@ impl MailcalApp {
         let app_sync = Arc::clone(&self.app);
         self.runtime
             .spawn(async move { app_sync.sync_added_account(&sync_id).await });
+        // The person's other devices hear of it now, not at the next launch.
+        self.request_allodia_pass();
         log::info!(
             "microsoft: account registered in {}ms; first sync running in the background",
             started.elapsed().as_millis(),

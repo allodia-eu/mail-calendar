@@ -110,6 +110,7 @@ extension MailboxModel {
             self.accountPage = nil
         }
         refreshAccountPage()
+        refreshAllodiaDevices()
         refreshServerChanges()
         refreshSeparateServers()
         refreshSetupLinks()

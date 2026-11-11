@@ -22,12 +22,6 @@ use crate::{
 pub(crate) struct BootedApp {
     pub(crate) app: Arc<MailcalApp>,
     pub(crate) secrets: Option<Arc<SecretStore>>,
-    /// Whether this launch may keep its account list in step with the person's other devices.
-    ///
-    /// False for the in-memory demo and showcase, which have no accounts worth syncing, and for a
-    /// dev-account launch, whose accounts belong to the local test server; sending those up would
-    /// put a harness mailbox on the developer's own phone.
-    pub(crate) syncable: bool,
 }
 
 impl std::fmt::Debug for BootedApp {
@@ -109,17 +103,29 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
             // After the core: it has logged these as left out and raised this launch's notice, and
             // its logger is now in place.
             forget_cut_short(&secrets, &stored.cut_short);
+            // Where this device remembers what it has synced with the account service, beside the
+            // engine store; installing it is what lets the core keep the account list in step
+            // with the person's other devices. Only here: a dev launch's accounts belong to the
+            // local test server, and sending those up would put a harness mailbox on the
+            // developer's own phone. A store that cannot be read leaves syncing off for this
+            // launch rather than starting from nothing, which would re-adopt every record and
+            // re-offer every account.
+            if let Err(error) = app.use_allodia_sync_state_store(Box::new(
+                crate::allodia_sync_store::FileSyncStateStore::in_data_dir(&data_dir(None)),
+            )) {
+                log::warn!(
+                    "allodia: the sync state could not be read ({error}); not syncing this launch"
+                );
+            }
             Ok(BootedApp {
                 app,
                 secrets: Some(secrets),
-                syncable: true,
             })
         }
         #[cfg(debug_assertions)]
         BootMode::Demo => Ok(BootedApp {
             app: MailcalApp::new_demo(observer, logger, log_level, timezone),
             secrets: None,
-            syncable: false,
         }),
         // In-memory and offline, so it needs neither a data directory nor a credential store,
         // and must not be handed one, because nothing a screenshot run does should reach the
@@ -150,7 +156,6 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 )
             },
             secrets: None,
-            syncable: false,
         }),
         #[cfg(debug_assertions)]
         BootMode::StalwartJmap => {
@@ -167,11 +172,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-                syncable: false,
-            })
+            Ok(BootedApp { app, secrets })
         }
         // Its own store (`dev-multi`), like every other fixture: two harness accounts sharing the
         // single-account store would leave bob's mail behind in it for the next `stalwart` boot.
@@ -192,11 +193,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-                syncable: false,
-            })
+            Ok(BootedApp { app, secrets })
         }
         #[cfg(debug_assertions)]
         BootMode::StalwartImap => {
@@ -214,11 +211,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-                syncable: false,
-            })
+            Ok(BootedApp { app, secrets })
         }
         #[cfg(debug_assertions)]
         BootMode::StalwartLinked => {
@@ -238,11 +231,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-                syncable: false,
-            })
+            Ok(BootedApp { app, secrets })
         }
     }
 }
@@ -272,15 +261,6 @@ fn real_app(
     // The DNS setup uses, kept so a calendar server found through an SRV record can be looked
     // for again when it stops answering.
     app.set_dns_resolver(Box::new(crate::ui::dns::NativeResolver));
-    // Where this device remembers what it has synced with the account service, beside the engine
-    // store so a dev launch's bookkeeping is isolated with the accounts it describes. A store that
-    // cannot be read leaves syncing off for this launch rather than starting from nothing, which
-    // would re-adopt every record and re-offer every account.
-    if let Err(error) = app.use_allodia_sync_state_store(Box::new(
-        crate::allodia_sync_store::FileSyncStateStore::in_data_dir(&data_dir),
-    )) {
-        log::warn!("allodia: the sync state could not be read ({error}); not syncing this launch");
-    }
     Ok(app)
 }
 

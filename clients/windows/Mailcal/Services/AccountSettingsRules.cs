@@ -83,8 +83,7 @@ internal static class AccountSettingsRules
     /// <summary>
     /// What the page compares to decide whether a core signal changed anything on it: every field
     /// of every entry, and <paramref name="drawnBeside"/>,
-    /// what else the page draws from other calls (which accounts have a mailbox listed, how each
-    /// is shared). A signal that changed none of it leaves the page, and whatever is being typed
+    /// what else the page draws from other calls (the notices, what the other devices said). A signal that changed none of it leaves the page, and whatever is being typed
     /// on it, alone.
     /// </summary>
     internal static string Fingerprint(AccountsSnapshot snapshot, IEnumerable<string>? drawnBeside = null)
@@ -123,6 +122,10 @@ internal static class AccountSettingsRules
             yield break;
         }
         yield return $"page:{page.Account}";
+        if (page.Sharing is { } sharing)
+        {
+            yield return $"sharing:{sharing.Mode}/{Control(sharing.Control)}/{sharing.Failed}";
+        }
         foreach (var use in page.Uses)
         {
             yield return $"use:{use.Capability}={use.On}/{Control(use.Control)}/{use.Blocked}/{use.Status}/"
@@ -196,6 +199,33 @@ internal static class AccountSettingsRules
         }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
+    }
+
+    /// <summary>What the Accounts category draws from the other devices' card while
+    /// <paramref name="openPage"/> is open, for <see cref="Fingerprint"/>'s <c>drawnBeside</c>: the
+    /// card on the list, and nothing on an account's page, which does not draw it, so a pass
+    /// starting and ending leaves the page alone.</summary>
+    internal static IEnumerable<string> CardFingerprint(AccountPage? openPage, AllodiaDevices? devices) =>
+        openPage is null ? DevicesFingerprint(devices) : [];
+
+    /// <summary>What the other devices' card draws: a pass starting or ending, and a question
+    /// being answered, redraw it.</summary>
+    internal static IEnumerable<string> DevicesFingerprint(AllodiaDevices? devices)
+    {
+        if (devices is null)
+        {
+            yield break;
+        }
+        yield return $"devices:{devices.Checking}/{devices.NothingFound}/{devices.Failure}";
+        foreach (var offer in devices.Offers)
+        {
+            yield return $"offer:{offer.Id}={offer.Email}";
+        }
+        foreach (var question in devices.Questions)
+        {
+            yield return $"question:{question.AccountId}={question.Email}/{question.Elsewhere}/"
+                + $"{Control(question.Keep)}/{question.Failed}";
+        }
     }
 
     private static string Control(ControlState control) => $"{control.Enabled}|{control.Running}";

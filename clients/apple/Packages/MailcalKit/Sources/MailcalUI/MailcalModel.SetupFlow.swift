@@ -20,17 +20,14 @@ extension MailboxModel {
     /// Setup moves on to what the account is used for when its JMAP session offers a choice, to a
     /// password for the calendar or contacts server when the account's sign-in did not reach it,
     /// then to the link step when another account can fill something
-    /// this one lacks, back to the step an "Add another account" left, or closes. The pass to the
-    /// person's other devices belongs to every route rather than to the form: an account added
-    /// without one stays on this device until the next launch, and its page draws no sharing
-    /// control.
+    /// this one lacks, back to the step an "Add another account" left, or closes. The core tells
+    /// the person's other devices of the account itself, whichever route added it.
     ///
     /// `account` is the row the add returned, when the route has it. A route with none ends the
     /// flow without asking a name, rather than guessing which account it just added.
     func accountWasAdded(_ account: AccountRow? = nil) {
         setupError = nil
         setupExistingAccount = nil
-        syncAfterAccountChange()
         refreshAccountsSnapshot()
         guard let account else {
             finishSetup()

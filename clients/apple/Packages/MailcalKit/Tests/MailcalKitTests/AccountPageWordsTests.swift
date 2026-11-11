@@ -113,6 +113,34 @@ private func toggle(
                 == L10n.settings_account_servers_gap(field: L10n.setup_field_smtp()))
     }
 
+    @Test func aSharingChangeThatDidNotTakeIsSaidForWhy() {
+        #expect(AccountSettingsLabels.sharingFailed(.unavailable) == L10n.settings_account_sync_failed())
+        #expect(AccountSettingsLabels.sharingFailed(.needsReauth) == L10n.settings_allodia_reauth())
+        #expect(
+            AccountSettingsLabels.sharingFailed(.signedOut)
+                == L10n.settings_allodia_signed_out_elsewhere())
+    }
+
+    @Test func eachSharingPositionSaysWhatItDoes() {
+        #expect(AccountSettingsLabels.sharingHint(.on) == L10n.settings_account_sync_on_hint())
+        #expect(AccountSettingsLabels.sharingHint(.paused) == L10n.settings_account_sync_paused_hint())
+        #expect(AccountSettingsLabels.sharingHint(.off) == L10n.settings_account_sync_off_hint())
+    }
+
+    @Test func aQuestionNamesTheAccountAndWhatHappenedToIt() {
+        let ask = { (elsewhere: AllodiaElsewhere) in
+            AllodiaDevicesQuestion(
+                accountId: "a", email: "ada@example.org", elsewhere: elsewhere, keep: .free(),
+                failed: nil)
+        }
+        #expect(
+            AccountSettingsLabels.elsewhere(ask(.changed))
+                == L10n.settings_allodia_changed_elsewhere(email: "ada@example.org"))
+        #expect(
+            AccountSettingsLabels.elsewhere(ask(.removed))
+                == L10n.settings_allodia_removed_elsewhere(email: "ada@example.org"))
+    }
+
     @Test func aHeldControlIsNotEnabledAndKeepsRunning() {
         let running = ControlState(enabled: false, running: true)
         #expect(running.held(true) == running)

@@ -289,8 +289,6 @@ pub(crate) struct AppModel {
     launcher_badge: launcher_badge::LauncherBadge,
     calendar_manager_generation: u64,
     setup: SetupState,
-    /// What this launch knows about the person's other devices, apart from the pass itself.
-    allodia: allodia_sync::AllodiaLaunch,
     /// What the next Settings render should show, and whether it opens the window or only redraws
     /// an open one ([`settings::SettingsState`]).
     settings: settings::SettingsState,

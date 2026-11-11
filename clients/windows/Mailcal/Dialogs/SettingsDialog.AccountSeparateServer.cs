@@ -36,7 +36,6 @@ public sealed partial class SettingsDialog
         {
             _separateOpen = null;
             _separatePassword = string.Empty;
-            _model.SeparateServerOver();
         }
         if (step is null || !use.SignsInSeparately)
         {

@@ -53,9 +53,9 @@ struct AccountPageView: View {
             }
             // Whether this one travels: first, because it decides whether anything below it is
             // anybody else's business (docs/settings.md).
-            if let mode = model.accountsSyncMode[entry.id] {
+            if let sharing = page.sharing {
                 GroupBox {
-                    AccountSyncModePicker(model: model, accountId: entry.id, mode: mode)
+                    AccountSharingControl(model: model, accountId: entry.id, sharing: sharing)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(6)
                 }

@@ -42,6 +42,12 @@ extension MailboxModel {
             calendarWriteStatus = app?.calendarWriteStatus() ?? .idle
             return
         }
+        // A pass over the other devices starting or ending moves only the Accounts card and the
+        // first-run card, which both read `allodiaDevices`; the rest of Settings stays as it is.
+        if case .otherDevices = surface {
+            refreshAllodiaDevices()
+            return
+        }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
         // withdrawn it from the Outbox and joined it to the composition the opening names, so it
         // opens through the same context every composer does: the composer saves over that copy,

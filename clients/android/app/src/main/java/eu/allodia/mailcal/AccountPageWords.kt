@@ -11,6 +11,7 @@ import uniffi.mailcal_bindings.AccountLinkedFrom
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountUseSwitch
+import uniffi.mailcal_bindings.AllodiaSyncFailure
 import uniffi.mailcal_bindings.LinkedAccount
 import uniffi.mailcal_bindings.UseProblem
 
@@ -183,4 +184,14 @@ internal fun refusalSaid(ctx: Context, refusal: AccountChangeRefusal): String = 
     AccountChangeRefusal.BrowserNotOpened -> L10n.account_signin_browser_failed(ctx)
     AccountChangeRefusal.NotFinished -> L10n.account_signin_timeout(ctx)
     is AccountChangeRefusal.Other -> refusal.detail
+}
+
+/**
+ * Why a change to how an account is shared did not take, under its control and under a question
+ * about it: the sign-in's health, never the failure's text.
+ */
+internal fun sharingFailedText(ctx: Context, failure: AllodiaSyncFailure): String = when (failure) {
+    AllodiaSyncFailure.UNAVAILABLE -> L10n.settings_account_sync_failed(ctx)
+    AllodiaSyncFailure.NEEDS_REAUTH -> L10n.settings_allodia_reauth(ctx)
+    AllodiaSyncFailure.SIGNED_OUT -> L10n.settings_allodia_signed_out_elsewhere(ctx)
 }

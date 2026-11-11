@@ -80,6 +80,7 @@ pub(crate) fn page(
         .count();
     AccountPage {
         account: entry.id.clone(),
+        sharing: None,
         uses,
         links: link_pickers(entry)
             .into_iter()
