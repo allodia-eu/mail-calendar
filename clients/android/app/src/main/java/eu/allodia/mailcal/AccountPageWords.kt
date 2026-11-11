@@ -7,9 +7,11 @@ import android.content.Context
 import uniffi.mailcal_bindings.AccountCapability
 import uniffi.mailcal_bindings.AccountChangeNotice
 import uniffi.mailcal_bindings.AccountChangeRefusal
+import uniffi.mailcal_bindings.AccountLinkedFrom
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountUseSwitch
+import uniffi.mailcal_bindings.LinkedAccount
 import uniffi.mailcal_bindings.UseProblem
 
 /**
@@ -94,6 +96,21 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
         L10n.settings_account_change_failed_title(ctx),
         refusalSaid(ctx, notice.refusal),
     )
+    is AccountChangeNotice.StopLinkingFailed -> AccountNotice(
+        NoticeKind.FAILURE,
+        L10n.settings_account_change_failed_title(ctx),
+        refusalSaid(ctx, notice.refusal),
+    )
+    is AccountChangeNotice.SignedInSeparately -> AccountNotice(
+        NoticeKind.EXPLANATION,
+        L10n.settings_account_signed_in_separately_title(ctx),
+        byUses(
+            notice.uses,
+            L10n.settings_account_signed_in_separately_calendar(ctx),
+            L10n.settings_account_signed_in_separately_contacts(ctx),
+            L10n.settings_account_signed_in_separately_both(ctx),
+        ),
+    )
     is AccountChangeNotice.PasswordFailed -> AccountNotice(
         NoticeKind.FAILURE,
         L10n.settings_account_change_failed_title(ctx),
@@ -113,6 +130,41 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
     // Not a failure of the app: the address is the person's to check.
     is AccountChangeNotice.SharedMailboxNotFound ->
         AccountNotice(NoticeKind.WARNING, "", L10n.settings_account_shared_not_found(ctx))
+}
+
+/** One of three wordings, as [uses] holds the calendar, the address book or both. */
+private fun byUses(uses: List<AccountCapability>, calendar: String, contacts: String, both: String): String {
+    val withCalendar = AccountCapability.CALENDAR in uses
+    val withContacts = AccountCapability.CONTACTS in uses
+    return when {
+        withCalendar && withContacts -> both
+        withContacts -> contacts
+        else -> calendar
+    }
+}
+
+/** Beneath a use a link fills: the account it comes from. */
+internal fun linkedNote(ctx: Context, linked: LinkedAccount): String =
+    L10n.settings_account_use_linked(ctx, accountName(ctx, linked))
+
+/** Beneath an account taking a use from this one: what it takes. */
+internal fun linkedFromLine(ctx: Context, linked: AccountLinkedFrom): String = byUses(
+    linked.uses,
+    L10n.settings_account_linked_from_calendar(ctx),
+    L10n.settings_account_linked_from_contacts(ctx),
+    L10n.settings_account_linked_from_both(ctx),
+)
+
+/** What stopping the links with [linked] does, said before it is confirmed. */
+internal fun stopLinkingMessage(ctx: Context, linked: AccountLinkedFrom): String {
+    val message = byUses(
+        linked.uses,
+        L10n.settings_account_stop_linking_calendar(ctx),
+        L10n.settings_account_stop_linking_contacts(ctx),
+        L10n.settings_account_stop_linking_both(ctx),
+    )
+    if (linked.leavesWithout.isEmpty()) return message
+    return message + " " + L10n.settings_account_stop_linking_left_without(ctx)
 }
 
 /**

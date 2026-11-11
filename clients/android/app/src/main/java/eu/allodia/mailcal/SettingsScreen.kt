@@ -334,24 +334,28 @@ private fun CategoryRow(category: SettingsCategory, onOpen: () -> Unit) {
 }
 
 
-// A single settings group: a card with a heading, a one-line description, and its control(s).
-// Mirrors the macOS SettingsView's settingsGroup GroupBox. Internal: the Diagnostics screen
-// (DiagnosticsScreen.kt) shares it so its cards read as part of the same settings surface.
+// A single settings group: a card with a heading, a one-line description where it has one, and its
+// control(s). Mirrors the macOS SettingsView's settingsGroup GroupBox. Internal: the Diagnostics
+// screen (DiagnosticsScreen.kt) shares it so its cards read as part of the same settings surface.
 @Composable
 internal fun SettingsGroupCard(
     heading: String,
-    description: String,
+    description: String?,
     content: @Composable () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(heading, style = MaterialTheme.typography.titleMedium)
-            Text(
-                description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
-            )
+            if (description != null) {
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
+                )
+            } else {
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             content()
         }
     }
