@@ -22,6 +22,7 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::Calendar => AppSurface::Calendar,
         Surface::Settings => AppSurface::Settings,
         Surface::OtherDevices => AppSurface::OtherDevices,
+        Surface::AccountPage => AppSurface::AccountPage,
         Surface::Reading => AppSurface::Reading,
         Surface::Sending => AppSurface::Sending,
         Surface::SyncProgress => AppSurface::SyncProgress,

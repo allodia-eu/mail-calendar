@@ -144,7 +144,6 @@ internal fun MainActivity.connect(
                 // a notice, pulled once below so it shows before any surface signal fires.
                 connected.dispatch(Intent.ReportDeviceTimeZone(deviceZone))
                 activity.timeZone = connected.timezoneSettings()
-                activity.syncSettings = connected.syncSettings()
                 activity.quoteSettings = connected.quoteSettings()
                 activity.swipeSettings = connected.swipeSettings()
                 activity.defaultSendAccount = connected.defaultSendAccount()
@@ -237,7 +236,6 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.connectError = null
             connected.dispatch(Intent.ReportDeviceTimeZone(deviceZone))
             activity.timeZone = connected.timezoneSettings()
-            activity.syncSettings = connected.syncSettings()
             activity.quoteSettings = connected.quoteSettings()
             activity.swipeSettings = connected.swipeSettings()
             activity.defaultSendAccount = connected.defaultSendAccount()

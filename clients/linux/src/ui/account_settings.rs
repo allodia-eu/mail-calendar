@@ -112,7 +112,7 @@ impl AppModel {
         }
     }
 
-    /// The core's settings signal, for the account pages: what a change came to, said once, and
+    /// The core's settings and account-page signals: what a change came to, said once, and
     /// the list again once the account on screen is gone.
     pub(super) fn account_work_signalled(&mut self) {
         let Some(app) = self.app.clone() else {

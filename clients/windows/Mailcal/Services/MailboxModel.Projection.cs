@@ -49,6 +49,14 @@ public sealed partial class MailboxModel
             OtherDevicesChanged?.Invoke();
             return;
         }
+        // A change on an account's page started, waited or ended, or a server answered what the
+        // page asked: only what draws the accounts and their pages reads it again. What a change
+        // stores raises Surface.Settings besides.
+        if (changed == Surface.AccountPage)
+        {
+            RaiseAccountsChanged();
+            return;
+        }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
         // mailbox projection (the post-send refresh fires its own MailboxList signal).
         if (changed == Surface.Sending)

@@ -38,7 +38,7 @@ impl Way {
 
 #[uniffi::export]
 impl MailcalApp {
-    /// The browser sign-in out, or `None`. Read again after every `Surface::Settings` signal. A
+    /// The browser sign-in out, or `None`. Read again after every `Surface::AccountPage` signal. A
     /// client opens the browser at `BrowserSignInStage::InBrowser`'s `url` once for each
     /// attempt, listens at its `redirect_uri`, and hands back what the browser did as
     /// `AccountPageIntent::SignInBrowserEnded`.
@@ -445,9 +445,10 @@ impl MailcalApp {
         }
     }
 
-    /// The sign-in moved: the pages and the notices that draw it are read again.
+    /// The sign-in moved: the pages and the notices that draw it are read again. What it stores
+    /// signals `Surface::Settings` as it stores it.
     fn signal_sign_in(&self) {
-        self.app.accounts_changed();
+        self.app.account_page_changed();
         self.app.signal_notices();
     }
 }

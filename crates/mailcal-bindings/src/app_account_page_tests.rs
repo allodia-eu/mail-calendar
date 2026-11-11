@@ -9,7 +9,7 @@ use std::{
 
 use crate::{
     AccountCapability, AccountChangeNotice, AccountCredentialStore, AccountPage, AccountPageIntent,
-    AccountUseBlock, CredentialStoreError, Intent, LogLevel, MailcalApp,
+    AccountUseBlock, CredentialStoreError, Intent, LogLevel, MailcalApp, Surface,
     tests::{
         ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
     },
@@ -49,7 +49,15 @@ fn app(name: &str, config: &str) -> Arc<MailcalApp> {
 }
 
 fn app_over(name: &str, config: &str, store: Box<dyn AccountCredentialStore>) -> Arc<MailcalApp> {
-    let (tx, _rx) = mpsc::channel();
+    app_signalling(name, config, store, mpsc::channel().0)
+}
+
+fn app_signalling(
+    name: &str,
+    config: &str,
+    store: Box<dyn AccountCredentialStore>,
+    tx: mpsc::Sender<Surface>,
+) -> Arc<MailcalApp> {
     MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
@@ -107,6 +115,72 @@ fn a_switch_runs_and_the_page_shows_what_it_came_to() {
     assert!(!calendar(&page).on);
     assert!(calendar(&page).control.enabled, "the page is free again");
     assert_eq!(page.notice, None, "a change that worked says nothing");
+}
+
+/// The signals `app` raised by the time a change dispatched now has ended.
+fn signals_of(
+    app: &MailcalApp,
+    rx: &mpsc::Receiver<Surface>,
+    intent: AccountPageIntent,
+) -> Vec<Surface> {
+    settled(app);
+    // What booting raised is not this change's.
+    std::thread::sleep(Duration::from_millis(200));
+    rx.try_iter().for_each(drop);
+    app.dispatch(Intent::AccountPage { intent });
+    settled(app);
+    std::thread::sleep(Duration::from_millis(200));
+    rx.try_iter().collect()
+}
+
+#[test]
+fn a_change_only_the_page_draws_moves_the_page_alone_and_one_stored_for_others_moves_settings() {
+    let (tx, rx) = mpsc::channel();
+    let app = app_signalling(
+        "account-page-signals",
+        WITH_CALENDAR,
+        Box::new(RecordingStoreHandle(Arc::new(
+            RecordingCredentialStore::default(),
+        ))),
+        tx,
+    );
+    let page_only = signals_of(
+        &app,
+        &rx,
+        AccountPageIntent::SetReplyFallback {
+            account: ID.to_owned(),
+            choice: crate::ReplyFallbackChoice::Always,
+        },
+    );
+    let pages = |signals: &[Surface]| {
+        signals
+            .iter()
+            .filter(|surface| matches!(surface, Surface::AccountPage))
+            .count()
+    };
+    let settings = |signals: &[Surface]| {
+        signals
+            .iter()
+            .any(|surface| matches!(surface, Surface::Settings))
+    };
+    // At least: a server the page asked how the account signs in may answer meanwhile.
+    assert!(
+        pages(&page_only) >= 2,
+        "the page is redrawn as the change starts and as it ends"
+    );
+    assert!(!settings(&page_only), "nothing outside the page moved");
+
+    let stored = signals_of(
+        &app,
+        &rx,
+        AccountPageIntent::SetUse {
+            account: ID.to_owned(),
+            capability: AccountCapability::Calendar,
+            on: false,
+        },
+    );
+    assert!(pages(&stored) >= 2);
+    assert!(settings(&stored), "the accounts every screen reads moved");
 }
 
 #[test]

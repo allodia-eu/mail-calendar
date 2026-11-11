@@ -20,8 +20,8 @@ pub struct SizeChange {
 impl<P: Provider> App<P> {
     /// Sets an account's message-size cap (its explicit per-account override) as a megabyte
     /// count (`0` = no limit), leaving its strategy / folders / interval / depth untouched.
-    /// Persists and signals [`Surface::Settings`](crate::Surface::Settings). This only changes the
-    /// stored setting; user-facing changes go through
+    /// Persists and signals [`Surface::AccountPage`](crate::Surface::AccountPage). This only
+    /// changes the stored setting; user-facing changes go through
     /// [`update_account_message_size_limit`](Self::update_account_message_size_limit), which
     /// acts on the mail already cached.
     pub async fn set_account_message_size_limit(&self, id: &str, megabytes: u16) {

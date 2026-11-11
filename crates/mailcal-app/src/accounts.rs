@@ -323,6 +323,12 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::OtherDevices);
     }
 
+    /// Signals [`Surface::AccountPage`]: what runs on an account's page moved, which the binding
+    /// layer runs and this layer does not see.
+    pub fn account_page_changed(&self) {
+        self.observer.surface_changed(Surface::AccountPage);
+    }
+
     /// Signals [`Surface::Settings`] after a change to what an account is used for or links to,
     /// which the binding layer stores and this layer does not see.
     pub fn accounts_changed(&self) {

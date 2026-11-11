@@ -33,10 +33,9 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A write-status signal only moves the small header badge (spinner → check /
         // warning); the grid/agenda arrive on their own CALENDAR signal.
         CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()
-        // A settings change refreshes the per-account sync-behaviour screen and the
-        // default quote style.
+        // A setting read outside an account's page moved: the composing, swipe, display and
+        // signature preferences, and the accounts every screen reads.
         CoreSurface.SETTINGS -> {
-            syncSettings = app.syncSettings()
             quoteSettings = app.quoteSettings()
             swipeSettings = app.swipeSettings()
             defaultSendAccount = app.defaultSendAccount()
@@ -44,6 +43,13 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             signatures = app.signatures()
             // Every account, mail or not: adding, removing, linking and signing one in again all
             // raise this signal (docs/accounts.md rule 11).
+            refreshAccountsSnapshot()
+            refreshSeparate()
+        }
+        // A change on an account's page started, waited or ended, or a server answered what the
+        // page asked: the page, the list and the questions it shares with other screens are read
+        // again, and nothing else moves. What a change stores raises SETTINGS besides.
+        CoreSurface.ACCOUNT_PAGE -> {
             refreshAccountsSnapshot()
             refreshSeparate()
             // An account's browser sign-in moved: its browser opens once the core waits on it.

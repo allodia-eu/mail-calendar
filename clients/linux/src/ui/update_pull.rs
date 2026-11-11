@@ -71,6 +71,15 @@ impl AppModel {
                 self.refresh_link_step();
                 self.server_change_signalled();
             }
+            // A change on an account's page started, waited or ended, or a server answered what
+            // the page asked: the pages and the list read it again, what the change came to is
+            // said, and the questions it shares with other screens follow. Nothing else moves.
+            Surface::AccountPage => {
+                self.settings.signalled();
+                self.account_work_signalled();
+                self.server_change_signalled();
+                self.refresh_onboarding_card();
+            }
             // A pass over the person's other devices started or ended: only their card moves, on
             // the Accounts list and on the first-run card.
             Surface::OtherDevices => {

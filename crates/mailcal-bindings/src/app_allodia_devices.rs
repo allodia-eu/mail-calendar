@@ -12,7 +12,7 @@ use crate::{
 impl MailcalApp {
     /// What Settings → Accounts draws above the accounts about the person's other devices; `None`
     /// when there is nothing to say, or nobody is signed in to an Allodia account. Read again
-    /// after every `Surface::Settings` signal.
+    /// after every `Surface::OtherDevices` and `Surface::AccountPage` signal.
     #[must_use]
     pub fn allodia_devices(&self) -> Option<AllodiaDevices> {
         if !self.shares_with_other_devices() {

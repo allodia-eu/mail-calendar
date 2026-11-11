@@ -104,9 +104,10 @@ pub(super) fn wait_for_open_list(
         != Some(&open)
     {
         let again = sender.clone();
+        // Asked as the account pages' signal, which redraws Accounts and reloads nothing else.
         open.connect_closed(move |_| {
             again.emit(crate::ui::AppInput::SurfaceChanged(
-                mailcal_bindings::Surface::Settings,
+                mailcal_bindings::Surface::AccountPage,
             ));
         });
         *waiting_on = Some(open.downgrade());

@@ -58,7 +58,7 @@ impl MailcalApp {
             let options = app.account_sign_in_options(account.clone());
             // An answer the page already draws changes nothing on it.
             if app.account_work.sign_in.answered(&account, ticket, options) {
-                app.app.accounts_changed();
+                app.app.account_page_changed();
             }
         });
     }

@@ -22,7 +22,7 @@ internal fun MainActivity.refreshAccountsSnapshot() {
     val snapshot = instance.accountsSnapshot()
     accountSettings.snapshot = snapshot
     // Read here too: each Keep on their card runs as a change on its account's page, which
-    // signals the list; a pass starting or ending signals only OTHER_DEVICES.
+    // signals ACCOUNT_PAGE; a pass starting or ending signals only OTHER_DEVICES.
     allodiaDevices = instance.allodiaDevices()
     val any = snapshot.accounts.isNotEmpty()
     if (!any && accountSettings.hadAccounts) {

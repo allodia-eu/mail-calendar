@@ -32,11 +32,14 @@ impl AppModel {
                 self.pull(&surface);
                 // A separate server's form follows the core's section, and goes on once it is
                 // over; going on may need to send.
-                if matches!(surface, Surface::Settings | Surface::Notices) {
+                if matches!(
+                    surface,
+                    Surface::Settings | Surface::AccountPage | Surface::Notices
+                ) {
                     self.separate_signalled(sender.input_sender());
                 }
                 // The browser opens for a sign-in the core now waits on.
-                if matches!(surface, Surface::Settings) {
+                if matches!(surface, Surface::AccountPage) {
                     self.browser_sign_in_signalled(sender.input_sender());
                 }
                 if collect_new_mail {

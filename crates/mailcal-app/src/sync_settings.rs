@@ -150,7 +150,7 @@ fn to_strategy(kind: SyncStrategyKind) -> SyncStrategy {
 
 impl<P: Provider> App<P> {
     /// The per-account synchronisation-behaviour snapshot a host renders (pulled after a
-    /// [`Surface::Settings`] signal): one row per account with its effective strategy,
+    /// [`Surface::AccountPage`] signal): one row per account with its effective strategy,
     /// poll interval, `IDLE` support, and the folder list with push-subscription state.
     /// The bindings' background runtime also reads this to decide what to watch/poll.
     #[must_use]
@@ -191,7 +191,7 @@ impl<P: Provider> App<P> {
 
     /// Switches an account between push and poll. The companion folder set / interval are
     /// preserved from the current effective state, so the user can flip back without
-    /// re-picking. Persists and signals [`Surface::Settings`]. The bindings restart the
+    /// re-picking. Persists and signals [`Surface::AccountPage`]. The bindings restart the
     /// account's background work after this.
     pub async fn set_sync_strategy(&self, id: &str, strategy: SyncStrategyKind) {
         if let Some(entry) = self.strategy_entry(id, strategy).await {
@@ -217,7 +217,7 @@ impl<P: Provider> App<P> {
     }
 
     /// Sets an account's poll interval (snapped to the allowed set), leaving its strategy
-    /// and push folders untouched. Persists and signals [`Surface::Settings`].
+    /// and push folders untouched. Persists and signals [`Surface::AccountPage`].
     pub async fn set_poll_interval(&self, id: &str, minutes: u16) {
         let Some(eff) = self.effective_for(id).await else {
             return;
@@ -238,7 +238,7 @@ impl<P: Provider> App<P> {
     /// ignored; the account's page holds an unwatched folder at the limit as well
     /// ([`mailcal_viewmodel::AccountSyncRow::at_push_limit`]). Toggling implies push, so the
     /// account is set to push (a no-op if it already is). Persists and signals
-    /// [`Surface::Settings`].
+    /// [`Surface::AccountPage`].
     pub async fn set_push_folder(&self, id: &str, folder: &str, subscribed: bool) {
         let Some(eff) = self.effective_for(id).await else {
             return;
@@ -266,7 +266,7 @@ impl<P: Provider> App<P> {
 
     /// Sets an account's sync depth (its explicit per-account override) as a month count
     /// (`0` = all mail), leaving its strategy / folders / interval untouched. Persists and
-    /// signals [`Surface::Settings`]. This only changes the stored setting; user-facing depth
+    /// signals [`Surface::AccountPage`]. This only changes the stored setting; user-facing depth
     /// changes go through [`update_account_sync_depth`](Self::update_account_sync_depth), which
     /// re-snapshots mail under the new window.
     pub async fn set_account_sync_depth(&self, id: &str, months: u16) {
@@ -430,13 +430,13 @@ impl<P: Provider> App<P> {
             .depth_override(id)
     }
 
-    /// Persists one account's settings and signals the settings surface.
+    /// Persists one account's settings and signals its page, the one surface that draws them.
     pub(crate) fn store_entry(&self, id: &str, entry: AccountSyncSettings) {
         self.sync_settings
             .lock()
             .expect("sync-settings mutex poisoned")
             .set_entry(id, entry);
-        self.observer.surface_changed(Surface::Settings);
+        self.observer.surface_changed(Surface::AccountPage);
     }
 }
 

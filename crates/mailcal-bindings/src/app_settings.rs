@@ -12,10 +12,10 @@ use crate::{
 
 #[uniffi::export]
 impl MailcalApp {
-    /// The per-account synchronisation-behaviour settings (pulled after a `Surface::Settings`
-    /// signal): one row per account with its effective strategy (push vs. poll), poll
-    /// interval, whether the server supports IMAP `IDLE`, and the folder list with
-    /// push-subscription state; everything the settings screen renders.
+    /// The per-account synchronisation-behaviour settings: one row per account with its
+    /// effective strategy (push vs. poll), poll interval, whether the server supports IMAP
+    /// `IDLE`, and the folder list with push-subscription state. An account's page draws its
+    /// own row (`MailcalApp::account_page`), read again on a `Surface::AccountPage` signal.
     pub fn sync_settings(&self) -> SyncSettingsSnapshot {
         self.runtime.block_on(|| self.app.sync_settings()).into()
     }
