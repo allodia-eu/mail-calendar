@@ -27,6 +27,17 @@ impl SharedUse {
         }
     }
 
+    /// Whether `listed` is the id of a store the account `parent` is used for besides its own,
+    /// for any use.
+    #[must_use]
+    pub fn opened_by(listed: &str, parent: &str) -> bool {
+        listed.strip_prefix(parent).is_some_and(|rest| {
+            [Self::Mail, Self::Calendar]
+                .into_iter()
+                .any(|kind| rest.starts_with(kind.separator()))
+        })
+    }
+
     /// The name of the table each choice for this use is stored as.
     pub(crate) const fn table(self) -> &'static str {
         match self {

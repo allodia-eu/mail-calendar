@@ -412,11 +412,9 @@ struct Prepared {
     account_errors: Vec<String>,
 }
 
-/// Whether `listed` is the account `id` or a shared mailbox its sign-in opens.
-fn opened_by(listed: &str, id: &str) -> bool {
-    listed
-        .strip_prefix(id)
-        .is_some_and(|rest| rest.is_empty() || rest.starts_with("#shared:"))
+/// Whether `listed` is the account `id` or a shared store its sign-in opens.
+pub(crate) fn opened_by(listed: &str, id: &str) -> bool {
+    listed == id || mailcal_account::SharedUse::opened_by(listed, id)
 }
 
 /// Parses every stored config, builds each account's **one** token source, and registers it; all

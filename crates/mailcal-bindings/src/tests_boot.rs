@@ -290,3 +290,21 @@ pub(crate) fn note_after_boot_dial(
         );
     }
 }
+
+#[test]
+fn an_account_handed_in_twice_takes_every_shared_store_it_opens_with_it() {
+    // The later copy replaces the earlier and its shared stores, which it lists again: a store
+    // left behind would be listed twice.
+    let parent = "alice@jmap:mail.example.org";
+    for child in ["#shared:f", "#shared-calendar:f"] {
+        assert!(
+            crate::boot::opened_by(&format!("{parent}{child}"), parent),
+            "{child}"
+        );
+    }
+    assert!(crate::boot::opened_by(parent, parent));
+    assert!(!crate::boot::opened_by(
+        "alice@jmap:mail.example.org.evil",
+        parent
+    ));
+}
