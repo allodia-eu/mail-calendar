@@ -8,55 +8,43 @@
 //! accounts: one arriving is an account to set up, and that is where somebody looks for it.
 
 use adw::prelude::*;
-use mailcal_bindings::AllodiaGrantHealth;
-
-use super::{PageContext, group};
-use crate::{
-    l10n,
-    ui::{AppInput, mailbox::plain_text_row},
+use mailcal_bindings::{
+    AccountPageIntent, AllodiaAccountSyncMode, AllodiaDevicesQuestion, AllodiaElsewhere,
+    AllodiaSyncFailure,
 };
 
-/// The group, or `None` when there is nothing to say.
-///
-/// That includes before the first pass has run, which must not look like a pass that found
-/// nothing: a heading with an empty list under it claims the other devices hold no accounts, and
-/// this device does not know that yet.
+use super::{PageContext, account_sync_mode, group};
+use crate::{
+    l10n,
+    ui::{AppInput, account_settings::AccountsInput, controls, mailbox::plain_text_row},
+};
+
+/// The group, or `None` when there is nothing to say: before the first pass has answered, which
+/// must not look like a pass that found nothing (a heading over an empty list claims the other
+/// devices hold no accounts, which this device does not know yet), and once one found nothing.
 pub(super) fn allodia_sync(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
-    let state = &ctx.allodia_sync;
-    if !state.checking && state.failure.is_none() && !state.has_something_to_say() {
-        return None;
-    }
+    let devices = ctx.devices.as_ref().filter(|devices| !devices.nothing_found)?;
     let section = group(
         l10n::settings_allodia_sync_heading(),
         l10n::settings_allodia_sync_description(),
     );
-    if state.checking {
+    if devices.checking {
         section.add(&checking_row());
     }
-    if let Some(report) = &state.report {
-        for offer in &report.offers {
-            section.add(&offer_row(&ctx.sender, offer));
-        }
-        // Both of these are questions, and the only answer this device can act on today is "keep
-        // what I have". Applying the other side's settings needs a path for editing a connected
-        // account's server details, which does not exist yet.
-        for change in &report.changed_elsewhere {
-            section.add(&question_row(
-                &ctx.sender,
-                &l10n::settings_allodia_changed_elsewhere(&change.email),
-                &change.account_id,
-            ));
-        }
-        for change in &report.removed_elsewhere {
-            section.add(&question_row(
-                &ctx.sender,
-                &l10n::settings_allodia_removed_elsewhere(&change.email),
-                &change.account_id,
-            ));
+    for offer in &devices.offers {
+        section.add(&offer_row(&ctx.sender, offer));
+    }
+    // The only answer this device can act on is keeping what it has. Applying the other side's
+    // settings needs a path for editing a connected account's server details, which does not
+    // exist yet.
+    for question in &devices.questions {
+        section.add(&question_row(&ctx.sender, question));
+        if let Some(failed) = question.failed {
+            section.add(&account_sync_mode::failed_row(failed));
         }
     }
-    if state.failure.is_some() {
-        add_failure(&section, &ctx.sender, state.health);
+    if let Some(failure) = devices.failure {
+        add_failure(&section, &ctx.sender, failure);
     }
     Some(section)
 }
@@ -71,24 +59,24 @@ pub(super) fn allodia_sync(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
 fn add_failure(
     section: &adw::PreferencesGroup,
     sender: &relm4::Sender<AppInput>,
-    health: AllodiaGrantHealth,
+    failure: AllodiaSyncFailure,
 ) {
-    match health {
+    match failure {
         // An offer, not an error: they are signed in and one feature is asleep. The remedy is the
         // ordinary sign-in, which asks for the full current scope set every time.
-        AllodiaGrantHealth::NeedsReauth => section.add(&reauth_row(
+        AllodiaSyncFailure::NeedsReauth => section.add(&reauth_row(
             sender,
             l10n::settings_allodia_reauth(),
             l10n::settings_allodia_reauth_hint(),
             l10n::settings_allodia_reauth_action(),
         )),
-        AllodiaGrantHealth::SignedOut => section.add(&reauth_row(
+        AllodiaSyncFailure::SignedOut => section.add(&reauth_row(
             sender,
             l10n::settings_allodia_signed_out_elsewhere(),
             l10n::settings_allodia_signed_out_elsewhere_hint(),
             l10n::settings_allodia_sign_in(),
         )),
-        AllodiaGrantHealth::Ok => {
+        AllodiaSyncFailure::Unavailable => {
             section.add(&failure_row(l10n::settings_allodia_sync_unavailable()));
         }
     }
@@ -146,23 +134,32 @@ fn offer_row(
     row
 }
 
-/// An account that moved or went somewhere else, and the one answer this device can act on.
-fn question_row(sender: &relm4::Sender<AppInput>, text: &str, account_id: &str) -> adw::ActionRow {
+/// An account that moved or went somewhere else, and the one answer this device can act on:
+/// keeping what it has, which pauses the account's sharing, as a change on its page.
+fn question_row(
+    sender: &relm4::Sender<AppInput>,
+    question: &AllodiaDevicesQuestion,
+) -> adw::ActionRow {
     let row = plain_text_row();
-    row.set_title(text);
-    let keep = gtk::Button::with_label(l10n::settings_allodia_keep_local());
-    keep.set_valign(gtk::Align::Center);
-    let sender = sender.clone();
-    let account_id = account_id.to_owned();
-    // "Keep what I have" is Paused: the other devices keep the account, and this one stops
-    // exchanging changes about it; which is exactly what the question asked.
-    keep.connect_clicked(move |_| {
-        sender.emit(AppInput::SetAllodiaAccountSyncMode(
-            account_id.clone(),
-            mailcal_bindings::AllodiaAccountSyncMode::Paused,
-        ));
+    row.set_title(&match question.elsewhere {
+        AllodiaElsewhere::Changed => l10n::settings_allodia_changed_elsewhere(&question.email),
+        AllodiaElsewhere::Removed => l10n::settings_allodia_removed_elsewhere(&question.email),
     });
-    row.add_suffix(&keep);
+    let sender = sender.clone();
+    let account = question.account_id.clone();
+    row.add_suffix(&controls::button(
+        l10n::settings_allodia_keep_local(),
+        question.keep,
+        false,
+        move || {
+            sender.emit(AppInput::Accounts(AccountsInput::Change(
+                AccountPageIntent::SetSharing {
+                    account: account.clone(),
+                    mode: AllodiaAccountSyncMode::Paused,
+                },
+            )));
+        },
+    ));
     row
 }
 

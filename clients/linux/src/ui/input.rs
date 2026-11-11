@@ -11,7 +11,6 @@ use mailcal_bindings::{
 use super::{
     allodia::{AllodiaOutcome, AllodiaPrepared},
     allodia_subscription::SubscriptionInput,
-    allodia_sync::AllodiaSyncOutcome,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::ComposerSubmission,
     composer_open::ComposerOpened,
@@ -349,18 +348,9 @@ pub(crate) enum AppInput {
     AllodiaPrepared(u64, Result<Box<AllodiaPrepared>, String>),
     AllodiaSignInFinished(u64, AllodiaOutcome),
     SignOutOfAllodia,
-    /// Ask the account service what the person's other devices hold, and tell it what this one
-    /// holds. Emitted at boot and after a sign-in; never by a timer.
     /// Everything the subscription section asks for, in one variant: it is one screen's
     /// traffic, and every piece of it ends in the same re-read.
     AllodiaSubscription(SubscriptionInput),
-    SyncAllodiaAccounts,
-    AllodiaSyncFinished(AllodiaSyncOutcome),
-    /// Move one account to a sync position.
-    SetAllodiaAccountSyncMode(String, mailcal_bindings::AllodiaAccountSyncMode),
-    AllodiaSyncModeChanged(String, Option<String>),
-    /// Re-read how each account is shared, after the account list changed.
-    ReadAccountsSynced,
     /// The Settings sidebar moved to a page. Records it so a later redraw rebuilds on the
     /// page the person is looking at rather than the one the model last named.
     SettingsCategoryShown(crate::ui::settings::Category),

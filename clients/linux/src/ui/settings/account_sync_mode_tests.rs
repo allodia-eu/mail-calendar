@@ -5,18 +5,35 @@
 //! [`crate::ui::mailbox::tests::rendered_labels`]. Called from the crate's single `gtk::init` test.
 
 use adw::prelude::*;
-use mailcal_bindings::AllodiaAccountSyncMode;
+use mailcal_bindings::{
+    AccountPageIntent, AccountSharing, AllodiaAccountSyncMode, AllodiaSyncFailure, ControlState,
+};
 
 use super::synced_group;
 use crate::{
     l10n,
     ui::{
         AppInput,
+        account_settings::AccountsInput,
+        controls::tests::spins,
         mailbox::tests::{every_row_belongs_to_a_list, rendered_labels},
     },
 };
 
 const ACCOUNT: &str = "someone@example.test";
+
+const FREE: ControlState = ControlState {
+    enabled: true,
+    running: false,
+};
+
+fn sharing(mode: AllodiaAccountSyncMode) -> AccountSharing {
+    AccountSharing {
+        mode,
+        control: FREE,
+        failed: None,
+    }
+}
 
 fn toggles(root: &impl IsA<gtk::Widget>) -> Vec<gtk::ToggleButton> {
     crate::ui::setup_widget_tests::descendants::<gtk::ToggleButton>(root.as_ref())
@@ -51,7 +68,7 @@ pub(crate) fn the_control_offers_three_positions_and_holds_the_one_in_force() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
 
     for mode in EVERY_MODE {
-        let group = synced_group(&sender, ACCOUNT, mode);
+        let group = synced_group(&sender, ACCOUNT, &sharing(mode));
         let shown = rendered_labels(group.upcast_ref::<gtk::Widget>());
         for option in EVERY_MODE {
             assert!(
@@ -86,7 +103,7 @@ pub(crate) fn the_description_explains_only_the_position_in_force() {
             AllodiaAccountSyncMode::Off => l10n::settings_account_sync_off_hint(),
         };
         let shown =
-            rendered_labels(synced_group(&sender, ACCOUNT, mode).upcast_ref::<gtk::Widget>());
+            rendered_labels(synced_group(&sender, ACCOUNT, &sharing(mode)).upcast_ref::<gtk::Widget>());
         assert!(
             shown.iter().any(|text| text == hint),
             "the position in force explains itself: {shown:?}"
@@ -106,22 +123,25 @@ pub(crate) fn choosing_a_position_asks_for_it_once() {
                 continue;
             }
             let (sender, receiver) = relm4::channel::<AppInput>();
-            let group = synced_group(&sender, ACCOUNT, from);
+            let group = synced_group(&sender, ACCOUNT, &sharing(from));
             toggle(&group, label_for(to)).set_active(true);
             // A sentinel behind it, because the channel has no non-blocking read: anything the
             // release emitted is already queued, so what follows the choice tells us how many
             // answers one press produced.
-            sender.emit(AppInput::ReadAccountsSynced);
+            sender.emit(AppInput::CollectNewMail);
 
             match receiver.recv_sync() {
-                Some(AppInput::SetAllodiaAccountSyncMode(account, mode)) => {
+                Some(AppInput::Accounts(AccountsInput::Change(AccountPageIntent::SetSharing {
+                    account,
+                    mode,
+                }))) => {
                     assert_eq!(account, ACCOUNT);
                     assert_eq!(mode, to, "the position pressed is the one asked for");
                 }
                 other => panic!("choosing {to:?} from {from:?} must ask for it, got {other:?}"),
             }
             assert!(
-                matches!(receiver.recv_sync(), Some(AppInput::ReadAccountsSynced)),
+                matches!(receiver.recv_sync(), Some(AppInput::CollectNewMail)),
                 "releasing {from:?} is not a second answer"
             );
         }
@@ -137,16 +157,16 @@ pub(crate) fn choosing_a_position_asks_for_it_once() {
 pub(crate) fn pressing_the_position_already_in_force_asks_for_nothing() {
     for mode in EVERY_MODE {
         let (sender, receiver) = relm4::channel::<AppInput>();
-        let group = synced_group(&sender, ACCOUNT, mode);
+        let group = synced_group(&sender, ACCOUNT, &sharing(mode));
         let held = toggle(&group, label_for(mode));
         assert!(held.is_active(), "it is the one in force");
         held.emit_clicked();
         // A sentinel behind it, because the channel has no non-blocking read: whatever the press
         // emitted must arrive before this, so the sentinel arriving first is the assertion.
-        sender.emit(AppInput::ReadAccountsSynced);
+        sender.emit(AppInput::CollectNewMail);
 
         assert!(
-            matches!(receiver.recv_sync(), Some(AppInput::ReadAccountsSynced)),
+            matches!(receiver.recv_sync(), Some(AppInput::CollectNewMail)),
             "the position already in force is not a change"
         );
     }
@@ -155,6 +175,37 @@ pub(crate) fn pressing_the_position_already_in_force_asks_for_nothing() {
 /// The control lives on a row, and a row belongs in a list or the keyboard skips it.
 pub(crate) fn the_control_is_reachable_from_the_keyboard() {
     let (sender, _receiver) = relm4::channel::<AppInput>();
-    let group = synced_group(&sender, ACCOUNT, AllodiaAccountSyncMode::On);
+    let group = synced_group(&sender, ACCOUNT, &sharing(AllodiaAccountSyncMode::On));
     every_row_belongs_to_a_list(group.upcast_ref::<gtk::Widget>());
+}
+
+/// While a change runs the control spins beside itself, drawn where it is going, and cannot be
+/// pressed; one that did not take says so under it.
+pub(crate) fn a_running_change_spins_and_a_failed_one_says_so() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let running = AccountSharing {
+        mode: AllodiaAccountSyncMode::Paused,
+        control: ControlState {
+            enabled: false,
+            running: true,
+        },
+        failed: None,
+    };
+    let group = synced_group(&sender, ACCOUNT, &running);
+    assert!(spins(&group), "the change runs");
+    assert!(
+        toggles(&group).iter().all(|button| !button.is_sensitive()),
+        "a running control cannot be pressed"
+    );
+    assert!(toggle(&group, label_for(AllodiaAccountSyncMode::Paused)).is_active());
+
+    let failed = AccountSharing {
+        failed: Some(AllodiaSyncFailure::Unavailable),
+        ..sharing(AllodiaAccountSyncMode::On)
+    };
+    let shown = rendered_labels(synced_group(&sender, ACCOUNT, &failed).upcast_ref::<gtk::Widget>());
+    assert!(
+        shown.iter().any(|text| text == l10n::settings_account_sync_failed()),
+        "a change that did not take is said: {shown:?}"
+    );
 }

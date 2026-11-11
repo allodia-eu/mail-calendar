@@ -285,6 +285,48 @@ pub(super) fn picker_row(
     (row, dropdown)
 }
 
+/// A row that picks one of a few `labels` as a linked box of toggle buttons, the GNOME idiom for
+/// one choice among a few (what `AdwToggleGroup` draws). `picked` is told the position the person
+/// picked, and never the one it was drawn with.
+pub(super) fn choice_row(
+    title: &str,
+    labels: &[&str],
+    selected: usize,
+    control: ControlState,
+    picked: impl Fn(usize) + 'static,
+) -> adw::ActionRow {
+    let row = plain_row(title);
+    if let Some(spinner) = spinner(control) {
+        row.add_suffix(&spinner);
+    }
+    let choices = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    choices.add_css_class("linked");
+    choices.set_valign(gtk::Align::Center);
+    choices.set_sensitive(control.enabled);
+    let picked = std::rc::Rc::new(picked);
+    let mut first: Option<gtk::ToggleButton> = None;
+    for (position, label) in labels.iter().enumerate() {
+        let button = gtk::ToggleButton::with_label(label);
+        // One group, so picking one releases the others, and the keyboard treats them as one
+        // choice rather than unrelated switches.
+        match &first {
+            Some(anchor) => button.set_group(Some(anchor)),
+            None => first = Some(button.clone()),
+        }
+        button.set_active(position == selected);
+        let picked = picked.clone();
+        button.connect_toggled(move |button| {
+            // Releasing one raises another, so only the press that selects is told.
+            if button.is_active() && position != selected {
+                picked(position);
+            }
+        });
+        choices.append(&button);
+    }
+    row.add_suffix(&choices);
+    row
+}
+
 /// Asks before a change that deletes something: `action` does it, Cancel does not. `answered` is
 /// told which, however the question goes away.
 pub(super) fn confirm(

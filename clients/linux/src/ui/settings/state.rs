@@ -46,9 +46,6 @@ pub(in crate::ui) struct SettingsState {
     /// The outstanding hop was started from the Allodia notice, which then says a failure itself:
     /// Settings, where `allodia_failure` is drawn, may not be open.
     pub(in crate::ui) allodia_sign_in_from_notice: bool,
-    /// What the person's other devices have to say about their mail accounts. Here for the same
-    /// reason as the two above: a pass outlives several window rebuilds.
-    pub(in crate::ui) allodia_sync: crate::ui::allodia_sync::AllodiaSyncState,
     /// What the subscription section has learned, for the same reason: its read is a network
     /// round trip and its writes are three more.
     pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
@@ -79,7 +76,6 @@ impl Default for SettingsState {
             allodia_sign_in_slow: false,
             allodia_failure: None,
             allodia_sign_in_from_notice: false,
-            allodia_sync: crate::ui::allodia_sync::AllodiaSyncState::default(),
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
             separate: None,
@@ -193,23 +189,14 @@ impl SettingsState {
         self.generation = self.generation.wrapping_add(1);
     }
 
-    /// What the window is rendered from. `accounts_synced` rides along because it lives on the
-    /// model beside this, and the window reads them together.
-    pub(in crate::ui) fn render_state<'a>(
-        &'a self,
-        accounts_synced: &'a std::collections::HashMap<
-            String,
-            mailcal_bindings::AllodiaAccountSyncMode,
-        >,
-    ) -> RenderState<'a> {
+    /// What the window is rendered from.
+    pub(in crate::ui) fn render_state(&self) -> RenderState<'_> {
         RenderState {
             generation: self.generation,
             category: self.category,
             allodia_signing_in: self.allodia_signing_in,
             allodia_failure: self.allodia_failure.as_deref(),
-            allodia_sync: &self.allodia_sync,
             allodia_subscription: &self.allodia_subscription,
-            allodia_accounts_synced: accounts_synced,
             account: self.account.as_deref(),
             separate: self.separate.as_ref(),
             notice: self.notice.as_ref(),

@@ -12,7 +12,7 @@ use gtk::prelude::GtkWindowExt;
 use relm4::{ComponentParts, ComponentSender, SimpleComponent};
 
 use super::{
-    AppInput, AppModel, AppWindow, PrimaryView, SetupState, allodia_sync, calendar::CalendarModel,
+    AppInput, AppModel, AppWindow, PrimaryView, SetupState, calendar::CalendarModel,
     calendar_actions, composer_drafts, connectivity, contacts::ContactsModel,
     host_tasks::HostTasks, launch, launcher_badge, mcp, model, model::ReadingState, notices,
     preferences, runtime_timers, search::SearchState, selection::Selection, settings,
@@ -95,18 +95,12 @@ impl SimpleComponent for AppWindow {
 impl AppModel {
     /// The model over what the core's constructor returned: the core, or why it could not open.
     pub(super) fn open(booted: Result<BootedApp, String>, input: &relm4::Sender<AppInput>) -> Self {
-        let (app, secrets, snapshot, boot_error, allodia_syncable) = match booted {
+        let (app, secrets, snapshot, boot_error) = match booted {
             Ok(booted) => {
                 let snapshot = booted.app.mailbox_list();
-                (
-                    Some(booted.app),
-                    booted.secrets,
-                    snapshot,
-                    None,
-                    booted.syncable,
-                )
+                (Some(booted.app), booted.secrets, snapshot, None)
             }
-            Err(error) => (None, None, model::empty_mailbox(), Some(error), false),
+            Err(error) => (None, None, model::empty_mailbox(), Some(error)),
         };
         // The core installed the log sink on the way through, so GTK's own warnings and criticals
         // now have somewhere to land (crate::crash).
@@ -130,10 +124,6 @@ impl AppModel {
         if !welcome_pending && let Some(app) = &app {
             app.report_app_opened();
         }
-        // What the person's other devices have to say. Through the input queue rather than
-        // inline: the model does not exist yet, and the pass blocks on the network.
-        input.emit(AppInput::SyncAllodiaAccounts);
-        input.emit(AppInput::ReadAccountsSynced);
         let mut setup = SetupState::closed();
         // Whether the card is on offer at all is a property of the build, not of the window, so it
         // is set before either is open. Setting it here rather than beside `open` below is what
@@ -225,10 +215,6 @@ impl AppModel {
             launcher_badge: launcher_badge::LauncherBadge::default(),
             calendar_manager_generation: 0,
             setup,
-            allodia: allodia_sync::AllodiaLaunch {
-                syncable: allodia_syncable,
-                accounts_synced: HashMap::new(),
-            },
             settings: settings::SettingsState::default(),
             host_tasks: HostTasks::new(welcome_pending, flow.setup_after_welcome),
             #[cfg(any(debug_assertions, feature = "dev-harness"))]

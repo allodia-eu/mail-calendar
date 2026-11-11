@@ -9,7 +9,6 @@ use widgets::{choice, dialog_box, group, group_titled, page_box};
 use super::{
     AppInput,
     allodia_subscription::{SubscriptionInput, SubscriptionState},
-    allodia_sync::AllodiaSyncState,
     icons,
 };
 use crate::{l10n, preferences::HostPreferences};
@@ -78,12 +77,9 @@ pub(super) struct RenderState<'a> {
     pub(super) category: Category,
     pub(super) allodia_signing_in: bool,
     pub(super) allodia_failure: Option<&'a str>,
-    pub(super) allodia_sync: &'a AllodiaSyncState,
     /// What the subscription section has learned, for the same reason: a read and a write each
     /// outlive several window rebuilds.
     pub(super) allodia_subscription: &'a SubscriptionState,
-    pub(super) allodia_accounts_synced:
-        &'a std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     /// The form for a sign-in of its own an account's page opened.
@@ -134,18 +130,14 @@ struct PageContext {
     /// window is rebuilt from scratch on every change; a browser hop outlasts several rebuilds.
     allodia_signing_in: bool,
     allodia_failure: Option<String>,
-    /// What the person's other devices have to say, for the same reason.
-    allodia_sync: AllodiaSyncState,
     /// What the subscription section has learned, likewise.
     allodia_subscription: SubscriptionState,
-    /// Where each account stands. Empty in a build with no Allodia sign-in, and the block is then
-    /// absent rather than dead.
-    allodia_accounts_synced:
-        std::collections::HashMap<String, mailcal_bindings::AllodiaAccountSyncMode>,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
     /// The page of the account Accounts shows, read once for the redraw.
     page: Option<mailcal_bindings::AccountPage>,
+    /// What the person's other devices have to say, read with it.
+    devices: Option<mailcal_bindings::AllodiaDevices>,
 }
 
 #[derive(Debug, Default)]
@@ -266,17 +258,17 @@ impl SettingsWindow {
             navigation: navigation.clone(),
             allodia_signing_in: state.allodia_signing_in,
             allodia_failure: state.allodia_failure.map(str::to_owned),
-            allodia_sync: state.allodia_sync.clone(),
             allodia_subscription: state.allodia_subscription.clone(),
-            allodia_accounts_synced: state.allodia_accounts_synced.clone(),
             account: state.account.map(str::to_owned),
             page: None,
+            devices: None,
         };
         // Read before the pages are built, which draw the account's page from it: a change
         // landing in between then reads as one the window has not drawn, and the next signal
         // draws it.
         let drawn = read.unwrap_or_else(|| redraw::drawn(&ctx.app, state.account));
         ctx.page.clone_from(&drawn.1);
+        ctx.devices.clone_from(&drawn.3);
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");

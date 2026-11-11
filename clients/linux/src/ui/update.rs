@@ -38,6 +38,8 @@ impl AppModel {
                 // The browser opens for a sign-in the core now waits on.
                 if matches!(surface, Surface::Settings) {
                     self.browser_sign_in_signalled(sender.input_sender());
+                    // What the other devices said, which the first-run card draws too.
+                    self.refresh_onboarding_card();
                 }
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);
@@ -354,9 +356,6 @@ impl AppModel {
             }
             AppInput::AccountAdded(result) => {
                 self.account_added(result, sender.input_sender());
-                // The account list changed, so the person's other devices should hear about it now
-                // rather than at the next launch. A no-op when nobody is signed in.
-                self.sync_after_account_change(sender.input_sender().clone());
             }
             // The four provider sign-ins, each the same shape: start, cancel, the redirect,
             // the outcome. They are a quarter of this match and reached from nowhere else in it,
@@ -397,29 +396,14 @@ impl AppModel {
                 self.allodia_prepared(attempt, prepared, sender.input_sender().clone());
             }
             AppInput::AllodiaSignInFinished(attempt, outcome) => {
-                self.allodia_sign_in_finished(attempt, outcome, sender.input_sender().clone());
+                self.allodia_sign_in_finished(attempt, outcome);
             }
             AppInput::SignOutOfAllodia => self.sign_out_of_allodia(),
             AppInput::AllodiaSubscription(input) => {
                 self.allodia_subscription_input(input, sender.input_sender().clone());
             }
-            AppInput::SyncAllodiaAccounts => {
-                self.sync_allodia_accounts(sender.input_sender().clone());
-            }
-            AppInput::AllodiaSyncFinished(outcome) => self.allodia_sync_finished(outcome),
-            AppInput::ReadAccountsSynced => self.read_accounts_synced(),
             AppInput::SettingsCategoryShown(category) => {
                 self.settings.record_category(category);
-            }
-            AppInput::SetAllodiaAccountSyncMode(account_id, mode) => {
-                self.set_allodia_account_sync_mode(
-                    &account_id,
-                    mode,
-                    sender.input_sender().clone(),
-                );
-            }
-            AppInput::AllodiaSyncModeChanged(account_id, failure) => {
-                self.allodia_sync_mode_changed(&account_id, failure);
             }
             AppInput::SetUpOfferedAccount(offer) => {
                 self.set_up_offered_account(*offer, sender.input_sender().clone());

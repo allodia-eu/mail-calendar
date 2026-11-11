@@ -267,7 +267,7 @@ impl AppModel {
     /// The mailbox gave its uses to an account of their own, or stopped using them, so the
     /// accounts are read again.
     fn separate_over(&mut self, from: SeparateFrom, sender: relm4::Sender<AppInput>) {
-        self.accounts_changed(sender.clone());
+        self.accounts_changed();
         match from {
             SeparateFrom::Setup => self.leave_separate_step(sender),
             SeparateFrom::Page => {
@@ -278,12 +278,11 @@ impl AppModel {
     }
 
     /// The mailbox gave uses to an account of their own: the accounts are read again.
-    pub(super) fn accounts_changed(&mut self, sender: relm4::Sender<AppInput>) {
+    pub(super) fn accounts_changed(&mut self) {
         if let Some(app) = &self.app {
             self.snapshot.replace(app.mailbox_list());
         }
         self.pull_notices();
-        self.sync_after_account_change(sender);
     }
 
     /// On from setup's step, when it is on screen, to the link step that comes after it.
