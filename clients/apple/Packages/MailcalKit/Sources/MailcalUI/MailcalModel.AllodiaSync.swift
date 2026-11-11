@@ -23,7 +23,8 @@ extension MailboxModel {
     }
 
     /// Reads what the other devices have to say again, publishing it only when it changed. Called
-    /// on every Settings signal, which the core raises when a pass starts and when it ends.
+    /// on an OtherDevices signal, which the core raises when a pass starts and when it ends, and on
+    /// every Settings signal, which a Keep and a sign-in or sign-out raise.
     func refreshAllodiaDevices() {
         let fresh = app?.allodiaDevices()
         if fresh != allodiaDevices { allodiaDevices = fresh }
