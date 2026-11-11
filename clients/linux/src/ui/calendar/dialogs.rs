@@ -73,6 +73,7 @@ fn present_editor(
     form.set_margin_top(18);
     form.set_margin_bottom(24);
     let title = entry(l10n::event_title_label(), &editor.title);
+    title.set_widget_name("event-title");
     form.append(&title);
     // The caret opens where the work starts; the empty title on a new event, the same rule the
     // composer's To follows (docs/calendar.md, docs/contacts.md §4). Not on edit: the event already

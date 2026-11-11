@@ -55,7 +55,10 @@ pub(super) fn open_button(
     glyph: &impl IsA<gtk::Widget>,
     activate: impl Fn() + 'static,
 ) -> gtk::Button {
-    glyph_button(glyph, crate::l10n::action_open(), activate)
+    let button = glyph_button(glyph, crate::l10n::action_open(), activate);
+    // Its name is an accessible label, which nothing but assistive technology can read back.
+    button.set_widget_name("row-open");
+    button
 }
 
 /// A navigation row: its `icon` leads it, under the row's own `name`, and goes there.

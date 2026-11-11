@@ -111,6 +111,7 @@ impl AppWidgets {
         messages.set_selection_mode(gtk::SelectionMode::Multiple);
         messages.add_css_class("boxed-list");
         messages.update_property(&[AccessibleProperty::Label(l10n::a11y_message_list())]);
+        messages.set_widget_name("message-list");
         selection_gesture(&messages, &sender);
         selection_keys(&messages, &sender);
         let command_bar = CommandBarRow::new(&sender);
