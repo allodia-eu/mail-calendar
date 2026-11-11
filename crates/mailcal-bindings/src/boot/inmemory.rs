@@ -100,7 +100,7 @@ pub(crate) fn build_demo(
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         #[cfg(feature = "allodia-license")]
         allodia_entitlement: crate::allodia_entitlement::EntitlementState::default(),
-        allodia_sync: Mutex::new(None),
+        allodia_sync: crate::allodia_devices::Devices::default(),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The demo connects no real accounts, so nothing is ever disconnected.
@@ -342,7 +342,7 @@ fn finish_showcase(
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         #[cfg(feature = "allodia-license")]
         allodia_entitlement: crate::allodia_entitlement::EntitlementState::default(),
-        allodia_sync: Mutex::new(None),
+        allodia_sync: crate::allodia_devices::Devices::default(),
         allodia: Mutex::new(None),
         credential_store: Arc::new(crate::credential_store::NoStoredCredentials),
         // The showcase connects no real accounts, so nothing is ever disconnected.

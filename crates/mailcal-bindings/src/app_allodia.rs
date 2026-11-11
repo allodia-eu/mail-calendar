@@ -265,6 +265,9 @@ impl MailcalApp {
             }
             log::info!("allodia: signed in; the grant is stored");
             self.refresh_allodia_entitlement();
+            // What the other devices said was said to the sign-in this one replaces.
+            self.allodia_sync.new_session();
+            self.request_allodia_pass();
             Ok(account)
         }
     }
@@ -309,6 +312,10 @@ impl MailcalApp {
             return Ok(None);
         };
         let end_session = stored.end_session_endpoint.clone();
+        // Nothing the other devices said is anybody's here any more, and a pass still running
+        // says nothing when it ends.
+        self.allodia_sync.new_session();
+        self.app.accounts_changed();
         // Same rule as the sign-in above: the grant is gone, so nothing minted from it may be
         // presented again. A signed-out device holding a live token is one that goes on making
         // authenticated requests for as long as the token lasts.

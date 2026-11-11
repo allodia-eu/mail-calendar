@@ -80,6 +80,7 @@ impl MailcalApp {
             servers.sign_in_refused = sign_in_refused;
         }
         page.separate_server = self.separate_section(&account_id, &hold);
+        page.sharing = self.sharing_section(&account_id, &hold);
         self.draw_browser_sign_in(&mut page);
         let separate_after = page
             .separate_server
@@ -213,6 +214,12 @@ impl MailcalApp {
                 if let Ok(id) = engine_api::AccountId::try_from(account.as_str()) {
                     self.app.set_reply_fallback(&id, choice.into());
                 }
+                None
+            }
+            // Said by the page's sharing control and the question it answers, which the card
+            // about the other devices draws too.
+            AccountPageIntent::SetSharing { account, mode } => {
+                self.change_sharing(&account, mode);
                 None
             }
             // The account is gone whatever this answers: an error says its stored credential

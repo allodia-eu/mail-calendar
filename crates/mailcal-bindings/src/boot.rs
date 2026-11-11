@@ -348,7 +348,7 @@ pub(crate) fn build_accounts(
         allodia_purchases: Mutex::new(allodia_license::Ledger::default()),
         #[cfg(feature = "allodia-license")]
         allodia_entitlement: crate::allodia_entitlement::EntitlementState::load(&base),
-        allodia_sync: Mutex::new(None),
+        allodia_sync: crate::allodia_devices::Devices::default(),
         allodia: Mutex::new(allodia),
         credential_store,
         disconnected,

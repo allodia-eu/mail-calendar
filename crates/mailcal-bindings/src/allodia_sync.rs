@@ -93,7 +93,7 @@ pub enum AllodiaAccountSyncMode {
 }
 
 /// One of this device's accounts that the person changed somewhere else.
-#[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AllodiaAccountChange {
     /// This device's id for the account.
     pub account_id: String,
@@ -113,17 +113,16 @@ pub struct AllodiaAccountChange {
 /// Everything this device had to say is already said by the time this is returned: an account the
 /// service had not seen is uploaded, a changed one is pushed, and one it turns out to already hold
 /// is adopted. What comes back is only the part that needs a person: accounts to set up, accounts
-/// that moved somewhere else, accounts removed somewhere else.
-#[derive(uniffi::Record, Debug, Clone, Default, PartialEq, Eq)]
+/// that moved somewhere else, accounts removed somewhere else. Kept by the core
+/// ([`crate::allodia_devices`]), which draws it as [`crate::AllodiaDevices`].
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AllodiaSyncReport {
     /// Accounts from the person's other devices that this one has not got.
     pub offers: Vec<AllodiaAccountOffer>,
     /// This device's accounts whose settings changed elsewhere.
     pub changed_elsewhere: Vec<AllodiaAccountChange>,
-    /// This device's accounts that were removed elsewhere. Removing one here is
-    /// [`MailcalApp::remove_account`](crate::MailcalApp::remove_account), the same call as any
-    /// other removal; keeping it is moving it to
-    /// [`AllodiaAccountSyncMode::Paused`].
+    /// This device's accounts that were removed elsewhere. Removing one here is the same removal
+    /// as any other; keeping it is moving it to [`AllodiaAccountSyncMode::Paused`].
     pub removed_elsewhere: Vec<AllodiaAccountChange>,
     /// How many of this device's accounts this pass sent to the service.
     pub sent: u32,

@@ -1,21 +1,19 @@
-//! The account-sync FFI methods on [`MailcalApp`]. The records they carry are in
-//! [`crate::allodia_sync`]; one pass's worth of work is [`crate::allodia_pass`].
+//! Account sync on [`MailcalApp`]: the bookkeeping, one pass and one sharing change. The records
+//! they carry are in [`crate::allodia_sync`]; one pass's worth of work is [`crate::allodia_pass`],
+//! and when each runs is [`crate::app_allodia_devices`]'s.
 //!
 //! **The bookkeeping store arrives after construction**, unlike the credential store next door.
 //! That store is a constructor parameter because the constructor's last statement starts dialing
-//! and a rotation can land before a host has run a line of its own code. Nothing here runs until
-//! somebody asks: a pass is an explicit call, made long after a person has signed in to an Allodia
-//! account. What a missing store gets is an error rather than a silent fallback: a pass that
-//! quietly remembered nothing would re-offer every account, every time, and read as a service
-//! fault.
+//! and a rotation can land before a host has run a line of its own code. What a missing store gets
+//! is an error rather than a silent fallback: a pass that quietly remembered nothing would
+//! re-offer every account, every time, and read as a service fault.
 //!
-//! **`sync_allodia_accounts` blocks.** It makes a token round trip and one or more requests per
-//! account, so a host calls it off the main thread, exactly as it already does for
-//! `begin_allodia_sign_in`.
+//! **A pass and a sharing change block**: each makes a token round trip and a request per
+//! account, so both run on a thread of their own.
 
 use crate::{
     AllodiaGrantHealth, MailcalApp, MailcalError,
-    allodia_sync::{AllodiaAccountSyncMode, AllodiaSyncReport},
+    allodia_sync::AllodiaAccountSyncMode,
     sync_state::{SyncBookkeeping, SyncStateStore},
 };
 
@@ -41,11 +39,13 @@ impl MailcalApp {
 
 #[uniffi::export]
 impl MailcalApp {
-    /// Installs where this device remembers what it has synced, and reads what is already there.
+    /// Installs where this device remembers what it has synced, reads what is already there, and
+    /// runs a pass when someone is signed in.
     ///
     /// Ordinary preferences rather than the keystore: nothing in the blob is secret, and a
     /// keychain prompt in front of a background pass would be a prompt nobody is there to answer.
-    /// See [`crate::sync_state`].
+    /// See [`crate::sync_state`]. A launch that must not reach the person's other devices (one on
+    /// canned or isolated accounts) installs none, and no pass runs.
     ///
     /// # Errors
     ///
@@ -58,34 +58,9 @@ impl MailcalApp {
     ) -> Result<(), MailcalError> {
         let bookkeeping =
             SyncBookkeeping::load(store).map_err(|err| MailcalError::Config(err.to_string()))?;
-        *self.allodia_sync.lock().expect("allodia sync lock") =
-            Some(std::sync::Arc::new(bookkeeping));
+        self.allodia_sync.install(std::sync::Arc::new(bookkeeping));
+        self.request_allodia_pass();
         Ok(())
-    }
-
-    /// Brings this device's mail-account list and the person's other devices' into step, and says
-    /// what could not be decided without them.
-    ///
-    /// This device's own half is done before this returns: an account the service has not seen is
-    /// uploaded, one changed here is pushed, one the service already holds is adopted. What comes
-    /// back is the part that needs a person.
-    ///
-    /// **Blocking**; call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Config`] when this build carries no Allodia sign-in, nobody is
-    /// signed in, or no bookkeeping store has been installed; [`MailcalError::Connect`] when the
-    /// service could not be reached or refused this device's sign-in.
-    pub fn sync_allodia_accounts(&self) -> Result<AllodiaSyncReport, MailcalError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            crate::app_allodia::unavailable()
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.run_allodia_pass()
-        }
     }
 
     /// What this device knows about its Allodia sign-in; see [`AllodiaGrantHealth`].
@@ -105,66 +80,28 @@ impl MailcalApp {
             self.allodia_health()
         }
     }
+}
 
-    /// How this account is shared with the person's other devices.
-    ///
-    /// Cheap and local: it reads the bookkeeping and never the service, so a client may ask it per
-    /// account while drawing a list. A build with no bookkeeping store answers
-    /// [`AllodiaAccountSyncMode::On`], which is what an account nobody has excluded is.
-    #[must_use]
-    pub fn allodia_account_sync_mode(&self, account_id: String) -> AllodiaAccountSyncMode {
-        let installed = self.allodia_sync.lock().expect("allodia sync lock");
-        let Some(bookkeeping) = installed.as_ref() else {
+impl MailcalApp {
+    /// How this account is shared with the person's other devices, read from the bookkeeping. A
+    /// device keeping none answers [`AllodiaAccountSyncMode::On`], which is what an account
+    /// nobody has excluded is.
+    #[cfg_attr(
+        not(feature = "allodia-license"),
+        expect(dead_code, reason = "only a build that can sign in draws the control")
+    )]
+    pub(crate) fn allodia_account_sync_mode(&self, account_id: &str) -> AllodiaAccountSyncMode {
+        let Some(bookkeeping) = self.allodia_sync.bookkeeping() else {
             return AllodiaAccountSyncMode::On;
         };
-        if !bookkeeping.is_excluded(&account_id) {
+        if !bookkeeping.is_excluded(account_id) {
             // Whether or not a record exists yet: an account waiting for its first pass is On, not
             // a third state.
             AllodiaAccountSyncMode::On
-        } else if bookkeeping.get(&account_id).is_some() {
+        } else if bookkeeping.get(account_id).is_some() {
             AllodiaAccountSyncMode::Paused
         } else {
             AllodiaAccountSyncMode::Off
-        }
-    }
-
-    /// Changes how this account is shared, and does whatever that takes.
-    ///
-    /// Each position is reached in full before this returns; there is no half-applied state for a
-    /// client to draw, and nothing for it to remember to do afterwards:
-    ///
-    /// - **On** puts the account back in the pass, and runs one, so it reaches the other devices
-    ///   now rather than at the next launch.
-    /// - **Paused** needs a record to pause, so an account that has never been sent is sent first.
-    ///   The other devices keep it; this one stops exchanging changes about it.
-    /// - **Off** removes the record, so the other devices are asked whether to drop the account
-    ///   too, and marks it excluded so no later pass puts it straight back.
-    ///
-    /// ⚠️ **Off is the only position that reaches the other devices.** Paused is this device's
-    /// business alone. Neither touches a mailbox or any mail.
-    ///
-    /// **Blocking**; call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Config`] when this build carries no Allodia sign-in, nobody is
-    /// signed in, or no bookkeeping store has been installed; [`MailcalError::Connect`] when the
-    /// service could not be reached, refused this device's sign-in, or refused the change. A
-    /// failure leaves the setting where it was: a control that moved on screen while nothing
-    /// happened is the bug this call exists to make impossible.
-    pub fn set_allodia_account_sync_mode(
-        &self,
-        account_id: String,
-        mode: AllodiaAccountSyncMode,
-    ) -> Result<(), MailcalError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            drop((account_id, mode));
-            crate::app_allodia::unavailable()
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.run_allodia_mode_change(&account_id, mode)
         }
     }
 }
@@ -178,15 +115,11 @@ impl MailcalApp {
     pub(crate) fn allodia_bookkeeping(
         &self,
     ) -> Result<std::sync::Arc<SyncBookkeeping>, MailcalError> {
-        self.allodia_sync
-            .lock()
-            .expect("allodia sync lock")
-            .clone()
-            .ok_or_else(|| {
-                MailcalError::Config(
-                    "no sync state store has been installed for the Allodia account".to_owned(),
-                )
-            })
+        self.allodia_sync.bookkeeping().ok_or_else(|| {
+            MailcalError::Config(
+                "no sync state store has been installed for the Allodia account".to_owned(),
+            )
+        })
     }
 }
 
@@ -203,7 +136,7 @@ mod enabled {
 
     impl MailcalApp {
         /// One pass, from the token to the report.
-        pub(super) fn run_allodia_pass(&self) -> Result<AllodiaSyncReport, MailcalError> {
+        pub(crate) fn run_allodia_pass(&self) -> Result<AllodiaSyncReport, MailcalError> {
             let token = self.allodia_access_token("the account list")?;
             // Asked after the token, because minting one is what learns the grant's scopes on an
             // install that had never recorded them, and asked before the first request, because
@@ -237,31 +170,34 @@ mod enabled {
             Ok(pass.apply(&local, &remote))
         }
 
-        /// Move one account to `mode`, doing whatever that position takes.
+        /// Move one account to `mode`, doing whatever that position takes: **On** puts it back in
+        /// the pass; **Paused** needs a record to pause, so an account never sent is sent first,
+        /// and the other devices keep it while this one stops exchanging changes about it; **Off**
+        /// removes the record, so the other devices are asked whether to drop the account too,
+        /// and marks it excluded so no later pass puts it straight back. ⚠️ Off is the only
+        /// position that reaches the other devices, and none touches a mailbox. A failure leaves
+        /// the setting where it was.
         ///
         /// The order within each arm is the part that matters: nothing is written down here until
         /// the service has agreed, so a pass interrupted anywhere finds a device whose bookkeeping
         /// still describes something true.
-        pub(super) fn run_allodia_mode_change(
+        pub(crate) fn run_allodia_mode_change(
             &self,
             account_id: &str,
             mode: AllodiaAccountSyncMode,
         ) -> Result<(), MailcalError> {
-            if self.allodia_account_sync_mode(account_id.to_owned()) == mode {
+            if self.allodia_account_sync_mode(account_id) == mode {
                 return Ok(());
             }
             let bookkeeping = self.allodia_bookkeeping()?;
             let handle = mailcal_account::account_log_handle(account_id);
             match mode {
+                // The pass that sends it follows the change, as after every change that took.
                 AllodiaAccountSyncMode::On => {
                     bookkeeping
                         .set_excluded(account_id, false)
                         .map_err(|err| MailcalError::Connect(err.to_string()))?;
                     log::info!("allodia: [{handle}] shared with the person's other devices again");
-                    // Now, not at the next launch: somebody has just asked for this and is looking
-                    // at the screen. A pass that cannot run leaves the setting where it now is;
-                    // On, unsent, which is exactly what it is.
-                    self.run_allodia_pass()?;
                 }
                 AllodiaAccountSyncMode::Paused => {
                     // There has to be a record to pause. An account that has never been sent is
@@ -312,6 +248,8 @@ mod enabled {
         /// made. What every failure costs is the same and is logged where it happens: the record
         /// outlives the account and comes back as an offer.
         pub(crate) fn forget_allodia_record(&self, account_id: &str) {
+            self.allodia_sync.forget_account(account_id);
+            let _writing = self.allodia_sync.writing.lock().expect("allodia write lock");
             let Ok(bookkeeping) = self.allodia_bookkeeping() else {
                 return;
             };
