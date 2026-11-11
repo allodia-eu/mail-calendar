@@ -134,7 +134,7 @@ enum AccountSettingsLabels {
         switch block {
         case .lastUse: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
-        case .needsMail: L10n.settings_account_shared_needs_mail()
+        case .needsMailOrCalendar: L10n.settings_account_shared_needs_mail()
         case .notOffered: L10n.settings_account_use_not_offered()
         case .needsServer: L10n.settings_account_use_needs_endpoint()
         }

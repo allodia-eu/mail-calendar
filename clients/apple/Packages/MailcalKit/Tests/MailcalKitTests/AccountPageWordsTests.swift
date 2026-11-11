@@ -25,7 +25,7 @@ private func toggle(
         let said: [(AccountUseBlock, String)] = [
             (.lastUse, L10n.settings_account_use_last()),
             (.needsContacts, L10n.settings_account_colleagues_needs_contacts()),
-            (.needsMail, L10n.settings_account_shared_needs_mail()),
+            (.needsMailOrCalendar, L10n.settings_account_shared_needs_mail()),
             (.notOffered, L10n.settings_account_use_not_offered()),
             (.needsServer, L10n.settings_account_use_needs_endpoint()),
         ]

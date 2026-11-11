@@ -8,26 +8,33 @@ use mailcal_oauth::scopes::{ProviderScopes, ScopeGroup};
 
 use crate::{Capabilities, Capability};
 
-/// The scope group a capability asks for at `provider`, `None` for one it has no scopes for.
-const fn group(provider: &ProviderScopes, capability: Capability) -> Option<&ScopeGroup> {
+/// The scope groups `capability` asks for at `provider` within `capabilities`: none for one it
+/// has no scopes for. Colleagues are asked only beside contacts, because the directory is only
+/// ever read as part of the address book; shared mailboxes and calendars ask for the shared mail
+/// scopes beside mail and the shared calendar scope beside calendar, since each opens that much of
+/// a store.
+fn groups<'a>(
+    provider: &'a ProviderScopes,
+    capabilities: &Capabilities,
+    capability: Capability,
+) -> Vec<&'a ScopeGroup> {
+    let beside = |other| capabilities.contains(other);
     match capability {
-        Capability::Mail => Some(&provider.mail),
-        Capability::Calendar => Some(&provider.calendar),
-        Capability::Contacts => Some(&provider.contacts),
-        Capability::Colleagues => Some(&provider.colleagues),
-        Capability::SharedMailboxes => provider.shared_mailboxes.as_ref(),
-        Capability::Meetings => provider.meetings.as_ref(),
+        Capability::Mail => vec![&provider.mail],
+        Capability::Calendar => vec![&provider.calendar],
+        Capability::Contacts => vec![&provider.contacts],
+        Capability::Colleagues if beside(Capability::Contacts) => vec![&provider.colleagues],
+        Capability::Colleagues => Vec::new(),
+        Capability::SharedMailboxes => [
+            (Capability::Mail, provider.shared_mailboxes.as_ref()),
+            (Capability::Calendar, provider.shared_calendars.as_ref()),
+        ]
+        .into_iter()
+        .filter(|(with, _)| beside(*with))
+        .filter_map(|(_, group)| group)
+        .collect(),
+        Capability::Meetings => provider.meetings.iter().collect(),
     }
-}
-
-/// The uses whose scopes are asked for: colleagues only beside contacts, because the directory
-/// is only ever read as part of the address book, and shared mailboxes only beside mail.
-fn asked(capabilities: &Capabilities) -> impl Iterator<Item = Capability> + '_ {
-    capabilities.iter().filter(|capability| match capability {
-        Capability::Colleagues => capabilities.contains(Capability::Contacts),
-        Capability::SharedMailboxes => capabilities.contains(Capability::Mail),
-        _ => true,
-    })
 }
 
 /// The scopes a sign-in for an account used for `capabilities` requests at `provider`.
@@ -37,8 +44,9 @@ pub fn requested_scopes(provider: &ProviderScopes, capabilities: &Capabilities) 
         .always
         .iter()
         .chain(
-            asked(capabilities)
-                .filter_map(|capability| group(provider, capability))
+            capabilities
+                .iter()
+                .flat_map(|capability| groups(provider, capabilities, capability))
                 .flat_map(|group| group.requested),
         )
         .map(|scope| (*scope).to_owned())
@@ -48,9 +56,11 @@ pub fn requested_scopes(provider: &ProviderScopes, capabilities: &Capabilities) 
 /// The uses in `capabilities` that `granted` does not allow: chosen, asked for, and refused.
 ///
 /// `granted` is `None` for a grant stored before the granted set was recorded, which withholds
-/// nothing until a refresh says otherwise. A use is withheld only when its **needed** scope is
-/// missing; a missing scope that serves one feature within it is refused when that feature is
-/// reached.
+/// nothing until a refresh says otherwise. A use is withheld only when it asks for scopes and
+/// none of their **needed** scopes is held; a missing scope that serves one feature within it is
+/// refused when that feature is reached. So a grant from before shared calendars, holding the
+/// shared mail scope alone, keeps its shared mailboxes, and a store added through it finds no
+/// calendar to open.
 #[must_use]
 pub fn withheld(
     provider: &ProviderScopes,
@@ -60,9 +70,14 @@ pub fn withheld(
     let Some(granted) = granted else {
         return Capabilities::default();
     };
-    asked(capabilities)
+    capabilities
+        .iter()
         .filter(|capability| {
-            group(provider, *capability).is_some_and(|group| !provider.holds(granted, group.needed))
+            let groups = groups(provider, capabilities, *capability);
+            !groups.is_empty()
+                && groups
+                    .iter()
+                    .all(|group| !provider.holds(granted, group.needed))
         })
         .collect()
 }

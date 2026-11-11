@@ -22,8 +22,8 @@ pub enum AccountUseBlock {
     LastUse,
     /// Colleagues, while contacts are off.
     NeedsContacts,
-    /// Shared mailboxes, while mail is off.
-    NeedsMail,
+    /// Shared mailboxes and calendars, while mail and calendar are both off.
+    NeedsMailOrCalendar,
     /// The server offers none.
     NotOffered,
     /// The account has no server for it yet: its address goes in the servers below.
@@ -37,7 +37,9 @@ impl AccountUseBlock {
         match self {
             Self::LastUse => "an account is used for at least one of mail, calendar and contacts",
             Self::NeedsContacts => "colleagues are only read beside contacts",
-            Self::NeedsMail => "shared mailboxes are only opened beside mail",
+            Self::NeedsMailOrCalendar => {
+                "shared mailboxes and calendars are only opened beside mail or calendar"
+            }
             Self::NotOffered => "this account does not offer that",
             Self::NeedsServer => "this account has no server for that",
         }

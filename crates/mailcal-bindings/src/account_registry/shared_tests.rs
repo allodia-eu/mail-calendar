@@ -240,3 +240,56 @@ fn an_imap_account_without_caldav_opens_no_shared_calendar() {
     let [child] = chosen(&registry, &id).try_into().unwrap();
     assert!(registry.dial(child.as_str()).is_none());
 }
+
+#[test]
+fn a_microsoft_account_opens_what_a_store_holds_beside_its_own_uses_while_used_for_them() {
+    let opens = |uses: &str| {
+        let config = mailcal_account::MicrosoftConfig {
+            email: "alice@work.example".to_owned(),
+            client_id: "client-abc".to_owned(),
+            tenant: "common".to_owned(),
+            redirect_uri: "eu.allodia.mailcal://auth".to_owned(),
+            scopes: Vec::new(),
+            refresh_token: Secret::new("refresh".to_owned()),
+            granted_scopes: None,
+            affiliation: None,
+            shape: mailcal_account::AccountShape::read(&format!("capabilities = {uses}")).unwrap(),
+        };
+        let id = config.account_id().unwrap();
+        let tokens = mailcal_account::GraphTokenSource::new(
+            &config,
+            id.clone(),
+            None,
+            mailcal_account::CredentialOrigin::FreshSignIn,
+        )
+        .unwrap();
+        let registry = AccountRegistry::new();
+        let id = id.as_str().to_owned();
+        let _registered =
+            registry.pre_register(id.clone(), ConnectedAccount::Microsoft { config, tokens });
+        let rooms = SharedStoreChoice {
+            handle: SharedAccountId::try_from("rooms@work.example").unwrap(),
+            name: "Rooms".to_owned(),
+            address: Some("rooms@work.example".to_owned()),
+            holds: group(),
+        };
+        registry.set_shared_store(&id, rooms, true);
+        let [child] = chosen(&registry, &id).try_into().unwrap();
+        registry.dial(child.as_str()).map(|dial| {
+            (
+                dial.label().to_owned(),
+                dial.capabilities().iter().collect::<Vec<_>>(),
+            )
+        })
+    };
+    let (label, uses) =
+        opens(r#"["mail", "calendar", "shared_mailboxes"]"#).expect("used for them");
+    assert_eq!(label, "rooms@work.example");
+    assert_eq!(uses, [Capability::Mail, Capability::Calendar]);
+    let (_, uses) = opens(r#"["calendar", "shared_mailboxes"]"#).expect("beside its calendar");
+    assert_eq!(uses, [Capability::Calendar]);
+    assert!(
+        opens(r#"["mail", "calendar"]"#).is_none(),
+        "not used for them"
+    );
+}

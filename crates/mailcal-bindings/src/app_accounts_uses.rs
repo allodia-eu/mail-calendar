@@ -75,17 +75,21 @@ impl MailcalApp {
                 .forget_use_problem(&id, capability == Capability::Calendar);
         }
         // The shared stores open what they hold through this use, so that much of them goes
-        // with it: their mail with mail or shared mailboxes, their calendars with calendar. A
-        // store left opening nothing goes altogether. The account's own mail stays unless mail
-        // itself was switched off. A refused write is reported once the account is dialled
-        // again, so it is not left listed without providers.
+        // with it: their mail with mail, their calendars with calendar, and both with the use
+        // that opens them on Microsoft. A store left opening nothing goes altogether. The
+        // account's own mail stays unless mail itself was switched off. A refused write is
+        // reported once the account is dialled again, so it is not left listed without
+        // providers.
         let dropped = match (on, capability) {
-            (false, Capability::Mail | Capability::SharedMailboxes) => {
+            (false, Capability::Mail) => {
                 self.drop_shared_use(&account_id, mailcal_account::SharedUse::Mail)
             }
             (false, Capability::Calendar) => {
                 self.drop_shared_use(&account_id, mailcal_account::SharedUse::Calendar)
             }
+            (false, Capability::SharedMailboxes) => mailcal_account::SharedUse::ALL
+                .into_iter()
+                .try_for_each(|kind| self.drop_shared_use(&account_id, kind)),
             _ => Ok(()),
         };
         if !on

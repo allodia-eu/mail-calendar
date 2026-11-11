@@ -96,7 +96,7 @@ class SetupUsesTest {
     }
 
     @Test
-    fun shared_mailboxes_count_only_beside_mail() {
+    fun shared_mailboxes_and_calendars_count_beside_mail_or_the_calendar() {
         val microsoft = UseOffer(
             listOf(MAIL, SHARED_MAILBOXES, CALENDAR, CONTACTS, COLLEAGUES).map { choice(it, true) },
         )
@@ -104,8 +104,12 @@ class SetupUsesTest {
             listOf(MAIL, SHARED_MAILBOXES, CALENDAR),
             SetupUses.chosen(microsoft, true, on, off, null, sharedMailboxes = true).uses,
         )
-        assertEquals(listOf(CALENDAR), SetupUses.chosen(microsoft, false, on, off, null, true).uses)
+        assertEquals(
+            listOf(SHARED_MAILBOXES, CALENDAR),
+            SetupUses.chosen(microsoft, false, on, off, null, true).uses,
+        )
         assertEquals(listOf(MAIL), SetupUses.chosen(microsoft, true, off, off, null, false).uses)
+        assertEquals(listOf(CONTACTS), SetupUses.chosen(microsoft, false, off, on, null, true).uses)
     }
 
     @Test

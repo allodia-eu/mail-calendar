@@ -116,7 +116,7 @@ pub(in crate::ui) fn block_note(block: AccountUseBlock) -> &'static str {
     match block {
         AccountUseBlock::LastUse => l10n::settings_account_use_last(),
         AccountUseBlock::NeedsContacts => l10n::settings_account_colleagues_needs_contacts(),
-        AccountUseBlock::NeedsMail => l10n::settings_account_shared_needs_mail(),
+        AccountUseBlock::NeedsMailOrCalendar => l10n::settings_account_shared_needs_mail(),
         AccountUseBlock::NotOffered => l10n::settings_account_use_not_offered(),
         AccountUseBlock::NeedsServer => l10n::settings_account_use_needs_endpoint(),
     }

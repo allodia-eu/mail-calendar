@@ -30,7 +30,7 @@ use engine_core::{
 use engine_provider::{
     CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
     EventDraft, EventEdit, EventRsvp, EventWriteReceipt, OverrideSurvival, Provider, ProviderError,
-    ProviderResult, ScopeSync, WriteGuard,
+    ProviderResult, ScopeSync, SharedAccount, SharedAccounts, WriteGuard,
 };
 use engine_tls::TlsClientConfig;
 use provider_graph::{CalendarWindow, GraphCalendarProvider, GraphClient, MailboxPrincipal};
@@ -79,6 +79,8 @@ pub(crate) struct RefreshingGraphCalendarProvider {
     display_zone: TimeZoneId,
     /// The account's shared TLS policy, cloned into each rebuilt Graph client.
     tls: TlsClientConfig,
+    /// Whose calendars: the signed-in user's, or a shared store's (`/users/{address}`).
+    principal: MailboxPrincipal,
     /// The built delegate, cached by the access token it was built with, so its reqwest
     /// connection pool is reused across requests; rebuilt only when the token refreshes.
     cached: Mutex<Option<(String, Arc<GraphCalendarProvider>)>>,
@@ -93,6 +95,7 @@ impl RefreshingGraphCalendarProvider {
         window: CalendarWindow,
         display_zone: TimeZoneId,
         tls: TlsClientConfig,
+        principal: MailboxPrincipal,
     ) -> Self {
         Self {
             tokens,
@@ -105,10 +108,14 @@ impl RefreshingGraphCalendarProvider {
                 // built, but a host that reads capabilities before the first token fetch must
                 // not be told this account needs client-side iMIP, which would have it send a
                 // second, duplicate answer.
-                .with_calendar_scheduling(),
+                .with_calendar_scheduling()
+                // Graph lists no shared store and answers for an address, whichever store this
+                // provider is bound to.
+                .with_shared_accounts(SharedAccounts::ByAddress),
             window,
             display_zone,
             tls,
+            principal,
             cached: Mutex::new(None),
         }
     }
@@ -134,7 +141,7 @@ impl RefreshingGraphCalendarProvider {
         }
         let client = GraphClient::for_mailbox(
             token.clone(),
-            MailboxPrincipal::Me,
+            self.principal.clone(),
             &self.tls,
             &self.tokens.retry(),
             &crate::user_agent(),
@@ -230,6 +237,12 @@ impl Provider for RefreshingGraphCalendarProvider {
             }
         }
     }
+
+    /// Forwarded, because this wrapper advertises `ByAddress`: Graph checks an address with a
+    /// calendar probe.
+    async fn resolve_shared_account(&self, address: &str) -> ProviderResult<SharedAccount> {
+        self.delegate().await?.resolve_shared_account(address).await
+    }
 }
 
 impl engine_api::MailboxWrites for RefreshingGraphCalendarProvider {}
@@ -290,7 +303,8 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
 }
 
 /// Connects the Graph calendar provider a Microsoft account syncs its agenda through: **one**
-/// token-refreshing provider for every calendar of the mailbox, carrying a fetch window centred
+/// token-refreshing provider for every calendar of the mailbox, or of the shared store `shared`
+/// names, carrying a fetch window centred
 /// on today and the host's `display_zone`. Reads `/me/calendars` once with a fresh token first,
 /// so a token without the calendar scope is refused here rather than on every refresh.
 ///
@@ -305,10 +319,20 @@ pub async fn connect_graph_calendar_provider(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
+    shared: Option<&engine_core::ids::SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
     let window = rolling_window()?;
-    let calendars = list_calendars(account_id, &tokens, &tls, window, display_zone.clone()).await?;
+    let principal = super::principal(shared)?;
+    let calendars = list_calendars(
+        account_id,
+        &tokens,
+        &tls,
+        window,
+        display_zone.clone(),
+        &principal,
+    )
+    .await?;
     log::debug!(
         "graph: calendar list returned {} calendar(s)",
         calendars.len()
@@ -318,6 +342,7 @@ pub async fn connect_graph_calendar_provider(
         window,
         display_zone,
         tls,
+        principal,
     )))
 }
 
@@ -329,11 +354,12 @@ async fn list_calendars(
     tls: &TlsClientConfig,
     window: CalendarWindow,
     display_zone: TimeZoneId,
+    principal: &MailboxPrincipal,
 ) -> Result<Vec<Calendar>, AccountError> {
     let token = tokens.access_token().await?;
     let client = GraphClient::for_mailbox(
         token,
-        MailboxPrincipal::Me,
+        principal.clone(),
         tls,
         &tokens.retry(),
         &crate::user_agent(),
@@ -381,93 +407,5 @@ fn is_calendar_access_denied(err: &ProviderError) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        super::token_source::test_support::{
-            assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint,
-            mock_token_endpoint, source_at,
-        },
-        *,
-    };
-
-    /// This wrapper forwards each verb by hand, and one it leaves out answers with the trait's
-    /// default: an invitation answer refused as unsupported, although Graph answers it.
-    #[tokio::test]
-    async fn invitation_answers_are_forwarded_to_graph() {
-        let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = RefreshingGraphCalendarProvider::new(
-            source_at(endpoint, None),
-            rolling_window().unwrap(),
-            TimeZoneId::utc(),
-            tls_with(&[]).unwrap(),
-        );
-        assert_calendar_answers_reach_the_delegate(&provider).await;
-    }
-
-    #[test]
-    fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
-        let (endpoint, _hits) = mock_token_endpoint(vec![]);
-        let source = source_at(endpoint, None);
-        let account = AccountId::try_from("alice@example.com@graph.microsoft.com").unwrap();
-        let calendar = CalendarId::try_from("cal-123").unwrap();
-        let provider = RefreshingGraphCalendarProvider::new(
-            source,
-            rolling_window().unwrap(),
-            TimeZoneId::utc(),
-            tls_with(&[]).unwrap(),
-        );
-        // Calendar capability with a server-enforced write guard, and no mail capability.
-        let info = provider.connection_info();
-        assert!(info.capabilities.calendars());
-        assert!(!info.capabilities.mail());
-        assert_eq!(
-            info.capabilities.calendar_write_guard(),
-            Some(WriteGuard::Enforced),
-        );
-        // Reported before any delegate exists, and it has to be: a host that read `false` here
-        // would conclude the answer needs an iMIP message of its own and send one *beside* the
-        // one Graph already sent, so the organiser gets the reply twice.
-        assert!(info.capabilities.calendar_scheduling());
-        // Each calendar's events have a scope of their own; the calendar-list scope is
-        // account-wide.
-        assert_eq!(
-            provider.event_scope(&account, &calendar),
-            SyncScope::GraphCalendar {
-                account: account.clone(),
-                calendar,
-            },
-        );
-        assert_eq!(
-            provider.calendar_scope(&account),
-            SyncScope::GraphCalendarList { account },
-        );
-    }
-
-    #[test]
-    fn a_403_calendar_probe_is_classified_as_access_denied() {
-        // A `403`/`ErrorAccessDenied` means the token lacks the calendar scope → re-consent.
-        let denied = ProviderError::retryable(
-            "Graph HTTP 403 (code Some(\"ErrorAccessDenied\")): access is denied",
-        );
-        assert!(is_calendar_access_denied(&denied));
-        // A transient `500` is not a re-consent case; it should badge nothing and retry.
-        let transient = ProviderError::retryable("Graph HTTP 500 (code ErrorInternalServerError)");
-        assert!(!is_calendar_access_denied(&transient));
-    }
-
-    #[test]
-    fn the_fetch_window_brackets_today() {
-        let today = OffsetDateTime::now_utc().date();
-        let window = rolling_window().unwrap();
-        // Start is before today and end after it, so a freshly connected provider covers the
-        // current week the grid opens on.
-        assert_eq!(
-            window.start,
-            calendar_date(today - Duration::days(WINDOW_DAYS_BACK)).unwrap(),
-        );
-        assert_eq!(
-            window.end,
-            calendar_date(today + Duration::days(WINDOW_DAYS_AHEAD)).unwrap(),
-        );
-    }
-}
+#[path = "calendar_tests.rs"]
+mod tests;

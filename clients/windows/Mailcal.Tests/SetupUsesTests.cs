@@ -113,13 +113,16 @@ public class SetupUsesTests
     }
 
     [Fact]
-    public void SharedMailboxesCountOnlyBesideMail()
+    public void SharedMailboxesAndCalendarsCountBesideMailOrTheCalendar()
     {
         var shared = new Subchoices(SharedMailboxes: true, Colleagues: null);
         Assert.Equal(
             [AccountCapability.Mail, AccountCapability.SharedMailboxes],
             SetupUses.Chosen(Provider(), true, Off, Off, shared).Uses);
-        Assert.Equal([AccountCapability.Calendar], SetupUses.Chosen(Provider(), false, On, Off, shared).Uses);
+        Assert.Equal(
+            [AccountCapability.SharedMailboxes, AccountCapability.Calendar],
+            SetupUses.Chosen(Provider(), false, On, Off, shared).Uses);
+        Assert.Equal([AccountCapability.Contacts], SetupUses.Chosen(Provider(), false, Off, On, shared).Uses);
         Assert.Equal(
             [AccountCapability.Mail],
             SetupUses.Chosen(Provider(), true, Off, Off, shared with { SharedMailboxes = false }).Uses);

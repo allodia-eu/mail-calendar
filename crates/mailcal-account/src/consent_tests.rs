@@ -135,7 +135,10 @@ fn shared_mailboxes_ask_for_the_shared_mail_scopes_beside_mail_and_only_at_micro
         &MICROSOFT,
         &set(&[Capability::Calendar, Capability::SharedMailboxes]),
     );
-    assert!(!as_set(&without_mail).contains(shared));
+    assert!(
+        !as_set(&without_mail).contains(shared),
+        "the shared mail scopes wait for mail"
+    );
     assert_eq!(
         requested_scopes(
             &GOOGLE,
@@ -176,5 +179,62 @@ fn video_meetings_ask_for_their_scope_only_when_chosen() {
     assert_eq!(
         withheld(&MICROSOFT, &with, Some(&granted)),
         set(&[Capability::Meetings])
+    );
+}
+
+#[test]
+fn shared_stores_ask_for_the_shared_calendar_scope_beside_calendar_and_only_at_microsoft() {
+    let shared = "https://graph.microsoft.com/Calendars.ReadWrite.Shared";
+    let with_calendar = requested_scopes(
+        &MICROSOFT,
+        &set(&[Capability::Calendar, Capability::SharedMailboxes]),
+    );
+    assert!(as_set(&with_calendar).contains(shared));
+    // Beside calendar alone, no shared mail is asked for.
+    assert!(!as_set(&with_calendar).contains("https://graph.microsoft.com/Mail.ReadWrite.Shared"));
+    let without_calendar = requested_scopes(
+        &MICROSOFT,
+        &set(&[Capability::Mail, Capability::SharedMailboxes]),
+    );
+    assert!(!as_set(&without_calendar).contains(shared));
+    assert_eq!(
+        requested_scopes(
+            &GOOGLE,
+            &set(&[Capability::Calendar, Capability::SharedMailboxes])
+        ),
+        requested_scopes(&GOOGLE, &set(&[Capability::Calendar]))
+    );
+}
+
+#[test]
+fn a_grant_holding_either_shared_scope_keeps_shared_stores() {
+    let chosen = set(&[
+        Capability::Mail,
+        Capability::Calendar,
+        Capability::SharedMailboxes,
+    ]);
+    // A grant from before shared calendars: its shared mailboxes stay.
+    let before: Vec<String> = [
+        "Mail.ReadWrite",
+        "Calendars.ReadWrite",
+        "Mail.ReadWrite.Shared",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    assert!(withheld(&MICROSOFT, &chosen, Some(&before)).is_empty());
+    let calendars: Vec<String> = [
+        "Mail.ReadWrite",
+        "Calendars.ReadWrite",
+        "Calendars.ReadWrite.Shared",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    assert!(withheld(&MICROSOFT, &chosen, Some(&calendars)).is_empty());
+    let neither: Vec<String> = ["Mail.ReadWrite", "Calendars.ReadWrite"]
+        .map(str::to_owned)
+        .to_vec();
+    assert_eq!(
+        withheld(&MICROSOFT, &chosen, Some(&neither)),
+        set(&[Capability::SharedMailboxes])
     );
 }

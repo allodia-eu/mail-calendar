@@ -21,7 +21,8 @@ struct SetupUsesSection<MailRows: View>: View {
             case .mail: mailCard
             case .calendar: davCard(.calendar)
             case .contacts: davCard(.contacts)
-            // Drawn inside the mail and contacts cards, beneath the toggle each depends on.
+            // Drawn inside the calendar (or else the mail) and contacts cards, beneath the toggles
+            // each depends on.
             case .colleagues, .sharedMailboxes: EmptyView()
             // Drawn inside the calendar card, beneath what the calendar itself offers.
             case .meetings: EmptyView()
@@ -41,11 +42,8 @@ struct SetupUsesSection<MailRows: View>: View {
             toggle(.mail, L10n.setup_detect_mail_enable())
             // Following the toggle, so a use switched off leaves nothing behind claiming otherwise.
             if choices.isOn(.mail) { mailRows() }
-            if choices.offer.choice(.sharedMailboxes) != nil {
-                // A shared mailbox is opened beside the account's own mail, so it is offered only
-                // while mail is on.
-                toggle(.sharedMailboxes, L10n.setup_detect_shared_mailboxes_enable())
-                    .padding(.leading, 20)
+            if choices.offer.choice(.sharedMailboxes) != nil, choices.offer.choice(.calendar) == nil {
+                sharedToggle
             }
         }
     }
@@ -75,6 +73,7 @@ struct SetupUsesSection<MailRows: View>: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            if calendar, choices.offer.choice(.sharedMailboxes) != nil { sharedToggle }
             if calendar, choices.offer.choice(.meetings) != nil {
                 // Video meetings are made for an event on any calendar, so they do not wait for
                 // this one.
@@ -87,6 +86,13 @@ struct SetupUsesSection<MailRows: View>: View {
                     .padding(.leading, 20)
             }
         }
+    }
+
+    /// Shared mailboxes and calendars: either mail or the calendar opens them, so they are offered
+    /// while either is on, beneath the calendar when the card has one.
+    private var sharedToggle: some View {
+        toggle(.sharedMailboxes, L10n.setup_detect_shared_mailboxes_enable())
+            .padding(.leading, 20)
     }
 
     private func toggle(_ capability: AccountCapability, _ label: String) -> some View {

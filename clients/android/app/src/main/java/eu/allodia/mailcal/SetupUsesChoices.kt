@@ -111,8 +111,8 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                 SectionHeader("✉", L10n.setup_detect_section_email(ctx))
                 UseBox(L10n.setup_detect_mail_enable(ctx), toggles.mail, toggles.canFlip(toggles.mail), "MAIL") {
                     toggles.mail = it
-                    // A shared mailbox is opened beside the account's own mail.
-                    if (!it) toggles.sharedMailboxes = false
+                    // Shared mailboxes and calendars are opened beside mail or the calendar.
+                    if (!it && !toggles.calendar) toggles.sharedMailboxes = false
                 }
             }
             AccountCapability.CALENDAR -> {
@@ -126,7 +126,10 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     field = L10n.setup_field_caldav(ctx),
                     on = toggles.calendar,
                     enabled = toggles.canFlip(toggles.calendar),
-                    onToggle = { toggles.calendar = it },
+                    onToggle = {
+                        toggles.calendar = it
+                        if (!it && !toggles.mail) toggles.sharedMailboxes = false
+                    },
                     typed = toggles.calendarTyped,
                     onType = {
                         toggles.calendarTyped = it
@@ -137,6 +140,7 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                 // Video meetings are made for an event on any calendar, so they do not wait for
                 // this one.
                 if (toggles.offersMeetings) MeetingsBox(toggles)
+                if (offer.choices.any { it.capability == AccountCapability.SHARED_MAILBOXES }) SharedBox(toggles)
             }
             AccountCapability.CONTACTS -> {
                 SectionHeader("👤", L10n.setup_detect_section_contacts(ctx))
@@ -170,17 +174,25 @@ internal fun UsesChoices(toggles: UseToggles, include: (AccountCapability) -> Bo
                     "COLLEAGUES",
                 ) { toggles.colleagues = it }
             }
-            AccountCapability.SHARED_MAILBOXES -> Row(modifier = Modifier.padding(start = 24.dp)) {
-                UseBox(
-                    L10n.setup_detect_shared_mailboxes_enable(ctx),
-                    toggles.sharedMailboxes,
-                    toggles.mail,
-                    "SHARED_MAILBOXES",
-                ) { toggles.sharedMailboxes = it }
-            }
+            // Drawn beneath the calendar, which opens them as mail does, when the card offers one.
+            AccountCapability.SHARED_MAILBOXES -> if (!toggles.offersCalendar) SharedBox(toggles)
             // Drawn in the calendar's section, which a card offering them always has.
             AccountCapability.MEETINGS -> if (!toggles.offersCalendar) MeetingsBox(toggles)
         }
+    }
+}
+
+/** Shared mailboxes and calendars, offered while mail or the calendar is on. */
+@Composable
+private fun SharedBox(toggles: UseToggles) {
+    val ctx = LocalContext.current
+    Row(modifier = Modifier.padding(start = 24.dp)) {
+        UseBox(
+            L10n.setup_detect_shared_mailboxes_enable(ctx),
+            toggles.sharedMailboxes,
+            toggles.mail || toggles.calendar,
+            "SHARED_MAILBOXES",
+        ) { toggles.sharedMailboxes = it }
     }
 }
 

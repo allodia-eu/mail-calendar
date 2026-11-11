@@ -209,6 +209,7 @@ impl AccountDial {
                                 id,
                                 Arc::clone(&tokens),
                                 display_zone,
+                                shared.as_ref(),
                             )
                             .await;
                             (Part::from(calendar), reauth)

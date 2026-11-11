@@ -33,10 +33,11 @@ const fn capability(kind: SharedUse) -> Capability {
 
 impl AccountDial {
     /// What the stores this account's sign-in opens besides its own are opened for: mail on an
-    /// IMAP or JMAP account, whose server says, or on a Microsoft account used for shared
-    /// mailboxes with a grant that allows them; calendars on a JMAP account, or an IMAP account
-    /// with a CalDAV server. Never a use the account is not used for: a store is shared with a
-    /// mailbox or a calendar, and an account without one would wait forever for it to connect.
+    /// IMAP or JMAP account, whose server says; calendars on a JMAP account, or an IMAP account
+    /// with a CalDAV server; both on a Microsoft account used for shared mailboxes and calendars
+    /// with a grant that allows them. Never a use the account is not used for: a store is shared
+    /// with a mailbox or a calendar, and an account without one would wait forever for it to
+    /// connect.
     pub(crate) fn shared_uses(&self) -> SharedUses {
         let uses = self.capabilities();
         SharedUse::ALL
@@ -44,12 +45,10 @@ impl AccountDial {
             .filter(|kind| uses.contains(capability(*kind)))
             .filter(|kind| match (self, kind) {
                 (Self::Imap { .. } | Self::Jmap { .. }, SharedUse::Mail) => true,
-                (Self::Microsoft { .. }, SharedUse::Mail) => {
-                    uses.contains(Capability::SharedMailboxes)
-                }
+                (Self::Microsoft { .. }, _) => uses.contains(Capability::SharedMailboxes),
                 (Self::Imap { config, .. }, SharedUse::Calendar) => config.caldav.is_some(),
                 (Self::Jmap { .. }, SharedUse::Calendar) => true,
-                (Self::Microsoft { .. } | Self::Google { .. }, _) => false,
+                (Self::Google { .. }, _) => false,
             })
             .collect()
     }
