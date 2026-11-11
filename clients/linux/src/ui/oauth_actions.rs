@@ -171,7 +171,7 @@ impl AppModel {
         self.say_what_was_withheld(&account);
         // The link step, then the name, as the password route: every way in asks the same
         // questions (`docs/sending.md`).
-        self.after_account_added(&account, sender.clone());
+        self.after_account_added(&account, sender);
         self.dispatch(mailcal_bindings::Intent::SelectAccount {
             account: Some(account),
         });
