@@ -1,8 +1,8 @@
-// Signing in with Nextcloud (docs/nextcloud-sign-in.md): the questions whether a server offers it,
-// the flight every surface shares, and setup's completion, a new calendar and contacts account.
-// The account page's and the separate server's completions are in MailboxModel.NextcloudAccounts.cs.
+// Signing in with Nextcloud from setup (docs/nextcloud-sign-in.md): the questions whether a server
+// offers it, the flight, and its completion, a new calendar and contacts account. An existing
+// account's, and a separate server's, are the core's browser sign-in (MailboxModel.BrowserSignIn.cs).
 //
-// Each flight runs under the shared SignInFlight's token, so a new browser sign-in of any kind
+// The flight runs under the shared SignInFlight's token, so a new browser sign-in of any kind
 // supersedes it and every Cancel retires it, as with the provider sign-ins beside it. Grants and
 // pending handles are secrets: memory only, never logged.
 
@@ -57,13 +57,13 @@ public sealed partial class MailboxModel
     }
 
     /// <summary>
-    /// Flies one sign-in for the caller's flow, under its <paramref name="cancel"/>: the core
-    /// starts it with <paramref name="begin"/>, the browser opens, and the core is polled until the
-    /// person finishes. On a grant the window comes to the front, since the browser cannot hand
-    /// the person back.
+    /// Flies one sign-in for setup, under its <paramref name="cancel"/>: the core starts it with
+    /// <paramref name="begin"/>, the browser opens, and the core is polled until the person
+    /// finishes. On a grant the window comes to the front, since the browser cannot hand the person
+    /// back.
     /// </summary>
     private async Task<NextcloudFlightEnd> FlyNextcloudAsync(
-        MailcalApp app, Func<MailcalApp, NextcloudSignInStart> begin, CancellationToken cancel, Action? opened = null)
+        MailcalApp app, Func<MailcalApp, NextcloudSignInStart> begin, CancellationToken cancel)
     {
         var end = await NextcloudFlight.FlyAsync(
             () => Task.Run(() => begin(app)),
@@ -73,11 +73,7 @@ public sealed partial class MailboxModel
             TimeSpan.FromMilliseconds(MailcalBindingsMethods.NextcloudPollIntervalMs()),
             NextcloudWake,
             cancel,
-            () =>
-            {
-                Log.Info("nextcloud sign-in: waiting on the browser");
-                opened?.Invoke();
-            });
+            () => Log.Info("nextcloud sign-in: waiting on the browser"));
         Log.Info($"nextcloud sign-in ended: {NextcloudEndName(end)}");
         if (end is NextcloudFlightEnd.Granted)
         {

@@ -327,9 +327,9 @@ internal fun MainActivity.cancelAbandonedSignIns() {
         pendingAllodiaSignIn = null
         allodiaRemedyEnded(failed = false)
     }
-    // An existing account's sign-in is the core's, and a return to the app ends none of it: its
-    // page offers Cancel, and the core caps the wait (MainActivityBrowserSignIn.kt).
-    resumeSeparateSignIns()
+    // An existing account's sign-in and a separate server's are the core's, and a return to the
+    // app ends neither: each form offers Cancel, and the core caps the wait
+    // (MainActivityBrowserSignIn.kt).
     resumeNextcloudSignIns()
     // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
     // (see openJmapSignIn), so resuming MainActivity does NOT mean the browser is gone, the

@@ -112,6 +112,17 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
+    /// Stops every link between `account` and `from`, which takes a use from it, and stores each
+    /// account that changed.
+    pub(crate) fn stop_linking(&self, account: &str, from: &str) -> Result<(), MailcalError> {
+        let changed = self.registry.unlink(account, from);
+        self.app.accounts_changed();
+        for (id, config) in changed {
+            self.persist_config(&id, config.map_err(MailcalError::Config)?)?;
+        }
+        Ok(())
+    }
+
     /// Clears every link the other accounts hold to `removed`, and stores each account it
     /// changed.
     ///

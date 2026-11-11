@@ -219,7 +219,6 @@ pub use composer_open::{
 pub(crate) use connected_account::ConnectedAccount;
 pub(crate) use connectivity_facts::{ConnectivitySnapshot, UseOutage};
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
-pub use dav_oauth::SeparateServerSignInStart;
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
 // namespace, so a host reaching these through the FFI never names the module, while the Linux
 // client links this crate as Rust and does (`AGENTS.md`, why that client breaks differently).
@@ -228,7 +227,7 @@ pub use error::MailcalError;
 pub use google::{GoogleLoginStart, begin_google_login};
 pub use help::{HelpPage, help_page_url};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
-pub use launch::launch_status_after_ms;
+pub use launch::{launch_status_after_ms, stored_account_is_readable};
 pub use logging::{LogLevel, Logger};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
@@ -254,10 +253,10 @@ pub use records::{
 };
 pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
-    AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountReplyFallback,
-    AccountSenderName, AccountServers, AccountSharedAddress, AccountSharedMailbox,
-    AccountSharedMailboxes, AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
-    AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
+    AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
+    AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
+    AccountSharedMailbox, AccountSharedMailboxes, AccountToggle, AccountUseBlock, AccountUseStatus,
+    AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
 };
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,

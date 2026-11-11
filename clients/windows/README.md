@@ -130,7 +130,12 @@ versa.
 ## Prerequisites
 
 - **Rust** with the MSVC toolchain (the script adds the second arch's target itself).
-- **.NET 10 SDK** (`dotnet --version` ≥ 10).
+- **The .NET SDK [`global.json`](../../global.json) pins**, any feature band of that major, beside
+  whatever newer SDK Visual Studio installs. `dotnet --version` run inside the checkout names the
+  one in use. A newer major is not a substitute: it brings its own analyzers, and with warnings as
+  errors it fails the app's build in code nobody changed. The scripts here run every `dotnet` from
+  the checkout ([`dotnet-sdk.ps1`](dotnet-sdk.ps1)), because the host reads `global.json` from its
+  working directory, not from the project.
 - **Windows App SDK 2.x**, both halves. The build pulls the `Microsoft.WindowsAppSDK` NuGet
   package at the version [`Mailcal.csproj`](Mailcal/Mailcal.csproj) pins; the **Windows App
   Runtime** that package resolves, or a later one, has to be *installed*, because the dev loop is

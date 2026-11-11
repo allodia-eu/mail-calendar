@@ -16,8 +16,7 @@ class NextcloudAccountSignInTest {
         state.open(separateForm(separateSection(AccountCapability.CALENDAR)))
         state.redraw(separateSection(AccountCapability.CALENDAR, signIn = AccountSeparateSignIn.NEXTCLOUD))
         assertTrue(state.controls!!.offersSignIn && state.controls!!.nextcloud)
-        assertTrue(state.offersNextcloud)
-        assertTrue(state.beginSignIn() != null)
+        assertTrue(state.signingIn())
 
         state.redraw(separateSection(AccountCapability.CALENDAR, signIn = AccountSeparateSignIn.PROVIDER))
         assertFalse(state.controls!!.nextcloud)

@@ -113,8 +113,9 @@ classify() {
       # --workspace`, which is where its own suite lives. Without this arm it falls to the
       # catch-all below and turns on six client builds to test a check.
       xtask/*) rust=true ;;
-      # The .NET SDK's settings for every `dotnet` command under the repository, here the test
-      # runner the Windows client's two test projects need; only the Windows job runs dotnet.
+      # The .NET SDK's settings for every `dotnet` command under the repository: the SDK it pins
+      # and the test runner the Windows client's two test projects need. Only the Windows job runs
+      # dotnet.
       global.json) windows=true ;;
       # The core, its lockfile and its toolchain pin are compiled into every client, so they fan
       # out to everything. /VERSION is embedded by every client (docs/versioning.md), so it does too.

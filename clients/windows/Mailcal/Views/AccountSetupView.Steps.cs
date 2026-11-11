@@ -19,7 +19,8 @@ public sealed partial class AccountSetupView
     /// <summary>
     /// What dismissing the dialog means, which is what the form's own Cancel means: an outstanding
     /// browser sign-in is abandoned and the form stays; otherwise the add is abandoned. A bounded
-    /// connect in flight is left to finish, so the dialog stays for its answer.
+    /// connect in flight, or the core completing a separate server's sign-in, is left to finish,
+    /// so the dialog stays for its answer.
     /// </summary>
     /// <returns>Whether the dialog may close.</returns>
     internal bool Dismiss()
@@ -27,6 +28,15 @@ public sealed partial class AccountSetupView
         if (Model is null)
         {
             return true;
+        }
+        if (Model.SetupSeparateServer is { } separate
+            && Model.SeparateServerStepOf(separate.AccountId)?.Section.Browser is { } browser)
+        {
+            if (browser.Cancel.Enabled)
+            {
+                Model.CancelSignIn(browser);
+            }
+            return false;
         }
         if (Model.IsSigningIn)
         {
@@ -49,7 +59,6 @@ public sealed partial class AccountSetupView
         Model?.CancelMicrosoftSignIn();
         Model?.CancelGoogleSignIn();
         Model?.CancelJmapSignIn();
-        Model?.CancelSeparateServerSignIn();
     }
 
     // Back to the address, which keeps what was typed there. Everything the abandoned route

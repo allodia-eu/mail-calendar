@@ -1,6 +1,7 @@
 // The controls a page draws from the core's `ControlState` (docs/waiting.md): a switch row, a
-// button, a picker, a text field and a confirmation. Each is held while it cannot be used and
-// shows a spinner beside it while work it started runs, so every page waits the same way.
+// button, a row that opens another page, a picker, a text field and a confirmation. Each is held
+// while it cannot be used and shows a spinner beside it while work it started runs, so every page
+// waits the same way.
 
 import MailcalBindings
 import SwiftUI
@@ -66,21 +67,65 @@ struct ControlButton: View {
     var ready = true
     /// The key that presses it, for a step's default or cancel action.
     var shortcut: KeyboardShortcut?
+    /// Whether its label fills the width it is given, as a step's large sign-in does.
+    var wide = false
     let action: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             Button(role: role, action: action) {
-                if let systemImage {
-                    Label(title, systemImage: systemImage)
+                if wide {
+                    label.frame(maxWidth: .infinity)
                 } else {
-                    Text(title)
+                    label
                 }
             }
             .keyboardShortcut(shortcut)
             .disabled(!control.enabled || !ready)
             Running(control: control)
         }
+    }
+
+    @ViewBuilder private var label: some View {
+        if let systemImage {
+            Label(title, systemImage: systemImage)
+        } else {
+            Text(title)
+        }
+    }
+}
+
+/// A row that opens another page and starts no work: its title, the line beneath it and a
+/// disclosure chevron, as the accounts list opens an account. Held while `enabled` is false, which
+/// is while a change runs on the page; it never runs anything itself, so it has no spinner.
+struct ControlNavRow: View {
+    let title: String
+    let subtitle: String
+    let enabled: Bool
+    let open: () -> Void
+
+    var body: some View {
+        // One button, so assistive technology reads both lines as its name.
+        Button(action: open) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
     }
 }
 

@@ -50,13 +50,7 @@ impl AppModel {
     /// loopback this process listens on, and a calendar account's Nextcloud sign-in returns
     /// nothing, so the core ignores it there.
     pub(super) fn sign_in_in_browser(&mut self, account: String, adding: Vec<AccountCapability>) {
-        let redirect_uri = match self.host_tasks.oauth_loopback() {
-            Ok(loopback) => loopback.redirect_uri(),
-            Err(error) => {
-                log::warn!("sign-in: no loopback could be bound for the browser's return: {error}");
-                String::new()
-            }
-        };
+        let redirect_uri = self.loopback_redirect();
         self.dispatch(Intent::AccountPage {
             intent: AccountPageIntent::SignIn {
                 account,
@@ -64,6 +58,31 @@ impl AppModel {
                 redirect_uri,
             },
         });
+    }
+
+    /// Starts signing in what `account` needs a sign-in of its own for, the way its server
+    /// offers: at the server's own provider, which returns to the same loopback, or with
+    /// Nextcloud, which returns nothing. It replaces a sign-in still out.
+    pub(super) fn sign_in_separately(&mut self, account: String) {
+        let redirect_uri = self.loopback_redirect();
+        self.dispatch(Intent::AccountPage {
+            intent: AccountPageIntent::SignInSeparateServer {
+                account,
+                redirect_uri,
+            },
+        });
+    }
+
+    /// Where the browser returns to this process; empty, which the core refuses as a browser
+    /// that did not open, when no loopback could be bound.
+    fn loopback_redirect(&mut self) -> String {
+        match self.host_tasks.oauth_loopback() {
+            Ok(loopback) => loopback.redirect_uri(),
+            Err(error) => {
+                log::warn!("sign-in: no loopback could be bound for the browser's return: {error}");
+                String::new()
+            }
+        }
     }
 
     /// The core's settings signal, for the browser sign-in: a wait on an attempt it no longer

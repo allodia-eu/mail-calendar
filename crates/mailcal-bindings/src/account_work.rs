@@ -31,6 +31,10 @@ pub(crate) enum PageWork {
         slot: LinkSlot,
         target: Option<String>,
     },
+    /// Stopping the links between the account and `from`.
+    Unlink {
+        from: String,
+    },
     ReplyFallback {
         choice: crate::ReplyFallbackChoice,
     },
@@ -104,6 +108,7 @@ impl PageWork {
             // Never queued: each is a step of the browser sign-in, which queues only its
             // completion.
             AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::SignInSeparateServer { .. }
             | AccountPageIntent::AnswerUnreached { .. }
             | AccountPageIntent::SignInBrowserEnded { .. }
             | AccountPageIntent::CancelSignIn { .. } => Self::SignIn { attempt: 0 },
@@ -115,6 +120,7 @@ impl PageWork {
                 slot: *slot,
                 target: target.clone(),
             },
+            AccountPageIntent::StopLinking { from, .. } => Self::Unlink { from: from.clone() },
             AccountPageIntent::SetReplyFallback { choice, .. } => {
                 Self::ReplyFallback { choice: *choice }
             }

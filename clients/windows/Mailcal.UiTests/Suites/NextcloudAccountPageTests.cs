@@ -31,8 +31,14 @@ public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassF
     // a typed-password account is set up with.
     private const string Address = "alice@test.local";
 
+    // Each case starts with the fixture's refused passwords forgotten: another suite's, or an
+    // earlier run's, slow every sign-in from this host and then refuse it.
     private void Case(string name, Action<App, SetupFlow> body) =>
-        harness.Case(name, app => body(app, new SetupFlow(app)), app => app.CloseDialogs());
+        harness.Case(name, app =>
+        {
+            NextcloudBrowser.ForgetRefusals();
+            body(app, new SetupFlow(app));
+        }, app => app.CloseDialogs());
 
     private static Element Field(App app, string id) =>
         app.Agent.Find(Filter.ById(id, "Edit")) ?? throw new InvalidOperationException($"the form has no #{id}");

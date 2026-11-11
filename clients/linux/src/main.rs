@@ -28,6 +28,7 @@ mod logger;
 mod mail_link;
 mod observer;
 mod preferences;
+mod secret_encoding;
 mod secrets;
 mod share;
 mod showcase;

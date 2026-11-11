@@ -172,7 +172,8 @@ is recorded here.
 
 13. **A calendar or address book the mailbox's sign-in does not reach may sign in at its own
     server's issuer** (offered on `AccountSeparateServer::sign_in`, which the core asks as the
-    page opens; `begin_separate_server_sign_in`, `complete_separate_server_sign_in`). The server is asked who signs it in, unauthenticated, as
+    page opens, and signed in through the core's browser sign-in, `SignInSeparateServer`). The
+    server is asked who signs it in, unauthenticated, as
     a JMAP server is (RFC 9728 through its `401`, else the well-known document), and the issuer it
     names is used only where rule 10's host test holds for that issuer and every server that
     moves: the server's metadata finds the issuer and never decides where a token goes. The issuer

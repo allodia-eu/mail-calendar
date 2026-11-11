@@ -145,27 +145,20 @@ class NextcloudSetupScreenTest {
 
     @Test
     fun theSeparateStepNamesNextcloudAndSaysWhereItWaits() {
-        val form = separateForm(
-            separateSection(AccountCapability.CALENDAR, signIn = uniffi.mailcal_bindings.AccountSeparateSignIn.NEXTCLOUD),
-        )
-        var step by mutableStateOf<SeparateSignInStep?>(null)
+        val nextcloud = uniffi.mailcal_bindings.AccountSeparateSignIn.NEXTCLOUD
+        var section by mutableStateOf(separateSection(AccountCapability.CALENDAR, signIn = nextcloud))
         compose.setContent {
-            SeparateServerStepScreen(
-                form,
-                SeparateControls.of(form.section, step),
-                null,
-                { _, _ -> },
-                {},
-                onSignIn = {},
-                onLeave = {},
-            )
+            val form = separateForm(section)
+            SeparateServerStepScreen(form, SeparateControls.of(form.section), null, { _, _ -> }, {})
         }
         compose.onNodeWithText(SIGN_IN).assertIsDisplayed()
         compose.onNodeWithText(
             "This server runs Nextcloud. Signing in through your browser gives this app a password of its own, which you can revoke in Nextcloud.",
         ).assertIsDisplayed()
-        step = SeparateSignInStep.BROWSER
+        // Nothing returns from Nextcloud's page: the core asks the server.
+        section = separateWaiting(AccountCapability.CALENDAR, signIn = nextcloud, redirect = null)
         compose.waitForIdle()
         compose.onNodeWithText("Continue in your browser. Once you have granted access, come back here.").assertIsDisplayed()
+        compose.onNodeWithTag("separate-server-sign-in-cancel").assertIsDisplayed()
     }
 }

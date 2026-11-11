@@ -70,53 +70,6 @@ impl MailcalApp {
         self.add_account(config_toml)
     }
 
-    /// Moves `uses` (calendar, contacts or both) of the mailbox `account_id` to an account of
-    /// their own that a Nextcloud sign-in at their server granted, and links the two: the
-    /// separate-server step's completion when that server is Nextcloud
-    /// (`docs/accounts.md` rule 18).
-    ///
-    /// Returns the new account's id. **Blocking** (two connects); call it off the UI thread.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Config`] for an account that is not a standards mailbox, `uses`
-    /// naming no server it has, or a grant from another server than theirs; otherwise the errors
-    /// of [`MailcalApp::add_linked_calendar_account`]. Both accounts are unchanged on every
-    /// failure.
-    pub fn add_linked_nextcloud_account(
-        &self,
-        account_id: String,
-        uses: Vec<AccountCapability>,
-        grant: String,
-    ) -> Result<String, MailcalError> {
-        let grant = NextcloudGrant::parse(&grant)?;
-        let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
-        let (config, calendar) = self.split_parts(&account_id, &uses)?;
-        if !self.is_server_of(&calendar, &grant.root) {
-            return Err(MailcalError::Config(
-                "that sign-in was for another server".to_owned(),
-            ));
-        }
-        let calendar = calendar.with_nextcloud_password(
-            &grant.credentials.login_name,
-            grant.credentials.app_password.expose(),
-            &grant.root.dav_url(),
-            grant.login(),
-        );
-        let moved_to = self.split_out(&account_id, calendar, config, &uses)?;
-        // Linked to an account already set up, which keeps the password it has: this one becomes
-        // no account, so it leaves the server's list of devices now.
-        let stored = self.registry.nextcloud_credentials(&moved_to);
-        if stored.is_none_or(|(_, stored)| stored.app_password != grant.credentials.app_password) {
-            self.revoke_later(
-                grant.root,
-                grant.credentials,
-                "a sign-in for an account already set up",
-            );
-        }
-        Ok(moved_to)
-    }
-
     /// Puts the app password a Nextcloud sign-in granted on `account_id`, a calendar and contacts
     /// account at that server: signing it in again when its password was refused, or switching it
     /// from a typed one. It keeps its id, uses, links and settings; the app password it replaces,
@@ -234,6 +187,58 @@ fn same_person(config: &AccountConfig, grant: &NextcloudGrant) -> bool {
     .into_iter()
     .flatten()
     .any(|name| name.eq_ignore_ascii_case(known))
+}
+
+impl MailcalApp {
+    /// Moves `uses` (calendar, contacts or both) of the mailbox `account_id` to an account of
+    /// their own that a Nextcloud sign-in at their server granted, and links the two: the
+    /// separate-server step's completion when that server is Nextcloud
+    /// (`docs/accounts.md` rule 18).
+    ///
+    /// Returns the new account's id. Not exported: a client sends
+    /// `AccountPageIntent::SignInSeparateServer`. Public for the integration tests.
+    ///
+    /// **Blocking** (two connects).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MailcalError::Config`] for an account that is not a standards mailbox, `uses`
+    /// naming no server it has, or a grant from another server than theirs; otherwise the errors
+    /// of [`MailcalApp::add_linked_calendar_account`]. Both accounts are unchanged on every
+    /// failure.
+    pub fn add_linked_nextcloud_account(
+        &self,
+        account_id: String,
+        uses: Vec<AccountCapability>,
+        grant: String,
+    ) -> Result<String, MailcalError> {
+        let grant = NextcloudGrant::parse(&grant)?;
+        let uses: Vec<Capability> = uses.into_iter().map(Capability::from).collect();
+        let (config, calendar) = self.split_parts(&account_id, &uses)?;
+        if !self.is_server_of(&calendar, &grant.root) {
+            return Err(MailcalError::Config(
+                "that sign-in was for another server".to_owned(),
+            ));
+        }
+        let calendar = calendar.with_nextcloud_password(
+            &grant.credentials.login_name,
+            grant.credentials.app_password.expose(),
+            &grant.root.dav_url(),
+            grant.login(),
+        );
+        let moved_to = self.split_out(&account_id, calendar, config, &uses)?;
+        // Linked to an account already set up, which keeps the password it has: this one becomes
+        // no account, so it leaves the server's list of devices now.
+        let stored = self.registry.nextcloud_credentials(&moved_to);
+        if stored.is_none_or(|(_, stored)| stored.app_password != grant.credentials.app_password) {
+            self.revoke_later(
+                grant.root,
+                grant.credentials,
+                "a sign-in for an account already set up",
+            );
+        }
+        Ok(moved_to)
+    }
 }
 
 #[cfg(test)]

@@ -2,13 +2,15 @@
 
 use std::time::Duration;
 
-use super::{Attempt, Stage};
+use super::{Attempt, Stage, Target};
 use crate::{AccountCapability, BrowserSignIn, BrowserSignInStage, ControlState};
 
 /// The sign-in out for one account, as its page draws it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Out {
     pub(crate) record: BrowserSignIn,
+    /// What it signs in, and so which section draws it.
+    pub(crate) target: Target,
     /// The uses it asks for besides what the account is used for.
     pub(crate) adding: Vec<AccountCapability>,
     /// The control that started it is running: the server starts it, the browser is still

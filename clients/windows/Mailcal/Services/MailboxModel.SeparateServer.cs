@@ -1,7 +1,8 @@
 // A calendar and contacts the account's sign-in does not reach, given a sign-in of their own
 // (docs/accounts.md rule 18): the setup step after the mail sign-in, and the form on the account's
-// page. Both draw the core's section; Connect and Skip are changes on the account's page, which the
-// core runs and draws there. A form the core draws no section for is over.
+// page. Both draw the core's section; Connect, Skip and the browser sign-in
+// (MailboxModel.BrowserSignIn.cs) are changes on the account's page, which the core runs and draws
+// there. A form the core draws no section for is over.
 
 using uniffi.mailcal_bindings;
 

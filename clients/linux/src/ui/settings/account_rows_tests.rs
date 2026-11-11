@@ -2,8 +2,8 @@
 
 use mailcal_bindings::{
     AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountEntry, AccountKind,
-    AccountLinksView, AccountUse, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
-    CapabilityState, ControlState, LinkCandidates, LinkedAccount, UseProblem,
+    AccountLinkedFrom, AccountLinksView, AccountUse, AccountUseBlock, AccountUseStatus,
+    AccountUseSwitch, CapabilityState, ControlState, LinkCandidates, LinkedAccount, UseProblem,
 };
 
 use super::{change_notice, summary, switch_note};
@@ -102,6 +102,7 @@ fn a_switch_says_what_is_wrong_with_the_use_then_why_it_cannot_be_pressed() {
         confirms_off: true,
         reviews_server_change: false,
         signs_in_separately: false,
+        linked: None,
     };
     assert_eq!(switch_note(&switch(None, None)), None);
     assert_eq!(
@@ -167,4 +168,66 @@ fn a_change_that_did_not_take_is_said_with_the_cores_reason() {
         kept,
         Notice::Error { detail, .. } if detail == l10n::remove_account_failed("locked")
     ));
+}
+
+fn taking(
+    uses: Vec<AccountCapability>,
+    leaves_without: Vec<AccountCapability>,
+) -> AccountLinkedFrom {
+    AccountLinkedFrom {
+        account: linked("alice@example.org"),
+        uses,
+        leaves_without,
+        stop: ControlState {
+            enabled: true,
+            running: false,
+        },
+    }
+}
+
+#[test]
+fn a_linked_use_names_the_account_it_comes_from() {
+    assert_eq!(
+        super::linked_note(&linked("alice@cloud.example")),
+        l10n::settings_account_use_linked("alice@cloud.example")
+    );
+}
+
+#[test]
+fn an_account_taking_a_use_says_which_and_stopping_says_what_it_is_left_without() {
+    use AccountCapability::{Calendar, Contacts};
+    assert_eq!(
+        super::linked_from_line(&taking(vec![Calendar, Contacts], Vec::new())),
+        l10n::settings_account_linked_from_both()
+    );
+    assert_eq!(
+        super::linked_from_line(&taking(vec![Contacts], Vec::new())),
+        l10n::settings_account_linked_from_contacts()
+    );
+    assert_eq!(
+        super::stop_linking_message(&taking(vec![Calendar], Vec::new())),
+        l10n::settings_account_stop_linking_calendar()
+    );
+    assert_eq!(
+        super::stop_linking_message(&taking(vec![Calendar], vec![Calendar])),
+        format!(
+            "{} {}",
+            l10n::settings_account_stop_linking_calendar(),
+            l10n::settings_account_stop_linking_left_without()
+        )
+    );
+}
+
+#[test]
+fn a_separate_sign_in_that_moved_the_uses_is_explained_not_toasted() {
+    let notice = change_notice(&AccountChangeNotice::SignedInSeparately {
+        uses: vec![AccountCapability::Calendar, AccountCapability::Contacts],
+    });
+    assert_eq!(
+        notice,
+        Notice::Explained {
+            title: l10n::settings_account_signed_in_separately_title().to_owned(),
+            detail: l10n::settings_account_signed_in_separately_both().to_owned(),
+        }
+    );
 }

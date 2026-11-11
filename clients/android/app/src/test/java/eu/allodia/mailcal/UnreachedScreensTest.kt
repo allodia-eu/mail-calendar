@@ -35,9 +35,8 @@ class UnreachedScreensTest {
     private var skips = 0
     private var dismissed = 0
     private var signIns = 0
-    private var left = 0
     private val form = separateForm(separateSection(AccountCapability.CALENDAR, AccountCapability.CONTACTS))
-    private var controls by mutableStateOf(SeparateControls.of(form.section, null))
+    private var controls by mutableStateOf(SeparateControls.of(form.section))
     private var error by mutableStateOf<String?>(null)
 
     private fun question(set: UnreachedSet) {
@@ -54,7 +53,6 @@ class UnreachedScreensTest {
                 { u, p -> connects += u to p },
                 { skips++ },
                 onSignIn = { signIns++ },
-                onLeave = { left++ },
             )
         }
         compose.waitForIdle()
@@ -136,7 +134,6 @@ class UnreachedScreensTest {
         val connecting = ControlState(enabled = false, running = true)
         controls = SeparateControls.of(
             separateSection(AccountCapability.CALENDAR, connect = connecting, stopUsing = connecting.copy(running = false)),
-            null,
         )
         compose.waitForIdle()
         compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
@@ -150,7 +147,6 @@ class UnreachedScreensTest {
         val held = ControlState(enabled = false, running = false)
         controls = SeparateControls.of(
             separateSection(AccountCapability.CALENDAR, connect = held, stopUsing = ControlState(false, true)),
-            null,
         )
         compose.waitForIdle()
         compose.onNodeWithTag("separate-server-skip-running").assertExists()

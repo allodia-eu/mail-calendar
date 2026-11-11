@@ -4,7 +4,7 @@
 use std::{
     fs,
     sync::Mutex,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use engine_api::{AccountId, CalendarWrites, Engine};
@@ -252,3 +252,40 @@ mod outbox;
 
 #[path = "tests_boot_layout.rs"]
 mod layout;
+
+/// Notes `problems` on `account`'s calendar and contacts once its boot dial has failed. While its
+/// mail is unreachable, each dial of it replaces what they last said (the account failed whole),
+/// so problems noted before that dial ends are gone by the time a test reads them.
+pub(crate) fn note_after_boot_dial(
+    app: &MailcalApp,
+    account: &str,
+    problems: mailcal_app::UseProblems,
+) {
+    let id = AccountId::try_from(account).expect("a valid account id");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !app
+        .app
+        .connectivity()
+        .unreachable_accounts
+        .iter()
+        .any(|unreachable| unreachable == account)
+    {
+        assert!(
+            Instant::now() < deadline,
+            "the account's boot dial never ended"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // The dial replaces them just after it says the account is unreachable.
+    loop {
+        app.app.note_use_problems(&id, problems);
+        std::thread::sleep(Duration::from_millis(50));
+        if app.app.use_problems(&id) == problems {
+            return;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the account's problems never held"
+        );
+    }
+}

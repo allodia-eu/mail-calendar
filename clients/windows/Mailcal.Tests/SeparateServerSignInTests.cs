@@ -1,6 +1,7 @@
-// The separate-server form's sign-in at the server's own provider (docs/mail-oauth.md rule 13):
-// offered once the core's section says so, an answer from an attempt that was superseded or
-// retired does nothing, and success ends the form.
+// The separate-server form's sign-in through the browser (docs/mail-oauth.md rule 13,
+// docs/nextcloud-sign-in.md rule 2), which the core runs: offered once the core's section says so,
+// the button exactly the core's control, the line and Cancel while the browser holds it, and what
+// a form's going away cancels.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -10,164 +11,134 @@ namespace Allodia.Mailcal.Tests;
 
 public class SeparateServerSignInTests
 {
-    private static SeparateServerStep Step(params AccountCapability[] uses) =>
-        new("alice@imap", UnreachedUsesRulesTests.Section(uses), UnreachedUsesRules.Title(uses) ?? UnreachedTitle.Both);
+    private static readonly ControlState Free = new(true, false);
+    private static readonly ControlState Running = new(false, true);
+    private static readonly ControlState Held = new(false, false);
+
+    private static SeparateServerStep Step(AccountSeparateSignIn? signIn, params AccountCapability[] uses) =>
+        new("alice@imap", UnreachedUsesRulesTests.Section(uses) with { SignIn = signIn },
+            UnreachedUsesRules.Title(uses) ?? UnreachedTitle.Both);
+
+    private static BrowserSignIn Out(BrowserSignInStage stage, ulong attempt = 3) =>
+        new(attempt, "alice@imap", stage, new ControlState(stage is not BrowserSignInStage.Completing, false));
+
+    private static readonly BrowserSignInStage AtProvider =
+        new BrowserSignInStage.InBrowser("https://login.example.org/authorize", "eu.allodia.mailcal:/oauth/imap");
+
+    private static readonly BrowserSignInStage AtNextcloud =
+        new BrowserSignInStage.InBrowser("https://cloud.example.org/login/v2/flow", null);
+
+    /// <summary>The section while the core holds a sign-in: Connect and Skip held, the button as
+    /// <paramref name="button"/>, and <paramref name="browser"/> out.</summary>
+    private static SeparateServerStep Holding(SeparateServerStep step, ControlState button, BrowserSignIn browser) =>
+        step with
+        {
+            Section = step.Section with { Connect = Held, StopUsing = Held, SignInControl = button, Browser = browser },
+        };
 
     [Fact]
     public void TheSignInIsOfferedOnceTheCoreDrawsIt()
     {
-        var both = Step(AccountCapability.Calendar, AccountCapability.Contacts);
+        var both = Step(null, AccountCapability.Calendar, AccountCapability.Contacts);
         // Unanswered, the form stays as it is: the password path alone.
         Assert.False(SeparateServerSignIn.Offers(both));
         Assert.False(SeparateServerSignIn.Offers(null));
+        Assert.Equal(SeparateSignInOffer.None, SeparateServerSignIn.Row(both).Offer);
 
-        var provider = both with { Section = both.Section with { SignIn = AccountSeparateSignIn.Provider } };
-        Assert.Equal(SeparateSignInOffer.Provider, SeparateServerSignIn.Offer(provider));
-        var nextcloud = both with { Section = both.Section with { SignIn = AccountSeparateSignIn.Nextcloud } };
+        Assert.Equal(SeparateSignInOffer.Provider, SeparateServerSignIn.Row(Step(AccountSeparateSignIn.Provider, AccountCapability.Calendar)).Offer);
+        var nextcloud = Step(AccountSeparateSignIn.Nextcloud, AccountCapability.Calendar);
         Assert.Equal(SeparateSignInOffer.Nextcloud, SeparateServerSignIn.Offer(nextcloud));
         Assert.True(SeparateServerSignIn.Offers(nextcloud));
+
+        // Offered and nothing out: the button is free, with the note and no Cancel.
+        var row = SeparateServerSignIn.Row(nextcloud);
+        Assert.Equal(Free, row.Button);
+        Assert.Null(row.Waiting);
+        Assert.Null(row.Line);
     }
 
     [Fact]
-    public void AFormHoldsItsNextcloudGrantUnderItsOwnAccountAndUses()
+    public void TheButtonRunsAsTheCoreSaysWithNoLineBeforeTheBrowser()
     {
-        var both = Step(AccountCapability.Calendar, AccountCapability.Contacts);
-        Assert.Equal(
-            SeparateServerSignIn.Key(both),
-            SeparateServerSignIn.Key(Step(AccountCapability.Contacts, AccountCapability.Calendar)));
-        Assert.NotEqual(SeparateServerSignIn.Key(both), SeparateServerSignIn.Key(both with { AccountId = "bob@imap" }));
+        var step = Step(AccountSeparateSignIn.Provider, AccountCapability.Calendar);
+        foreach (var stage in new BrowserSignInStage[] { new BrowserSignInStage.Starting(), new BrowserSignInStage.Completing() })
+        {
+            var row = SeparateServerSignIn.Row(Holding(step, Running, Out(stage)));
+            Assert.Equal(Running, row.Button);
+            // Nothing waits on the person yet, or any more: no line, no Cancel.
+            Assert.Null(row.Waiting);
+            Assert.Null(row.Line);
+        }
     }
 
     [Fact]
-    public void TheFormIsDisabledOnlyDuringTheBlockingCoreCalls()
+    public void WhileTheBrowserWaitsTheLineAndItsCancelAreDrawnAndAFreshPressGoes()
     {
-        var signIn = new SeparateServerSignIn();
-        Assert.True(signIn.ButtonEnabled);
-        Assert.True(signIn.FormEnabled);
-        Assert.False(signIn.CancelShown);
-
-        var attempt = signIn.Start();
-        Assert.False(signIn.ButtonEnabled);
-        Assert.False(signIn.FormEnabled);
-        // The way back is there from the press, the begin included.
-        Assert.True(signIn.CancelShown);
-        Assert.True(signIn.Busy);
-
-        Assert.True(signIn.Advanced(attempt, SeparateSignInPhase.Waiting));
-        // The browser is open: a fresh press, the password and Skip all work.
-        Assert.True(signIn.ButtonEnabled);
-        Assert.True(signIn.FormEnabled);
-        Assert.True(signIn.CancelShown);
-
-        Assert.True(signIn.Advanced(attempt, SeparateSignInPhase.Completing));
-        Assert.False(signIn.ButtonEnabled);
-        Assert.False(signIn.FormEnabled);
-        // The completion is bounded, so it draws no way back and is not retired.
-        Assert.False(signIn.CancelShown);
-        Assert.False(signIn.Retire());
-        Assert.Equal(SeparateSignInPhase.Completing, signIn.Phase);
+        var step = Step(AccountSeparateSignIn.Provider, AccountCapability.Calendar);
+        var browser = Out(AtProvider);
+        var row = SeparateServerSignIn.Row(Holding(step, Free, browser));
+        Assert.Equal(SignInWaitLine.Redirect, row.Line);
+        Assert.Same(browser, row.Waiting);
+        Assert.True(row.Waiting!.Cancel.Enabled);
+        // The core holds Connect while the sign-in is out; the button is its own control and stays
+        // pressable, so a press starts a fresh sign-in in place of one abandoned in the browser.
+        Assert.True(row.Button.Enabled);
+        Assert.False(Holding(step, Free, browser).Section.Connect.Enabled);
     }
 
     [Fact]
-    public void AnAnswerFromASupersededAttemptDoesNothing()
+    public void NextcloudsWaitIsSaidAsItsOwn()
     {
-        var signIn = new SeparateServerSignIn();
-        var first = signIn.Start();
-        signIn.Advanced(first, SeparateSignInPhase.Waiting);
-
-        // A fresh press while the browser is open.
-        var second = signIn.Start();
-        Assert.False(signIn.Advanced(first, SeparateSignInPhase.Completing));
-        Assert.Equal(SeparateSignInPhase.Starting, signIn.Phase);
-        Assert.Null(signIn.Ended(first, SeparateSignInEnd.Added("alice@dav")));
-        Assert.Null(signIn.Ended(first, SeparateSignInEnd.Failed("refused")));
-        Assert.Equal(SeparateSignInPhase.Starting, signIn.Phase);
-
-        // The current one still ends as itself.
-        Assert.True(signIn.Advanced(second, SeparateSignInPhase.Waiting));
-        Assert.Equal("refused", signIn.Ended(second, SeparateSignInEnd.Failed("refused"))?.Error);
-        Assert.Equal(SeparateSignInPhase.Idle, signIn.Phase);
+        var step = Step(AccountSeparateSignIn.Nextcloud, AccountCapability.Calendar, AccountCapability.Contacts);
+        var row = SeparateServerSignIn.Row(Holding(step, Free, Out(AtNextcloud)));
+        Assert.Equal(SeparateSignInOffer.Nextcloud, row.Offer);
+        // Nothing returns to the app, so the line says the app notices when the person is done.
+        Assert.Equal(SignInWaitLine.Nextcloud, row.Line);
+        Assert.NotNull(row.Waiting);
     }
 
     [Fact]
-    public void AnAnswerFromARetiredAttemptDoesNothing()
+    public void ARedrawFollowsTheSignInAndAReadThatChangedNothingKeepsIt()
     {
-        var signIn = new SeparateServerSignIn();
-        // Nothing out: nothing to cancel.
-        Assert.False(signIn.Retire());
+        var step = Step(AccountSeparateSignIn.Provider, AccountCapability.Calendar);
+        var waiting = Holding(step, Free, Out(AtProvider));
+        Assert.Equal(SeparateServerSignIn.Row(waiting).Key, SeparateServerSignIn.Row(Holding(step, Free, Out(AtProvider))).Key);
+        Assert.NotEqual(SeparateServerSignIn.Row(step).Key, SeparateServerSignIn.Row(waiting).Key);
+        // A fresh press is a new attempt, whose Cancel names it.
+        Assert.NotEqual(SeparateServerSignIn.Row(waiting).Key, SeparateServerSignIn.Row(Holding(step, Free, Out(AtProvider, 4))).Key);
+        Assert.NotEqual(
+            SeparateServerSignIn.Row(Holding(step, Running, Out(new BrowserSignInStage.Starting()))).Key,
+            SeparateServerSignIn.Row(waiting).Key);
 
-        // Retired during the begin: the browser never opens, because the begin's answer finds a
-        // different attempt.
-        var starting = signIn.Start();
-        Assert.True(signIn.Retire());
-        Assert.Equal(SeparateSignInPhase.Idle, signIn.Phase);
-        Assert.False(signIn.Advanced(starting, SeparateSignInPhase.Waiting));
-        Assert.Equal(SeparateSignInPhase.Idle, signIn.Phase);
-
-        // Retired while the browser is open: a redirect landing later adds nothing the form acts on.
-        var waiting = signIn.Start();
-        signIn.Advanced(waiting, SeparateSignInPhase.Waiting);
-        Assert.True(signIn.Retire());
-        Assert.Null(signIn.Ended(waiting, SeparateSignInEnd.Added("alice@dav")));
-        Assert.Equal(SeparateSignInPhase.Idle, signIn.Phase);
-        Assert.True(signIn.ButtonEnabled);
+        // The page and setup's step are drawn again when the sign-in moves.
+        Assert.NotEqual(UnreachedUsesRules.Fingerprint(step.Section), UnreachedUsesRules.Fingerprint(waiting.Section));
+        var running = step.Section with { SignInControl = Running };
+        Assert.NotEqual(UnreachedUsesRules.Fingerprint(step.Section), UnreachedUsesRules.Fingerprint(running));
     }
 
     [Fact]
-    public void AnAttemptRetiredOutsideTheFormGoesBackToTheOfferAndSaysNothing()
+    public void TheFormsGoingAwayCancelsASignInStillOutButNotOneBeingCompleted()
     {
-        // The dialog's close cancels the flow without the form's Cancel: the flow reports Retired.
-        var signIn = new SeparateServerSignIn();
-        var attempt = signIn.Start();
-        signIn.Advanced(attempt, SeparateSignInPhase.Waiting);
-        Assert.Null(signIn.Ended(attempt, SeparateSignInEnd.Retired));
-        Assert.Equal(SeparateSignInPhase.Idle, signIn.Phase);
-        Assert.False(signIn.CancelShown);
+        var step = Step(AccountSeparateSignIn.Provider, AccountCapability.Calendar);
+        Assert.Null(SeparateServerSignIn.ToCancel(null));
+        Assert.Null(SeparateServerSignIn.ToCancel(step.Section));
+        var starting = Out(new BrowserSignInStage.Starting());
+        Assert.Same(starting, SeparateServerSignIn.ToCancel(Holding(step, Running, starting).Section));
+        var waiting = Out(AtProvider);
+        Assert.Same(waiting, SeparateServerSignIn.ToCancel(Holding(step, Free, waiting).Section));
+        Assert.Null(SeparateServerSignIn.ToCancel(Holding(step, Running, Out(new BrowserSignInStage.Completing())).Section));
     }
 
     [Fact]
-    public void SuccessEndsTheFormAndAFailureKeepsIt()
+    public void ThePagesCancelWaitsOnlyForWhatItWouldNotStop()
     {
-        var signIn = new SeparateServerSignIn();
-        var attempt = signIn.Start();
-        signIn.Advanced(attempt, SeparateSignInPhase.Waiting);
-        signIn.Advanced(attempt, SeparateSignInPhase.Completing);
-        var next = signIn.Ended(attempt, SeparateSignInEnd.Added("alice@dav"));
-
-        Assert.Equal(new SeparateServerNext(null), next);
-        Assert.True(next?.GoesOn);
-        // A failure stays on the form, as a refused password does.
-        var failed = signIn.Ended(signIn.Start(), SeparateSignInEnd.Failed("no"));
-        Assert.Equal(new SeparateServerNext("no"), failed);
-        Assert.False(failed?.GoesOn);
+        var step = Step(AccountSeparateSignIn.Provider, AccountCapability.Calendar);
+        Assert.True(SeparateServerSignIn.PageCancel(step.Section).Enabled);
+        Assert.False(SeparateServerSignIn.PageCancel(step.Section with { Connect = Running }).Enabled);
+        // Closing the form cancels a sign-in the browser holds, so it stays pressable then.
+        Assert.True(SeparateServerSignIn.PageCancel(Holding(step, Free, Out(AtProvider)).Section).Enabled);
+        Assert.False(SeparateServerSignIn.PageCancel(Holding(step, Running, Out(new BrowserSignInStage.Completing())).Section).Enabled);
+        // It only closes the form: it never runs.
+        Assert.False(SeparateServerSignIn.PageCancel(step.Section).Running);
     }
-
-    private static readonly CoreErrorWords Words = new(
-        "refused", "set up", "other", "stale", "calendar unreachable", "contacts unreachable",
-        "calendar own sign-in", "contacts own sign-in", "calendar server changed", "contacts server changed",
-        "calendar none on server", "contacts none on server", "not opened", "not finished", error => error);
-
-    [Fact]
-    public void AFailureSaysTheSignInFailedUnlessTheCoreTypedWhatToDo()
-    {
-        Assert.Equal("other", SeparateServerSignIn.Said(new MailcalException.DifferentAccount(), "failed", Words));
-        Assert.Equal("stale", SeparateServerSignIn.Said(new MailcalException.StaleSignIn(), "failed", Words));
-        Assert.Equal("failed", SeparateServerSignIn.Said(new MailcalException.Connect("token exchange"), "failed", Words));
-        Assert.Equal("failed", SeparateServerSignIn.Said(new TimeoutException(), "failed", Words));
-        // A refused sign-in stays the form's own failure.
-        Assert.Equal("failed", SeparateServerSignIn.Said(new MailcalException.SignInRefused("401"), "failed", Words));
-    }
-
-    [Theory]
-    [InlineData(nameof(AccountCapability.Calendar), nameof(UseProblem.Unreachable), "calendar unreachable")]
-    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.Unreachable), "contacts unreachable")]
-    [InlineData(nameof(AccountCapability.Calendar), nameof(UseProblem.NeedsOwnSignIn), "calendar own sign-in")]
-    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.NeedsOwnSignIn), "contacts own sign-in")]
-    [InlineData(nameof(AccountCapability.Contacts), nameof(UseProblem.SignInRefused), "refused")]
-    public void AUseThatDidNotConnectSaysWhichAndWhy(string capability, string problem, string said) =>
-        Assert.Equal(said, SeparateServerSignIn.Said(NotConnected(capability, problem), "failed", Words));
-
-    // Named rather than typed: the generated enums are internal, and a public test cannot take them.
-    private static MailcalException.UseNotConnected NotConnected(string capability, string problem) =>
-        new(Enum.Parse<AccountCapability>(capability), Enum.Parse<UseProblem>(problem));
 }

@@ -5,8 +5,9 @@
 
 use crate::{
     AccountCapability, AccountChangeNoticeRaised, AccountEndpoints, AccountEntry,
-    AccountLinkPicker, AccountPage, AccountReplyFallback, AccountServers, AccountUseStatus,
-    AccountUseSwitch, CapabilityState, ControlState, LinkSlot, ReplyFallbackChoice, UseProblem,
+    AccountLinkPicker, AccountLinkedFrom, AccountPage, AccountReplyFallback, AccountServers,
+    AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState, LinkSlot,
+    ReplyFallbackChoice, UseProblem,
     account_registry::Toggle,
     account_work::{Hold, PageWork},
     app_accounts_uses::domain_of,
@@ -15,12 +16,15 @@ use crate::{
 /// `entry`'s page. `hold` says which change runs, `stored_servers` are its servers and login for
 /// an account whose page edits them, `refused_servers` is the edit its last save of servers
 /// refused, `reply_fallback` the account's standing answer about invitation replies, and
-/// `toggle` what switching a use on (`true`) or off comes to. The control a running change started
-/// is drawn at the value it is moving to.
+/// `toggle` what switching a use on (`true`) or off comes to, and `linked_from` the accounts taking
+/// a use from it ([`linked_from`]). The control a running change started is drawn at the value it
+/// is moving to.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn page(
     entry: &AccountEntry,
     hold: Hold,
     notice: Option<AccountChangeNoticeRaised>,
+    linked_from: Vec<AccountLinkedFrom>,
     stored_servers: Option<AccountEndpoints>,
     refused_servers: Option<AccountEndpoints>,
     reply_fallback: ReplyFallbackChoice,
@@ -41,9 +45,10 @@ pub(crate) fn page(
                 PageWork::Use { capability: at, on } if *at == capability => Some(*on),
                 _ => None,
             });
+            let linked = linked_use(entry, capability).filter(|_| !on);
             let pressing = toggle(capability, !on);
             let blocked = match pressing {
-                Toggle::Refused(block) => Some(block),
+                Toggle::Refused(block) if linked.is_none() => Some(block),
                 _ => None,
             };
             AccountUseSwitch {
@@ -61,6 +66,7 @@ pub(crate) fn page(
                 confirms_off: domain_of(capability.into()).is_some(),
                 reviews_server_change: review == Some(capability),
                 signs_in_separately: false,
+                linked,
             }
         })
         .collect();
@@ -68,11 +74,18 @@ pub(crate) fn page(
         PageWork::Link { slot, target } => Some((*slot, target.as_deref())),
         _ => None,
     });
+    let senders = linked_from
+        .iter()
+        .filter(|linked| linked.uses.contains(&AccountCapability::Calendar))
+        .count();
     AccountPage {
         account: entry.id.clone(),
         uses,
         links: link_pickers(entry)
             .into_iter()
+            .filter(|picker| {
+                picker.selected.is_none() || (picker.slot == LinkSlot::Mail && senders > 1)
+            })
             .map(|mut picker| {
                 if let Some((_, target)) = linking.filter(|(slot, _)| *slot == picker.slot) {
                     picker.selected = target.and_then(|target| {
@@ -83,6 +96,17 @@ pub(crate) fn page(
                     picker.control = control(false, true);
                 }
                 picker
+            })
+            .collect(),
+        linked_from: linked_from
+            .into_iter()
+            .map(|mut linked| {
+                let stopping = hold.going(|work| match work {
+                    PageWork::Unlink { from } if *from == linked.account.id => Some(()),
+                    _ => None,
+                });
+                linked.stop = control(stopping.is_some(), true);
+                linked
             })
             .collect(),
         remove: control(hold.own.contains(&PageWork::Remove), true),
@@ -131,6 +155,52 @@ pub fn setup_link_pickers(entry: &AccountEntry) -> Vec<AccountLinkPicker> {
     link_pickers(entry)
         .into_iter()
         .filter(|picker| picker.selected.is_none())
+        .collect()
+}
+
+/// The account `capability` comes from through `entry`'s link, for a use a link can fill.
+fn linked_use(entry: &AccountEntry, capability: AccountCapability) -> Option<crate::LinkedAccount> {
+    match capability {
+        AccountCapability::Calendar => entry.links.calendar.clone(),
+        AccountCapability::Contacts => entry.links.contacts.clone(),
+        _ => None,
+    }
+}
+
+/// The accounts among `entries` taking a use from `entry` through a link, each with what it takes
+/// and, of that, what it has no server of its own for (`has_own` answers whether switching a use
+/// on would be refused for an account). Its Stop control is drawn by [`page`].
+pub(crate) fn linked_from(
+    entry: &AccountEntry,
+    entries: &[AccountEntry],
+    has_own: impl Fn(&str, AccountCapability) -> bool,
+) -> Vec<AccountLinkedFrom> {
+    entry
+        .linked_from
+        .iter()
+        .filter_map(|account| {
+            let other = entries.iter().find(|other| other.id == account.id)?;
+            let uses: Vec<AccountCapability> =
+                [AccountCapability::Calendar, AccountCapability::Contacts]
+                    .into_iter()
+                    .filter(|&capability| {
+                        linked_use(other, capability).is_some_and(|linked| linked.id == entry.id)
+                    })
+                    .collect();
+            (!uses.is_empty()).then(|| AccountLinkedFrom {
+                account: account.clone(),
+                leaves_without: uses
+                    .iter()
+                    .copied()
+                    .filter(|&capability| !has_own(&other.id, capability))
+                    .collect(),
+                uses,
+                stop: ControlState {
+                    enabled: true,
+                    running: false,
+                },
+            })
+        })
         .collect()
 }
 
@@ -211,6 +281,10 @@ fn index(found: Option<usize>) -> Option<u32> {
 #[cfg(test)]
 #[path = "account_page_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "account_page_linked_tests.rs"]
+mod linked_tests;
 
 #[path = "account_page_shared.rs"]
 pub(crate) mod shared;

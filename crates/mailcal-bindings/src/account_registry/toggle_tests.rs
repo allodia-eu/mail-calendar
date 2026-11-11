@@ -203,6 +203,7 @@ fn the_page_draws_what_the_registry_decides() {
         &entry,
         Hold::default(),
         None,
+        Vec::new(),
         None,
         None,
         crate::ReplyFallbackChoice::Ask,

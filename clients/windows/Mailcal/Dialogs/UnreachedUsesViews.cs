@@ -9,6 +9,7 @@ using Allodia.Mailcal.Services;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
+using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
@@ -18,50 +19,45 @@ using Windows.UI;
 
 namespace Allodia.Mailcal.Dialogs;
 
-/// <summary>The separate-server form's controls. Connect and the other way out are drawn from the
-/// core's section each time it changes (<see cref="Show"/>); the fields are the person's.</summary>
+/// <summary>The separate-server form's controls. Connect, the other way out and the browser
+/// sign-in are drawn from the core's section each time it changes (<see cref="Show"/>); the fields
+/// are the person's.</summary>
 internal sealed record SeparateServerForm(
     StackPanel Panel, TextBlock Title, TextBox Username, PasswordBox Password, InfoBar Error, StackPanel Buttons,
     SeparateServerSignInRow SignIn)
 {
-    // What the buttons were last drawn from, so a draw that changes nothing keeps them.
+    // What the buttons and the sign-in were last drawn from, so a draw that changes nothing keeps
+    // them.
     private string? _buttonsDrawn;
+    private string? _signInDrawn;
 
     // Connect as drawn, which a password typed or cleared readies.
     private ControlComponents.FormSend? _connect;
 
     /// <summary>
-    /// Draws the form for <paramref name="step"/> as the core drew it and as
-    /// <paramref name="signIn"/> stands: Connect and <paramref name="secondary"/> (Skip in setup,
-    /// Cancel on the account's page) from the core's controls, held as well while the sign-in's
-    /// own core call runs, the fields with Connect, and the sign-in once offered.
-    /// <paramref name="cancelOwn"/> is whether the attempt draws a Cancel of its own, which the
-    /// account's page does not, its form's Cancel being that way back. Setup's Skip is the core's
-    /// <c>StopUsing</c>; the page's Cancel only closes, so it waits for a connect it would not stop.
+    /// Draws the form for <paramref name="step"/> as the core drew it: Connect from the core's
+    /// control, the fields held with it, <paramref name="secondary"/> (Skip in setup, Cancel on the
+    /// account's page) from <paramref name="otherState"/>, and the sign-in once offered, running
+    /// as the core says, with a line and its Cancel while the browser holds it.
+    /// <paramref name="signIn"/> starts the sign-in and <paramref name="cancelSignIn"/> cancels
+    /// the one the browser holds.
     /// </summary>
     internal void Show(
-        SeparateServerStep step, SeparateServerSignIn signIn, bool cancelOwn, string secondary,
-        Action connect, Action other)
+        SeparateServerStep step, ControlState otherState, string secondary, Action connect, Action other,
+        Action signIn, Action<BrowserSignIn> cancelSignIn)
     {
         var section = step.Section;
-        var offer = SeparateServerSignIn.Offer(step);
-        var offered = offer != SeparateSignInOffer.None;
-        // The sign-in's own blocking core calls hold what the core does not know is held.
-        var browsing = !signIn.FormEnabled;
-        var connectState = section.Connect with { Enabled = section.Connect.Enabled && !browsing };
-        var otherState = cancelOwn
-            ? section.StopUsing with { Enabled = section.StopUsing.Enabled && !browsing }
-            : new ControlState(
-                !section.Connect.Running && signIn.Phase != SeparateSignInPhase.Completing, false);
-        ControlComponents.HoldFields(connectState, Username, Password);
-        var key = $"{connectState}/{otherState}/{offered}";
+        var row = SeparateServerSignIn.Row(step);
+        var offered = row.Offer != SeparateSignInOffer.None;
+        ControlComponents.HoldFields(section.Connect, Username, Password);
+        var key = $"{section.Connect}/{otherState}/{offered}";
         if (key != _buttonsDrawn)
         {
             _buttonsDrawn = key;
             Buttons.Children.Clear();
             // One primary action: the sign-in where it is offered, Connect otherwise.
-            var style = offered ? null : (Style)Application.Current.Resources["AccentButtonStyle"];
-            _connect = ControlComponents.FormButton(L10n.ActionConnect(), connectState, "SeparateServerConnect", style, connect);
+            var style = offered ? null : AccentStyle();
+            _connect = ControlComponents.FormButton(L10n.ActionConnect(), section.Connect, "SeparateServerConnect", style, connect);
             Buttons.Children.Add(_connect.Element);
             Buttons.Children.Add(ControlComponents.Button(secondary, otherState, "SeparateServerSecondary", other));
         }
@@ -69,16 +65,32 @@ internal sealed record SeparateServerForm(
         SignIn.Panel.Visibility = offered ? Visibility.Visible : Visibility.Collapsed;
         // Nextcloud's sign-in is named as itself, and says where the person is while the browser
         // holds it (docs/nextcloud-sign-in.md rule 5).
-        var nextcloud = offer == SeparateSignInOffer.Nextcloud;
-        SignIn.Button.Content = nextcloud ? L10n.NextcloudSignInButton() : L10n.SetupImapSigninButton();
-        SignIn.Note.Text = !nextcloud ? L10n.SetupImapSigninNote()
-            : signIn.Phase == SeparateSignInPhase.Waiting ? L10n.NextcloudSignInWaiting()
-            : L10n.NextcloudSignInNote();
-        SignIn.Button.IsEnabled = signIn.ButtonEnabled && section.Connect.Enabled;
-        SignIn.Cancel.Visibility = cancelOwn && signIn.CancelShown ? Visibility.Visible : Visibility.Collapsed;
-        SignIn.Ring.IsActive = signIn.Busy;
-        SignIn.Ring.Visibility = signIn.Busy ? Visibility.Visible : Visibility.Collapsed;
+        var nextcloud = row.Offer == SeparateSignInOffer.Nextcloud;
+        SignIn.Note.Text = row.Line switch
+        {
+            SignInWaitLine.Nextcloud => L10n.NextcloudSignInWaiting(),
+            SignInWaitLine.Redirect => L10n.SettingsAccountSigninWaiting(section.Username),
+            _ when nextcloud => L10n.NextcloudSignInNote(),
+            _ => L10n.SetupImapSigninNote(),
+        };
+        if (row.Key == _signInDrawn)
+        {
+            return;
+        }
+        _signInDrawn = row.Key;
+        SignIn.Button.Children.Clear();
+        SignIn.Button.Children.Add(ControlComponents.Button(
+            nextcloud ? L10n.NextcloudSignInButton() : L10n.SetupImapSigninButton(),
+            row.Button, "SeparateServerSignIn", signIn, AccentStyle()));
+        SignIn.Cancel.Children.Clear();
+        if (row.Waiting is { } waiting)
+        {
+            SignIn.Cancel.Children.Add(ControlComponents.Button(
+                L10n.ActionCancel(), waiting.Cancel, "SeparateServerSignInCancel", () => cancelSignIn(waiting)));
+        }
     }
+
+    private static Style AccentStyle() => (Style)Application.Current.Resources["AccentButtonStyle"];
 
     /// <summary>Holds Connect while there is no password to send.</summary>
     internal void Readied() => _connect?.Ready(Password.Password.Length > 0 ? null : string.Empty);
@@ -95,10 +107,10 @@ internal sealed record SeparateServerForm(
 /// answers it as Cancel.</summary>
 internal sealed record UnreachedPrompt(Task<UnreachedAnswer> Answer, Action Dismiss);
 
-/// <summary>The sign-in at the server's own provider, or Nextcloud's, above the login: the button,
-/// its Cancel and ring while an attempt is out, and the note beneath. Collapsed until the core
-/// offers it.</summary>
-internal sealed record SeparateServerSignInRow(StackPanel Panel, Button Button, Button Cancel, ProgressRing Ring, TextBlock Note);
+/// <summary>The sign-in at the server's own provider, or Nextcloud's, above the login: where its
+/// button is drawn, and the line beneath with where its Cancel is drawn while the browser holds
+/// it. Collapsed until the core offers it.</summary>
+internal sealed record SeparateServerSignInRow(StackPanel Panel, StackPanel Button, TextBlock Note, StackPanel Cancel);
 
 internal static class UnreachedUsesViews
 {
@@ -250,27 +262,8 @@ internal static class UnreachedUsesViews
     private static SeparateServerSignInRow SignInRow()
     {
         var panel = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var button = new Button
-        {
-            Content = L10n.SetupImapSigninButton(),
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-        };
-        AutomationProperties.SetAutomationId(button, "SeparateServerSignIn");
-        var cancel = new Button { Content = L10n.ActionCancel(), Visibility = Visibility.Collapsed };
-        AutomationProperties.SetAutomationId(cancel, "SeparateServerSignInCancel");
-        var ring = new ProgressRing
-        {
-            Width = 20,
-            Height = 20,
-            IsActive = false,
-            Visibility = Visibility.Collapsed,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        buttons.Children.Add(button);
-        buttons.Children.Add(cancel);
-        buttons.Children.Add(ring);
-        panel.Children.Add(buttons);
+        var button = new StackPanel();
+        panel.Children.Add(button);
         var note = new TextBlock
         {
             Text = L10n.SetupImapSigninNote(),
@@ -278,7 +271,10 @@ internal static class UnreachedUsesViews
             TextWrapping = TextWrapping.Wrap,
         };
         AutomationProperties.SetAutomationId(note, "SeparateServerSignInNote");
+        AutomationProperties.SetLiveSetting(note, AutomationLiveSetting.Polite);
         panel.Children.Add(note);
-        return new SeparateServerSignInRow(panel, button, cancel, ring, note);
+        var cancel = new StackPanel();
+        panel.Children.Add(cancel);
+        return new SeparateServerSignInRow(panel, button, note, cancel);
     }
 }

@@ -83,8 +83,8 @@ extension MailboxModel {
         separateServers[.setup] = setupFlow.separateServer
     }
 
-    /// The separate-server step is over: on to the link step, or the end of setup. A sign-in that
-    /// ended it and the core no longer drawing its section both reach here; the second is a no-op.
+    /// The separate-server step is over, the core drawing no section for it: on to the link step,
+    /// or the end of setup.
     func setupSeparateServerDone() {
         guard setupFlow.separateServer != nil else { return }
         separateServers[.setup] = nil

@@ -49,6 +49,18 @@ pub(crate) fn prepare_stored_account(
     StoredConfig::parse(config_toml)?.prepare(sink, origin)
 }
 
+/// Why a stored config was left out at boot, worded for the diagnostic log.
+///
+/// Never the error's own text: a TOML parse error quotes the line it failed on, and in a stored
+/// config that line can hold a password or a refresh token.
+pub(crate) const fn skip_reason(err: &MailcalError) -> &'static str {
+    match err {
+        MailcalError::Config(_) => "its stored settings are incomplete or malformed",
+        MailcalError::Engine(_) => "no account id could be derived from its stored settings",
+        _ => "its sign-in could not be prepared",
+    }
+}
+
 /// A stored config parsed and its id derived, before any token source exists for it.
 ///
 /// The split exists because building a token source with [`CredentialOrigin::FreshSignIn`]

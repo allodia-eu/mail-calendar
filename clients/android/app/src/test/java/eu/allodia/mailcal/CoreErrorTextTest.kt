@@ -50,25 +50,11 @@ class CoreErrorTextTest {
     }
 
     @Test
-    fun a_separate_servers_sign_in_says_a_failed_exchange_as_the_imap_sign_in_does() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
-        assertEquals(
-            L10n.setup_imap_signin_failed(ctx),
-            separateSignInSaid(MailcalException.Connect("token exchange failed"), ctx),
-        )
-        assertEquals(
-            L10n.signin_different_account(ctx),
-            separateSignInSaid(MailcalException.DifferentAccount(), ctx),
-        )
-    }
-
-    @Test
     fun a_browser_returning_from_another_sign_in_is_said_as_such_on_every_route() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()
         val stale = MailcalException.StaleSignIn()
         val said = L10n.signin_stale(ctx)
         assertEquals(said, coreErrorSaid(stale, ctx))
-        assertEquals(said, separateSignInSaid(stale, ctx))
         assertEquals(said, signInFailedSaid(stale, ctx, L10n.setup_imap_signin_failed(ctx)))
         assertEquals(said, allodiaFailureSaid(stale, ctx))
         assertEquals("the browser returned from another sign-in", coreErrorText(stale))
@@ -105,8 +91,6 @@ class CoreErrorTextTest {
         for ((use, expected) in cases) {
             val error = MailcalException.UseNotConnected(use.first, use.second)
             assertEquals("$use", expected, coreErrorSaid(error, ctx))
-            // The sign-in route says it too, not the sign-in's own failure line.
-            assertEquals("$use", expected, separateSignInSaid(error, ctx))
         }
     }
 

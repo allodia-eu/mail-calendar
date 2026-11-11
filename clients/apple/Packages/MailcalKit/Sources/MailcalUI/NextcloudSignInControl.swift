@@ -8,10 +8,8 @@ import SwiftUI
 
 struct NextcloudSignInControl: View {
     var signIn: NextcloudSignIn
-    /// Whether the sign-in is the surface's primary action.
+    /// Whether the sign-in is the surface's primary action; Return presses it while it is.
     var leads = true
-    /// Whether Return presses it while it leads.
-    var takesReturn = true
     /// Offers the password route beneath, until it is chosen.
     var passwordInstead: (() -> Void)? = nil
     let start: () -> Void
@@ -56,10 +54,8 @@ struct NextcloudSignInControl: View {
                 .frame(maxWidth: .infinity)
         }
         .controlSize(.large)
-        if leads && takesReturn {
+        if leads {
             label.buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-        } else if leads {
-            label.buttonStyle(.borderedProminent)
         } else {
             label.buttonStyle(.bordered)
         }

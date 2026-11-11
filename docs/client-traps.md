@@ -213,6 +213,21 @@ that same file.
   goes through [`host_runtime`](../clients/linux/src/host_runtime.rs), which owns the one runtime
   and never drops it; `cargo xtask check-portal-runtime` refuses a second one anywhere else in
   the client.
+- **On Linux, a passwordless keyring keeps only the first line of a secret.** gnome-keyring stores
+  such a keyring as a plain-text file with one `key=value` line per secret and does not escape a
+  newline, so a multi-line value reads back as its first line and the rest of it surfaces as stray
+  items with no label. An encrypted keyring is unaffected, which is why a developer's machine
+  rarely shows it; a distribution that sets up a passwordless keyring for autologin does.
+  [`secret_encoding`](../clients/linux/src/secret_encoding.rs) stores every value as one base64
+  line. A config stored unencoded with no newline in it is one this cut short: when the core
+  cannot read it either, the launch that leaves it out logs it and raises the notice, and the
+  client then removes it.
+
+  The stray items are named after the value's later lines (a TOML table becomes an item called
+  `google`) and carry no attributes, so nothing can tell them apart from another application's
+  items, and the client leaves them alone. They hold no secret for long: gnome-keyring drops the
+  lines it does not recognise the next time it rewrites the file after a restart, leaving empty
+  items a person can delete in Seahorse.
 - **On Linux, a notification action that does not start with `app.` cannot start the app.** The
   notification portal delivers an `app.` action by calling `ActivateAction` on the application's
   bus name, which D-Bus answers by starting the app from its service file when it is not running.

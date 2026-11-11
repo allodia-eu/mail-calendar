@@ -12,17 +12,17 @@ internal static class CorePage
 
     /// <summary>A page for <paramref name="entry"/> with nothing running and nothing blocked.</summary>
     internal static AccountPage Of(AccountEntry entry) => new(
-        entry.Id,
-        [.. entry.Uses.Select(use => new AccountUseSwitch(
+        Account: entry.Id,
+        Uses: [.. entry.Uses.Select(use => new AccountUseSwitch(
             use.Capability, use.State == CapabilityState.On, Free, null, null, false, true, false))],
-        [],
-        null,
-        null,
-        null,
-        null,
-        Free,
-        null,
-        null);
+        Links: [],
+        SenderName: null,
+        Mail: null,
+        Servers: null,
+        Shared: null,
+        Remove: Free,
+        Notice: null,
+        LinkedFrom: []);
 
     /// <summary>One picker per slot with candidates and nothing linked, the suggestion marked, as
     /// <c>setup_link_pickers</c> answers for the entries these tests build.</summary>

@@ -14,7 +14,7 @@ func separateSection(
 ) -> AccountSeparateServer {
     AccountSeparateServer(
         uses: uses, host: host, username: "alice", signIn: signIn, connect: .free(),
-        stopUsing: .free(), failed: nil)
+        stopUsing: .free(), failed: nil, signInControl: .free(), browser: nil)
 }
 
 /// The form for `uses` of the mailbox `alice@imap`.

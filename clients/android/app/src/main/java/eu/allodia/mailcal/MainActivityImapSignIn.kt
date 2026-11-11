@@ -48,6 +48,13 @@ internal fun MainActivity.signInWithImap(request: ImapLoginRequest) {
                 redirectUri = ImapOAuthConfig.REDIRECT_URI,
             )
             activity.mainHandler.post {
+                // Setup went on meanwhile, through a password, to the separate server's step: the
+                // browser opening now would take the redirect that step's own sign-in waits on.
+                if (activity.setupFlow.separate.form != null) {
+                    logUiInfo("imap sign-in: setup moved on before the browser opened; not opening it")
+                    activity.signingInImap = false
+                    return@post
+                }
                 activity.pendingImapLogin = start.pending
                 // Asked about when the add is refused as already set up (docs/accounts.md rule 18).
                 activity.setupFlow.signInUnreached = start.unreached

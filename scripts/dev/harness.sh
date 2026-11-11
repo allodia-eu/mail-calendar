@@ -20,6 +20,8 @@
 # --bulk seeds dozens of extra messages (SEED_BULK) into dev-only folders for a fuller mailbox;
 # without it the seed is the deterministic CI fixture. See docker/stalwart/README.md.
 set -euo pipefail
+# Before lib.sh exports the brand: `test` hands cargo back the environment it was called with.
+mapfile -t CALLER_ENV < <(compgen -e)
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 # Absolute path to this script, resolved BEFORE the cd below so the `help` case can read it.
@@ -153,44 +155,61 @@ case "$cmd" in
     extract_harness_ca || die "the live tests need the harness certificates"
     info "running the gated live tests against the harness"
     cd "$REPO_ROOT"
+    # Selected from the whole workspace, never with `-p`: features are resolved over the packages a
+    # command selects, so `-p mailcal-account` and `-p mailcal-bindings` each build their own
+    # variant of the crates beneath them, and alternating between the two recompiles both. Selected
+    # the way the gate's and CI's `cargo test --workspace` selects, every suite reuses that build.
+    #
+    # Without the brand lib.sh exported, for the same reason: the brand build scripts watch those
+    # names, so a cargo that sees them and one that does not each rebuild everything above
+    # mailcal-l10n for the other. The build reads the same values from the brand files itself.
+    declare -A caller_set=()
+    unbrand=()
+    for name in "${CALLER_ENV[@]}"; do caller_set[$name]=1; done
+    while IFS= read -r name; do
+      [[ -v caller_set[$name] ]] || unbrand+=(-u "$name")
+    done < <(brand_keys)
+    live_suite() {
+      env "${unbrand[@]}" cargo test --workspace --exclude mailcal-linux --test "$1" -- --nocapture
+    }
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       STALWART_ACCOUNT="alice@test.local" \
       STALWART_PASSWORD="harness-alice-pw" \
-      cargo test -p mailcal-account --test live_jmap -- --nocapture
+      live_suite live_jmap
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       STALWART_OAUTH_HTTP_ADDR="$STALWART_OAUTH_HTTP_ADDR" \
-      cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
+      live_suite live_jmap_oauth
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
-      cargo test -p mailcal-bindings --test live_link_suggestions -- --nocapture
-    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
-      MAILCAL_EXTRA_CA="$HARNESS_CA" \
-      MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
-      cargo test -p mailcal-bindings --test live_shared_mailboxes -- --nocapture
+      live_suite live_link_suggestions
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
-      cargo test -p mailcal-bindings --test live_row_menu -- --nocapture
+      live_suite live_shared_mailboxes
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      MAILCAL_EXTRA_CA="$HARNESS_CA" \
+      MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
+      live_suite live_row_menu
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
-      cargo test -p mailcal-bindings --test live_account_servers -- --nocapture
+      live_suite live_account_servers
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
-      cargo test -p mailcal-account --test live_imap_auth -- --nocapture
+      live_suite live_imap_auth
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
-      cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
+      live_suite live_imap_oauth
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       STALWART_OAUTH_HTTP_ADDR="$STALWART_OAUTH_HTTP_ADDR" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
-      cargo test -p mailcal-bindings --test live_sign_in_switch -- --nocapture
+      live_suite live_sign_in_switch
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_OAUTH_IMAP="$STALWART_OAUTH_IMAP_ADDR" \
-      cargo test -p mailcal-bindings --test live_calendar_split -- --nocapture
+      live_suite live_calendar_split
     MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
-      cargo test -p mailcal-bindings --test live_calendar_sign_in -- --nocapture
+      live_suite live_calendar_sign_in
     ;;
   deliver)
     require_harness

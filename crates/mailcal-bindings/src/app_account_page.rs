@@ -23,13 +23,19 @@ impl MailcalApp {
     /// ends.
     #[must_use]
     pub fn account_page(&self, account_id: String) -> Option<AccountPage> {
-        let entry = self
-            .accounts_snapshot()
-            .accounts
-            .into_iter()
-            .find(|entry| entry.id == account_id)?;
+        let entries = self.accounts_snapshot().accounts;
+        let entry = entries.iter().find(|entry| entry.id == account_id)?.clone();
         let (hold, notice) = self.account_work.of(&account_id);
-        let refused = self.refused_uses().remove(&account_id).unwrap_or_default();
+        let mut refused_uses = self.refused_uses();
+        let linked_from = account_page::linked_from(&entry, &entries, |other, capability| {
+            let refused = refused_uses.get(other).cloned().unwrap_or_default();
+            !matches!(
+                self.registry
+                    .toggle(other, Capability::from(capability), true, &refused),
+                Some(Toggle::Refused(_)) | None
+            )
+        });
+        let refused = refused_uses.remove(&account_id).unwrap_or_default();
         let pushing = hold.going(|work| match work {
             PageWork::Push(on) => Some(if *on {
                 mailcal_viewmodel::SyncStrategyKind::Push
@@ -52,6 +58,7 @@ impl MailcalApp {
             &entry,
             hold.clone(),
             notice,
+            linked_from,
             stored_servers,
             refused_servers,
             reply_fallback,
@@ -72,8 +79,8 @@ impl MailcalApp {
         if let Some(servers) = &mut page.servers {
             servers.sign_in_refused = sign_in_refused;
         }
-        self.draw_browser_sign_in(&mut page);
         page.separate_server = self.separate_section(&account_id, &hold);
+        self.draw_browser_sign_in(&mut page);
         let separate_after = page
             .separate_server
             .as_ref()
@@ -106,6 +113,7 @@ impl MailcalApp {
     pub(crate) fn dispatch_account(&self, intent: AccountPageIntent) {
         match intent {
             AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::SignInSeparateServer { .. }
             | AccountPageIntent::AnswerUnreached { .. }
             | AccountPageIntent::SignInBrowserEnded { .. }
             | AccountPageIntent::CancelSignIn { .. } => self.dispatch_sign_in(intent),
@@ -194,6 +202,12 @@ impl MailcalApp {
                 slot,
                 target,
             } => link_failed(slot, self.set_account_link(account, slot, target)),
+            AccountPageIntent::StopLinking { account, from } => self
+                .stop_linking(&account, &from)
+                .err()
+                .map(|error| AccountChangeNotice::StopLinkingFailed {
+                    refusal: AccountChangeRefusal::from(&error),
+                }),
             // A preference written beside the store: nothing to say unless the id is not one.
             AccountPageIntent::SetReplyFallback { account, choice } => {
                 if let Ok(id) = engine_api::AccountId::try_from(account.as_str()) {
@@ -285,6 +299,7 @@ impl MailcalApp {
             // Tried before anything is kept; the page shows what was stored once it ends.
             // Handled before the queue (`dispatch_sign_in`); only their completion is queued.
             AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::SignInSeparateServer { .. }
             | AccountPageIntent::AnswerUnreached { .. }
             | AccountPageIntent::SignInBrowserEnded { .. }
             | AccountPageIntent::CancelSignIn { .. } => None,

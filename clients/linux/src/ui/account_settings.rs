@@ -104,7 +104,7 @@ impl AppModel {
             AccountsInput::SignIn { account, adding } => self.sign_in_in_browser(account, adding),
             AccountsInput::Changed(Some(notice)) => self.settings.notify(notice),
             AccountsInput::Changed(None) => self.settings.refresh_in_place(),
-            AccountsInput::Separate(input) => self.separate_input(input, sender),
+            AccountsInput::Separate(input) => self.separate_input(input),
             AccountsInput::ReviewServerChange(account) => {
                 self.review_server_change(account, &sender);
             }

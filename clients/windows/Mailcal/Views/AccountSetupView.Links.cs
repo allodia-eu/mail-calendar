@@ -30,9 +30,9 @@ public sealed partial class AccountSetupView
         }
         SeparatePanel.Visibility = Visibility.Collapsed;
         // The separate-server step is left: its sign-in goes with it.
-        if (_separateDrawn is not null)
+        if (_separateDrawn is { } left)
         {
-            RetireSeparateSignIn();
+            CancelSeparateSignIn(left.AccountId);
             _separateDrawn = null;
         }
         if (Model?.SetupLinks is { } step)

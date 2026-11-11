@@ -22,18 +22,11 @@ public sealed partial class AccountSetupView
     private SeparateServerStep? _separateDrawn;
     private SeparateServerForm? _separateForm;
 
-    // Why the step's last sign-in in the browser failed; a Connect's or Skip's failure is the
-    // core's.
-    private string? _separateError;
-
     // Whether the separate-server step was on screen, which its end leaves for the address.
     private bool _separateShown;
 
     // The update question waiting, answered as Cancel when the form moves on without it.
     private UnreachedPrompt? _updateAsking;
-
-    // The step's sign-in at its server's own provider: the attempt out.
-    private readonly SeparateServerSignIn _separateSignIn = new();
 
     private void DrawSeparateServer(SeparateServerStep step)
     {
@@ -43,79 +36,52 @@ public sealed partial class AccountSetupView
             return;
         }
         var same = _separateDrawn?.AccountId == step.AccountId && _separateForm is not null;
-        _separateDrawn = step;
         if (!same)
         {
-            RetireSeparateSignIn();
-            _separateError = null;
+            if (_separateDrawn is { } left)
+            {
+                CancelSeparateSignIn(left.AccountId);
+            }
             SeparatePanel.Children.Clear();
             var form = UnreachedUsesViews.Form(step);
             _separateForm = form;
             // A step of the form, titled as the link step is.
             form.Title.Style = (Style)Application.Current.Resources["TitleTextBlockStyle"];
             AutomationProperties.SetHeadingLevel(form.Title, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level1);
-            form.SignIn.Button.Click += async (_, _) =>
-            {
-                if (Model is not { } model)
-                {
-                    return;
-                }
-                _separateError = null;
-                ShowSeparate();
-                var next = await model.SetupSeparateServerSignInAsync(_separateSignIn, _ => ShowSeparate());
-                if (next is { GoesOn: false, Error: { } error } && ReferenceEquals(_separateForm, form))
-                {
-                    _separateError = error;
-                    ShowSeparate();
-                }
-            };
-            form.SignIn.Cancel.Click += (_, _) =>
-            {
-                RetireSeparateSignIn();
-                ShowSeparate();
-            };
             SeparatePanel.Children.Add(form.Panel);
             form.Password.Loaded += (_, _) => form.Password.Focus(FocusState.Programmatic);
         }
+        _separateDrawn = step;
         ShowSeparate();
     }
 
-    // Draws the step as the core last drew it, its buttons from the core's controls.
+    // Draws the step as the core last drew it, its buttons and its sign-in from the core's
+    // controls.
     private void ShowSeparate()
     {
-        if (_separateForm is not { } form || _separateDrawn is not { } step)
+        if (_separateForm is not { } form || _separateDrawn is not { } step || Model is not { } model)
         {
             return;
         }
-        form.Show(step, _separateSignIn, cancelOwn: true, L10n.SeparateServerSkip(), () =>
+        form.Show(step, step.Section.StopUsing, L10n.SeparateServerSkip(), () =>
         {
-            if (Model is { } model && form.Password.Password.Length > 0)
+            if (form.Password.Password.Length > 0)
             {
-                RetireSeparateSignIn();
-                _separateError = null;
                 model.ConnectSeparateServer(step.AccountId, form.Username.Text.Trim(), form.Password.Password);
             }
-        }, () =>
-        {
-            if (Model is { } model)
-            {
-                RetireSeparateSignIn();
-                _separateError = null;
-                model.SkipSeparateServer(step.AccountId);
-            }
-        });
-        form.Say(_separateError ?? (step.Section.Failed is { } failed ? AccountUseText.Refused(failed) : null));
+        }, () => model.SkipSeparateServer(step.AccountId),
+        () => model.SignInSeparately(step.AccountId), model.CancelSignIn);
+        form.Say(step.Section.Failed is { } failed ? AccountUseText.Refused(failed) : null);
     }
 
-    // The way back from the step's sign-in: the attempt out opens no browser and adds no account,
-    // and a Nextcloud grant the step held for another try is withdrawn.
-    private void RetireSeparateSignIn()
+    /// <summary>Cancels the sign-in the browser holds for <paramref name="accountId"/>'s separate
+    /// server, if one does: the step it was started from is being left.</summary>
+    private void CancelSeparateSignIn(string accountId)
     {
-        if (_separateSignIn.Retire())
+        if (Model is { } model && SeparateServerSignIn.ToCancel(model.SeparateServerStepOf(accountId)?.Section) is { } browser)
         {
-            Model?.CancelSeparateServerSignIn();
+            model.CancelSignIn(browser);
         }
-        Model?.ReleaseSeparateNextcloudGrant(_separateSignIn);
     }
 
     /// <summary>Asks, over the form, what becomes of <paramref name="unreached"/> before the

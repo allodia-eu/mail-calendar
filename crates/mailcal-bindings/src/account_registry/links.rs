@@ -109,6 +109,57 @@ impl AccountRegistry {
         changed
     }
 
+    /// Stops every link between `id` and `from`, which takes a use from it: each of `from`'s
+    /// links naming `id`, and `id`'s own mail link naming `from`. A calendar still linked from two
+    /// or more mail accounts then sends through the first of them, as one linked by a second
+    /// does; from one, it sends through that one without naming it. Returns each account it
+    /// changed.
+    pub(crate) fn unlink(&self, id: &str, from: &str) -> Changed {
+        let mut entries = self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned");
+        let named = |target: &Option<AccountId>, who: &str| {
+            target.as_ref().is_some_and(|target| target.as_str() == who)
+        };
+        let mut changed = Vec::new();
+        if let Some(entry) = entries.get_mut(from) {
+            let links = &mut entry.shape_mut().links;
+            let mut cleared = false;
+            for slot in [&mut links.calendar, &mut links.contacts] {
+                if named(slot, id) {
+                    *slot = None;
+                    cleared = true;
+                }
+            }
+            if cleared {
+                changed.push((
+                    from.to_owned(),
+                    entry.to_toml().map_err(|err| err.to_string()),
+                ));
+            }
+        }
+        let mut senders: Vec<String> = entries
+            .iter()
+            .filter(|(_, entry)| named(&entry.shape().links.calendar, id))
+            .map(|(other, _)| other.clone())
+            .collect();
+        senders.sort();
+        if let Some(entry) = entries.get_mut(id)
+            && named(&entry.shape_mut().links.mail, from)
+        {
+            entry.shape_mut().links.mail = match senders.as_slice() {
+                [_, _, ..] => AccountId::try_from(senders[0].as_str()).ok(),
+                _ => None,
+            };
+            changed.push((
+                id.to_owned(),
+                entry.to_toml().map_err(|err| err.to_string()),
+            ));
+        }
+        changed
+    }
+
     /// Sets `id`'s link in `slot` to `target`, or clears it, and returns each account it changed.
     ///
     /// Naming a mail account from a calendar also sets that mail account's calendar link, when it

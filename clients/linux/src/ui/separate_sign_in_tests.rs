@@ -28,6 +28,8 @@ pub(crate) fn section(uses: Vec<AccountCapability>) -> AccountSeparateServer {
         connect: FREE,
         stop_using: FREE,
         failed: None,
+        sign_in_control: FREE,
+        browser: None,
     }
 }
 
@@ -36,16 +38,11 @@ pub(crate) fn form(uses: Vec<AccountCapability>) -> SeparateForm {
 }
 
 #[test]
-fn the_form_says_a_browser_failure_before_the_cores_and_nothing_otherwise() {
+fn the_form_says_why_the_core_left_the_uses_where_they_are_and_nothing_otherwise() {
     let mut form = form(vec![AccountCapability::Contacts]);
     assert_eq!(form.said(), None);
     form.section.failed = Some(AccountChangeRefusal::SignInRefused);
     assert_eq!(form.said().as_deref(), Some(l10n::signin_refused()));
-    form.failed(l10n::setup_imap_signin_failed().to_owned());
-    assert_eq!(
-        form.said().as_deref(),
-        Some(l10n::setup_imap_signin_failed())
-    );
 }
 
 #[test]

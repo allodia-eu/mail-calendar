@@ -1,9 +1,10 @@
 // One account's page in Settings → Accounts, and its first questions: how it is shared, what it
-// is used for (docs/accounts.md rule 13), which other accounts fill what it is not (rule 12), what
-// happens to an invitation answer its calendar server cannot pass on, the mailboxes its sign-in
-// opens besides its own (SettingsSharedMailboxes.kt), and how it signs in:
-// again, for Microsoft and Google (docs/provider-oauth.md rule 11), or switched, for IMAP and JMAP
-// (docs/accounts.md rule 17). The servers, the mail settings and the removal follow, in that order
+// is used for (docs/accounts.md rule 13), which other accounts fill what it is not and which take
+// a use from it (rule 12, SettingsAccountLinkedFrom.kt), what happens to an invitation answer its
+// calendar server cannot pass on, the mailboxes its sign-in opens besides its own
+// (SettingsSharedMailboxes.kt), and how it signs in: again, for Microsoft and Google
+// (docs/provider-oauth.md rule 11), or switched, for IMAP and JMAP (docs/accounts.md rule 17).
+// The servers, the mail settings and the removal follow, in that order
 // (docs/settings.md).
 package eu.allodia.mailcal
 
@@ -79,12 +80,12 @@ internal fun AccountPage(
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(
             form = form,
-            controls = SeparateControls.of(form.section, ui.state.separate.browser.step),
-            error = ui.state.separate.error ?: form.section.failed?.let { refusalSaid(ctx, it) },
+            controls = SeparateControls.of(form.section),
+            error = form.section.failed?.let { refusalSaid(ctx, it) },
             onConnect = ui.onConnectSeparate,
             onDismiss = { ui.state.separate.close() },
             onSignIn = ui.onSeparateProviderSignIn,
-            onLeave = { ui.state.separate.left() },
+            onCancelSignIn = { browser -> separateCancel(browser)?.let(ui.onChange) },
         )
     }
     if (page.links.isNotEmpty()) {
@@ -95,6 +96,10 @@ internal fun AccountPage(
         ) {
             page.links.forEach { picker -> LinkRow(entry, picker, ui) }
         }
+    }
+    if (page.linkedFrom.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(8.dp))
+        LinkedFromGroup(entry, page.linkedFrom, ui)
     }
     page.replyFallback?.let { picker ->
         Spacer(modifier = Modifier.height(8.dp))
@@ -122,15 +127,25 @@ internal fun AccountPage(
 }
 
 /**
- * One use's switch, with what is wrong with it and why it cannot be pressed beneath. A use the
- * provider withholds goes to its sign-in when switched on; one that deletes something when switched
- * off asks first.
+ * One use's switch, or the account a link fills it from, with what is wrong with it and why it
+ * cannot be pressed beneath. A use the provider withholds goes to its sign-in when switched on; one
+ * that deletes something when switched off asks first.
  */
 @Composable
 private fun UseRow(entry: AccountEntry, switch: AccountUseSwitch, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     val capability = switch.capability
     val control = switch.control
+    // A use a link fills is the account it comes from: a row that opens its page.
+    switch.linked?.let { linked ->
+        ControlNavRow(
+            title = useName(ctx, capability),
+            note = linkedNote(ctx, linked),
+            control = control.copy(running = false),
+            tag = "account-use-linked-${capability.name}",
+        ) { ui.onOpenPage(linked.id) }
+        return
+    }
     var confirmingOff by remember(entry.id, capability) { mutableStateOf(false) }
     val set = { on: Boolean -> ui.onChange(AccountPageIntent.SetUse(entry.id, capability, on)) }
     ControlSwitchRow(
