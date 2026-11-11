@@ -243,7 +243,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::account_sync_mode::tests::
         pressing_the_position_already_in_force_asks_for_nothing();
     crate::ui::settings::account_sync_mode::tests::the_control_is_reachable_from_the_keyboard();
-    crate::ui::settings::account_sync_mode::tests::a_running_change_spins_and_a_failed_one_says_so();
+    crate::ui::settings::account_sync_mode::tests::a_running_change_spins_and_a_failed_one_says_so(
+    );
     crate::ui::settings::sender_name::tests::
         the_field_shows_the_stored_name_and_return_asks_for_the_typed_one();
     crate::ui::settings::sender_name::tests::re_asserting_the_stored_name_asks_for_nothing();

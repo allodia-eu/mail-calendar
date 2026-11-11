@@ -23,7 +23,10 @@ use crate::{
 /// must not look like a pass that found nothing (a heading over an empty list claims the other
 /// devices hold no accounts, which this device does not know yet), and once one found nothing.
 pub(super) fn allodia_sync(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
-    let devices = ctx.devices.as_ref().filter(|devices| !devices.nothing_found)?;
+    let devices = ctx
+        .devices
+        .as_ref()
+        .filter(|devices| !devices.nothing_found)?;
     let section = group(
         l10n::settings_allodia_sync_heading(),
         l10n::settings_allodia_sync_description(),

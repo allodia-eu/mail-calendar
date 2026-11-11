@@ -14,7 +14,9 @@ use crate::{
     allodia::StoredAccount,
     allodia_sync::{AllodiaAccountChange, AllodiaSyncReport},
     sync_state::{NoSyncState, StoredSyncState},
-    tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir},
+    tests::{
+        ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle, temp_data_dir,
+    },
 };
 
 const MAIL: &str = r#"
@@ -159,7 +161,10 @@ fn signing_out_takes_the_card_and_the_control_away() {
     settled(&app).expect("asked");
     app.sign_out_of_allodia().expect("signed out");
     assert_eq!(app.allodia_devices(), None);
-    assert_eq!(app.account_page(ID.to_owned()).expect("listed").sharing, None);
+    assert_eq!(
+        app.account_page(ID.to_owned()).expect("listed").sharing,
+        None
+    );
 }
 
 #[test]
@@ -183,18 +188,29 @@ fn a_removed_account_leaves_the_card() {
         assert!(Instant::now() < deadline, "the removal never ended");
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert!(app.allodia_devices().expect("answered").questions.is_empty());
+    assert!(
+        app.allodia_devices()
+            .expect("answered")
+            .questions
+            .is_empty()
+    );
 }
 
 /// An account whose server is reached at one name and verified as another is one the other
 /// devices cannot hold, so its page offers no sharing to change.
 #[test]
 fn an_account_the_other_devices_cannot_hold_has_no_sharing_control() {
-    let app = app_with("devices-unshareable", &MAIL.replace("localhost:1", "127.0.0.1:1"));
+    let app = app_with(
+        "devices-unshareable",
+        &MAIL.replace("localhost:1", "127.0.0.1:1"),
+    );
     sign_in(&app);
     *app.allodia_sync.canned.lock().unwrap() = Some(Ok(AllodiaSyncReport::default()));
     app.use_allodia_sync_state_store(Box::new(NoSyncState))
         .expect("the store is read");
     settled(&app);
-    assert_eq!(app.account_page(ID.to_owned()).expect("listed").sharing, None);
+    assert_eq!(
+        app.account_page(ID.to_owned()).expect("listed").sharing,
+        None
+    );
 }

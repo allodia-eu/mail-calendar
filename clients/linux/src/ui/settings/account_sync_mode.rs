@@ -3,7 +3,9 @@
 //! Split from [`super::account_page`] to keep that file inside the 500-line limit.
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountPageIntent, AccountSharing, AllodiaAccountSyncMode, AllodiaSyncFailure};
+use mailcal_bindings::{
+    AccountPageIntent, AccountSharing, AllodiaAccountSyncMode, AllodiaSyncFailure,
+};
 
 use crate::{
     l10n,
@@ -34,7 +36,10 @@ pub(super) fn synced_group(
         l10n::settings_account_sync_paused(),
         l10n::settings_account_sync_off(),
     ];
-    let selected = MODES.iter().position(|mode| *mode == sharing.mode).unwrap_or(0);
+    let selected = MODES
+        .iter()
+        .position(|mode| *mode == sharing.mode)
+        .unwrap_or(0);
     let sender = sender.clone();
     let account = account_id.to_owned();
     group.add(&controls::choice_row(

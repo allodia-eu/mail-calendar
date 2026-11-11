@@ -177,6 +177,9 @@ pub use agent_ui::{AgentDraft, AgentHostUi};
 pub use allodia::{
     AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
 };
+pub use allodia_devices::{
+    AllodiaDevices, AllodiaDevicesQuestion, AllodiaElsewhere, AllodiaSyncFailure,
+};
 pub use allodia_health::AllodiaGrantHealth;
 pub use allodia_purchase::{
     AllodiaOffer, AllodiaPlan, AllodiaPurchaseError, AllodiaPurchaseReport, AllodiaStore,
@@ -187,8 +190,9 @@ pub use allodia_subscription::{
     AllodiaOwnSubscription, AllodiaPrices, AllodiaStoreStatus, AllodiaStoreSubscription,
     AllodiaSubscription, AllodiaSubscriptionActions, AllodiaSubscriptionRefusal,
 };
-pub use allodia_devices::{AllodiaDevices, AllodiaDevicesQuestion, AllodiaElsewhere, AllodiaSyncFailure};
-pub use allodia_sync::{AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode, setup_from_offer};
+pub use allodia_sync::{
+    AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode, setup_from_offer,
+};
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
 pub use app_month::{calendar_event_swatch, calendar_palette};
@@ -255,8 +259,9 @@ pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
     AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
     AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
-    AccountSharedMailbox, AccountSharedMailboxes, AccountSharing, AccountToggle, AccountUseBlock, AccountUseStatus,
-    AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
+    AccountSharedMailbox, AccountSharedMailboxes, AccountSharing, AccountToggle, AccountUseBlock,
+    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
+    SharedMailboxesNote,
 };
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,

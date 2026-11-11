@@ -102,8 +102,9 @@ pub(crate) fn the_description_explains_only_the_position_in_force() {
             AllodiaAccountSyncMode::Paused => l10n::settings_account_sync_paused_hint(),
             AllodiaAccountSyncMode::Off => l10n::settings_account_sync_off_hint(),
         };
-        let shown =
-            rendered_labels(synced_group(&sender, ACCOUNT, &sharing(mode)).upcast_ref::<gtk::Widget>());
+        let shown = rendered_labels(
+            synced_group(&sender, ACCOUNT, &sharing(mode)).upcast_ref::<gtk::Widget>(),
+        );
         assert!(
             shown.iter().any(|text| text == hint),
             "the position in force explains itself: {shown:?}"
@@ -131,10 +132,9 @@ pub(crate) fn choosing_a_position_asks_for_it_once() {
             sender.emit(AppInput::CollectNewMail);
 
             match receiver.recv_sync() {
-                Some(AppInput::Accounts(AccountsInput::Change(AccountPageIntent::SetSharing {
-                    account,
-                    mode,
-                }))) => {
+                Some(AppInput::Accounts(AccountsInput::Change(
+                    AccountPageIntent::SetSharing { account, mode },
+                ))) => {
                     assert_eq!(account, ACCOUNT);
                     assert_eq!(mode, to, "the position pressed is the one asked for");
                 }
@@ -203,9 +203,12 @@ pub(crate) fn a_running_change_spins_and_a_failed_one_says_so() {
         failed: Some(AllodiaSyncFailure::Unavailable),
         ..sharing(AllodiaAccountSyncMode::On)
     };
-    let shown = rendered_labels(synced_group(&sender, ACCOUNT, &failed).upcast_ref::<gtk::Widget>());
+    let shown =
+        rendered_labels(synced_group(&sender, ACCOUNT, &failed).upcast_ref::<gtk::Widget>());
     assert!(
-        shown.iter().any(|text| text == l10n::settings_account_sync_failed()),
+        shown
+            .iter()
+            .any(|text| text == l10n::settings_account_sync_failed()),
         "a change that did not take is said: {shown:?}"
     );
 }

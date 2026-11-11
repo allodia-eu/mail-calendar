@@ -5,8 +5,9 @@
 use super::{AllodiaElsewhere, AllodiaSyncFailure, Devices};
 use crate::{
     ControlState,
-    allodia_sync::{AllodiaAccountChange, AllodiaAccountKind, AllodiaAccountOffer},
-    allodia_sync::AllodiaSyncReport,
+    allodia_sync::{
+        AllodiaAccountChange, AllodiaAccountKind, AllodiaAccountOffer, AllodiaSyncReport,
+    },
 };
 
 const FREE: ControlState = ControlState {
@@ -111,7 +112,11 @@ fn a_pass_that_ends_after_a_sign_out_says_nothing() {
     let session = devices.want_pass().expect("nothing runs yet");
     devices.new_session();
     assert_eq!(devices.pass_ended(session, Ok(report())), None);
-    assert_eq!(devices.view(|_| FREE), None, "nothing is known about the next sign-in");
+    assert_eq!(
+        devices.view(|_| FREE),
+        None,
+        "nothing is known about the next sign-in"
+    );
 }
 
 #[test]

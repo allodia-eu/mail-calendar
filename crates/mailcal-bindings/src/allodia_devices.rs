@@ -93,7 +93,10 @@ pub(crate) struct Devices {
     /// two at once would each act on what the other is changing.
     #[cfg_attr(
         not(feature = "allodia-license"),
-        expect(dead_code, reason = "only a build that can sign in passes or changes sharing")
+        expect(
+            dead_code,
+            reason = "only a build that can sign in passes or changes sharing"
+        )
     )]
     pub(crate) writing: Mutex<()>,
     /// What a pass answers in a test, which never asks the service.
@@ -233,10 +236,8 @@ impl Devices {
             }
         }
         let known = state.running || state.failure.is_some() || state.report.is_some();
-        let nothing_found = !state.running
-            && state.failure.is_none()
-            && offers.is_empty()
-            && questions.is_empty();
+        let nothing_found =
+            !state.running && state.failure.is_none() && offers.is_empty() && questions.is_empty();
         known.then(|| AllodiaDevices {
             checking: state.running,
             nothing_found,

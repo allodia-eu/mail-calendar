@@ -19,11 +19,7 @@ use super::{
 #[test]
 fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
     let mut state = SettingsState::default();
-    assert_eq!(
-        state.render_state().generation,
-        0,
-        "nothing pending yet"
-    );
+    assert_eq!(state.render_state().generation, 0, "nothing pending yet");
 
     state.refresh(Category::Accounts);
     let refreshed = state.render_state();
@@ -83,11 +79,7 @@ fn the_cores_signal_redraws_the_accounts_page_and_no_other() {
 
     state.open(Some(Category::Signatures));
     state.signalled();
-    assert_eq!(
-        state.render_state().generation,
-        1,
-        "nothing to redraw"
-    );
+    assert_eq!(state.render_state().generation, 1, "nothing to redraw");
 
     state.record_category(Category::Accounts);
     state.signalled();

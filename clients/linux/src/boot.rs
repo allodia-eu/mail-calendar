@@ -172,10 +172,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-            })
+            Ok(BootedApp { app, secrets })
         }
         // Its own store (`dev-multi`), like every other fixture: two harness accounts sharing the
         // single-account store would leave bob's mail behind in it for the next `stalwart` boot.
@@ -196,10 +193,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-            })
+            Ok(BootedApp { app, secrets })
         }
         #[cfg(debug_assertions)]
         BootMode::StalwartImap => {
@@ -217,10 +211,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-            })
+            Ok(BootedApp { app, secrets })
         }
         #[cfg(debug_assertions)]
         BootMode::StalwartLinked => {
@@ -240,10 +231,7 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 dev_credential_store(secrets.as_ref()),
             )?;
             crate::dev_account::seed_sender_names(&app);
-            Ok(BootedApp {
-                app,
-                secrets,
-            })
+            Ok(BootedApp { app, secrets })
         }
     }
 }

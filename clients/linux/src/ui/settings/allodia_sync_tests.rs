@@ -89,8 +89,8 @@ pub(crate) fn a_revoked_grant_says_they_are_signed_out() {
 
 /// A failure that says nothing about the sign-in gets one plain sentence and no button.
 ///
-/// `Unavailable` means the grant is fine and the pass failed for its own reasons: a dead network, a bad
-/// afternoon at the service. Offering "sign in again" there sends somebody through a browser to
+/// `Unavailable` means the grant is fine and the pass failed for its own reasons: a dead network, a
+/// bad afternoon at the service. Offering "sign in again" there sends somebody through a browser to
 /// fix something that is not broken, and quoting the failure is how a generated OAuth field name
 /// became product copy.
 pub(crate) fn a_failure_that_says_nothing_about_the_grant_offers_no_remedy() {

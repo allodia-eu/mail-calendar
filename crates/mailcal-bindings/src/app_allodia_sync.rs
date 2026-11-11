@@ -249,7 +249,11 @@ mod enabled {
         /// outlives the account and comes back as an offer.
         pub(crate) fn forget_allodia_record(&self, account_id: &str) {
             self.allodia_sync.forget_account(account_id);
-            let _writing = self.allodia_sync.writing.lock().expect("allodia write lock");
+            let _writing = self
+                .allodia_sync
+                .writing
+                .lock()
+                .expect("allodia write lock");
             let Ok(bookkeeping) = self.allodia_bookkeeping() else {
                 return;
             };

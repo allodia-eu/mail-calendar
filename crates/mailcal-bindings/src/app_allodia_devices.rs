@@ -68,9 +68,17 @@ impl MailcalApp {
 
     /// One pass, as the card says what it came to.
     #[cfg(feature = "allodia-license")]
-    fn allodia_pass(&self) -> Result<crate::allodia_sync::AllodiaSyncReport, crate::AllodiaSyncFailure> {
+    fn allodia_pass(
+        &self,
+    ) -> Result<crate::allodia_sync::AllodiaSyncReport, crate::AllodiaSyncFailure> {
         #[cfg(test)]
-        if let Some(canned) = self.allodia_sync.canned.lock().expect("canned lock").clone() {
+        if let Some(canned) = self
+            .allodia_sync
+            .canned
+            .lock()
+            .expect("canned lock")
+            .clone()
+        {
             return canned;
         }
         self.run_allodia_pass().map_err(|error| {
@@ -112,7 +120,11 @@ impl MailcalApp {
         #[cfg(feature = "allodia-license")]
         {
             let outcome = {
-                let _writing = self.allodia_sync.writing.lock().expect("allodia write lock");
+                let _writing = self
+                    .allodia_sync
+                    .writing
+                    .lock()
+                    .expect("allodia write lock");
                 self.run_allodia_mode_change(account, mode)
             };
             if let Err(error) = &outcome {
