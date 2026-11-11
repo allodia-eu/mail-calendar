@@ -120,7 +120,18 @@ pub(super) fn texts(widget: &gtk::Widget) -> Vec<String> {
     } else if let Some(inscription) = widget.downcast_ref::<gtk::Inscription>() {
         push(inscription.text());
     } else if let Some(button) = widget.downcast_ref::<gtk::Button>() {
-        push(button.label());
+        // A label set as the button's child is still what a person reads on the button, and the
+        // button is what a click on it reaches.
+        push(button.label().or_else(|| {
+            let child = button.child()?;
+            if let Some(label) = child.downcast_ref::<gtk::Label>() {
+                Some(label.text())
+            } else {
+                child
+                    .downcast_ref::<adw::ButtonContent>()
+                    .map(adw::ButtonContent::label)
+            }
+        }));
     } else if let Some(check) = widget.downcast_ref::<gtk::CheckButton>() {
         push(check.label());
     } else if let Some(menu) = widget.downcast_ref::<gtk::MenuButton>() {
@@ -134,7 +145,8 @@ pub(super) fn texts(widget: &gtk::Widget) -> Vec<String> {
         push(page.title().into());
         push(page.description());
     } else if let Some(banner) = widget.downcast_ref::<adw::Banner>() {
-        push(Some(banner.title()));
+        // A banner that is not revealed stays mapped and keeps its title, and says nothing.
+        push(banner.is_revealed().then(|| banner.title()));
     } else if let Some(alert) = widget.downcast_ref::<adw::AlertDialog>() {
         push(Some(alert.heading().unwrap_or_default()));
         push(Some(alert.body()));

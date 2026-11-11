@@ -84,6 +84,9 @@ pub(super) fn recipient_rows(
         app,
         None,
     );
+    to.field.set_id("compose-to");
+    cc.field.set_id("compose-cc");
+    bcc.field.set_id("compose-bcc");
 
     let revealed = reveals_cc_bcc(&request.initial_cc, &request.initial_bcc);
     toggle.set_active(revealed);

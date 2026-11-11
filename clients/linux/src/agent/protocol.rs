@@ -153,7 +153,7 @@ async fn route(mut request: Map<String, Value>) -> Answer {
         "wait" => settle::wait(settle::WaitArgs::parse(request)?).await,
         "read" => tree::read(&args(request)?),
         "dump" => tree::dump(&args(request)?),
-        "activate" => actions::activate(&args(request)?),
+        "activate" => actions::activate(&args(request)?).await,
         "set-text" => actions::set_text(&args(request)?),
         "toggle" => actions::toggle(&args(request)?),
         "select" => actions::select(&args(request)?),

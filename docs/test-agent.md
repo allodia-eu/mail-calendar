@@ -125,6 +125,11 @@ An agent may answer more where its platform has more to offer (`eval` into a web
 The client adds two, done in two requests: `press` is `wait` for exactly one element, then
 `activate`; `fill` is the same, then `set-text`.
 
+A script that asks many times runs the client once with `--lines`: a request per line on stdin,
+a reply per line on stdout with `ok` first, over one connection that is made again when the app
+is relaunched. A request costs a round trip on that connection rather than a process start.
+[`test-linux-ui.sh`](../scripts/dev/test-linux-ui.sh) drives Linux this way.
+
 ## Refusals
 
 | `code` | Means |
@@ -135,6 +140,7 @@ The client adds two, done in two requests: `press` is `wait` for exactly one ele
 | `gone` | The element that handle named has gone: query again. |
 | `timeout` | `wait` ran out; the reply says what was `near`, or what was still there. |
 | `ambiguous` | `press` or `fill` matched more than one (the client's refusal). |
+| `no-app`, `hung-up` | With `--lines`: no app answered in time, or the app went before it answered (the client's). |
 | `disabled` | A person could not act on it. |
 | `not-showing` | It is not on screen. |
 | `not-editable` | Text cannot be set there, or it is read-only. |

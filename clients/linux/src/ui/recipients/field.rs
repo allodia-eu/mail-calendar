@@ -104,6 +104,7 @@ impl RecipientField {
         // where the field's own focus-out closes the list before the click can land on it.
         list.set_focusable(false);
         list.update_property(&[AccessibleProperty::Label(l10n::compose_suggestions())]);
+        list.set_widget_name("recipient-suggestions");
         let scroll = gtk::ScrolledWindow::new();
         scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
         scroll.set_max_content_height(220);
@@ -199,6 +200,11 @@ impl RecipientField {
 
     pub(crate) fn set_placeholder(&self, text: &str) {
         self.inner.entry.set_placeholder_text(Some(text));
+    }
+
+    /// Names the entry for a test or script (`docs/test-agent.md`); no person reads it.
+    pub(crate) fn set_id(&self, id: &str) {
+        self.inner.entry.set_widget_name(id);
     }
 
     /// The address still being typed, trimmed.

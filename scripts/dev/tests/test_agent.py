@@ -47,27 +47,41 @@ def stand_in(request: dict[str, Any]) -> dict[str, Any]:
 
 
 class Server:
-    def __init__(self, answer: Callable[[dict[str, Any]], dict[str, Any]]) -> None:
+    """A stand-in agent. With `hang_up_after`, it closes each connection after that many requests
+    without answering the last, as an app that quits mid-request does, then takes the next one."""
+
+    def __init__(
+        self,
+        answer: Callable[[dict[str, Any]], dict[str, Any]],
+        path: str | None = None,
+        hang_up_after: int | None = None,
+    ) -> None:
         self.dir = tempfile.TemporaryDirectory()
-        self.path = os.path.join(self.dir.name, "agent.sock")
+        self.path = path or os.path.join(self.dir.name, "agent.sock")
         self.listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.listener.bind(self.path)
         self.listener.listen()
         self.requests: list[dict[str, Any]] = []
+        self.connections = 0
         self.answer = answer
+        self.hang_up_after = hang_up_after
         threading.Thread(target=self.serve, daemon=True).start()
 
     def serve(self) -> None:
-        try:
-            connection, _ = self.listener.accept()
-        except OSError:
-            return  # closed by a test that never connected
-        with connection, connection.makefile("rw", encoding="utf-8") as stream:
-            for line in stream:
-                request = json.loads(line)
-                self.requests.append(request)
-                stream.write(json.dumps(self.answer(request)) + "\n")
-                stream.flush()
+        while True:
+            try:
+                connection, _ = self.listener.accept()
+            except OSError:
+                return  # closed by the test
+            self.connections += 1
+            with connection, connection.makefile("rw", encoding="utf-8") as stream:
+                for count, line in enumerate(stream, 1):
+                    request = json.loads(line)
+                    self.requests.append(request)
+                    if count == self.hang_up_after:
+                        break
+                    stream.write(json.dumps(self.answer(request)) + "\n")
+                    stream.flush()
 
     def close(self) -> None:
         self.listener.close()
@@ -143,6 +157,75 @@ class AgentClient(unittest.TestCase):
         with self.assertRaises(SystemExit) as raised:
             agent.main(["--socket", self.server.path + ".gone", "ping"])
         self.assertIn("build-and-run.sh", str(raised.exception))
+
+
+def lines(endpoint: str, *requests: Any, connect_ms: int = 2000) -> list[dict[str, Any]]:
+    """Runs `--lines` over the requests, each a dict or a raw line, and parses every reply."""
+    source = io.StringIO(
+        "".join((r if isinstance(r, str) else json.dumps(r)) + "\n" for r in requests)
+    )
+    sink = io.StringIO()
+    agent.serve_lines(endpoint, source, sink, connect_ms)
+    for line in sink.getvalue().splitlines():
+        # A shell caller reads `ok` from the first bytes of the line.
+        assert line.startswith(('{"ok": true', '{"ok": false')), line
+    return [json.loads(line) for line in sink.getvalue().splitlines()]
+
+
+@unittest.skipUnless(hasattr(socket, "AF_UNIX"), "no Unix sockets on this host")
+class LineMode(unittest.TestCase):
+    def setUp(self) -> None:
+        self.server = Server(stand_in)
+
+    def tearDown(self) -> None:
+        self.server.close()
+
+    def test_every_request_is_answered_on_one_connection(self) -> None:
+        replies = lines(self.server.path, {"verb": "ping"}, {"verb": "press", "text": "Archive"})
+        self.assertEqual([reply["ok"] for reply in replies], [True, True])
+        self.assertEqual(replies[1]["element"]["h"], 4)
+        self.assertEqual(self.server.connections, 1)
+        self.assertEqual(self.server.requests[-1], {"verb": "activate", "h": 4})
+
+    def test_a_refusal_is_a_reply_and_the_next_request_still_runs(self) -> None:
+        replies = lines(
+            self.server.path,
+            {"verb": "press", "role": "button"},
+            {"verb": "wait", "text": "Nope"},
+            {"verb": "ping"},
+        )
+        self.assertEqual([reply.get("code") for reply in replies], ["ambiguous", "timeout", None])
+        self.assertEqual(replies[1]["near"], ["[4] GtkButton"])
+        self.assertTrue(replies[2]["ok"])
+
+    def test_a_line_that_is_not_a_request_is_refused_without_reaching_the_app(self) -> None:
+        replies = lines(self.server.path, "not json", "[1]", {"verb": "fill", "id": "search"})
+        self.assertEqual([reply["code"] for reply in replies], ["bad-request"] * 3)
+        self.assertEqual(self.server.requests, [])
+
+    def test_nothing_listening_is_no_app_after_the_wait(self) -> None:
+        replies = lines(self.server.path + ".gone", {"verb": "ping"}, connect_ms=100)
+        self.assertEqual(replies[0]["code"], "no-app")
+
+    def test_an_app_that_starts_late_is_waited_for(self) -> None:
+        path = self.server.path + ".late"
+        late: list[Server] = []
+        timer = threading.Timer(0.3, lambda: late.append(Server(stand_in, path=path)))
+        timer.start()
+        try:
+            replies = lines(path, {"verb": "ping"})
+        finally:
+            timer.join()
+            for server in late:
+                server.close()
+        self.assertTrue(replies[0]["ok"])
+
+    def test_an_app_that_hangs_up_is_said_and_the_next_request_connects_again(self) -> None:
+        self.server.close()
+        self.server = Server(stand_in, hang_up_after=2)
+        replies = lines(self.server.path, {"verb": "ping"}, {"verb": "ping"}, {"verb": "ping"})
+        self.assertEqual([reply.get("code") for reply in replies], [None, "hung-up", None])
+        self.assertEqual(self.server.connections, 2)
 
 
 if __name__ == "__main__":

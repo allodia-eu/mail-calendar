@@ -97,15 +97,16 @@ fn main() {
         std::process::exit(2);
     }
 
-    // A debug or harness build answers a test, a script or a coding agent on the socket
-    // `MAILCAL_TEST_AGENT` names; without it, nothing listens.
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    agent::start();
-
     let application = adw::Application::builder()
         .application_id(l10n::APP_ID)
         .flags(APPLICATION_FLAGS)
         .build();
+    // A debug or harness build answers a test, a script or a coding agent on the socket
+    // `MAILCAL_TEST_AGENT` names; without it, nothing listens. Only the primary instance emits
+    // `startup`: a launch that hands a mail link to the running app carries the same environment,
+    // and binding there would replace the running app's socket with one that exits a moment later.
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    application.connect_startup(|_| agent::start());
     application.connect_command_line(|application, command_line| {
         let arguments = command_line.arguments();
         // A mail link first: it is the narrower question, and a `mailto:` argument is not a file,
