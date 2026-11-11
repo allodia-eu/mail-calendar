@@ -14,6 +14,9 @@ source "$ROOT/scripts/dev/lib.sh"
 # The provisioning-profile resolver --sandboxed needs, shared with Scripts/package.sh.
 # shellcheck source=clients/apple/Scripts/provisioning.sh
 source "$HERE/Scripts/provisioning.sh"
+# The socket the debug build's test agent listens on, one per checkout and platform.
+# shellcheck source=scripts/dev/apple_agent.sh
+source "$ROOT/scripts/dev/apple_agent.sh"
 
 PROJECT="$HERE/AllodiaMail.xcodeproj"
 DERIVED_DATA="${DERIVED_DATA:-$HERE/build/DerivedData}"
@@ -525,6 +528,11 @@ if [[ "$PLATFORM" == "macos" ]]; then
     # (`UNErrorDomain` 1, "Notifications are not allowed for this application"), which makes the
     # macOS new-mail notification impossible to exercise from this loop
     # ([`docs/background-sync.md`](../../../docs/background-sync.md)).
+    # The test agent listens on this checkout's socket, so `control.sh macos agent` finds the app
+    # without being told where. A caller that names a socket of its own keeps it.
+    if [[ "$CONFIGURATION" == Debug ]]; then
+      export MAILCAL_TEST_AGENT="${MAILCAL_TEST_AGENT:-$(apple_agent_socket macos)}"
+    fi
     open_env=()
     while IFS= read -r assignment; do
       [[ "$assignment" == MAILCAL_* ]] && open_env+=(--env "$assignment")
@@ -548,6 +556,9 @@ if [[ "$PLATFORM" == "macos" ]]; then
     launch_log="${TMPDIR:-/tmp}/allodia-mail-launch.log"
     open -n "${open_env[@]}" --stdout "$launch_log" --stderr "$launch_log" "$APP"
     echo "==> Launch output: $launch_log (the app's own log is below)"
+    if [[ "$CONFIGURATION" == Debug ]]; then
+      echo "==> See it: scripts/dev/control.sh macos agent dump"
+    fi
     echo "==> Logs: $HOME/.local/share/$MAILCAL_DATA_DIR_NAME/mailcal.log (rotates .1-.3, ~4 MB cap)"
   fi
 elif [[ "$DESTINATION" == "device" ]]; then
@@ -610,7 +621,8 @@ Accounts ▸ Manage Certificates), or set DEVELOPMENT_TEAM=<id>"
     # takes them as a JSON object, which device_launch assembles.
     dev_env=()
     while IFS='=' read -r name _; do
-      [[ "$name" == MAILCAL_* ]] && dev_env+=("$name=${!name}")
+      # Not the test agent's socket: a path on this Mac, which nothing on the device can reach.
+      [[ "$name" == MAILCAL_* && "$name" != MAILCAL_TEST_AGENT ]] && dev_env+=("$name=${!name}")
     done < <(env)
     device_launch "$DEVICE" "${dev_env[@]}"
     echo "==> Logs: scripts/dev/device.sh logs   (the log stays in the app's container on the device)"
@@ -648,6 +660,11 @@ else
     echo "==> Installing on $TARGET_LABEL"
     xcrun simctl install "$SIMULATOR_UDID" "$APP"
     echo "==> Launching AllodiaMail on $TARGET_LABEL"
+    # The test agent listens on this checkout's socket, on the Mac, whose filesystem the simulator
+    # shares: `control.sh iphone agent` finds it there.
+    if [[ "$CONFIGURATION" == Debug ]]; then
+      export MAILCAL_TEST_AGENT="${MAILCAL_TEST_AGENT:-$(apple_agent_socket "$PLATFORM")}"
+    fi
     # Forward any MAILCAL_* dev var (the account switch + the deterministic launch hooks) into the
     # app: simctl passes SIMCTL_CHILD_-prefixed variables to the launched process (prefix stripped).
     child_env=()
@@ -661,6 +678,9 @@ else
     fi
     if CONTAINER="$(xcrun simctl get_app_container "$SIMULATOR_UDID" "$BUNDLE_ID" data 2>/dev/null)"; then
       echo "==> Logs: $CONTAINER/Library/Application Support/$MAILCAL_DATA_DIR_NAME/mailcal.log (rotates .1-.3, ~4 MB cap)"
+    fi
+    if [[ "$CONFIGURATION" == Debug ]]; then
+      echo "==> See it: scripts/dev/control.sh $PLATFORM agent dump"
     fi
   fi
 fi

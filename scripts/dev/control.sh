@@ -10,6 +10,15 @@
 #   scripts/dev/control.sh android key back|enter|home|del|<KEYCODE|number>
 #   scripts/dev/control.sh android swipe <x1> <y1> <x2> <y2> [ms]
 #   scripts/dev/control.sh android ui-dump            # accessibility tree (XML), to find node coords
+#   scripts/dev/control.sh macos agent dump           # the app's own accessibility tree, with handles,
+#   scripts/dev/control.sh iphone agent dump          #   from inside the debug build: the fastest way
+#                                                     #   to see and act on it, by text, never a pixel
+#   scripts/dev/control.sh macos agent press text="New Mail"   # find exactly one, activate it
+#   scripts/dev/control.sh iphone agent fill role=AXSearchField value=invoice
+#   scripts/dev/control.sh iphone agent escape h=<h>  # VoiceOver's escape: ends a search, a sheet
+#   scripts/dev/control.sh macos agent settle         # until the app and the core have gone quiet
+#                                                     #   (every verb: agent verbs; the iPhone and
+#                                                     #   iPad simulators alike, a device has none)
 #   scripts/dev/control.sh iphone ui-dump             # the live accessibility tree (assertion oracle)
 #   scripts/dev/control.sh iphone find "<label>"      # -> "<x> <y>" in points, pipe straight into tap
 #   scripts/dev/control.sh iphone press "<label>"     # find + tap in one call (idb has no AXPress)
@@ -64,6 +73,7 @@
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/apple_agent.sh"
 
 [[ $# -ge 2 ]] || die "usage: control.sh <platform> <action> [args...]"
 platform="$(normalize_platform "$1")"; shift
@@ -119,6 +129,12 @@ case "$platform" in
     # The simulated hardware keyboard, which needs no idb (scripts/dev/sim-keyboard.swift). While it
     # is on, one typed key hides the on-screen keyboard for good, so keep it off for anything that
     # depends on the keyboard being there.
+    # The test agent needs no idb: the simulator's app listens on a socket on the Mac.
+    if [[ "$action" == agent ]]; then
+      [[ $# -ge 1 ]] || die "agent <verb> [key=value...]: 'agent verbs' lists them"
+      exec python3 "$REPO_ROOT/scripts/dev/agent.py" \
+        --socket "${MAILCAL_TEST_AGENT:-$(apple_agent_socket "$platform")}" "$@"
+    fi
     if [[ "$action" == hardware-keyboard ]]; then
       [[ $# -ge 1 && ( "$1" == on || "$1" == off ) ]] || die "hardware-keyboard <on|off>"
       udid="$(booted_sim_udid "$platform")" ||
@@ -160,7 +176,7 @@ EOF
                idb ui describe-point --udid "$udid" "$1" "$2" | "${ui[@]}" dump ;;
       tap)     [[ $# -ge 2 ]] || die "tap <x> <y>"; idb ui tap --udid "$udid" "$1" "$2" ;;
       text)    [[ $# -ge 1 ]] || die "text <string>"; idb ui text --udid "$udid" "$1" ;;
-      *) die "unknown $platform action '$action' (ui-dump|find|press|probe|tap|text)" ;;
+      *) die "unknown $platform action '$action' (agent|ui-dump|find|press|probe|tap|text)" ;;
     esac
     ;;
   macos)
@@ -175,6 +191,11 @@ EOF
     is_macos || die "the macOS client can only be driven from a macOS host"
     script="$REPO_ROOT/scripts/dev/macos-ax.swift"
     case "$action" in
+      # The test agent, from inside the debug build: no Accessibility permission, no pixels.
+      agent)
+        [[ $# -ge 1 ]] || die "agent <verb> [key=value...]: 'agent verbs' lists them"
+        exec python3 "$REPO_ROOT/scripts/dev/agent.py" \
+          --socket "${MAILCAL_TEST_AGENT:-$(apple_agent_socket macos)}" "$@" ;;
       ui-dump) exec xcrun swift "$script" dump ;;
       find)    [[ $# -ge 1 ]] || die "find <text> [--all]"; exec xcrun swift "$script" find "$@" ;;
       press)   [[ $# -ge 1 ]] || die "press <label>"; exec xcrun swift "$script" press "$1" ;;
@@ -182,7 +203,7 @@ EOF
       drag)    [[ $# -ge 4 ]] || die "drag <x1> <y1> <x2> <y2> [hold-ms]"; exec xcrun swift "$script" drag "$@" ;;
       text)    [[ $# -ge 1 ]] || die "text <string>"; exec xcrun swift "$script" text "$1" ;;
       key)     [[ $# -ge 1 ]] || die "key <return|escape|tab|delete|up|down|left|right|cmd+v|...>"; exec xcrun swift "$script" key "$1" ;;
-      *) die "unknown macos action '$action' (press|tap|drag|text|key|find|ui-dump)" ;;
+      *) die "unknown macos action '$action' (agent|press|tap|drag|text|key|find|ui-dump)" ;;
     esac
     ;;
   linux)

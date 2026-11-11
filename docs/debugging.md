@@ -58,8 +58,9 @@ release builds and inactive under `--account personal`, which must send wherever
   test is the one the Flatpak links rather than whichever GTK the distribution carries. It is a
   ~2 GB one-time install neither script performs; `build-and-run.sh --host` is the runtime-free
   inner loop against the `apt` packages.
-- **`idb`**: needed for `control.sh iphone|ipad`, which is both how you *read* the simulator's
-  accessibility tree (`ui-dump`, `find`) and how you drive it (`press`, `tap`, `text`). Install with
+- **`idb`**: needed for `control.sh iphone|ipad` other than `agent`: reading the simulator's
+  accessibility tree from outside (`ui-dump`, `find`) and a real touch or keystroke (`tap`, `text`,
+  `press`). The test agent needs none of it. Install with
   `brew tap facebook/fb && brew install idb-companion && pip3 install fb-idb`; pip puts the `idb`
   CLI under `~/Library/Python/<ver>/bin`, which is **not** on `PATH` by default. Add it, or
   `control.sh` will report `idb` as missing. Nothing else needs it: the launch hooks below (and
@@ -805,6 +806,8 @@ For direct input where a stable CLI exists:
 
 ```sh
 scripts/dev/control.sh android tap <x> <y> | text "<s>" | key back | swipe ... | ui-dump
+scripts/dev/control.sh macos  agent dump | press <filter> | fill <filter> value=<text> | settle | escape h=<h> | verbs
+scripts/dev/control.sh iphone agent dump | press <filter> | fill <filter> value=<text> | settle | scroll h=<h> direction=up
 scripts/dev/control.sh iphone ui-dump | find "<label>" | press "<label>" | probe <x> <y> | tap <x> <y> | text "<s>"
 scripts/dev/control.sh macos  tap <x> <y> | text "<s>" | key return | find "<label>" | ui-dump
 scripts/dev/control.sh windows open-first | calendar | home | swipe <delete|archive|star> | ui-dump
@@ -830,7 +833,18 @@ MAILCAL_OPEN_SUBJECT="HTML message with a remote image" scripts/dev/boot.sh linu
 scripts/dev/control.sh linux activate "Load images"
 ```
 
-**macOS** is driven through the Accessibility API + `CGEvent`
+**macOS and the iPhone/iPad simulators** are driven first through the app's own test agent too
+(`control.sh macos agent`, `control.sh iphone agent`), in every debug build that
+`build-and-run.sh` launches on the Mac or a simulator. It reads the app's accessibility objects in
+process, as VoiceOver is given them, presses through their accessibility actions, waits for the app
+and the core to settle and draws its own screenshots; it needs no Accessibility permission, no idb
+and nothing frontmost, and it reaches the iOS navigation bar, which idb cannot. A physical device
+has no agent: its app cannot reach a socket on the Mac. What the agent does not do is a gesture or
+real input: a drag, a swipe action, a pull to refresh, a held tap, a keystroke or chord. Those stay
+with the two tools below, as does asking the accessibility API from outside, which remains the
+judge of what VoiceOver gets.
+
+**macOS**, for what the agent cannot do, is driven through the Accessibility API + `CGEvent`
 ([`scripts/dev/macos-ax.swift`](../scripts/dev/macos-ax.swift)). Drive it **by label, not by pixel**:
 `find` resolves a label to coordinates that pipe into `tap`, so a flow survives a layout change:
 `control.sh macos tap $(control.sh macos find "Reply")`. Its `ui-dump` is also the **assertion
@@ -842,7 +856,8 @@ Accessibility): without it, AX reads return empty and clicks are swallowed *sile
 limit: SwiftUI **`.swipeActions` don't fire from synthetic events** (that gesture needs a real
 trackpad): ask the user to test a swipe by hand rather than concluding it's unsupported.
 
-**iPhone/iPad** is driven through Meta's [idb](https://fbidb.io), and reads the same way macOS does,
+**iPhone/iPad**, for what the agent cannot do, is driven through Meta's [idb](https://fbidb.io),
+and reads the same way macOS does,
 by label, never by pixel. `describe-all` frames and `idb ui tap` are both in **points**, so a
 label resolves straight into a tap with no scaling and no Device Hub window arithmetic;
 [`scripts/dev/ios_ui_idb.py`](../scripts/dev/ios_ui_idb.py) prints the tree in the same
@@ -866,7 +881,8 @@ through `control.sh` rather than a hand-rolled `idb` invocation. Because the udi
 > unlabelled `AXGroup [220,89]` and omits its items, so `find`/`press` cannot reach Compose, More,
 > Send or Cancel. They *are* in the accessibility tree and VoiceOver reaches them (`probe` returns
 > a fully labelled `AXButton 'Compose'` for the same pixel), and idb stops the same way in Apple's
-> own Settings app. So **a toolbar item missing from a dump is not a finding about the app.** Use
+> own Settings app. So **a toolbar item missing from a dump is not a finding about the app.** The
+> test agent lists them (`control.sh iphone agent dump`); through idb, use
 > `control.sh iphone probe <x> <y>` to identify a top-bar control, then `tap` it, or reach the state
 > with a `MAILCAL_*` launch hook.
 

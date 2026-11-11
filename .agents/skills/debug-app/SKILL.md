@@ -22,10 +22,10 @@ GNOME SDK runtime** from that same page: `build-and-run.sh` (so `boot.sh linux`)
 `test-linux-ui.sh` build and run the client inside it, against the toolkit the Flatpak ships;
 `build-and-run.sh --host` is the runtime-free loop against the distro's GTK.
 
-**`idb` is required for `control.sh iphone|ipad`**, both for reading the simulator's accessibility tree
-(`ui-dump`, `find`) and driving it (`press`, `tap`, `text`). The `MAILCAL_*` launch hooks in §4 need
-nothing extra and remain the cheapest way to reach a known *state*; `idb` is how you then assert on
-it. Install: `brew tap facebook/fb && brew install idb-companion && pip3 install fb-idb`.
+**`idb` is required for `control.sh iphone|ipad`** other than `agent`: reading the simulator's
+accessibility tree from outside (`ui-dump`, `find`) and real input (`press`, `tap`, `text`). The test
+agent (§4) needs none of it, nor do the `MAILCAL_*` launch hooks, which remain the cheapest way to
+reach a known *state*. Install: `brew tap facebook/fb && brew install idb-companion && pip3 install fb-idb`.
 The `idb` CLI lands in `~/Library/Python/<ver>/bin` (e.g. `~/Library/Python/3.9/bin/idb`), which is
 **not on `PATH` by default**: `control.sh` will report it missing until you add that directory.
 
@@ -148,6 +148,8 @@ For direct input where a stable CLI exists:
 
 ```
 scripts/dev/control.sh android tap <x> <y> | text "<s>" | key back|enter | swipe ... | ui-dump
+scripts/dev/control.sh macos  agent <verb> [key=value...]    # first choice on macOS, see below
+scripts/dev/control.sh iphone agent <verb> [key=value...]    # first choice on the simulators too
 scripts/dev/control.sh iphone ui-dump | find "<label>" | press "<label>" | probe <x> <y> | tap <x> <y> | text "<s>"
 scripts/dev/control.sh macos  tap <x> <y> | text "<s>" | key return|escape|... | find "<label>" | ui-dump
 scripts/dev/control.sh linux  activate "<accessible name>" | find "<accessible name>" | set-text "<accessible name>" "<value>" | ui-dump
@@ -231,8 +233,34 @@ three meeting-invitation fixtures, contacts, recipient autosuggest, signatures, 
 under `target/ui-test-artifacts/linux/`. Spam and permanent delete it leaves alone: verify those by
 hand.
 
-**On macOS, drive by label, never by pixel.** `find` resolves a label to coordinates that pipe
-straight into `tap`, so a flow survives a layout change:
+**On macOS and the iPhone/iPad simulators, start with the test agent too.** Every debug build that
+`build-and-run.sh` (so `boot.sh`) launches on the Mac or a simulator listens on a socket of its own
+for each checkout and platform, and `control.sh macos agent` / `control.sh iphone agent` find it.
+It speaks the Linux agent's protocol, against the app's own accessibility objects, so what it
+reports is what VoiceOver gets; it needs no Accessibility permission and no idb, and it lists the
+iOS navigation bar that idb cannot:
+
+```
+scripts/dev/control.sh macos  agent dump                    # [handle] type "text" AXRole state
+scripts/dev/control.sh macos  agent press text="New Mail"
+scripts/dev/control.sh iphone agent press text=Calendar role=AXButton    # the tab, not a heading
+scripts/dev/control.sh iphone agent fill role=AXSearchField value=invoice submit=true
+scripts/dev/control.sh iphone agent escape h=<field>        # VoiceOver's escape: ends the search
+scripts/dev/control.sh iphone agent scroll h=<row> direction=up   # VoiceOver's three-finger scroll
+scripts/dev/control.sh macos  agent settle                  # until the app and the core are quiet
+scripts/dev/control.sh macos  agent screenshot path=/tmp/app.png
+```
+
+Roles are the platform's (`AXButton`, `AXStaticText`, `AXSearchField`); iOS has only traits, and the
+agent spells them in the same words. `id=` is the `accessibilityIdentifier`. It presses through the
+accessibility action, so a disabled control is refused rather than clicked. What it cannot do is a
+gesture or real input: a drag, a swipe action, a pull to refresh (an iPhone's search field, once
+folded away under the title, comes back only that way), a held tap, a keystroke or chord. Those
+stay with `macos-ax.swift` and idb below, as does asking the accessibility API from outside, the
+judge of what VoiceOver gets. A physical device has no agent: it cannot reach a socket on the Mac.
+
+**On macOS, for what the agent cannot do, drive by label, never by pixel.** `find` resolves a label
+to coordinates that pipe straight into `tap`, so a flow survives a layout change:
 
 ```
 scripts/dev/control.sh macos tap $(scripts/dev/control.sh macos find "Reply")
@@ -240,7 +268,7 @@ scripts/dev/control.sh macos text "hello"
 scripts/dev/control.sh macos find "Reply" --all     # every hit, when a label is ambiguous
 ```
 
-**On iOS/iPadOS, drive by label too, never screenshot-and-guess.** `describe-all` frames and
+**On iOS/iPadOS, for what the agent cannot do, drive by label too, never screenshot-and-guess.** `describe-all` frames and
 `idb ui tap` are both in **points**, so a label resolves straight into a tap with no scaling and no
 Device Hub window arithmetic. `ui-dump` prints the same `Role [x,y] Label` lines the macOS dump does,
 so a grep ports between them. Reaching for a screenshot to locate a control is the old, expensive
