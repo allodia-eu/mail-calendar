@@ -45,6 +45,31 @@ async fn a_stored_choice_wins_over_the_devices_default() {
 }
 
 #[tokio::test]
+async fn a_sync_setting_moves_the_accounts_page_and_no_other_setting() {
+    // Only an account's page draws how its mail arrives and how much is kept, so storing one
+    // must not make a client reload what follows the settings signal: the mail list and the
+    // calendar among it.
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = app(vec![account("acct-1", FakeProvider::new())], &surfaces);
+    app.dispatch(Intent::RefreshMail).await;
+    surfaces.lock().unwrap().clear();
+
+    app.set_account_message_size_limit("acct-1", 5).await;
+    app.set_poll_interval("acct-1", 30).await;
+    app.set_account_sync_depth("acct-1", 12).await;
+
+    let seen = surfaces.lock().unwrap().clone();
+    assert_eq!(
+        seen.iter()
+            .filter(|surface| **surface == crate::Surface::AccountPage)
+            .count(),
+        3,
+        "each setting moves the page"
+    );
+    assert!(!seen.contains(&crate::Surface::Settings), "{seen:?}");
+}
+
+#[tokio::test]
 async fn changing_a_neighbouring_setting_keeps_the_size_choice() {
     // Every setter rebuilds the whole stored record, so a field one of them forgets is silently
     // reset by an unrelated change: the user picks 5 MB, later changes their poll interval, and

@@ -33,10 +33,9 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A write-status signal only moves the small header badge (spinner → check /
         // warning); the grid/agenda arrive on their own CALENDAR signal.
         CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()
-        // A settings change refreshes the per-account sync-behaviour screen and the
-        // default quote style.
+        // A setting read outside an account's page moved: the composing, swipe, display and
+        // signature preferences, and the accounts every screen reads.
         CoreSurface.SETTINGS -> {
-            syncSettings = app.syncSettings()
             quoteSettings = app.quoteSettings()
             swipeSettings = app.swipeSettings()
             defaultSendAccount = app.defaultSendAccount()

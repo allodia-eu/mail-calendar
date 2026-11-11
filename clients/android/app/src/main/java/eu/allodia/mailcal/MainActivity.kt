@@ -57,7 +57,6 @@ import uniffi.mailcal_bindings.ThreadMessage
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.WeekStart
 import uniffi.mailcal_bindings.SyncProgressSnapshot
-import uniffi.mailcal_bindings.SyncSettingsSnapshot
 import uniffi.mailcal_bindings.TimeZoneSnapshot
 import uniffi.mailcal_bindings.ViewMode
 import uniffi.mailcal_bindings.calendarPalette
@@ -159,11 +158,8 @@ class MainActivity : AppCompatActivity() {
     // (MainActivityNotices.kt).
     internal val notices = NoticesState()
     internal var networkCallback: Any? = null
-    // The per-account sync-behaviour settings (fetch depth, push vs. poll, watched folders),
-    // pulled on a SETTINGS surface change; feeds the Accounts section of the Settings screen.
     // `showingSettings` swaps the unified Settings screen in over the mailbox, like the reading
     // view.
-    internal var syncSettings by mutableStateOf<SyncSettingsSnapshot?>(null)
     internal var showingSettings by mutableStateOf(false)
     // Settings → Accounts: every account from the core's one snapshot, and the page open.
     internal val accountSettings = AccountsUiState()

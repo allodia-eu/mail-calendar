@@ -39,8 +39,9 @@ pub enum Surface {
     OtherDevices,
     /// An account's page and what runs on it (pulled via the binding's `account_page`,
     /// `browser_sign_in` and the notices a change leaves): a change starting, waiting or ending,
-    /// an answer the page asked a server for, a browser sign-in moving. What a change stores and
-    /// something outside the page reads raises [`Self::Settings`] besides, so this one moves
+    /// an answer the page asked a server for, a browser sign-in moving, and a setting only the
+    /// page draws (how the account's mail arrives and how much of it is kept). What a change stores
+    /// and something outside the page reads raises [`Self::Settings`] besides, so this one moves
     /// nothing else a host draws.
     AccountPage,
     /// The reading view: the open message's fetched, sanitised body.
