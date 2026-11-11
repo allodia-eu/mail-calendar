@@ -238,6 +238,11 @@
          address (docs/accounts.md rule 8). The words arrive as parameters; a mailbox whose calendar
          was split off would otherwise read as linked to itself. -->
     <Compile Include="..\Mailcal\Services\AccountNames.cs" Link="Services\AccountNames.cs" />
+    <!-- A use a link fills, drawn as a row that opens the account it comes from, and the accounts
+         taking a use from this one, with Stop linking (docs/accounts.md rule 12): what each row
+         names, what its question says and what its answer sends. A use drawn as a switch could only
+         be off, and a question that names the wrong loss is answered on the wrong grounds. -->
+    <Compile Include="..\Mailcal\Services\AccountLinkedRules.cs" Link="Services\AccountLinkedRules.cs" />
     <!-- A calendar and contacts the account's sign-in does not reach (docs/accounts.md rule 18):
          whether a switch asks first and what each answer passes, which title a set of uses gets,
          and the form setup and the account's page offer. A switch that does not ask installs

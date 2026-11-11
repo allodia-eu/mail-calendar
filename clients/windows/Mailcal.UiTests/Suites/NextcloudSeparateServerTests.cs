@@ -129,6 +129,7 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             app.Agent.Settle();
             Assert.False(App.Eventually(() => InPage(app, dialog, "AccountUseSeparateSignIn_Calendar") is not null, TimeSpan.FromSeconds(5)),
                 "and the action does not come back: nothing waits on a sign-in any more");
+            AssertSaidMovedAndLinked(app, dialog);
         });
 
     [NextcloudFixtureFact(NeedsHarness = true)]
@@ -150,6 +151,22 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
                 && InPage(app, dialog, "SeparateServerConnect") is null, TimeSpan.FromSeconds(10)),
                 "Cancel closes the form and puts the action back");
         });
+
+    /// <summary>Asserts the page says the calendar moved to an account of its own, in a notice that
+    /// stays, and draws the calendar as a row opening that account (docs/accounts.md rules 12 and
+    /// 18).</summary>
+    private static void AssertSaidMovedAndLinked(App app, Element dialog)
+    {
+        var said = Catalog.Everywhere("settings_account_signed_in_separately_title");
+        bool Said() => app.Agent.FindAll(new Filter { Type = "Text", Under = dialog }).Any(text => said.Contains(text.Name));
+        Assert.True(App.Eventually(Said, TimeSpan.FromSeconds(10)),
+            "the page says the calendar signs in separately and is now an account of its own");
+        Assert.True(App.Eventually(() => InPage(app, dialog, "AccountUseLinked_Calendar") is not null
+            && InPage(app, dialog, "AccountUse_Calendar") is null, TimeSpan.FromSeconds(10)),
+            "and draws the calendar as the account it now comes from, not as a switch");
+        app.Agent.Settle();
+        Assert.True(Said(), "the explanation stays until it is closed: it is too long to read in passing");
+    }
 
     /// <summary>
     /// Connects the form under <paramref name="root"/> (the window, or the account's page) with a
@@ -295,6 +312,9 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             NextcloudBrowser.GrantToken(NextcloudAccountPageTests.Fixture, fresh, SeparateLogin, "nextcloud-alice-pw");
             Assert.True(app.Agent.WaitGone(Filter.ById("SeparateServerConnect", "Button"), TimeSpan.FromSeconds(60)),
                 "the sign-in the second press started completes, and setup goes on");
+            var said = Catalog.Everywhere("settings_account_signed_in_separately_title");
+            Assert.False(app.Agent.FindAll(new Filter { Type = "Text" }).Any(text => said.Contains(text.Name)),
+                "setup moved the calendar itself, so it says nothing of it: the explanation is the account page's");
             flow.CompleteSetupPrompts();
         });
 
@@ -334,6 +354,7 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             app.Agent.Settle();
             Assert.False(App.Eventually(Offered, TimeSpan.FromSeconds(5)),
                 "and the action does not come back: nothing waits on a sign-in any more");
+            AssertSaidMovedAndLinked(app, dialog);
         });
 
     [NextcloudFixtureFact(NeedsHarness = true)]

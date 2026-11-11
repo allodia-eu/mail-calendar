@@ -1,8 +1,10 @@
 // Settings → Accounts drawn from the core's one snapshot (docs/accounts.md rules 8 and 11 to 13):
 // every account listed, mail or not; a link suggested where the calendar server schedules as the
 // mailbox's address, made only once the person presses it, and named by its kind beside the mailbox
-// of its address; a use switched off only once it is confirmed; a question open on the page kept
-// open when the page is drawn again; and a removal that names the accounts losing their link.
+// of its address, after which the use is a row opening the account it comes from; a use switched off
+// only once it is confirmed; a question open on the page kept open when the page is drawn again; a
+// removal that names the accounts losing their link; and Stop linking, asked first, on the account
+// a use is taken from.
 //
 // WHY HERE. The rules are pinned in Mailcal.Tests (AccountSettingsRulesTests), but whether the page
 // draws them, and whether a press reaches the core and comes back as the next snapshot, is WinUI and
@@ -44,6 +46,10 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
             : throw new InvalidOperationException($"the page offers no '{Catalog.English(key)}'");
     }
 
+    /// <summary>What a use filled from alice's calendar account says it comes from, in every locale.</summary>
+    private static IEnumerable<string> FromCalendarAccount() =>
+        Catalog.Everywhere("settings_account_use_linked").Select(t => t.Replace("{account}", $"{Harness.Alice} (CalDAV/CardDAV)"));
+
     [HarnessFact]
     public void EveryAccountIsListedTheTwoWithoutAMailboxIncluded() => Case(nameof(EveryAccountIsListedTheTwoWithoutAMailboxIncluded), (app, setup) =>
     {
@@ -69,9 +75,13 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
         app.Agent.Invoke(InPage(app, dialog, "AccountRemove"));
         Assert.NotNull(app.Agent.Wait(new Filter { Id = "AccountRemoveConfirm", Under = dialog }, TimeSpan.FromSeconds(5)));
         app.Agent.Invoke(link);
-        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountLink_Calendar", Under = dialog }) is { } now && app.Agent.Read(now).Selection == $"{Harness.Alice} (CalDAV/CardDAV)",
+        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountUseLinked_Calendar", Under = dialog }) is { } now
+                && FromCalendarAccount().Any(from => now.Name.EndsWith(from, StringComparison.Ordinal)),
             TimeSpan.FromSeconds(10)),
-            "pressing Link picks the suggested calendar, named by its kind (docs/accounts.md rule 8): it has the mailbox's address, and the bare address would read as the mailbox itself");
+            "pressing Link fills the calendar from the suggested account, a row naming it by its kind (docs/accounts.md rules 8 and 12): it has the mailbox's address, and the bare address would read as the mailbox itself");
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountUse_Calendar", Under = dialog }) is null
+            && app.Agent.Find(new Filter { Id = "AccountLink_Calendar", Under = dialog }) is null,
+            "a use a link fills is neither a switch, which could only be off, nor a picker (rule 12)");
         Assert.True(app.Agent.Find(new Filter { Id = "AccountLinkSuggested_Calendar", Under = dialog }) is null,
             "a link already made is not suggested again: the page was drawn from the next snapshot");
         Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountRemoveConfirm", Under = dialog }) is { Enabled: true }, TimeSpan.FromSeconds(5)),
@@ -123,5 +133,33 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
             $"the confirmation names the accounts that lose their link, the mailbox by its kind (rules 8 and 12). It reads: {message.Name}");
         app.Agent.Invoke(Button(app, dialog, "action_cancel"));
         Assert.Equal(3, setup.AccountRows().Count);
+    });
+
+    [HarnessFact]
+    public void ALinkedCalendarOpensTheAccountItComesFromWhichStopsLinkingOnceAsked() => Case(nameof(ALinkedCalendarOpensTheAccountItComesFromWhichStopsLinkingOnceAsked), (app, setup) =>
+    {
+        // Linked by the second case: the mailbox's calendar comes from alice's calendar account.
+        var dialog = setup.OpenAccount(Harness.Alice, 0);
+        app.Agent.Invoke(InPage(app, dialog, "AccountUseLinked_Calendar"));
+        var stop = app.Agent.Wait(new Filter { Id = "AccountStopLinking_0", Under = dialog }, TimeSpan.FromSeconds(10))
+            ?? throw new InvalidOperationException("the row opened no page listing the mailbox as taking its calendar (rule 12)");
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountUseLinked_Calendar", Under = dialog }) is null,
+            "the row opened the calendar account's page, whose calendar is its own");
+        app.Agent.Invoke(stop);
+        var message = app.Agent.Wait(new Filter { Id = "AccountStopLinking_0Message", Under = dialog }, TimeSpan.FromSeconds(5))
+            ?? throw new InvalidOperationException("Stop linking asked nothing before stopping");
+        Assert.True(Catalog.Everywhere("settings_account_stop_linking_calendar").Any(lost => message.Name.StartsWith(lost, StringComparison.Ordinal)),
+            $"the question says the mailbox's calendar will no longer come from this account. It reads: {message.Name}");
+        app.Agent.Invoke(InPage(app, dialog, "AccountStopLinking_0Cancel"));
+        Assert.NotNull(app.Agent.Wait(new Filter { Id = "AccountStopLinking_0", Under = dialog }, TimeSpan.FromSeconds(5)));
+        Assert.Contains(RowHelp(app, setup), help => help.Contains($"Calendar: {Harness.Alice} (CalDAV/CardDAV)", StringComparison.Ordinal));
+
+        dialog = setup.OpenAccount(Harness.Alice, 1);
+        app.Agent.Invoke(InPage(app, dialog, "AccountStopLinking_0"));
+        app.Agent.Invoke(app.Agent.Wait(new Filter { Id = "AccountStopLinking_0Confirm", Under = dialog }, TimeSpan.FromSeconds(5))
+            ?? throw new InvalidOperationException("Stop linking asked nothing before stopping"));
+        Assert.True(app.Agent.WaitGone(new Filter { Id = "AccountStopLinking_0", Under = dialog }, TimeSpan.FromSeconds(10)),
+            "confirmed, every link between the two stops, and the group goes with its last row");
+        Assert.DoesNotContain(RowHelp(app, setup), help => help.Contains($"Calendar: {Harness.Alice} (CalDAV/CardDAV)", StringComparison.Ordinal));
     });
 }

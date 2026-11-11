@@ -15,7 +15,8 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    /// <summary>A switch per use the account's kind offers, as the core decided each.</summary>
+    /// <summary>A switch per use the account's kind offers, as the core decided each, and a row
+    /// that opens the account a link fills one from.</summary>
     private UIElement UsesGroup(AccountEntry entry, AccountPage page)
     {
         var stack = new StackPanel { Spacing = 8 };
@@ -26,9 +27,16 @@ public sealed partial class SettingsDialog
         return Group(L10n.SettingsAccountUsesHeading(), L10n.SettingsAccountUsesDescription(), stack);
     }
 
-    private StackPanel UseRow(AccountEntry entry, AccountUseSwitch use, AccountPage page)
+    private UIElement UseRow(AccountEntry entry, AccountUseSwitch use, AccountPage page)
     {
         var capability = use.Capability;
+        // A use a link fills is the account it comes from: a row that opens its page.
+        if (AccountLinkedRules.Row(use, AccountNameText.Words, L10n.SettingsAccountUseLinked) is { } linked)
+        {
+            return ControlComponents.NavigationRow(
+                UseName(capability), linked.Subtitle, linked.Enabled, $"AccountUseLinked_{capability}",
+                () => OpenAccountPage(linked.Opens));
+        }
         var row = new StackPanel { Spacing = 2 };
         void Set(bool on) => _model.ChangeAccount(new AccountPageIntent.SetUse(entry.Id, capability, on));
         // Switching off deletes what the device holds of the use, so it is asked first where it
@@ -102,7 +110,7 @@ public sealed partial class SettingsDialog
         return row;
     }
 
-    /// <summary>A picker per link slot the account can hold.</summary>
+    /// <summary>A picker per link slot nothing fills yet.</summary>
     private UIElement LinksGroup(AccountEntry entry, IReadOnlyList<AccountLinkPicker> pickers)
     {
         var stack = new StackPanel { Spacing = 12 };

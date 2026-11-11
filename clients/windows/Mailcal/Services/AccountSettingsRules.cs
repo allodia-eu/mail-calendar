@@ -126,12 +126,18 @@ internal static class AccountSettingsRules
         foreach (var use in page.Uses)
         {
             yield return $"use:{use.Capability}={use.On}/{Control(use.Control)}/{use.Blocked}/{use.Status}/"
-                + $"{use.AsksProvider}/{use.ConfirmsOff}/{use.ReviewsServerChange}/{use.SignsInSeparately}";
+                + $"{use.AsksProvider}/{use.ConfirmsOff}/{use.ReviewsServerChange}/{use.SignsInSeparately}/"
+                + Linked(use.Linked);
         }
         foreach (var picker in page.Links)
         {
             yield return $"link:{picker.Slot}={picker.Selected}/{picker.Suggested}/{Control(picker.Control)}/"
                 + string.Join(',', picker.Options.Select(Linked));
+        }
+        foreach (var taking in page.LinkedFrom)
+        {
+            yield return $"linked-from:{Linked(taking.Account)}={string.Join(',', taking.Uses)}/"
+                + $"{string.Join(',', taking.LeavesWithout)}/{Control(taking.Stop)}";
         }
         if (page.SenderName is { } name)
         {
