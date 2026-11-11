@@ -1,16 +1,15 @@
-//! Settings → Accounts → an account's shared mailboxes and shared calendars: which stores its
-//! sign-in opens besides its own, and which of them it is used for, for each use
-//! (`docs/shared-mailboxes.md`).
+//! Settings → Accounts → an account's shared stores: which stores its sign-in opens besides its
+//! own, what each holds, and which of them it is used for (`docs/shared-mailboxes.md`).
 
 use std::sync::Arc;
 
-use engine_api::{AccountId, SearchDomain, SharedAccountId};
-use mailcal_account::{Capability, SharedStoreChoice, SharedUse};
+use engine_api::{AccountId, SharedAccount, SharedAccountId};
+use mailcal_account::{SharedStoreChoice, SharedUse, SharedUses};
 use mailcal_app::{SharedStoreLookup, SharedStoreOffer};
 
 use crate::{MailcalApp, MailcalError};
 
-/// Whether an account's sign-in can open stores besides its own for a use.
+/// Whether an account's sign-in can open stores besides its own.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SharedStoreSupport {
     /// The server lists the stores it opens; they are in [`SharedStoresView::stores`], none when
@@ -37,6 +36,8 @@ pub struct SharedStoreEntry {
     pub name: String,
     /// The address it is known by, when the server gives one. A shared mailbox sends as it.
     pub address: Option<String>,
+    /// What it holds of what the account opens: what switching it on opens.
+    pub holds: SharedUses,
     /// Whether the account is used for it: it is then an account of its own.
     pub selected: bool,
     /// Whether the server still lists it. A chosen store the server stopped listing is kept
@@ -44,7 +45,7 @@ pub struct SharedStoreEntry {
     pub listed: bool,
 }
 
-/// An account's shared stores for one use, as its server answered and as the account is used.
+/// An account's shared stores, as its server answered and as the account is used.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SharedStoresView {
     /// Whether the sign-in can open any.
@@ -53,19 +54,11 @@ pub struct SharedStoresView {
     pub stores: Vec<SharedStoreEntry>,
 }
 
-/// The domain a store chosen for `kind` is asked of and opened for.
-pub(crate) const fn domain(kind: SharedUse) -> SearchDomain {
-    match kind {
-        SharedUse::Mail => SearchDomain::Mail,
-        SharedUse::Calendar => SearchDomain::Calendar,
-    }
-}
-
 /// What the account's page asks through its own changes (`AccountPage::shared`); kept public for
 /// the live suites, which drive a real server through them.
 impl MailcalApp {
-    /// Asks `account_id`'s server which stores its sign-in opens besides its own for `kind`.
-    /// Blocks on the network.
+    /// Asks `account_id`'s server which stores its sign-in opens besides its own. Blocks on the
+    /// network.
     ///
     /// The stores the account is used for are in the answer whatever the server said, so one
     /// can be switched off while the server is away.
@@ -73,41 +66,37 @@ impl MailcalApp {
     /// # Errors
     ///
     /// Returns [`MailcalError::Config`] for an account that is not set up.
-    pub fn shared_stores(
-        &self,
-        account_id: String,
-        kind: SharedUse,
-    ) -> Result<SharedStoresView, MailcalError> {
+    pub fn shared_stores(&self, account_id: String) -> Result<SharedStoresView, MailcalError> {
         if !self.registry.contains(&account_id)
             || self.registry.shared_parent(&account_id).is_some()
         {
             return Err(MailcalError::Config("no such account".to_owned()));
         }
         Ok(view(
-            self.shared_offer(&account_id, kind),
-            self.chosen_shared(&account_id, kind),
+            self.shared_offer(&account_id),
+            self.chosen_shared(&account_id),
         ))
     }
 
-    /// The store at `address` for `kind`, if `account_id`'s sign-in opens it, ready for
+    /// The store at `address`, if `account_id`'s sign-in opens it, ready for
     /// [`MailcalApp::set_shared_store`]; `None` when nothing it can open answers to `address`.
     /// The server will not say whether no such store exists or it was not shared with the
     /// account, so neither does this. Blocks on the network.
     ///
     /// # Errors
     ///
-    /// Returns [`MailcalError::Config`] for an account that is not set up or cannot open a shared
-    /// store for `kind`, and [`MailcalError::Connect`] when the account is not connected or the
-    /// server did not answer.
+    /// Returns [`MailcalError::Config`] for an account that is not set up or opens no shared
+    /// store, and [`MailcalError::Connect`] when the account is not connected or the server did
+    /// not answer.
     pub fn resolve_shared_store(
         &self,
         account_id: String,
-        kind: SharedUse,
         address: String,
     ) -> Result<Option<SharedStoreEntry>, MailcalError> {
-        if !self.opens_shared(&account_id, kind) {
+        let uses = self.shared_uses(&account_id);
+        if uses.is_empty() {
             return Err(MailcalError::Config(
-                "this account opens no shared store for this use".to_owned(),
+                "this account opens no shared store".to_owned(),
             ));
         }
         let account = AccountId::try_from(account_id.as_str())
@@ -116,22 +105,16 @@ impl MailcalApp {
         let address = address.trim().to_owned();
         let lookup = self
             .runtime
-            .block_on(|| async move {
-                app.resolve_shared_store(&account, domain(kind), &address)
-                    .await
-            })
+            .block_on(|| async move { app.resolve_shared_store(&account, uses, &address).await })
             .map_err(|err| MailcalError::Connect(err.to_string()))?;
-        let chosen = self.registry.shared_stores(&account_id, kind);
         match lookup {
-            SharedStoreLookup::Found(store) => Ok(Some(SharedStoreEntry {
-                selected: chosen
+            SharedStoreLookup::Found(store) => {
+                let selected = self
+                    .chosen_shared(&account_id)
                     .iter()
-                    .any(|(_, choice)| choice.handle == store.handle),
-                handle: store.handle.as_str().to_owned(),
-                name: store.name,
-                address: store.address,
-                listed: true,
-            })),
+                    .any(|choice| choice.handle == store.handle);
+                Ok(Some(entry(&store, selected)))
+            }
             SharedStoreLookup::NotOpenable => Ok(None),
             SharedStoreLookup::NotConnected => Err(MailcalError::Connect(
                 "the account is not connected".to_owned(),
@@ -139,10 +122,11 @@ impl MailcalApp {
         }
     }
 
-    /// Uses `account_id` for the store `store` for `kind`, or stops using it, and stores the
-    /// account. Switched on, the store is listed as an account of its own for that use and
-    /// connected in the background; switched off, it leaves every surface and what the device
-    /// holds of it is deleted. Nothing changes on the server.
+    /// Uses `account_id` for the store `store`, or stops using it, and stores the account.
+    /// Switched on, the store is listed as an account of its own holding what `store` holds and
+    /// connected in the background; switched on again, it gains what it holds now; switched off,
+    /// it leaves every surface and what the device holds of it is deleted. Nothing changes on the
+    /// server.
     ///
     /// # Errors
     ///
@@ -151,7 +135,6 @@ impl MailcalApp {
     pub fn set_shared_store(
         &self,
         account_id: String,
-        kind: SharedUse,
         store: SharedStoreEntry,
         on: bool,
     ) -> Result<(), MailcalError> {
@@ -162,23 +145,28 @@ impl MailcalApp {
                 .map_err(|err| MailcalError::Config(err.to_string()))?,
             name: store.name,
             address: store.address,
+            holds: store.holds,
         };
         let child = choice
-            .account_id(&parent, kind)
+            .account_id(&parent)
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         if self.registry.shared_parent(&account_id).is_some() {
             return Err(MailcalError::Config("no such account".to_owned()));
         }
         // A choice the account cannot open would be stored and listed nowhere.
-        if on && !self.opens_shared(&account_id, kind) {
+        if on
+            && choice
+                .holds
+                .intersect(self.shared_uses(&account_id))
+                .is_empty()
+        {
             return Err(MailcalError::Config(
-                "this account opens no shared store for this use".to_owned(),
+                "this account opens nothing this store holds".to_owned(),
             ));
         }
-        if !self
-            .registry
-            .set_shared_store(&account_id, kind, choice.clone(), on)
-        {
+        let was_chosen = self.registry.shared_parent(child.as_str()).is_some();
+        let before = self.chosen_shared(&account_id);
+        if !self.registry.set_shared_store(&account_id, choice, on) {
             return if self.registry.contains(&account_id) {
                 Ok(())
             } else {
@@ -186,21 +174,15 @@ impl MailcalApp {
             };
         }
         // Stored before anything is opened or deleted, so a refused write changes nothing.
-        let stored = match self.registry.config_toml(&account_id) {
-            Some(config) => config
-                .map_err(MailcalError::Config)
-                .and_then(|config| self.persist_config(&account_id, config)),
-            None => Ok(()),
-        };
-        if let Err(err) = stored {
-            self.registry
-                .set_shared_store(&account_id, kind, choice, !on);
+        if let Err(err) = self.store_shared_choices(&account_id) {
+            self.registry.restore_shared_stores(&account_id, before);
             return Err(err);
         }
-        if on {
-            self.open_shared_store(&parent, &child);
-        } else {
-            self.drop_shared_store(&child);
+        match (on, was_chosen) {
+            (true, false) => self.open_shared_store(&parent, &child),
+            // It holds more than it did: dialled again to open it.
+            (true, true) => self.redial(child.as_str()),
+            (false, _) => self.drop_shared_store(&child),
         }
         self.app.accounts_changed();
         Ok(())
@@ -208,74 +190,88 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// The stores `account_id` is used for for `kind`, in the order they were chosen.
-    pub(crate) fn chosen_shared(
-        &self,
-        account_id: &str,
-        kind: SharedUse,
-    ) -> Vec<SharedStoreChoice> {
+    /// The stores `account_id` is used for, in the order they were chosen.
+    pub(crate) fn chosen_shared(&self, account_id: &str) -> Vec<SharedStoreChoice> {
         self.registry
-            .shared_stores(account_id, kind)
+            .shared_children(account_id)
             .into_iter()
-            .map(|(_, choice)| choice)
+            .map(|child| child.choice)
             .collect()
     }
 
-    /// What `account_id`'s server says of the stores its sign-in opens for `kind`: asked of the
-    /// server only for an account that may open one. **Blocking** on the network.
-    pub(crate) fn shared_offer(
-        &self,
-        account_id: &str,
-        kind: SharedUse,
-    ) -> Result<SharedStoreOffer, ()> {
-        if !self.opens_shared(account_id, kind) {
+    /// What `account_id`'s server says of the stores its sign-in opens: asked of the server only
+    /// for an account that may open one. A store it is used for that the server now lists as
+    /// holding more than it did gains it here, as a store found by its address does when added
+    /// again. **Blocking** on the network.
+    pub(crate) fn shared_offer(&self, account_id: &str) -> Result<SharedStoreOffer, ()> {
+        let uses = self.shared_uses(account_id);
+        if uses.is_empty() {
             return Ok(SharedStoreOffer::Unsupported);
         }
         let Ok(account) = AccountId::try_from(account_id) else {
             return Ok(SharedStoreOffer::Unsupported);
         };
         let app = Arc::clone(&self.app);
-        self.runtime
-            .block_on(|| async move { app.shared_store_offer(&account, domain(kind)).await })
+        let offer = self
+            .runtime
+            .block_on(|| async move { app.shared_store_offer(&account, uses).await })
             .map_err(|err| {
                 log::info!("shared stores: the server did not list them ({err})");
-            })
+            })?;
+        if let SharedStoreOffer::Listed(listed) = &offer {
+            self.gain_listed(account_id, listed);
+        }
+        Ok(offer)
     }
 
-    /// Whether `account_id`'s sign-in may open a store besides its own for `kind`. For mail: an
-    /// IMAP or JMAP account, whose server says, or a Microsoft account used for shared mailboxes
-    /// with a grant that allows them. For calendars: a JMAP account, or an IMAP account with a
-    /// CalDAV server, whose server says. Never a shared store itself, and never for a use the
-    /// account is not used for: a store is shared with a mailbox or a calendar, and an account
-    /// without one would wait forever for it to connect.
-    pub(crate) fn opens_shared(&self, account_id: &str, kind: SharedUse) -> bool {
+    /// Switches each store `account_id` is used for that `listed` says holds more on again, so it
+    /// opens what it holds now. A store stored as a shared mailbox gains its calendars this way.
+    fn gain_listed(&self, account_id: &str, listed: &[SharedAccount]) {
+        for choice in self.chosen_shared(account_id) {
+            let Some(store) = listed.iter().find(|store| store.handle == choice.handle) else {
+                continue;
+            };
+            if holds(store).union(choice.holds) != choice.holds {
+                let gained = entry(store, true);
+                if let Err(err) = self.set_shared_store(account_id.to_owned(), gained, true) {
+                    log::info!("shared stores: what a store holds now was not stored ({err})");
+                }
+            }
+        }
+    }
+
+    /// What the stores `account_id`'s sign-in opens besides its own are opened for: nothing
+    /// for a shared store itself, or an account that is not set up.
+    pub(crate) fn shared_uses(&self, account_id: &str) -> SharedUses {
         if self.registry.shared_parent(account_id).is_some() {
-            return false;
+            return SharedUses::default();
         }
-        let Some(dial) = self.registry.dial(account_id) else {
-            return false;
-        };
-        let uses = dial.capabilities();
-        match kind {
-            SharedUse::Mail if !uses.contains(Capability::Mail) => false,
-            SharedUse::Calendar if !uses.contains(Capability::Calendar) => false,
-            SharedUse::Mail => match &dial {
-                crate::account_registry::AccountDial::Imap { .. }
-                | crate::account_registry::AccountDial::Jmap { .. } => true,
-                crate::account_registry::AccountDial::Microsoft { .. } => {
-                    uses.contains(Capability::SharedMailboxes)
-                }
-                crate::account_registry::AccountDial::Google { .. } => false,
-            },
-            SharedUse::Calendar => match &dial {
-                crate::account_registry::AccountDial::Imap { config, .. } => {
-                    config.caldav.is_some()
-                }
-                crate::account_registry::AccountDial::Jmap { .. } => true,
-                crate::account_registry::AccountDial::Microsoft { .. }
-                | crate::account_registry::AccountDial::Google { .. } => false,
-            },
+        self.registry
+            .dial(account_id)
+            .map(|dial| dial.shared_uses())
+            .unwrap_or_default()
+    }
+
+    /// Whether `account_id`'s sign-in may open any store besides its own.
+    pub(crate) fn opens_shared(&self, account_id: &str) -> bool {
+        !self.shared_uses(account_id).is_empty()
+    }
+
+    /// Writes `account_id`'s stored config, with the shared stores as the registry holds them.
+    fn store_shared_choices(&self, account_id: &str) -> Result<(), MailcalError> {
+        match self.registry.config_toml(account_id) {
+            Some(config) => self.persist_config(account_id, config.map_err(MailcalError::Config)?),
+            None => Ok(()),
         }
+    }
+
+    /// Dials the shared store `child` again, as it is stored now.
+    fn redial(&self, child: &str) {
+        self.disconnected
+            .lock()
+            .expect("disconnected mutex poisoned")
+            .insert(child.to_owned());
+        self.retry_connections();
     }
 
     /// Lists the shared store `child` of `parent` and dials it in the background.
@@ -312,24 +308,36 @@ impl MailcalApp {
         self.retry_connections();
     }
 
-    /// Stops `parent` being used for any store for `kind`, as when the use that opens them is
-    /// switched off, and stores it.
-    pub(crate) fn drop_shared_stores(
+    /// `parent` stopped opening `kind`, as when the use that opens it is switched off: each store
+    /// holding `kind` keeps the rest of what it holds, with what the device holds of `kind`
+    /// forgotten, and one left opening nothing is no longer used. Stores the account.
+    pub(crate) fn drop_shared_use(
         &self,
         parent: &str,
         kind: SharedUse,
     ) -> Result<(), MailcalError> {
-        let chosen = self.registry.shared_stores(parent, kind);
-        if chosen.is_empty() {
-            return Ok(());
+        let mut dropped = false;
+        for child in self.registry.shared_children(parent) {
+            if !child.choice.holds.contains(kind) {
+                continue;
+            }
+            if self.registry.dial(child.id.as_str()).is_some() {
+                self.list_without_providers(&child.id);
+                let (app, id) = (Arc::clone(&self.app), child.id.clone());
+                self.runtime.block_on(|| async move {
+                    app.forget_account_domain(&id, domain(kind)).await;
+                });
+                self.redial(child.id.as_str());
+            } else {
+                self.registry.set_shared_store(parent, child.choice, false);
+                self.drop_shared_store(&child.id);
+                dropped = true;
+            }
         }
-        for (child, choice) in chosen {
-            self.registry.set_shared_store(parent, kind, choice, false);
-            self.drop_shared_store(&child);
-        }
-        match self.registry.config_toml(parent) {
-            Some(config) => self.persist_config(parent, config.map_err(MailcalError::Config)?),
-            None => Ok(()),
+        if dropped {
+            self.store_shared_choices(parent)
+        } else {
+            Ok(())
         }
     }
 
@@ -348,6 +356,34 @@ impl MailcalApp {
         let app = Arc::clone(&self.app);
         self.runtime
             .spawn(async move { app.reclaim_removed_account_space().await });
+    }
+}
+
+/// The engine's domain for `kind`.
+const fn domain(kind: SharedUse) -> engine_api::SearchDomain {
+    match kind {
+        SharedUse::Mail => engine_api::SearchDomain::Mail,
+        SharedUse::Calendar => engine_api::SearchDomain::Calendar,
+    }
+}
+
+/// What `store` holds, as an account's uses name it: what the servers asked found in it.
+fn holds(store: &SharedAccount) -> SharedUses {
+    SharedUse::ALL
+        .into_iter()
+        .filter(|kind| store.domains.contains(domain(*kind)))
+        .collect()
+}
+
+/// `store` as Settings draws it.
+fn entry(store: &SharedAccount, selected: bool) -> SharedStoreEntry {
+    SharedStoreEntry {
+        handle: store.handle.as_str().to_owned(),
+        name: store.name.clone(),
+        address: store.address.clone(),
+        holds: holds(store),
+        selected,
+        listed: true,
     }
 }
 
@@ -370,6 +406,7 @@ pub(crate) fn view<E>(
             handle: choice.handle.as_str().to_owned(),
             name: choice.name.clone(),
             address: choice.address.clone(),
+            holds: choice.holds,
             selected: true,
             // Not connected is not the same as withdrawn: nothing was asked.
             listed: support != SharedStoreSupport::Listed || is_listed(&choice.handle),
@@ -379,13 +416,7 @@ pub(crate) fn view<E>(
         listed
             .iter()
             .filter(|store| !chosen.iter().any(|choice| choice.handle == store.handle))
-            .map(|store| SharedStoreEntry {
-                handle: store.handle.as_str().to_owned(),
-                name: store.name.clone(),
-                address: store.address.clone(),
-                selected: false,
-                listed: true,
-            }),
+            .map(|store| entry(store, false)),
     );
     SharedStoresView { support, stores }
 }

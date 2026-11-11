@@ -135,7 +135,12 @@ pub(crate) async fn reconnect_all(
                     // ends the asking.
                     if registry
                         .shared_parent(id.as_str())
-                        .is_some_and(|(_, child)| child.kind == mailcal_account::SharedUse::Mail)
+                        .is_some_and(|(_, child)| {
+                            child
+                                .choice
+                                .holds
+                                .contains(mailcal_account::SharedUse::Mail)
+                        })
                     {
                         app.needs_sender_name(&id).await;
                     }

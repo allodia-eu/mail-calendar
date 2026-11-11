@@ -1,8 +1,9 @@
-//! Gated live check of shared calendars against the harness, where alice may write the
-//! `support` group's calendar and read the one dave shares with her (`docker/stalwart/seed.sh`),
-//! over JMAP and over CalDAV: the server lists both, choosing one lists it as a calendar account of
-//! its own with that store's calendar and rights and in no mail surface, the choice is stored with
-//! alice's account, and switching it, or alice's calendar, off takes it out again
+//! Gated live check of shared stores holding calendars against the harness, where alice may write
+//! the `support` group's calendar and read the one dave shares with her
+//! (`docker/stalwart/seed.sh`), over JMAP and over CalDAV: the server lists both with what each
+//! holds, choosing one lists it as an account of its own with that store's calendars and rights, in
+//! the mail surfaces only when it holds mail, the choice is stored with alice's account, and
+//! switching it, or alice's calendar, off takes its calendars out again
 //! (`docs/shared-mailboxes.md`).
 //!
 //! Skips unless `STALWART_HTTP_ADDR` is set. By hand:
@@ -23,7 +24,7 @@ use std::{
 
 use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{
-    CalendarRow, JmapSetup, MailcalApp, SharedStoreEntry, SharedStoreSupport, SharedUse,
+    CalendarRow, JmapSetup, MailcalApp, SharedStoreEntry, SharedStoreSupport, SharedUse, SharedUses,
 };
 
 const SUPPORT: &str = "support@test.local";
@@ -50,11 +51,11 @@ fn calendars_of(app: &MailcalApp, address: &str) -> Vec<CalendarRow> {
         .collect()
 }
 
-/// The stores `parent` is offered for calendars, once its calendar has connected.
+/// The stores `parent` is offered, once its calendar has connected.
 fn offered(app: &MailcalApp, parent: &str) -> Vec<SharedStoreEntry> {
     let view = eventually("the account's calendar to list its shared stores", || {
         let view = app
-            .shared_stores(parent.to_owned(), SharedUse::Calendar)
+            .shared_stores(parent.to_owned())
             .inspect_err(|err| eprintln!("not yet: {err}"))
             .ok()?;
         (view.support != SharedStoreSupport::NotConnected).then_some(view)
@@ -68,38 +69,53 @@ fn entry(stores: &[SharedStoreEntry], address: &str) -> SharedStoreEntry {
         .iter()
         .find(|store| store.address.as_deref() == Some(address))
         .cloned()
-        .unwrap_or_else(|| panic!("{address} is offered for calendars: {stores:?}"))
+        .unwrap_or_else(|| panic!("{address} is offered: {stores:?}"))
 }
 
-/// Chooses dave's and the group's calendars for `parent`, checks what that does, and switches
-/// them off again: dave's alone, then the group's, with alice's own calendar when she has mail to
-/// keep the account (`with_mail`), on its own otherwise.
+/// Whether `account` is listed in the mail surfaces.
+fn in_mail(app: &MailcalApp, account: &str) -> bool {
+    app.mailbox_list()
+        .accounts
+        .iter()
+        .any(|row| row.id == account)
+}
+
+/// Chooses dave's store and the group's for `parent`, checks what that does, and switches them
+/// off again: dave's alone, then the group's calendars with alice's own calendar when she has mail
+/// to keep the account (`with_mail`), the group's store on its own otherwise.
 fn the_shared_calendars_are_listed_chosen_synced_stored_and_dropped(
     app: &Arc<MailcalApp>,
     store: &RecordingStore,
     parent: &str,
     with_mail: bool,
 ) {
+    let calendar = SharedUses::of(SharedUse::Calendar);
     let stores = offered(app, parent);
     let (dave, support) = (entry(&stores, DAVE), entry(&stores, SUPPORT));
     assert!(!dave.selected && dave.listed);
-    // Bob shares mail alone, so his store is no calendar.
+    // Where the account opens mail, a store holding mail and calendars is one store with both:
+    // the group's mailbox and calendar, and dave's Board folder and his calendar. A CalDAV
+    // account opens their calendars alone.
+    let holds = if with_mail {
+        calendar.with(SharedUse::Mail)
+    } else {
+        calendar
+    };
+    assert_eq!(dave.holds, holds, "{dave:?}");
+    assert_eq!(support.holds, holds, "{support:?}");
+    // Bob shares mail alone.
     assert!(
         stores
             .iter()
-            .all(|store| store.address.as_deref() != Some("bob@test.local")),
+            .filter(|store| store.address.as_deref() == Some("bob@test.local"))
+            .all(|bob| !bob.holds.contains(SharedUse::Calendar)),
         "{stores:?}"
     );
 
-    app.set_shared_store(parent.to_owned(), SharedUse::Calendar, dave.clone(), true)
-        .expect("choosing dave's calendar");
-    app.set_shared_store(
-        parent.to_owned(),
-        SharedUse::Calendar,
-        support.clone(),
-        true,
-    )
-    .expect("choosing the group's calendar");
+    app.set_shared_store(parent.to_owned(), dave.clone(), true)
+        .expect("choosing dave's store");
+    app.set_shared_store(parent.to_owned(), support.clone(), true)
+        .expect("choosing the group's store");
     let dave_calendar = eventually("dave's calendar to sync", || {
         calendars_of(app, DAVE)
             .into_iter()
@@ -125,36 +141,36 @@ fn the_shared_calendars_are_listed_chosen_synced_stored_and_dropped(
         "{:?}",
         names(SUPPORT)
     );
-    // A shared calendar is in no mail surface.
-    assert!(
-        app.mailbox_list()
-            .accounts
-            .iter()
-            .all(|row| row.id != dave_calendar.account && row.id != group.account),
-    );
+    // A store is in the mail surfaces only when it opens mail: over JMAP as one account with its
+    // calendar, over CalDAV not at all.
+    assert_eq!(in_mail(app, &dave_calendar.account), with_mail);
+    assert_eq!(in_mail(app, &group.account), with_mail);
     let stored = store.0.lock().unwrap().last().cloned().unwrap();
-    assert_eq!(stored.matches("[[shared_calendar]]").count(), 2, "{stored}");
+    assert_eq!(stored.matches("[[shared_store]]").count(), 2, "{stored}");
 
-    app.set_shared_store(parent.to_owned(), SharedUse::Calendar, dave, false)
-        .expect("switching dave's calendar off");
+    app.set_shared_store(parent.to_owned(), dave, false)
+        .expect("switching dave's store off");
     assert!(calendars_of(app, DAVE).is_empty(), "switched off, it goes");
     assert!(!calendars_of(app, SUPPORT).is_empty(), "the other stays");
 
     if with_mail {
-        // Alice's own calendar opens her shared ones, so they go with it.
+        // Alice's own calendar opens her shared ones, so they go with it; the group's mailbox
+        // stays, and goes when it is switched off.
         app.set_account_capability(
             parent.to_owned(),
             mailcal_bindings::AccountCapability::Calendar,
             false,
         )
         .expect("switching alice's calendar off");
-    } else {
-        app.set_shared_store(parent.to_owned(), SharedUse::Calendar, support, false)
-            .expect("switching the group's calendar off");
+        assert!(calendars_of(app, SUPPORT).is_empty());
+        assert!(in_mail(app, &group.account), "its mail stays");
     }
+    app.set_shared_store(parent.to_owned(), support, false)
+        .expect("switching the group's store off");
     assert!(calendars_of(app, SUPPORT).is_empty());
+    assert!(!in_mail(app, &group.account));
     let stored = store.0.lock().unwrap().last().cloned().unwrap();
-    assert!(!stored.contains("[[shared_calendar]]"), "{stored}");
+    assert!(!stored.contains("[[shared_store]]"), "{stored}");
 }
 
 #[test]

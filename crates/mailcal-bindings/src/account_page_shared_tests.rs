@@ -30,13 +30,19 @@ fn chosen(handle: &str, address: &str) -> SharedStoreChoice {
         handle: SharedAccountId::try_from(handle).unwrap(),
         name: address.to_owned(),
         address: Some(address.to_owned()),
+        holds: mailcal_account::SharedUses::of(mailcal_account::SharedUse::Mail),
     }
 }
 
 fn asked(live: bool) -> Asked {
+    let mail = mailcal_account::SharedUses::of(mailcal_account::SharedUse::Mail);
     Asked {
         uses: [mailcal_account::Capability::Mail].into_iter().collect(),
-        live,
+        live: if live {
+            mail
+        } else {
+            mailcal_account::SharedUses::default()
+        },
     }
 }
 

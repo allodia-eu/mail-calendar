@@ -1,17 +1,21 @@
-//! What Settings draws of an account's shared mailboxes, from the server's answer and the
-//! account's choice.
+//! What Settings draws of an account's shared stores, from the server's answer and the account's
+//! choice.
 
 use engine_api::{SearchDomain, SharedAccount, StoreDomains};
 
 use super::*;
 
+fn mail() -> SharedUses {
+    SharedUses::of(SharedUse::Mail)
+}
+
 fn listed(handle: &str, address: &str) -> SharedAccount {
-    SharedAccount::new(
-        SharedAccountId::try_from(handle).unwrap(),
-        address,
-        StoreDomains::of(SearchDomain::Mail),
-    )
-    .with_address(address)
+    listed_holding(handle, address, StoreDomains::of(SearchDomain::Mail))
+}
+
+fn listed_holding(handle: &str, address: &str, holds: StoreDomains) -> SharedAccount {
+    SharedAccount::new(SharedAccountId::try_from(handle).unwrap(), address, holds)
+        .with_address(address)
 }
 
 fn chosen(handle: &str, address: &str) -> SharedStoreChoice {
@@ -19,6 +23,7 @@ fn chosen(handle: &str, address: &str) -> SharedStoreChoice {
         handle: SharedAccountId::try_from(handle).unwrap(),
         name: address.to_owned(),
         address: Some(address.to_owned()),
+        holds: mail(),
     }
 }
 
@@ -69,7 +74,22 @@ fn a_server_that_did_not_answer_still_shows_what_the_account_is_used_for() {
 }
 
 #[test]
-fn an_account_not_used_for_mail_opens_no_shared_mailbox() {
+fn each_store_says_what_it_holds() {
+    let group = mail().with(SharedUse::Calendar);
+    let calendar = StoreDomains::of(SearchDomain::Calendar);
+    let view = view::<()>(
+        Ok(SharedStoreOffer::Listed(vec![
+            listed_holding("a", "a@example.org", calendar.with(SearchDomain::Mail)),
+            listed_holding("c", "c@example.org", calendar),
+        ])),
+        vec![chosen("b", "b@example.org")],
+    );
+    let holds: Vec<_> = view.stores.iter().map(|store| store.holds).collect();
+    assert_eq!(holds, [mail(), group, SharedUses::of(SharedUse::Calendar)]);
+}
+
+#[test]
+fn an_account_used_for_calendars_alone_opens_shared_calendars_alone() {
     let server = crate::nextcloud_mock::mock_nextcloud(Vec::new());
     let calendar = format!(
         "[caldav]\nbase_url = \"{}/dav/cal/\"\nusername = \"alice\"\npassword = \"typed\"\n",
@@ -77,7 +97,8 @@ fn an_account_not_used_for_mail_opens_no_shared_mailbox() {
     );
     let (app, _) = crate::nextcloud_mock::boot("shared-calendar-only", vec![calendar]);
     let entry = app.accounts_snapshot().accounts.remove(0);
-    let view = app.shared_stores(entry.id, SharedUse::Mail).unwrap();
-    assert_eq!(view.support, SharedStoreSupport::Unsupported);
-    assert!(view.stores.is_empty());
+    assert_eq!(
+        app.shared_uses(&entry.id),
+        SharedUses::of(SharedUse::Calendar)
+    );
 }

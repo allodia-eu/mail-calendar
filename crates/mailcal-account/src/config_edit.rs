@@ -3,7 +3,7 @@
 
 use crate::{
     AccountConfig, CalDavAccount, Capabilities, Capability, CardDavAccount, ConfigError,
-    ConnectionSecurity, ImapAccount, Secret, SmtpAccount,
+    ConnectionSecurity, ImapAccount, Secret, SharedUse, SmtpAccount,
     setup::{host_and_addr, imap_default_port, normalize_caldav_base_url, smtp_default_port},
 };
 
@@ -254,14 +254,14 @@ impl AccountConfig {
                 uses.contains(capability) && host(self, capability) != host(&edited, capability)
             })
             .collect();
-        // A shared mailbox's handle names a store on the mail server it was found on.
-        if host(self, Capability::Mail) != host(&edited, Capability::Mail) {
-            edited.shape.shared_mailboxes.clear();
-        }
-        // So does a shared calendar's, on the calendar server.
-        if host(self, Capability::Calendar) != host(&edited, Capability::Calendar) {
-            edited.shape.shared_calendars.clear();
-        }
+        // A shared store's handle names a store on the server that found it: the mail server for
+        // one holding mail, the calendar server for one holding calendars.
+        let gone = |capability| host(self, capability) != host(&edited, capability);
+        let (mail, calendar) = (gone(Capability::Mail), gone(Capability::Calendar));
+        edited.shape.shared_stores.retain(|store| {
+            !(mail && store.holds.contains(SharedUse::Mail)
+                || calendar && store.holds.contains(SharedUse::Calendar))
+        });
         Ok(EditedAccount {
             config: edited,
             moved,

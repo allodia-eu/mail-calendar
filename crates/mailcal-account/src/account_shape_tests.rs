@@ -107,7 +107,7 @@ fn a_capability_this_build_does_not_know_is_kept_and_counts_for_nothing() {
 }
 
 #[test]
-fn the_shared_mailboxes_an_account_is_used_for_read_back_as_written() {
+fn a_shared_mailbox_stored_before_calendars_reads_as_a_store_holding_mail() {
     let text = r#"
 [[shared_mailbox]]
 handle = "Shared Folders/support@example.org"
@@ -119,41 +119,48 @@ handle = "Shared Folders/team"
 name = "team"
 "#;
     let shape = AccountShape::read(text).unwrap();
-    assert_eq!(shape.shared_mailboxes.len(), 2);
+    assert_eq!(shape.shared_stores.len(), 2);
     assert_eq!(
-        shape.shared_mailboxes[0].address.as_deref(),
+        shape.shared_stores[0].address.as_deref(),
         Some("support@example.org")
     );
-    assert_eq!(shape.shared_mailboxes[1].address, None);
+    assert_eq!(shape.shared_stores[1].address, None);
+    let mail = crate::SharedUses::of(crate::SharedUse::Mail);
+    assert!(shape.shared_stores.iter().all(|store| store.holds == mail));
+    // Written back as a shared store, which reads as the same.
     let mut root = toml::Table::new();
     shape.write_into(&mut root);
+    assert!(root.contains_key("shared_store") && !root.contains_key("shared_mailbox"));
     assert_eq!(AccountShape::read(&root.to_string()).unwrap(), shape);
 }
 
 #[test]
-fn the_shared_calendars_are_kept_apart_from_the_shared_mailboxes() {
-    // One store chosen for both uses is stored twice, once under each: a switch per use.
+fn a_shared_store_keeps_what_it_holds() {
     let text = r#"
-[[shared_mailbox]]
+[[shared_store]]
 handle = "f"
 name = "support@example.org"
 address = "support@example.org"
+holds = ["mail", "calendar"]
 
-[[shared_calendar]]
-handle = "f"
-name = "support@example.org"
-address = "support@example.org"
-
-[[shared_calendar]]
-handle = "e"
+[[shared_store]]
+handle = "https://dav.example.org/principals/dave/"
 name = "Dave"
+holds = ["calendar", "tasks"]
 "#;
     let shape = AccountShape::read(text).unwrap();
-    assert_eq!(shape.shared(SharedUse::Mail).len(), 1);
-    let calendars = shape.shared(SharedUse::Calendar);
-    assert_eq!(calendars.len(), 2);
-    assert_eq!(calendars[1].handle.as_str(), "e");
-    assert_eq!(calendars[1].address, None);
+    let [support, dave] = shape.shared_stores.as_slice() else {
+        panic!("two stores");
+    };
+    assert_eq!(
+        support.holds,
+        crate::SharedUses::of(crate::SharedUse::Mail).with(crate::SharedUse::Calendar)
+    );
+    // What this build cannot open is not kept.
+    assert_eq!(
+        dave.holds,
+        crate::SharedUses::of(crate::SharedUse::Calendar)
+    );
     let mut root = toml::Table::new();
     shape.write_into(&mut root);
     assert_eq!(AccountShape::read(&root.to_string()).unwrap(), shape);

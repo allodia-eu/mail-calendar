@@ -231,7 +231,7 @@ pub use help::{HelpPage, help_page_url};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
 pub use launch::{launch_status_after_ms, stored_account_is_readable};
 pub use logging::{LogLevel, Logger};
-pub use mailcal_account::SharedUse;
+pub use mailcal_account::{SharedUse, SharedUses};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
@@ -254,14 +254,8 @@ pub use records::{
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
-pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
-    AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
-    AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
-    AccountSharedMailbox, AccountSharedMailboxes, AccountSharing, AccountToggle, AccountUseBlock,
-    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
-    SharedMailboxesNote,
-};
+// Every record of an account's page crosses the FFI, so the module is exported whole.
+pub use records_account_page::*;
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,
     AccountSignIn, AccountSignInLine, AccountSignInRoute, BrowserSignIn, BrowserSignInStage,

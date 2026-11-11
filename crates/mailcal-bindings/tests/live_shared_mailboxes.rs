@@ -119,7 +119,7 @@ fn the_support_mailbox_is_listed_chosen_synced_stored_and_dropped(
         "the account to connect and list its shared mailboxes",
         || {
             let view = app
-                .shared_stores(parent.to_owned(), SharedUse::Mail)
+                .shared_stores(parent.to_owned())
                 .inspect_err(|err| eprintln!("not yet: {err}"))
                 .ok()?;
             (view.support != SharedStoreSupport::NotConnected).then_some(view)
@@ -133,6 +133,7 @@ fn the_support_mailbox_is_listed_chosen_synced_stored_and_dropped(
         .cloned()
         .unwrap_or_else(|| panic!("the group mailbox is listed: {:?}", view.stores));
     assert!(!support.selected && support.listed);
+    assert!(support.holds.contains(SharedUse::Mail), "{support:?}");
     assert!(
         view.stores
             .iter()
@@ -140,13 +141,11 @@ fn the_support_mailbox_is_listed_chosen_synced_stored_and_dropped(
         "the account's own mailbox is not offered as a shared one"
     );
 
-    app.set_shared_store(parent.to_owned(), SharedUse::Mail, support.clone(), true)
+    app.set_shared_store(parent.to_owned(), support.clone(), true)
         .expect("choosing it");
     let stored = store.0.lock().unwrap().last().cloned().unwrap();
-    assert!(stored.contains("[[shared_mailbox]]"), "{stored}");
-    let view = app
-        .shared_stores(parent.to_owned(), SharedUse::Mail)
-        .unwrap();
+    assert!(stored.contains("[[shared_store]]"), "{stored}");
+    let view = app.shared_stores(parent.to_owned()).unwrap();
     assert!(view.stores[0].selected, "the chosen one comes first");
 
     // A mail account of its own, under its own address, so it is in the folder pane and in
@@ -214,7 +213,7 @@ fn the_support_mailbox_is_listed_chosen_synced_stored_and_dropped(
     .iter()
     .for_each(|subject| assert_ne!(subject, SUPPORT_SUBJECT));
 
-    app.set_shared_store(parent.to_owned(), SharedUse::Mail, support, false)
+    app.set_shared_store(parent.to_owned(), support, false)
         .expect("switching it off");
     assert!(
         app.mailbox_list()
@@ -224,7 +223,7 @@ fn the_support_mailbox_is_listed_chosen_synced_stored_and_dropped(
         "switched off, it leaves the mail surfaces"
     );
     let stored = store.0.lock().unwrap().last().cloned().unwrap();
-    assert!(!stored.contains("[[shared_mailbox]]"), "{stored}");
+    assert!(!stored.contains("[[shared_store]]"), "{stored}");
 }
 
 #[test]
@@ -271,13 +270,13 @@ fn an_imap_account_opens_the_group_mailbox_shared_with_it() {
 /// still opens, with that folder in it.
 fn a_shared_folder_without_an_inbox_still_opens(app: &Arc<MailcalApp>, parent: &str) {
     let board = app
-        .shared_stores(parent.to_owned(), SharedUse::Mail)
+        .shared_stores(parent.to_owned())
         .unwrap()
         .stores
         .into_iter()
         .find(|mailbox| mailbox.handle.ends_with("dave@test.local"))
         .expect("dave's store is listed");
-    app.set_shared_store(parent.to_owned(), SharedUse::Mail, board.clone(), true)
+    app.set_shared_store(parent.to_owned(), board.clone(), true)
         .expect("choosing it");
     let child = eventually("dave's store to be listed", || {
         app.mailbox_list()
@@ -294,6 +293,6 @@ fn a_shared_folder_without_an_inbox_still_opens(app: &Arc<MailcalApp>, parent: &
             .into_iter()
             .find(|folder| folder.name == "Board")
     });
-    app.set_shared_store(parent.to_owned(), SharedUse::Mail, board, false)
+    app.set_shared_store(parent.to_owned(), board, false)
         .expect("switching it off");
 }

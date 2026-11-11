@@ -24,13 +24,14 @@ use crate::{
 /// What a server answered: its offer, or `Err` when it was asked and did not answer.
 pub(crate) type Offer = Result<SharedStoreOffer, ()>;
 
-/// The account as its server was asked: what it is used for, and whether its mailbox was live.
-/// An answer asked of an account that has changed since may no longer hold: a use switched on or
-/// off opens or closes them, and a mailbox that connected can now be asked.
+/// The account as its server was asked: what it is used for, and which of its mailbox and
+/// calendar were live. An answer asked of an account that has changed since may no longer hold: a
+/// use switched on or off opens or closes them, and a mailbox or calendar that connected can now
+/// be asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Asked {
     pub(crate) uses: mailcal_account::Capabilities,
-    pub(crate) live: bool,
+    pub(crate) live: mailcal_account::SharedUses,
 }
 
 #[derive(Debug, Default)]
@@ -141,9 +142,11 @@ fn section(
         enabled: !hold.busy,
         running,
     };
+    // The stores holding mail: this is the account's mailboxes.
     let mailboxes = view
         .stores
         .iter()
+        .filter(|store| store.holds.contains(mailcal_account::SharedUse::Mail))
         .map(|mailbox| {
             let going = hold.going(|work| match work {
                 PageWork::Shared { handle, on } if *handle == mailbox.handle => Some(*on),

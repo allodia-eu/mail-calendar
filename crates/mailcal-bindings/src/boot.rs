@@ -414,7 +414,7 @@ struct Prepared {
 
 /// Whether `listed` is the account `id` or a shared store its sign-in opens.
 pub(crate) fn opened_by(listed: &str, id: &str) -> bool {
-    listed == id || mailcal_account::SharedUse::opened_by(listed, id)
+    listed == id || mailcal_account::opened_by(listed, id)
 }
 
 /// Parses every stored config, builds each account's **one** token source, and registers it; all

@@ -1,5 +1,5 @@
-//! The stores an account is used for besides its own, each listed as an account of its own: a
-//! shared mailbox as a mail account, a shared calendar as a calendar account
+//! The stores an account is used for besides its own, each listed as an account of its own with
+//! everything it holds that the account opens: a group's mailbox and calendar are one account
 //! (`docs/shared-mailboxes.md`).
 //!
 //! A shared store has no registry entry: it is stored on the account whose sign-in opens it, and
@@ -8,7 +8,7 @@
 //! nothing to keep in step.
 
 use engine_api::{AccountId, EmailAddress, SharedAccountId};
-use mailcal_account::{Capabilities, Capability, SharedStoreChoice, SharedUse};
+use mailcal_account::{Capabilities, Capability, SharedStoreChoice, SharedUse, SharedUses};
 
 use super::{AccountDial, AccountRegistry};
 use crate::connected_account::ConnectedAccount;
@@ -23,22 +23,46 @@ pub(crate) struct SharedDial {
     pub(crate) identity: EmailAddress,
 }
 
-/// The one use a store chosen for `kind` is opened for.
-fn opened(kind: SharedUse) -> Capabilities {
-    let capability = match kind {
+/// The account's use that opens `kind`.
+const fn capability(kind: SharedUse) -> Capability {
+    match kind {
         SharedUse::Mail => Capability::Mail,
         SharedUse::Calendar => Capability::Calendar,
-    };
-    [capability].into_iter().collect()
+    }
 }
 
 impl AccountDial {
-    /// This dial, opening the store `choice` chosen for `kind` with the account's sign-in instead
-    /// of the account itself: that use alone, under the store's own address. `None` for a kind
-    /// that opens no such store: Google opens none, an IMAP account opens a shared calendar only
-    /// through its CalDAV half, and Microsoft only while used for shared mailboxes.
-    fn for_shared(self, choice: &SharedStoreChoice, kind: SharedUse) -> Option<Self> {
-        let uses = opened(kind);
+    /// What the stores this account's sign-in opens besides its own are opened for: mail on an
+    /// IMAP or JMAP account, whose server says, or on a Microsoft account used for shared
+    /// mailboxes with a grant that allows them; calendars on a JMAP account, or an IMAP account
+    /// with a CalDAV server. Never a use the account is not used for: a store is shared with a
+    /// mailbox or a calendar, and an account without one would wait forever for it to connect.
+    pub(crate) fn shared_uses(&self) -> SharedUses {
+        let uses = self.capabilities();
+        SharedUse::ALL
+            .into_iter()
+            .filter(|kind| uses.contains(capability(*kind)))
+            .filter(|kind| match (self, kind) {
+                (Self::Imap { .. } | Self::Jmap { .. }, SharedUse::Mail) => true,
+                (Self::Microsoft { .. }, SharedUse::Mail) => {
+                    uses.contains(Capability::SharedMailboxes)
+                }
+                (Self::Imap { config, .. }, SharedUse::Calendar) => config.caldav.is_some(),
+                (Self::Jmap { .. }, SharedUse::Calendar) => true,
+                (Self::Microsoft { .. } | Self::Google { .. }, _) => false,
+            })
+            .collect()
+    }
+
+    /// This dial, opening the store `choice` with the account's sign-in instead of the account
+    /// itself: what it holds that the account opens, under the store's own address. `None` when
+    /// that is nothing.
+    fn for_shared(self, choice: &SharedStoreChoice) -> Option<Self> {
+        let opened = choice.holds.intersect(self.shared_uses());
+        if opened.is_empty() {
+            return None;
+        }
+        let uses: Capabilities = opened.iter().map(capability).collect();
         let shared = |parent: EmailAddress| SharedDial {
             handle: choice.handle.clone(),
             identity: choice.address.clone().map_or(parent, EmailAddress::new),
@@ -49,7 +73,7 @@ impl AccountDial {
                 connections,
                 tokens,
                 ..
-            } if kind == SharedUse::Mail || config.caldav.is_some() => {
+            } => {
                 let parent = EmailAddress::new(config.username().to_owned());
                 Some(Self::Imap {
                     config,
@@ -75,24 +99,17 @@ impl AccountDial {
                     shared: Some(shared(parent)),
                 })
             }
-            // Opened only while the account is used for shared mailboxes and its grant allows
-            // them: what the account opens is what it is used for, less what is withheld.
             Self::Microsoft {
+                tokens, identity, ..
+            } => Some(Self::Microsoft {
                 tokens,
-                identity,
-                capabilities,
-                ..
-            } if kind == SharedUse::Mail && capabilities.contains(Capability::SharedMailboxes) => {
-                Some(Self::Microsoft {
-                    tokens,
-                    shared: Some(shared(identity.clone())),
-                    identity: shared(identity).identity,
-                    capabilities: uses,
-                    withheld: Capabilities::default(),
-                    affiliation_unknown: false,
-                })
-            }
-            Self::Imap { .. } | Self::Microsoft { .. } | Self::Google { .. } => None,
+                shared: Some(shared(identity.clone())),
+                identity: shared(identity).identity,
+                capabilities: uses,
+                withheld: Capabilities::default(),
+                affiliation_unknown: false,
+            }),
+            Self::Google { .. } => None,
         }
     }
 
@@ -116,35 +133,31 @@ impl AccountDial {
     }
 }
 
-/// One store an account is used for besides its own: the id it is listed by, what it was chosen
-/// for, and what is stored of it.
+/// One store an account is used for besides its own: the id it is listed by and what is stored
+/// of it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SharedChild {
     pub(crate) id: AccountId,
-    pub(crate) kind: SharedUse,
     pub(crate) choice: SharedStoreChoice,
 }
 
-/// Every store `entry` is used for besides its own, mailboxes first, each in the order chosen.
+/// Every store `entry` is used for besides its own, in the order chosen.
 pub(super) fn children(parent: &str, entry: &ConnectedAccount) -> Vec<SharedChild> {
     let Ok(parent) = AccountId::try_from(parent) else {
         return Vec::new();
     };
-    let (shape, parent) = (entry.shape(), &parent);
-    [SharedUse::Mail, SharedUse::Calendar]
-        .into_iter()
-        .flat_map(|kind| {
-            shape.shared(kind).iter().filter_map(move |choice| {
-                Some(SharedChild {
-                    id: choice.account_id(parent, kind).ok()?,
-                    kind,
-                    choice: choice.clone(),
-                })
+    entry
+        .shape()
+        .shared_stores
+        .iter()
+        .filter_map(|choice| {
+            Some(SharedChild {
+                id: choice.account_id(&parent).ok()?,
+                choice: choice.clone(),
             })
         })
         .collect()
 }
-
 impl AccountRegistry {
     /// The account whose sign-in opens the shared store listed as `id`, with what is stored
     /// about it; `None` when `id` is no shared store.
@@ -161,8 +174,7 @@ impl AccountRegistry {
             })
     }
 
-    /// Every store `parent` is used for besides its own, mailboxes first, each in the order
-    /// chosen.
+    /// Every store `parent` is used for besides its own, in the order chosen.
     pub(crate) fn shared_children(&self, parent: &str) -> Vec<SharedChild> {
         self.entries
             .lock()
@@ -170,20 +182,6 @@ impl AccountRegistry {
             .get(parent)
             .map(|entry| children(parent, entry))
             .unwrap_or_default()
-    }
-
-    /// The stores `parent` is used for for `kind`, under the ids each is listed by, in the order
-    /// they were chosen.
-    pub(crate) fn shared_stores(
-        &self,
-        parent: &str,
-        kind: SharedUse,
-    ) -> Vec<(AccountId, SharedStoreChoice)> {
-        self.shared_children(parent)
-            .into_iter()
-            .filter(|child| child.kind == kind)
-            .map(|child| (child.id, child.choice))
-            .collect()
     }
 
     /// What a push watch on a folder of `id` needs: the IMAP half of `id` itself, or of the
@@ -197,7 +195,7 @@ impl AccountRegistry {
             return Some((own, None));
         }
         let (parent, child) = self.shared_parent(id)?;
-        (child.kind == SharedUse::Mail).then_some(())?;
+        child.choice.holds.contains(SharedUse::Mail).then_some(())?;
         Some((self.imap(&parent)?, Some(child.choice.handle)))
     }
 
@@ -215,7 +213,7 @@ impl AccountRegistry {
                     meetings: None,
                     contact_providers: Vec::new(),
                     dialled: false,
-                    uses_mail: child.kind == SharedUse::Mail,
+                    uses_mail: dial.capabilities().contains(Capability::Mail),
                     id: child.id,
                 })
             })
@@ -230,15 +228,27 @@ impl AccountRegistry {
             .expect("account registry mutex poisoned")
             .get(&parent)
             .map(AccountDial::from_entry)?
-            .for_shared(&child.choice, child.kind)
+            .for_shared(&child.choice)
     }
 
-    /// Records whether `parent` is used for the store `choice` for `kind`. Answers whether
-    /// anything changed; `false` as well for an account that is not registered.
+    /// Puts back the stores `parent` is used for as they were, after storing a change failed.
+    pub(crate) fn restore_shared_stores(&self, parent: &str, stores: Vec<SharedStoreChoice>) {
+        if let Some(entry) = self
+            .entries
+            .lock()
+            .expect("account registry mutex poisoned")
+            .get_mut(parent)
+        {
+            entry.shape_mut().shared_stores = stores;
+        }
+    }
+
+    /// Records whether `parent` is used for the store `choice`. Switched on again, a store it is
+    /// already used for keeps what it held and gains what `choice` says it holds now. Answers
+    /// whether anything changed; `false` as well for an account that is not registered.
     pub(crate) fn set_shared_store(
         &self,
         parent: &str,
-        kind: SharedUse,
         choice: SharedStoreChoice,
         on: bool,
     ) -> bool {
@@ -251,18 +261,24 @@ impl AccountRegistry {
         };
         let current_id = entry.account_id();
         let shape = entry.shape_mut();
-        let chosen = shape.shared_mut(kind);
+        let chosen = &mut shape.shared_stores;
         let at = chosen.iter().position(|kept| kept.handle == choice.handle);
         let changed = match (at, on) {
             (None, true) => {
                 chosen.push(choice);
                 true
             }
+            (Some(at), true) => {
+                let holds = chosen[at].holds.union(choice.holds);
+                let gained = holds != chosen[at].holds;
+                chosen[at].holds = holds;
+                gained
+            }
             (Some(at), false) => {
                 chosen.remove(at);
                 true
             }
-            _ => false,
+            (None, false) => false,
         };
         // Pinned, because each shared store's id is derived from this account's.
         if changed && shape.id.is_none() {

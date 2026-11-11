@@ -149,8 +149,8 @@ impl AccountDial {
                         ),
                     ),
                     async {
-                        // A shared store is the one use it was chosen for, under the account's
-                        // sign-in.
+                        // A shared store is what it holds of mail and calendars, under the
+                        // account's sign-in.
                         if shared.is_some() {
                             return None;
                         }

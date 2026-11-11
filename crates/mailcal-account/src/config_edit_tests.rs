@@ -177,19 +177,16 @@ fn switching_only_the_security_takes_that_security_s_standard_port() {
 fn a_mail_server_on_another_host_keeps_no_shared_mailbox_the_old_one_opened() {
     let shared = "\n[[shared_mailbox]]\nhandle = \"Shared Folders/support@example.org\"\nname = \"support\"\n";
     let config = load_str(&format!("{STANDARDS}{shared}")).unwrap();
-    assert_eq!(config.shape.shared_mailboxes.len(), 1);
+    assert_eq!(config.shape.shared_stores.len(), 1);
 
     let mut edit = config.endpoints();
     edit.password = Some("new".to_owned());
     let kept = config.with_endpoints(&edit).unwrap();
-    assert_eq!(
-        kept.config.shape.shared_mailboxes,
-        config.shape.shared_mailboxes
-    );
+    assert_eq!(kept.config.shape.shared_stores, config.shape.shared_stores);
 
     edit.imap_host = Some("mail.example.net".to_owned());
     let moved = config.with_endpoints(&edit).unwrap();
-    assert_eq!(moved.config.shape.shared_mailboxes, []);
+    assert_eq!(moved.config.shape.shared_stores, []);
 }
 
 #[test]
@@ -244,17 +241,16 @@ fn an_edit_never_prints_its_password() {
 
 #[test]
 fn a_calendar_server_on_another_host_keeps_no_shared_calendar_the_old_one_opened() {
-    let shared = "\n[[shared_calendar]]\nhandle = \"https://dav.example.org/principals/dave/\"\nname = \"dave\"\n\n[[shared_mailbox]]\nhandle = \"Shared Folders/support@example.org\"\nname = \"support\"\n";
+    let shared = "\n[[shared_store]]\nhandle = \"https://dav.example.org/principals/dave/\"\nname = \"dave\"\nholds = [\"calendar\"]\n\n[[shared_store]]\nhandle = \"Shared Folders/support@example.org\"\nname = \"support\"\nholds = [\"mail\"]\n";
     let config = load_str(&format!("{STANDARDS}{shared}")).unwrap();
-    assert_eq!(config.shape.shared_calendars.len(), 1);
+    assert_eq!(config.shape.shared_stores.len(), 2);
 
     let mut edit = config.endpoints();
     edit.caldav_url = Some("https://calendar.example.net/".to_owned());
     let moved = config.with_endpoints(&edit).unwrap();
-    assert_eq!(moved.config.shape.shared_calendars, []);
-    // The mail server stayed, and so do the mailboxes it opens.
+    // The mail server stayed, and so does the mailbox it opens.
     assert_eq!(
-        moved.config.shape.shared_mailboxes,
-        config.shape.shared_mailboxes
+        moved.config.shape.shared_stores,
+        config.shape.shared_stores[1..]
     );
 }

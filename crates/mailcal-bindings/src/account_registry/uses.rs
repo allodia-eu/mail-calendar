@@ -174,11 +174,18 @@ impl AccountRegistry {
     /// The provider-less account the app lists for `id` until its next dial lands, or `None` if it
     /// is not registered.
     pub(crate) fn placeholder(&self, id: &engine_api::AccountId) -> Option<BoxedAccount> {
-        self.entries
+        let own = self
+            .entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id.as_str())
-            .map(|entry| crate::boot::placeholder(id.clone(), entry))
+            .map(|entry| crate::boot::placeholder(id.clone(), entry));
+        own.or_else(|| {
+            let (parent, _) = self.shared_parent(id.as_str())?;
+            self.shared_placeholders(&parent)
+                .into_iter()
+                .find(|placeholder| placeholder.id == *id)
+        })
     }
 }
 

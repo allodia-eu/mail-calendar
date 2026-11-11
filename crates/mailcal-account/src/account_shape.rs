@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use engine_core::ids::AccountId;
 use serde::Deserialize;
 
-use crate::{ConfigError, SharedUse};
+use crate::ConfigError;
 
 /// One thing an account can be used for.
 ///
@@ -181,12 +181,10 @@ pub struct AccountShape {
     /// The accounts this one relies on.
     #[serde(default)]
     pub links: AccountLinks,
-    /// The mailboxes this account's sign-in opens besides its own that it is used for.
-    #[serde(default, rename = "shared_mailbox")]
-    pub shared_mailboxes: Vec<crate::SharedStoreChoice>,
-    /// The stores this account's sign-in opens besides its own whose calendars it is used for.
-    #[serde(default, rename = "shared_calendar")]
-    pub shared_calendars: Vec<crate::SharedStoreChoice>,
+    /// The stores this account's sign-in opens besides its own that it is used for, in the order
+    /// chosen (`shared_store`).
+    #[serde(default, rename = "shared_store")]
+    pub shared_stores: Vec<crate::SharedStoreChoice>,
 }
 
 impl AccountShape {
@@ -198,7 +196,10 @@ impl AccountShape {
     /// Returns [`ConfigError::Parse`] if the document is not TOML, or if one of these keys holds
     /// something it cannot (an id that is not one, a capability this build does not know).
     pub fn read(text: &str) -> Result<Self, ConfigError> {
-        Ok(toml::from_str(text)?)
+        let mut shape: Self = toml::from_str(text)?;
+        let older: Older = toml::from_str(text)?;
+        shape.shared_stores.splice(0..0, older.shared_mailbox);
+        Ok(shape)
     }
 
     /// What the account is used for: what it stores, or `legacy` when it stores nothing, which
@@ -208,23 +209,6 @@ impl AccountShape {
         self.capabilities
             .clone()
             .unwrap_or_else(|| legacy.into_iter().collect())
-    }
-
-    /// The stores this account is used for beside its own, for `kind`, in the order chosen.
-    #[must_use]
-    pub fn shared(&self, kind: SharedUse) -> &[crate::SharedStoreChoice] {
-        match kind {
-            SharedUse::Mail => &self.shared_mailboxes,
-            SharedUse::Calendar => &self.shared_calendars,
-        }
-    }
-
-    /// The same, to change.
-    pub fn shared_mut(&mut self, kind: SharedUse) -> &mut Vec<crate::SharedStoreChoice> {
-        match kind {
-            SharedUse::Mail => &mut self.shared_mailboxes,
-            SharedUse::Calendar => &mut self.shared_calendars,
-        }
     }
 
     /// Adds the keys that are set to an account document's root table. Nothing is added for an
@@ -250,17 +234,23 @@ impl AccountShape {
             }
             root.insert("links".into(), links.into());
         }
-        for kind in [SharedUse::Mail, SharedUse::Calendar] {
-            let chosen = self.shared(kind);
-            if !chosen.is_empty() {
-                let tables: Vec<toml::Value> = chosen
-                    .iter()
-                    .map(|choice| choice.write_into().into())
-                    .collect();
-                root.insert(kind.table().into(), tables.into());
-            }
+        if !self.shared_stores.is_empty() {
+            let tables: Vec<toml::Value> = self
+                .shared_stores
+                .iter()
+                .map(|choice| choice.write_into().into())
+                .collect();
+            root.insert("shared_store".into(), tables.into());
         }
     }
+}
+
+/// The shared mailboxes stored before a shared store could hold calendars: each a store holding
+/// mail, read into [`AccountShape::shared_stores`] and written back as one.
+#[derive(Deserialize)]
+struct Older {
+    #[serde(default)]
+    shared_mailbox: Vec<crate::SharedStoreChoice>,
 }
 
 /// An empty capability list reads as absent: an account is used for at least one thing, or it

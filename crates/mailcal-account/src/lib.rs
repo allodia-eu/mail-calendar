@@ -138,7 +138,7 @@ pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };
 pub use setup_choices::{SetupChoice, google_choices, microsoft_choices, standards_choices};
-pub use shared_store::{SharedStoreChoice, SharedUse};
+pub use shared_store::{SharedStoreChoice, SharedUse, SharedUses, opened_by};
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
