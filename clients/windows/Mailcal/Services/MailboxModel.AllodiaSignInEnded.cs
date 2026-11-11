@@ -36,13 +36,8 @@ public sealed partial class MailboxModel
         {
             return false;
         }
+        // The core runs the pass the notice promised once the sign-in takes.
         var failure = await SignInToAllodiaAsync();
-        // What the notice promised: the accounts in step again, now rather than at the next
-        // launch. Asked of the grant, because a sign-in the person gave up on also returns null.
-        if (failure is null && AllodiaGrantHealth == AllodiaGrantHealth.Ok)
-        {
-            _ = SyncAllodiaAccountsAsync();
-        }
         return NoticeRules.RemedyFailed(signedIn: false, failure?.Said, failure?.Unanswered == true);
     }
 }

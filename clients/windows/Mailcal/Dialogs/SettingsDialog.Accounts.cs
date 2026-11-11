@@ -52,7 +52,8 @@ public sealed partial class SettingsDialog
     {
         var snapshot = _model.AccountsSnapshot();
         var page = OpenPage();
-        _accountsDrawn = AccountsFingerprint(snapshot, page);
+        var devices = _model.AllodiaDevices();
+        _accountsDrawn = AccountsFingerprint(snapshot, page, devices);
         var panel = new StackPanel { Spacing = 16 };
         _accountNoticeBar = new InfoBar { IsClosable = true };
         ShowNotice(_accountNoticeBar, _accountNotice);
@@ -76,7 +77,7 @@ public sealed partial class SettingsDialog
         panel.Children.Add(add);
         // What the person's other devices have to say, above their own accounts: an offer becomes
         // one of them.
-        if (BuildAllodiaSync() is { } sync)
+        if (BuildAllodiaSync(devices) is { } sync)
         {
             panel.Children.Add(sync);
         }
@@ -164,9 +165,9 @@ public sealed partial class SettingsDialog
         AddAccountNotices(panel, entry.Id);
         // Whether this one travels: first, because it decides whether anything below it is
         // anybody else's business (docs/settings.md).
-        if (_model.AccountsSyncMode.TryGetValue(entry.Id, out var mode))
+        if (page.Sharing is { } sharing)
         {
-            panel.Children.Add(BuildSyncModePicker(entry.Id, mode));
+            panel.Children.Add(SharingGroup(entry.Id, sharing));
         }
         if (page.SenderName is { } name)
         {
@@ -331,7 +332,7 @@ public sealed partial class SettingsDialog
             // stand under "Couldn't save".
             _accountNotice = _changeNotice = null;
         }
-        if (AccountsFingerprint(snapshot, page) != _accountsDrawn)
+        if (AccountsFingerprint(snapshot, page, _model.AllodiaDevices()) != _accountsDrawn)
         {
             // Drawn again now, a picker whose list is open would close under the pointer and the
             // pick would be lost, and a field holding what is still being typed would send it half
@@ -458,12 +459,12 @@ public sealed partial class SettingsDialog
         field.LostFocus += Left;
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, how each account is shared,
+    /// <summary>What the list or a page is drawn from: the snapshot, what the other devices said,
     /// the notices about accounts, and the open page's record, which the page draws from calls of
     /// their own.</summary>
-    private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page)
+    private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page, AllodiaDevices? devices)
     {
-        var beside = _model.AccountsSyncMode.Select(pair => $"shared:{pair.Key}={pair.Value}")
+        var beside = AccountSettingsRules.DevicesFingerprint(devices)
             .Concat(AccountNoticesFingerprint())
             .Concat(ServerChangeFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));

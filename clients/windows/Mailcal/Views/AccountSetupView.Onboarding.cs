@@ -30,6 +30,9 @@ public sealed partial class AccountSetupView
     // flow's verifier.
     private bool _onboardingSigningIn;
     private string? _onboardingFailure;
+    // What the panel was last drawn from, so a Settings signal that changed none of it leaves the
+    // panel, and the button under the pointer, alone.
+    private string? _onboardingDrawn;
 
     /// <summary>
     /// Rebuilds the panel above the address field, or hides it.
@@ -45,6 +48,7 @@ public sealed partial class AccountSetupView
     /// </remarks>
     private void RenderOnboarding()
     {
+        _onboardingDrawn = OnboardingFingerprint();
         OnboardingAllodiaPanel.Children.Clear();
         var firstRun = Model?.NeedsSetup == true;
         if (!MailcalBindingsMethods.AllodiaSignInAvailable())
@@ -54,7 +58,7 @@ public sealed partial class AccountSetupView
         }
         if (!firstRun)
         {
-            var outstanding = Model?.AllodiaSync?.Offers ?? System.Array.Empty<AllodiaAccountOffer>();
+            var outstanding = Model?.AllodiaDevices()?.Offers ?? System.Array.Empty<AllodiaAccountOffer>();
             if (outstanding.Length == 0)
             {
                 OnboardingAllodiaPanel.Visibility = Visibility.Collapsed;
@@ -101,7 +105,7 @@ public sealed partial class AccountSetupView
     private UIElement OnboardingContent()
     {
         var signedIn = Model?.SignedInAllodiaAccount() is not null;
-        if (_onboardingSigningIn || (signedIn && Model?.AllodiaSyncing == true))
+        if (_onboardingSigningIn || (signedIn && Model?.AllodiaDevices()?.Checking == true))
         {
             var busy = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             busy.Children.Add(new ProgressRing { IsActive = true, Width = 16, Height = 16 });
@@ -142,14 +146,15 @@ public sealed partial class AccountSetupView
     private UIElement Offers()
     {
         var panel = new StackPanel { Spacing = 8 };
-        // A pass that has not answered, one that failed on the network, says nothing. Reporting
-        // it as an empty account states a result nobody has.
-        if (Model?.AllodiaSync is not { } report)
+        // A pass that has not answered, or one that failed, says nothing. Reporting it as an
+        // empty account states a result nobody has, so "none" is said only when the core says
+        // the pass found nothing.
+        if (Model?.AllodiaDevices() is not { } devices)
         {
             return panel;
         }
-        var offers = report.Offers;
-        if (offers.Length == 0)
+        var offers = devices.Offers;
+        if (devices.NothingFound)
         {
             panel.Children.Add(new TextBlock
             {
@@ -164,7 +169,10 @@ public sealed partial class AccountSetupView
             });
             return panel;
         }
-        panel.Children.Add(OfferRows(offers));
+        if (offers.Length > 0)
+        {
+            panel.Children.Add(OfferRows(offers));
+        }
         return panel;
     }
 
@@ -265,14 +273,24 @@ public sealed partial class AccountSetupView
         _onboardingFailure = null;
         _onboardingSigningIn = true;
         RenderOnboarding();
+        // The core runs the pass once the sign-in takes, so what the other devices hold arrives
+        // before the person is asked to type anything, through OnOnboardingSignal.
         _onboardingFailure = (await Model.SignInToAllodiaAsync(create))?.Said;
         _onboardingSigningIn = false;
         RenderOnboarding();
-        if (_onboardingFailure is null)
+    }
+
+    /// <summary>A Settings signal: the core raises one when a pass starts and when it ends.</summary>
+    private void OnOnboardingSignal()
+    {
+        if (OnboardingFingerprint() != _onboardingDrawn)
         {
-            // What their other devices hold, before they are asked to type anything.
-            await Model.SyncAllodiaAccountsAsync();
             RenderOnboarding();
         }
     }
+
+    private string OnboardingFingerprint() => string.Join('\n', [
+        $"{Model?.NeedsSetup}/{Model?.SignedInAllodiaAccount() is not null}/{_onboardingSigningIn}/{_onboardingFailure}",
+        .. AccountSettingsRules.DevicesFingerprint(Model?.AllodiaDevices()),
+    ]);
 }

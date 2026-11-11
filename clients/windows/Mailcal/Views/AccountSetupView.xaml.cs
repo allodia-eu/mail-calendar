@@ -86,6 +86,8 @@ public sealed partial class AccountSetupView : UserControl
             }
         };
         model.SetupLinksChanged += OnSetupLinksChanged;
+        // What the person's other devices hold arrives with the core's pass, not with a call here.
+        model.AccountsChanged += OnOnboardingSignal;
         // Once now: on a first run nothing raises AddingAccount, so the panel would otherwise
         // never be built.
         RenderOnboarding();

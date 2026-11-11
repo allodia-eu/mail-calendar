@@ -24,10 +24,6 @@ public sealed partial class MailboxModel
     private ulong? _signInListenedFor;
     private CancellationTokenSource? _signInListening;
 
-    // A sign-in that keeps the calendar and contacts on the password makes an account of them,
-    // which the person's other devices hear about once it is over.
-    private ulong? _signInAddsAccount;
-
     /// <summary>Signs <paramref name="accountId"/> in through its browser sign-in, whichever its
     /// page offers, asking its provider for <paramref name="adding"/> as well. Supersedes a
     /// sign-in still out.</summary>
@@ -86,14 +82,8 @@ public sealed partial class MailboxModel
         ChangeAccount(new AccountPageIntent.CancelSignIn(browser.Account, browser.Attempt));
 
     /// <summary>Answers the question <paramref name="browser"/> stands at; null cancels it.</summary>
-    internal void AnswerUnreached(BrowserSignIn browser, UnreachedUses? answer)
-    {
-        if (answer == UnreachedUses.KeepOnPassword)
-        {
-            _signInAddsAccount = browser.Attempt;
-        }
+    internal void AnswerUnreached(BrowserSignIn browser, UnreachedUses? answer) =>
         ChangeAccount(new AccountPageIntent.AnswerUnreached(browser.Account, browser.Attempt, answer));
-    }
 
     /// <summary>The browser sign-in out, as the core holds it; null when none is.</summary>
     internal BrowserSignIn? BrowserSignInNow() => _app?.BrowserSignIn();
@@ -129,11 +119,6 @@ public sealed partial class MailboxModel
             && !BrowserSignInRules.KeepsLoopback(record, loopback.RedirectUri, _signInListenedFor))
         {
             StopListening();
-        }
-        if (_signInAddsAccount is { } adds && record?.Attempt != adds)
-        {
-            _signInAddsAccount = null;
-            SyncAfterAccountChange();
         }
         if (BrowserSignInRules.ToOpen(record, _browserOpenedFor) is not { } browser)
         {

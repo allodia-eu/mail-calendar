@@ -237,10 +237,6 @@ public sealed partial class MailboxModel
             var row = await Task.Run(() => _app!.CompleteMicrosoftLogin(start.Pending, callbackUrl));
             Log.Info($"microsoft account added: {LogHandle(row.Id)}");
             AccountAdded(row.Id);
-            // This route never touches AddAccountAsync, so the pass is owed here: without it the
-            // account stays on this device until the next launch, and its card in Settings draws
-            // no sharing control at all (docs/settings.md, category 9).
-            SyncAfterAccountChange();
             // Land directly in the newly connected account rather than the unified inbox, so the
             // user sees their mail arriving where they just signed in (the core owns selection;
             // this dispatches the select intent and the snapshot expands the account in the sidebar).
@@ -308,12 +304,10 @@ public sealed partial class MailboxModel
             {
                 _connecting = false;
                 _app = app;
-                // Where this device remembers what it has synced with the account service, and
-                // then what the person's other devices have to say. Installed before anything can
-                // ask for a pass; unlike the Credential Manager sink above it is not racing a
-                // dial, because nothing syncs until somebody asks.
+                // Where this device remembers what it has synced with the account service; the
+                // core runs its first pass once it has it. Unlike the Credential Manager sink
+                // above it is not racing a dial: nothing syncs until the store is there.
                 InstallAllodiaSyncStore(app);
-                SyncAfterAccountChange();
                 // The agent (MCP) surface, the composer port and the named-pipe endpoint. Setting
                 // the endpoint applies the persisted settings, so a user who had it on last session
                 // is listening again from this point (MailboxModel.Mcp.cs).
@@ -375,9 +369,6 @@ public sealed partial class MailboxModel
         try
         {
             var row = await Task.Run(() => _app!.AddAccount(configToml));
-            // The account list changed, so the person's other devices should hear about it now
-            // rather than at the next launch.
-            SyncAfterAccountChange();
             _ui.TryEnqueue(() =>
             {
                 IsSubmitting = false;

@@ -83,8 +83,7 @@ internal static class AccountSettingsRules
     /// <summary>
     /// What the page compares to decide whether a core signal changed anything on it: every field
     /// of every entry, and <paramref name="drawnBeside"/>,
-    /// what else the page draws from other calls (which accounts have a mailbox listed, how each
-    /// is shared). A signal that changed none of it leaves the page, and whatever is being typed
+    /// what else the page draws from other calls (the notices, what the other devices said). A signal that changed none of it leaves the page, and whatever is being typed
     /// on it, alone.
     /// </summary>
     internal static string Fingerprint(AccountsSnapshot snapshot, IEnumerable<string>? drawnBeside = null)
@@ -123,6 +122,10 @@ internal static class AccountSettingsRules
             yield break;
         }
         yield return $"page:{page.Account}";
+        if (page.Sharing is { } sharing)
+        {
+            yield return $"sharing:{sharing.Mode}/{Control(sharing.Control)}/{sharing.Failed}";
+        }
         foreach (var use in page.Uses)
         {
             yield return $"use:{use.Capability}={use.On}/{Control(use.Control)}/{use.Blocked}/{use.Status}/"
@@ -196,6 +199,26 @@ internal static class AccountSettingsRules
         }
         yield return $"remove:{Control(page.Remove)}";
         yield return $"notice:{page.Notice?.Id}";
+    }
+
+    /// <summary>What the list draws from the other devices' card, for <see cref="Fingerprint"/>'s
+    /// <c>drawnBeside</c>: a pass starting or ending, and a question being answered, redraw it.</summary>
+    internal static IEnumerable<string> DevicesFingerprint(AllodiaDevices? devices)
+    {
+        if (devices is null)
+        {
+            yield break;
+        }
+        yield return $"devices:{devices.Checking}/{devices.NothingFound}/{devices.Failure}";
+        foreach (var offer in devices.Offers)
+        {
+            yield return $"offer:{offer.Id}={offer.Email}";
+        }
+        foreach (var question in devices.Questions)
+        {
+            yield return $"question:{question.AccountId}={question.Email}/{question.Elsewhere}/"
+                + $"{Control(question.Keep)}/{question.Failed}";
+        }
     }
 
     private static string Control(ControlState control) => $"{control.Enabled}|{control.Running}";

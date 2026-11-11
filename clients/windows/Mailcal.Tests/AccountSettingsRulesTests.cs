@@ -163,4 +163,43 @@ public class AccountSettingsRulesTests
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Notice = notice }));
         Assert.Empty(AccountSettingsRules.PageFingerprint(null));
     }
+
+    [Fact]
+    public void HowAnAccountIsSharedRedrawsThePageAsItMovesRunsAndFails()
+    {
+        var free = CorePage.Of(MailboxOnly());
+        var on = free with { Sharing = new AccountSharing(AllodiaAccountSyncMode.On, new ControlState(true, false), null) };
+        var drawn = AccountSettingsRules.PageFingerprint(on).ToList();
+        // Drawn at all only while someone is signed in, so its arrival is a redraw too.
+        Assert.NotEqual(AccountSettingsRules.PageFingerprint(free), drawn);
+        var running = on with { Sharing = new AccountSharing(AllodiaAccountSyncMode.Paused, new ControlState(false, true), null) };
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(running));
+        var refused = on with { Sharing = on.Sharing! with { Failed = AllodiaSyncFailure.Unavailable } };
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(refused));
+        Assert.NotEqual(
+            AccountSettingsRules.PageFingerprint(refused),
+            AccountSettingsRules.PageFingerprint(on with { Sharing = on.Sharing! with { Failed = AllodiaSyncFailure.NeedsReauth } }));
+    }
+
+    [Fact]
+    public void APassStartingOrEndingRedrawsTheListThatDrawsTheOtherDevicesCard()
+    {
+        // Nothing to draw before a pass has answered.
+        Assert.Empty(AccountSettingsRules.DevicesFingerprint(null));
+        var question = new AllodiaDevicesQuestion(
+            "alice@example.org@imap.example.org", "alice@example.org", AllodiaElsewhere.Changed, new ControlState(true, false), null);
+        var checking = new AllodiaDevices(true, false, [], [], null);
+        var asked = new AllodiaDevices(false, false, [], [question], null);
+        var nothing = new AllodiaDevices(false, true, [], [], null);
+        var failed = new AllodiaDevices(false, false, [], [], AllodiaSyncFailure.SignedOut);
+        var drawn = new[] { checking, asked, nothing, failed }
+            .Select(devices => string.Join('\n', AccountSettingsRules.DevicesFingerprint(devices)))
+            .ToList();
+        Assert.Equal(drawn.Count, drawn.Distinct().Count());
+        // Keep running on a question, and Keep refused, are each the card drawn again.
+        var keeping = asked with { Questions = [question with { Keep = new ControlState(false, true) }] };
+        var refused = asked with { Questions = [question with { Failed = AllodiaSyncFailure.Unavailable }] };
+        Assert.NotEqual(drawn[1], string.Join('\n', AccountSettingsRules.DevicesFingerprint(keeping)));
+        Assert.NotEqual(drawn[1], string.Join('\n', AccountSettingsRules.DevicesFingerprint(refused)));
+    }
 }

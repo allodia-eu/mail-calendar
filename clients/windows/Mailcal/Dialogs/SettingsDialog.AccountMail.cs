@@ -1,7 +1,7 @@
 // An account's page, its mail settings as the core's page record says them: how far back and how
 // much it keeps, push or poll and the folders it watches, and, for a JMAP account whose pasted
 // password or API token the server stopped accepting, the field that replaces it. Drawn only while
-// the account is used for mail. And the sharing picker the page opens with.
+// the account is used for mail. And the sharing control the page opens with.
 
 using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
@@ -16,7 +16,8 @@ namespace Allodia.Mailcal.Dialogs;
 public sealed partial class SettingsDialog
 {
     /// <summary>
-    /// The three positions an account can be shared in, and what the selected one means.
+    /// The three positions an account can be shared in, what the selected one means, and why the
+    /// last change did not take.
     /// </summary>
     /// <remarks>
     /// A single choice rather than a switch and a button: the two questions underneath, is this
@@ -28,7 +29,7 @@ public sealed partial class SettingsDialog
     /// the segmented equivalent its Apple, Android and Linux twins draw. One subtext, the selected
     /// position's: three at once is a paragraph nobody reads.
     /// </remarks>
-    private UIElement BuildSyncModePicker(string accountId, AllodiaAccountSyncMode mode)
+    private UIElement SharingGroup(string accountId, AccountSharing sharing)
     {
         var panel = new StackPanel { Spacing = 4 };
         var modes = new[]
@@ -37,37 +38,32 @@ public sealed partial class SettingsDialog
             AllodiaAccountSyncMode.Paused,
             AllodiaAccountSyncMode.Off,
         };
-        var picker = new RadioButtons
+        panel.Children.Add(ControlComponents.RadioButtons(
+            L10n.SettingsAccountSyncHeading(), [.. modes.Select(SyncModeLabel)],
+            Array.IndexOf(modes, sharing.Mode), sharing.Control, "AccountSyncMode",
+            at => _model.ChangeAccount(new AccountPageIntent.SetSharing(accountId, modes[at]))));
+        panel.Children.Add(Description(SyncModeHint(sharing.Mode)));
+        if (sharing.Failed is { } failed)
         {
-            Header = L10n.SettingsAccountSyncHeading(),
-            MaxColumns = 3,
-        };
-        AutomationProperties.SetAutomationId(picker, "AccountSyncMode");
-        foreach (var option in modes)
-        {
-            picker.Items.Add(SyncModeLabel(option));
-        }
-        picker.SelectedIndex = Array.IndexOf(modes, mode);
-        var hint = Description(SyncModeHint(mode));
-        picker.SelectionChanged += async (_, _) =>
-        {
-            var picked = modes[picker.SelectedIndex < 0 ? 0 : picker.SelectedIndex];
-            if (picked == mode)
-            {
-                return;
-            }
-            var failure = await _model.SetAllodiaAccountSyncModeAsync(accountId, picked);
-            Apply(() => _allodiaSyncFailure = failure);
-        };
-        panel.Children.Add(picker);
-        panel.Children.Add(hint);
-        // A refused change is said under the control that asked for it: the section the list
-        // draws it in is not on this page.
-        if (_allodiaSyncFailure is not null)
-        {
-            panel.Children.Add(BuildAllodiaFailure());
+            panel.Children.Add(SharingFailed(failed, "AccountSyncMode_Failed"));
         }
         return panel;
+    }
+
+    /// <summary>Why a sharing change did not take, under the control or the question that asked
+    /// for it: the core's typed answer decides the sentence, never an error's text.</summary>
+    private TextBlock SharingFailed(AllodiaSyncFailure failure, string automationId)
+    {
+        var line = Description(failure switch
+        {
+            AllodiaSyncFailure.NeedsReauth => L10n.SettingsAllodiaReauth(),
+            AllodiaSyncFailure.SignedOut => L10n.SettingsAllodiaSignedOutElsewhere(),
+            _ => L10n.SettingsAccountSyncFailed(),
+        });
+        line.Opacity = 1;
+        line.Foreground = (Microsoft.UI.Xaml.Media.Brush)_brushes.Of(ThemePalette.Critical);
+        AutomationProperties.SetAutomationId(line, automationId);
+        return line;
     }
 
     private static string SyncModeLabel(AllodiaAccountSyncMode mode) => mode switch

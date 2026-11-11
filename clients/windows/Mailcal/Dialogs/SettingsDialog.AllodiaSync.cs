@@ -8,6 +8,7 @@
 // Its own partial, like every other category here, so SettingsDialog.cs stays clear of the
 // 500-line limit.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -17,33 +18,24 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    // The last "keep this device's settings" failure, in the store's own words, or null.
-    private string? _allodiaSyncFailure;
     // Whether the last sign-in from a reauth offer found the browser returning from another
     // sign-in, which the offer says beneath its button.
     private bool _allodiaAgainStale;
 
     /// <summary>
     /// The section, or null when there is nothing to say, including before the first pass has
-    /// run, which must not look like a pass that found nothing.
+    /// answered, which must not look like a pass that found nothing.
     /// </summary>
-    private UIElement? BuildAllodiaSync()
+    private UIElement? BuildAllodiaSync(AllodiaDevices? devices)
     {
-        var report = _model.AllodiaSync;
-        var hasSomethingToSay = report is not null
-            && (report.Offers.Length > 0
-                || report.ChangedElsewhere.Length > 0
-                || report.RemovedElsewhere.Length > 0);
-        var failure = _allodiaSyncFailure ?? _model.AllodiaSyncFailure;
-        if (!_model.AllodiaSyncing && failure is null && !hasSomethingToSay)
+        if (devices is null || devices.NothingFound)
         {
             return null;
         }
-
         var panel = new StackPanel { Spacing = 6 };
         panel.Children.Add(Heading(L10n.SettingsAllodiaSyncHeading()));
         panel.Children.Add(Description(L10n.SettingsAllodiaSyncDescription()));
-        if (_model.AllodiaSyncing)
+        if (devices.Checking)
         {
             var busy = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             busy.Children.Add(new ProgressRing { IsActive = true, Width = 16, Height = 16 });
@@ -54,39 +46,30 @@ public sealed partial class SettingsDialog
             });
             panel.Children.Add(busy);
         }
-        if (report is not null)
+        foreach (var offer in devices.Offers)
         {
-            foreach (var offer in report.Offers)
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            row.Children.Add(new TextBlock
             {
-                var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-                row.Children.Add(new TextBlock
-                {
-                    Text = offer.Email,
-                    VerticalAlignment = VerticalAlignment.Center,
-                });
-                var setUp = new Button { Content = L10n.SettingsAllodiaSyncSetUp() };
-                var taken = offer;
-                setUp.Click += (_, _) => StartAddAccount(taken);
-                row.Children.Add(setUp);
-                panel.Children.Add(row);
-            }
-            // Both of these are questions, and the only answer this device can act on today is
-            // "keep what I have". Applying the other side's settings needs a path for editing a
-            // connected account's server details, which does not exist yet.
-            foreach (var change in report.ChangedElsewhere)
-            {
-                panel.Children.Add(
-                    Question(L10n.SettingsAllodiaChangedElsewhere(change.Email), change.AccountId));
-            }
-            foreach (var change in report.RemovedElsewhere)
-            {
-                panel.Children.Add(
-                    Question(L10n.SettingsAllodiaRemovedElsewhere(change.Email), change.AccountId));
-            }
+                Text = offer.Email,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var setUp = new Button { Content = L10n.SettingsAllodiaSyncSetUp() };
+            var taken = offer;
+            setUp.Click += (_, _) => StartAddAccount(taken);
+            row.Children.Add(setUp);
+            panel.Children.Add(row);
         }
-        if (failure is not null)
+        // Both are questions, and the only answer this device can act on today is "keep what I
+        // have". Applying the other side's settings needs a path for editing a connected
+        // account's server details, which does not exist yet.
+        foreach (var question in devices.Questions)
         {
-            panel.Children.Add(BuildAllodiaFailure());
+            panel.Children.Add(Question(question));
+        }
+        if (devices.Failure is { } failure)
+        {
+            panel.Children.Add(BuildAllodiaFailure(failure));
         }
         return panel;
     }
@@ -105,11 +88,11 @@ public sealed partial class SettingsDialog
     /// a path from an exception's text to the screen.
     /// </para>
     /// </remarks>
-    private UIElement BuildAllodiaFailure()
+    private UIElement BuildAllodiaFailure(AllodiaSyncFailure failure)
     {
-        switch (_model.AllodiaGrantHealth)
+        switch (failure)
         {
-            case AllodiaGrantHealth.NeedsReauth:
+            case AllodiaSyncFailure.NeedsReauth:
             {
                 // An offer, not an error: the person is signed in, and one feature is asleep.
                 var panel = new StackPanel { Spacing = 6 };
@@ -121,7 +104,7 @@ public sealed partial class SettingsDialog
                 AddAllodiaAgainStale(panel);
                 return panel;
             }
-            case AllodiaGrantHealth.SignedOut:
+            case AllodiaSyncFailure.SignedOut:
             {
                 var panel = new StackPanel { Spacing = 6 };
                 panel.Children.Add(Heading(L10n.SettingsAllodiaSignedOutElsewhere()));
@@ -149,20 +132,13 @@ public sealed partial class SettingsDialog
     /// <remarks>
     /// No separate flow: the sign-in asks for the full current scope set every time, so re-running
     /// it is what widens a grant that predates one, and what replaces a grant the service refused.
-    /// A pass follows so the account list is there before the person looks for it.
+    /// The core runs a pass once it takes, so the account list is there before the person looks
+    /// for it.
     /// </remarks>
     private async Task SignInToAllodiaAgainAsync()
     {
         var failure = await _model.SignInToAllodiaAsync();
-        if (failure is null)
-        {
-            await _model.SyncAllodiaAccountsAsync();
-        }
-        Apply(() =>
-        {
-            _allodiaSyncFailure = failure?.Said;
-            _allodiaAgainStale = failure?.Stale == true;
-        });
+        Apply(() => _allodiaAgainStale = failure?.Stale == true);
     }
 
     // The one sign-in failure a reauth offer says: its remedy is the button above it.
@@ -188,20 +164,22 @@ public sealed partial class SettingsDialog
         _model.BeginAddAccount(offer.Email, offer);
     }
 
-    private UIElement Question(string text, string accountId)
+    /// <summary>One account changed or removed elsewhere, and the answer this device can give:
+    /// keep what it has, which pauses the account's sharing as a change on its page.</summary>
+    private UIElement Question(AllodiaDevicesQuestion question)
     {
         var panel = new StackPanel { Spacing = 4 };
-        panel.Children.Add(Description(text));
-        var keep = new Button { Content = L10n.SettingsAllodiaKeepLocal() };
-        // "Keep what I have" is Paused: the other devices keep the account, and this one stops
-        // exchanging changes about it, which is exactly what the question asked.
-        keep.Click += async (_, _) =>
+        panel.Children.Add(Description(question.Elsewhere == AllodiaElsewhere.Changed
+            ? L10n.SettingsAllodiaChangedElsewhere(question.Email)
+            : L10n.SettingsAllodiaRemovedElsewhere(question.Email)));
+        var id = question.AccountId;
+        panel.Children.Add(ControlComponents.Button(
+            L10n.SettingsAllodiaKeepLocal(), question.Keep, $"AllodiaKeep_{id}",
+            () => _model.ChangeAccount(new AccountPageIntent.SetSharing(id, AllodiaAccountSyncMode.Paused))));
+        if (question.Failed is { } failed)
         {
-            var failure = await _model.SetAllodiaAccountSyncModeAsync(
-                accountId, AllodiaAccountSyncMode.Paused);
-            Apply(() => _allodiaSyncFailure = failure);
-        };
-        panel.Children.Add(keep);
+            panel.Children.Add(SharingFailed(failed, $"AllodiaKeep_{id}_Failed"));
+        }
         return panel;
     }
 }
