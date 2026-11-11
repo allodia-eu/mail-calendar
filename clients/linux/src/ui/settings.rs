@@ -155,6 +155,8 @@ pub(super) struct SettingsWindow {
     waiting_on: Option<gtk::glib::WeakRef<gtk::Popover>>,
     /// Where toasts are shown: above the pages, which every redraw replaces.
     toasts: Option<adw::ToastOverlay>,
+    /// What an account's page pushes a form onto, kept so a redraw of Accounts alone can too.
+    navigation: Option<gtk::Stack>,
     /// The last notice shown.
     shown_notice: u64,
     /// The switch's question and the form for a sign-in of its own, raised over this window or,
@@ -219,6 +221,13 @@ impl SettingsWindow {
         let reuse = state.redraw != Redraw::Open && self.is_on_screen();
         let offset = reuse.then(|| self.offset(&state)).flatten();
         let standing = reuse.then(|| self.window.clone()).flatten();
+        // The core's signal changes Accounts alone, so only that page is built again, inside the
+        // window on screen: the whole window costs ten times as much, long enough that the frame
+        // a change is drawn running in never reaches the screen.
+        let accounts = (state.redraw == Redraw::Signalled && reuse)
+            .then(|| redraw::shown_page(self.pages.as_ref()?, Category::Accounts.name()))
+            .flatten()
+            .zip(self.navigation.clone());
         let window = if let Some(standing) = standing {
             standing
         } else {
@@ -247,9 +256,15 @@ impl SettingsWindow {
             });
             window
         };
-        let navigation = gtk::Stack::new();
-        navigation.set_hexpand(true);
-        navigation.set_vexpand(true);
+        let navigation = accounts.as_ref().map_or_else(
+            || {
+                let navigation = gtk::Stack::new();
+                navigation.set_hexpand(true);
+                navigation.set_vexpand(true);
+                navigation
+            },
+            |(_, navigation)| navigation.clone(),
+        );
         let mut ctx = PageContext {
             app,
             preferences,
@@ -269,6 +284,22 @@ impl SettingsWindow {
         let drawn = read.unwrap_or_else(|| redraw::drawn(&ctx.app, state.account));
         ctx.page.clone_from(&drawn.1);
         ctx.devices.clone_from(&drawn.3);
+        if let Some((scroll, _)) = accounts {
+            let content = accounts::accounts(&ctx);
+            scroll.set_child(Some(&content));
+            if let Some(offset) = offset {
+                redraw::keep_offset(&scroll, offset);
+            }
+            if let Some(toasts) = &self.toasts {
+                notice::show_due(&window, toasts, state.notice, &mut self.shown_notice);
+            }
+            self.edited = std::rc::Rc::default();
+            redraw::watch_edits(content.upcast_ref(), &self.edited);
+            self.drawn = Some(drawn);
+            self.drawn_account = state.account.map(str::to_owned);
+            self.rendered_generation = state.generation;
+            return;
+        }
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");
@@ -295,6 +326,7 @@ impl SettingsWindow {
         self.drawn = Some(drawn);
         self.drawn_account = state.account.map(str::to_owned);
         self.pages = Some(pages);
+        self.navigation = Some(navigation);
         self.rendered_generation = state.generation;
         self.window = Some(window);
     }

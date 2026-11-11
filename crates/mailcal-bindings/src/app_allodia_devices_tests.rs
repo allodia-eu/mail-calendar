@@ -214,3 +214,28 @@ fn an_account_the_other_devices_cannot_hold_has_no_sharing_control() {
         None
     );
 }
+
+/// A change still running is drawn running on the page and on the question it answers, at the
+/// position it is moving to, with every other control on the page held.
+#[test]
+fn a_running_sharing_change_is_drawn_running() {
+    let app = signed_in("devices-running", asked_about_alice());
+    settled(&app).expect("asked");
+    let writing = app.allodia_sync.writing.lock().unwrap();
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SetSharing {
+            account: ID.to_owned(),
+            mode: AllodiaAccountSyncMode::Paused,
+        },
+    });
+    let page = app.account_page(ID.to_owned()).expect("listed");
+    let sharing = page.sharing.expect("shared");
+    assert_eq!(sharing.mode, AllodiaAccountSyncMode::Paused);
+    assert!(sharing.control.running, "{sharing:?}");
+    assert!(!sharing.control.enabled);
+    assert!(page.uses.iter().all(|switch| !switch.control.enabled));
+    let card = app.allodia_devices().expect("asked");
+    assert!(card.questions[0].keep.running);
+    drop(writing);
+    settled(&app);
+}
