@@ -43,7 +43,7 @@ struct AllodiaSubscriptionSettings: View {
     var body: some View {
         Group {
             // A refused sign-in is the account card's to say. The read can answer before the
-            // notices signal reaches the card, so the section hides itself rather than
+            // Allodia signal reaches the card, so the section hides itself rather than
             // drawing its heading over nothing in between.
             if state != .signedOut {
                 GroupBox {
@@ -100,7 +100,7 @@ struct AllodiaSubscriptionSettings: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Button(L10n.settings_allodia_reauth_action()) { signInAgain() }
+            signInAgain
         case let .loaded(view):
             loaded(view)
         }
@@ -120,12 +120,12 @@ struct AllodiaSubscriptionSettings: View {
                 // it cannot be added afterwards, so a grant stored before it existed is asked to
                 // sign in again rather than allowed to make a purchase that can never be repaired.
                 // Signing in is all it takes, and it is the same remedy the account-list gap uses.
-                if model.currentAllodiaAccount()?.id == nil {
+                if AllodiaCardRules.account(model.allodia.card?.state)?.id == nil {
                     Text(L10n.settings_subscription_reauth())
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    Button(L10n.settings_allodia_reauth_action()) { signInAgain() }
+                    signInAgain
                 } else {
                     offers(view.offers)
                 }
@@ -284,17 +284,18 @@ struct AllodiaSubscriptionSettings: View {
     /// Signs in again, which is what records the account id on a grant stored without one.
     ///
     /// The same sign-in as the account box above, not a special one: there is nothing to migrate,
-    /// only a claim this device never asked for and now does.
-    private func signInAgain() {
-        Task {
-            if case .signedIn = await model.signInToAllodia() {
-                await reload()
-            }
+    /// only a claim this device never asked for and now does. The section is read again once it
+    /// ends, keyed by the account box.
+    private var signInAgain: some View {
+        ControlButton(
+            title: L10n.settings_allodia_reauth_action(), control: model.allodiaSignInControl
+        ) {
+            model.signInToAllodia()
         }
     }
 
-    /// Reads the section again. A refused sign-in raises the Allodia notice, which the account
-    /// card around this reads and takes this section away for.
+    /// Reads the section again. A refused sign-in is the card's to draw, which takes this section
+    /// away for it.
     private func reload() async {
         state = await model.allodiaSubscriptionState()
     }

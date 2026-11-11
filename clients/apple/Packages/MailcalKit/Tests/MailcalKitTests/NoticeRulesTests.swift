@@ -55,12 +55,6 @@ import Testing
         #expect(NoticeRules.about("c", in: ranked).isEmpty)
     }
 
-    @Test func theAllodiaCardFollowsItsNotice() {
-        let ended = notice("allodia", .everywhere, kind: .allodiaSignInEnded(address: "anna@example.org"))
-        #expect(NoticeRules.allodiaSignInEnded([notice("offline", .everywhere), ended]))
-        #expect(!NoticeRules.allodiaSignInEnded([notice("offline", .everywhere)]))
-    }
-
     @Test func anAccountRowSaysTheFewWordsOrHowManyThereAre() {
         let one = [notice("a-mail", .mail, account: "a")]
         #expect(NoticeRules.rowLabel(one) == L10n.notice_mark_signin_expired())

@@ -323,11 +323,11 @@ final class MailboxModel {
     /// until the core answers, so the screen is never shown on a guess.
     var analyticsConsent: AnalyticsConsent?
     var app: MailcalApp?
-    /// Holds an in-app browser tab open on one of the account service's own pages.
-    ///
-    /// The session's presentation context provider is a **weak** reference, so without this the
-    /// provider is released the moment the call returns and the browser has nowhere to present.
-    @ObservationIgnored var allodiaBrowser: AllodiaSignIn?
+    /// The Allodia account's card, read on `Surface::Allodia` (MailcalModel.Allodia.swift).
+    var allodia = AllodiaCardHeld()
+    /// Holds an in-app browser tab open on one of the account service's own pages: its session's
+    /// presentation context provider is a **weak** reference.
+    @ObservationIgnored var allodiaPage: AllodiaPage?
     /// The App Store side of a subscription: the redemption pass, and the listener the store's
     /// out-of-band transactions arrive on. Nil until `connect()` has an app to attach them to, and
     /// in a build carrying no Allodia registration it stays nil.
