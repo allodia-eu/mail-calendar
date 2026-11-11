@@ -43,6 +43,7 @@ fn namespaced_file_store(
         runtime,
         keyring,
         namespace: namespace.map(str::to_owned),
+        index_lock: std::sync::Mutex::default(),
     }
 }
 
@@ -180,10 +181,7 @@ fn one_damaged_account_never_takes_the_others_with_it() {
 
     let stored = store.load().expect("one damaged item still loads the rest");
 
-    assert_eq!(
-        stored.configs,
-        ["base64:not base64!".to_owned(), config.to_owned()]
-    );
+    assert_eq!(stored.configs, [String::new(), config.to_owned()]);
     assert!(
         stored.cut_short.is_empty(),
         "a damaged value is not one cut short"
@@ -209,10 +207,7 @@ fn an_account_cut_short_is_reported_then_removed_with_its_index_entry() {
     );
     assert_eq!(stored.cut_short, ["cut".to_owned()]);
 
-    assert_eq!(
-        store.forget_cut_short(&stored.cut_short).expect("forget"),
-        1
-    );
+    store.forget_cut_short(&stored.cut_short).expect("forget");
     let after = store.load().expect("load again");
     assert_eq!(after.configs, [config.to_owned()]);
     assert_eq!(after.cut_short, [] as [String; 0]);

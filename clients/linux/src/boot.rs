@@ -106,7 +106,8 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
                 None,
                 Box::new(SecretSink::new(Arc::clone(&secrets))),
             )?;
-            // After the core: it has reported these as left out, and its logger is now in place.
+            // After the core: it has logged these as left out and raised this launch's notice, and
+            // its logger is now in place.
             forget_cut_short(&secrets, &stored.cut_short);
             Ok(BootedApp {
                 app,
@@ -290,8 +291,9 @@ fn forget_cut_short(secrets: &SecretStore, ids: &[String]) {
         return;
     }
     match secrets.forget_cut_short(ids) {
-        Ok(count) => log::warn!(
-            "secrets: removed {count} stored account(s) the keyring had cut short; each has to be added again"
+        Ok(()) => log::warn!(
+            "secrets: removed {} stored account(s) the keyring had cut short; each has to be added again",
+            ids.len()
         ),
         Err(error) => log::warn!(
             "secrets: the stored accounts the keyring had cut short could not be removed ({error})"

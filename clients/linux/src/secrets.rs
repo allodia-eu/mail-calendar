@@ -39,6 +39,8 @@ pub(crate) struct SecretStore {
     /// every item already in a keyring was written without it, and searching for one that carries
     /// it would match none of them, which reads as every account having vanished.
     namespace: Option<String>,
+    /// See [`Self::lock_index`].
+    index_lock: std::sync::Mutex<()>,
 }
 
 /// Writes an account's credential through the same encrypted per-account item the store reads
@@ -111,6 +113,7 @@ impl SecretStore {
             runtime,
             keyring,
             namespace,
+            index_lock: std::sync::Mutex::default(),
         })
     }
 
@@ -156,34 +159,58 @@ impl SecretStore {
 
     /// Every stored config in index order, and the ids of those a plain-text keyring cut short.
     ///
-    /// A config that cannot be decoded is handed on as stored rather than failing the read: the
-    /// core leaves out and logs an account it cannot parse, and every other account still loads.
+    /// An item that cannot be read or decoded is handed on as an empty config rather than failing
+    /// the whole read: the core leaves out and logs that one account, and the rest still load.
     pub(crate) fn load(&self) -> Result<StoredAccounts, String> {
         let mut stored = StoredAccounts::default();
         for id in self.read_index()? {
-            let Some(raw) = self.read_raw(&self.account_attributes(&id))? else {
-                continue;
+            let raw = match self.read_raw(&self.account_attributes(&id)) {
+                Ok(Some(raw)) => raw,
+                Ok(None) => continue,
+                Err(_) => Vec::new(),
             };
-            if secret_encoding::is_cut_short(&raw) {
+            let cut_short = secret_encoding::is_cut_short(&raw);
+            let config = secret_encoding::decode_config(raw);
+            // Removed only when the core itself would leave it out, not on the bytes alone.
+            if cut_short && !mailcal_bindings::stored_account_is_readable(config.clone()) {
                 stored.cut_short.push(id);
             }
-            stored.configs.push(secret_encoding::decode_config(raw));
+            stored.configs.push(config);
         }
         Ok(stored)
     }
 
-    /// Removes the accounts [`Self::load`] found cut short, once the core has reported them.
+    /// Removes the accounts [`Self::load`] found cut short, after the launch that reported them.
     ///
     /// Their rest is gone for good, so keeping them would only report the same loss at every
-    /// launch. Returns how many were removed.
-    pub(crate) fn forget_cut_short(&self, ids: &[String]) -> Result<usize, String> {
+    /// launch.
+    pub(crate) fn forget_cut_short(&self, ids: &[String]) -> Result<(), String> {
+        let _index = self.lock_index();
         for id in ids {
-            self.remove(id)?;
+            block_on_runtime(
+                self.runtime,
+                self.keyring.delete(&self.account_attributes(id)),
+            )?
+            .map_err(|error| error.to_string())?;
         }
-        Ok(ids.len())
+        let kept = self
+            .read_index()?
+            .into_iter()
+            .filter(|id| !ids.contains(id))
+            .collect::<Vec<_>>();
+        self.write_index(&kept)
+    }
+
+    /// Held across every read-modify-write of the index: the core saves and removes accounts from
+    /// its own threads while boot may be removing others.
+    fn lock_index(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.index_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub(crate) fn save(&self, account_id: &str, config: &str) -> Result<(), String> {
+        let _index = self.lock_index();
         self.write_secret(
             &self.label(account_id),
             &self.account_attributes(account_id),
@@ -198,6 +225,7 @@ impl SecretStore {
     }
 
     pub(crate) fn remove(&self, account_id: &str) -> Result<(), String> {
+        let _index = self.lock_index();
         block_on_runtime(
             self.runtime,
             self.keyring.delete(&self.account_attributes(account_id)),

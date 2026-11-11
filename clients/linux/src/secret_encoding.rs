@@ -31,16 +31,14 @@ pub(crate) fn decode(stored: Vec<u8>) -> Result<Vec<u8>, String> {
     }
 }
 
-/// An account's config as the core should judge it: decoded when it can be, and otherwise the
-/// stored text itself, which the core cannot parse and so leaves out and logs like any other
-/// unreadable account. Failing here instead would lose every other account with it.
+/// An account's config as the core should judge it: decoded, or empty when it cannot be. The core
+/// cannot read an empty config, so it leaves out and logs that one account like any other it
+/// cannot parse; failing the read instead would lose every other account with it.
 pub(crate) fn decode_config(stored: Vec<u8>) -> String {
-    let text = stored
-        .strip_prefix(PREFIX.as_bytes())
-        .and_then(|encoded| STANDARD.decode(encoded).ok())
-        .unwrap_or(stored);
-    String::from_utf8(text)
-        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
+    decode(stored)
+        .ok()
+        .and_then(|value| String::from_utf8(value).ok())
+        .unwrap_or_default()
 }
 
 /// Whether a stored config is one a plain-text keyring cut short before this encoding existed.
@@ -86,13 +84,10 @@ mod tests {
     }
 
     #[test]
-    fn a_damaged_config_reaches_the_core_as_stored_so_only_it_is_left_out() {
+    fn a_config_that_cannot_be_decoded_reaches_the_core_empty() {
         assert_eq!(decode_config(encode(CONFIG.as_bytes())), CONFIG);
-        assert_eq!(
-            decode_config(b"base64:not base64!".to_vec()),
-            "base64:not base64!"
-        );
-        assert_eq!(decode_config(vec![b'a', 0xff]), "a\u{fffd}");
+        assert_eq!(decode_config(b"base64:not base64!".to_vec()), "");
+        assert_eq!(decode_config(encode(&[b'a', 0xff])), "");
     }
 
     #[test]

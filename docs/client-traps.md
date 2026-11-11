@@ -219,8 +219,9 @@ that same file.
   items with no label. An encrypted keyring is unaffected, which is why a developer's machine
   rarely shows it; a distribution that sets up a passwordless keyring for autologin does.
   [`secret_encoding`](../clients/linux/src/secret_encoding.rs) stores every value as one base64
-  line. A config stored unencoded with no newline in it is one this cut short: the core reports it
-  as left out once, and the client then removes it.
+  line. A config stored unencoded with no newline in it is one this cut short: when the core
+  cannot read it either, the launch that leaves it out logs it and raises the notice, and the
+  client then removes it.
 
   The stray items are named after the value's later lines (a TOML table becomes an item called
   `google`) and carry no attributes, so nothing can tell them apart from another application's
