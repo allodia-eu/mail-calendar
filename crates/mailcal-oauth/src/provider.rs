@@ -92,7 +92,8 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 /// **parameters** `access_type=offline` + `prompt=consent` (see [`AuthStyle::Google`]), not a
 /// scope.
 ///
-/// **Every scope here but the contact three and `userinfo.email` is restricted**, so all of them
+/// **Every scope here but the contact three, `userinfo.email` and `meetings.space.created` is
+/// restricted**, so all of them
 /// are covered by the one security assessment the app is already waiting on: until it clears, the
 /// app is usable only by allow-listed Early Access test users. That is why `gmail.settings.basic`
 /// is requested now rather than when a second settings feature wants it: a restricted scope added
@@ -101,7 +102,10 @@ const GOOGLE_TOKEN_ENDPOINT: &str = "https://oauth2.googleapis.com/token";
 /// deepen the gate either.
 ///
 /// `meetings.space.created` makes a Meet space for an event on a calendar that is not Google's
-/// (`docs/conferencing.md` rule 14). It reaches only the spaces this app made.
+/// (`docs/conferencing.md` rule 14). It reaches only the spaces this app made. It was added after
+/// the scopes above and is **not** covered by what is said of them here: its classification is
+/// whatever the Cloud project's consent screen shows for it, and a restricted one would need an
+/// assessment of its own.
 pub const GOOGLE_SCOPES: &[&str] = &[
     "https://mail.google.com/",
     "https://www.googleapis.com/auth/gmail.settings.basic",
