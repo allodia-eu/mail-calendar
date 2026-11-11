@@ -48,7 +48,7 @@ public sealed class RecipientFinishTests(ShowcaseApp showcase)
     }
 
     private static List<Element> Pills(App app) =>
-        app.Agent.FindAll(new Filter { Type = "Button", NameLike = "*@example.test*" }).ToList();
+        app.Agent.FindAll(new Filter { Type = "Button", TextLike = "@example.test" }).ToList();
 
     private static string Value(App app, Element to) => app.Agent.Read(to).Value ?? "";
 

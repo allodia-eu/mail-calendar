@@ -37,7 +37,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
     /// detection found.</summary>
     private static void OpenCard(App app, string address)
     {
-        app.Agent.SetValue(OpenForm(app), address);
+        app.Agent.SetText(OpenForm(app), address);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("ContinueButton", "Button"))!);
         if (app.Agent.Wait(Filter.ById("ConnectButton", "Button"), TimeSpan.FromSeconds(15)) is null)
         {
@@ -48,7 +48,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
 
     private static Element? Shown(App app, string id) => app.Agent.Find(Filter.ById(id));
 
-    private static bool On(App app, string id) => Shown(app, id) is { } box && app.Agent.Read(box).Toggle == "On";
+    private static bool On(App app, string id) => Shown(app, id) is { } box && app.Agent.Read(box).Active == true;
 
     [OfflineFact]
     public void TheFormOpensOverTheShellWhichStaysWhereItWas() => Case(nameof(TheFormOpensOverTheShellWhichStaysWhereItWas), app =>
@@ -72,7 +72,7 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
     public void TheSecondStepGoesBackToTheAddressInsideTheDialog() => Case(nameof(TheSecondStepGoesBackToTheAddressInsideTheDialog), app =>
     {
         const string address = "someone@example.com";
-        app.Agent.SetValue(OpenForm(app), address);
+        app.Agent.SetText(OpenForm(app), address);
         app.Agent.Invoke(Shown(app, "ManualButton")!);
         Assert.True(app.Agent.Wait(Filter.ById("ImapHost", "Edit"), TimeSpan.FromSeconds(5)) is not null, "Set up manually opens the manual form");
         var back = Shown(app, "BackButton");

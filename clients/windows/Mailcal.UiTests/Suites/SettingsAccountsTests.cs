@@ -101,12 +101,12 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
     {
         var dialog = setup.OpenAccount(Harness.Alice, 1);
         var contacts = InPage(app, dialog, "AccountUse_Contacts");
-        Assert.Equal("On", app.Agent.Read(contacts).Toggle);
+        Assert.True(app.Agent.Read(contacts).Active);
         app.Agent.Toggle(contacts);
         // Switching a use off deletes what the device holds of it, so it is confirmed first (rule 13).
         Button(app, dialog, "action_switch_off");
         app.Agent.Invoke(Button(app, dialog, "action_cancel"));
-        Assert.True(App.Eventually(() => app.Agent.Read(InPage(app, dialog, "AccountUse_Contacts")).Toggle == "On", TimeSpan.FromSeconds(5)),
+        Assert.True(App.Eventually(() => app.Agent.Read(InPage(app, dialog, "AccountUse_Contacts")).Active == true, TimeSpan.FromSeconds(5)),
             "cancelling leaves the use on");
     });
 
@@ -114,7 +114,7 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
     public void TheLastUseIsHeldOn() => Case(nameof(TheLastUseIsHeldOn), (app, setup) =>
     {
         var mail = InPage(app, setup.OpenAccount(Harness.Alice, 0), "AccountUse_Mail");
-        Assert.Equal("On", app.Agent.Read(mail).Toggle);
+        Assert.True(app.Agent.Read(mail).Active);
         Assert.False(mail.Enabled, "the last of mail, calendar and contacts cannot be switched off, so its switch is not offered (rule 13)");
     });
 

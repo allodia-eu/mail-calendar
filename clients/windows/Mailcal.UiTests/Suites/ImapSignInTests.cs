@@ -115,13 +115,13 @@ public sealed class ImapSignInTests(HarnessApp harness)
     }
 
     private static void SetField(App app, string id, string text) =>
-        app.Agent.SetValue(app.Agent.Find(Filter.ById(id, "Edit")) ?? throw new InvalidOperationException($"the form has no #{id} to type into"), text);
+        app.Agent.SetText(app.Agent.Find(Filter.ById(id, "Edit")) ?? throw new InvalidOperationException($"the form has no #{id} to type into"), text);
 
     private static string Field(App app, string id) => app.Agent.Read(app.Agent.Find(Filter.ById(id, "Edit"))!).Value ?? "";
 
     private static void OpenDetectedCard(App app, string address)
     {
-        app.Agent.SetValue(OpenSetup(app), address);
+        app.Agent.SetText(OpenSetup(app), address);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("ContinueButton", "Button"))!);
         if (app.Agent.Wait(Filter.ById("SetupMailServerIMAP", "Text"), TimeSpan.FromSeconds(30)) is null)
         {
@@ -131,7 +131,7 @@ public sealed class ImapSignInTests(HarnessApp harness)
 
     private static void OpenManualForm(App app, string address, int port)
     {
-        app.Agent.SetValue(OpenSetup(app), address);
+        app.Agent.SetText(OpenSetup(app), address);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("ManualButton", "Button"))!);
         if (app.Agent.Wait(Filter.ById("ImapHost", "Edit"), TimeSpan.FromSeconds(10)) is null)
         {

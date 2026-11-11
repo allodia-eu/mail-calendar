@@ -32,7 +32,7 @@ internal sealed class FolderFlow(App app)
     /// <paramref name="subject"/>; whether it got there.</summary>
     internal bool WaitRow(string subject, bool absent = false)
     {
-        var row = new Filter { Type = "ListItem", Under = app.RowsList(), Has = new Filter { NameLike = $"*{subject}*" } };
+        var row = new Filter { Type = "ListItem", Under = app.RowsList(), Has = new Filter { TextLike = subject } };
         return absent ? Agent.WaitGone(row, TimeSpan.FromSeconds(30)) : Agent.Wait(row, TimeSpan.FromSeconds(30)) is not null;
     }
 }

@@ -1,8 +1,8 @@
-// The UI suites' way into the running app (clients/windows/Mailcal.UiTests): a named pipe that
-// answers questions about the windows' automation peers and acts on them, on the UI thread, in
-// microseconds rather than the hundreds of milliseconds a cross-process UI Automation walk costs.
-// The peers are the objects UI Automation itself reads, so what a suite finds here is what a
-// screen reader is given.
+// The app's test agent (docs/test-agent.md): a named pipe that answers questions about the
+// windows' automation peers and acts on them, on the UI thread, in microseconds rather than the
+// hundreds of milliseconds a cross-process UI Automation walk costs. The peers are the objects UI
+// Automation itself reads, so what a caller finds here is what a screen reader is given. The UI
+// suites (clients/windows/Mailcal.UiTests), scripts/dev/agent.py and a coding agent all drive it.
 //
 // Off unless MAILCAL_TEST_AGENT names a pipe at launch. Every call to it is compiled out of a
 // release build.
@@ -25,7 +25,7 @@ using Microsoft.UI.Dispatching;
 
 namespace Allodia.Mailcal.Services;
 
-/// <summary>The UI suites' in-process view of the app's windows.</summary>
+/// <summary>The test agent's in-process view of the app's windows.</summary>
 internal static partial class TestAgent
 {
     /// <summary>
@@ -48,7 +48,7 @@ internal static partial class TestAgent
 #endif
     }
 
-    /// <summary>Registers a window the app has opened, so the suites can see into it. Call it on the
+    /// <summary>Registers a window the app has opened, so the agent can see into it. Call it on the
     /// UI thread.</summary>
     [Conditional("DEBUG")]
     internal static void Track(Window window)
@@ -67,9 +67,9 @@ internal static partial class TestAgent
     }
 
     /// <summary>
-    /// Marks <paramref name="element"/> as having reached <paramref name="state"/>, for a suite to wait
-    /// on: a moment the app knows and the screen does not show, such as a composer's editor having
-    /// finished seeding. Call it on the UI thread.
+    /// Marks <paramref name="element"/> as having reached <paramref name="state"/>, for a caller to
+    /// wait on: a moment the app knows and the screen does not show, such as a composer's editor
+    /// having finished seeding. Call it on the UI thread.
     /// </summary>
     [Conditional("DEBUG")]
     internal static void Signal(UIElement element, string state)
@@ -87,7 +87,7 @@ internal static partial class TestAgent
     private static DispatcherQueue? _ui;
     private static readonly List<WeakReference<Window>> Tracked = new();
 
-    // One suite at a time: the pipe takes one client, and a client that goes is replaced by the next.
+    // One caller at a time: the pipe takes one client, and a client that goes is replaced by the next.
     private static void Serve(string pipe)
     {
         while (true)
@@ -102,52 +102,18 @@ internal static partial class TestAgent
                 while (reader.ReadLine() is { } line)
                 {
                     writer.WriteLine(Answer(line).ToJsonString());
+                    // After the reply is on its way: the app quitting first would take the pipe
+                    // with it, and the caller would read a hang-up where it asked for a quit.
+                    if (Interlocked.Exchange(ref _quitAsked, 0) == 1)
+                    {
+                        _ui!.TryEnqueue(CloseMailbox);
+                    }
                 }
             }
             catch (IOException)
             {
-                // The suite went away mid-answer; wait for the next one.
+                // The caller went away mid-answer; wait for the next one.
             }
-        }
-    }
-
-    private static JsonObject Answer(string line)
-    {
-        try
-        {
-            var request = JsonNode.Parse(line)?.AsObject() ?? throw new AgentException("an empty request");
-            var op = (string?)request["op"] ?? throw new AgentException("a request without an op");
-            return op switch
-            {
-                "ping" => new JsonObject { ["ok"] = true },
-                "windows" => OnUi(ListWindows),
-                "query" => OnUi(() => Query(request)),
-                "wait" => Wait(request),
-                "read" => OnUi(() => Read(request)),
-                "invoke" => OnUi(() => Invoke(request)),
-                "select" => OnUi(() => Select(request)),
-                "setValue" => OnUi(() => SetValue(request)),
-                "toggle" => OnUi(() => Toggle(request)),
-                "expand" => OnUi(() => Expand(request, open: true)),
-                "collapse" => OnUi(() => Expand(request, open: false)),
-                "scrollIntoView" => OnUi(() => ScrollIntoView(request)),
-                "focus" => OnUi(() => Focus(request)),
-                "focused" => OnUi(Focused),
-                "parent" => OnUi(() => Parent(request)),
-                "scrollTo" => OnUi(() => ScrollTo(request)),
-                "settle" => Settle(request),
-                "dump" => OnUi(() => Dump(request)),
-                "collect" => OnUi(Collect),
-                _ => throw new AgentException($"an unknown op '{op}'"),
-            };
-        }
-        catch (AgentException e)
-        {
-            return e.Reply();
-        }
-        catch (System.Text.Json.JsonException e)
-        {
-            return new JsonObject { ["error"] = e.Message };
         }
     }
 
@@ -168,38 +134,76 @@ internal static partial class TestAgent
             }
             catch (Exception e)
             {
-                // Where it was thrown as well: an HRESULT from a peer reads as nothing without it.
-                var at = string.Join(" < ", (e.StackTrace ?? "").Split('\n').Take(4).Select(line => line.Trim()));
-                done.SetResult(new JsonObject { ["error"] = $"{e.GetType().Name}: {e.Message} [{at}]" });
+                done.SetResult(Failed(e));
             }
         });
-        if (!queued)
-        {
-            throw new AgentException("the UI thread has shut down");
-        }
-        if (!done.Task.Wait(TimeSpan.FromSeconds(30)))
-        {
-            throw new AgentException("the UI thread did not answer within 30 s");
-        }
-        return done.Task.Result;
+        return Awaited(queued, done.Task);
     }
 
-    /// <summary>A collection, for a suite that has to know the agent survives one: the release probe
-    /// collects while the suites run.</summary>
+    /// <summary>Runs <paramref name="work"/> on the UI thread, where it may await the framework, as
+    /// rendering a screenshot does, and waits for its answer.</summary>
+    private static JsonObject OnUiAsync(Func<Task<JsonObject>> work)
+    {
+        var done = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queued = _ui!.TryEnqueue(DispatcherQueuePriority.Normal, async () =>
+        {
+            try
+            {
+                done.SetResult(await work());
+            }
+            catch (AgentException e)
+            {
+                done.SetResult(e.Reply());
+            }
+            catch (Exception e)
+            {
+                done.SetResult(Failed(e));
+            }
+        });
+        return Awaited(queued, done.Task);
+    }
+
+    private static JsonObject Awaited(bool queued, Task<JsonObject> answer)
+    {
+        if (!queued)
+        {
+            throw new AgentException("the UI thread has shut down", "failed");
+        }
+        if (!answer.Wait(TimeSpan.FromSeconds(30)))
+        {
+            throw new AgentException("the UI thread did not answer within 30 s", "failed");
+        }
+        return answer.Result;
+    }
+
+    /// <summary>What the framework threw, with where it was thrown: an HRESULT from a peer reads as
+    /// nothing without it.</summary>
+    private static JsonObject Failed(Exception e)
+    {
+        var at = string.Join(" < ", (e.StackTrace ?? "").Split('\n').Take(4).Select(line => line.Trim()));
+        return new AgentException($"{e.GetType().Name}: {e.Message} [{at}]", "failed").Reply();
+    }
+
+    /// <summary>A collection, for a caller that has to know the agent survives one: the release
+    /// probe collects while the suites run.</summary>
     private static JsonObject Collect()
     {
         GC.Collect();
-        return new JsonObject { ["ok"] = true };
+        return new JsonObject();
     }
 
-    /// <summary>A request the agent cannot answer, said to the suite rather than thrown at the app.
-    /// A <paramref name="code"/> names a refusal a suite acts on, so the suite reads the code and
-    /// never the words (Mailcal.UiTests/Driver/Agent.cs).</summary>
-    private sealed class AgentException(string message, string? code = null) : Exception(message)
+    /// <summary>A refusal, said to the caller rather than thrown at the app. The caller branches on
+    /// <paramref name="code"/>, never on the words (docs/test-agent.md, "Refusals").</summary>
+    private sealed class AgentException(string message, string code, JsonObject? extra = null) : Exception(message)
     {
-        internal JsonObject Reply() => code is null
-            ? new JsonObject { ["error"] = Message }
-            : new JsonObject { ["error"] = Message, ["code"] = code };
+        internal JsonObject Reply()
+        {
+            var reply = extra?.DeepClone().AsObject() ?? new JsonObject();
+            reply["ok"] = false;
+            reply["code"] = code;
+            reply["error"] = Message;
+            return reply;
+        }
     }
 #endif
 }

@@ -8,7 +8,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls.Primitives;
@@ -176,43 +175,58 @@ internal static partial class TestAgent
     /// <summary>The roots a request searches: under one element, in one window, or in all of them.</summary>
     private static IEnumerable<(AutomationPeer, Window)> RootsOf(JsonObject request)
     {
-        if (request["under"] is JsonNode under)
+        if (request["under"] is not null)
         {
             var peer = PeerOf(HandleIn(request, "under"));
             var window = WindowFor(peer) ?? OpenWindows()[0];
             return [(peer, window)];
         }
-        if (request["window"] is JsonNode hwnd)
+        return request["window"] switch
         {
-            var wanted = (long)hwnd;
-            var window = OpenWindows().FirstOrDefault(w => Hwnd(w) == wanted)
-                ?? throw new AgentException($"no open window has handle {wanted}");
-            return WindowRoots(window);
-        }
-        return OpenWindows().SelectMany(WindowRoots);
+            null => OpenWindows().SelectMany(WindowRoots),
+            JsonValue value when value.TryGetValue<long>(out var hwnd) =>
+                WindowRoots(OpenWindows().FirstOrDefault(w => Hwnd(w) == hwnd)
+                    ?? throw new AgentException($"no open window has handle {hwnd}", "no-element")),
+            JsonValue value when value.TryGetValue<string>(out var title) =>
+                OpenWindows().Where(w => w.AppWindow.Title.Contains(title, StringComparison.OrdinalIgnoreCase)).SelectMany(WindowRoots),
+            _ => throw new AgentException("bad arguments: 'window' is part of a title, or a window's h", "bad-request"),
+        };
     }
 
     /// <summary>The peers a request's filter accepts, in walk order. Under an element, the element
-    /// itself is not a match: a suite asking what is inside a row does not mean the row.</summary>
+    /// itself is not a match: a caller asking what is inside a row does not mean the row.</summary>
     private static IEnumerable<AutomationPeer> Matches(JsonObject request)
     {
-        var id = (string?)request["id"];
-        var name = (string?)request["name"];
-        var like = request["nameLike"] is JsonNode pattern ? Wildcard((string)pattern!) : null;
-        var type = (string?)request["type"];
-        var onScreen = (bool?)request["onScreen"] ?? false;
-        var has = request["has"]?.AsObject();
-        var signal = (string?)request["signal"];
+        Allowed(request, FilterArgs, "a filter");
+        var id = Text(request, "id");
+        var text = Text(request, "text");
+        var like = Text(request, "textLike");
+        var type = Text(request, "type");
+        var role = Text(request, "role");
+        var icon = Text(request, "icon");
+        var enabled = Flag(request, "enabled");
+        var hidden = Flag(request, "hidden") ?? false;
+        var signal = Text(request, "signal");
+        var has = request["has"] switch
+        {
+            null => null,
+            JsonObject inner => inner,
+            _ => throw new AgentException("bad arguments: 'has' is a filter", "bad-request"),
+        };
         var under = request["under"] is not null ? PeerOf(HandleIn(request, "under")) : null;
         foreach (var peer in Walk(RootsOf(request)))
         {
             if (ReferenceEquals(peer, under)
                 || HiddenFromAssistiveTechnology(peer)
+                || (!hidden && peer.IsOffscreen())
                 || (id is not null && peer.GetAutomationId() != id)
-                || (name is not null && peer.GetName() != name)
-                || (like is not null && !like.IsMatch(peer.GetName() ?? ""))
-                || (type is not null && peer.GetAutomationControlType().ToString() != type)
-                || (onScreen && peer.IsOffscreen())
+                || (text is not null && !Said(peer).Contains(text))
+                || (like is not null && !Said(peer).Any(said => said.Contains(like, StringComparison.OrdinalIgnoreCase)))
+                || (type is not null && !IsOfClass(peer, type))
+                || (role is not null && peer.GetAutomationControlType().ToString() != role)
+                // Nothing here draws a named icon, so a filter that asks for one matches nothing.
+                || icon is not null
+                || (enabled is { } wanted && peer.IsEnabled() != wanted)
                 || (signal is not null && SignalOf(peer) != signal)
                 || (has is not null && !Contains(peer, has)))
             {
@@ -228,40 +242,48 @@ internal static partial class TestAgent
     {
         var inner = filter.DeepClone().AsObject();
         inner["under"] = HandleFor(peer);
+        inner.Remove("index");
         return Matches(inner).Any();
     }
 
+    /// <summary>Every match, or with <c>index</c> only the one at that position.</summary>
     private static JsonObject Query(JsonObject request)
     {
-        var all = (bool?)request["all"] ?? false;
-        var found = all ? Matches(request).ToList() : Matches(request).Take(1).ToList();
+        var found = Number(request, "index") is { } index
+            ? Matches(request).Skip(index).Take(1).ToList()
+            : Matches(request).ToList();
         return new JsonObject { ["elements"] = new JsonArray(found.Select(p => (JsonNode)Describe(p)).ToArray()) };
     }
 
     private static JsonObject Read(JsonObject request) => Describe(PeerOf(HandleIn(request)), detail: true);
 
-    /// <summary>One line per peer in walk order, indented by depth, for a failure that has to say
-    /// what was on screen instead.</summary>
+    /// <summary>One line per peer in walk order, indented by depth, for a caller that has to say
+    /// what was on screen. Lists what lookups leave out, too.</summary>
     private static JsonObject Dump(JsonObject request)
     {
-        var lines = new JsonArray();
+        var hidden = Flag(request, "hidden") ?? false;
+        var lines = new List<string>();
         foreach (var peer in Walk(RootsOf(request)))
         {
+            if (!hidden && peer.IsOffscreen())
+            {
+                continue;
+            }
             var depth = 0;
             for (var at = peer; ParentOf.TryGetValue(at, out var up) && up.TryGetTarget(out var parent); at = parent)
             {
                 depth++;
             }
-            lines.Add($"{new string(' ', depth * 2)}{peer.GetAutomationControlType()} #{peer.GetAutomationId()} '{peer.GetName()}'{(peer.IsOffscreen() ? " (offscreen)" : "")}");
+            lines.Add($"{new string(' ', depth * 2)}[{HandleFor(peer)}] {peer.GetAutomationControlType()} #{peer.GetAutomationId()} '{peer.GetName()}'{(peer.IsOffscreen() ? " (offscreen)" : "")}");
         }
-        return new JsonObject { ["lines"] = lines };
+        return new JsonObject { ["text"] = string.Join('\n', lines) + "\n" };
     }
 
     private static JsonObject ListWindows() => new()
     {
         ["windows"] = new JsonArray(OpenWindows().Select(w => (JsonNode)new JsonObject
         {
-            ["hwnd"] = Hwnd(w),
+            ["h"] = Hwnd(w),
             ["title"] = w.AppWindow.Title,
             ["kind"] = w.GetType().Name,
         }).ToArray()),
@@ -277,51 +299,17 @@ internal static partial class TestAgent
     }
 
     private static int HandleIn(JsonObject request, string field = "h") =>
-        request[field] is JsonValue value && value.TryGetValue<int>(out var handle)
-            ? handle
-            : throw new AgentException($"a request without an element in '{field}'");
+        Number(request, field) ?? throw new AgentException($"bad arguments: no element in '{field}'", "bad-request");
 
-    private static AutomationPeer PeerOf(int handle) =>
-        Handles.TryGetValue(handle, out var reference) && reference.TryGetTarget(out var peer)
-            ? peer
-            : throw new AgentException($"element {handle} is gone");
-
-    /// <summary>What a suite reads off an element. The rectangle is in the physical screen pixels a
-    /// press is aimed in.</summary>
-    private static JsonObject Describe(AutomationPeer peer, bool detail = false)
+    private static AutomationPeer PeerOf(int handle)
     {
-        // A peer measures from its window's client area; a press is aimed at the screen.
-        var rect = peer.GetBoundingRectangle();
-        var origin = new ClientPoint();
-        var window = WindowFor(peer);
-        if (window is not null)
+        if (!Handles.TryGetValue(handle, out var reference))
         {
-            ClientToScreen((nint)Hwnd(window), ref origin);
+            throw new AgentException($"no element has handle {handle}", "no-element");
         }
-        var described = new JsonObject
-        {
-            ["h"] = HandleFor(peer),
-            ["id"] = peer.GetAutomationId(),
-            ["name"] = peer.GetName(),
-            ["type"] = peer.GetAutomationControlType().ToString(),
-            ["class"] = peer.GetClassName(),
-            ["x"] = rect.X + origin.X,
-            ["y"] = rect.Y + origin.Y,
-            ["w"] = rect.Width,
-            ["ht"] = rect.Height,
-            ["offscreen"] = peer.IsOffscreen(),
-            ["enabled"] = peer.IsEnabled(),
-            ["window"] = window is null ? 0 : Hwnd(window),
-        };
-        if (SignalOf(peer) is { } signal)
-        {
-            described["signal"] = signal;
-        }
-        if (detail)
-        {
-            Detail(peer, described);
-        }
-        return described;
+        return reference.TryGetTarget(out var peer)
+            ? peer
+            : throw new AgentException($"element {handle} has gone: query again", "gone");
     }
 
     /// <summary>
@@ -354,8 +342,6 @@ internal static partial class TestAgent
     private static AutomationPeer? ParentPeer(AutomationPeer peer) =>
         ParentOf.TryGetValue(peer, out var up) && up.TryGetTarget(out var parent) ? parent : peer.GetParent();
 
-    /// <summary>A name pattern as PowerShell's <c>-like</c> reads one, which the suites were written
-    /// against: <c>*</c> and <c>?</c>, case ignored.</summary>
     private struct ClientPoint
     {
         public int X;
@@ -364,9 +350,5 @@ internal static partial class TestAgent
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool ClientToScreen(nint hwnd, ref ClientPoint point);
-
-    private static Regex Wildcard(string pattern) =>
-        new("^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$",
-            RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 }
 #endif

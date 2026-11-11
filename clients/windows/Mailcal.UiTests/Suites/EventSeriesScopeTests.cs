@@ -39,12 +39,12 @@ public sealed class EventSeriesScopeTests(HarnessApp harness)
     private static Element? GridBlock(App app, string title, int timeoutSec = 20)
     {
         Element? block = null;
-        App.Eventually(() => (block = Blocks(app, $"{title}*").FirstOrDefault()) is not null, TimeSpan.FromSeconds(timeoutSec));
+        App.Eventually(() => (block = Blocks(app, title).FirstOrDefault()) is not null, TimeSpan.FromSeconds(timeoutSec));
         return block;
     }
 
-    private static IEnumerable<Element> Blocks(App app, string name = "*") =>
-        app.Agent.FindAll(new Filter { Window = app.Mailbox.Hwnd, NameLike = name }).Where(e => e.Class == "CalendarItem");
+    private static IEnumerable<Element> Blocks(App app, string? part = null) =>
+        app.Agent.FindAll(new Filter { Window = app.Mailbox.Hwnd, TextLike = part }).Where(e => e.Class == "CalendarItem");
 
     /// <summary>The block for <paramref name="title"/>, wheeled until its middle sits in the lower part
     /// of the grid, which clears the day headers and the all-day band in one rule.</summary>
@@ -144,7 +144,7 @@ public sealed class EventSeriesScopeTests(HarnessApp harness)
         // cancelled at the end, so nothing is written.
         var editor = Press(app, OpenGridEvent(app, flow, Repeating), "PrimaryButton");
         var typed = $"{Repeating} (edited)";
-        app.Agent.SetValue(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor }) ?? throw new InvalidOperationException("the editor has no title field"), typed);
+        app.Agent.SetText(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor }) ?? throw new InvalidOperationException("the editor has no title field"), typed);
         var question = Press(app, editor, "PrimaryButton");
         var reopened = Press(app, question, "CloseButton");
         var again = app.Agent.Find(new Filter { Id = "EventTitleBox", Under = reopened });

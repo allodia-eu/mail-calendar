@@ -19,20 +19,23 @@ namespace Allodia.Mailcal.UiTests.Suites;
 [Trait("Dataset", "showcase")]
 public sealed class UnreadEmphasisTests(ShowcaseApp showcase)
 {
-    private static readonly (string Title, string Sender) Unread = ("Welcome to Allodia Mail*", "Allodia");
+    private static readonly (string Title, string Sender) Unread = ("Welcome to Allodia Mail", "Allodia");
     private static readonly (string Title, string Sender) Read = ("Your June usage report", "Example Cloud");
 
     // Three messages, two of them unread: the conversation the projection could never bold.
-    private static readonly (string Title, string Sender) UnreadThread = ("Re: Q3 launch*", "Tom de Vries");
+    private static readonly (string Title, string Sender) UnreadThread = ("Re: Q3 launch", "Tom de Vries");
 
     private const int SemiBold = 600;
     private const int Normal = 400;
 
-    /// <summary>The weight of the text in <paramref name="title"/>'s row matching
-    /// <paramref name="text"/>. Scoped to the row: the reading pane can draw the same words.</summary>
+    /// <summary>The weight of the text in <paramref name="title"/>'s row that is
+    /// <paramref name="text"/>, or failing that holds it: a sender is drawn whole, and its name can
+    /// also be part of the subject. Scoped to the row: the reading pane can draw the same words.</summary>
     private static int Weight(App app, string title, string text)
     {
-        var label = app.Agent.Find(new Filter { Type = "Text", Under = app.RowTitled(title), NameLike = text })
+        var row = app.RowTitled(title);
+        var label = app.Agent.Find(new Filter { Type = "Text", Under = row, Name = text })
+            ?? app.Agent.Find(new Filter { Type = "Text", Under = row, TextLike = text })
             ?? throw new InvalidOperationException($"the row '{title}' draws no text matching '{text}'");
         return app.Agent.Read(label).FontWeight ?? throw new InvalidOperationException($"'{label.Name}' reports no font weight");
     }

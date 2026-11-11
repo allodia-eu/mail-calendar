@@ -48,9 +48,9 @@ public sealed class NextcloudAccountPageTests(SetupHarnessApp harness) : IClassF
     private static Element OfferedOnTheManualForm(App app, SetupFlow flow, string login, string password)
     {
         flow.OpenManualSetup(Address, Filter.ById("DavChoice"));
-        app.Agent.SetValue(Field(app, "DavLogin"), login);
-        app.Agent.SetValue(Field(app, "DavPassword"), password);
-        app.Agent.SetValue(Field(app, "DavCaldavUrl"), $"{Fixture}/remote.php/dav/");
+        app.Agent.SetText(Field(app, "DavLogin"), login);
+        app.Agent.SetText(Field(app, "DavPassword"), password);
+        app.Agent.SetText(Field(app, "DavCaldavUrl"), $"{Fixture}/remote.php/dav/");
         app.Agent.Focus(Field(app, "DavCaldavUrl"));
         app.Agent.Focus(Field(app, "DavCarddavUrl"));
         Element? offer = null;

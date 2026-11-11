@@ -44,21 +44,21 @@ public sealed class SettingsNotificationsTests(ShowcaseApp showcase)
     [OfflineFact]
     public void TheChoiceSurvivesLeavingTheCategoryAndComingBack()
     {
-        string? original = null;
+        bool? original = null;
         showcase.Case(nameof(TheChoiceSurvivesLeavingTheCategoryAndComingBack), app =>
         {
             // The panel is rebuilt per category, so a switch seeded from a default rather than the
             // store looks right until the user comes back to it.
             var settings = new SetupFlow(app);
-            original = app.Agent.Read(Toggle(app, settings)).Toggle;
+            original = app.Agent.Read(Toggle(app, settings)).Active;
             var flipped = app.Agent.Toggle(Toggle(app, settings));
             settings.OpenCategory("privacy");
-            Assert.Equal(flipped, app.Agent.Read(Toggle(app, settings)).Toggle);
+            Assert.Equal(flipped, app.Agent.Read(Toggle(app, settings)).Active);
         }, app =>
         {
             // Leave the preference as the suite found it.
             var settings = new SetupFlow(app);
-            if (original is not null && app.Agent.Read(Toggle(app, settings)).Toggle != original)
+            if (original is not null && app.Agent.Read(Toggle(app, settings)).Active != original)
             {
                 app.Agent.Toggle(Toggle(app, settings));
             }

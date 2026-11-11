@@ -59,7 +59,7 @@ public sealed class ComposerUndoTests(ShowcaseApp showcase)
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(400));
     }
 
-    private static List<Element> Pills(App app) => app.Agent.FindAll(new Filter { Type = "Button", NameLike = "*@example.test*" }).ToList();
+    private static List<Element> Pills(App app) => app.Agent.FindAll(new Filter { Type = "Button", TextLike = "@example.test" }).ToList();
 
     private static string Value(App app, Element field) => app.Agent.Read(field).Value ?? "";
 

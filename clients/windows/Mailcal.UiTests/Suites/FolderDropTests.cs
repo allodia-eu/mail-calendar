@@ -30,7 +30,7 @@ public sealed class FolderDropTests(ImapHarnessApp harness)
     /// rectangle takes in its subfolders' rows, and the middle of those is one of them.</summary>
     private static void DragOnto(App app, FolderFlow folders, string folder)
     {
-        var row = app.RowTitled($"*{Subject}*");
+        var row = app.RowTitled(Subject);
         var target = app.Steady(folders.Row(folder));
         Input.Drag(row,
             (int)(target.X + Math.Min(120, target.Width / 3)),

@@ -59,16 +59,16 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
         App app, SetupFlow flow, string address = Address, string mailPassword = "harness-alice-pw")
     {
         flow.OpenManualSetup(address, Filter.ById("ImapChoice"));
-        app.Agent.SetValue(Field(app, "ImapPort"), "12993");
-        app.Agent.SetValue(Field(app, "ImapHost"), "localhost");
-        app.Agent.SetValue(Field(app, "Username"), address);
-        app.Agent.SetValue(Field(app, "SmtpPort"), "12465");
-        app.Agent.SetValue(Field(app, "SmtpHost"), "localhost");
-        app.Agent.SetValue(Field(app, "CaldavUrl"), $"{NextcloudAccountPageTests.Fixture}/remote.php/dav/");
+        app.Agent.SetText(Field(app, "ImapPort"), "12993");
+        app.Agent.SetText(Field(app, "ImapHost"), "localhost");
+        app.Agent.SetText(Field(app, "Username"), address);
+        app.Agent.SetText(Field(app, "SmtpPort"), "12465");
+        app.Agent.SetText(Field(app, "SmtpHost"), "localhost");
+        app.Agent.SetText(Field(app, "CaldavUrl"), $"{NextcloudAccountPageTests.Fixture}/remote.php/dav/");
         Element? password = null;
         Assert.True(App.Eventually(() => (password = app.Agent.Find(Filter.ById("Password", "Edit"))) is { Width: > 0 }, TimeSpan.FromSeconds(30)),
             "the harness mailbox takes a password");
-        app.Agent.SetValue(password!, mailPassword);
+        app.Agent.SetText(password!, mailPassword);
         Element? connect = null;
         App.Eventually(() => (connect = app.Agent.Find(Filter.ById("ConnectButton", "Button"))) is { Enabled: true }, TimeSpan.FromSeconds(10));
         app.Agent.Invoke(connect ?? throw new InvalidOperationException("the form never let Connect go"));
@@ -120,7 +120,7 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             }
             AssertAWrongPasswordIsHeldThenRefused(app, dialog, "the account's page");
 
-            app.Agent.SetValue(InPage(app, dialog, "SeparateServerPassword")!, "nextcloud-alice-pw");
+            app.Agent.SetText(InPage(app, dialog, "SeparateServerPassword")!, "nextcloud-alice-pw");
             app.Agent.Invoke(InPage(app, dialog, "SeparateServerConnect")!);
             Assert.True(app.Agent.WaitGone(new Filter { Id = "SeparateServerConnect", Under = dialog }, TimeSpan.FromSeconds(60)),
                 "a password the server takes moves the calendar to an account of its own, and the form closes");
@@ -177,8 +177,8 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
     {
         Element InForm(string id) =>
             app.Agent.Find(new Filter { Id = id, Under = root }) ?? throw new InvalidOperationException($"{where}'s form has no #{id}");
-        app.Agent.SetValue(InForm("SeparateServerUsername"), SeparateLogin);
-        app.Agent.SetValue(InForm("SeparateServerPassword"), "not-alices-password");
+        app.Agent.SetText(InForm("SeparateServerUsername"), SeparateLogin);
+        app.Agent.SetText(InForm("SeparateServerPassword"), "not-alices-password");
         Element? connect = null;
         Assert.True(App.Eventually(() => (connect = app.Agent.Find(new Filter { Id = "SeparateServerConnect", Under = root })) is { Enabled: true }, TimeSpan.FromSeconds(5)),
             $"{where}: a login and password let Connect go");

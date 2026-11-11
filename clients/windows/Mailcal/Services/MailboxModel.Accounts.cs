@@ -34,6 +34,11 @@ public sealed partial class MailboxModel
             return;
         }
 #if DEBUG
+        if (WantsDemo)
+        {
+            _ = ConnectDemoAsync();
+            return;
+        }
         // A debug launch may override the accounts to target the local Stalwart harness instead of
         // the stored (personal) accounts; both the engine store AND the credential store are then
         // isolated in a dev namespace, so a form-add during a harness run never touches real

@@ -48,10 +48,10 @@ public sealed class SetupCertificateTests(SetupHarnessApp harness) : IClassFixtu
         Case(nameof(TheRefusedCertificateIsShownFingerprintIncludedAndConnectWaitsForTheBox), (app, flow) =>
         {
             flow.OpenManualSetup(Harness.Alice, Filter.ById("DavChoice"));
-            app.Agent.SetValue(app.Agent.Find(Filter.ById("DavLogin", "Edit"))!, Harness.Alice);
-            app.Agent.SetValue(app.Agent.Find(Filter.ById("DavPassword", "Edit"))!, "harness-alice-pw");
-            app.Agent.SetValue(app.Agent.Find(Filter.ById("DavCaldavUrl", "Edit"))!, Server);
-            app.Agent.SetValue(app.Agent.Find(Filter.ById("DavCarddavUrl", "Edit"))!, Server);
+            app.Agent.SetText(app.Agent.Find(Filter.ById("DavLogin", "Edit"))!, Harness.Alice);
+            app.Agent.SetText(app.Agent.Find(Filter.ById("DavPassword", "Edit"))!, "harness-alice-pw");
+            app.Agent.SetText(app.Agent.Find(Filter.ById("DavCaldavUrl", "Edit"))!, Server);
+            app.Agent.SetText(app.Agent.Find(Filter.ById("DavCarddavUrl", "Edit"))!, Server);
             app.Agent.Invoke(Connect(app));
             var claims = app.Agent.Wait(Filter.ById("CertificateClaims"), TimeSpan.FromSeconds(30));
             Assert.True(claims is not null,
@@ -77,11 +77,11 @@ public sealed class SetupCertificateTests(SetupHarnessApp harness) : IClassFixtu
             foreach (var use in new[] { "AccountUse_Calendar", "AccountUse_Contacts" })
             {
                 var toggle = app.Agent.Find(new Filter { Id = use, Under = dialog });
-                Assert.True(toggle is not null && app.Agent.Read(toggle).Toggle == "On",
+                Assert.True(toggle is not null && app.Agent.Read(toggle).Active == true,
                     $"the account connected through the accepted certificate and is used for its {use["AccountUse_".Length..]}");
             }
             var mail = app.Agent.Find(new Filter { Id = "AccountUse_Mail", Under = dialog });
-            Assert.True(mail is null || app.Agent.Read(mail).Toggle != "On", "an account set up as calendar and contacts is used for no mail");
+            Assert.True(mail is null || app.Agent.Read(mail).Active != true, "an account set up as calendar and contacts is used for no mail");
             var signInAgain = Catalog.Everywhere("signin_expired_action");
             Assert.False(app.Agent.FindAll(new Filter { Under = dialog }).Any(e => signInAgain.Contains(e.Name)),
                 "and it is connected: nothing on its page asks to sign in again");

@@ -25,6 +25,7 @@ public class AppPathsTests
     [InlineData("Stalwart-Multi", "dev-multi")]
     [InlineData("first-run", "dev-first-run")]  // injects nothing, but is isolated like the rest
     [InlineData("First-Run", "dev-first-run")]
+    [InlineData("demo", "dev-demo")]            // in memory, but its preferences are not the developer's
     public void DevModesMapToTheirStoreSubdir(string raw, string expected) =>
         Assert.Equal(expected, AppPaths.DevStoreSubdir(raw));
 
@@ -43,6 +44,7 @@ public class AppPathsTests
             AppPaths.DevStoreSubdir("stalwart-imap"),
             AppPaths.DevStoreSubdir("stalwart-linked"),
             AppPaths.DevStoreSubdir("first-run"),
+            AppPaths.DevStoreSubdir("demo"),
         ];
         Assert.All(subdirs, Assert.NotNull);
         Assert.Equal(subdirs.Length, new HashSet<string?>(subdirs).Count);
@@ -53,7 +55,6 @@ public class AppPathsTests
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("personal")]   // explicit real-accounts mode
-    [InlineData("demo")]       // recognized elsewhere, unsupported on Windows, falls back to real
     [InlineData("stalwart2")]  // junk never silently isolates
     public void EverythingElseIsANormalLaunch(string? raw) =>
         Assert.Null(AppPaths.DevStoreSubdir(raw));

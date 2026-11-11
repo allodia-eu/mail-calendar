@@ -140,7 +140,7 @@ public sealed class ReadingPaneAdvanceTests(HarnessApp harness)
     private static bool ReadingFrom(App app, string sender)
     {
         var list = app.Agent.Read(app.RowsList()).Element;
-        return app.Agent.FindAll(new Filter { Type = "Text", NameLike = $"*{sender}*", Window = app.Mailbox.Hwnd })
+        return app.Agent.FindAll(new Filter { Type = "Text", TextLike = sender, Window = app.Mailbox.Hwnd })
             .Any(text => text.Rendered && text.X >= list.X + list.Width);
     }
 }

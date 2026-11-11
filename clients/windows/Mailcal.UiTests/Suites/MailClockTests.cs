@@ -19,7 +19,7 @@ namespace Allodia.Mailcal.UiTests.Suites;
 [Trait("Dataset", "showcase")]
 public sealed partial class MailClockTests(ShowcaseApp showcase)
 {
-    private const string Today = "Welcome to Allodia Mail*";
+    private const string Today = "Welcome to Allodia Mail";
     private const string TodaySubject = "Welcome to Allodia Mail & Calendar";
 
     [GeneratedRegex(@"^\d{2}:\d{2}$")]
@@ -100,10 +100,10 @@ public sealed partial class MailClockTests(ShowcaseApp showcase)
     public void AnOpenInvitationsTimeFollowsTheOtherClock() => showcase.Case(nameof(AnOpenInvitationsTimeFollowsTheOtherClock), app =>
     {
         // Pressing the row already open would close it.
-        var heading = Filter.ById("ReadingSubject") with { Window = app.Mailbox.Hwnd, NameLike = "Invitation:*" };
+        var heading = Filter.ById("ReadingSubject") with { Window = app.Mailbox.Hwnd, TextLike = "Invitation:" };
         if (app.Agent.Find(heading) is null)
         {
-            app.Agent.Invoke(app.RowTitled("Invitation:*"));
+            app.Agent.Invoke(app.RowTitled("Invitation:"));
             app.Agent.Wait(heading, App.Patience);
         }
         Holds(() => InvitationWhen(app), RangeTwentyFourHour(), "the launch is on 24-hour");

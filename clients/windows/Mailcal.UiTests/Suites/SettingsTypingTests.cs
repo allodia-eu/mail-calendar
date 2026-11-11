@@ -25,7 +25,7 @@ public sealed class SettingsTypingTests(ImapHarnessApp harness)
     public void AChangeSignalledWhileANameIsHalfTypedLeavesTheFieldAndSendsNothing()
     {
         string? was = null;
-        string? folderWas = null;
+        bool? folderWas = null;
         harness.Case(nameof(AChangeSignalledWhileANameIsHalfTypedLeavesTheFieldAndSendsNothing), app =>
         {
             var dialog = new SetupFlow(app).OpenAccount(Harness.Alice);
@@ -37,7 +37,7 @@ public sealed class SettingsTypingTests(ImapHarnessApp harness)
                 "the server's shared mailboxes reach alice's page");
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(500), floor: TimeSpan.FromMilliseconds(500));
             was = app.Agent.Read(Find(app, dialog, Name)).Value ?? "";
-            folderWas = app.Agent.Read(Find(app, dialog, Folder)).Toggle;
+            folderWas = app.Agent.Read(Find(app, dialog, Folder)).Active;
             // Never what is stored already: typing that leaves nothing unsent, and nothing holds the
             // redraw.
             var typed = was == "Half typ" ? "Half typing" : "Half typ";
@@ -53,7 +53,7 @@ public sealed class SettingsTypingTests(ImapHarnessApp harness)
 
             // Leaving the field sends it, and the page is drawn with both changes.
             Input.Press(Input.Tab);
-            Assert.True(App.Eventually(() => app.Agent.Read(Find(app, dialog, Folder)).Toggle != folderWas, TimeSpan.FromSeconds(10)),
+            Assert.True(App.Eventually(() => app.Agent.Read(Find(app, dialog, Folder)).Active != folderWas, TimeSpan.FromSeconds(10)),
                 "the folder's change lands once the page is drawn");
             Assert.True(App.Eventually(() => app.Agent.Read(Find(app, dialog, Name)).Value == typed, TimeSpan.FromSeconds(10)),
                 "and so does the name, sent as the field was left");
@@ -68,14 +68,14 @@ public sealed class SettingsTypingTests(ImapHarnessApp harness)
                 return;
             }
             var dialog = new SetupFlow(app).OpenAccount(Harness.Alice);
-            if (folderWas is not null && app.Agent.Read(Find(app, dialog, Folder)).Toggle != folderWas)
+            if (folderWas is not null && app.Agent.Read(Find(app, dialog, Folder)).Active != folderWas)
             {
                 app.Agent.Toggle(Find(app, dialog, Folder));
                 app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
             }
             var box = Find(app, dialog, Name);
             app.Agent.Focus(box);
-            app.Agent.SetValue(box, was);
+            app.Agent.SetText(box, was);
             app.Agent.Focus(Find(app, dialog, Folder));
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
             app.CloseDialogs();

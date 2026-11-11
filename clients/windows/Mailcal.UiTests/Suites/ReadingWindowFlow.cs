@@ -13,7 +13,7 @@ internal sealed class ReadingWindowFlow(App app)
 
     /// <summary>The seeded two-message conversation, by a pattern: the row is titled by whichever
     /// message is newest, the reply on a freshly seeded harness and the original after a re-sync.</summary>
-    internal const string ThreadSubject = "*Project kickoff";
+    internal const string ThreadSubject = "Project kickoff";
 
     /// <summary>The action row in the order docs/reading-actions.md fixes, overflow last of all.</summary>
     internal static readonly string[] RowButtons =

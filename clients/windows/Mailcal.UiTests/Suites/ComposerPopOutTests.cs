@@ -55,7 +55,7 @@ public sealed class ComposerPopOutTests(HarnessApp harness)
         TypeInBody(app, Written);
         var window = PopOut(app, subject);
 
-        var pill = app.Agent.Find(new Filter { Type = "Button", NameLike = $"{Harness.Bob}, *", Window = window.Hwnd });
+        var pill = app.Agent.Find(new Filter { Type = "Button", TextLike = $"{Harness.Bob}, ", Window = window.Hwnd });
         Assert.True(pill is not null, $"the window does not hold the recipient as a pill ({Harness.Bob})");
         var box = app.Agent.Find(Filter.ById("SubjectBox") with { Window = window.Hwnd });
         Assert.True(subject == (box is null ? null : app.Agent.Read(box).Value), "the window does not hold the subject the pane's composer had");

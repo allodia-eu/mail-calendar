@@ -118,8 +118,9 @@ Every agent answers these:
 | `quit` | | `{}`, then the app quits as its own Quit does |
 
 An agent may answer more where its platform has more to offer (`eval` into a web view and
-`action` on Linux; `expand`, `collapse` and `scrollIntoView` on Windows; VoiceOver's `escape` and
-`scroll`, and `increment` and `decrement`, on macOS and iOS), and lists them under `verbs`.
+`action` on Linux; `expand`, `collapse`, `scrollIntoView` and `scrollTo` on Windows; VoiceOver's
+`escape` and `scroll`, and `increment` and `decrement`, on macOS and iOS), and lists them under
+`verbs`.
 
 The client adds two, done in two requests: `press` is `wait` for exactly one element, then
 `activate`; `fill` is the same, then `set-text`.
@@ -144,7 +145,7 @@ The client adds two, done in two requests: `press` is `wait` for exactly one ele
 | Platform | State |
 |---|---|
 | Linux | Speaks this protocol; it is the reference the conformance suite was written against. |
-| Windows | The same wire under older names, which it still has to take: `op` for `verb`, `invoke` for `activate`, `setValue` for `set-text`, `nameLike` for `textLike`, `x`/`y`/`w`/`ht` for `bounds`, `offscreen` for `showing`, and a refusal without `ok` or a `code` for most failures. |
+| Windows | Speaks this protocol and passes the conformance suite. A `role` is the UI Automation control type (`Button`, `Edit`, `ListItem`) and `text` the accessible name. An element's state and value come with `read`, not with `query` or `wait`, and nothing draws a named `icon`, so that filter matches nothing. Its own additions: `screen`, the physical screen rectangle a press is aimed in, and `window`, the HWND, on every element; a window's `h` is its HWND, which `window` takes as well as a title; the `signal` filter; `floorMs` on `settle`; `select` without `index` selects the element itself; the verbs `expand`, `collapse`, `scrollIntoView`, `scrollTo`, `focused`, `parent` and `collect`; and the refusals `not-expandable` and `failed`, the second for an error the framework raised. |
 | macOS, iOS Simulator | Speaks this protocol and passes the conformance suite. It reads NSAccessibility or UIAccessibility in process, through the entry points VoiceOver's requests reach, and acts through accessibility actions. SwiftUI builds its elements only for an assistive technology, so the agent switches each hosting view's accessibility on, and on the simulator turns on the automation XCUITest uses, which loads UIKit's names for its own controls. A physical device has none, as its app cannot reach the Mac's socket: XCUITest drives it. A gesture or real input (a drag, a swipe action, a pull to refresh, a keystroke) stays with `macos-ax.swift` and idb. |
 
 ## Conformance

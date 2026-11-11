@@ -41,13 +41,13 @@ public sealed class MeetingInviteesTests(TwoAccountHarnessApp harness)
     {
         var dialog = flow.OpenNewEvent();
         // Setting the title scrolls the form back to it a moment later, so the reveal waits for that.
-        app.Agent.SetValue(Under(app, dialog, "EventTitleBox")!, Title);
+        app.Agent.SetText(Under(app, dialog, "EventTitleBox")!, Title);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
         flow.RevealAtEnd(dialog, "EventInviteeField", "the editor lost its invitee field");
         flow.InviteeKeys("bo");
         var list = app.Agent.Wait(Filter.ById("RecipientSuggestions"), TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("typing a known name offers no suggestions");
-        var suggestion = app.Agent.Find(new Filter { Type = "ListItem", Under = list, NameLike = $"*{Harness.Bob}*" })
+        var suggestion = app.Agent.Find(new Filter { Type = "ListItem", Under = list, TextLike = Harness.Bob })
             ?? throw new InvalidOperationException($"the suggestions do not offer {Harness.Bob}");
         Input.Click(app.Steady(suggestion));
         // Keys typed while the pick is still being committed land in the closing list, not the field.

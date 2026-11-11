@@ -56,7 +56,7 @@ public sealed partial class SenderNameTests(ShowcaseApp showcase)
     {
         var box = Boxes(app, dialog)[0];
         app.Agent.Focus(box);
-        app.Agent.SetValue(box, text);
+        app.Agent.SetText(box, text);
         app.Agent.Focus(app.Agent.Find(new Filter { Type = "ComboBox", Name = Depth, Under = dialog })
             ?? throw new InvalidOperationException($"the account page has no '{Depth}' picker to move focus to"));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));

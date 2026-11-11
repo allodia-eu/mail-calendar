@@ -49,7 +49,7 @@ public sealed class UnifiedUnreadTests(ImapHarnessApp harness)
         {
             // The Inbox, whatever folder the case before this one left open.
             app.OpenFolder(Inbox);
-            app.Agent.Invoke(app.RowTitled($"*{Subject}*"));
+            app.Agent.Invoke(app.RowTitled(Subject));
             Assert.Equal("", UnifiedInbox(app));
 
             SwitchReadState(app, oneUnread);
