@@ -89,11 +89,15 @@ launch_detached() { # <binary> <command...>
   case "$outcome" in
     0)
       if [[ "$HEADLESS" == 1 ]]; then
-        info "READY on the private compositor. Photograph it: scripts/dev/screenshot.sh linux
-     Drive it:        scripts/dev/control.sh linux ui-dump
-     Stop both:       kill -KILL $LINUX_SESSION_PID"
+        info "READY on the private compositor.
+     See it:   scripts/dev/control.sh linux agent dump
+     Act:      scripts/dev/control.sh linux agent press text=<label>
+     Picture:  scripts/dev/screenshot.sh linux
+     Stop:     scripts/dev/control.sh linux stop"
       else
-        info "READY: the window is on screen. Stop the client with: pkill -f '$binary'"
+        info "READY: the window is on screen.
+     See it:   scripts/dev/control.sh linux agent dump
+     Stop:     scripts/dev/control.sh linux stop"
       fi
       ;;
     2) die "the client exited before its window appeared. What it printed: $launch_log" ;;
@@ -127,6 +131,10 @@ start_headless_session() {
 # is recorded in the entitlement contract that ships beside the Allodia Licence.
 # Each name is package-qualified because the build asks cargo for two packages, and a bare feature
 # name is ambiguous across them.
+# The test agent listens on this checkout's socket, so `control.sh linux agent` finds the app
+# without being told where. A caller that names a socket of its own keeps it.
+export MAILCAL_TEST_AGENT="${MAILCAL_TEST_AGENT:-$(linux_agent_socket)}"
+
 FEATURES="mailcal-linux/dev-harness"
 ALLODIA_FEATURE="$(core_cargo_features)"
 if [[ -n "$ALLODIA_FEATURE" ]]; then
@@ -146,9 +154,12 @@ if [[ "$TARGET" == sdk ]]; then
   # The binary links the runtime's libraries, including a newer libc than the host's, so it starts
   # only inside the sandbox.
   start_headless_session
+  # Every launch hook reaches the sandbox: a `MAILCAL_*` variable left behind here would be a hook
+  # the client never saw, which reads exactly like a hook that does not work.
   exec_env=()
-  for name in MAILCAL_DEV_ACCOUNT MAILCAL_EXTRA_CA MAILCAL_CALENDAR MAILCAL_CALENDAR_VIEW \
-    MAILCAL_OPEN_SUBJECT MAILCAL_OPEN_FIRST MAILCAL_SHOWCASE MAILCAL_SHOWCASE_SCREEN \
+  mapfile -t agent_args < <(linux_agent_sandbox_args)
+  exec_env+=("${agent_args[@]}")
+  for name in $(compgen -e | grep '^MAILCAL_') \
     XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME WAYLAND_DISPLAY DISPLAY; do
     [[ -n "${!name:-}" ]] && exec_env+=("--env=$name=${!name}")
   done

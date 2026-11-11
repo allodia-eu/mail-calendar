@@ -25,6 +25,12 @@ internal static partial class TestAgent
 }
 "#;
 
+const LINUX_MAIN: &str = "clients/linux/src/main.rs";
+const LINUX_AGENT: &str = "clients/linux/src/agent.rs";
+const GOOD_LINUX_MAIN: &str =
+    "#[cfg(any(debug_assertions, feature = \"dev-harness\"))]\nmod agent;\nmod ui;\n";
+const GOOD_LINUX_AGENT: &str = "//! The agent.\nconst SWITCH: &str = \"MAILCAL_TEST_AGENT\";\n";
+
 const GOOD_TREE: &str = "// The tree.\n\n#if DEBUG\nusing System;\nnamespace X;\ninternal static partial class TestAgent { }\n#endif\n";
 
 #[test]
@@ -48,21 +54,36 @@ fn a_line_knows_whether_it_is_in_a_debug_region() {
 
 #[test]
 fn an_agent_held_out_of_release_passes() {
-    let repo = Repo::new(&[(ENTRY, GOOD_ENTRY), (TREE, GOOD_TREE)]);
+    let repo = Repo::new(&[
+        (LINUX_MAIN, GOOD_LINUX_MAIN),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
+        (ENTRY, GOOD_ENTRY),
+        (TREE, GOOD_TREE),
+    ]);
     assert_eq!(run(repo.root()), Ok(true));
 }
 
 #[test]
 fn an_entry_point_a_release_build_would_keep_fails() {
     let entry = GOOD_ENTRY.replace("    [Conditional(\"DEBUG\")]\n", "");
-    let repo = Repo::new(&[(ENTRY, entry.as_str()), (TREE, GOOD_TREE)]);
+    let repo = Repo::new(&[
+        (LINUX_MAIN, GOOD_LINUX_MAIN),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
+        (ENTRY, entry.as_str()),
+        (TREE, GOOD_TREE),
+    ]);
     assert_eq!(run(repo.root()), Ok(false));
 }
 
 #[test]
 fn an_agent_file_with_code_outside_debug_fails() {
     let tree = GOOD_TREE.replace("#if DEBUG\n", "").replace("#endif\n", "");
-    let repo = Repo::new(&[(ENTRY, GOOD_ENTRY), (TREE, tree.as_str())]);
+    let repo = Repo::new(&[
+        (LINUX_MAIN, GOOD_LINUX_MAIN),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
+        (ENTRY, GOOD_ENTRY),
+        (TREE, tree.as_str()),
+    ]);
     assert_eq!(run(repo.root()), Ok(false));
 }
 
@@ -70,6 +91,8 @@ fn an_agent_file_with_code_outside_debug_fails() {
 fn the_switch_read_outside_debug_anywhere_in_the_app_fails() {
     let elsewhere = "namespace X;\nclass App { string s = System.Environment.GetEnvironmentVariable(\"MAILCAL_TEST_AGENT\"); }\n";
     let repo = Repo::new(&[
+        (LINUX_MAIN, GOOD_LINUX_MAIN),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
         (ENTRY, GOOD_ENTRY),
         (TREE, GOOD_TREE),
         ("clients/windows/Mailcal/App.xaml.cs", elsewhere),
@@ -79,6 +102,36 @@ fn the_switch_read_outside_debug_anywhere_in_the_app_fails() {
 
 #[test]
 fn a_tree_without_the_agent_is_an_error_not_a_pass() {
-    let repo = Repo::new(&[(TREE, GOOD_TREE)]);
+    let repo = Repo::new(&[
+        (LINUX_MAIN, GOOD_LINUX_MAIN),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
+        (TREE, GOOD_TREE),
+    ]);
     assert!(run(repo.root()).is_err());
+}
+
+#[test]
+fn a_linux_agent_module_without_its_gate_fails() {
+    let repo = Repo::new(&[
+        (LINUX_MAIN, "mod agent;\nmod ui;\n"),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
+        (ENTRY, GOOD_ENTRY),
+        (TREE, GOOD_TREE),
+    ]);
+    assert_eq!(run(repo.root()), Ok(false));
+}
+
+#[test]
+fn the_linux_switch_read_outside_the_agent_fails() {
+    let repo = Repo::new(&[
+        (LINUX_MAIN, GOOD_LINUX_MAIN),
+        (LINUX_AGENT, GOOD_LINUX_AGENT),
+        (
+            "clients/linux/src/ui.rs",
+            "let socket = std::env::var(\"MAILCAL_TEST_AGENT\");\n",
+        ),
+        (ENTRY, GOOD_ENTRY),
+        (TREE, GOOD_TREE),
+    ]);
+    assert_eq!(run(repo.root()), Ok(false));
 }

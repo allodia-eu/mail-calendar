@@ -51,7 +51,10 @@ impl AppModel {
                     self.reopen_contact(sender.input_sender().clone());
                 }
                 #[cfg(any(debug_assertions, feature = "dev-harness"))]
-                self.apply_surface_hooks(&surface, sender.input_sender());
+                {
+                    self.apply_surface_hooks(&surface, sender.input_sender());
+                    crate::agent::surface_changed();
+                }
             }
             AppInput::NetworkReachabilityChanged(reachable) => {
                 self.dispatch(Intent::ReportNetworkReachable { reachable });

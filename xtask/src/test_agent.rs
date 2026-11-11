@@ -1,4 +1,5 @@
-//! Fails when the Windows app's test agent could reach a release build.
+//! Fails when the Windows app's test agent could reach a release build, or the Linux client's
+//! (`test_agent_linux`).
 //!
 //! The agent (`clients/windows/Mailcal/Services/TestAgent*.cs`) answers anyone on the machine who
 //! names its pipe, and acts on the app's windows for them. It is for the UI suites alone, so a
@@ -72,17 +73,19 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
         }
     }
 
+    let linux = crate::test_agent_linux::check(root, &mut report)?;
+
     if !report.failed() {
         println!(
-            "Test agent: {} file(s), none of it in a release build.",
+            "Test agent: {} Windows and {linux} Linux file(s), none of it in a release build.",
             agent.len()
         );
         return Ok(true);
     }
-    eprintln!("The Windows test agent could reach a release build:\n");
+    eprintln!("A test agent could reach a release build:\n");
     report.emit();
     eprintln!(
-        "\nThe agent acts on the app for anyone who names its pipe; it is for the UI suites alone."
+        "\nAn agent acts on the app for whoever reaches it; it is for tests and tooling alone."
     );
     Ok(false)
 }

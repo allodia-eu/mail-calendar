@@ -57,6 +57,7 @@ mod showcase_lists;
 mod store_sandbox;
 mod surface_publish;
 mod test_agent;
+mod test_agent_linux;
 mod version_sync;
 
 use std::{
@@ -152,7 +153,7 @@ pub(crate) const TASKS: &[Task] = &[
     },
     Task {
         name: "check-test-agent",
-        label: "test agent (the Windows UI suites' way in stays out of release)",
+        label: "test agent (the UI suites' way in stays out of release, Windows and Linux)",
         run: test_agent::run,
     },
     Task {
