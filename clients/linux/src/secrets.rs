@@ -15,6 +15,15 @@ const APPLICATION: &str = crate::l10n::APP_ID;
 const INDEX_KIND: &str = "account-index";
 const ACCOUNT_KIND: &str = "account";
 
+/// What [`SecretStore::load`] read.
+#[derive(Debug, Default)]
+pub(crate) struct StoredAccounts {
+    /// Every stored config, for the core to open or leave out.
+    pub(crate) configs: Vec<String>,
+    /// The accounts whose config a plain-text keyring cut short, beyond recovery.
+    pub(crate) cut_short: Vec<String>,
+}
+
 /// One secure item per account plus an ordered account-id index.
 pub(crate) struct SecretStore {
     /// Borrowed, never owned: inside a sandbox `oo7` fetches the keyring key through the portal,
@@ -30,6 +39,8 @@ pub(crate) struct SecretStore {
     /// every item already in a keyring was written without it, and searching for one that carries
     /// it would match none of them, which reads as every account having vanished.
     namespace: Option<String>,
+    /// See [`Self::lock_index`].
+    index_lock: std::sync::Mutex<()>,
 }
 
 /// Writes an account's credential through the same encrypted per-account item the store reads
@@ -102,6 +113,7 @@ impl SecretStore {
             runtime,
             keyring,
             namespace,
+            index_lock: std::sync::Mutex::default(),
         })
     }
 
@@ -140,14 +152,65 @@ impl SecretStore {
         }
     }
 
+    #[cfg(any(test, debug_assertions))]
     pub(crate) fn configs(&self) -> Result<Vec<String>, String> {
-        let ids = self.read_index()?;
-        ids.into_iter()
-            .filter_map(|id| self.read_secret(&self.account_attributes(&id)).transpose())
-            .collect()
+        self.load().map(|stored| stored.configs)
+    }
+
+    /// Every stored config in index order, and the ids of those a plain-text keyring cut short.
+    ///
+    /// An item that cannot be read or decoded is handed on as an empty config rather than failing
+    /// the whole read: the core leaves out and logs that one account, and the rest still load.
+    pub(crate) fn load(&self) -> Result<StoredAccounts, String> {
+        let mut stored = StoredAccounts::default();
+        for id in self.read_index()? {
+            let raw = match self.read_raw(&self.account_attributes(&id)) {
+                Ok(Some(raw)) => raw,
+                Ok(None) => continue,
+                Err(_) => Vec::new(),
+            };
+            let cut_short = secret_encoding::is_cut_short(&raw);
+            let config = secret_encoding::decode_config(raw);
+            // Removed only when the core itself would leave it out, not on the bytes alone.
+            if cut_short && !mailcal_bindings::stored_account_is_readable(config.clone()) {
+                stored.cut_short.push(id);
+            }
+            stored.configs.push(config);
+        }
+        Ok(stored)
+    }
+
+    /// Removes the accounts [`Self::load`] found cut short, after the launch that reported them.
+    ///
+    /// Their rest is gone for good, so keeping them would only report the same loss at every
+    /// launch.
+    pub(crate) fn forget_cut_short(&self, ids: &[String]) -> Result<(), String> {
+        let _index = self.lock_index();
+        for id in ids {
+            block_on_runtime(
+                self.runtime,
+                self.keyring.delete(&self.account_attributes(id)),
+            )?
+            .map_err(|error| error.to_string())?;
+        }
+        let kept = self
+            .read_index()?
+            .into_iter()
+            .filter(|id| !ids.contains(id))
+            .collect::<Vec<_>>();
+        self.write_index(&kept)
+    }
+
+    /// Held across every read-modify-write of the index: the core saves and removes accounts from
+    /// its own threads while boot may be removing others.
+    fn lock_index(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.index_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub(crate) fn save(&self, account_id: &str, config: &str) -> Result<(), String> {
+        let _index = self.lock_index();
         self.write_secret(
             &self.label(account_id),
             &self.account_attributes(account_id),
@@ -162,6 +225,7 @@ impl SecretStore {
     }
 
     pub(crate) fn remove(&self, account_id: &str) -> Result<(), String> {
+        let _index = self.lock_index();
         block_on_runtime(
             self.runtime,
             self.keyring.delete(&self.account_attributes(account_id)),
@@ -188,14 +252,22 @@ impl SecretStore {
     }
 
     fn read_secret(&self, attributes: &HashMap<&str, &str>) -> Result<Option<String>, String> {
+        let Some(secret) = self.read_raw(attributes)? else {
+            return Ok(None);
+        };
+        String::from_utf8(secret_encoding::decode(secret)?)
+            .map(Some)
+            .map_err(|error| error.to_string())
+    }
+
+    /// The item's value exactly as the keyring holds it.
+    fn read_raw(&self, attributes: &HashMap<&str, &str>) -> Result<Option<Vec<u8>>, String> {
         let items = block_on_runtime(self.runtime, self.keyring.search_items(attributes))?
             .map_err(|error| error.to_string())?;
         let Some(item) = items.first() else {
             return Ok(None);
         };
-        let secret = block_on_runtime(self.runtime, item_secret(item))?
-            .map_err(|error| error.to_string())?;
-        String::from_utf8(secret_encoding::decode(secret)?)
+        block_on_runtime(self.runtime, item_secret(item))?
             .map(Some)
             .map_err(|error| error.to_string())
     }
@@ -239,239 +311,5 @@ async fn item_secret(item: &Item) -> oo7::Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::{
-        fs,
-        sync::Arc,
-        time::{SystemTime, UNIX_EPOCH},
-    };
-
-    use mailcal_bindings::AccountCredentialStore;
-    use oo7::{Keyring, Secret, file};
-    use tokio::{runtime::Builder, sync::RwLock};
-
-    use super::{ACCOUNT_KIND, APPLICATION, SecretSink, SecretStore, block_on_runtime};
-
-    fn scratch_keyring() -> std::path::PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        let directory = std::env::temp_dir().join(format!("mailcal-linux-secrets-{nonce}"));
-        fs::create_dir_all(&directory).expect("create secure-store scratch directory");
-        directory.join("accounts.keyring")
-    }
-
-    fn file_store(path: &std::path::Path, key: &[u8]) -> SecretStore {
-        namespaced_file_store(path, key, None)
-    }
-
-    fn namespaced_file_store(
-        path: &std::path::Path,
-        key: &[u8],
-        namespace: Option<&str>,
-    ) -> SecretStore {
-        let runtime = crate::host_runtime::shared().expect("a host runtime");
-        let unlocked = runtime
-            .block_on(file::UnlockedKeyring::load(
-                path,
-                Secret::from(key.to_vec()),
-            ))
-            .expect("open encrypted file backend");
-        let keyring = Keyring::File(Arc::new(RwLock::new(Some(file::Keyring::Unlocked(
-            unlocked,
-        )))));
-        SecretStore {
-            runtime,
-            keyring,
-            namespace: namespace.map(str::to_owned),
-        }
-    }
-
-    #[test]
-    fn account_items_are_scoped_by_application_kind_and_id() {
-        let path = scratch_keyring();
-        let store = file_store(&path, b"attribute-key");
-        let attributes = store.account_attributes("alice@example.test@imap.example.test");
-
-        assert_eq!(attributes["application"], APPLICATION);
-        assert_eq!(attributes["kind"], ACCOUNT_KIND);
-        assert_eq!(
-            attributes["account"],
-            "alice@example.test@imap.example.test"
-        );
-        assert!(!store.index_attributes().contains_key("account"));
-    }
-
-    /// The real store must keep writing and reading exactly the attributes it always has.
-    ///
-    /// Every item already in a developer's or a user's keyring was written without a `namespace`,
-    /// so tagging the real store with one: even a default like `"default"`: would match none of
-    /// them on the next launch, and every account would appear to have vanished.
-    #[test]
-    fn the_real_store_tags_nothing_so_it_still_finds_what_is_already_stored() {
-        let path = scratch_keyring();
-        let store = file_store(&path, b"real-key");
-
-        assert!(
-            !store
-                .account_attributes("someone")
-                .contains_key("namespace")
-        );
-        assert!(!store.index_attributes().contains_key("namespace"));
-    }
-
-    /// A debug namespace and the real accounts cannot see each other, in either direction.
-    ///
-    /// This is what lets a harness sign-in survive a relaunch: before it, those launches were
-    /// handed a store that refused every write, so signing in while testing never stuck.
-    ///
-    /// Each step reopens the keyring rather than holding two stores at once; the file backend
-    /// refuses a write when the file changed under a handle it already had, which is an artefact
-    /// of testing without a Secret Service daemon rather than anything the app can hit.
-    #[test]
-    fn a_dev_namespace_and_the_real_accounts_never_see_each_other() {
-        let path = scratch_keyring();
-        let key = b"shared-keyring-key";
-        let real = "[allodia]\nemail = \"real@example.test\"\nrefresh_token = \"real\"\n";
-        let harness = "[allodia]\nemail = \"harness@example.test\"\nrefresh_token = \"dev\"\n";
-
-        file_store(&path, key)
-            .save("allodia-account", real)
-            .expect("write the real entry");
-        namespaced_file_store(&path, key, Some("dev"))
-            .save("allodia-account", harness)
-            .expect("write the dev entry");
-
-        // One account id, two items, each store seeing only its own.
-        assert_eq!(
-            file_store(&path, key).configs().expect("real configs"),
-            vec![real.to_owned()]
-        );
-        assert_eq!(
-            namespaced_file_store(&path, key, Some("dev"))
-                .configs()
-                .expect("dev configs"),
-            vec![harness.to_owned()]
-        );
-
-        // And erasing one leaves the other alone, which a shared index would not.
-        namespaced_file_store(&path, key, Some("dev"))
-            .remove("allodia-account")
-            .expect("remove the dev entry");
-        assert_eq!(
-            namespaced_file_store(&path, key, Some("dev"))
-                .configs()
-                .expect("dev configs"),
-            [] as [String; 0]
-        );
-        assert_eq!(
-            file_store(&path, key).configs().expect("real configs"),
-            vec![real.to_owned()],
-            "signing out of the harness must not touch the developer's own accounts"
-        );
-    }
-
-    /// What reaches the keyring is one line, and an item stored before that still loads.
-    #[test]
-    fn a_multi_line_config_reaches_the_keyring_as_one_line() {
-        let path = scratch_keyring();
-        let key = b"one-line-key";
-        let config = "capabilities = [\"mail\"]\n\n[imap]\nhost = \"imap.example.test\"\n";
-        let legacy = "[jmap]\nemail = \"old@example.test\"\n";
-        let store = file_store(&path, key);
-        store.save("new", config).expect("save");
-        store
-            .write_index(&["legacy".to_owned(), "new".to_owned()])
-            .expect("index");
-        let raw_legacy = store.account_attributes("legacy");
-        block_on_runtime(
-            store.runtime,
-            store
-                .keyring
-                .create_item("legacy", &raw_legacy, legacy.as_bytes(), true),
-        )
-        .expect("runtime")
-        .expect("a value stored before the encoding");
-
-        let items = block_on_runtime(
-            store.runtime,
-            store.keyring.search_items(&store.account_attributes("new")),
-        )
-        .expect("runtime")
-        .expect("search");
-        let raw = block_on_runtime(store.runtime, super::item_secret(&items[0]))
-            .expect("runtime")
-            .expect("secret");
-        assert!(!raw.contains(&b'\n'), "the stored config spans lines");
-
-        assert_eq!(
-            store.configs().expect("configs"),
-            [legacy.to_owned(), config.to_owned()]
-        );
-        let _ = fs::remove_dir_all(path.parent().expect("keyring parent"));
-    }
-
-    #[test]
-    fn credential_rotation_can_persist_from_inside_the_core_runtime() {
-        let secret_runtime = Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("secret runtime");
-        let core_runtime = Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .expect("core runtime");
-
-        let persisted = core_runtime.block_on(async {
-            block_on_runtime(&secret_runtime, async { "persisted" }).expect("nested block")
-        });
-
-        assert_eq!(persisted, "persisted");
-    }
-
-    #[test]
-    fn encrypted_store_replaces_then_deletes_the_account_credential_and_index() {
-        let path = scratch_keyring();
-        let key = [0x5a; 64];
-        let store = Arc::new(file_store(&path, &key));
-        let sink = SecretSink::new(Arc::clone(&store));
-
-        sink.persist("first".to_owned(), "secret-v1".to_owned())
-            .expect("save first credential");
-        sink.persist("second".to_owned(), "secret-two".to_owned())
-            .expect("save second credential");
-        sink.persist("first".to_owned(), "secret-v2".to_owned())
-            .expect("replace first credential");
-        assert_eq!(
-            store.configs().expect("read account index"),
-            ["secret-v2", "secret-two"],
-            "replacement keeps one ordered index entry and exposes only the new secret",
-        );
-        let encrypted = fs::read(&path).expect("read encrypted keyring file");
-        assert!(
-            !encrypted
-                .windows("secret-v2".len())
-                .any(|bytes| bytes == b"secret-v2")
-        );
-
-        sink.delete("first".to_owned())
-            .expect("delete first credential");
-        assert_eq!(
-            store.configs().expect("read index after delete"),
-            ["secret-two"]
-        );
-        drop(sink);
-        drop(store);
-
-        let reopened = file_store(&path, &key);
-        assert_eq!(
-            reopened.configs().expect("reopen persisted keyring"),
-            ["secret-two"],
-            "the removed credential does not return on a cold open",
-        );
-        let directory = path.parent().expect("keyring parent");
-        let _ = fs::remove_dir_all(directory);
-    }
-}
+#[path = "secrets_tests.rs"]
+mod tests;

@@ -228,7 +228,7 @@ pub use error::MailcalError;
 pub use google::{GoogleLoginStart, begin_google_login};
 pub use help::{HelpPage, help_page_url};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
-pub use launch::launch_status_after_ms;
+pub use launch::{launch_status_after_ms, stored_account_is_readable};
 pub use logging::{LogLevel, Logger};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
