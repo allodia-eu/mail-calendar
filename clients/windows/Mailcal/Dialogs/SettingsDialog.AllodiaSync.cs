@@ -22,6 +22,17 @@ public sealed partial class SettingsDialog
     // sign-in, which the offer says beneath its button.
     private bool _allodiaAgainStale;
 
+    /// <summary>A pass started or ended. Only the Accounts list draws the card, so an account's page
+    /// and every other category are left alone; the list is drawn again when its fingerprint,
+    /// the card's included, moved.</summary>
+    private void OnOtherDevices()
+    {
+        if (_accountPage is null && CurrentCategory() == "accounts")
+        {
+            OnAccountsChanged();
+        }
+    }
+
     /// <summary>
     /// The section, or null when there is nothing to say, including before the first pass has
     /// answered, which must not look like a pass that found nothing.

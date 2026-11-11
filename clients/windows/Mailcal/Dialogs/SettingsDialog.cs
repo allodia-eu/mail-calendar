@@ -66,6 +66,8 @@ public sealed partial class SettingsDialog : ContentDialog
         Closed += (_, _) => model.AccountsChanged -= OnAccountsChanged;
         model.AccountsChanged += OnAllodiaSignInMoved;
         Closed += (_, _) => model.AccountsChanged -= OnAllodiaSignInMoved;
+        model.OtherDevicesChanged += OnOtherDevices;
+        Closed += (_, _) => model.OtherDevicesChanged -= OnOtherDevices;
         model.RemovalFailed += OnRemovalFailed;
         Closed += (_, _) => model.RemovalFailed -= OnRemovalFailed;
         model.PropertyChanged += OnCalendarChanged;

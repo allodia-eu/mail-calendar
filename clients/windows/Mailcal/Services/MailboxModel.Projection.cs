@@ -39,6 +39,13 @@ public sealed partial class MailboxModel
             PullNotices();
             return;
         }
+        // A pass over the other devices starting or ending moves only the cards that draw what
+        // they said; each reads it again itself.
+        if (changed == Surface.OtherDevices)
+        {
+            OtherDevicesChanged?.Invoke();
+            return;
+        }
         // A send signal only updates the "sending…" → "sent" hint; it doesn't touch the
         // mailbox projection (the post-send refresh fires its own MailboxList signal).
         if (changed == Surface.Sending)

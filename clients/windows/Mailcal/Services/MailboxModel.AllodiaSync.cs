@@ -28,6 +28,11 @@ public sealed partial class MailboxModel
     /// </summary>
     internal AllodiaDevices? AllodiaDevices() => _app?.AllodiaDevices();
 
+    /// <summary>A pass started or ended (<c>Surface.OtherDevices</c>): what
+    /// <see cref="AllodiaDevices"/> answers may have moved, and nothing else has. A Keep on a
+    /// question is a page change, so it moves on <see cref="AccountsChanged"/> as before.</summary>
+    public event Action? OtherDevicesChanged;
+
     /// <summary>
     /// Hands the core somewhere to remember what it has synced, which is also what lets it run a
     /// pass. Never on a launch whose accounts are not the person's own: a harness mailbox sent up
