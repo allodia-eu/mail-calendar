@@ -6,14 +6,16 @@
 //
 // WHY HERE. Which sign-in the form offers is the core's, unit-tested in mailcal-bindings.
 // What it cannot see is the step reached at all from a refused calendar, the answer drawn above the
-// login, the grant completed into a linked account, and the page's action giving way to its form.
+// login, the grant completed into a linked account, the page's action giving way to its form, and a
+// sign-in the person cancelled, replaced or walked away from staying over when its grant arrives.
 //
 // The mailbox is alice's on the Stalwart harness over IMAP; its calendar server is the engine's
 // Nextcloud fixture (docker/nextcloud in email-calendar-sync-engine, 127.0.0.1:18082), which refuses
 // the harness password, as any separate server would. The sign-in opens the default browser on the
 // fixture's login page, and Driver/NextcloudBrowser.cs does in its place what the person does there.
 // The cases run in the order written; the last removes both accounts. The fixture slows and then
-// refuses sign-ins as the refused ones mount up, so the case that needs a password it takes runs first.
+// refuses every sign-in from this host as refused passwords mount up, and each connect here sends it
+// one, so each case starts with them forgotten (NextcloudBrowser.ForgetRefusals).
 
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
@@ -25,16 +27,25 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
 {
     private const string Address = "alice@test.local";
 
+    // A second harness mailbox, for the add-account dialog, which only opens over a mailbox.
+    private const string Bob = "bob@test.local";
+
     // The fixture's own login for alice, which the form is given.
     private const string SeparateLogin = "alice";
 
     private void Case(string name, Action<App, SetupFlow> body) =>
-        harness.Case(name, app => body(app, new SetupFlow(app)), app => app.CloseDialogs(), reset: false);
+        harness.Case(name, app => Fresh(app, body), app => app.CloseDialogs(), reset: false);
 
     /// <summary>A case that sets the mailbox up and removes it again whatever happened, so the
     /// cases after it start from the first-run screen.</summary>
     private void Removing(string name, Action<App, SetupFlow> body) =>
-        harness.Case(name, app => body(app, new SetupFlow(app)), app => RemoveAll(app, new SetupFlow(app)), reset: false);
+        harness.Case(name, app => Fresh(app, body), app => RemoveAll(app, new SetupFlow(app)), reset: false);
+
+    private static void Fresh(App app, Action<App, SetupFlow> body)
+    {
+        NextcloudBrowser.ForgetRefusals();
+        body(app, new SetupFlow(app));
+    }
 
     private static Element Field(App app, string id) =>
         app.Agent.Find(Filter.ById(id, "Edit")) ?? throw new InvalidOperationException($"the form has no #{id}");
@@ -42,21 +53,22 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
     private static Element? InPage(App app, Element dialog, string id) =>
         app.Agent.Find(new Filter { Id = id, Under = dialog });
 
-    /// <summary>Sets alice's mailbox up over IMAP with its calendar at the fixture, as far as the
-    /// separate-server step the fixture's refusal leads to.</summary>
-    private static void ConnectToTheSeparateServerStep(App app, SetupFlow flow)
+    /// <summary>Sets a harness mailbox up over IMAP, alice's unless told otherwise, with its calendar
+    /// at the fixture, as far as the separate-server step the fixture's refusal leads to.</summary>
+    private static void ConnectToTheSeparateServerStep(
+        App app, SetupFlow flow, string address = Address, string mailPassword = "harness-alice-pw")
     {
-        flow.OpenManualSetup(Address, Filter.ById("ImapChoice"));
+        flow.OpenManualSetup(address, Filter.ById("ImapChoice"));
         app.Agent.SetValue(Field(app, "ImapPort"), "12993");
         app.Agent.SetValue(Field(app, "ImapHost"), "localhost");
-        app.Agent.SetValue(Field(app, "Username"), Address);
+        app.Agent.SetValue(Field(app, "Username"), address);
         app.Agent.SetValue(Field(app, "SmtpPort"), "12465");
         app.Agent.SetValue(Field(app, "SmtpHost"), "localhost");
         app.Agent.SetValue(Field(app, "CaldavUrl"), $"{NextcloudAccountPageTests.Fixture}/remote.php/dav/");
         Element? password = null;
         Assert.True(App.Eventually(() => (password = app.Agent.Find(Filter.ById("Password", "Edit"))) is { Width: > 0 }, TimeSpan.FromSeconds(30)),
             "the harness mailbox takes a password");
-        app.Agent.SetValue(password!, "harness-alice-pw");
+        app.Agent.SetValue(password!, mailPassword);
         Element? connect = null;
         App.Eventually(() => (connect = app.Agent.Find(Filter.ById("ConnectButton", "Button"))) is { Enabled: true }, TimeSpan.FromSeconds(10));
         app.Agent.Invoke(connect ?? throw new InvalidOperationException("the form never let Connect go"));
@@ -210,6 +222,10 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
                 : throw new InvalidOperationException("Remove asked nothing before removing the account"));
             app.Agent.Settle();
         }
+        if (flow.AccountRows().Any(row => row.Name == Bob))
+        {
+            Remove(flow.OpenAccount(Bob));
+        }
         while (flow.AccountRows().Count(row => row.Name == Address) > 1)
         {
             Remove(flow.OpenAccount(Address));
@@ -232,6 +248,131 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             flow.RemoveOnlyAccount(Address);
         }
     }
+
+    /// <summary>Presses the sign-in of the form under <paramref name="root"/> once it is pressable,
+    /// waits for the line's Cancel, and returns the login token the fixture gave the sign-in.</summary>
+    private static string StartSignIn(App app, Element? root, string? before)
+    {
+        Element? signIn = null;
+        Assert.True(App.Eventually(() => (signIn = app.Agent.Find(new Filter { Id = "SeparateServerSignIn", Type = "Button", Under = root })) is { Enabled: true },
+            TimeSpan.FromSeconds(10)), "the sign-in is pressable");
+        app.Agent.Invoke(signIn!);
+        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "SeparateServerSignInCancel", Type = "Button", Under = root }) is not null,
+            TimeSpan.FromSeconds(10)), "a sign-in out draws its Cancel");
+        return NextcloudBrowser.NextLoginToken(before);
+    }
+
+    /// <summary>Grants <paramref name="token"/> at the fixture, as a person who finished in the browser
+    /// after the app let go would, and asserts that <paramref name="unmoved"/> still holds once the
+    /// app has had time to collect it: the core polls every two seconds and connects in about as long.</summary>
+    private static void AssertTheGrantCompletesNothing(string token, Func<bool> unmoved, string what)
+    {
+        NextcloudBrowser.GrantToken(NextcloudAccountPageTests.Fixture, token, SeparateLogin, "nextcloud-alice-pw");
+        // A wait for something not to happen has no event to poll for.
+        Thread.Sleep(TimeSpan.FromSeconds(10));
+        Assert.True(App.Eventually(unmoved, TimeSpan.FromSeconds(5)), $"{what} is over: granting it afterwards moves nothing");
+    }
+
+    [NextcloudFixtureFact(NeedsHarness = true)]
+    public void ASignInCancelledOrSupersededOnTheStepCompletesNothingAndTheFreshOneDoes() =>
+        Removing(nameof(ASignInCancelledOrSupersededOnTheStepCompletesNothingAndTheFreshOneDoes), (app, flow) =>
+        {
+            ConnectToTheSeparateServerStep(app, flow);
+            bool OnTheStep() => app.Agent.Find(Filter.ById("SeparateServerConnect", "Button")) is not null;
+
+            var cancelled = StartSignIn(app, null, NextcloudBrowser.NewestLoginToken());
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("SeparateServerSignInCancel", "Button"))!);
+            Assert.True(App.Eventually(() => app.Agent.Find(Filter.ById("SeparateServerSignInCancel", "Button")) is null
+                && app.Agent.Find(Filter.ById("SeparateServerSignInNote")) is { } note && note.Name == Catalog.English("nextcloud_sign_in_note")
+                && app.Agent.Find(Filter.ById("SeparateServerSignIn", "Button")) is { Enabled: true }, TimeSpan.FromSeconds(10)),
+                "Cancel ends the sign-in: its Cancel goes, the line is the offer again and the button is free");
+            AssertTheGrantCompletesNothing(cancelled, OnTheStep, "a cancelled sign-in");
+
+            var superseded = StartSignIn(app, null, cancelled);
+            var fresh = StartSignIn(app, null, superseded);
+            AssertTheGrantCompletesNothing(superseded, OnTheStep, "a sign-in a second press replaced");
+
+            NextcloudBrowser.GrantToken(NextcloudAccountPageTests.Fixture, fresh, SeparateLogin, "nextcloud-alice-pw");
+            Assert.True(app.Agent.WaitGone(Filter.ById("SeparateServerConnect", "Button"), TimeSpan.FromSeconds(60)),
+                "the sign-in the second press started completes, and setup goes on");
+            flow.CompleteSetupPrompts();
+        });
+
+    [NextcloudFixtureFact(NeedsHarness = true)]
+    public void ClosingThePagesFormCancelsItsSignInAndThePagesOwnCompletes() =>
+        Removing(nameof(ClosingThePagesFormCancelsItsSignInAndThePagesOwnCompletes), (app, flow) =>
+        {
+            ConnectToTheSeparateServerStep(app, flow);
+            var cancelled = StartSignIn(app, null, NextcloudBrowser.NewestLoginToken());
+            Assert.False(app.Agent.Find(Filter.ById("SeparateServerSecondary", "Button"))?.Enabled ?? true,
+                "docs/waiting.md: Skip is held while the sign-in is out");
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("SeparateServerSignInCancel", "Button"))!);
+            var dialog = SkipThenSwitchTheCalendarBackOn(app, flow);
+            // The row offers its own sign-in for as long as the calendar is not on an account of its own.
+            bool Offered() => InPage(app, dialog, "AccountUseSeparateSignIn_Calendar") is not null;
+
+            void OpenTheForm()
+            {
+                app.Agent.Invoke(InPage(app, dialog, "AccountUseSeparateSignIn_Calendar")
+                    ?? throw new InvalidOperationException("the calendar's sign-in action went away before it was pressed"));
+                Assert.True(app.Agent.Wait(new Filter { Id = "SeparateServerSignIn", Under = dialog }, TimeSpan.FromSeconds(10)) is not null,
+                    "the page's form offers Nextcloud's sign-in");
+            }
+            OpenTheForm();
+            var closed = StartSignIn(app, dialog, cancelled);
+            Assert.True(InPage(app, dialog, "SeparateServerSecondary") is { Enabled: true }, "the page's Cancel is free while the browser waits");
+            app.Agent.Invoke(InPage(app, dialog, "SeparateServerSecondary")!);
+            Assert.True(App.Eventually(() => Offered() && InPage(app, dialog, "SeparateServerConnect") is null, TimeSpan.FromSeconds(10)),
+                "the page's Cancel closes the form with the sign-in out");
+            AssertTheGrantCompletesNothing(closed, Offered, "a sign-in out when the page's form was closed");
+
+            OpenTheForm();
+            var finished = StartSignIn(app, dialog, closed);
+            NextcloudBrowser.GrantToken(NextcloudAccountPageTests.Fixture, finished, SeparateLogin, "nextcloud-alice-pw");
+            Assert.True(app.Agent.WaitGone(new Filter { Id = "SeparateServerConnect", Under = dialog }, TimeSpan.FromSeconds(60)),
+                "the page's sign-in moves the calendar to an account of its own, and the form closes");
+            app.Agent.Settle();
+            Assert.False(App.Eventually(Offered, TimeSpan.FromSeconds(5)),
+                "and the action does not come back: nothing waits on a sign-in any more");
+        });
+
+    [NextcloudFixtureFact(NeedsHarness = true)]
+    public void EscapeOnTheAddAccountDialogEndsTheSignInOutAndKeepsTheStep() =>
+        Removing(nameof(EscapeOnTheAddAccountDialogEndsTheSignInOutAndKeepsTheStep), (app, flow) =>
+        {
+            ConnectToTheSeparateServerStep(app, flow);
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("SeparateServerSecondary", "Button"))!);
+            Assert.True(app.Agent.WaitGone(Filter.ById("SeparateServerConnect", "Button"), TimeSpan.FromSeconds(30)),
+                "Skip leaves the separate-server step");
+            flow.CompleteSetupPrompts();
+
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("NavAddAccount", "ListItem"))
+                ?? throw new InvalidOperationException("the sidebar has no Add account row (#NavAddAccount)"));
+            ConnectToTheSeparateServerStep(app, flow, Bob, "harness-bob-pw");
+            Assert.True(app.Agent.Find(Filter.ById("AddAccountDialog")) is not null, "the step is in the add-account dialog");
+            bool OnTheStep() => app.Agent.Find(Filter.ById("SeparateServerConnect", "Button")) is not null;
+
+            var dismissed = StartSignIn(app, null, NextcloudBrowser.NewestLoginToken());
+            // Escape is what a ContentDialog closes on, and the form's own dismissal answers it. The
+            // window comes to the front first: bringing it there moves the keyboard to its title bar.
+            // The fields are held while the sign-in is out, so the keyboard goes to its Cancel.
+            Input.BringToFront(app.Mailbox.Hwnd);
+            app.Agent.Focus(app.Agent.Find(Filter.ById("SeparateServerSignInCancel", "Button"))!);
+            Assert.True(App.Eventually(() => app.Agent.Focused() is { Id: "SeparateServerSignInCancel" }, TimeSpan.FromSeconds(5)),
+                "the keyboard is in the dialog before Escape is pressed");
+            Input.Press(Input.Escape);
+            Assert.True(App.Eventually(() => app.Agent.Find(Filter.ById("SeparateServerSignInCancel", "Button")) is null && OnTheStep(),
+                TimeSpan.FromSeconds(10)), "Escape with a sign-in out ends the sign-in and leaves the step on screen");
+            AssertTheGrantCompletesNothing(dismissed, OnTheStep, "a sign-in out when the dialog was dismissed");
+
+            // Bob's mailbox was added before the step; Skip ends the setup the dialog holds.
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("SeparateServerSecondary", "Button")) is { Enabled: true } skip
+                ? skip
+                : throw new InvalidOperationException("Skip is not free once the sign-in has ended"));
+            Assert.True(app.Agent.WaitGone(Filter.ById("SeparateServerConnect", "Button"), TimeSpan.FromSeconds(30)),
+                "Skip leaves the separate-server step");
+            flow.CompleteSetupPrompts();
+        });
 
     [NextcloudFixtureFact(NeedsHarness = true)]
     public void AMailboxWhoseCalendarServerIsNextcloudIsOfferedItsSignInOnTheSeparateServerStep() =>
