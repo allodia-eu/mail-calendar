@@ -31,9 +31,31 @@ pub(crate) fn decode(stored: Vec<u8>) -> Result<Vec<u8>, String> {
     }
 }
 
+/// An account's config as the core should judge it: decoded when it can be, and otherwise the
+/// stored text itself, which the core cannot parse and so leaves out and logs like any other
+/// unreadable account. Failing here instead would lose every other account with it.
+pub(crate) fn decode_config(stored: Vec<u8>) -> String {
+    let text = stored
+        .strip_prefix(PREFIX.as_bytes())
+        .and_then(|encoded| STANDARD.decode(encoded).ok())
+        .unwrap_or(stored);
+    String::from_utf8(text)
+        .unwrap_or_else(|error| String::from_utf8_lossy(error.as_bytes()).into_owned())
+}
+
+/// Whether a stored config is one a plain-text keyring cut short before this encoding existed.
+///
+/// Every config the core writes ends its lines with a newline, so a complete one always holds at
+/// least one. The plain-text keyring kept only the first line, without its newline, so an
+/// unencoded value with none in it is the remnant of a config whose rest is gone for good. An
+/// encoded value never is.
+pub(crate) fn is_cut_short(stored: &[u8]) -> bool {
+    !stored.starts_with(PREFIX.as_bytes()) && !stored.contains(&b'\n')
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{decode, encode};
+    use super::{decode, decode_config, encode, is_cut_short};
 
     const CONFIG: &str = "capabilities = [\"mail\"]\n\n[google]\nemail = \"a@example.test\"\nrefresh_token = \"t\"\n";
 
@@ -61,5 +83,25 @@ mod tests {
     #[test]
     fn a_damaged_encoded_value_is_an_error_not_garbage() {
         assert!(decode(b"base64:not base64!".to_vec()).is_err());
+    }
+
+    #[test]
+    fn a_damaged_config_reaches_the_core_as_stored_so_only_it_is_left_out() {
+        assert_eq!(decode_config(encode(CONFIG.as_bytes())), CONFIG);
+        assert_eq!(
+            decode_config(b"base64:not base64!".to_vec()),
+            "base64:not base64!"
+        );
+        assert_eq!(decode_config(vec![b'a', 0xff]), "a\u{fffd}");
+    }
+
+    #[test]
+    fn only_an_unencoded_value_without_a_newline_is_cut_short() {
+        let first_line = CONFIG.lines().next().expect("a first line");
+
+        assert!(is_cut_short(first_line.as_bytes()));
+        assert!(!is_cut_short(CONFIG.as_bytes()));
+        assert!(!is_cut_short(&encode(CONFIG.as_bytes())));
+        assert!(!is_cut_short(&encode(first_line.as_bytes())));
     }
 }

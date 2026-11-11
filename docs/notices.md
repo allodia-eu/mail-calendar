@@ -46,7 +46,10 @@ where its platform puts it. Two platforms showing the same moment show the same 
 - **`AccountsSkipped` counts stored accounts that could not be read**, which is what
   `account_connect_errors` holds in the app. Such an account has no id, so the notice is the whole
   app's and has no page to open. An account that was read and then failed to connect is an
-  `Unreachable` or `SignInExpired` notice instead.
+  `Unreachable` or `SignInExpired` notice instead. A client keeps an entry it cannot read, because
+  a later version may read it, and removes one only when it is provably beyond recovery: on Linux,
+  a config a plain-text keyring cut short ([`client-traps.md`](client-traps.md)), after the notice
+  has reported it once.
 - **A refused folder change is closed where it is held.** Dismissing it clears the refusal the app
   holds, so the two never disagree; but only while the app still holds that refusal. A later refusal on the same
   account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves

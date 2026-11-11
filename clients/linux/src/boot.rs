@@ -96,16 +96,18 @@ pub(crate) fn app(observer: Box<dyn Observer>) -> Result<BootedApp, String> {
     match boot_mode()? {
         BootMode::Accounts => {
             let secrets = Arc::new(SecretStore::open()?);
-            let configs = secrets.configs()?;
+            let stored = secrets.load()?;
             let app = real_app(
                 observer,
                 logger,
                 log_level,
                 timezone,
-                configs,
+                stored.configs,
                 None,
                 Box::new(SecretSink::new(Arc::clone(&secrets))),
             )?;
+            // After the core: it has reported these as left out, and its logger is now in place.
+            forget_cut_short(&secrets, &stored.cut_short);
             Ok(BootedApp {
                 app,
                 secrets: Some(secrets),
@@ -279,6 +281,22 @@ fn real_app(
         log::warn!("allodia: the sync state could not be read ({error}); not syncing this launch");
     }
     Ok(app)
+}
+
+/// Removes the stored accounts a plain-text keyring cut short. A failure leaves them for the
+/// next launch to try again, and never stops this one.
+fn forget_cut_short(secrets: &SecretStore, ids: &[String]) {
+    if ids.is_empty() {
+        return;
+    }
+    match secrets.forget_cut_short(ids) {
+        Ok(count) => log::warn!(
+            "secrets: removed {count} stored account(s) the keyring had cut short; each has to be added again"
+        ),
+        Err(error) => log::warn!(
+            "secrets: the stored accounts the keyring had cut short could not be removed ({error})"
+        ),
+    }
 }
 
 fn data_dir(subdir: Option<&str>) -> PathBuf {
