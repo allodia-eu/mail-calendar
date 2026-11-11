@@ -1,19 +1,22 @@
 //! What Settings draws of an account's shared mailboxes, from the server's answer and the
 //! account's choice.
 
-use engine_api::SharedMailbox;
+use engine_api::{SearchDomain, SharedAccount, StoreDomains};
 
 use super::*;
 
-fn listed(handle: &str, address: &str) -> SharedMailbox {
-    let mut mailbox = SharedMailbox::new(SharedMailboxId::try_from(handle).unwrap(), address);
-    mailbox.address = Some(address.to_owned());
-    mailbox
+fn listed(handle: &str, address: &str) -> SharedAccount {
+    SharedAccount::new(
+        SharedAccountId::try_from(handle).unwrap(),
+        address,
+        StoreDomains::of(SearchDomain::Mail),
+    )
+    .with_address(address)
 }
 
 fn chosen(handle: &str, address: &str) -> SharedMailboxChoice {
     SharedMailboxChoice {
-        handle: SharedMailboxId::try_from(handle).unwrap(),
+        handle: SharedAccountId::try_from(handle).unwrap(),
         name: address.to_owned(),
         address: Some(address.to_owned()),
     }

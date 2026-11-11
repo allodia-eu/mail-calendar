@@ -4,7 +4,7 @@
 //! Each is stored under the account whose sign-in opens it, as a `[[shared_mailbox]]` table, and
 //! is listed everywhere as a mail account of its own, under an id derived from that account's.
 
-use engine_core::ids::{AccountId, IdError, SharedMailboxId};
+use engine_core::ids::{AccountId, IdError, SharedAccountId};
 use serde::Deserialize;
 
 /// What separates a shared mailbox's id from the id of the account that opens it.
@@ -14,7 +14,7 @@ const SEPARATOR: &str = "#shared:";
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct SharedMailboxChoice {
     /// The server's handle for the mailbox, handed back to the adapter that produced it.
-    pub handle: SharedMailboxId,
+    pub handle: SharedAccountId,
     /// The server's label for it.
     pub name: String,
     /// The address the server gives for it, when it gives one. A mailbox with an address sends
@@ -51,7 +51,7 @@ mod tests {
 
     fn choice(handle: &str) -> SharedMailboxChoice {
         SharedMailboxChoice {
-            handle: SharedMailboxId::try_from(handle).unwrap(),
+            handle: SharedAccountId::try_from(handle).unwrap(),
             name: "Support".into(),
             address: Some("support@example.org".into()),
         }

@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use engine_api::{AccountId, SharedMailboxId};
+use engine_api::{AccountId, SharedAccountId};
 use mailcal_account::{Capability, SharedMailboxChoice};
 use mailcal_app::{SharedMailboxLookup, SharedMailboxOffer};
 
@@ -143,7 +143,7 @@ impl MailcalApp {
         let parent = AccountId::try_from(account_id.as_str())
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         let choice = SharedMailboxChoice {
-            handle: SharedMailboxId::try_from(mailbox.handle.as_str())
+            handle: SharedAccountId::try_from(mailbox.handle.as_str())
                 .map_err(|err| MailcalError::Config(err.to_string()))?,
             name: mailbox.name,
             address: mailbox.address,
@@ -330,7 +330,7 @@ pub(crate) fn view<E>(
         Err(_) => (SharedMailboxSupport::Unreachable, Vec::new()),
     };
     let is_listed =
-        |handle: &SharedMailboxId| listed.iter().any(|mailbox| mailbox.handle == *handle);
+        |handle: &SharedAccountId| listed.iter().any(|mailbox| mailbox.handle == *handle);
     let mut mailboxes: Vec<SharedMailboxEntry> = chosen
         .iter()
         .map(|choice| SharedMailboxEntry {

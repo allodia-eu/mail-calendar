@@ -1,7 +1,7 @@
 //! A shared mailbox has no entry of its own: it is dialled, watched and removed through the
 //! account whose sign-in opens it.
 
-use engine_api::SharedMailboxId;
+use engine_api::SharedAccountId;
 use mailcal_account::{JmapAccountConfig, Secret, SharedMailboxChoice};
 
 use super::{AccountDial, AccountRegistry};
@@ -29,7 +29,7 @@ fn jmap(email: &str) -> (String, ConnectedAccount) {
 
 fn support(address: Option<&str>) -> SharedMailboxChoice {
     SharedMailboxChoice {
-        handle: SharedMailboxId::try_from("f").unwrap(),
+        handle: SharedAccountId::try_from("f").unwrap(),
         name: "Support".to_owned(),
         address: address.map(str::to_owned),
     }
@@ -53,7 +53,7 @@ fn a_chosen_shared_mailbox_dials_through_its_parent_with_mail_alone_and_its_own_
     let dial = registry
         .dial(child.as_str())
         .expect("dialled through its parent");
-    assert_eq!(dial.shared_handle().map(SharedMailboxId::as_str), Some("f"));
+    assert_eq!(dial.shared_handle().map(SharedAccountId::as_str), Some("f"));
     assert_eq!(dial.label(), "support@example.org");
     assert!(
         dial.capabilities()

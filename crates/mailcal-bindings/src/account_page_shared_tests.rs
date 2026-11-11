@@ -1,4 +1,4 @@
-use engine_api::{SharedMailbox, SharedMailboxId};
+use engine_api::{SearchDomain, SharedAccount, SharedAccountId, StoreDomains};
 use mailcal_account::SharedMailboxChoice;
 use mailcal_app::SharedMailboxOffer;
 
@@ -13,15 +13,21 @@ const FREE: ControlState = ControlState {
     running: false,
 };
 
-fn listed(handle: &str, name: &str, address: Option<&str>) -> SharedMailbox {
-    let mut mailbox = SharedMailbox::new(SharedMailboxId::try_from(handle).unwrap(), name);
-    mailbox.address = address.map(str::to_owned);
-    mailbox
+fn listed(handle: &str, name: &str, address: Option<&str>) -> SharedAccount {
+    let mailbox = SharedAccount::new(
+        SharedAccountId::try_from(handle).unwrap(),
+        name,
+        StoreDomains::of(SearchDomain::Mail),
+    );
+    match address {
+        Some(address) => mailbox.with_address(address),
+        None => mailbox,
+    }
 }
 
 fn chosen(handle: &str, address: &str) -> SharedMailboxChoice {
     SharedMailboxChoice {
-        handle: SharedMailboxId::try_from(handle).unwrap(),
+        handle: SharedAccountId::try_from(handle).unwrap(),
         name: address.to_owned(),
         address: Some(address.to_owned()),
     }
