@@ -35,17 +35,13 @@ pub(in crate::ui) struct SettingsState {
     generation: u64,
     category: Category,
     redraw: Redraw,
-    /// An Allodia sign-in's browser hop is outstanding, and the failure it may have left. Here
-    /// rather than in the window because the window is rebuilt on every change and a hop outlives
-    /// several.
+    /// Who the Allodia card last drew as signed in: the subscription is forgotten when it moves.
+    pub(in crate::ui) allodia_seen: Option<String>,
+    /// Whether a sign-in was out when the card was last read: one ending reads the subscription
+    /// again.
     pub(in crate::ui) allodia_signing_in: bool,
-    /// Whether that hop has outlasted the first-run card's threshold. Only that card reads
-    /// it: the Settings card offers its way out from the first frame.
-    pub(in crate::ui) allodia_sign_in_slow: bool,
-    pub(in crate::ui) allodia_failure: Option<String>,
-    /// The outstanding hop was started from the Allodia notice, which then says a failure itself:
-    /// Settings, where `allodia_failure` is drawn, may not be open.
-    pub(in crate::ui) allodia_sign_in_from_notice: bool,
+    /// The last of the service's sign-out pages opened, so each is opened once.
+    pub(in crate::ui) allodia_end_session: u64,
     /// What the subscription section has learned, for the same reason: its read is a network
     /// round trip and its writes are three more.
     pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
@@ -72,10 +68,9 @@ impl Default for SettingsState {
             generation: 0,
             category: Category::General,
             redraw: Redraw::Open,
+            allodia_seen: None,
             allodia_signing_in: false,
-            allodia_sign_in_slow: false,
-            allodia_failure: None,
-            allodia_sign_in_from_notice: false,
+            allodia_end_session: 0,
             allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
             account: None,
             separate: None,
@@ -107,18 +102,6 @@ impl SettingsState {
     pub(in crate::ui) fn open_account(&mut self, account: String) {
         self.open(Some(Category::Accounts));
         self.account = Some(account);
-    }
-
-    /// Redraws the window if it is open, and leaves a closed one closed.
-    ///
-    /// How the Allodia card changes: every page is built from the core when the window opens, so
-    /// bumping the generation is the whole of "refresh". A sign-in outlives whatever the user does
-    /// next, and a redirect landing after they closed Settings must not put it back over their
-    /// mail.
-    pub(in crate::ui) fn refresh(&mut self, category: Category) {
-        self.category = category;
-        self.redraw = Redraw::InPlace;
-        self.bump();
     }
 
     /// Records the page the window is showing, without redrawing anything.
@@ -194,8 +177,6 @@ impl SettingsState {
         RenderState {
             generation: self.generation,
             category: self.category,
-            allodia_signing_in: self.allodia_signing_in,
-            allodia_failure: self.allodia_failure.as_deref(),
             allodia_subscription: &self.allodia_subscription,
             account: self.account.as_deref(),
             separate: self.separate.as_ref(),

@@ -27,6 +27,7 @@ pub(super) mod account_sync_mode;
 mod account_sync_technology;
 pub(super) mod accounts;
 pub(super) mod allodia;
+pub(super) use allodia::failure_said as allodia_failure_said;
 pub(super) mod allodia_sync;
 mod category;
 pub(super) mod dark_messages;
@@ -75,8 +76,6 @@ pub(crate) enum Category {
 pub(super) struct RenderState<'a> {
     pub(super) generation: u64,
     pub(super) category: Category,
-    pub(super) allodia_signing_in: bool,
-    pub(super) allodia_failure: Option<&'a str>,
     /// What the subscription section has learned, for the same reason: a read and a write each
     /// outlive several window rebuilds.
     pub(super) allodia_subscription: &'a SubscriptionState,
@@ -126,11 +125,8 @@ struct PageContext {
     sender: relm4::Sender<AppInput>,
     window: gtk::Window,
     navigation: gtk::Stack,
-    /// The Allodia sign-in's state. It lives in the model rather than in this window because the
-    /// window is rebuilt from scratch on every change; a browser hop outlasts several rebuilds.
-    allodia_signing_in: bool,
-    allodia_failure: Option<String>,
-    /// What the subscription section has learned, likewise.
+    /// What the subscription section has learned. It lives in the model rather than in this
+    /// window because the window is rebuilt from scratch on every change.
     allodia_subscription: SubscriptionState,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
@@ -271,8 +267,6 @@ impl SettingsWindow {
             sender,
             window: window.clone(),
             navigation: navigation.clone(),
-            allodia_signing_in: state.allodia_signing_in,
-            allodia_failure: state.allodia_failure.map(str::to_owned),
             allodia_subscription: state.allodia_subscription.clone(),
             account: state.account.map(str::to_owned),
             page: None,

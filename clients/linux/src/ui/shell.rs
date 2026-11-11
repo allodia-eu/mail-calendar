@@ -400,11 +400,7 @@ impl AppWidgets {
         self.notice
             .set_title(model.notice.as_deref().unwrap_or_default());
         self.notice.set_revealed(model.notice.is_some());
-        self.notices.render(
-            &model.notices.notices,
-            model.primary,
-            model.notices.running(),
-        );
+        self.notices.render(&model.notices.notices, model.primary);
         if let Some(bar) = &model.sync_bar {
             self.sync_caption.set_text(&bar.caption);
             self.sync_indeterminate.set(bar.fraction.is_none());

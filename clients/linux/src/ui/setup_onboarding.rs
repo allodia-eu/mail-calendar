@@ -48,8 +48,8 @@ pub(super) enum Progress {
     /// Nobody has signed in on this device, so the recommendation is what the card says.
     #[default]
     Offering,
-    /// The browser has the sign-in. `escapable` once the hop has outlasted
-    /// [`SIGN_IN_ESCAPE_AFTER`] and the card owes the person a way back.
+    /// The browser has the sign-in. `escapable` once the core says the hop has run long enough
+    /// that the card owes the person a way back.
     SigningIn { escapable: bool },
     /// Signed in, and the pass that follows is still running.
     Checking,
@@ -136,13 +136,6 @@ fn append_divider(content: &gtk::Box) {
     divider.add_css_class("dim-label");
     content.append(&divider);
 }
-
-/// How long a browser hop runs before the card owes the person a way back.
-///
-/// Long enough that the ordinary hop; which puts the browser in front of them within a second,
-/// never draws a button they had no reason to read. The wait itself is capped far higher, so
-/// without this the only way out of a sign-in that went wrong somewhere else is to kill the app.
-pub(super) const SIGN_IN_ESCAPE_AFTER: std::time::Duration = std::time::Duration::from_secs(8);
 
 /// A spinner and a line, plus a way back once `cancel` is `Some`.
 ///

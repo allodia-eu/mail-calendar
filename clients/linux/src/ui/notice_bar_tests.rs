@@ -89,7 +89,7 @@ pub(crate) fn one_banner_per_screen_and_the_rest_behind_issues() {
     );
     let notices = [mail, calendar];
 
-    bar.render(&notices, PrimaryView::Mail, None);
+    bar.render(&notices, PrimaryView::Mail);
     assert!(bar.root.is_visible());
     assert_eq!(
         bar.banner.title(),
@@ -112,14 +112,21 @@ pub(crate) fn one_banner_per_screen_and_the_rest_behind_issues() {
     bar.banner.emit_by_name::<()>("button-clicked", &[]);
     assert!(matches!(pressed(&receiver), Some(NoticeInput::Run(id)) if id == "mail"));
 
-    bar.render(&notices, PrimaryView::Calendar, Some("calendar"));
+    let running = [
+        notices[0].clone(),
+        Notice {
+            running: true,
+            ..notices[1].clone()
+        },
+    ];
+    bar.render(&running, PrimaryView::Calendar);
     assert_eq!(
         bar.banner.title(),
         l10n::notice_calendar_reauth("alice@example.org")
     );
     assert!(bar.spinner.is_visible(), "its sign-in is running");
 
-    bar.render(&notices, PrimaryView::Contacts, None);
+    bar.render(&notices, PrimaryView::Contacts);
     assert!(
         !bar.root.is_visible(),
         "nothing belongs to the contacts screen"
@@ -127,7 +134,7 @@ pub(crate) fn one_banner_per_screen_and_the_rest_behind_issues() {
 
     // One that can only close offers Close, and closes it.
     let closable = [skipped()];
-    bar.render(&closable, PrimaryView::Mail, None);
+    bar.render(&closable, PrimaryView::Mail);
     assert!(!bar.issues.is_visible(), "one notice, no Issues button");
     assert!(!bar.root.has_css_class("blocked"));
     assert_eq!(
@@ -140,7 +147,7 @@ pub(crate) fn one_banner_per_screen_and_the_rest_behind_issues() {
     // A failed remedy is said beneath the sentence.
     let mut failed = notices[0].clone();
     failed.remedy_failed = true;
-    bar.render(&[failed], PrimaryView::Mail, None);
+    bar.render(&[failed], PrimaryView::Mail);
     assert_eq!(
         bar.banner.title(),
         format!(
@@ -210,7 +217,7 @@ pub(crate) fn a_question_offers_both_answers_and_holds_them_while_one_runs() {
     let question = reply_question(false);
 
     let ((), records) = glib_records(|| {
-        bar.render(std::slice::from_ref(&question), PrimaryView::Calendar, None);
+        bar.render(std::slice::from_ref(&question), PrimaryView::Calendar);
     });
     assert!(
         !records.iter().any(|line| line.contains("markup")),
@@ -244,7 +251,7 @@ pub(crate) fn a_question_offers_both_answers_and_holds_them_while_one_runs() {
     assert!(matches!(pressed(&receiver), Some(NoticeInput::Run(id)) if id == "reply"));
 
     // The core carries an answer out: neither can start a second, and the primary spins.
-    bar.render(&[reply_question(true)], PrimaryView::Calendar, None);
+    bar.render(&[reply_question(true)], PrimaryView::Calendar);
     let drawn = answers(&bar);
     let (second, primary) = (&drawn[0].0, &drawn[1].0);
     assert!(!second.is_sensitive() && !primary.is_sensitive());
@@ -252,7 +259,7 @@ pub(crate) fn a_question_offers_both_answers_and_holds_them_while_one_runs() {
     assert!(!bar.spinner.is_visible(), "the spinner is the button's");
 
     // A notice that is no question puts its one button back on the banner.
-    bar.render(&[skipped()], PrimaryView::Mail, None);
+    bar.render(&[skipped()], PrimaryView::Mail);
     assert!(!bar.answers.is_visible());
     assert_eq!(
         bar.banner.button_label().as_deref(),
