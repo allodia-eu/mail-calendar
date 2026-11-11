@@ -17,8 +17,8 @@ use std::time::{Duration, Instant};
 
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, AccountPageIntent, BrowserSignInStage, CapabilityState,
-    Intent, MailcalApp, NoticeKind, SignInBrowserEnd, SignInMethod,
+    AccountCapability, AccountEntry, AccountPageIntent, AccountSeparateSignIn, BrowserSignInStage,
+    CapabilityState, Intent, MailcalApp, NoticeKind, SignInBrowserEnd, SignInMethod,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
@@ -129,9 +129,14 @@ password = "not-this-servers"
         .id;
     let both = vec![AccountCapability::Calendar, AccountCapability::Contacts];
 
-    assert!(
-        app.separate_server_offers_sign_in(mailbox.clone(), both),
-        "the calendar server names an issuer whose tokens are for it"
+    // The page asks the server what it offers when it is drawn, as a client's form is.
+    wait(
+        "offered the calendar server's own sign-in on the page",
+        || {
+            let section = app.account_page(mailbox.clone())?.separate_server?;
+            (section.uses == both && section.sign_in == Some(AccountSeparateSignIn::Provider))
+                .then_some(())
+        },
     );
     app.dispatch(Intent::AccountPage {
         intent: AccountPageIntent::SignInSeparateServer {
