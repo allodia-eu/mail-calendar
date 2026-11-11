@@ -165,7 +165,7 @@ of a second, against the app's own widgets:
 scripts/dev/control.sh linux agent dump                    # the tree: [handle] type "text" role state
 scripts/dev/control.sh linux agent press text=Archive      # find exactly one, then click it
 scripts/dev/control.sh linux agent press icon=mail-reply-sender-symbolic
-scripts/dev/control.sh linux agent fill name=search value=invoice submit=true
+scripts/dev/control.sh linux agent fill id=search value=invoice submit=true
 scripts/dev/control.sh linux agent wait text="Message sent" timeoutMs=5000
 scripts/dev/control.sh linux agent settle                  # until the app and the core are quiet
 scripts/dev/control.sh linux agent screenshot path=/tmp/app.png
@@ -179,7 +179,7 @@ the developer's GNOME desktop included (a popover is a surface of its own: pass 
 `eval h=<web view> script=...` reads or drives the composer's page. `press` and `fill` refuse to
 guess: no match lists what was near, and two matches list both, so narrow with `type=`, `role=`,
 `window=`, `under=<handle>` or `has={"text": "..."}`. A refusal exits 1 with its `code` on the
-first line of stderr. The protocol is documented where it is defined, `clients/linux/src/agent.rs`.
+first line of stderr. The protocol, shared with the Windows agent, is [`docs/test-agent.md`](../../../docs/test-agent.md).
 
 ⚠️ **A data directory of its own does not isolate the accounts.** Credentials live in the desktop
 keyring, so a run with a fresh `XDG_DATA_HOME` still opens every account stored there and syncs the

@@ -25,8 +25,9 @@ pub(super) struct Filter {
     /// A GType name; subclasses match too.
     #[serde(default, rename = "type")]
     kind: Option<String>,
+    /// The identifier a developer gave it (`gtk::Widget::set_widget_name`), which no person reads.
     #[serde(default)]
-    name: Option<String>,
+    id: Option<String>,
     /// The named icon it shows, for a button with no label.
     #[serde(default)]
     icon: Option<String>,
@@ -39,8 +40,9 @@ pub(super) struct Filter {
     under: Option<u64>,
     #[serde(default)]
     hidden: bool,
+    /// Whether a person could act on it (GTK's sensitivity).
     #[serde(default)]
-    sensitive: Option<bool>,
+    enabled: Option<bool>,
     /// A filter some descendant has to match.
     #[serde(default)]
     has: Option<Box<Filter>>,
@@ -54,8 +56,8 @@ impl Filter {
         if !self.hidden && !widget.is_mapped() {
             return false;
         }
-        if let Some(sensitive) = self.sensitive
-            && widget.is_sensitive() != sensitive
+        if let Some(enabled) = self.enabled
+            && widget.is_sensitive() != enabled
         {
             return false;
         }
@@ -67,8 +69,8 @@ impl Filter {
                 return false;
             }
         }
-        if let Some(name) = &self.name
-            && tree::name(widget).as_deref() != Some(name)
+        if let Some(id) = &self.id
+            && tree::id(widget).as_deref() != Some(id)
         {
             return false;
         }

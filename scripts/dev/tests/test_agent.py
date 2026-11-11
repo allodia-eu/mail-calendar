@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for `linux_agent.py`, the client of the Linux app's test agent, against a stand-in agent.
+"""Tests for `agent.py`, the client of every app's test agent, against a stand-in agent.
 
 The stand-in answers the way `clients/linux/src/agent.rs` does: one JSON object per line, `ok`
 true or false, and a `code` on a refusal. The app's own behaviour is tested in the client crate;
@@ -20,12 +20,13 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from typing import Any, Callable
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import linux_agent  # noqa: E402
+import agent  # noqa: E402
 
 ARCHIVE = {"h": 4, "type": "GtkButton", "text": ["Archive"]}
-SEARCH = {"h": 9, "type": "GtkEntry", "name": "search"}
+SEARCH = {"h": 9, "type": "GtkEntry", "id": "search"}
 
 
 def stand_in(request: dict[str, Any]) -> dict[str, Any]:
@@ -33,7 +34,7 @@ def stand_in(request: dict[str, Any]) -> dict[str, Any]:
     if verb == "wait":
         if request.get("text") == "Archive":
             return {"ok": True, "elements": [ARCHIVE]}
-        if request.get("name") == "search":
+        if request.get("id") == "search":
             return {"ok": True, "elements": [SEARCH]}
         if request.get("role") == "button":
             return {"ok": True, "elements": [ARCHIVE, {"h": 5, "type": "GtkButton"}]}
@@ -73,7 +74,10 @@ class Server:
         self.dir.cleanup()
 
 
-class LinuxAgentClient(unittest.TestCase):
+# The stand-in listens on a Unix socket, which Windows' Python does not offer; the pipe half of
+# `connect` is exercised by `agent_conformance.py` against the running Windows app.
+@unittest.skipUnless(hasattr(socket, "AF_UNIX"), "no Unix sockets on this host")
+class AgentClient(unittest.TestCase):
     def setUp(self) -> None:
         self.server = Server(stand_in)
 
@@ -83,18 +87,18 @@ class LinuxAgentClient(unittest.TestCase):
     def call(self, *argv: str) -> tuple[int, str, str]:
         out, err = io.StringIO(), io.StringIO()
         with redirect_stdout(out), redirect_stderr(err):
-            status = linux_agent.main(["--socket", self.server.path, *argv])
+            status = agent.main(["--socket", self.server.path, *argv])
         return status, out.getvalue(), err.getvalue()
 
     def test_a_value_that_reads_as_json_is_sent_as_json(self) -> None:
         self.assertEqual(
-            linux_agent.request_from("query", ["text=Archive", "h=12", "has={\"text\":\"x\"}"]),
+            agent.request_from("query", ["text=Archive", "h=12", "has={\"text\":\"x\"}"]),
             {"verb": "query", "text": "Archive", "h": 12, "has": {"text": "x"}},
         )
 
     def test_a_text_field_is_sent_as_typed(self) -> None:
         self.assertEqual(
-            linux_agent.request_from("action", ["text=2024", "value=true", "target=3"]),
+            agent.request_from("action", ["text=2024", "value=true", "target=3"]),
             {"verb": "action", "text": "2024", "value": "true", "target": "3"},
         )
 
@@ -117,7 +121,7 @@ class LinuxAgentClient(unittest.TestCase):
         self.assertIn("[4] GtkButton", err)
 
     def test_fill_sets_the_text_and_can_submit(self) -> None:
-        status, _, _ = self.call("fill", "name=search", "value=invoice", "submit=true")
+        status, _, _ = self.call("fill", "id=search", "value=invoice", "submit=true")
         self.assertEqual(status, 0)
         self.assertEqual(
             self.server.requests[-1],
@@ -129,9 +133,15 @@ class LinuxAgentClient(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertEqual(out, "[1] GtkWindow \"Mail\" window\n")
 
+    def test_the_endpoint_defaults_to_the_one_the_app_was_given(self) -> None:
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, {"MAILCAL_TEST_AGENT": self.server.path}), redirect_stdout(out):
+            self.assertEqual(agent.main(["ping"]), 0)
+        self.assertEqual(self.server.requests[-1], {"verb": "ping"})
+
     def test_a_missing_app_says_how_to_start_one(self) -> None:
         with self.assertRaises(SystemExit) as raised:
-            linux_agent.main(["--socket", self.server.path + ".gone", "ping"])
+            agent.main(["--socket", self.server.path + ".gone", "ping"])
         self.assertIn("build-and-run.sh", str(raised.exception))
 
 

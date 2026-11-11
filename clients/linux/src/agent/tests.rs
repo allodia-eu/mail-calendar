@@ -132,7 +132,7 @@ fn a_widget_is_found_by_what_it_says_and_acted_on() {
     // A subclass is found by the class it derives from.
     only(&json!({ "verb": "query", "type": "AdwPreferencesRow", "text": "Work" }));
     only(&json!({ "verb": "query", "textLike": "arch", "role": "button" }));
-    only(&json!({ "verb": "query", "name": "search" }));
+    only(&json!({ "verb": "query", "id": "search" }));
     let reply = only(&json!({ "verb": "query", "icon": REPLY }));
     assert_eq!(
         ok(&json!({ "verb": "read", "h": reply }))["type"],
@@ -173,11 +173,19 @@ fn a_lookup_that_finds_nothing_names_what_is_there(fixture: &Fixture) {
 }
 
 fn text_typed_in_is_found_again(fixture: &Fixture) {
-    let h = only(&json!({ "verb": "query", "name": "search" }));
+    let h = only(&json!({ "verb": "query", "id": "search" }));
     ok(&json!({ "verb": "set-text", "h": h, "text": "invoice" }));
     assert_eq!(fixture.entry.text(), "invoice");
     assert_eq!(ok(&json!({ "verb": "read", "h": h }))["value"], "invoice");
     only(&json!({ "verb": "query", "text": "invoice" }));
+    fixture.entry.set_sensitive(false);
+    assert_eq!(
+        code(&json!({ "verb": "set-text", "h": h, "text": "x" })),
+        "disabled"
+    );
+    assert_eq!(ok(&json!({ "verb": "read", "h": h }))["enabled"], false);
+    only(&json!({ "verb": "query", "id": "search", "enabled": false }));
+    fixture.entry.set_sensitive(true);
     let label = only(&json!({ "verb": "query", "text": "Inbox" }));
     assert_eq!(
         code(&json!({ "verb": "set-text", "h": label, "text": "x" })),

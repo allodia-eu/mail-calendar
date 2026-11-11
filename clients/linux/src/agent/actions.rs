@@ -16,7 +16,7 @@ use super::{
 fn usable(target: &Target) -> Result<gtk::Widget, Failure> {
     let widget = tree::widget(target)?;
     if !widget.is_sensitive() {
-        return Err(Failure::new("the element is insensitive", "insensitive")
+        return Err(Failure::new("the element is disabled", "disabled")
             .with("element", tree::describe(&widget)));
     }
     Ok(widget)

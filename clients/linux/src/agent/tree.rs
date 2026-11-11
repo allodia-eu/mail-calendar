@@ -218,8 +218,9 @@ pub(super) fn role(widget: &gtk::Widget) -> String {
     words
 }
 
-/// The widget's name, when someone gave it one: GTK otherwise reports the type's name.
-pub(super) fn name(widget: &gtk::Widget) -> Option<String> {
+/// The identifier a developer gave the widget (its GTK widget name), when someone gave it one: GTK
+/// otherwise reports the type's name.
+pub(super) fn id(widget: &gtk::Widget) -> Option<String> {
     let name = widget.widget_name();
     (name.as_str() != widget.type_().name()).then(|| name.to_string())
 }
@@ -228,8 +229,8 @@ pub(super) fn describe(widget: &gtk::Widget) -> Value {
     let mut node = Map::new();
     node.insert("h".to_owned(), json!(handle(widget)));
     node.insert("type".to_owned(), json!(widget.type_().name()));
-    if let Some(name) = name(widget) {
-        node.insert("name".to_owned(), json!(name));
+    if let Some(id) = id(widget) {
+        node.insert("id".to_owned(), json!(id));
     }
     node.insert("role".to_owned(), json!(role(widget)));
     let texts = texts(widget);
@@ -261,7 +262,7 @@ pub(super) fn describe(widget: &gtk::Widget) -> Value {
         );
     }
     node.insert("showing".to_owned(), json!(widget.is_mapped()));
-    node.insert("sensitive".to_owned(), json!(widget.is_sensitive()));
+    node.insert("enabled".to_owned(), json!(widget.is_sensitive()));
     if widget.has_focus() {
         node.insert("focused".to_owned(), json!(true));
     }
@@ -297,13 +298,13 @@ pub(super) fn dump(args: &DumpArgs) -> Answer {
     Ok(json!({ "text": text }))
 }
 
-/// Whether a widget is worth a line of its own in the compact dump: it says something, is named,
+/// Whether a widget is worth a line of its own in the compact dump: it says something, has an id,
 /// holds state, or is something a person acts on.
 fn carries_something(widget: &gtk::Widget) -> bool {
     !texts(widget).is_empty()
         || widget.tooltip_text().is_some()
         || value(widget).is_some()
-        || name(widget).is_some()
+        || id(widget).is_some()
         || widget.is::<gtk::Window>()
         || widget.is::<adw::Dialog>()
         || !matches!(
@@ -327,7 +328,7 @@ fn echoes(widget: &gtk::Widget, above: &Said) -> bool {
     if !matches!(
         widget.accessible_role(),
         gtk::AccessibleRole::Label | gtk::AccessibleRole::Img
-    ) || name(widget).is_some()
+    ) || id(widget).is_some()
         || widget.tooltip_text().is_some()
     {
         return false;
@@ -378,11 +379,11 @@ pub(super) fn icon(widget: &gtk::Widget) -> Option<String> {
         .map(|name| name.to_string())
 }
 
-/// One widget as a dump line: `[12] AdwActionRow #name "Title" role=row value="…" (state)`.
+/// One widget as a dump line: `[12] AdwActionRow #id "Title" role=row value="…" (state)`.
 pub(super) fn summary(widget: &gtk::Widget) -> String {
     let mut line = format!("[{}] {}", handle(widget), widget.type_().name());
-    if let Some(name) = name(widget) {
-        let _ = write!(line, " #{name}");
+    if let Some(id) = id(widget) {
+        let _ = write!(line, " #{id}");
     }
     for text in texts(widget) {
         let _ = write!(line, " {:?}", one_line(&text));
@@ -406,7 +407,7 @@ pub(super) fn summary(widget: &gtk::Widget) -> String {
         line.push_str(" (hidden)");
     }
     if !widget.is_sensitive() {
-        line.push_str(" (insensitive)");
+        line.push_str(" (disabled)");
     }
     if widget.has_focus() {
         line.push_str(" (focused)");
