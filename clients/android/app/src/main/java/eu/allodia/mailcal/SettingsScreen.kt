@@ -48,6 +48,7 @@ import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
+import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
@@ -115,13 +116,10 @@ internal fun SettingsScreen(
     onSetAnalytics: (Boolean) -> Unit,
     analyticsPayloadPreview: () -> String,
     // Accounts, the Allodia account first, then the per-account mail settings. The Allodia
-    // state is the activity's, not this screen's: a sign-in leaves for the browser and comes back
-    // through onNewIntent, so nothing this composable remembered would still be there.
+    // card is the core's, and a change to it is sent as an AllodiaIntent.
     allodia: AllodiaSettings,
-    onAllodiaSignIn: () -> Unit,
-    onAllodiaCreate: () -> Unit,
+    onAllodia: (AllodiaIntent) -> Unit,
     onAllodiaManage: () -> Unit,
-    onAllodiaSignOut: () -> Unit,
     // The subscription, drawn under the account card and only while somebody is signed in. Its
     // state is the activity's for the same reason: buying leaves for Play's sheet or a browser.
     allodiaSubscription: AllodiaSubscriptionUi,
@@ -251,10 +249,8 @@ internal fun SettingsScreen(
                     onSetAnalytics = onSetAnalytics,
                     analyticsPayloadPreview = analyticsPayloadPreview,
                     allodia = allodia,
-                    onAllodiaSignIn = onAllodiaSignIn,
-                    onAllodiaCreate = onAllodiaCreate,
+                    onAllodia = onAllodia,
                     onAllodiaManage = onAllodiaManage,
-                    onAllodiaSignOut = onAllodiaSignOut,
                     allodiaSubscription = allodiaSubscription,
                     onAllodiaRefreshSubscription = onAllodiaRefreshSubscription,
                     onAllodiaBuy = onAllodiaBuy,

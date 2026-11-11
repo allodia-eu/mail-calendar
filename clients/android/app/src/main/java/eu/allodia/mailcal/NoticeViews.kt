@@ -54,12 +54,8 @@ import uniffi.mailcal_bindings.NoticeScreens
 import uniffi.mailcal_bindings.NoticeSeverity
 import uniffi.mailcal_bindings.NoticeText
 
-/**
- * What the notice views run: [running] names the notice whose remedy is under way, and [onRun] is
- * told which of a notice's answers was pressed.
- */
+/** What the notice views run: [onRun] is told which of a notice's answers was pressed. */
 internal class NoticeHandlers(
-    val running: String? = null,
     val onRun: (Notice, NoticeAction) -> Unit = { _, _ -> },
     val onDismiss: (Notice) -> Unit = {},
 )
@@ -176,7 +172,7 @@ private fun NoticeActionButtons(notice: Notice, handlers: NoticeHandlers, descri
     val ctx = LocalContext.current
     val action = notice.action?.takeIf { NoticeRules.offers(notice) } ?: return
     val label = noticeWords(ctx, notice.actionLabel ?: return)
-    val held = NoticeRules.held(notice, handlers.running)
+    val held = NoticeRules.held(notice)
     val title = noticeWords(ctx, notice.title)
     fun described(label: String) = if (describe) Modifier.semantics { contentDescription = "$label: $title" } else Modifier
     val second = notice.secondAction?.takeIf { NoticeRules.offersSecond(notice) }

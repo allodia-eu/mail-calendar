@@ -1,7 +1,7 @@
-// A browser sign-in, an existing account's or a separate server's, which the core holds from the
-// press to the account it changes (docs/waiting.md, docs/provider-oauth.md rule 13): this host
-// opens the browser once for each attempt the core names, and hands back what came to the
-// redirect it listens on. Which step the sign-in is at, how long it waits and what it came to are
+// A browser sign-in, an existing account's, a separate server's or the Allodia account's, which
+// the core holds from the press to the account it changes (docs/waiting.md,
+// docs/provider-oauth.md rule 13): this host opens the browser once for each attempt the core
+// names, and hands back what came to the redirect it listens on. Which step the sign-in is at, how long it waits and what it came to are
 // the core's. Compose-free and catalog-free, so the JVM suite reaches every decision.
 package eu.allodia.mailcal
 
@@ -74,8 +74,8 @@ internal object BrowserSignInRules {
 
     /**
      * The tab a sign-in returning to [redirectUri] opens in. A JMAP grant may return where it was
-     * registered rather than where setup listens now, so anything on this app's scheme that is
-     * neither IMAP's nor the Allodia account's opens as JMAP's.
+     * registered rather than where setup listens now, so anything on this app's scheme that is not
+     * IMAP's opens in a tab of its own task as JMAP's does, the Allodia account's included.
      */
     fun browserFor(redirectUri: String, schemes: RedirectSchemes): SignInBrowser {
         val (scheme, host) = schemeAndHost(redirectUri) ?: return SignInBrowser.JMAP
