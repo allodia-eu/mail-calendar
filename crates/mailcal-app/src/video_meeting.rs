@@ -402,8 +402,9 @@ impl<P: Provider> App<P> {
         event
     }
 
-    /// `detail`'s editor opened on the account choice that would have made `stored`'s Teams or
-    /// Talk meeting, when its server did not make it and exactly one account makes that service:
+    /// `detail`'s editor opened on the account choice that would have made `stored`'s meeting
+    /// (Teams, Meet or Talk), when its server did not make it and exactly one account makes that
+    /// service:
     /// which account made a meeting is nowhere in the event (rule 14).
     pub(crate) async fn recognise_account_meeting(&self, detail: &mut EventDetail, stored: &Event) {
         let Some(meeting) = detail

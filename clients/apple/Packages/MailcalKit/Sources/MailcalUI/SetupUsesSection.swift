@@ -76,9 +76,9 @@ struct SetupUsesSection<MailRows: View>: View {
                 }
             }
             if calendar, choices.offer.choice(.meetings) != nil {
-                // Teams meetings are made for an event on any calendar, so they do not wait for
+                // Video meetings are made for an event on any calendar, so they do not wait for
                 // this one.
-                toggle(.meetings, L10n.setup_detect_teams_enable())
+                toggle(.meetings, L10n.setup_detect_meetings_enable())
             }
             if !calendar, choices.offer.choice(.colleagues) != nil {
                 // Colleagues come from the organisation's directory beside the person's own

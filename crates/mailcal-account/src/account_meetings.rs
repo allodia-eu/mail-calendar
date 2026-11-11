@@ -1,5 +1,6 @@
 //! The services an account makes video meetings through (`docs/conferencing.md` rule 14): Teams
-//! through a Microsoft account's Graph, Talk through a Nextcloud account's own server.
+//! through a Microsoft account's Graph, Meet through a Google account, Talk through a Nextcloud
+//! account's own server.
 
 use std::sync::Arc;
 
@@ -8,6 +9,7 @@ use engine_api::{Conference, ConferenceService, MeetingRequest, MeetingService};
 use engine_provider::{ProviderError, ProviderResult};
 use engine_tls::TlsClientConfig;
 use provider_caldav::{Credentials, TalkMeetings};
+use provider_google::{GoogleClient, MeetMeetings};
 use provider_graph::{GraphClient, MailboxPrincipal, TeamsMeetings};
 
 use crate::{AccountConfig, AccountError, GraphTokenSource, tls::tls_with};
@@ -62,6 +64,55 @@ pub fn teams_meetings(
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Arc<dyn MeetingService>, AccountError> {
     Ok(Arc::new(AccountTeams {
+        tokens,
+        tls: tls_with(&[])?,
+    }))
+}
+
+/// Meet meetings made as the signed-in user of a Google account, on a current access token for
+/// each call, as [`AccountTeams`] does.
+struct AccountMeet {
+    tokens: Arc<GraphTokenSource>,
+    tls: TlsClientConfig,
+}
+
+impl AccountMeet {
+    async fn meet(&self) -> ProviderResult<MeetMeetings> {
+        let token = self.tokens.access_token().await.map_err(|err| match err {
+            AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
+            other => ProviderError::retryable(other.to_string()),
+        })?;
+        let client =
+            GoogleClient::connect(token, &self.tls, &self.tokens.retry(), &crate::user_agent())
+                .map_err(ProviderError::from)?;
+        Ok(MeetMeetings::new(client))
+    }
+}
+
+#[async_trait]
+impl MeetingService for AccountMeet {
+    fn service(&self) -> ConferenceService {
+        ConferenceService::GoogleMeet
+    }
+
+    async fn create_meeting(&self, request: &MeetingRequest) -> ProviderResult<Conference> {
+        self.meet().await?.create_meeting(request).await
+    }
+
+    async fn delete_meeting(&self, meeting: &Conference) -> ProviderResult<()> {
+        self.meet().await?.delete_meeting(meeting).await
+    }
+}
+
+/// The Meet meetings a Google account makes, through its token source.
+///
+/// # Errors
+///
+/// [`AccountError::Tls`] when the trust policy cannot be built.
+pub fn meet_meetings(
+    tokens: Arc<GraphTokenSource>,
+) -> Result<Arc<dyn MeetingService>, AccountError> {
+    Ok(Arc::new(AccountMeet {
         tokens,
         tls: tls_with(&[])?,
     }))

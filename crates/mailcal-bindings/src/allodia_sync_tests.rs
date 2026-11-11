@@ -221,7 +221,7 @@ fn an_offer_carries_the_choices_of_the_card_it_opens() {
     );
     assert_eq!(
         uses(offered_setup(offer(AllodiaAccountKind::Google))).len(),
-        4
+        5
     );
     assert!(
         offered_setup(offer(AllodiaAccountKind::Jmap))

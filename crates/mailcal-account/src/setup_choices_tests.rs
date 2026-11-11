@@ -112,11 +112,14 @@ fn a_personal_address_is_offered_no_colleagues_and_no_shared_mailboxes() {
         choice(Capability::Calendar, true, true),
         choice(Capability::Contacts, true, true),
     ];
+    // Google makes a Meet meeting for a personal account too (rule 19).
+    let mut with_meet = three.to_vec();
+    with_meet.push(choice(Capability::Meetings, true, true));
     for email in ["someone@gmail.com", "someone@googlemail.com"] {
         let route = SetupRecommendation::Google {
             email: email.to_owned(),
         };
-        assert_eq!(route.choices(), three, "{email}");
+        assert_eq!(route.choices(), with_meet, "{email}");
     }
     for email in [
         "someone@outlook.com",
@@ -155,12 +158,11 @@ fn a_provider_sign_in_offers_everything_switched_on() {
         email: EMAIL.to_owned(),
     };
     assert_eq!(microsoft.choices(), everything);
-    // A Gmail sign-in cannot open another mailbox, and makes no meeting through the account.
+    // A Gmail sign-in cannot open another mailbox; it makes Meet meetings.
     let google = SetupRecommendation::Google {
         email: EMAIL.to_owned(),
     };
     let mut without_shared = everything.to_vec();
-    without_shared.remove(5);
     without_shared.remove(1);
     assert_eq!(google.choices(), without_shared);
 }

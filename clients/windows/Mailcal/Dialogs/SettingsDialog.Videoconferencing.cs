@@ -7,8 +7,8 @@
 // calendars change what is on offer.
 //
 // An account's row opens its page rather than carrying a switch of its own: two switches for one
-// setting would be two places to change it, and switching Teams on can need the Microsoft sign-in,
-// which the page holds.
+// setting would be two places to change it, and switching one on can need the account's sign-in
+// (Microsoft's or Google's), which the page holds.
 
 using System.ComponentModel;
 using Allodia.Mailcal.Calendar;

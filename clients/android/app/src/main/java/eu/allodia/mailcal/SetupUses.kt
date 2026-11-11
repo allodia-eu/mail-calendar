@@ -51,7 +51,7 @@ internal object SetupUses {
      * one typed. Contacts found only through the calendar's server keep that server even with the
      * calendar off, because that is where they are looked for, and the stored uses keep the
      * calendar closed. Colleagues count only beside contacts, and shared mailboxes only beside mail.
-     * Teams meetings count whatever else is on.
+     * Video meetings count whatever else is on.
      */
     fun chosen(
         offer: UseOffer,

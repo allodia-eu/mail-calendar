@@ -576,7 +576,7 @@
 	"setup_microsoft_choice_note": "Inicie sessão com a sua conta Microsoft no navegador: aqui não fica guardado nada além de um token seguro. À Microsoft só é pedido o que escolher.",
 	"setup_google_choice_note": "Inicie sessão com a sua conta Google no navegador: aqui não fica guardado nada além de um token seguro. À Google só é pedido o que escolher.",
 	"setup_detect_colleagues_enable": "Também os colegas do diretório da sua organização",
-	"setup_detect_teams_enable": "Adicionar também reuniões do Microsoft Teams aos seus eventos",
+	"setup_detect_meetings_enable": "Criar também videoconferências para os seus eventos com esta conta",
 	"setup_withheld_title": "Nem tudo o que escolheu foi permitido",
 	"setup_withheld_detail": "O seu fornecedor não permitiu: {uses}. A conta funciona sem isso, e ativá-lo aqui volta a pedi-lo.",
 	"setup_links_title": "Usar outra conta com esta",
@@ -1224,7 +1224,7 @@
 	"settings_default_meeting": "Videoconferência predefinida",
 	"settings_default_meeting_hint": "A videoconferência que um novo evento recebe assim que convida alguém, para os calendários de cada conta. Pode ainda alterá-la no evento.",
 	"settings_meeting_accounts": "Através das suas contas",
-	"settings_meeting_accounts_hint": "As reuniões do Microsoft Teams e do Nextcloud Talk que as suas contas criam para eventos de qualquer calendário. Ative-as ou desative-as na página de cada conta.",
+	"settings_meeting_accounts_hint": "As reuniões do Microsoft Teams, do Google Meet e do Nextcloud Talk que as suas contas criam para eventos de qualquer calendário. Ative-as ou desative-as na página de cada conta.",
 	"settings_meeting_account_needs_permission": "Precisa de permissão",
 	"settings_meeting_account_not_offered": "Não disponível"
 }

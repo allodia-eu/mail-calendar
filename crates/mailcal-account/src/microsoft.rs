@@ -80,7 +80,11 @@ impl MicrosoftConfig {
     /// personal account, which has no organisation to have any of them.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::affiliation::offered(self.affiliation.as_ref(), true, true)
+        crate::affiliation::offered(
+            self.affiliation.as_ref(),
+            true,
+            crate::affiliation::MeetingsFor::Organisations,
+        )
     }
 
     /// The uses this account is chosen for that its grant does not allow.

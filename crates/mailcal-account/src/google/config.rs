@@ -96,10 +96,14 @@ impl GoogleConfig {
     }
 
     /// What this account can be used for: no colleagues on a personal account, which has no
-    /// Workspace directory.
+    /// Workspace directory, and never a shared mailbox. Meet meetings on either kind.
     #[must_use]
     pub fn offered(&self) -> crate::Capabilities {
-        crate::affiliation::offered(self.affiliation.as_ref(), false, false)
+        crate::affiliation::offered(
+            self.affiliation.as_ref(),
+            false,
+            crate::affiliation::MeetingsFor::Everyone,
+        )
     }
 
     /// Whether the grant can ask who the account belongs to: `userinfo` answers to

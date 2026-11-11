@@ -571,7 +571,7 @@ autodetection. It reuses the whole state machine above; the deltas are:
   refresh token only with `access_type=offline`, and re-prompting consent on every authorisation
   guarantees one comes back even for an already-consented account. The core still treats a
   completed sign-in with no refresh token as an error.
-- **Up to eight scopes, by what the account is used for** (`GOOGLE_SCOPES` in `provider.rs`
+- **Up to nine scopes, by what the account is used for** (`GOOGLE_SCOPES` in `provider.rs`
   carries the reasoning per scope, `mailcal_oauth::scopes` the grouping):
 
   | Scope | What it provides | Requested for |
@@ -582,6 +582,7 @@ autodetection. It reuses the whole state machine above; the deltas are:
   | `contacts`, `contacts.other.readonly` | the account's own contacts, and the addresses Google collects for it | contacts |
   | `directory.readonly` | colleagues on a Workspace domain | colleagues, beside contacts; never on a personal account, which has no Workspace directory |
   | `userinfo.email` | the account's address from `oauth2/v3/userinfo` | every account |
+  | `meetings.space.created` | `POST meet.googleapis.com/v2/spaces`: a Meet meeting for an event on a calendar that is not Google's ([`conferencing.md`](conferencing.md) rules 14 to 16). It reaches only the spaces this app made | video meetings, on a personal account too |
 
   `userinfo.email` is asked for whatever the account is used for, because it is what names the
   account: a person who keeps the calendar and unticks Gmail on the consent screen gets an account
@@ -807,10 +808,11 @@ connect any provider wherever it is hosted. (This is the product decision of rec
 the doctrine's "provider sync" language for *account connection* specifically.)
 
 **A video meeting made through a connected account is part of that account**, and is not gated
-either: a Teams meeting asked of the Microsoft account's own Graph, under its own grant, and a
-Talk meeting asked of the Nextcloud account's own server, with its own app password
+either: a Teams meeting asked of the Microsoft account's own Graph, under its own grant, a Meet
+meeting asked of Google under the Google account's own grant, and a Talk meeting asked of the
+Nextcloud account's own server, with its own app password
 ([`conferencing.md`](conferencing.md) rules 14 to 16). What leaves is the event's title and times,
-to a provider the person signed in to. The carve-out ends where a meeting would
+to a provider the person signed in to; Meet is sent neither. The carve-out ends where a meeting would
 be made anywhere else: through a relay, at a service the person has no account with, or under a
 credential that is not the account's. Such a service goes through the jurisdiction check, which
 sits in `App::make_meeting`, the one place every meeting service is called from.
