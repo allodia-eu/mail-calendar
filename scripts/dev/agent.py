@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Drive the running Linux client through its test agent (`clients/linux/src/agent.rs`).
+"""Drive a running client through its test agent (docs/test-agent.md).
 
-    linux_agent.py --socket PATH <verb> [key=value ...]
-    linux_agent.py --socket PATH --json '{"verb": "query", "text": "Archive"}'
+    agent.py [--socket ENDPOINT] <verb> [key=value ...]
+    agent.py [--socket ENDPOINT] --json '{"verb": "query", "text": "Archive"}'
 
-`scripts/dev/control.sh linux agent <verb> ...` passes the socket of this checkout's app; use that.
+ENDPOINT is what the app was launched with in MAILCAL_TEST_AGENT, and defaults to it: a Unix
+socket's path, or on Windows a named pipe's name. `scripts/dev/control.sh linux agent <verb> ...`
+passes the socket of this checkout's Linux app.
 
 Each `key=value` becomes one field of the request. A value that reads as JSON is sent as JSON
 (`h=12`, `active=true`, `has={"text":"Inbox"}`); anything else is sent as text (`text=Archive`).
@@ -25,16 +27,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import socket
 import sys
-from typing import Any
+from typing import Any, BinaryIO
 
 TIMEOUT_SECONDS = 120
 
 # The fields whose value is always text: read as JSON, `text=3` would be a number the app refuses
 # and `value=true` would be typed in as "True".
 TEXT_FIELDS = frozenset(
-    {"text", "textLike", "type", "name", "icon", "role", "window", "value", "script", "path", "target"}
+    {
+        "text", "textLike", "type", "id", "name", "icon", "role", "window", "value", "script",
+        "path", "target",
+    }
 )
 
 
@@ -61,22 +67,31 @@ def request_from(verb: str, pairs: list[str]) -> dict[str, Any]:
     return request
 
 
+def connect(endpoint: str) -> BinaryIO:
+    """A byte stream to the agent: a named pipe on Windows, a Unix socket everywhere else."""
+    if os.name == "nt":
+        name = endpoint if endpoint.startswith("\\\\") else rf"\\.\pipe\{endpoint}"
+        return open(name, "r+b", buffering=0)  # noqa: SIM115: closed with the Agent
+    connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    connection.settimeout(TIMEOUT_SECONDS)
+    connection.connect(endpoint)
+    return connection.makefile("rwb", buffering=0)
+
+
 class Agent:
-    def __init__(self, path: str) -> None:
-        self.connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.connection.settimeout(TIMEOUT_SECONDS)
+    def __init__(self, endpoint: str) -> None:
         try:
-            self.connection.connect(path)
+            self.stream = connect(endpoint)
         except OSError as error:
             raise SystemExit(
-                f"error: no app answers on {path} ({error.strerror or error}).\n"
-                "  Start one with: clients/linux/build-and-run.sh --headless --detach"
+                f"error: no app answers on {endpoint} ({error.strerror or error}).\n"
+                "  Start one with its build-and-run script; on Linux: "
+                "clients/linux/build-and-run.sh --headless"
             ) from error
-        self.replies = self.connection.makefile("r", encoding="utf-8")
 
     def ask(self, request: dict[str, Any]) -> dict[str, Any]:
-        self.connection.sendall((json.dumps(request) + "\n").encode())
-        line = self.replies.readline()
+        self.stream.write((json.dumps(request) + "\n").encode())
+        line = self.stream.readline().decode("utf-8")
         if not line:
             raise SystemExit("error: the app hung up before it answered")
         reply = json.loads(line)
@@ -121,7 +136,11 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--socket", required=True, help="the socket the app listens on")
+    parser.add_argument(
+        "--socket",
+        default=os.environ.get("MAILCAL_TEST_AGENT"),
+        help="where the app listens (default: $MAILCAL_TEST_AGENT)",
+    )
     parser.add_argument("--json", help="the whole request as one JSON object")
     parser.add_argument("verb", nargs="?")
     parser.add_argument("pairs", nargs="*", metavar="key=value")
@@ -133,6 +152,8 @@ def main(argv: list[str]) -> int:
     else:
         parser.error("name a verb, or pass --json")
 
+    if not args.socket:
+        parser.error("name the app's endpoint with --socket, or set MAILCAL_TEST_AGENT")
     verb = request.get("verb")
     agent = Agent(args.socket)
     try:

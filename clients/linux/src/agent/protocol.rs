@@ -48,12 +48,12 @@ const VERBS: &[(&str, &str)] = &[
     ),
     (
         "query",
-        "{text?, textLike?, type?, name?, icon?, role?, window?, under?, hidden?, sensitive?, has?, \
+        "{text?, textLike?, type?, id?, icon?, role?, window?, under?, hidden?, enabled?, has?, \
          index?} -> {elements: [node]}. text matches a label, title, tooltip or value exactly; \
-         textLike is a case-insensitive substring; type is a GType name and matches subclasses \
-         (GtkButton finds a GtkToggleButton); role is an accessible role (button, row, \
-         text-box); window is part of a window title; has is a filter a descendant must match; \
-         hidden includes widgets that are not on screen.",
+         textLike is a case-insensitive substring; id is the name a developer gave the widget; \
+         type is a GType name and matches subclasses (GtkButton finds a GtkToggleButton); role \
+         is an accessible role (button, row, text-box); window is part of a window title; has \
+         is a filter a descendant must match; hidden includes widgets that are not on screen.",
     ),
     (
         "wait",

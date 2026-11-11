@@ -35,7 +35,7 @@
 #   scripts/dev/control.sh linux agent dump            # the app's own widget tree, with handles: the
 #                                                      #   fastest way to see and act on the app
 #   scripts/dev/control.sh linux agent press text=Archive      # find exactly one, activate it
-#   scripts/dev/control.sh linux agent fill name=search value=invoice submit=true
+#   scripts/dev/control.sh linux agent fill id=search value=invoice submit=true
 #   scripts/dev/control.sh linux agent screenshot path=/tmp/app.png   # works on any compositor
 #   scripts/dev/control.sh linux agent settle          # until the app has gone quiet
 #   scripts/dev/control.sh linux agent verbs           # every verb and its arguments
@@ -198,12 +198,12 @@ EOF
     case "$action" in
       agent)
         [[ $# -ge 1 ]] || die "agent <verb> [key=value...]: 'agent verbs' lists them"
-        exec python3 "$REPO_ROOT/scripts/dev/linux_agent.py" \
+        exec python3 "$REPO_ROOT/scripts/dev/agent.py" \
           --socket "${MAILCAL_TEST_AGENT:-$(linux_agent_socket)}" "$@" ;;
       stop)
         # The app first, through its own Quit, so it shuts down as a person's would; then the
         # private compositor, when this checkout has one up.
-        python3 "$REPO_ROOT/scripts/dev/linux_agent.py" \
+        python3 "$REPO_ROOT/scripts/dev/agent.py" \
           --socket "${MAILCAL_TEST_AGENT:-$(linux_agent_socket)}" quit >/dev/null 2>&1 &&
           info "asked the app to quit" || info "no app answered its agent"
         if linux_session_attach; then

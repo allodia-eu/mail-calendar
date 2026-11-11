@@ -817,7 +817,7 @@ scripts/dev/control.sh linux activate "<accessible name>" | find "<accessible na
 **Linux** is driven first through the app's own test agent (`control.sh linux agent`, debug and
 `dev-harness` builds), which walks the widget tree in-process, activates list rows and switch rows,
 waits for the app to settle and draws its own screenshots on any compositor; the `debug-app` skill
-has the commands and [`agent.rs`](../clients/linux/src/agent.rs) the protocol. GTK's AT-SPI tree is
+has the commands and [`test-agent.md`](test-agent.md) the protocol. GTK's AT-SPI tree is
 the judge of what assistive technology gets. `activate` exact-matches a localised accessible name,
 requires the control to be sensitive and visible in the live tree, and invokes only a semantic
 `activate` / `click` / `press` / `open` action. It deliberately has no coordinate fallback. GTK

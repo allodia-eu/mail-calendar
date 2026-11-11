@@ -3,9 +3,10 @@
 //! Compiled into a debug or `dev-harness` build only, and started only when `MAILCAL_TEST_AGENT`
 //! names the socket to listen on. A shipped build carries neither, so no installed copy answers.
 //!
-//! The wire is one JSON object per line each way. A request names its `verb`; a reply is
-//! `{"ok":true,…}` or `{"ok":false,"error":"…","code":"…"}`, and a caller branches on `code`, never
-//! on the wording. `verbs` lists every verb with its arguments, so the protocol describes itself.
+//! It speaks the protocol every client's agent shares, `docs/test-agent.md`: one JSON object per
+//! line each way. A request names its `verb`; a reply is `{"ok":true,…}` or
+//! `{"ok":false,"error":"…","code":"…"}`, and a caller branches on `code`, never on the wording.
+//! `verbs` lists every verb with its arguments, so the protocol describes itself.
 //!
 //! What it adds over the accessibility bus, which stays the judge of what a screen reader gets:
 //! - one call walks the whole widget tree in-process, where AT-SPI costs a round trip per node;
