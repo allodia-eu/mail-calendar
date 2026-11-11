@@ -139,13 +139,14 @@ The client adds two, done in two requests: `press` is `wait` for exactly one ele
 | `not-showing` | It is not on screen. |
 | `not-editable` | Text cannot be set there, or it is read-only. |
 | `not-toggleable`, `not-selectable`, `not-activatable` | It has no such action. |
+| `failed` | The toolkit raised an error while acting; `error` says what. |
 
 ## Status per platform
 
 | Platform | State |
 |---|---|
 | Linux | Speaks this protocol; it is the reference the conformance suite was written against. |
-| Windows | Speaks this protocol and passes the conformance suite. A `role` is the UI Automation control type (`Button`, `Edit`, `ListItem`) and `text` the accessible name. An element's state and value come with `read`, not with `query` or `wait`, and nothing draws a named `icon`, so that filter matches nothing. Its own additions: `screen`, the physical screen rectangle a press is aimed in, and `window`, the HWND, on every element; a window's `h` is its HWND, which `window` takes as well as a title; the `signal` filter; `floorMs` on `settle`; `select` without `index` selects the element itself; the verbs `expand`, `collapse`, `scrollIntoView`, `scrollTo`, `focused`, `parent` and `collect`; and the refusals `not-expandable` and `failed`, the second for an error the framework raised. |
+| Windows | Speaks this protocol and passes the conformance suite. A `role` is the UI Automation control type (`Button`, `Edit`, `ListItem`) and `text` the accessible name. An element's state and value come with `read`, not with `query` or `wait`, and nothing draws a named `icon`, so that filter matches nothing. Its own additions: `screen`, the physical screen rectangle a press is aimed in, and `window`, the HWND, on every element; a window's `h` is its HWND, which `window` takes as well as a title; the `signal` filter; `floorMs` on `settle`; `select` without `index` selects the element itself; the verbs `expand`, `collapse`, `scrollIntoView`, `scrollTo`, `focused`, `parent` and `collect`; and the refusal `not-expandable`. |
 | macOS, iOS Simulator | Speaks this protocol and passes the conformance suite. It reads NSAccessibility or UIAccessibility in process, through the entry points VoiceOver's requests reach, and acts through accessibility actions. SwiftUI builds its elements only for an assistive technology, so the agent switches each hosting view's accessibility on, and on the simulator turns on the automation XCUITest uses, which loads UIKit's names for its own controls. A physical device has none, as its app cannot reach the Mac's socket: XCUITest drives it. A gesture or real input (a drag, a swipe action, a pull to refresh, a keystroke) stays with `macos-ax.swift` and idb. |
 
 ## Conformance
