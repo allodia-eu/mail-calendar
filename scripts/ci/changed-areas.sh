@@ -70,7 +70,10 @@ classify() {
       # Renovate's own config decides when dependency PRs are opened; nothing builds from it. The
       # PRs it opens are classified by the manifests they touch, like any other change.
       renovate.json) ;;
-      # The dev harness scripts are run by hand; nothing here is a *platform build* input, so no
+      # The headless compositor the Linux job's widget tests run on: the job starts it through
+      # these, so a change to them is a change to that job, not to a script run by hand.
+      scripts/dev/with-headless-session.sh | scripts/dev/linux_session.sh) linux=true ;;
+      # The other dev harness scripts are run by hand; nothing here is a *platform build* input, so no
       # area is turned on. Their own unit tests are not skipped by that: the `dev-scripts` job is
       # ungated and runs on every push, precisely because this arm would otherwise mean a change
       # to the helpers ran no test at all.
