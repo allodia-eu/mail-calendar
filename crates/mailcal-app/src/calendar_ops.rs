@@ -5,6 +5,8 @@
 
 // A child of this module rather than of `lib.rs`, which is at its line limit: it is the editor's
 // half of the event writes here.
+#[path = "meeting_defaults.rs"]
+mod meeting_defaults;
 #[path = "video_meeting.rs"]
 pub(crate) mod video_meeting;
 

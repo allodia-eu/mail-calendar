@@ -45,6 +45,10 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             // redraws the editor's choices.
                             jitsiServer = { instance.jitsiServer() },
                             onSetJitsiServer = { instance.setJitsiServer(it) },
+                            meetingDefaults = remember(calendarVersion) { instance.meetingDefaults() },
+                            onSetDefaultMeeting = { account, choice ->
+                                instance.setDefaultMeeting(account, choice)
+                            },
                             // Reading, conversation grouping.
                             mode = mode,
                             onSetMode = { instance.dispatch(Intent.SetViewMode(it)) },

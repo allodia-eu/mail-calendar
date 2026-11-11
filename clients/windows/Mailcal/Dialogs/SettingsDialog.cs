@@ -68,6 +68,8 @@ public sealed partial class SettingsDialog : ContentDialog
         Closed += (_, _) => model.AccountsChanged -= OnAllodiaSignInMoved;
         model.RemovalFailed += OnRemovalFailed;
         Closed += (_, _) => model.RemovalFailed -= OnRemovalFailed;
+        model.PropertyChanged += OnCalendarChanged;
+        Closed += (_, _) => model.PropertyChanged -= OnCalendarChanged;
         _brushes = new ThemeBrushes(this);
         Title = L10n.SettingsTitle();
         CloseButtonText = L10n.ActionDone();

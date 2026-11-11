@@ -60,6 +60,9 @@ pub struct CalendarRow {
     /// calendar's own server makes, then Jitsi once a Jitsi server is set; empty for a calendar
     /// that cannot be written (`docs/conferencing.md`, rule 9).
     pub meeting_choices: Vec<MeetingOption>,
+    /// The `id` of the choice a new event here takes once it has an invitee: its account's
+    /// default, while this calendar offers it (`docs/conferencing.md`, rule 10).
+    pub default_meeting: Option<String>,
     /// Whether a new event lands here unless the user picks another calendar.
     ///
     /// The **effective** default, already resolved against what exists: the user's stored choice
@@ -79,4 +82,17 @@ pub struct MeetingOption {
     /// The address of the account that makes it, for a meeting made through an account the
     /// person connected; `None` for the calendar's own server's and for Jitsi.
     pub through: Option<String>,
+}
+
+/// One account's default video meeting, as Settings → Videoconferencing lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MeetingDefault {
+    /// The account whose calendars the default is for.
+    pub account: String,
+    /// What a person reads the account by.
+    pub account_address: String,
+    /// Every meeting a calendar of the account offers, in the calendars' order.
+    pub choices: Vec<MeetingOption>,
+    /// The `id` of the chosen one, while a calendar of the account still offers it.
+    pub chosen: Option<String>,
 }

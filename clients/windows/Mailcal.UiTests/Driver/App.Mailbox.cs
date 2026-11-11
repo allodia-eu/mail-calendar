@@ -161,7 +161,9 @@ internal sealed partial class App
     /// keystrokes, and returns once the field holds what was typed. A WinUI text box reports the
     /// keyboard before Windows' text input has attached to it, and characters arriving in between
     /// are dropped without a trace, so typing waits a moment past the focus and, if the field still
-    /// came up short, empties it and types once more.
+    /// came up short, empties it and types once more. It empties it only once the app has gone
+    /// quiet: on a slow runner the first attempt's last keys can still be on their way, and land
+    /// after the field was emptied, ahead of the second attempt.
     /// </summary>
     internal void TypeInto(Element field, string text)
     {
@@ -176,6 +178,7 @@ internal sealed partial class App
         {
             return;
         }
+        Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(5));
         Agent.SetValue(field, "");
         Input.Type(text);
         if (!Holds())

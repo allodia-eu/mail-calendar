@@ -1221,6 +1221,8 @@
 	"settings_jitsi_server": "Serveur Jitsi",
 	"settings_jitsi_server_hint": "Une réunion Jitsi que vous ajoutez à un événement est une salle sur ce serveur. Laissez ce champ vide et aucun calendrier ne proposera Jitsi.",
 	"settings_jitsi_server_invalid": "Saisissez une adresse qui commence par https:// et ne contient ni ? ni #.",
+	"settings_default_meeting": "Visioconférence par défaut",
+	"settings_default_meeting_hint": "La visioconférence ajoutée à un nouvel événement dès que vous invitez quelqu’un, pour les calendriers de chaque compte. Vous pouvez encore la modifier dans l’événement.",
 	"settings_meeting_accounts": "Via vos comptes",
 	"settings_meeting_accounts_hint": "Les réunions Microsoft Teams et Nextcloud Talk que vos comptes créent pour les événements de n’importe quel calendrier. Activez-les ou désactivez-les sur la page du compte.",
 	"settings_meeting_account_needs_permission": "Autorisation requise",

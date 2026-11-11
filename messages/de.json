@@ -1221,6 +1221,8 @@
 	"settings_jitsi_server": "Jitsi-Server",
 	"settings_jitsi_server_hint": "Eine Jitsi-Besprechung, die Sie einem Termin hinzufügen, ist ein Raum auf diesem Server. Lassen Sie das Feld leer, bietet kein Kalender Jitsi an.",
 	"settings_jitsi_server_invalid": "Geben Sie eine Adresse ein, die mit https:// beginnt und kein ? oder # enthält.",
+	"settings_default_meeting": "Standard-Videokonferenz",
+	"settings_default_meeting_hint": "Die Videokonferenz, die ein neuer Termin erhält, sobald Sie jemanden einladen, je Konto. Sie können sie im Termin noch ändern.",
 	"settings_meeting_accounts": "Über Ihre Konten",
 	"settings_meeting_accounts_hint": "Microsoft Teams- und Nextcloud Talk-Besprechungen, die Ihre Konten für Termine in jedem Kalender erstellen. Schalten Sie sie auf der Seite des jeweiligen Kontos ein oder aus.",
 	"settings_meeting_account_needs_permission": "Berechtigung erforderlich",

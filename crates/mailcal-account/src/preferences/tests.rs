@@ -46,6 +46,7 @@ fn save_then_load_round_trips_the_preferences() {
             calendar: "work".to_owned(),
         }),
         jitsi_server: Some("https://meet.example.org".to_owned()),
+        default_meetings: BTreeMap::from([("me@imap.example.com".to_owned(), "jitsi".to_owned())]),
         accounts: BTreeMap::from([(
             "me@imap.example.com".to_owned(),
             AccountSyncSettings {

@@ -465,6 +465,7 @@ impl CalendarModel {
                     address: calendar.account_address.clone(),
                     can_invite: calendar.can_invite,
                     meeting_choices: calendar.meeting_choices.clone(),
+                    default_meeting: calendar.default_meeting.clone(),
                 });
                 choices
             })

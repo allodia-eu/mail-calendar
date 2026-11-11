@@ -131,6 +131,18 @@ public sealed partial class MailboxModel
     /// an address the core refuses or when no core is open.</summary>
     internal bool SetJitsiServer(string server) => _app?.SetJitsiServer(server) ?? false;
 
+    /// <summary>Every account whose calendars offer a video meeting, with the one its new events
+    /// take (docs/conferencing.md, rule 10).</summary>
+    internal MeetingDefault[] MeetingDefaults() => _app?.MeetingDefaults() ?? [];
+
+    /// <summary>Chooses the video meeting <paramref name="account"/>'s new events take once they
+    /// have an invitee, or none for null. The core signals the calendar surface.</summary>
+    internal void SetDefaultMeeting(string account, string? choice)
+    {
+        Log.Info("cal: set default meeting");
+        _app?.SetDefaultMeeting(account, choice);
+    }
+
     /// <summary>
     /// Persists the first day of the week.
     /// </summary>

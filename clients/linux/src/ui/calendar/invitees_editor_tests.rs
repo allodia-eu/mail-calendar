@@ -75,6 +75,7 @@ fn choice(id: &str, can_invite: bool) -> CalendarChoice {
         address: "me@example.org".to_owned(),
         can_invite,
         meeting_choices: Vec::new(),
+        default_meeting: None,
     }
 }
 
@@ -120,7 +121,13 @@ pub(crate) fn the_invitee_list_takes_what_is_typed_and_follows_the_calendar() {
     );
     let calendar = gtk::DropDown::from_strings(&["work", "feeds"]);
     calendar.set_selected(0);
-    let (invitees, take_typed) = append_invitee_section(&form, &editor, &calendar, None);
+    let (invitees, take_typed) = append_invitee_section(
+        &form,
+        &editor,
+        &calendar,
+        None,
+        std::rc::Rc::new(|_: bool| {}),
+    );
     let entry = descendants(&root)
         .into_iter()
         .find_map(|widget| widget.downcast::<gtk::Entry>().ok())

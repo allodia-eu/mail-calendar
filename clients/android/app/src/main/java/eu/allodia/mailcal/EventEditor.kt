@@ -73,11 +73,13 @@ internal data class CalendarChoice(
     val canInvite: Boolean = false,
     /** The video meetings the core says the editor may put on an event here. */
     val meetingChoices: List<MeetingOption> = emptyList(),
+    /** The one of them a new event here takes once it has an invitee: `CalendarRow.defaultMeeting`. */
+    val defaultMeeting: String? = null,
 )
 
 /** The choice a calendar row offers. */
 internal fun CalendarRow.choice(): CalendarChoice =
-    CalendarChoice(account, id, name, accountAddress, canInvite, meetingChoices)
+    CalendarChoice(account, id, name, accountAddress, canInvite, meetingChoices, defaultMeeting)
 
 /** The event an editor is editing (absent when creating). */
 internal data class EditTarget(
@@ -197,8 +199,22 @@ internal class EventEditorState private constructor(
      */
     var repeatDraft by mutableStateOf(initialRepeat)
 
-    /** What the Video meeting row holds; see EventEditorMeeting.kt. */
-    var meeting by mutableStateOf(meetingSelectionOf(editing?.meeting))
+    private var pickedMeeting by mutableStateOf(meetingSelectionOf(editing?.meeting))
+
+    /**
+     * Whether the person picked in the Video meeting row. Until they do, a new event's row follows
+     * its calendar's default (docs/conferencing.md, rule 10).
+     */
+    var meetingChosen by mutableStateOf(false)
+        private set
+
+    /** The person's pick in the Video meeting row; see EventEditorMeeting.kt. */
+    var meeting: MeetingSelection
+        get() = pickedMeeting
+        set(value) {
+            pickedMeeting = value
+            meetingChosen = true
+        }
 
     val isEditing: Boolean get() = editing != null
 

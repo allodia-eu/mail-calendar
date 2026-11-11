@@ -323,6 +323,11 @@ pub struct CalendarRow {
     /// (`docs/conferencing.md`, rule 9).
     #[uniffi(default = [])]
     pub meeting_choices: Vec<crate::MeetingOption>,
+    /// The `MeetingOption::id` a new event here takes once it has an invitee, unless the person
+    /// chose for themselves: its account's default, while this calendar offers it
+    /// (`docs/conferencing.md`, rule 10).
+    #[uniffi(default = None)]
+    pub default_meeting: Option<String>,
     /// Whether a new event lands here unless the user picks another calendar.
     ///
     /// Already resolved against what exists: the stored choice while it is present and writable,

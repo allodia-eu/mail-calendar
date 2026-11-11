@@ -102,6 +102,8 @@ class SettingsHubTest {
                     if (typed.isBlank() || kept != null) jitsiServer = kept?.trimEnd('/')
                     typed.isBlank() || kept != null
                 },
+                meetingDefaults = emptyList(),
+                onSetDefaultMeeting = { _, _ -> },
                 mode = ViewMode.THREADED,
                 onSetMode = {},
                 onSetDarkMessages = {},

@@ -20,6 +20,7 @@ pub(in crate::ui::calendar) fn choice() -> CalendarChoice {
         address: "me@example.org".to_owned(),
         can_invite: false,
         meeting_choices: Vec::new(),
+        default_meeting: None,
     }
 }
 
@@ -43,6 +44,7 @@ pub(in crate::ui::calendar) fn form(all_day: bool) -> EventForm {
         repeat: None,
         invitees: Vec::new(),
         meeting: MeetingSelection::None,
+        meeting_chosen: false,
     }
 }
 

@@ -58,7 +58,7 @@ pub(crate) fn the_meeting_row_follows_the_calendar_and_holds_the_pick() {
     );
     let picker = gtk::DropDown::from_strings(&["work", "home", "feeds"]);
     picker.set_selected(0);
-    let pick = append_meeting_row(&form, &editor, &picker);
+    let pick = append_meeting_row(&form, &editor, &picker).pick;
     let section = form.last_child().expect("the row is appended");
     let on_save = section
         .last_child()
@@ -115,4 +115,53 @@ pub(crate) fn the_meeting_row_follows_the_calendar_and_holds_the_pick() {
         "a calendar that offers no meeting draws no row"
     );
     assert_eq!(*pick.borrow(), MeetingSelection::None);
+}
+
+pub(crate) fn a_new_events_row_takes_the_default_while_somebody_is_invited_until_a_pick() {
+    let form = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let work = CalendarChoice {
+        can_invite: true,
+        default_meeting: Some("jitsi".to_owned()),
+        ..calendar(
+            "work",
+            vec![
+                option("server:teams", "Microsoft Teams"),
+                option("jitsi", "Jitsi Meet"),
+            ],
+        )
+    };
+    let editor = EventEditor::create(vec![work], String::new());
+    let picker = gtk::DropDown::from_strings(&["work"]);
+    let row = append_meeting_row(&form, &editor, &picker);
+    let dropdown = form
+        .last_child()
+        .and_then(|section| section.last_child())
+        .and_then(|on_save| on_save.prev_sibling())
+        .and_downcast::<gtk::DropDown>()
+        .expect("the picker is above the line about the save");
+    assert_eq!(dropdown.selected(), 0, "nobody is invited yet");
+
+    (row.invited)(true);
+    assert_eq!(
+        dropdown.selected(),
+        2,
+        "the first invitee brings the default"
+    );
+    assert_eq!(
+        *row.pick.borrow(),
+        MeetingSelection::Choice("jitsi".to_owned())
+    );
+    assert!(!row.chosen.get(), "the row's own selection is not a pick");
+
+    (row.invited)(false);
+    assert_eq!(dropdown.selected(), 0, "the last invitee takes it away");
+    assert_eq!(*row.pick.borrow(), MeetingSelection::None);
+
+    (row.invited)(true);
+    dropdown.set_selected(0);
+    assert!(row.chosen.get());
+    (row.invited)(false);
+    (row.invited)(true);
+    assert_eq!(dropdown.selected(), 0, "a pick of None stands");
+    assert_eq!(*row.pick.borrow(), MeetingSelection::None);
 }

@@ -2,12 +2,16 @@
 // while there are any, then the person's Jitsi server (docs/conferencing.md, rule 13). The server
 // is empty until they fill it, and checked by the core before it is stored, so an address it
 // refuses is said here and nothing changes. Once one is stored, every calendar whose provider
-// writes a meeting offers Jitsi in the editor.
+// writes a meeting offers Jitsi in the editor. Last, while any account offers a meeting, the one
+// each account's new events take once they have an invitee (rule 10), drawn again when the
+// calendars change what is on offer.
 //
 // An account's row opens its page rather than carrying a switch of its own: two switches for one
 // setting would be two places to change it, and switching Teams on can need the Microsoft sign-in,
 // which the page holds.
 
+using System.ComponentModel;
+using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
@@ -25,17 +29,33 @@ public sealed partial class SettingsDialog
     private StackPanel? _meetingAccounts;
     private string? _meetingAccountsDrawn;
 
+    // The default per account, refilled when an account or the Jitsi server changes what is on
+    // offer. A change of choice alone moves the account's picker in place: the core echoes a
+    // choice back as a calendar change, and a redraw would take the picker from under the person
+    // who just used it, with their keyboard focus.
+    private StackPanel? _meetingDefaults;
+    private string? _meetingDefaultsDrawn;
+    private readonly Dictionary<string, ComboBox> _meetingDefaultPickers = [];
+    private bool _meetingDefaultMoving;
+
     private UIElement BuildVideoconferencing()
     {
         _meetingAccounts = new StackPanel();
         _meetingAccountsDrawn = null;
+        _meetingDefaults = new StackPanel();
+        _meetingDefaultsDrawn = null;
         RefreshMeetingAccounts();
-        return new StackPanel { Spacing = 20, Children = { _meetingAccounts, JitsiServerGroup() } };
+        return new StackPanel
+        {
+            Spacing = 20,
+            Children = { _meetingAccounts, JitsiServerGroup(), _meetingDefaults },
+        };
     }
 
     /// <summary>Draws the accounts that make meetings again, when what they show has changed.</summary>
     private void RefreshMeetingAccounts()
     {
+        RefreshMeetingDefaults();
         if (_meetingAccounts is not { } host)
         {
             return;
@@ -106,6 +126,127 @@ public sealed partial class SettingsDialog
         return button;
     }
 
+    /// <summary>What each account's calendars offer comes from the calendar rows, so a calendar
+    /// signal can bring the default group in or change it while Videoconferencing is open.</summary>
+    private void OnCalendarChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MailboxModel.CalendarVersion)
+            && !_rebuilding
+            && CurrentCategory() == "videoconferencing")
+        {
+            RefreshMeetingDefaults();
+        }
+    }
+
+    /// <summary>Draws the default per account again, when what the core lists has changed.</summary>
+    private void RefreshMeetingDefaults()
+    {
+        if (_meetingDefaults is not { } host)
+        {
+            return;
+        }
+        var rows = _model.MeetingDefaults();
+        var drawn = string.Join('\n', rows.Select(row =>
+            $"{row.Account}\t{row.AccountAddress}\t"
+            + string.Join('\t', row.Choices.Select(choice => $"{choice.Id}|{choice.Name}|{choice.Through}"))));
+        if (drawn == _meetingDefaultsDrawn)
+        {
+            foreach (var row in rows)
+            {
+                if (_meetingDefaultPickers.TryGetValue(row.Account, out var picker))
+                {
+                    MoveMeetingDefault(picker, row.Chosen);
+                }
+            }
+            return;
+        }
+        _meetingDefaultsDrawn = drawn;
+        _meetingDefaultPickers.Clear();
+        host.Children.Clear();
+        if (rows.Length == 0)
+        {
+            return;
+        }
+        var list = new StackPanel { Spacing = 8 };
+        foreach (var row in rows)
+        {
+            list.Children.Add(DefaultMeetingRow(row));
+        }
+        host.Children.Add(Group(L10n.SettingsDefaultMeeting(), L10n.SettingsDefaultMeetingHint(), list));
+    }
+
+    /// <summary>One account: its address and a picker, None first, then what its calendars
+    /// offer.</summary>
+    private Grid DefaultMeetingRow(MeetingDefault row)
+    {
+        var options = new List<DefaultMeetingOption> { new(null, L10n.EventMeetingNone()) };
+        options.AddRange(row.Choices.Select(choice => new DefaultMeetingOption(
+            choice.Id,
+            new MeetingRowOption(new MeetingSelection.Choice(choice.Id), choice.Name, choice.Through)
+                .Label(L10n.EventMeetingNone(), L10n.EventVideoMeeting(), L10n.EventMeetingThrough))));
+        var box = new ComboBox
+        {
+            MinWidth = 240,
+            VerticalAlignment = VerticalAlignment.Center,
+            ItemsSource = options,
+            SelectedItem = options.FirstOrDefault(option => option.Id == row.Chosen) ?? options[0],
+        };
+        AutomationProperties.SetAutomationId(box, $"DefaultMeeting_{row.Account}");
+        AutomationProperties.SetName(box, row.AccountAddress);
+        box.SelectionChanged += (_, _) =>
+        {
+            if (!_meetingDefaultMoving && box.SelectedItem is DefaultMeetingOption option)
+            {
+                _model.SetDefaultMeeting(row.Account, option.Id);
+            }
+        };
+        _meetingDefaultPickers[row.Account] = box;
+        var address = new TextBlock
+        {
+            Text = row.AccountAddress,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        var grid = new Grid { ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(box, 1);
+        grid.Children.Add(address);
+        grid.Children.Add(box);
+        return grid;
+    }
+
+    /// <summary>Shows <paramref name="chosen"/> in <paramref name="picker"/> without storing it
+    /// again: it is what the core already holds.</summary>
+    private void MoveMeetingDefault(ComboBox picker, string? chosen)
+    {
+        if (picker.ItemsSource is not List<DefaultMeetingOption> options)
+        {
+            return;
+        }
+        var option = options.FirstOrDefault(option => option.Id == chosen) ?? options[0];
+        if (ReferenceEquals(picker.SelectedItem, option))
+        {
+            return;
+        }
+        _meetingDefaultMoving = true;
+        try
+        {
+            picker.SelectedItem = option;
+        }
+        finally
+        {
+            _meetingDefaultMoving = false;
+        }
+    }
+
+    // One entry in an account's picker; ToString is the label so the ComboBox shows it directly.
+    // A null Id is "None".
+    private sealed record DefaultMeetingOption(string? Id, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
     /// <summary>Opens <paramref name="accountId"/>'s page in Accounts, with the category list
     /// following.</summary>
     private void OpenAccountFromOtherCategory(string accountId)
@@ -148,6 +289,8 @@ public sealed partial class SettingsDialog
             if (_model.SetJitsiServer(box.Text))
             {
                 box.Text = _model.JitsiServer() ?? string.Empty;
+                // A stored or forgotten server changes what every account offers.
+                RefreshMeetingDefaults();
             }
             else
             {

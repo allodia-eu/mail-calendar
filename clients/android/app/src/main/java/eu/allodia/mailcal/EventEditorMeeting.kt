@@ -84,12 +84,24 @@ internal val EventEditorState.announcesMeeting: Boolean
     }
 
 /**
- * The pick a save reads: one the chosen calendar does not offer goes back to None when the
- * calendar changes (rule 9), unless it is what the editor opened with.
+ * What the row holds before the calendar is asked whether it offers it: the person's pick once
+ * they made one, and until then, on a new event with an invitee, the calendar's default (rule 10).
+ * An event being edited keeps the meeting it has.
+ */
+private val EventEditorState.heldMeeting: MeetingSelection
+    get() {
+        if (isEditing || meetingChosen) return meeting
+        if (!canInvite || roster.invitees.isEmpty()) return MeetingSelection.None
+        return calendar?.defaultMeeting?.let { MeetingSelection.Choice(it) } ?: MeetingSelection.None
+    }
+
+/**
+ * What the row shows and a save reads: a pick the chosen calendar does not offer goes back to None
+ * when the calendar changes (rule 9), unless it is what the editor opened with.
  */
 internal val EventEditorState.effectiveMeeting: MeetingSelection
     get() {
-        val pick = meeting
+        val pick = heldMeeting
         if (pick !is MeetingSelection.Choice || pick == openedMeeting) return pick
         val offered = calendar?.meetingChoices.orEmpty().any { it.id == pick.id }
         return if (offered) pick else MeetingSelection.None

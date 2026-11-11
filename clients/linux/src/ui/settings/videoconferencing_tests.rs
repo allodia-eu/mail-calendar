@@ -1,5 +1,5 @@
 //! What the Jitsi server field shows, what it stores and what it says about an address the core
-//! refuses.
+//! refuses; and what each account's default video meeting offers and stores.
 //!
 //! The row commits on apply (Return or its apply button) and on losing focus; these assertions
 //! drive the apply directly. Called from the crate's single `gtk::init` test.
@@ -7,9 +7,11 @@
 use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
-use mailcal_bindings::{CapabilityState, LinkedAccount, MeetingAccount};
+use mailcal_bindings::{
+    CapabilityState, LinkedAccount, MeetingAccount, MeetingDefault, MeetingOption,
+};
 
-use super::{jitsi_server_group, meeting_accounts_group, state_word};
+use super::{default_meeting_group, jitsi_server_group, meeting_accounts_group, state_word};
 use crate::{
     l10n,
     ui::{AppInput, account_settings::AccountsInput},
@@ -156,4 +158,75 @@ pub(crate) fn a_meeting_account_row_names_the_service_and_account_and_opens_its_
         receiver.recv_sync(),
         Some(AppInput::Accounts(AccountsInput::Visit(id))) if id == "alice@contoso.example@microsoft"
     ));
+}
+
+/// An account and the default meeting stored for it.
+type Stored = (String, Option<String>);
+
+#[test]
+fn no_account_that_offers_a_meeting_draws_no_default_group() {
+    assert!(default_meeting_group(&[], |_, _| {}).is_none());
+}
+
+/// Called from the crate's single `gtk::init` test.
+pub(crate) fn an_accounts_default_meeting_opens_on_the_stored_choice_and_stores_a_new_one() {
+    let default = MeetingDefault {
+        account: "alice@cloud.example.org@dav".to_owned(),
+        account_address: "alice@cloud.example.org".to_owned(),
+        choices: vec![
+            MeetingOption {
+                id: "account:talk".to_owned(),
+                name: "Nextcloud Talk".to_owned(),
+                through: Some("alice@cloud.example.org".to_owned()),
+            },
+            MeetingOption {
+                id: "jitsi".to_owned(),
+                name: "Jitsi Meet".to_owned(),
+                through: None,
+            },
+        ],
+        chosen: Some("jitsi".to_owned()),
+    };
+    let stored: Rc<RefCell<Vec<Stored>>> = Rc::default();
+    let sink = Rc::clone(&stored);
+    let group = default_meeting_group(&[default], move |account, choice| {
+        sink.borrow_mut().push((account, choice));
+    })
+    .expect("one account draws the group");
+    let row = crate::ui::setup_widget_tests::descendants::<adw::ComboRow>(
+        group.upcast_ref::<gtk::Widget>(),
+    )
+    .into_iter()
+    .next()
+    .expect("the group holds the account's row");
+    assert_eq!(row.title(), "alice@cloud.example.org");
+    let model = row
+        .model()
+        .and_downcast::<gtk::StringList>()
+        .expect("the row draws a string list");
+    assert_eq!(model.n_items(), 3);
+    assert_eq!(
+        model.string(0).as_deref(),
+        Some(l10n::event_meeting_none()),
+        "None comes first"
+    );
+    assert_eq!(
+        model.string(1).as_deref(),
+        Some(l10n::event_meeting_through("Nextcloud Talk", "alice@cloud.example.org").as_str())
+    );
+    assert_eq!(row.selected(), 2, "the row opens on the stored choice");
+    assert!(stored.borrow().is_empty(), "drawing the row stores nothing");
+
+    row.set_selected(1);
+    row.set_selected(0);
+    assert_eq!(
+        *stored.borrow(),
+        [
+            (
+                "alice@cloud.example.org@dav".to_owned(),
+                Some("account:talk".to_owned())
+            ),
+            ("alice@cloud.example.org@dav".to_owned(), None),
+        ]
+    );
 }
