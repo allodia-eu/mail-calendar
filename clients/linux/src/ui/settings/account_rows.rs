@@ -3,7 +3,8 @@
 
 use mailcal_bindings::{
     AccountCapability, AccountChangeNotice, AccountEntry, AccountKind, AccountLinkPicker,
-    AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, LinkSlot, UseProblem,
+    AccountLinkedFrom, AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState,
+    LinkSlot, LinkedAccount, UseProblem,
 };
 
 use super::account_names::{kind_line, linked_name};
@@ -127,7 +128,8 @@ pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notic
         AccountChangeNotice::UseFailed { refusal, .. }
         | AccountChangeNotice::LinkFailed { refusal, .. }
         | AccountChangeNotice::SharedMailboxFailed { refusal }
-        | AccountChangeNotice::PasswordFailed { refusal } => super::notice::Notice::Error {
+        | AccountChangeNotice::PasswordFailed { refusal }
+        | AccountChangeNotice::StopLinkingFailed { refusal } => super::notice::Notice::Error {
             title: l10n::settings_account_change_failed_title().to_owned(),
             detail: crate::ui::core_error::refusal_said(refusal),
         },
@@ -151,11 +153,69 @@ pub(in crate::ui) fn change_notice(notice: &AccountChangeNotice) -> super::notic
         AccountChangeNotice::SignedInWithheld { uses } => {
             crate::ui::oauth_actions::withheld_said(uses)
         }
+        AccountChangeNotice::SignedInSeparately { uses } => super::notice::Notice::Explained {
+            title: l10n::settings_account_signed_in_separately_title().to_owned(),
+            detail: by_uses(
+                uses,
+                l10n::settings_account_signed_in_separately_calendar(),
+                l10n::settings_account_signed_in_separately_contacts(),
+                l10n::settings_account_signed_in_separately_both(),
+            )
+            .to_owned(),
+        },
         // Not a failure of the app: the address is the person's to check.
         AccountChangeNotice::SharedMailboxNotFound { .. } => {
             super::notice::Notice::Toast(l10n::settings_account_shared_not_found().to_owned())
         }
     }
+}
+
+/// One of three wordings, as `uses` holds the calendar, the address book or both.
+fn by_uses<'a>(
+    uses: &[AccountCapability],
+    calendar: &'a str,
+    contacts: &'a str,
+    both: &'a str,
+) -> &'a str {
+    match (
+        uses.contains(&AccountCapability::Calendar),
+        uses.contains(&AccountCapability::Contacts),
+    ) {
+        (true, true) => both,
+        (false, true) => contacts,
+        _ => calendar,
+    }
+}
+
+/// Beneath a use a link fills: the account it comes from.
+pub(in crate::ui) fn linked_note(linked: &LinkedAccount) -> String {
+    l10n::settings_account_use_linked(&linked_name(linked))
+}
+
+/// Beneath an account taking a use from this one: what it takes.
+pub(in crate::ui) fn linked_from_line(linked: &AccountLinkedFrom) -> &'static str {
+    by_uses(
+        &linked.uses,
+        l10n::settings_account_linked_from_calendar(),
+        l10n::settings_account_linked_from_contacts(),
+        l10n::settings_account_linked_from_both(),
+    )
+}
+
+/// What stopping the links with `linked` does, said before it is confirmed.
+pub(in crate::ui) fn stop_linking_message(linked: &AccountLinkedFrom) -> String {
+    let mut message = by_uses(
+        &linked.uses,
+        l10n::settings_account_stop_linking_calendar(),
+        l10n::settings_account_stop_linking_contacts(),
+        l10n::settings_account_stop_linking_both(),
+    )
+    .to_owned();
+    if !linked.leaves_without.is_empty() {
+        message.push(' ');
+        message.push_str(l10n::settings_account_stop_linking_left_without());
+    }
+    message
 }
 
 /// A link slot's picker's title.

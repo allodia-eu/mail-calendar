@@ -15,8 +15,11 @@ import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.UseProblem
 
-/** How a notice reads: a success is said briefly, a warning or failure waits to be dismissed. */
-internal enum class NoticeKind { SUCCESS, WARNING, FAILURE }
+/**
+ * How a notice reads: a success is said briefly; a warning, a failure and an explanation of what a
+ * change did wait to be dismissed.
+ */
+internal enum class NoticeKind { SUCCESS, WARNING, FAILURE, EXPLANATION }
 
 /** What an account's page or the list says about the last change. */
 internal data class AccountNotice(val kind: NoticeKind, val title: String, val message: String)

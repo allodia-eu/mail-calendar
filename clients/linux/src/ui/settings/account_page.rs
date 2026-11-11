@@ -4,7 +4,8 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AccountEntry, AccountLinkPicker, AccountPage, AccountPageIntent, AccountUseSwitch, ControlState,
+    AccountEntry, AccountLinkPicker, AccountLinkedFrom, AccountPage, AccountPageIntent,
+    AccountUseSwitch, ControlState,
 };
 
 use super::{PageContext, account_mail, account_rows, account_servers, group, page_box};
@@ -41,6 +42,9 @@ pub(super) fn page(ctx: &PageContext, entry: &AccountEntry, account: &AccountPag
     content.append(&uses_group(ctx, entry, &account.uses));
     if !account.links.is_empty() {
         content.append(&links_group(ctx, entry, &account.links));
+    }
+    if !account.linked_from.is_empty() {
+        content.append(&linked_from_group(ctx, entry, &account.linked_from));
     }
     if let Some(picker) = account.reply_fallback {
         content.append(&super::account_reply_fallback::group(ctx, entry, picker));
@@ -93,6 +97,17 @@ fn uses_group(
         l10n::settings_account_uses_description(),
     );
     for switch in switches {
+        // A use a link fills is the account it comes from: a row that opens its page.
+        if let Some(linked) = &switch.linked {
+            let (sender, to) = (ctx.sender.clone(), linked.id.clone());
+            section.add(&controls::nav_row(
+                account_rows::use_name(switch.capability),
+                &account_rows::linked_note(linked),
+                switch.control.enabled,
+                move || sender.emit(AppInput::Accounts(AccountsInput::Show(Some(to.clone())))),
+            ));
+            continue;
+        }
         let capability = switch.capability;
         let note = account_rows::switch_note(switch);
         let (parent, sender, account) = (ctx.window.clone(), ctx.sender.clone(), entry.id.clone());
@@ -203,6 +218,55 @@ fn links_group(
         {
             suggest(&row, &dropdown, &name, index, picker.control.enabled);
         }
+        section.add(&row);
+    }
+    section
+}
+
+/// The accounts taking a use from this one, each with what it takes and Stop linking, confirmed
+/// first.
+fn linked_from_group(
+    ctx: &PageContext,
+    entry: &AccountEntry,
+    linked: &[AccountLinkedFrom],
+) -> adw::PreferencesGroup {
+    let section = adw::PreferencesGroup::builder()
+        .title(l10n::settings_account_linked_from_heading())
+        .build();
+    for taking in linked {
+        let name = super::account_names::linked_name(&taking.account);
+        let row = adw::ActionRow::builder()
+            .title(&name)
+            .subtitle(account_rows::linked_from_line(taking))
+            .use_markup(false)
+            .build();
+        let (parent, sender) = (ctx.window.clone(), ctx.sender.clone());
+        let intent = AccountPageIntent::StopLinking {
+            account: entry.id.clone(),
+            from: taking.account.id.clone(),
+        };
+        let title = l10n::settings_account_stop_linking_title(&name);
+        let message = account_rows::stop_linking_message(taking);
+        let stop = controls::button(
+            l10n::settings_account_stop_linking(),
+            taking.stop,
+            false,
+            move || {
+                let (sender, intent) = (sender.clone(), intent.clone());
+                controls::confirm(
+                    &parent,
+                    &title,
+                    &message,
+                    l10n::settings_account_stop_linking(),
+                    move |yes| {
+                        if yes {
+                            change(&sender, intent.clone());
+                        }
+                    },
+                );
+            },
+        );
+        row.add_suffix(&stop);
         section.add(&row);
     }
     section

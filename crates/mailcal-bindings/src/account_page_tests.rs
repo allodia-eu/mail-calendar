@@ -8,7 +8,6 @@ use CapabilityState::{NeedsPermission, NotOffered, Off, On};
 use ReplyFallbackChoice::{Always, Ask, Never};
 use mailcal_account::Capabilities;
 
-use super::page;
 use crate::{
     AccountCapability, AccountEntry, AccountKind, AccountLinksView, AccountPage, AccountUse,
     AccountUseBlock, AccountUseStatus, AccountUseSwitch, CapabilityState, ControlState,
@@ -17,7 +16,7 @@ use crate::{
     account_work::{Hold, PageWork},
 };
 
-const IDLE: ControlState = ControlState {
+pub(super) const IDLE: ControlState = ControlState {
     enabled: true,
     running: false,
 };
@@ -26,7 +25,7 @@ const HELD: ControlState = ControlState {
     running: false,
 };
 
-fn linked(id: &str) -> LinkedAccount {
+pub(super) fn linked(id: &str) -> LinkedAccount {
     LinkedAccount {
         id: id.to_owned(),
         address: id.to_owned(),
@@ -34,7 +33,10 @@ fn linked(id: &str) -> LinkedAccount {
     }
 }
 
-fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> AccountEntry {
+pub(super) fn entry(
+    kind: AccountKind,
+    uses: &[(AccountCapability, CapabilityState)],
+) -> AccountEntry {
     AccountEntry {
         id: "alice@example.org@imap.example.org".to_owned(),
         address: "alice@example.org".to_owned(),
@@ -57,7 +59,7 @@ fn entry(kind: AccountKind, uses: &[(AccountCapability, CapabilityState)]) -> Ac
     }
 }
 
-fn mailbox_only() -> AccountEntry {
+pub(super) fn mailbox_only() -> AccountEntry {
     entry(
         AccountKind::Imap,
         &[(Mail, On), (Calendar, Off), (Contacts, Off)],
@@ -72,18 +74,40 @@ fn own(work: PageWork) -> Hold {
     }
 }
 
+/// The page of an account nothing takes a use from.
+pub(super) fn page(
+    entry: &AccountEntry,
+    hold: Hold,
+    notice: Option<crate::AccountChangeNoticeRaised>,
+    stored: Option<crate::AccountEndpoints>,
+    refused: Option<crate::AccountEndpoints>,
+    fallback: ReplyFallbackChoice,
+    toggle: impl Fn(AccountCapability, bool) -> Toggle,
+) -> AccountPage {
+    super::page(
+        entry,
+        hold,
+        notice,
+        Vec::new(),
+        stored,
+        refused,
+        fallback,
+        toggle,
+    )
+}
+
 /// A registry that makes every change.
-fn applies(_: AccountCapability, _: bool) -> Toggle {
+pub(super) fn applies(_: AccountCapability, _: bool) -> Toggle {
     Toggle::Applies {
         next: Capabilities::default(),
     }
 }
 
-fn idle(entry: &AccountEntry) -> AccountPage {
+pub(super) fn idle(entry: &AccountEntry) -> AccountPage {
     page(entry, Hold::default(), None, None, None, Ask, applies)
 }
 
-fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
+pub(super) fn switch(page: &AccountPage, capability: AccountCapability) -> &AccountUseSwitch {
     page.uses
         .iter()
         .find(|switch| switch.capability == capability)
@@ -118,6 +142,7 @@ fn a_switch_the_core_would_refuse_is_held_and_says_why_and_one_it_would_make_is_
             confirms_off: true,
             reviews_server_change: false,
             signs_in_separately: false,
+            linked: None,
         },
         "an on switch is asked what switching it off would do"
     );
@@ -252,45 +277,6 @@ fn one_review_follows_the_uses_paused_for_a_new_server() {
 }
 
 #[test]
-fn a_picker_is_offered_only_for_a_slot_the_account_can_hold() {
-    let mut account = mailbox_only();
-    assert_eq!(idle(&account).links, []);
-
-    account.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
-    account.links.calendar = Some(linked("b@cloud.example"));
-    let links = idle(&account).links;
-    assert_eq!(links.len(), 1);
-    assert_eq!(
-        (links[0].slot, links[0].options.len(), links[0].selected),
-        (LinkSlot::Calendar, 2, Some(1))
-    );
-    assert_eq!(links[0].control, IDLE);
-}
-
-#[test]
-fn a_linked_account_missing_from_the_candidates_is_still_shown() {
-    let mut account = mailbox_only();
-    account.links.contacts = Some(linked("book@cloud.example"));
-    let links = idle(&account).links;
-    assert_eq!(links[0].slot, LinkSlot::Contacts);
-    assert_eq!(links[0].options, [linked("book@cloud.example")]);
-    assert_eq!(links[0].selected, Some(0));
-}
-
-#[test]
-fn a_linked_account_is_matched_by_id_not_by_how_it_reads() {
-    let mut account = mailbox_only();
-    account.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
-    account.links.calendar = Some(LinkedAccount {
-        address: "b-renamed@cloud.example".to_owned(),
-        ..linked("b@cloud.example")
-    });
-    let links = idle(&account).links;
-    assert_eq!(links[0].options.len(), 2, "listed once");
-    assert_eq!(links[0].selected, Some(1));
-}
-
-#[test]
 fn setup_offers_only_the_slots_nothing_fills() {
     let mut account = mailbox_only();
     account.link_candidates.calendar = vec![linked("cal@cloud.example")];
@@ -299,21 +285,6 @@ fn setup_offers_only_the_slots_nothing_fills() {
     let offered = super::setup_link_pickers(&account);
     assert_eq!(offered.len(), 1);
     assert_eq!(offered[0].slot, LinkSlot::Calendar);
-}
-
-#[test]
-fn a_suggestion_is_offered_only_where_nothing_is_linked() {
-    let mut account = mailbox_only();
-    account.link_candidates.calendar = vec![linked("a@cloud.example"), linked("b@cloud.example")];
-    account.link_candidates.suggested = vec!["b@cloud.example".to_owned()];
-    assert_eq!(idle(&account).links[0].suggested, Some(1));
-
-    account.links.calendar = Some(linked("a@cloud.example"));
-    assert_eq!(
-        idle(&account).links[0].suggested,
-        None,
-        "a link already made is not second-guessed"
-    );
 }
 
 #[test]

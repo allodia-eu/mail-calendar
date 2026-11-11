@@ -253,10 +253,10 @@ pub use records::{
 };
 pub use records_account_page::{
     AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
-    AccountEndpointsGap, AccountLinkPicker, AccountMailSettings, AccountPage, AccountReplyFallback,
-    AccountSenderName, AccountServers, AccountSharedAddress, AccountSharedMailbox,
-    AccountSharedMailboxes, AccountToggle, AccountUseBlock, AccountUseStatus, AccountUseSwitch,
-    AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
+    AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
+    AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
+    AccountSharedMailbox, AccountSharedMailboxes, AccountToggle, AccountUseBlock, AccountUseStatus,
+    AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice, SharedMailboxesNote,
 };
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,

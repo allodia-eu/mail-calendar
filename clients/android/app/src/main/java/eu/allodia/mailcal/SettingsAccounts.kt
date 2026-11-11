@@ -186,7 +186,7 @@ private fun AccountNoticeView(notice: AccountNotice?, onDismiss: () -> Unit) {
             Toast.makeText(ctx, notice.title, Toast.LENGTH_SHORT).show()
             onDismiss()
         }
-        NoticeKind.WARNING, NoticeKind.FAILURE -> AlertDialog(
+        NoticeKind.WARNING, NoticeKind.FAILURE, NoticeKind.EXPLANATION -> AlertDialog(
             onDismissRequest = onDismiss,
             title = notice.title.takeIf { it.isNotEmpty() }?.let { title -> { Text(title) } },
             text = { Text(notice.message) },

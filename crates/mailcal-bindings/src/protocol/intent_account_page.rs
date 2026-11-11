@@ -27,6 +27,14 @@ pub enum AccountPageIntent {
         /// The account to link, from the picker's options; `None` for none.
         target: Option<String>,
     },
+    /// Stop every link between this account and `from`, which takes a use from it: each of
+    /// `from`'s links naming it, and its own mail link naming `from`.
+    StopLinking {
+        /// The account's id.
+        account: String,
+        /// The account that takes a use from it.
+        from: String,
+    },
     /// Choose what happens when the account's calendar server cannot pass an invitation answer
     /// on.
     SetReplyFallback {
@@ -143,6 +151,7 @@ impl AccountPageIntent {
         match self {
             Self::SetUse { account, .. }
             | Self::SetLink { account, .. }
+            | Self::StopLinking { account, .. }
             | Self::SetReplyFallback { account, .. }
             | Self::Remove { account }
             | Self::SetSenderName { account, .. }

@@ -1,6 +1,7 @@
 // The controls a page draws from the core's ControlState (docs/waiting.md): a switch, a button, a
-// text box, a combo box and a confirmation. Each is held while it cannot be used and shows a ring
-// beside it while work it started runs, so every page waits the same way.
+// text box, a combo box, a row that opens another page and a confirmation. Each is held while it
+// cannot be used and shows a ring beside it while work it started runs, so every page waits the
+// same way.
 //
 // The confirmation is inline, beneath what it asks about: Settings is a ContentDialog, and a nested
 // one is not allowed.
@@ -55,6 +56,35 @@ internal static class ControlComponents
         AutomationProperties.SetAutomationId(button, automationId);
         button.Click += (_, _) => click();
         return Beside(button, control, automationId);
+    }
+
+    /// <summary>A row that opens another page and starts no work: its title, the line beneath and
+    /// a chevron, held while <paramref name="enabled"/> is false. Assistive technology reads both
+    /// lines as its name.</summary>
+    internal static Button NavigationRow(string title, string subtitle, bool enabled, string automationId, Action open)
+    {
+        var text = new StackPanel { Spacing = 2 };
+        text.Children.Add(new TextBlock { Text = title, TextWrapping = TextWrapping.Wrap });
+        text.Children.Add(new TextBlock { Text = subtitle, TextWrapping = TextWrapping.Wrap, Opacity = 0.7 });
+        var row = new Grid { ColumnSpacing = 12 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.Children.Add(text);
+        var chevron = new FontIcon { Glyph = "", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(chevron, 1);
+        row.Children.Add(chevron);
+        var button = new Button
+        {
+            Content = row,
+            IsEnabled = enabled,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(12, 8, 12, 8),
+        };
+        AutomationProperties.SetName(button, $"{title}, {subtitle}");
+        AutomationProperties.SetAutomationId(button, automationId);
+        button.Click += (_, _) => open();
+        return button;
     }
 
     /// <summary>Holds a form's <paramref name="fields"/> while <paramref name="control"/> is

@@ -1,9 +1,9 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
-// partials of their own: what the account is used for and linked to (AccountUses), the mailboxes
-// shared with it (AccountShared), how it signs in (AccountSignIn), its servers and its removal
-// (AccountServers), and its mail settings (AccountMail). What a change on it came to is worded in
-// AccountChangeNotices.
+// partials of their own: what the account is used for and linked to (AccountUses), the accounts
+// taking a use from it (AccountLinkedFrom), the mailboxes shared with it (AccountShared), how it
+// signs in (AccountSignIn), its servers and its removal (AccountServers), and its mail settings
+// (AccountMail). What a change on it came to is worded in AccountChangeNotices.
 //
 // State lives in the core. A use, a link and a removal are dispatched and the page says they run
 // (docs/waiting.md); every other change forwards to the core off the UI thread. The page is drawn
@@ -148,7 +148,7 @@ public sealed partial class SettingsDialog
     };
 
     /// <summary>One account's page: how it travels, what it is used for, the accounts it relies
-    /// on, the mailboxes shared with it, how it signs in, its own servers, its mail settings while
+    /// on and those relying on it, the mailboxes shared with it, how it signs in, its own servers, its mail settings while
     /// it is used for mail, and its removal, last.</summary>
     private void BuildAccountPage(StackPanel panel, AccountEntry entry, AccountPage page)
     {
@@ -176,6 +176,10 @@ public sealed partial class SettingsDialog
         if (page.Links.Length > 0)
         {
             panel.Children.Add(LinksGroup(entry, page.Links));
+        }
+        if (page.LinkedFrom.Length > 0)
+        {
+            panel.Children.Add(LinkedFromGroup(entry, page.LinkedFrom));
         }
         if (page.ReplyFallback is { } replies)
         {

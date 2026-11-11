@@ -141,7 +141,8 @@ enum AccountSettingsLabels {
     }
 
     /// What a change on an account's page came to, when the core says it needs saying: what did
-    /// not take, or a sign-in that worked while its provider still withholds a use.
+    /// not take, a sign-in that worked while its provider still withholds a use, or uses a
+    /// separate sign-in moved to an account of their own.
     static func changeFailed(_ notice: AccountChangeNotice) -> AccountPageAlert {
         switch notice {
         case let .useFailed(_, _, refusal), let .linkFailed(_, refusal):
@@ -152,7 +153,8 @@ enum AccountSettingsLabels {
         case let .serversFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_servers_failed(), detail: refused(refusal))
-        case let .sharedMailboxFailed(refusal), let .passwordFailed(refusal):
+        case let .sharedMailboxFailed(refusal), let .passwordFailed(refusal),
+             let .stopLinkingFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
         case .sharedMailboxNotFound:
@@ -166,7 +168,53 @@ enum AccountSettingsLabels {
             AccountPageAlert(
                 title: L10n.setup_withheld_title(),
                 detail: L10n.setup_withheld_detail(uses: uses.map(use).joined(separator: ", ")))
+        // An explanation rather than a failure, but too long to show and take away again: it
+        // stays until the person closes it.
+        case let .signedInSeparately(uses):
+            AccountPageAlert(
+                title: L10n.settings_account_signed_in_separately_title(),
+                detail: byUses(
+                    uses,
+                    calendar: L10n.settings_account_signed_in_separately_calendar(),
+                    contacts: L10n.settings_account_signed_in_separately_contacts(),
+                    both: L10n.settings_account_signed_in_separately_both()))
         }
+    }
+
+    /// One of three wordings, as `uses` holds the calendar, the address book or both.
+    static func byUses(
+        _ uses: [AccountCapability], calendar: String, contacts: String, both: String
+    ) -> String {
+        switch (uses.contains(.calendar), uses.contains(.contacts)) {
+        case (true, true): both
+        case (false, true): contacts
+        default: calendar
+        }
+    }
+
+    /// Beneath a use a link fills: the account it comes from.
+    static func linkedNote(_ linked: LinkedAccount) -> String {
+        L10n.settings_account_use_linked(account: name(linked))
+    }
+
+    /// Beneath an account taking a use from this one: what it takes.
+    static func linkedFromLine(_ linked: AccountLinkedFrom) -> String {
+        byUses(
+            linked.uses,
+            calendar: L10n.settings_account_linked_from_calendar(),
+            contacts: L10n.settings_account_linked_from_contacts(),
+            both: L10n.settings_account_linked_from_both())
+    }
+
+    /// What stopping the links with `linked` does, said before it is confirmed.
+    static func stopLinkingMessage(_ linked: AccountLinkedFrom) -> String {
+        let message = byUses(
+            linked.uses,
+            calendar: L10n.settings_account_stop_linking_calendar(),
+            contacts: L10n.settings_account_stop_linking_contacts(),
+            both: L10n.settings_account_stop_linking_both())
+        guard !linked.leavesWithout.isEmpty else { return message }
+        return "\(message) \(L10n.settings_account_stop_linking_left_without())"
     }
 
     /// The line under an account's shared mailboxes.

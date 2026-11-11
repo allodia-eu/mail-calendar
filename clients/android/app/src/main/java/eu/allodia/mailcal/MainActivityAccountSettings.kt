@@ -69,8 +69,12 @@ internal fun MainActivity.refreshAccountPage() {
 private fun MainActivity.sayAccountNotice(raised: AccountChangeNoticeRaised) {
     if (raised.id <= accountSettings.coreNotice) return
     accountSettings.coreNotice = raised.id
-    logUiWarn("accounts: a change on an account's page did not take")
     val said = changeNotice(this, raised.notice)
+    if (said.kind == NoticeKind.EXPLANATION) {
+        logUiInfo("accounts: a change on an account's page has something to explain")
+    } else {
+        logUiWarn("accounts: a change on an account's page did not take")
+    }
     say(said)
     accountSettings.changeNotice = said
 }
@@ -96,10 +100,11 @@ internal fun MainActivity.linkFromSetup(accountId: String, links: List<Pair<Link
 /**
  * Says [notice] where the person is: on the account's page while Settings is open, and in passing
  * otherwise, since a change can end after Settings closed and a notice kept for it would greet
- * them there later about something long over.
+ * them there later about something long over. An explanation is too long to pass by, so it is kept
+ * for Settings → Accounts.
  */
 internal fun MainActivity.say(notice: AccountNotice) {
-    if (showingSettings) {
+    if (showingSettings || notice.kind == NoticeKind.EXPLANATION) {
         accountSettings.notice = notice
     } else {
         val text = listOf(notice.title, notice.message).filter { it.isNotEmpty() }.joinToString(": ")

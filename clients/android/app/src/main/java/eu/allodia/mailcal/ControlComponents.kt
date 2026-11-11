@@ -1,8 +1,9 @@
-// The controls a page draws from the core's ControlState (docs/waiting.md): a switch row, a button,
-// a dropdown and a confirmation. Each is held while it cannot be used and shows a spinner while
-// work it started runs, so every page waits the same way.
+// The controls a page draws from the core's ControlState (docs/waiting.md): a switch row, a row
+// that opens another page, a button, a dropdown and a confirmation. Each is held while it cannot
+// be used and shows a spinner while work it started runs, so every page waits the same way.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -85,6 +86,44 @@ internal fun ControlSwitchRow(
         Spacer(modifier = Modifier.width(8.dp))
         Running(control, tag)
         Switch(checked = on, onCheckedChange = null, enabled = control.enabled)
+    }
+}
+
+/**
+ * A row that opens another page and starts no work, with a chevron at its end: one target, read as
+ * a button named by its title and [note]. Held while [control] is, and never drawn running: what it
+ * opens starts nothing.
+ */
+@Composable
+internal fun ControlNavRow(
+    title: String,
+    note: String,
+    control: ControlState,
+    tag: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = control.enabled, role = Role.Button, onClick = onClick)
+            .padding(vertical = 8.dp)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(
+            painter = painterResource(R.drawable.ic_keyboard_arrow_right),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

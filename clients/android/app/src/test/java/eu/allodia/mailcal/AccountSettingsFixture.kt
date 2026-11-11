@@ -8,6 +8,7 @@ import uniffi.mailcal_bindings.AccountDistinction
 import uniffi.mailcal_bindings.AccountEndpoints
 import uniffi.mailcal_bindings.AccountEntry
 import uniffi.mailcal_bindings.AccountLinkPicker
+import uniffi.mailcal_bindings.AccountLinkedFrom
 import uniffi.mailcal_bindings.AccountLinksView
 import uniffi.mailcal_bindings.AccountMailSettings
 import uniffi.mailcal_bindings.AccountPage
@@ -100,6 +101,7 @@ internal fun useSwitch(
     asksProvider: Boolean = false,
     reviews: Boolean = false,
     separately: Boolean = false,
+    linked: LinkedAccount? = null,
 ) = AccountUseSwitch(
     capability,
     on,
@@ -110,6 +112,7 @@ internal fun useSwitch(
     confirmsOff = true,
     reviewsServerChange = reviews,
     signsInSeparately = separately,
+    linked = linked,
 )
 
 /** The core's section for a server [uses] need a sign-in of their own at, nothing running. */
@@ -174,6 +177,7 @@ internal fun pageOf(
     entry: AccountEntry,
     uses: List<AccountUseSwitch> = entry.uses.map { useSwitch(it.capability, it.state == CapabilityState.ON) },
     links: List<AccountLinkPicker> = emptyList(),
+    linkedFrom: List<AccountLinkedFrom> = emptyList(),
     remove: ControlState = FREE,
     senderName: AccountSenderName? = null,
     mail: AccountMailSettings? = null,
@@ -185,6 +189,7 @@ internal fun pageOf(
     account = entry.id,
     uses = uses,
     links = links,
+    linkedFrom = linkedFrom,
     senderName = senderName,
     mail = mail,
     servers = servers,

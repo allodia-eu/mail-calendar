@@ -147,6 +147,17 @@ public class AccountSettingsRulesTests
         Assert.NotEqual(
             AccountSettingsRules.PageFingerprint(free with { SignIn = signIn with { Browser = waiting } }),
             AccountSettingsRules.PageFingerprint(free with { SignIn = signIn with { Browser = waiting with { Cancel = new ControlState(false, false) } } }));
+        // A use a link comes to fill, and an account taking one, Stop linking running.
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with
+        {
+            Uses = [free.Uses[0], free.Uses[1] with { Linked = Linked("alice@cloud") }, free.Uses[2]],
+        }));
+        var taking = new AccountLinkedFrom(Linked("alice@cloud"), [AccountCapability.Calendar], [], new ControlState(true, false));
+        var linkedFrom = free with { LinkedFrom = [taking] };
+        Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(linkedFrom));
+        Assert.NotEqual(
+            AccountSettingsRules.PageFingerprint(linkedFrom),
+            AccountSettingsRules.PageFingerprint(free with { LinkedFrom = [taking with { Stop = new ControlState(false, true) }] }));
         // And a notice raised, which the page says once.
         var notice = new AccountChangeNoticeRaised(1, new AccountChangeNotice.LinkFailed(LinkSlot.Calendar, new AccountChangeRefusal.Other("gone")));
         Assert.NotEqual(drawn, AccountSettingsRules.PageFingerprint(free with { Notice = notice }));

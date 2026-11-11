@@ -93,6 +93,22 @@ pub(super) fn button_row(
     row
 }
 
+/// A row that opens another page and starts no work: held while a change runs on the page.
+pub(super) fn nav_row(
+    title: &str,
+    subtitle: &str,
+    enabled: bool,
+    activated: impl Fn() + 'static,
+) -> adw::ActionRow {
+    let row = plain_row(title);
+    row.set_subtitle(subtitle);
+    row.set_activatable(true);
+    row.add_suffix(&gtk::Image::from_icon_name(super::icons::NEXT));
+    row.set_sensitive(enabled);
+    row.connect_activated(move |_| activated());
+    row
+}
+
 /// A row that starts work: a button row while it can be pressed, and a row with a spinner before
 /// its title while the work it started runs.
 pub(super) fn work_row(
