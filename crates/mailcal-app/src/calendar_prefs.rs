@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use engine_api::{AccountId, Provider};
 use mailcal_account::{
-    CalendarPrefs, DefaultCalendar, Preferences, load_preferences, save_preferences,
+    CalendarPrefs, DefaultCalendar, MeetingChoice, Preferences, load_preferences, save_preferences,
 };
 
 use crate::App;
@@ -108,10 +108,13 @@ impl CalendarPrefsState {
             self.prefs.default_calendar = None;
         }
         // The account's own default, and every default that names a meeting made through it.
-        let through = format!(":{account}");
         let before = self.prefs.default_meetings.len();
         self.prefs.default_meetings.retain(|of, choice| {
-            of != account && !(choice.starts_with("account:") && choice.ends_with(&through))
+            let through = matches!(
+                MeetingChoice::from_id(choice),
+                Some(MeetingChoice::Account { account: maker, .. }) if maker.as_str() == account
+            );
+            of != account && !through
         });
         let named_it = named_it || self.prefs.default_meetings.len() != before;
         if self.prefs.remove_account_calendars(account) || named_it {
@@ -291,6 +294,31 @@ mod tests {
         );
         // The other account is untouched.
         assert_eq!(state.get("kept", "work").color.as_deref(), Some("#2f6fa8"));
+    }
+
+    #[test]
+    fn removing_an_account_clears_its_default_meeting_and_every_one_made_through_it() {
+        let dir = std::env::temp_dir().join("mailcal-calendar-prefs-remove-meeting-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        let path = dir.join("preferences.toml");
+        save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
+
+        let mut state = CalendarPrefsState::new(Some(path.clone()));
+        state.set_default_meeting("gone", Some("jitsi".to_owned()));
+        state.set_default_meeting("home", Some("account:teams:gone".to_owned()));
+        // An account whose id ends where the removed one's does is another account.
+        state.set_default_meeting("cloud", Some("account:teams:x:gone".to_owned()));
+        state.set_default_meeting("kept", Some("server:teams".to_owned()));
+
+        state.remove_account("gone");
+
+        let reloaded = CalendarPrefsState::new(Some(path));
+        for read in [&state, &reloaded] {
+            assert_eq!(read.default_meeting("gone"), None);
+            assert_eq!(read.default_meeting("home"), None);
+            assert_eq!(read.default_meeting("cloud"), Some("account:teams:x:gone"));
+            assert_eq!(read.default_meeting("kept"), Some("server:teams"));
+        }
     }
 
     #[test]

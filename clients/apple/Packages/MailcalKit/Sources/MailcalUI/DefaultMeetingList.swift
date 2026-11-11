@@ -7,12 +7,12 @@ import SwiftUI
 
 struct DefaultMeetingList: View {
     var model: MailboxModel
+    /// The accounts and their defaults, as the page read them from the core.
+    let rows: [MeetingDefault]
 
     var body: some View {
-        // The core signals the calendar surface when a default changes.
-        let _ = model.calendarVersion
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(model.meetingDefaults(), id: \.account) { row in
+            ForEach(rows, id: \.account) { row in
                 HStack(spacing: 8) {
                     Text(row.accountAddress)
                     Spacer(minLength: 0)
