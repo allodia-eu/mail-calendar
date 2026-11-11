@@ -133,6 +133,29 @@ class ChangedAreas(unittest.TestCase):
             if area != "rust":
                 self.assertRegex(result.stdout, rf"{area}\s+false")
 
+    def test_the_headless_session_builds_the_linux_client_it_starts(self) -> None:
+        """The Linux job's widget tests run on the compositor these start; another dev script runs
+        no client build."""
+        for path, linux in (
+            ("scripts/dev/linux_session.sh", "true"),
+            ("scripts/dev/with-headless-session.sh", "true"),
+            ("scripts/dev/lib.sh", "true"),
+            ("scripts/dev/showcase.sh", "false"),
+        ):
+            with self.subTest(path=path):
+                result = subprocess.run(
+                    bash_argv(str(SCRIPT), "--files", "-"),
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    input=f"{path}\n",
+                    env={**os.environ, "FORCE_AREAS": ""},
+                )
+                self.assertRegex(result.stdout, rf"linux\s+{linux}")
+                for area in AREAS:
+                    if area != "linux":
+                        self.assertRegex(result.stdout, rf"{area}\s+false")
+
     def test_the_dotnet_settings_build_only_windows(self) -> None:
         """Only the Windows job runs dotnet, so the SDK's settings need no other client's build."""
         result = subprocess.run(
