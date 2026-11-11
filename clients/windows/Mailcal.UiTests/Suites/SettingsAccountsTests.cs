@@ -4,7 +4,7 @@
 // of its address, after which the use is a row opening the account it comes from; a use switched off
 // only once it is confirmed; a question open on the page kept open when the page is drawn again; a
 // removal that names the accounts losing their link; and Stop linking, asked first, on the account
-// a use is taken from.
+// a use is taken from, after which the use is a switch again, held where nothing serves it.
 //
 // WHY HERE. The rules are pinned in Mailcal.Tests (AccountSettingsRulesTests), but whether the page
 // draws them, and whether a press reaches the core and comes back as the next snapshot, is WinUI and
@@ -140,7 +140,11 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
     {
         // Linked by the second case: the mailbox's calendar comes from alice's calendar account.
         var dialog = setup.OpenAccount(Harness.Alice, 0);
-        app.Agent.Invoke(InPage(app, dialog, "AccountUseLinked_Calendar"));
+        var linked = InPage(app, dialog, "AccountUseLinked_Calendar");
+        Assert.True(linked.Type == "Button"
+            && Catalog.Everywhere("nav_calendar").Any(use => FromCalendarAccount().Any(from => linked.Name == $"{use}, {from}")),
+            $"assistive technology reads the row as a button naming the use and the account it comes from. It reads a {linked.Type}: {linked.Name}");
+        app.Agent.Invoke(linked);
         var stop = app.Agent.Wait(new Filter { Id = "AccountStopLinking_0", Under = dialog }, TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("the row opened no page listing the mailbox as taking its calendar (rule 12)");
         Assert.True(app.Agent.Find(new Filter { Id = "AccountUseLinked_Calendar", Under = dialog }) is null,
@@ -150,6 +154,8 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
             ?? throw new InvalidOperationException("Stop linking asked nothing before stopping");
         Assert.True(Catalog.Everywhere("settings_account_stop_linking_calendar").Any(lost => message.Name.StartsWith(lost, StringComparison.Ordinal)),
             $"the question says the mailbox's calendar will no longer come from this account. It reads: {message.Name}");
+        Assert.True(Catalog.Everywhere("settings_account_stop_linking_left_without").Any(message.Name.EndsWith),
+            $"and, the mailbox being used for mail alone, that it then has no calendar server of its own. It reads: {message.Name}");
         app.Agent.Invoke(InPage(app, dialog, "AccountStopLinking_0Cancel"));
         Assert.NotNull(app.Agent.Wait(new Filter { Id = "AccountStopLinking_0", Under = dialog }, TimeSpan.FromSeconds(5)));
         Assert.Contains(RowHelp(app, setup), help => help.Contains($"Calendar: {Harness.Alice} (CalDAV/CardDAV)", StringComparison.Ordinal));
@@ -161,5 +167,15 @@ public sealed class SettingsAccountsTests(LinkedHarnessApp harness)
         Assert.True(app.Agent.WaitGone(new Filter { Id = "AccountStopLinking_0", Under = dialog }, TimeSpan.FromSeconds(10)),
             "confirmed, every link between the two stops, and the group goes with its last row");
         Assert.DoesNotContain(RowHelp(app, setup), help => help.Contains($"Calendar: {Harness.Alice} (CalDAV/CardDAV)", StringComparison.Ordinal));
+
+        dialog = setup.OpenAccount(Harness.Alice, 0);
+        var use = app.Agent.Wait(new Filter { Id = "AccountUse_Calendar", Under = dialog }, TimeSpan.FromSeconds(10))
+            ?? throw new InvalidOperationException("with the link stopped, the mailbox's calendar is a switch again (rule 12)");
+        Assert.True(app.Agent.Find(new Filter { Id = "AccountUseLinked_Calendar", Under = dialog }) is null,
+            "and no longer a row opening the calendar account");
+        var noServer = Catalog.Everywhere("settings_account_use_needs_endpoint");
+        Assert.False(use.Enabled, "held: the mailbox has no calendar server to switch it on with");
+        Assert.True(app.Agent.FindAll(new Filter { Type = "Text", Under = dialog }).Any(text => noServer.Contains(text.Name)),
+            "and the switch says why");
     });
 }
