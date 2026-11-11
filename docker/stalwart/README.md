@@ -207,7 +207,7 @@ is refused when the plan is applied.
 | ------------------ | ------------------ | ----------------------------- |
 | `alice@test.local` | `harness-alice-pw` | primary (mail + calendar)     |
 | `bob@test.local`   | `harness-bob-pw`   | second party / event attendee |
-| `dave@test.local`  | `harness-dave-pw`  | a second invitee, so a meeting can add one person and remove another with both told |
+| `dave@test.local`  | `harness-dave-pw`  | a second invitee, so a meeting can add one person and remove another with both told; shares a folder and a calendar with alice |
 | `admin`            | `harness-admin-pw` | fallback admin (management)   |
 
 **Shared mailboxes.** `support@test.local` is a group with no password of its own, and alice is a
@@ -218,6 +218,12 @@ write to the first and only read the second. Over JMAP the account says so too: 
 `isReadOnly: true` and lists no `submission`, while the group's reports `false` and lists it. The
 folder rights stay the authority, since a share mixing writable and read-only folders reports
 `false`.
+
+**Shared calendars.** The group's own calendar holds one event (`support-rota.ics`), which alice
+may write as a member, and dave shares a calendar of his, "Dave Shared" (`dave-shared.ics`), with
+alice read-only. Bob shares no calendar, so his store is a mailbox and nothing more. Both
+calendars are found over JMAP (accounts `f` and dave's) and over CalDAV (their principals under
+`/dav/pal/`). Stalwart also lists both in alice's own calendar home, each naming its owner.
 
 ## Layout
 

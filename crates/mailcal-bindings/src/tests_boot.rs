@@ -201,9 +201,10 @@ fn a_stored_shared_mailbox_is_listed_once_under_its_own_id_after_a_relaunch() {
     let stored = std::sync::Arc::default();
     let app = boot(&data_dir, vec![ALICE.to_owned()], &stored);
     let parent = app.accounts_snapshot().accounts[0].id.clone();
-    app.set_shared_mailbox(
+    app.set_shared_store(
         parent.clone(),
-        crate::SharedMailboxEntry {
+        crate::SharedUse::Mail,
+        crate::SharedStoreEntry {
             handle: "support".to_owned(),
             name: "Support".to_owned(),
             address: Some("support@example.org".to_owned()),

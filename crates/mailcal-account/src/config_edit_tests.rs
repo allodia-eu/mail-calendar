@@ -241,3 +241,20 @@ fn an_edit_never_prints_its_password() {
     edit.password = Some("hunter2".to_owned());
     assert!(!format!("{edit:?}").contains("hunter2"));
 }
+
+#[test]
+fn a_calendar_server_on_another_host_keeps_no_shared_calendar_the_old_one_opened() {
+    let shared = "\n[[shared_calendar]]\nhandle = \"https://dav.example.org/principals/dave/\"\nname = \"dave\"\n\n[[shared_mailbox]]\nhandle = \"Shared Folders/support@example.org\"\nname = \"support\"\n";
+    let config = load_str(&format!("{STANDARDS}{shared}")).unwrap();
+    assert_eq!(config.shape.shared_calendars.len(), 1);
+
+    let mut edit = config.endpoints();
+    edit.caldav_url = Some("https://calendar.example.net/".to_owned());
+    let moved = config.with_endpoints(&edit).unwrap();
+    assert_eq!(moved.config.shape.shared_calendars, []);
+    // The mail server stayed, and so do the mailboxes it opens.
+    assert_eq!(
+        moved.config.shape.shared_mailboxes,
+        config.shape.shared_mailboxes
+    );
+}

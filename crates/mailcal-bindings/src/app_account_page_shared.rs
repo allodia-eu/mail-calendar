@@ -5,11 +5,12 @@
 use std::sync::Arc;
 
 use engine_api::AccountId;
-use mailcal_app::SharedMailboxOffer;
+use mailcal_account::SharedUse;
+use mailcal_app::SharedStoreOffer;
 
 use crate::{
     AccountChangeNotice, AccountChangeRefusal, AccountPageIntent, AccountSharedMailboxes,
-    MailcalApp, account_page::shared::Asked, account_work::Hold, app_shared_mailboxes::view,
+    MailcalApp, account_page::shared::Asked, account_work::Hold, app_shared_stores::view,
 };
 
 #[uniffi::export]
@@ -38,16 +39,16 @@ impl MailcalApp {
     ) -> Option<AccountSharedMailboxes> {
         let shared = &self.account_work.shared;
         // One that cannot open any is answered without asking its server.
-        let offer = if self.opens_shared_mailboxes(account_id) {
+        let offer = if self.opens_shared(account_id, SharedUse::Mail) {
             self.ask_shared(account_id, false);
             shared.offer(account_id)
         } else {
-            Some(Ok(SharedMailboxOffer::Unsupported))
+            Some(Ok(SharedStoreOffer::Unsupported))
         };
         shared.section(
             account_id,
             offer,
-            self.chosen_shared_mailboxes(account_id),
+            self.chosen_shared(account_id, SharedUse::Mail),
             hold,
         )
     }
@@ -56,7 +57,7 @@ impl MailcalApp {
     ///
     /// [`SharedAnswers::ask`]: crate::account_page::shared::SharedAnswers::ask
     fn ask_shared(&self, account_id: &str, again: bool) {
-        if !self.opens_shared_mailboxes(account_id) {
+        if !self.opens_shared(account_id, SharedUse::Mail) {
             return;
         }
         // The app first: a ticket taken with no thread to answer it would hold every later ask.
@@ -72,7 +73,7 @@ impl MailcalApp {
         };
         let account = account_id.to_owned();
         std::thread::spawn(move || {
-            let offer = app.shared_offer(&account);
+            let offer = app.shared_offer(&account, SharedUse::Mail);
             app.account_work.shared.answered(&account, ticket, offer);
             app.app.account_page_changed();
         });
@@ -82,8 +83,10 @@ impl MailcalApp {
     fn asked_as(&self, account_id: &str) -> Asked {
         let live = AccountId::try_from(account_id).is_ok_and(|account| {
             let app = Arc::clone(&self.app);
-            self.runtime
-                .block_on(|| async move { app.has_live_mailbox(&account).await })
+            self.runtime.block_on(|| async move {
+                app.has_live_store(&account, engine_api::SearchDomain::Mail)
+                    .await
+            })
         });
         Asked {
             uses: self
@@ -113,9 +116,9 @@ impl MailcalApp {
                     .account_work
                     .shared
                     .offer(&account)
-                    .unwrap_or(Ok(SharedMailboxOffer::NotConnected));
-                let Some(mailbox) = view(offer, self.chosen_shared_mailboxes(&account))
-                    .mailboxes
+                    .unwrap_or(Ok(SharedStoreOffer::NotConnected));
+                let Some(mailbox) = view(offer, self.chosen_shared(&account, SharedUse::Mail))
+                    .stores
                     .into_iter()
                     .find(|mailbox| mailbox.handle == handle)
                 else {
@@ -123,7 +126,7 @@ impl MailcalApp {
                         refusal: AccountChangeRefusal::NoLongerShared,
                     });
                 };
-                self.set_shared_mailbox(account, mailbox, on)
+                self.set_shared_store(account, SharedUse::Mail, mailbox, on)
                     .err()
                     .map(|error| failed(&error))
             }
@@ -131,9 +134,14 @@ impl MailcalApp {
                 let address = address.trim().to_owned();
                 // The field keeps the address until it is added, so a refusal is corrected
                 // rather than retyped.
-                let refused = match self.resolve_shared_mailbox(account.clone(), address.clone()) {
+                let refused = match self.resolve_shared_store(
+                    account.clone(),
+                    SharedUse::Mail,
+                    address.clone(),
+                ) {
                     Ok(Some(mailbox)) => {
-                        match self.set_shared_mailbox(account.clone(), mailbox, true) {
+                        match self.set_shared_store(account.clone(), SharedUse::Mail, mailbox, true)
+                        {
                             Ok(()) => {
                                 self.account_work.shared.missed(&account, None);
                                 return None;

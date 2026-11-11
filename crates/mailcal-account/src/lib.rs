@@ -52,7 +52,7 @@ mod repeat_summary;
 mod series_warning;
 mod setup;
 mod setup_choices;
-mod shared_mailbox;
+mod shared_store;
 mod signatures;
 mod stream_redial;
 mod throttle;
@@ -138,7 +138,7 @@ pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };
 pub use setup_choices::{SetupChoice, google_choices, microsoft_choices, standards_choices};
-pub use shared_mailbox::SharedMailboxChoice;
+pub use shared_store::{SharedStoreChoice, SharedUse};
 pub use signatures::{
     AccountSignatureAssignment, SignatureId, SignatureSlot, Signatures, StoredSignature,
     load_signatures, save_signatures, signatures_path,
@@ -225,7 +225,7 @@ pub async fn connect_caldav_learning(
     tokens: ImapTokens<'_>,
 ) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
     if let Some(start) = account.dav_starts.calendar.as_deref() {
-        match connect_caldav_at(account, tokens, Some(start)).await {
+        match connect_caldav_at(account, tokens, Some(start), None).await {
             Err(err) if err.is_gone() => {
                 log::info!(
                     "caldav: the stored principal is gone; starting from the configured server"
@@ -235,10 +235,10 @@ pub async fn connect_caldav_learning(
         }
     }
     let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
-    match connect_caldav_at(account, tokens, None).await {
+    match connect_caldav_at(account, tokens, None, None).await {
         Err(err) if err.is_gone() && starts_at_a_path(endpoint.base_url) => {
             log::info!("caldav: the configured path is gone; starting from the well-known");
-            connect_caldav_at(account, tokens, Some("/.well-known/caldav")).await
+            connect_caldav_at(account, tokens, Some("/.well-known/caldav"), None).await
         }
         connected => connected,
     }
@@ -251,11 +251,29 @@ pub(crate) fn starts_at_a_path(base_url: &str) -> bool {
     reqwest::Url::parse(&normalize_caldav_base_url(base_url)).is_ok_and(|url| url.path() != "/")
 }
 
-/// One CalDAV connect, starting at `start` when given and at the configured server otherwise.
+/// The calendars of the shared store `handle` names, opened with the account's own sign-in:
+/// discovery starts at that store's principal, never at the account's stored one.
+///
+/// # Errors
+///
+/// As [`connect_caldav`].
+pub async fn connect_caldav_shared(
+    account: &AccountConfig,
+    tokens: ImapTokens<'_>,
+    handle: &engine_core::ids::SharedAccountId,
+) -> Result<Box<dyn Provider>, AccountError> {
+    connect_caldav_at(account, tokens, None, Some(handle))
+        .await
+        .map(|connected| connected.providers)
+}
+
+/// One CalDAV connect, starting at `start` when given and at the configured server otherwise, or
+/// at the principal of the shared store `shared` names.
 async fn connect_caldav_at(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     start: Option<&str>,
+    shared: Option<&engine_core::ids::SharedAccountId>,
 ) -> Result<DavConnected<Box<dyn Provider>>, AccountError> {
     let endpoint = account.caldav_endpoint().ok_or(AccountError::NoCalDav)?;
     let auth =
@@ -275,6 +293,9 @@ async fn connect_caldav_at(
     }
     if let Some(start) = start {
         config = config.with_discovery_path(start);
+    }
+    if let Some(handle) = shared {
+        config = config.with_shared_account(handle.clone());
     }
     let config = config
         // A clone shares the record of what it refused, so a refusal reads back from `tls`.

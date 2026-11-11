@@ -11,7 +11,7 @@ use std::collections::BTreeSet;
 use engine_core::ids::AccountId;
 use serde::Deserialize;
 
-use crate::ConfigError;
+use crate::{ConfigError, SharedUse};
 
 /// One thing an account can be used for.
 ///
@@ -183,7 +183,10 @@ pub struct AccountShape {
     pub links: AccountLinks,
     /// The mailboxes this account's sign-in opens besides its own that it is used for.
     #[serde(default, rename = "shared_mailbox")]
-    pub shared_mailboxes: Vec<crate::SharedMailboxChoice>,
+    pub shared_mailboxes: Vec<crate::SharedStoreChoice>,
+    /// The stores this account's sign-in opens besides its own whose calendars it is used for.
+    #[serde(default, rename = "shared_calendar")]
+    pub shared_calendars: Vec<crate::SharedStoreChoice>,
 }
 
 impl AccountShape {
@@ -205,6 +208,23 @@ impl AccountShape {
         self.capabilities
             .clone()
             .unwrap_or_else(|| legacy.into_iter().collect())
+    }
+
+    /// The stores this account is used for beside its own, for `kind`, in the order chosen.
+    #[must_use]
+    pub fn shared(&self, kind: SharedUse) -> &[crate::SharedStoreChoice] {
+        match kind {
+            SharedUse::Mail => &self.shared_mailboxes,
+            SharedUse::Calendar => &self.shared_calendars,
+        }
+    }
+
+    /// The same, to change.
+    pub fn shared_mut(&mut self, kind: SharedUse) -> &mut Vec<crate::SharedStoreChoice> {
+        match kind {
+            SharedUse::Mail => &mut self.shared_mailboxes,
+            SharedUse::Calendar => &mut self.shared_calendars,
+        }
     }
 
     /// Adds the keys that are set to an account document's root table. Nothing is added for an
@@ -230,13 +250,15 @@ impl AccountShape {
             }
             root.insert("links".into(), links.into());
         }
-        if !self.shared_mailboxes.is_empty() {
-            let tables: Vec<toml::Value> = self
-                .shared_mailboxes
-                .iter()
-                .map(|choice| choice.write_into().into())
-                .collect();
-            root.insert("shared_mailbox".into(), tables.into());
+        for kind in [SharedUse::Mail, SharedUse::Calendar] {
+            let chosen = self.shared(kind);
+            if !chosen.is_empty() {
+                let tables: Vec<toml::Value> = chosen
+                    .iter()
+                    .map(|choice| choice.write_into().into())
+                    .collect();
+                root.insert(kind.table().into(), tables.into());
+            }
         }
     }
 }

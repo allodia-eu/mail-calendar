@@ -129,3 +129,32 @@ name = "team"
     shape.write_into(&mut root);
     assert_eq!(AccountShape::read(&root.to_string()).unwrap(), shape);
 }
+
+#[test]
+fn the_shared_calendars_are_kept_apart_from_the_shared_mailboxes() {
+    // One store chosen for both uses is stored twice, once under each: a switch per use.
+    let text = r#"
+[[shared_mailbox]]
+handle = "f"
+name = "support@example.org"
+address = "support@example.org"
+
+[[shared_calendar]]
+handle = "f"
+name = "support@example.org"
+address = "support@example.org"
+
+[[shared_calendar]]
+handle = "e"
+name = "Dave"
+"#;
+    let shape = AccountShape::read(text).unwrap();
+    assert_eq!(shape.shared(SharedUse::Mail).len(), 1);
+    let calendars = shape.shared(SharedUse::Calendar);
+    assert_eq!(calendars.len(), 2);
+    assert_eq!(calendars[1].handle.as_str(), "e");
+    assert_eq!(calendars[1].address, None);
+    let mut root = toml::Table::new();
+    shape.write_into(&mut root);
+    assert_eq!(AccountShape::read(&root.to_string()).unwrap(), shape);
+}

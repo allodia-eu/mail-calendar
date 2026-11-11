@@ -1,6 +1,6 @@
 use engine_api::{SearchDomain, SharedAccount, SharedAccountId, StoreDomains};
-use mailcal_account::SharedMailboxChoice;
-use mailcal_app::SharedMailboxOffer;
+use mailcal_account::SharedStoreChoice;
+use mailcal_app::SharedStoreOffer;
 
 use super::{Asked, SharedAnswers};
 use crate::{
@@ -25,8 +25,8 @@ fn listed(handle: &str, name: &str, address: Option<&str>) -> SharedAccount {
     }
 }
 
-fn chosen(handle: &str, address: &str) -> SharedMailboxChoice {
-    SharedMailboxChoice {
+fn chosen(handle: &str, address: &str) -> SharedStoreChoice {
+    SharedStoreChoice {
         handle: SharedAccountId::try_from(handle).unwrap(),
         name: address.to_owned(),
         address: Some(address.to_owned()),
@@ -46,7 +46,7 @@ fn the_server_is_asked_once_and_again_only_when_the_account_changed_or_its_page_
     let now = asked(false);
     let first = answers.ask("a", &now, false).expect("nothing answered yet");
     assert_eq!(answers.ask("a", &now, true), None, "one ask at a time");
-    answers.answered("a", first, Ok(SharedMailboxOffer::NotConnected));
+    answers.answered("a", first, Ok(SharedStoreOffer::NotConnected));
 
     assert_eq!(
         answers.ask("a", &now, false),
@@ -56,7 +56,7 @@ fn the_server_is_asked_once_and_again_only_when_the_account_changed_or_its_page_
     let connected = answers
         .ask("a", &asked(true), false)
         .expect("a mailbox that connected can now be asked");
-    answers.answered("a", connected, Ok(SharedMailboxOffer::ByAddress));
+    answers.answered("a", connected, Ok(SharedStoreOffer::ByAddress));
     assert!(
         answers.ask("a", &asked(true), true).is_some(),
         "its page opened"
@@ -71,13 +71,13 @@ fn the_server_is_asked_once_and_again_only_when_the_account_changed_or_its_page_
 fn an_older_answer_landing_late_does_not_replace_a_newer_one() {
     let answers = SharedAnswers::default();
     let old = answers.ask("a", &asked(true), false).unwrap();
-    answers.answered("a", old, Ok(SharedMailboxOffer::ByAddress));
+    answers.answered("a", old, Ok(SharedStoreOffer::ByAddress));
     let new = answers.ask("a", &asked(true), true).unwrap();
-    answers.answered("a", new, Ok(SharedMailboxOffer::Listed(Vec::new())));
-    answers.answered("a", old, Ok(SharedMailboxOffer::Unsupported));
+    answers.answered("a", new, Ok(SharedStoreOffer::Listed(Vec::new())));
+    answers.answered("a", old, Ok(SharedStoreOffer::Unsupported));
     assert_eq!(
         answers.offer("a"),
-        Some(Ok(SharedMailboxOffer::Listed(Vec::new())))
+        Some(Ok(SharedStoreOffer::Listed(Vec::new())))
     );
 }
 
@@ -86,14 +86,14 @@ fn an_answer_for_an_account_forgotten_meanwhile_is_dropped() {
     let answers = SharedAnswers::default();
     let ticket = answers.ask("a", &asked(true), false).unwrap();
     answers.forget("a");
-    answers.answered("a", ticket, Ok(SharedMailboxOffer::ByAddress));
+    answers.answered("a", ticket, Ok(SharedStoreOffer::ByAddress));
     assert_eq!(answers.offer("a"), None);
 }
 
 #[test]
 fn a_switch_is_titled_by_its_address_and_a_withdrawn_one_says_so() {
     let answers = SharedAnswers::default();
-    let offer = Ok(SharedMailboxOffer::Listed(vec![
+    let offer = Ok(SharedStoreOffer::Listed(vec![
         listed("s", "Support team", Some("support@example.org")),
         listed("n", "news", None),
     ]));
@@ -142,11 +142,11 @@ fn the_line_under_the_switches_says_what_the_server_answered() {
             .and_then(|section| section.note)
     };
     assert_eq!(
-        note(Ok(SharedMailboxOffer::Listed(Vec::new()))),
+        note(Ok(SharedStoreOffer::Listed(Vec::new()))),
         Some(SharedMailboxesNote::NoneShared)
     );
     assert_eq!(
-        note(Ok(SharedMailboxOffer::NotConnected)),
+        note(Ok(SharedStoreOffer::NotConnected)),
         Some(SharedMailboxesNote::NotConnected)
     );
     assert_eq!(note(Err(())), Some(SharedMailboxesNote::Unreachable));
@@ -154,7 +154,7 @@ fn the_line_under_the_switches_says_what_the_server_answered() {
         answers
             .section(
                 "a",
-                Some(Ok(SharedMailboxOffer::Unsupported)),
+                Some(Ok(SharedStoreOffer::Unsupported)),
                 Vec::new(),
                 &Hold::default()
             )
@@ -172,7 +172,7 @@ fn the_line_under_the_switches_says_what_the_server_answered() {
 #[test]
 fn a_running_switch_and_add_are_drawn_where_they_go_and_hold_the_rest() {
     let answers = SharedAnswers::default();
-    let offer = Ok(SharedMailboxOffer::Listed(vec![
+    let offer = Ok(SharedStoreOffer::Listed(vec![
         listed("s", "s", Some("support@example.org")),
         listed("t", "t", Some("team@example.org")),
     ]));
@@ -196,7 +196,7 @@ fn a_running_switch_and_add_are_drawn_where_they_go_and_hold_the_rest() {
     let field = answers
         .section(
             "a",
-            Some(Ok(SharedMailboxOffer::ByAddress)),
+            Some(Ok(SharedStoreOffer::ByAddress)),
             Vec::new(),
             &adding,
         )
@@ -209,7 +209,7 @@ fn a_running_switch_and_add_are_drawn_where_they_go_and_hold_the_rest() {
     let field = answers
         .section(
             "a",
-            Some(Ok(SharedMailboxOffer::ByAddress)),
+            Some(Ok(SharedStoreOffer::ByAddress)),
             Vec::new(),
             &Hold::default(),
         )

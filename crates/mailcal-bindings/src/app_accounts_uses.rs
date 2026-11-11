@@ -74,14 +74,18 @@ impl MailcalApp {
             self.app
                 .forget_use_problem(&id, capability == Capability::Calendar);
         }
-        // The shared mailboxes are opened by this use, so they go with it; the account's own
-        // mail stays unless mail itself was switched off. A refused write is reported once the
-        // account is dialled again, so it is not left listed without providers.
-        let dropped = if !on && matches!(capability, Capability::Mail | Capability::SharedMailboxes)
-        {
-            self.drop_shared_mailboxes(&account_id)
-        } else {
-            Ok(())
+        // The shared stores are opened by this use, so they go with it: shared mailboxes with
+        // mail or their own use, shared calendars with calendar. The account's own mail stays
+        // unless mail itself was switched off. A refused write is reported once the account is
+        // dialled again, so it is not left listed without providers.
+        let dropped = match (on, capability) {
+            (false, Capability::Mail | Capability::SharedMailboxes) => {
+                self.drop_shared_stores(&account_id, mailcal_account::SharedUse::Mail)
+            }
+            (false, Capability::Calendar) => {
+                self.drop_shared_stores(&account_id, mailcal_account::SharedUse::Calendar)
+            }
+            _ => Ok(()),
         };
         if !on
             && capability != Capability::SharedMailboxes
@@ -135,8 +139,8 @@ impl MailcalApp {
 /// What the store forgets when an account stops being used for `capability`, `None` for video
 /// meetings, of which the device holds nothing. Colleagues are stored as cards beside the
 /// account's own with no line between them, so both go, and the account's own come back with
-/// its next contacts sync. Shared mailboxes are accounts of their own and are forgotten as such
-/// (`MailcalApp::drop_shared_mailboxes`).
+/// its next contacts sync. Shared stores are accounts of their own and are forgotten as such
+/// (`MailcalApp::drop_shared_stores`).
 pub(crate) const fn domain_of(capability: Capability) -> Option<SearchDomain> {
     match capability {
         Capability::Mail | Capability::SharedMailboxes => Some(SearchDomain::Mail),

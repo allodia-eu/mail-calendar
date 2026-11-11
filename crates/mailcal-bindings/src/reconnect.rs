@@ -133,7 +133,10 @@ pub(crate) async fn reconnect_all(
                     // A shared mailbox never passes through the step that asks an added account
                     // for its name, so it takes its provider's name here, once: a stored name
                     // ends the asking.
-                    if registry.shared_parent(id.as_str()).is_some() {
+                    if registry
+                        .shared_parent(id.as_str())
+                        .is_some_and(|(_, child)| child.kind == mailcal_account::SharedUse::Mail)
+                    {
                         app.needs_sender_name(&id).await;
                     }
                     connected

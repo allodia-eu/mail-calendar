@@ -258,6 +258,10 @@ impl AccountConfig {
         if host(self, Capability::Mail) != host(&edited, Capability::Mail) {
             edited.shape.shared_mailboxes.clear();
         }
+        // So does a shared calendar's, on the calendar server.
+        if host(self, Capability::Calendar) != host(&edited, Capability::Calendar) {
+            edited.shape.shared_calendars.clear();
+        }
         Ok(EditedAccount {
             config: edited,
             moved,
