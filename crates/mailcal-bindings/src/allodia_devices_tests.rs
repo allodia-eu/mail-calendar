@@ -48,7 +48,7 @@ fn report() -> AllodiaSyncReport {
 }
 
 #[test]
-fn nothing_is_drawn_before_a_pass_has_answered_or_once_one_found_nothing() {
+fn nothing_is_known_before_a_pass_has_answered_and_one_that_found_nothing_says_so() {
     let devices = Devices::default();
     assert_eq!(devices.view(|_| FREE), None);
 
@@ -56,11 +56,14 @@ fn nothing_is_drawn_before_a_pass_has_answered_or_once_one_found_nothing() {
     let checking = devices.view(|_| FREE).expect("a pass runs");
     assert!(checking.checking);
 
+    assert!(!checking.nothing_found, "it has not answered yet");
+
     assert_eq!(
         devices.pass_ended(session, Ok(AllodiaSyncReport::default())),
         None
     );
-    assert_eq!(devices.view(|_| FREE), None, "a pass that found nothing");
+    let found = devices.view(|_| FREE).expect("a pass answered");
+    assert!(found.nothing_found, "a pass that found nothing says so");
 }
 
 #[test]
@@ -71,6 +74,7 @@ fn a_pass_answers_with_offers_then_changed_then_removed() {
 
     let card = devices.view(|_| FREE).expect("something to say");
     assert!(!card.checking);
+    assert!(!card.nothing_found);
     assert_eq!(card.offers, vec![offer()]);
     let asked: Vec<_> = card
         .questions
@@ -95,6 +99,7 @@ fn a_pass_asked_for_while_one_runs_runs_once_more_after_it() {
 
     let next = devices.pass_ended(session, Ok(AllodiaSyncReport::default()));
     assert_eq!(next, Some(session), "the one asked for meanwhile");
+    assert!(!devices.view(|_| FREE).expect("it runs").nothing_found);
     assert!(devices.view(|_| FREE).expect("it runs").checking);
     assert_eq!(devices.pass_ended(session, Ok(report())), None);
     assert!(!devices.view(|_| FREE).expect("it found something").checking);
@@ -106,7 +111,7 @@ fn a_pass_that_ends_after_a_sign_out_says_nothing() {
     let session = devices.want_pass().expect("nothing runs yet");
     devices.new_session();
     assert_eq!(devices.pass_ended(session, Ok(report())), None);
-    assert_eq!(devices.view(|_| FREE), None);
+    assert_eq!(devices.view(|_| FREE), None, "nothing is known about the next sign-in");
 }
 
 #[test]
@@ -172,6 +177,7 @@ fn a_removed_account_leaves_the_card() {
     devices.forget_account("gone");
     let card = devices.view(|_| FREE).expect("found");
     assert!(card.questions.iter().all(|q| q.account_id != "gone"));
+    assert!(!card.nothing_found, "the offer still stands");
 }
 
 #[test]

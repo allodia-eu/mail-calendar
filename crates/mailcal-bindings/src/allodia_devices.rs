@@ -64,12 +64,15 @@ pub struct AllodiaDevicesQuestion {
     pub failed: Option<AllodiaSyncFailure>,
 }
 
-/// What Settings → Accounts draws above the accounts about the person's other devices. Accounts
-/// changed elsewhere come before those removed elsewhere.
+/// What the person's other devices have to say: drawn above the accounts in Settings → Accounts,
+/// and on the first-run card. Accounts changed elsewhere come before those removed elsewhere.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AllodiaDevices {
     /// A pass is running.
     pub checking: bool,
+    /// The last pass answered, and the other devices hold nothing this one lacks and ask nothing
+    /// about it: Settings draws no card, and the first-run card may say there are no accounts.
+    pub nothing_found: bool,
     /// Accounts the other devices hold that this one has not got.
     pub offers: Vec<AllodiaAccountOffer>,
     pub questions: Vec<AllodiaDevicesQuestion>,
@@ -202,9 +205,9 @@ impl Devices {
             .copied()
     }
 
-    /// What the card draws, each Keep drawn by `keep`; `None` when there is nothing to say,
-    /// which includes before the first pass has answered: a heading over an empty list would
-    /// claim the other devices hold no accounts, which this device does not yet know.
+    /// What the card draws, each Keep drawn by `keep`; `None` while nothing is known, before the
+    /// first pass has answered: a heading over an empty list would claim the other devices hold
+    /// no accounts, which this device does not yet know.
     pub(crate) fn view(&self, keep: impl Fn(&str) -> ControlState) -> Option<AllodiaDevices> {
         let state = self.state.lock().expect("allodia devices lock");
         let mut offers = Vec::new();
@@ -225,10 +228,14 @@ impl Devices {
                 }));
             }
         }
-        let silent =
-            !state.running && state.failure.is_none() && offers.is_empty() && questions.is_empty();
-        (!silent).then(|| AllodiaDevices {
+        let known = state.running || state.failure.is_some() || state.report.is_some();
+        let nothing_found = !state.running
+            && state.failure.is_none()
+            && offers.is_empty()
+            && questions.is_empty();
+        known.then(|| AllodiaDevices {
             checking: state.running,
+            nothing_found,
             offers,
             questions,
             failure: state.failure,

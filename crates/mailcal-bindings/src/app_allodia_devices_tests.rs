@@ -140,7 +140,10 @@ fn keeping_what_this_device_has_pauses_the_account_and_answers_the_question() {
             mode: AllodiaAccountSyncMode::Paused,
         },
     });
-    assert_eq!(settled(&app), None, "nothing is left to ask");
+    assert!(
+        settled(&app).expect("the pass answered").nothing_found,
+        "nothing is left to ask"
+    );
     let sharing = app
         .account_page(ID.to_owned())
         .expect("listed")
@@ -180,7 +183,7 @@ fn a_removed_account_leaves_the_card() {
         assert!(Instant::now() < deadline, "the removal never ended");
         std::thread::sleep(Duration::from_millis(10));
     }
-    assert_eq!(app.allodia_devices(), None);
+    assert!(app.allodia_devices().expect("answered").questions.is_empty());
 }
 
 /// An account whose server is reached at one name and verified as another is one the other

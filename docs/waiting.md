@@ -96,7 +96,7 @@ they can hold while someone is signed in to an Allodia account, and moving it is
 page (`SetSharing`). What the other devices have to say is the core's too
 (`MailcalApp::allodia_devices`): the core runs the pass whenever what it compares may have moved,
 one asked for while another runs running once more after it, and a pass that ends after the
-sign-in it ran for has gone says nothing. The card draws `checking` while one runs, and each
+sign-in it ran for has gone says nothing. It is `None` until a pass has answered, and says `nothing_found` once one answered with nothing, on which Settings draws no card and the first-run card says there are no accounts. The card draws `checking` while one runs, and each
 question's Keep is the same change on its account's page, running and held as one; what did not
 take is said on the control and the question, as `failed`.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
