@@ -834,6 +834,7 @@
 	"settings_account_sync_paused_hint": "Your other devices keep this account, but changes stop travelling in either direction. Use it when the settings here need to differ from theirs.",
 	"settings_account_sync_off": "Off",
 	"settings_account_sync_off_hint": "This account is only on this device. It is taken off your other devices, and Allodia keeps no record of it.",
+	"settings_account_sync_failed": "Couldn’t change how this account is synced with your other devices. Nothing changed.",
 	"settings_allodia_sync_heading": "From your other devices",
 	"settings_allodia_sync_description": "Accounts you added on another device. Setting one up here asks for its password. Passwords never leave the device they were typed on.",
 	"settings_allodia_sync_set_up": "Set up",

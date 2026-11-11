@@ -834,6 +834,7 @@
 	"settings_account_sync_paused_hint": "Os seus outros dispositivos mantêm esta conta, mas as alterações deixam de circular em qualquer sentido. Útil quando as definições aqui têm de ser diferentes.",
 	"settings_account_sync_off": "Desligado",
 	"settings_account_sync_off_hint": "Esta conta está apenas neste dispositivo. É retirada dos seus outros dispositivos e a Allodia não guarda qualquer registo dela.",
+	"settings_account_sync_failed": "Não foi possível alterar a sincronização desta conta com os seus outros dispositivos. Nada mudou.",
 	"settings_allodia_sync_heading": "Dos seus outros dispositivos",
 	"settings_allodia_sync_description": "Contas que adicionou noutro dispositivo. Configurar uma aqui pede a palavra-passe. As palavras-passe nunca saem do dispositivo onde foram escritas.",
 	"settings_allodia_sync_set_up": "Configurar",

@@ -834,6 +834,7 @@
 	"settings_account_sync_paused_hint": "Vos autres appareils gardent ce compte, mais les modifications ne circulent plus dans aucun sens. Utile quand les réglages doivent différer ici.",
 	"settings_account_sync_off": "Désactivé",
 	"settings_account_sync_off_hint": "Ce compte n’est que sur cet appareil. Il est retiré de vos autres appareils, et Allodia n’en garde aucune trace.",
+	"settings_account_sync_failed": "Impossible de modifier la synchronisation de ce compte avec vos autres appareils. Rien n’a changé.",
 	"settings_allodia_sync_heading": "Depuis vos autres appareils",
 	"settings_allodia_sync_description": "Comptes que vous avez ajoutés sur un autre appareil. En configurer un ici demande son mot de passe. Les mots de passe ne quittent jamais l’appareil sur lequel ils ont été saisis.",
 	"settings_allodia_sync_set_up": "Configurer",
