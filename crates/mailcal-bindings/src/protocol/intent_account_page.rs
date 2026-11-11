@@ -79,15 +79,15 @@ pub enum AccountPageIntent {
         account: String,
         endpoints: crate::AccountEndpoints,
     },
-    /// Use the account for the shared mailbox `handle`, from its switch, or stop: switched off,
-    /// what the device holds of it is deleted.
-    SetSharedMailbox {
+    /// Use the account for the shared store `handle`, with what it holds, from its switch, or
+    /// stop: switched off, what the device holds of it is deleted.
+    SetSharedStore {
         account: String,
         handle: String,
         on: bool,
     },
-    /// Use the account for the shared mailbox at `address`, once its server opens one there.
-    AddSharedMailbox { account: String, address: String },
+    /// Use the account for the shared store at `address`, once its server opens one there.
+    AddSharedStore { account: String, address: String },
     /// Sign the account in with `password`, from its Sign-in section's field: in place of its
     /// grant, or of the password or token its server refused. Tried before it is kept.
     UsePassword {
@@ -168,8 +168,8 @@ impl AccountPageIntent {
             | Self::SetPollInterval { account, .. }
             | Self::SetWatchedFolder { account, .. }
             | Self::SaveServers { account, .. }
-            | Self::SetSharedMailbox { account, .. }
-            | Self::AddSharedMailbox { account, .. }
+            | Self::SetSharedStore { account, .. }
+            | Self::AddSharedStore { account, .. }
             | Self::UsePassword { account, .. }
             | Self::AllowServerChange { account, .. }
             | Self::ConnectSeparateServer { account, .. }

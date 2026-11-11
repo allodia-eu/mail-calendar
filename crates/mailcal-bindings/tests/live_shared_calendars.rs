@@ -24,7 +24,8 @@ use std::{
 
 use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{
-    CalendarRow, JmapSetup, MailcalApp, SharedStoreEntry, SharedStoreSupport, SharedUse, SharedUses,
+    AccountPageIntent, CalendarRow, Intent, JmapSetup, MailcalApp, SharedStoreEntry,
+    SharedStoreHolds, SharedStoreSupport, SharedUse, SharedUses,
 };
 
 const SUPPORT: &str = "support@test.local";
@@ -112,8 +113,36 @@ fn the_shared_calendars_are_listed_chosen_synced_stored_and_dropped(
         "{stores:?}"
     );
 
-    app.set_shared_store(parent.to_owned(), dave.clone(), true)
-        .expect("choosing dave's store");
+    // Dave's is chosen the way a client chooses it: from its switch on the account's page, which
+    // says what it holds.
+    app.account_page_opened(parent.to_owned());
+    let row = eventually("the page to draw dave's store", || {
+        app.account_page(parent.to_owned())?
+            .shared?
+            .stores
+            .into_iter()
+            .find(|row| row.title == DAVE)
+    });
+    assert!(!row.on && row.control.enabled);
+    let row_holds = if with_mail {
+        SharedStoreHolds::MailAndCalendar
+    } else {
+        SharedStoreHolds::Calendar
+    };
+    assert_eq!(row.holds, row_holds);
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SetSharedStore {
+            account: parent.to_owned(),
+            handle: row.handle,
+            on: true,
+        },
+    });
+    let drawn = app
+        .account_page(parent.to_owned())
+        .and_then(|page| page.shared)
+        .expect("the section is drawn");
+    let dave_row = drawn.stores.iter().find(|row| row.title == DAVE);
+    assert!(dave_row.is_some_and(|row| row.on), "{drawn:?}");
     app.set_shared_store(parent.to_owned(), support.clone(), true)
         .expect("choosing the group's store");
     let dave_calendar = eventually("dave's calendar to sync", || {

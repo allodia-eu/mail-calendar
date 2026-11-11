@@ -396,7 +396,7 @@ fn a_refused_add_keeps_the_address_it_was_given() {
     let app = app("account-page-shared-add", MAIL_ONLY);
     settled(&app);
     app.dispatch(Intent::AccountPage {
-        intent: AccountPageIntent::AddSharedMailbox {
+        intent: AccountPageIntent::AddSharedStore {
             account: ID.to_owned(),
             address: "  team@example.org ".to_owned(),
         },
@@ -404,7 +404,7 @@ fn a_refused_add_keeps_the_address_it_was_given() {
     let page = settled(&app);
     assert!(matches!(
         page.notice.map(|raised| raised.notice),
-        Some(AccountChangeNotice::SharedMailboxFailed { .. })
+        Some(AccountChangeNotice::SharedStoreFailed { .. })
     ));
     assert_eq!(
         app.account_work.shared.missed_at(ID).as_deref(),

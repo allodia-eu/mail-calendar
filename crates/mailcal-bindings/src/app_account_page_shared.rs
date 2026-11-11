@@ -9,8 +9,8 @@ use mailcal_account::SharedUses;
 use mailcal_app::SharedStoreOffer;
 
 use crate::{
-    AccountChangeNotice, AccountChangeRefusal, AccountPageIntent, AccountSharedMailboxes,
-    MailcalApp, account_page::shared::Asked, account_work::Hold, app_shared_stores::view,
+    AccountChangeNotice, AccountChangeRefusal, AccountPageIntent, AccountSharedStores, MailcalApp,
+    account_page::shared::Asked, account_work::Hold, app_shared_stores::view,
 };
 
 #[uniffi::export]
@@ -36,7 +36,7 @@ impl MailcalApp {
         &self,
         account_id: &str,
         hold: &Hold,
-    ) -> Option<AccountSharedMailboxes> {
+    ) -> Option<AccountSharedStores> {
         let shared = &self.account_work.shared;
         // One that cannot open any is answered without asking its server.
         let offer = if self.opens_shared(account_id) {
@@ -100,11 +100,11 @@ impl MailcalApp {
         &self,
         intent: AccountPageIntent,
     ) -> Option<AccountChangeNotice> {
-        let failed = |error: &crate::MailcalError| AccountChangeNotice::SharedMailboxFailed {
+        let failed = |error: &crate::MailcalError| AccountChangeNotice::SharedStoreFailed {
             refusal: AccountChangeRefusal::from(error),
         };
         match intent {
-            AccountPageIntent::SetSharedMailbox {
+            AccountPageIntent::SetSharedStore {
                 account,
                 handle,
                 on,
@@ -119,7 +119,7 @@ impl MailcalApp {
                     .into_iter()
                     .find(|mailbox| mailbox.handle == handle)
                 else {
-                    return Some(AccountChangeNotice::SharedMailboxFailed {
+                    return Some(AccountChangeNotice::SharedStoreFailed {
                         refusal: AccountChangeRefusal::NoLongerShared,
                     });
                 };
@@ -127,7 +127,7 @@ impl MailcalApp {
                     .err()
                     .map(|error| failed(&error))
             }
-            AccountPageIntent::AddSharedMailbox { account, address } => {
+            AccountPageIntent::AddSharedStore { account, address } => {
                 let address = address.trim().to_owned();
                 // The field keeps the address until it is added, so a refusal is corrected
                 // rather than retyped.
@@ -141,7 +141,7 @@ impl MailcalApp {
                             Err(error) => failed(&error),
                         }
                     }
-                    Ok(None) => AccountChangeNotice::SharedMailboxNotFound {
+                    Ok(None) => AccountChangeNotice::SharedStoreNotFound {
                         address: address.clone(),
                     },
                     Err(error) => failed(&error),

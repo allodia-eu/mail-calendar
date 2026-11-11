@@ -139,11 +139,11 @@ impl PageWork {
             AccountPageIntent::SaveServers { endpoints, .. } => {
                 Self::Servers(Box::new(endpoints.clone()))
             }
-            AccountPageIntent::SetSharedMailbox { handle, on, .. } => Self::Shared {
+            AccountPageIntent::SetSharedStore { handle, on, .. } => Self::Shared {
                 handle: handle.clone(),
                 on: *on,
             },
-            AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
+            AccountPageIntent::AddSharedStore { address, .. } => Self::AddShared(address.clone()),
             AccountPageIntent::UsePassword { .. } => Self::Password,
             AccountPageIntent::AllowServerChange { shown, .. } => Self::ServerChange(shown.clone()),
             AccountPageIntent::ConnectSeparateServer { username, .. } => Self::SeparateServer {

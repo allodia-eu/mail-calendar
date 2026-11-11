@@ -41,7 +41,7 @@ pub(super) mod notice;
 mod pages;
 pub(super) mod redraw;
 pub(super) mod sender_name;
-mod shared_mailboxes;
+mod shared_stores;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;

@@ -4,7 +4,7 @@ use mailcal_app::SharedStoreOffer;
 
 use super::{Asked, SharedAnswers};
 use crate::{
-    ControlState, SharedMailboxesNote,
+    ControlState, SharedStoresNote,
     account_work::{Hold, PageWork},
 };
 
@@ -112,7 +112,7 @@ fn a_switch_is_titled_by_its_address_and_a_withdrawn_one_says_so() {
         )
         .expect("the server answered");
     let rows: Vec<_> = section
-        .mailboxes
+        .stores
         .iter()
         .map(|row| {
             (
@@ -131,7 +131,7 @@ fn a_switch_is_titled_by_its_address_and_a_withdrawn_one_says_so() {
             ("news", None, false, false),
         ]
     );
-    assert!(section.mailboxes.iter().all(|row| row.control == FREE));
+    assert!(section.stores.iter().all(|row| row.control == FREE));
     assert_eq!(section.note, None);
     assert!(
         section.address.is_none(),
@@ -149,13 +149,13 @@ fn the_line_under_the_switches_says_what_the_server_answered() {
     };
     assert_eq!(
         note(Ok(SharedStoreOffer::Listed(Vec::new()))),
-        Some(SharedMailboxesNote::NoneShared)
+        Some(SharedStoresNote::NoneShared)
     );
     assert_eq!(
         note(Ok(SharedStoreOffer::NotConnected)),
-        Some(SharedMailboxesNote::NotConnected)
+        Some(SharedStoresNote::NotConnected)
     );
-    assert_eq!(note(Err(())), Some(SharedMailboxesNote::Unreachable));
+    assert_eq!(note(Err(())), Some(SharedStoresNote::Unreachable));
     assert!(
         answers
             .section(
@@ -192,8 +192,8 @@ fn a_running_switch_and_add_are_drawn_where_they_go_and_hold_the_rest() {
     let section = answers
         .section("a", Some(offer), Vec::new(), &hold)
         .unwrap();
-    assert!(section.mailboxes[0].on && section.mailboxes[0].control.running);
-    assert!(!section.mailboxes[1].control.enabled && !section.mailboxes[1].control.running);
+    assert!(section.stores[0].on && section.stores[0].control.running);
+    assert!(!section.stores[1].control.enabled && !section.stores[1].control.running);
 
     let adding = Hold {
         busy: true,
@@ -225,5 +225,33 @@ fn a_running_switch_and_add_are_drawn_where_they_go_and_hold_the_rest() {
         (field.text.as_str(), field.add),
         ("typo@example.org", FREE),
         "an address nothing answered to stays to be corrected"
+    );
+}
+
+#[test]
+fn each_row_says_what_switching_it_on_opens() {
+    let holding = |handle: &str, domains: StoreDomains| {
+        let mut store = listed(handle, handle, None);
+        store.domains = domains;
+        store
+    };
+    let mail = StoreDomains::of(SearchDomain::Mail);
+    let calendar = StoreDomains::of(SearchDomain::Calendar);
+    let offer = Ok(SharedStoreOffer::Listed(vec![
+        holding("group", mail.with(SearchDomain::Calendar)),
+        holding("inbox", mail),
+        holding("dave", calendar),
+    ]));
+    let section = SharedAnswers::default()
+        .section("a", Some(offer), Vec::new(), &Hold::default())
+        .expect("the server answered");
+    let holds: Vec<_> = section.stores.iter().map(|row| row.holds).collect();
+    assert_eq!(
+        holds,
+        [
+            crate::SharedStoreHolds::MailAndCalendar,
+            crate::SharedStoreHolds::Mail,
+            crate::SharedStoreHolds::Calendar,
+        ]
     );
 }
