@@ -30,9 +30,13 @@ public sealed partial class SettingsDialog
     private string? _meetingAccountsDrawn;
 
     // The default per account, refilled when an account or the Jitsi server changes what is on
-    // offer.
+    // offer. A change of choice alone moves the account's picker in place: the core echoes a
+    // choice back as a calendar change, and a redraw would take the picker from under the person
+    // who just used it, with their keyboard focus.
     private StackPanel? _meetingDefaults;
     private string? _meetingDefaultsDrawn;
+    private readonly Dictionary<string, ComboBox> _meetingDefaultPickers = [];
+    private bool _meetingDefaultMoving;
 
     private UIElement BuildVideoconferencing()
     {
@@ -143,13 +147,21 @@ public sealed partial class SettingsDialog
         }
         var rows = _model.MeetingDefaults();
         var drawn = string.Join('\n', rows.Select(row =>
-            $"{row.Account}\t{row.AccountAddress}\t{row.Chosen}\t"
+            $"{row.Account}\t{row.AccountAddress}\t"
             + string.Join('\t', row.Choices.Select(choice => $"{choice.Id}|{choice.Name}|{choice.Through}"))));
         if (drawn == _meetingDefaultsDrawn)
         {
+            foreach (var row in rows)
+            {
+                if (_meetingDefaultPickers.TryGetValue(row.Account, out var picker))
+                {
+                    MoveMeetingDefault(picker, row.Chosen);
+                }
+            }
             return;
         }
         _meetingDefaultsDrawn = drawn;
+        _meetingDefaultPickers.Clear();
         host.Children.Clear();
         if (rows.Length == 0)
         {
@@ -183,11 +195,12 @@ public sealed partial class SettingsDialog
         AutomationProperties.SetName(box, row.AccountAddress);
         box.SelectionChanged += (_, _) =>
         {
-            if (box.SelectedItem is DefaultMeetingOption option)
+            if (!_meetingDefaultMoving && box.SelectedItem is DefaultMeetingOption option)
             {
                 _model.SetDefaultMeeting(row.Account, option.Id);
             }
         };
+        _meetingDefaultPickers[row.Account] = box;
         var address = new TextBlock
         {
             Text = row.AccountAddress,
@@ -201,6 +214,30 @@ public sealed partial class SettingsDialog
         grid.Children.Add(address);
         grid.Children.Add(box);
         return grid;
+    }
+
+    /// <summary>Shows <paramref name="chosen"/> in <paramref name="picker"/> without storing it
+    /// again: it is what the core already holds.</summary>
+    private void MoveMeetingDefault(ComboBox picker, string? chosen)
+    {
+        if (picker.ItemsSource is not List<DefaultMeetingOption> options)
+        {
+            return;
+        }
+        var option = options.FirstOrDefault(option => option.Id == chosen) ?? options[0];
+        if (ReferenceEquals(picker.SelectedItem, option))
+        {
+            return;
+        }
+        _meetingDefaultMoving = true;
+        try
+        {
+            picker.SelectedItem = option;
+        }
+        finally
+        {
+            _meetingDefaultMoving = false;
+        }
     }
 
     // One entry in an account's picker; ToString is the label so the ComboBox shows it directly.
