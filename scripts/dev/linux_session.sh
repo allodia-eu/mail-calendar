@@ -42,6 +42,21 @@ linux_session_marker() {
   printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mailcal-linux-session-$checkout"
 }
 
+# The socket this checkout's app answers its test agent on (`clients/linux/src/agent.rs`), one per
+# checkout for the reason the marker above is. It lives in a directory of its own under the runtime
+# directory, short enough for a socket path, and the one directory the SDK sandbox is given
+# (`linux_agent_sandbox_args`), so a client inside the sandbox and a script outside it meet there.
+linux_agent_socket() {
+  local checkout
+  checkout="$(printf '%s' "${REPO_ROOT:-$PWD}" | cksum | cut -d' ' -f1)"
+  printf '%s\n' "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mailcal-agent/$checkout.sock"
+}
+
+# The flatpak arguments that let a sandboxed client listen where `linux_agent_socket` says.
+linux_agent_sandbox_args() {
+  printf '%s\n' "--filesystem=xdg-run/mailcal-agent:create"
+}
+
 # The Wayland sockets that exist now, each as `name:inode`. The compositor names its own socket
 # (`wl_display_add_socket_auto`), so a run identifies it by taking the one that was not there
 # before: the developer's session already owns wayland-0, and a stale compositor from an

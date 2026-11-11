@@ -112,6 +112,7 @@ fn a_photo_arriving_is_part_of_the_row_rendering_key() {
 fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::gtk_test_display::init();
     let (row_sender, _row_receiver) = relm4::channel::<AppInput>();
+    crate::agent::tests::run();
     super::thread_tests::conversation_rows_expand_and_unread_mail_is_bold();
     super::thread_tests::every_mail_row_formats_its_timestamp();
     super::thread_tests::a_conversation_reports_what_the_reader_asked_for();

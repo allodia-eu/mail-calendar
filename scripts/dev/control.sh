@@ -32,6 +32,15 @@
 #                                                     #   that acts; a tap is a pixel event and lands
 #                                                     #   wherever that point happens to be
 #   scripts/dev/control.sh macos ui-dump              # the live Accessibility tree (assertion oracle)
+#   scripts/dev/control.sh linux agent dump            # the app's own widget tree, with handles: the
+#                                                      #   fastest way to see and act on the app
+#   scripts/dev/control.sh linux agent press text=Archive      # find exactly one, activate it
+#   scripts/dev/control.sh linux agent fill name=search value=invoice submit=true
+#   scripts/dev/control.sh linux agent screenshot path=/tmp/app.png   # works on any compositor
+#   scripts/dev/control.sh linux agent settle          # until the app has gone quiet
+#   scripts/dev/control.sh linux agent verbs           # every verb and its arguments
+#                                                      #   (debug and dev-harness builds only)
+#   scripts/dev/control.sh linux stop                  # quit the app, and its headless compositor
 #   scripts/dev/control.sh linux activate "Reply"      # semantic AT-SPI action, no pixel coordinates
 #   scripts/dev/control.sh linux activate "Close" --role "push button" --within "Settings" --within-role frame
 #                                                      #   filters after the name narrow the match
@@ -187,6 +196,21 @@ EOF
     # happens to be. What AT-SPI cannot do is a shortcut or a dismissal (Escape, Tab, Ctrl+Return),
     # which is the whole of what `key` is for.
     case "$action" in
+      agent)
+        [[ $# -ge 1 ]] || die "agent <verb> [key=value...]: 'agent verbs' lists them"
+        exec python3 "$REPO_ROOT/scripts/dev/linux_agent.py" \
+          --socket "${MAILCAL_TEST_AGENT:-$(linux_agent_socket)}" "$@" ;;
+      stop)
+        # The app first, through its own Quit, so it shuts down as a person's would; then the
+        # private compositor, when this checkout has one up.
+        python3 "$REPO_ROOT/scripts/dev/linux_agent.py" \
+          --socket "${MAILCAL_TEST_AGENT:-$(linux_agent_socket)}" quit >/dev/null 2>&1 &&
+          info "asked the app to quit" || info "no app answered its agent"
+        if linux_session_attach; then
+          linux_session_stop
+          info "stopped the headless compositor"
+        fi
+        exit 0 ;;
       key)
         [[ $# -ge 1 ]] || die "key <xkb keysym, or a chord such as ctrl+Return|ctrl+shift+Left>"
         linux_session_attach ||
@@ -229,7 +253,7 @@ EOF
       locate)
         [[ $# -ge 1 ]] || die "locate <accessible name> [filters]"
         exec "$python" "$script" locate --name "$1" "${@:2}" ;;
-      *) die "unknown linux action '$action' (activate|click|drag|find|key|locate|move|read-text|scroll|set-text|text|ui-dump)" ;;
+      *) die "unknown linux action '$action' (agent|activate|click|drag|find|key|locate|move|read-text|scroll|set-text|stop|text|ui-dump)" ;;
     esac
     ;;
   windows)

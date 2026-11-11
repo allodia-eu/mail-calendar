@@ -808,17 +808,22 @@ scripts/dev/control.sh android tap <x> <y> | text "<s>" | key back | swipe ... |
 scripts/dev/control.sh iphone ui-dump | find "<label>" | press "<label>" | probe <x> <y> | tap <x> <y> | text "<s>"
 scripts/dev/control.sh macos  tap <x> <y> | text "<s>" | key return | find "<label>" | ui-dump
 scripts/dev/control.sh windows open-first | calendar | home | swipe <delete|archive|star> | ui-dump
+scripts/dev/control.sh linux agent dump | press <filter> | fill <filter> value=<text> | settle | screenshot path=<png> | verbs
 scripts/dev/control.sh linux activate "<accessible name>" | find "<accessible name>" | set-text "<accessible name>" "<value>" | ui-dump
 ```
 
 `ui-dump` prints the accessibility tree (UI Automation on Windows) so you can find nodes.
 
-**Linux** is driven through GTK's AT-SPI tree. `activate` exact-matches a localised accessible name,
+**Linux** is driven first through the app's own test agent (`control.sh linux agent`, debug and
+`dev-harness` builds), which walks the widget tree in-process, activates list rows and switch rows,
+waits for the app to settle and draws its own screenshots on any compositor; the `debug-app` skill
+has the commands and [`agent.rs`](../clients/linux/src/agent.rs) the protocol. GTK's AT-SPI tree is
+the judge of what assistive technology gets. `activate` exact-matches a localised accessible name,
 requires the control to be sensitive and visible in the live tree, and invokes only a semantic
 `activate` / `click` / `press` / `open` action. It deliberately has no coordinate fallback. GTK
 editable controls use AT-SPI's editable-text interface through `set-text`. GTK list rows do not
-expose a dependable action, so establish reading state with the debug-only exact subject hook
-instead:
+expose a dependable AT-SPI action; the agent's `press` activates one, and the debug-only exact
+subject hook establishes reading state at launch:
 
 ```sh
 MAILCAL_OPEN_SUBJECT="HTML message with a remote image" scripts/dev/boot.sh linux

@@ -157,11 +157,39 @@ scripts/dev/control.sh linux  key Escape | key ctrl+k | text "<s>"   # a real ke
 `ui-dump` prints the accessibility tree so you can locate semantic nodes (and coordinates where a
 platform's adapter needs them).
 
-**On Linux, semantic AT-SPI actions are the contract.** `activate` exact-matches the accessible
+**On Linux, start with the test agent.** Every debug and `dev-harness` build listens on a socket
+of its own for each checkout, and `control.sh linux agent` finds it. One call answers in a fraction
+of a second, against the app's own widgets:
+
+```
+scripts/dev/control.sh linux agent dump                    # the tree: [handle] type "text" role state
+scripts/dev/control.sh linux agent press text=Archive      # find exactly one, then click it
+scripts/dev/control.sh linux agent press icon=mail-reply-sender-symbolic
+scripts/dev/control.sh linux agent fill name=search value=invoice submit=true
+scripts/dev/control.sh linux agent wait text="Message sent" timeoutMs=5000
+scripts/dev/control.sh linux agent settle                  # until the app and the core are quiet
+scripts/dev/control.sh linux agent screenshot path=/tmp/app.png
+scripts/dev/control.sh linux agent verbs                   # every verb and its arguments
+scripts/dev/control.sh linux stop                          # quit the app and its compositor
+```
+
+It does what AT-SPI cannot: it activates a list row, an expander row and a switch row; `settle`
+replaces a guessed sleep; `screenshot` is drawn by the app, so it works on any compositor,
+the developer's GNOME desktop included (a popover is a surface of its own: pass its handle); and
+`eval h=<web view> script=...` reads or drives the composer's page. `press` and `fill` refuse to
+guess: no match lists what was near, and two matches list both, so narrow with `type=`, `role=`,
+`window=`, `under=<handle>` or `has={"text": "..."}`. A refusal exits 1 with its `code` on the
+first line of stderr. The protocol is documented where it is defined, `clients/linux/src/agent.rs`.
+
+⚠️ **A data directory of its own does not isolate the accounts.** Credentials live in the desktop
+keyring, so a run with a fresh `XDG_DATA_HOME` still opens every account stored there and syncs the
+developer's real mail. Use `MAILCAL_DEV_ACCOUNT` (`stalwart`, `demo`) for a store of its own.
+
+**AT-SPI stays the judge of what a screen reader gets.** `activate` exact-matches the accessible
 name, requires a sensitive node, and invokes only an exposed `activate` / `click` / `press` / `open`
 action; `set-text` goes through AT-SPI's editable-text interface. Neither has a coordinate fallback.
-GTK list rows do not consistently expose an action, so use the debug-only exact subject hook to
-establish reading state:
+GTK list rows do not consistently expose an AT-SPI action (the agent's `press` activates them), and
+the debug-only exact subject hook establishes reading state at launch:
 
 ```
 MAILCAL_OPEN_SUBJECT="HTML message with a remote image" scripts/dev/boot.sh linux
@@ -170,9 +198,8 @@ scripts/dev/control.sh linux activate "Load images"
 
 `key` and `text` are the half AT-SPI cannot do: a shortcut, a Tab, a dismissal. Prefer `activate`
 for anything that acts, because it invokes the element itself while a keystroke lands wherever
-focus happens to be. **Linux also has a real pointer**, for what neither reaches: a gesture, the
-wheel, and a list row, which exposes no AT-SPI action. Compose it with `locate` rather than storing
-a coordinate:
+focus happens to be. **Linux also has a real pointer**, for what none of them reaches: a gesture
+and the wheel. Compose it with `locate` rather than storing a coordinate:
 
 ```
 scripts/dev/control.sh linux click $(scripts/dev/control.sh linux locate "Lunch on Friday?")

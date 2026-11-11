@@ -66,7 +66,7 @@ mod google;
 #[cfg(test)]
 mod gtk_test_display;
 mod host_tasks;
-mod icons;
+pub(crate) mod icons;
 mod imap_actions;
 mod imap_signin;
 mod input;

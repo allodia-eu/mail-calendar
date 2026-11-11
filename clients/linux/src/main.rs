@@ -10,6 +10,8 @@
 
 use adw::prelude::*;
 
+#[cfg(any(debug_assertions, feature = "dev-harness"))]
+mod agent;
 mod allodia_sync_store;
 mod appearance;
 mod boot;
@@ -94,6 +96,11 @@ fn main() {
         eprintln!("{problem}");
         std::process::exit(2);
     }
+
+    // A debug or harness build answers a test, a script or a coding agent on the socket
+    // `MAILCAL_TEST_AGENT` names; without it, nothing listens.
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    agent::start();
 
     let application = adw::Application::builder()
         .application_id(l10n::APP_ID)
