@@ -21,6 +21,8 @@ internal fun MainActivity.refreshAccountsSnapshot() {
     val instance = app ?: return
     val snapshot = instance.accountsSnapshot()
     accountSettings.snapshot = snapshot
+    // What the other devices have to say moves on the same signal as the list.
+    allodiaDevices = instance.allodiaDevices()
     val any = snapshot.accounts.isNotEmpty()
     if (!any && accountSettings.hadAccounts) {
         logUiInfo("accounts: the last account is gone; returning to first-run setup")

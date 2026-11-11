@@ -75,8 +75,6 @@ private fun MainActivity.addNextcloud(grant: String, uses: List<AccountCapabilit
             isConnecting = false
             answer.onSuccess { row ->
                 setupFlow.nextcloud.take()
-                readAccountsSynced()
-                syncAllodiaAccounts()
                 afterAccountAdded(row.id)
             }
             answer.onFailure { error ->

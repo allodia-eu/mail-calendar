@@ -16,6 +16,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.AllodiaAccountKind
 import uniffi.mailcal_bindings.AllodiaAccountOffer
+import uniffi.mailcal_bindings.AllodiaDevices
+import uniffi.mailcal_bindings.AllodiaSyncFailure
 
 private const val RECOMMENDED = "Recommended"
 private const val TITLE = "Create an Allodia account"
@@ -234,5 +236,27 @@ class OnboardingAllodiaCardTest {
         card(signedIn = true, offers = null)
         compose.onNodeWithText(NONE_TITLE).assertDoesNotExist()
         compose.onNodeWithText(DIVIDER).assertIsDisplayed()
+    }
+
+    /**
+     * What the activity hands the card from the core's record: an answer only an empty pass gives
+     * may read as "no mail accounts yet", and a record holding only questions, or only a failure,
+     * is no answer about offers at all.
+     */
+    @Test
+    fun only_a_pass_that_found_nothing_is_an_empty_answer() {
+        fun devices(nothingFound: Boolean, offers: List<AllodiaAccountOffer> = emptyList()) =
+            AllodiaDevices(
+                checking = false,
+                nothingFound = nothingFound,
+                offers = offers,
+                questions = emptyList(),
+                failure = if (nothingFound) null else AllodiaSyncFailure.UNAVAILABLE,
+            )
+        val found = listOf(offer("someone@gmail.com"))
+        assertEquals(null, onboardingOffers(null))
+        assertEquals(emptyList<AllodiaAccountOffer>(), onboardingOffers(devices(nothingFound = true)))
+        assertEquals(null, onboardingOffers(devices(nothingFound = false)))
+        assertEquals(found, onboardingOffers(devices(nothingFound = false, offers = found)))
     }
 }

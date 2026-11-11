@@ -14,6 +14,7 @@ import uniffi.mailcal_bindings.AccountMailSettings
 import uniffi.mailcal_bindings.AccountPage
 import uniffi.mailcal_bindings.AccountSenderName
 import uniffi.mailcal_bindings.AccountSeparateServer
+import uniffi.mailcal_bindings.AccountSharing
 import uniffi.mailcal_bindings.AccountSeparateSignIn
 import uniffi.mailcal_bindings.AccountServers
 import uniffi.mailcal_bindings.AccountSharedMailboxes
@@ -185,8 +186,10 @@ internal fun pageOf(
     shared: AccountSharedMailboxes? = null,
     signIn: AccountSignIn? = null,
     separate: AccountSeparateServer? = null,
+    sharing: AccountSharing? = null,
 ) = AccountPage(
     account = entry.id,
+    sharing = sharing,
     uses = uses,
     links = links,
     linkedFrom = linkedFrom,

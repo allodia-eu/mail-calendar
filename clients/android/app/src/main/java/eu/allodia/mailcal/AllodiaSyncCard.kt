@@ -17,36 +17,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.AllodiaAccountOffer
-import uniffi.mailcal_bindings.AllodiaGrantHealth
+import uniffi.mailcal_bindings.AllodiaAccountSyncMode
+import uniffi.mailcal_bindings.AllodiaDevices
+import uniffi.mailcal_bindings.AllodiaElsewhere
+import uniffi.mailcal_bindings.AllodiaSyncFailure
 
 /**
- * Offers to set up, accounts that moved elsewhere, and accounts removed elsewhere.
+ * Offers to set up, accounts changed elsewhere, and accounts removed elsewhere, as the core keeps
+ * them ([devices]).
  *
- * Draws nothing at all when there is nothing to say, including before the first pass has run,
- * which is not the same as a pass that found nothing and must not look like one.
+ * Draws nothing at all when there is nothing to say: before the first pass has answered (null)
+ * and after one that found nothing ([AllodiaDevices.nothingFound]). A heading over an empty list
+ * would claim the other devices hold no accounts.
  */
 @Composable
 internal fun AllodiaSyncCard(
-    state: AllodiaSyncState,
+    devices: AllodiaDevices?,
     onSetUp: (AllodiaAccountOffer) -> Unit,
-    onKeepLocal: (String) -> Unit,
+    onChange: (AccountPageIntent) -> Unit,
     onSignInAgain: () -> Unit,
 ) {
+    if (devices == null || devices.nothingFound) return
     val ctx = LocalContext.current
-    val report = state.report
-    val hasSomethingToSay = report != null &&
-        (report.offers.isNotEmpty() ||
-            report.changedElsewhere.isNotEmpty() ||
-            report.removedElsewhere.isNotEmpty())
-    if (!state.checking && state.failure == null && !hasSomethingToSay) return
-
     SettingsGroupCard(
         L10n.settings_allodia_sync_heading(ctx),
         L10n.settings_allodia_sync_description(ctx),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            if (state.checking) {
+            if (devices.checking) {
                 CircularProgressIndicator()
                 Text(
                     L10n.settings_allodia_sync_checking(ctx),
@@ -55,38 +55,35 @@ internal fun AllodiaSyncCard(
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
-            report?.offers?.forEach { offer ->
+            devices.offers.forEach { offer ->
                 Text(offer.email, style = MaterialTheme.typography.bodyMedium)
                 TextButton(onClick = { onSetUp(offer) }) {
                     Text(L10n.settings_allodia_sync_set_up(ctx))
                 }
             }
-            // Both of these are questions rather than statements, and the only answer this device
-            // can act on today is "keep what I have". Applying the other side's settings needs a
-            // path for editing a connected account's server details, which does not exist yet.
-            report?.changedElsewhere?.forEach { change ->
+            // Questions rather than statements, and the only answer this device can act on is
+            // "keep what I have": Paused, so the other devices keep the account and this one stops
+            // exchanging changes about it. A change on the account's page, so the question and
+            // the page's control run and hold as one.
+            devices.questions.forEach { question ->
                 Text(
-                    L10n.settings_allodia_changed_elsewhere(ctx, change.email),
+                    when (question.elsewhere) {
+                        AllodiaElsewhere.CHANGED ->
+                            L10n.settings_allodia_changed_elsewhere(ctx, question.email)
+                        AllodiaElsewhere.REMOVED ->
+                            L10n.settings_allodia_removed_elsewhere(ctx, question.email)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = { onKeepLocal(change.accountId) }) {
-                    Text(L10n.settings_allodia_keep_local(ctx))
-                }
+                ControlTextButton(
+                    label = L10n.settings_allodia_keep_local(ctx),
+                    control = question.keep,
+                    tag = "allodia-keep-${question.accountId}",
+                ) { onChange(AccountPageIntent.SetSharing(question.accountId, AllodiaAccountSyncMode.PAUSED)) }
+                question.failed?.let { SharingFailedLine(it) }
             }
-            report?.removedElsewhere?.forEach { change ->
-                Text(
-                    L10n.settings_allodia_removed_elsewhere(ctx, change.email),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                TextButton(onClick = { onKeepLocal(change.accountId) }) {
-                    Text(L10n.settings_allodia_keep_local(ctx))
-                }
-            }
-            if (state.failure != null) {
-                AllodiaSyncFailure(state.health, onSignInAgain)
-            }
+            devices.failure?.let { PassFailedRows(it, onSignInAgain) }
         }
     }
 }
@@ -101,11 +98,11 @@ internal fun AllodiaSyncCard(
  * put `invalid_scope, unable to issue scope mailcal:accounts:read` in front of somebody.
  */
 @Composable
-private fun AllodiaSyncFailure(health: AllodiaGrantHealth, onSignInAgain: () -> Unit) {
+private fun PassFailedRows(failure: AllodiaSyncFailure, onSignInAgain: () -> Unit) {
     val ctx = LocalContext.current
-    when (health) {
+    when (failure) {
         // An offer, not an error: they are signed in and one feature is asleep.
-        AllodiaGrantHealth.NEEDS_REAUTH -> Column(modifier = Modifier.padding(top = 4.dp)) {
+        AllodiaSyncFailure.NEEDS_REAUTH -> Column(modifier = Modifier.padding(top = 4.dp)) {
             Text(
                 L10n.settings_allodia_reauth(ctx),
                 style = MaterialTheme.typography.bodyMedium,
@@ -119,7 +116,7 @@ private fun AllodiaSyncFailure(health: AllodiaGrantHealth, onSignInAgain: () -> 
                 Text(L10n.settings_allodia_reauth_action(ctx))
             }
         }
-        AllodiaGrantHealth.SIGNED_OUT -> Column(modifier = Modifier.padding(top = 4.dp)) {
+        AllodiaSyncFailure.SIGNED_OUT -> Column(modifier = Modifier.padding(top = 4.dp)) {
             Text(
                 L10n.settings_allodia_signed_out_elsewhere(ctx),
                 style = MaterialTheme.typography.bodyMedium,
@@ -133,7 +130,7 @@ private fun AllodiaSyncFailure(health: AllodiaGrantHealth, onSignInAgain: () -> 
                 Text(L10n.settings_allodia_sign_in(ctx))
             }
         }
-        AllodiaGrantHealth.OK -> Text(
+        AllodiaSyncFailure.UNAVAILABLE -> Text(
             L10n.settings_allodia_sync_unavailable(ctx),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error,

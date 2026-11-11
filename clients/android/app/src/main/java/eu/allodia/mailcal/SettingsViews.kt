@@ -16,9 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,7 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
+import uniffi.mailcal_bindings.AccountSharing
 import uniffi.mailcal_bindings.AllodiaAccountSyncMode
+import uniffi.mailcal_bindings.AllodiaSyncFailure
 
 // The app-language override as tappable rows: "System default", then one row per language the
 // catalog ships, each labelled with its own endonym ("Deutsch", never "German"). The rows come
@@ -70,7 +69,8 @@ private fun applyLocale(locales: LocaleListCompat) {
 }
 
 /**
- * The three positions an account can be shared in, and what each one means.
+ * The three positions an account can be shared in, and what each one means, from the page's
+ * [sharing]. [onSelect] is told the position picked.
  *
  * A single-choice segmented row rather than a switch and a button: the two questions underneath:
  * is this account on my other devices, and does this device exchange changes about it, are not
@@ -78,43 +78,54 @@ private fun applyLocale(locales: LocaleListCompat) {
  * the switch off changed nothing the person could see. Its Apple, Windows and Linux twins use each
  * platform's own equivalent.
  *
- * The subtext is the selected position's, because three subtexts at once is a paragraph nobody
- * reads and the one that matters is the one in force.
+ * The subtext is the drawn position's, because three subtexts at once is a paragraph nobody reads
+ * and the one that matters is the one in force. While a change runs, the core already draws the
+ * position it is moving to.
  */
 @Composable
 internal fun AccountSyncModePicker(
-    mode: AllodiaAccountSyncMode,
+    sharing: AccountSharing,
     onSelect: (AllodiaAccountSyncMode) -> Unit,
 ) {
     val ctx = LocalContext.current
-    val options = listOf(
-        AllodiaAccountSyncMode.ON to L10n.settings_account_sync_on(ctx),
-        AllodiaAccountSyncMode.PAUSED to L10n.settings_account_sync_paused(ctx),
-        AllodiaAccountSyncMode.OFF to L10n.settings_account_sync_off(ctx),
-    )
+    val modes = listOf(AllodiaAccountSyncMode.ON, AllodiaAccountSyncMode.PAUSED, AllodiaAccountSyncMode.OFF)
     Text(
         L10n.settings_account_sync_heading(ctx),
         style = MaterialTheme.typography.bodyLarge,
     )
     Spacer(modifier = Modifier.height(4.dp))
-    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-        options.forEachIndexed { index, (option, label) ->
-            SegmentedButton(
-                selected = mode == option,
-                onClick = { if (mode != option) onSelect(option) },
-                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
-            ) { Text(label) }
-        }
-    }
+    ControlSegmented(
+        labels = listOf(
+            L10n.settings_account_sync_on(ctx),
+            L10n.settings_account_sync_paused(ctx),
+            L10n.settings_account_sync_off(ctx),
+        ),
+        selected = modes.indexOf(sharing.mode),
+        control = sharing.control,
+        tag = "account-sharing",
+        onPick = { onSelect(modes[it]) },
+    )
     Spacer(modifier = Modifier.height(4.dp))
     Text(
-        when (mode) {
+        when (sharing.mode) {
             AllodiaAccountSyncMode.ON -> L10n.settings_account_sync_on_hint(ctx)
             AllodiaAccountSyncMode.PAUSED -> L10n.settings_account_sync_paused_hint(ctx)
             AllodiaAccountSyncMode.OFF -> L10n.settings_account_sync_off_hint(ctx)
         },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+    sharing.failed?.let { SharingFailedLine(it) }
+}
+
+/** Why a sharing change did not take, under the control or the question that made it. */
+@Composable
+internal fun SharingFailedLine(failure: AllodiaSyncFailure) {
+    Text(
+        sharingFailedText(LocalContext.current, failure),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error,
+        modifier = Modifier.padding(top = 4.dp),
     )
 }
 

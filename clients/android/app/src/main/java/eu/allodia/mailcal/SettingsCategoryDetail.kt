@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AllodiaAccountOffer
-import uniffi.mailcal_bindings.AllodiaAccountSyncMode
+import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.Appearance
@@ -96,11 +96,8 @@ internal fun CategoryDetail(
     onAllodiaCancel: () -> Unit,
     onAllodiaResubscribe: () -> Unit,
     onAllodiaSwitch: (AllodiaPlan) -> Unit,
-    allodiaSync: AllodiaSyncState,
+    allodiaDevices: AllodiaDevices?,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
-    onAllodiaKeepLocal: (String) -> Unit,
-    accountsSyncMode: Map<String, AllodiaAccountSyncMode>,
-    onSetAccountSyncMode: (account: String, mode: AllodiaAccountSyncMode) -> Unit,
     onRequestReset: () -> Unit,
     accountsUi: AccountsSettingsUi,
     // Videoconferencing's account rows open that account's page under Accounts.
@@ -303,17 +300,9 @@ internal fun CategoryDetail(
         SettingsCategory.ACCOUNTS -> AccountsSettings(
             ui = accountsUi,
             allodiaSyncCard = {
-                AllodiaSyncCard(allodiaSync, onAllodiaSetUp, onAllodiaKeepLocal, onAllodiaSignIn)
+                AllodiaSyncCard(allodiaDevices, onAllodiaSetUp, accountsUi.onChange, onAllodiaSignIn)
             },
-        ) { entry, page ->
-            AccountPage(
-                entry = entry,
-                page = page,
-                ui = accountsUi,
-                syncMode = accountsSyncMode[entry.id],
-                onSetSyncMode = { mode -> onSetAccountSyncMode(entry.id, mode) },
-            )
-        }
+        ) { entry, page -> AccountPage(entry, page, accountsUi) }
 
         // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen).
         SettingsCategory.ADVANCED -> {

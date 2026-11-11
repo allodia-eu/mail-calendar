@@ -32,6 +32,7 @@ import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.AboutInfo
+import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AccountSignatureRow
 import uniffi.mailcal_bindings.Attribution
@@ -74,7 +75,7 @@ class SettingsHubTest {
     private fun show(
         initialCategory: SettingsCategory? = null,
         allodia: AllodiaSettings = AllodiaSettings(),
-        allodiaSync: AllodiaSyncState = AllodiaSyncState(),
+        allodiaDevices: AllodiaDevices? = null,
         accountsUi: AccountsSettingsUi = AccountsSettingsUi(AccountsUiState()),
     ) {
         compose.setContent {
@@ -139,11 +140,8 @@ class SettingsHubTest {
                 onAllodiaCancel = {},
                 onAllodiaResubscribe = {},
                 onAllodiaSwitch = {},
-                allodiaSync = allodiaSync,
+                allodiaDevices = allodiaDevices,
                 onAllodiaSetUp = {},
-                onAllodiaKeepLocal = {},
-                accountsSyncMode = emptyMap(),
-                onSetAccountSyncMode = { _, _ -> },
                 onOpenDiagnostics = { diagnosticsOpened++ },
                 onReset = { resets++ },
                 onBack = { closed++ },

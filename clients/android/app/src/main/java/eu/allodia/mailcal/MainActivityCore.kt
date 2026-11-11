@@ -127,10 +127,12 @@ internal fun MainActivity.connect(
             // The DNS setup uses, so a calendar server found through an SRV record can be looked
             // for again when it stops answering. Until it is set, the core does not look again.
             connected.setDnsResolver(AndroidMxResolver(activity))
-            // Where this device remembers what it has synced with the account service. Installed
-            // on this thread, before anything can ask for a pass, unlike the credential store
-            // above it is not racing a dial, because nothing syncs until somebody asks.
-            activity.installAllodiaSyncStore(connected, dataSubdir)
+            // Where this device remembers what it has synced with the account service, which is
+            // what lets the core run a pass. None in a dev-account launch, whose accounts are
+            // canned harness ones: sending those up would put a harness mailbox on the
+            // developer's own phone.
+            val allodiaSyncAllowed = dataSubdir == null
+            if (allodiaSyncAllowed) activity.installAllodiaSyncStore(connected)
             activity.mainHandler.post {
                 activity.app = connected
                 // Expose the live core to the background-sync worker so it reuses this instance
@@ -159,13 +161,6 @@ internal fun MainActivity.connect(
                 // renewal, a deferred payment clearing, or a purchase made on another device
                 // arrives on the shop's own callback, and nothing is listening until it is open.
                 activity.startAllodiaPurchases(connected)
-                // A dev-account launch connects canned harness accounts, which must never reach
-                // the person's real account list.
-                activity.allodiaSyncAllowed = dataSubdir == null
-                activity.readAccountsSynced()
-                // What their other devices have to say. Off the main thread, after the accounts
-                // are up: the pass reads the list this connect just built.
-                activity.syncAllodiaAccounts()
                 // The retention signal, once per launch. A no-op until the user opts in, and on
                 // the very first launch the opt-in itself reports the session, so consenting is
                 // never a launch we fail to count.

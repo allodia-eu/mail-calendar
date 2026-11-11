@@ -34,25 +34,17 @@ import uniffi.mailcal_bindings.AccountLinkPicker
 import uniffi.mailcal_bindings.AccountPageIntent
 import uniffi.mailcal_bindings.AccountReplyFallback
 import uniffi.mailcal_bindings.AccountUseSwitch
-import uniffi.mailcal_bindings.AllodiaAccountSyncMode
 import uniffi.mailcal_bindings.LinkSlot
 import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.ReplyFallbackChoice
 import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
 
 /**
- * One account's page: its uses, links and removal as the core decided them ([page]), the rest from
- * [entry]. [syncMode] is how it is shared with the other devices, null in a build with no Allodia
- * sign-in.
+ * One account's page: its sharing, uses, links and removal as the core decided them ([page]), the
+ * rest from [entry].
  */
 @Composable
-internal fun AccountPage(
-    entry: AccountEntry,
-    page: CoreAccountPage,
-    ui: AccountsSettingsUi,
-    syncMode: AllodiaAccountSyncMode?,
-    onSetSyncMode: (AllodiaAccountSyncMode) -> Unit,
-) {
+internal fun AccountPage(entry: AccountEntry, page: CoreAccountPage, ui: AccountsSettingsUi) {
     val ctx = LocalContext.current
     Text(
         kindLine(ctx, entry),
@@ -63,8 +55,10 @@ internal fun AccountPage(
     AccountNoticesGroup(NoticeRules.about(ui.notices, entry.id), ui.noticeHandlers)
     // Whether this one travels: first, because it decides whether anything below it is anybody
     // else's business (docs/settings.md).
-    if (syncMode != null) {
-        AccountSyncModePicker(syncMode, onSetSyncMode)
+    page.sharing?.let { sharing ->
+        AccountSyncModePicker(sharing) { mode ->
+            ui.onChange(AccountPageIntent.SetSharing(entry.id, mode))
+        }
         Spacer(modifier = Modifier.height(12.dp))
     }
     page.senderName?.let { name ->
