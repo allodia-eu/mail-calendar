@@ -25,7 +25,8 @@ Each agent is its own code, because each walks its own toolkit; what is shared i
    stops matching), and `settle` returns when the app and the core have both been quiet.
 6. **The accessibility tree stays the judge of what assistive technology gets.** The agent reads
    the toolkit's own objects, which is why it is fast; a suite that asserts on what a screen
-   reader says keeps asking the platform's accessibility API (`linux_ui_atspi.py`, `uia.ps1`).
+   reader says keeps asking the platform's accessibility API (`linux_ui_atspi.py`, `uia.ps1`,
+   `macos-ax.swift`, idb).
 
 ## Endpoints
 
@@ -33,7 +34,7 @@ Each agent is its own code, because each walks its own toolkit; what is shared i
 |---|---|---|
 | Linux | a Unix socket's path (`linux_agent_socket` in [`linux_session.sh`](../scripts/dev/linux_session.sh) picks one per checkout) | [`clients/linux/src/agent.rs`](../clients/linux/src/agent.rs) |
 | Windows | a named pipe's name | [`TestAgent.cs`](../clients/windows/Mailcal/Services/TestAgent.cs) |
-| macOS, iOS Simulator | a Unix socket's path (the simulator shares the Mac's filesystem) | not yet built |
+| macOS, iOS Simulator | a Unix socket's path (`apple_agent_socket` in [`apple_agent.sh`](../scripts/dev/apple_agent.sh) picks one per checkout and platform; the simulator shares the Mac's filesystem) | [`TestAgent.swift`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/TestAgent/TestAgent.swift) |
 
 ## Wire
 
@@ -117,8 +118,8 @@ Every agent answers these:
 | `quit` | | `{}`, then the app quits as its own Quit does |
 
 An agent may answer more where its platform has more to offer (`eval` into a web view and
-`action` on Linux; `expand`, `collapse` and `scrollIntoView` on Windows), and lists them under
-`verbs`.
+`action` on Linux; `expand`, `collapse` and `scrollIntoView` on Windows; VoiceOver's `escape` and
+`scroll`, and `increment` and `decrement`, on macOS and iOS), and lists them under `verbs`.
 
 The client adds two, done in two requests: `press` is `wait` for exactly one element, then
 `activate`; `fill` is the same, then `set-text`.
@@ -144,7 +145,7 @@ The client adds two, done in two requests: `press` is `wait` for exactly one ele
 |---|---|
 | Linux | Speaks this protocol; it is the reference the conformance suite was written against. |
 | Windows | The same wire under older names, which it still has to take: `op` for `verb`, `invoke` for `activate`, `setValue` for `set-text`, `nameLike` for `textLike`, `x`/`y`/`w`/`ht` for `bounds`, `offscreen` for `showing`, and a refusal without `ok` or a `code` for most failures. |
-| macOS, iOS | No agent. `control.sh macos` and `control.sh ios` resolve an accessibility label to coordinates and tap there. |
+| macOS, iOS Simulator | Speaks this protocol and passes the conformance suite. It reads NSAccessibility or UIAccessibility in process, through the entry points VoiceOver's requests reach, and acts through accessibility actions. SwiftUI builds its elements only for an assistive technology, so the agent switches each hosting view's accessibility on, and on the simulator turns on the automation XCUITest uses, which loads UIKit's names for its own controls. A physical device has none, as its app cannot reach the Mac's socket: XCUITest drives it. A gesture or real input (a drag, a swipe action, a pull to refresh, a keystroke) stays with `macos-ax.swift` and idb. |
 
 ## Conformance
 
@@ -154,6 +155,9 @@ Start a client on the in-memory demo account (`MAILCAL_DEV_ACCOUNT=demo`) with i
 scripts/dev/agent_conformance.py --socket "$MAILCAL_TEST_AGENT"
 ```
 
-It drives only the protocol and the controls every desktop client draws on the demo account, so it
-runs unchanged on every platform. An agent that passes it can be driven by `agent.py` and by the
+It drives only the protocol and the controls every client draws on the demo account, a phone's
+included, so it runs unchanged on every platform. What one platform does differently it asks the
+agent rather than assuming: macOS's view switcher is its sidebar, which leads back to mail through
+the unified Inbox, and an iPhone folds its search field away once the view has changed, which the
+search test then skips. An agent that passes it can be driven by `agent.py` and by the
 suites built on it.

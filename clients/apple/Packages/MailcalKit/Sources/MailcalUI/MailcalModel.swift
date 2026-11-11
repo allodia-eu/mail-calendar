@@ -14,7 +14,12 @@ import SwiftUI
 final class SurfaceObserver: Observer {
     private let onChange: @Sendable (Surface) -> Void
     init(_ onChange: @escaping @Sendable (Surface) -> Void) { self.onChange = onChange }
-    func surfaceChanged(surface: Surface) { onChange(surface) }
+    func surfaceChanged(surface: Surface) {
+        #if DEBUG
+        TestAgent.surfaceChanged()
+        #endif
+        onChange(surface)
+    }
 }
 
 /// Forwards the Rust core's log records (over the FFI `Logger` port) to the unified logging

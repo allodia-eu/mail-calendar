@@ -57,6 +57,7 @@ mod showcase_lists;
 mod store_sandbox;
 mod surface_publish;
 mod test_agent;
+mod test_agent_apple;
 mod test_agent_linux;
 mod version_sync;
 
@@ -153,7 +154,7 @@ pub(crate) const TASKS: &[Task] = &[
     },
     Task {
         name: "check-test-agent",
-        label: "test agent (the UI suites' way in stays out of release, Windows and Linux)",
+        label: "test agent (the UI suites' way in stays out of release, Windows, Linux and Apple)",
         run: test_agent::run,
     },
     Task {

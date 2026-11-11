@@ -5,12 +5,13 @@
 
 The client runs on the in-memory demo account (`MAILCAL_DEV_ACCOUNT=demo`) with its agent on;
 ENDPOINT defaults to `MAILCAL_TEST_AGENT`. The suite asks only what every agent answers and drives
-only controls every desktop client draws there, so it runs unchanged on each platform. It leaves the
+only controls every client draws there, so it runs unchanged on each platform. It leaves the
 app where it found it: on the mail view, the search field empty.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 import tempfile
@@ -31,6 +32,8 @@ NODE_FIELDS = {"h", "type", "role", "showing", "enabled"}
 NEVER_ISSUED = 2**31 - 1
 # The view switcher's two buttons, and a control only the calendar view draws.
 MAIL, CALENDAR, CALENDAR_ONLY = "Mail", "Calendar", "New Event"
+# A button every client draws on the mail view, a phone's included, which has no Sync.
+NEW_MAIL = "New Mail"
 
 ENDPOINT = os.environ.get("MAILCAL_TEST_AGENT", "")
 
@@ -94,14 +97,14 @@ class Conformance(unittest.TestCase):
             self.assertIn("title", window)
 
     def test_an_element_is_described_the_same_way_everywhere(self) -> None:
-        (sync,) = self.ask(verb="wait", text="Sync")["elements"]
-        self.assertLessEqual(NODE_FIELDS, set(sync), sync)
-        self.assertIn("Sync", sync.get("text", []) + [sync.get("tooltip")])
-        self.assertIs(sync["showing"], True)
-        bounds = sync["bounds"]
+        (button,) = self.ask(verb="wait", text=NEW_MAIL)["elements"]
+        self.assertLessEqual(NODE_FIELDS, set(button), button)
+        self.assertIn(NEW_MAIL, button.get("text", []) + [button.get("tooltip")])
+        self.assertIs(button["showing"], True)
+        bounds = button["bounds"]
         self.assertEqual(len(bounds), 4)
         self.assertGreater(bounds[2] * bounds[3], 0, "laid out with no area")
-        self.assertEqual(self.ask(verb="read", h=sync["h"])["h"], sync["h"])
+        self.assertEqual(self.ask(verb="read", h=button["h"])["h"], button["h"])
 
     def test_a_filter_that_matches_nothing_answers_an_empty_list(self) -> None:
         self.assertEqual(self.ask(verb="query", text="No such control anywhere")["elements"], [])
@@ -124,7 +127,7 @@ class Conformance(unittest.TestCase):
 
     def test_the_tree_is_dumped_as_text(self) -> None:
         text = self.ask(verb="dump")["text"]
-        self.assertIn("Sync", text)
+        self.assertIn(NEW_MAIL, text)
 
     # Acting as a person would, and only as a person could.
 
@@ -133,21 +136,26 @@ class Conformance(unittest.TestCase):
             self.press(text=CALENDAR, **switcher())
             self.ask(verb="wait", text=CALENDAR_ONLY)
         finally:
-            self.press(text=MAIL, **switcher())
-        self.ask(verb="wait", text="Sync")
+            self.press(**back_to_mail(self.agent))
+        self.ask(verb="wait", text=NEW_MAIL)
         self.ask(verb="wait", text=CALENDAR_ONLY, absent=True)
 
     def test_text_set_in_the_search_field_reads_back(self) -> None:
         field = search_field(self.agent)
+        if field is None:
+            # An iPhone folds its search field away under the title once the view has changed, and
+            # only a pull on the list brings it back: a gesture, which no agent fakes.
+            self.skipTest("no search field on screen")
         try:
             self.ask(verb="set-text", h=field, text="invoice")
             self.assertIn("invoice", str(self.ask(verb="read", h=field).get("value")))
         finally:
             self.ask(verb="set-text", h=field, text="")
+            leave_the_field(self.agent, field)
 
     def test_text_cannot_be_set_on_something_that_is_not_a_field(self) -> None:
-        (sync,) = self.ask(verb="wait", text="Sync")["elements"]
-        self.assertEqual(self.refusal(verb="set-text", h=sync["h"], text="x")["code"], "not-editable")
+        (button,) = self.ask(verb="wait", text=NEW_MAIL)["elements"]
+        self.assertEqual(self.refusal(verb="set-text", h=button["h"], text="x")["code"], "not-editable")
 
     def test_a_disabled_control_is_refused(self) -> None:
         disabled = [
@@ -183,12 +191,31 @@ def switcher() -> dict[str, Any]:
     return {"role": "toggle-button"} if sys.platform.startswith("linux") else {}
 
 
-def search_field(agent: Agent) -> int:
+def back_to_mail(agent: Agent) -> dict[str, Any]:
+    """What leaves the calendar for mail: the switcher's Mail button, or on macOS, whose sidebar is
+    the switcher and names no Mail, the unified Inbox at the top of it."""
+    for filter_ in ({"text": MAIL, **switcher()}, {"text": "Inbox", "index": 0}):
+        if agent.ask({"verb": "query", **filter_})["elements"]:
+            return filter_
+    raise AssertionError("nothing on screen leads back to mail")
+
+
+def leave_the_field(agent: Agent, field: int) -> None:
+    """Ends the search that typing into the field began, where the platform makes one of it: an
+    iPhone's search hides the bar it was opened from until it is dismissed. An agent offering
+    `escape` dismisses it as VoiceOver does; one refusing has nothing to dismiss."""
+    if any(entry["verb"] == "escape" for entry in agent.ask({"verb": "verbs"})["verbs"]):
+        with contextlib.suppress(Refused):
+            agent.ask({"verb": "escape", "h": field})
+        agent.ask({"verb": "settle"})
+
+
+def search_field(agent: Agent) -> int | None:
     for role in ("search-box", "edit", "AXTextField", "AXSearchField"):
         elements = agent.ask({"verb": "query", "role": role})["elements"]
         if elements:
             return int(elements[0]["h"])
-    raise AssertionError("no search field on screen")
+    return None
 
 
 def main(argv: list[str]) -> int:

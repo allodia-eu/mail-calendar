@@ -22,5 +22,9 @@ public final class AppSession {
     let drafts = DesktopDrafts()
     #endif
 
-    public init() {}
+    public init() {
+        #if DEBUG
+        TestAgent.start()
+        #endif
+    }
 }
