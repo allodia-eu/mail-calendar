@@ -6,7 +6,7 @@ use mailcal_bindings::{AccountCredentialStore, CredentialStoreError};
 use oo7::{Item, Keyring};
 use tokio::runtime::Runtime;
 
-use crate::host_runtime;
+use crate::{host_runtime, secret_encoding};
 
 /// The `application` attribute every stored item is tagged with, so this app's secrets are
 /// distinguishable from another's in the same keyring. It is the application id, which a re-branded
@@ -195,7 +195,7 @@ impl SecretStore {
         };
         let secret = block_on_runtime(self.runtime, item_secret(item))?
             .map_err(|error| error.to_string())?;
-        String::from_utf8(secret)
+        String::from_utf8(secret_encoding::decode(secret)?)
             .map(Some)
             .map_err(|error| error.to_string())
     }
@@ -208,7 +208,8 @@ impl SecretStore {
     ) -> Result<(), String> {
         block_on_runtime(
             self.runtime,
-            self.keyring.create_item(label, attributes, secret, true),
+            self.keyring
+                .create_item(label, attributes, secret_encoding::encode(secret), true),
         )?
         .map_err(|error| error.to_string())
     }
@@ -369,6 +370,46 @@ mod tests {
             vec![real.to_owned()],
             "signing out of the harness must not touch the developer's own accounts"
         );
+    }
+
+    /// What reaches the keyring is one line, and an item stored before that still loads.
+    #[test]
+    fn a_multi_line_config_reaches_the_keyring_as_one_line() {
+        let path = scratch_keyring();
+        let key = b"one-line-key";
+        let config = "capabilities = [\"mail\"]\n\n[imap]\nhost = \"imap.example.test\"\n";
+        let legacy = "[jmap]\nemail = \"old@example.test\"\n";
+        let store = file_store(&path, key);
+        store.save("new", config).expect("save");
+        store
+            .write_index(&["legacy".to_owned(), "new".to_owned()])
+            .expect("index");
+        let raw_legacy = store.account_attributes("legacy");
+        block_on_runtime(
+            store.runtime,
+            store
+                .keyring
+                .create_item("legacy", &raw_legacy, legacy.as_bytes(), true),
+        )
+        .expect("runtime")
+        .expect("a value stored before the encoding");
+
+        let items = block_on_runtime(
+            store.runtime,
+            store.keyring.search_items(&store.account_attributes("new")),
+        )
+        .expect("runtime")
+        .expect("search");
+        let raw = block_on_runtime(store.runtime, super::item_secret(&items[0]))
+            .expect("runtime")
+            .expect("secret");
+        assert!(!raw.contains(&b'\n'), "the stored config spans lines");
+
+        assert_eq!(
+            store.configs().expect("configs"),
+            [legacy.to_owned(), config.to_owned()]
+        );
+        let _ = fs::remove_dir_all(path.parent().expect("keyring parent"));
     }
 
     #[test]
