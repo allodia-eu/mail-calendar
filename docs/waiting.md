@@ -94,7 +94,7 @@ and keeps only which question is open.
 How the account is shared with the person's other devices is the page's `sharing`, for an account
 they can hold while someone is signed in to an Allodia account, and moving it is a change on the
 page (`SetSharing`). What the other devices have to say is the core's too
-(`MailcalApp::allodia_devices`): the core runs the pass whenever what it compares may have moved,
+(`MailcalApp::allodia_devices`), read again on `Surface::OtherDevices`, which a pass raises as it starts and ends and which moves nothing else, and on `Surface::Settings` for each Keep: the core runs the pass whenever what it compares may have moved,
 one asked for while another runs running once more after it, and a pass that ends after the
 sign-in it ran for has gone says nothing. It is `None` until a pass has answered, and says `nothing_found` once one answered with nothing, on which Settings draws no card and the first-run card says there are no accounts. The card draws `checking` while one runs, and each
 question's Keep is the same change on its account's page, running and held as one; what did not

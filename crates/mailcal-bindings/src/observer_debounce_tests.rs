@@ -21,6 +21,7 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::MailboxList => AppSurface::MailboxList,
         Surface::Calendar => AppSurface::Calendar,
         Surface::Settings => AppSurface::Settings,
+        Surface::OtherDevices => AppSurface::OtherDevices,
         Surface::Reading => AppSurface::Reading,
         Surface::Sending => AppSurface::Sending,
         Surface::SyncProgress => AppSurface::SyncProgress,

@@ -48,7 +48,7 @@ impl MailcalApp {
             let Some(mut session) = self.allodia_sync.want_pass() else {
                 return;
             };
-            self.app.accounts_changed();
+            self.app.other_devices_changed();
             std::thread::spawn(move || {
                 loop {
                     let outcome = {
@@ -56,7 +56,7 @@ impl MailcalApp {
                         app.allodia_pass()
                     };
                     let next = app.allodia_sync.pass_ended(session, outcome);
-                    app.app.accounts_changed();
+                    app.app.other_devices_changed();
                     match next {
                         Some(next) => session = next,
                         None => break,

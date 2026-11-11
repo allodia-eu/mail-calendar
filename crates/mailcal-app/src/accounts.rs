@@ -317,6 +317,12 @@ impl<P: Provider> App<P> {
         self.rebuild_snapshot().await;
     }
 
+    /// Signals [`Surface::OtherDevices`]: a pass over the person's other devices started or
+    /// ended, which the binding layer runs and this layer does not see.
+    pub fn other_devices_changed(&self) {
+        self.observer.surface_changed(Surface::OtherDevices);
+    }
+
     /// Signals [`Surface::Settings`] after a change to what an account is used for or links to,
     /// which the binding layer stores and this layer does not see.
     pub fn accounts_changed(&self) {

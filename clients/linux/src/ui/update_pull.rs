@@ -71,6 +71,12 @@ impl AppModel {
                 self.refresh_link_step();
                 self.server_change_signalled();
             }
+            // A pass over the person's other devices started or ended: only their card moves, on
+            // the Accounts list and on the first-run card.
+            Surface::OtherDevices => {
+                self.settings.signalled();
+                self.refresh_onboarding_card();
+            }
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).
             Surface::DraftStatus => self.pull_draft_status(),

@@ -267,6 +267,8 @@ impl MailcalApp {
             self.refresh_allodia_entitlement();
             // What the other devices said was said to the sign-in this one replaces.
             self.allodia_sync.new_session();
+            // Each account's page gains its sharing control.
+            self.app.accounts_changed();
             self.request_allodia_pass();
             Ok(account)
         }
@@ -316,6 +318,7 @@ impl MailcalApp {
         // says nothing when it ends.
         self.allodia_sync.new_session();
         self.app.accounts_changed();
+        self.app.other_devices_changed();
         // Same rule as the sign-in above: the grant is gone, so nothing minted from it may be
         // presented again. A signed-out device holding a live token is one that goes on making
         // authenticated requests for as long as the token lasts.

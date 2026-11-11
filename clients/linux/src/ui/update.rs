@@ -38,8 +38,6 @@ impl AppModel {
                 // The browser opens for a sign-in the core now waits on.
                 if matches!(surface, Surface::Settings) {
                     self.browser_sign_in_signalled(sender.input_sender());
-                    // What the other devices said, which the first-run card draws too.
-                    self.refresh_onboarding_card();
                 }
                 if collect_new_mail {
                     sender.input_sender().emit(AppInput::CollectNewMail);

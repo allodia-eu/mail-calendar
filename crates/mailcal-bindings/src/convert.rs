@@ -48,6 +48,7 @@ impl From<AppSurface> for Surface {
             AppSurface::MailboxList => Self::MailboxList,
             AppSurface::Calendar => Self::Calendar,
             AppSurface::Settings => Self::Settings,
+            AppSurface::OtherDevices => Self::OtherDevices,
             AppSurface::Reading => Self::Reading,
             AppSurface::Sending => Self::Sending,
             AppSurface::SyncProgress => Self::SyncProgress,
