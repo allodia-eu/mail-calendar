@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Tests that `linux_session_start` hands sway's config over before taking it away.
+"""Tests that `linux_session_start` hands sway's config over before taking it away, and starts
+sway without its file capabilities.
 
 sway opens its Wayland socket before it reads the config it was given, so a start that deletes the
 file as soon as the socket appears races the compositor: a loaded runner loses, sway exits with
 "Unable to open … for reading", and every GTK test after it fails for want of a display. The
 stand-in `sway` here does what sway does, only slower: socket first, config a second later, and
 then it answers `swaymsg`, as sway does once its event loop runs.
+
+sway is installed with `cap_sys_nice` and takes realtime scheduling with it; under a hard
+`RLIMIT_RTTIME` of 0 the kernel then SIGKILLs it during startup. `no_new_privs` is what keeps the
+capability from applying, and the stand-in records whether it was set.
 """
 
 from __future__ import annotations
@@ -34,6 +39,9 @@ FAKE_SWAY = textwrap.dedent(
     server.bind(os.path.join(runtime, "wayland-1"))
     if os.environ["FAKE_SWAY_MODE"] == "exit":
         sys.exit(1)
+    with open(os.environ["FAKE_SWAY_NNP"], "w") as record:
+        record.write(next(line.split()[1] for line in open("/proc/self/status")
+                          if line.startswith("NoNewPrivs:")))
     time.sleep(1)
     found = os.path.exists(config)
     with open(os.environ["FAKE_SWAY_RECORD"], "w") as record:
@@ -58,6 +66,7 @@ class LinuxSessionStart(unittest.TestCase):
         self.bin = root / "bin"
         self.bin.mkdir()
         self.record = root / "record"
+        self.nnp = root / "nnp"
         for name, body in (("sway", FAKE_SWAY), ("swaymsg", FAKE_SWAYMSG), ("grim", "#!/bin/sh\n")):
             path = self.bin / name
             path.write_text(body)
@@ -83,6 +92,7 @@ class LinuxSessionStart(unittest.TestCase):
             "XDG_RUNTIME_DIR": str(self.runtime),
             "FAKE_SWAY_MODE": mode,
             "FAKE_SWAY_RECORD": str(self.record),
+            "FAKE_SWAY_NNP": str(self.nnp),
         }
         return subprocess.run(
             bash_argv("-c", script), capture_output=True, text=True, timeout=60, env=env
@@ -93,6 +103,11 @@ class LinuxSessionStart(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.record.read_text(), "read")
         self.assertEqual(done.stdout.strip(), "wayland-1")
+
+    def test_sway_runs_without_the_privileges_its_file_capabilities_grant(self) -> None:
+        done = self.start("slow")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.nnp.read_text(), "1")
 
     def test_a_sway_that_exits_after_opening_its_socket_is_reported(self) -> None:
         done = self.start("exit")

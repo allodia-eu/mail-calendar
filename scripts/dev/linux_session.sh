@@ -115,6 +115,12 @@ linux_session_wait_ready() { # <pid> <swaysock>
 # a GPU the headless backend never touches. `WLR_RENDERER=pixman` drops it to software rendering
 # for a runner with no GPU at all; the capture is the same size and the same pixels.
 #
+# ⚠️ **sway runs with no file capabilities (`setpriv --no-new-privs`).** Distributions install it
+# with `cap_sys_nice`, so it gives itself realtime scheduling whatever `RLIMIT_RTPRIO` says, and the
+# kernel then holds it to `RLIMIT_RTTIME`. A desktop can hand the terminals it launches a hard
+# limit of 0 µs (Omarchy's does, `ulimit -R` reads 0), and sway is then SIGKILLed during startup,
+# printing nothing. A headless compositor has no use for realtime scheduling.
+#
 # ⚠️ **A tiling compositor puts a second window beside the first, not over it**, and this one
 # tiles everything it is not told to float: two half-width windows side by side, which is not what
 # a desktop puts on screen. sway floats and centres a window that has a **transient parent** on its
@@ -136,9 +142,11 @@ gaps inner 0
 gaps outer 0
 CONFIG
   before="$(linux_session_sockets)"
+  local -a no_realtime=()
+  command -v setpriv >/dev/null 2>&1 && no_realtime=(setpriv --no-new-privs)
   env -u DISPLAY -u WAYLAND_DISPLAY \
     WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
-    sway --unsupported-gpu -c "$config" >"${LINUX_SESSION_LOG:-/dev/null}" 2>&1 &
+    "${no_realtime[@]}" sway --unsupported-gpu -c "$config" >"${LINUX_SESSION_LOG:-/dev/null}" 2>&1 &
   LINUX_SESSION_PID=$!
   # Detach it, so a later pkill does not print a "Terminated" job notice over the log.
   disown
