@@ -19,8 +19,8 @@ use crate::{
 #[uniffi::export]
 impl MailcalApp {
     /// The page for `account_id`, or `None` once it is gone. Read again after every
-    /// `Surface::Settings` signal, which a change on the page raises when it starts and when it
-    /// ends.
+    /// `Surface::AccountPage` signal, which a change on the page raises when it starts and when it
+    /// ends, and after every `Surface::Settings` one, which what it stores raises.
     #[must_use]
     pub fn account_page(&self, account_id: String) -> Option<AccountPage> {
         let entries = self.accounts_snapshot().accounts;
@@ -130,11 +130,11 @@ impl MailcalApp {
         };
         match self.account_work.start(change) {
             Start::Run(change) => {
-                self.app.accounts_changed();
+                self.app.account_page_changed();
                 Self::run_from(app, change);
             }
             // Drawn running from now, at the value it is moving to.
-            Start::Waits => self.app.accounts_changed(),
+            Start::Waits => self.app.account_page_changed(),
             Start::Dropped => {}
         }
     }
@@ -157,7 +157,9 @@ impl MailcalApp {
                 next = app
                     .account_work
                     .finish(&account, outcome.as_ref().ok().cloned().flatten());
-                app.app.accounts_changed();
+                // The page alone: what the change stored and something else reads, it signalled
+                // as it stored it.
+                app.app.account_page_changed();
                 if let Err(panic) = outcome {
                     if let Some(next) = next {
                         Self::run_from(Arc::clone(&app), next);

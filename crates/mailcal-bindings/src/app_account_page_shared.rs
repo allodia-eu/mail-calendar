@@ -74,7 +74,7 @@ impl MailcalApp {
         std::thread::spawn(move || {
             let offer = app.shared_offer(&account);
             app.account_work.shared.answered(&account, ticket, offer);
-            app.app.accounts_changed();
+            app.app.account_page_changed();
         });
     }
 

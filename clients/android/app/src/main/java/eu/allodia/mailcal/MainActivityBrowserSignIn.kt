@@ -26,7 +26,7 @@ internal fun MainActivity.signInInBrowser(accountId: String, adding: List<Accoun
     changeAccount(AccountPageIntent.SignIn(accountId, adding, redirect))
 }
 
-/** Opens the browser the core's sign-in waits on, once for each attempt. On every Settings signal. */
+/** Opens the browser the core's sign-in waits on, once for each attempt. On every ACCOUNT_PAGE signal. */
 internal fun MainActivity.driveBrowserSignIn() {
     val instance = app ?: return
     val opening = browserSignIns.toOpen(instance.browserSignIn(), redirectSchemes()) ?: return

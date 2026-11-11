@@ -16,8 +16,14 @@ pub enum Surface {
     Settings,
     /// What the person's other devices have to say (pulled via `MailcalApp::allodia_devices`):
     /// a pass starting or ending. Nothing else moves with it, so a host redraws only the
-    /// Accounts card and the first-run card, which also follow `Settings` for each Keep.
+    /// Accounts card and the first-run card, which also follow `AccountPage` for each Keep.
     OtherDevices,
+    /// An account's page and what runs on it: a change starting, waiting or ending, an answer the
+    /// page asked a server for, a browser sign-in moving (pulled via `MailcalApp::account_page`,
+    /// `MailcalApp::browser_sign_in`, `MailcalApp::accounts_notice` and the questions the page
+    /// shares with other screens). A change that stores something read elsewhere raises
+    /// `Settings` besides, so a host redraws only what draws an account's page or its work.
+    AccountPage,
     /// The reading view: the open message's fetched, sanitised body.
     Reading,
     /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.

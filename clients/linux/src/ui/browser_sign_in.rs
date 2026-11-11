@@ -85,7 +85,7 @@ impl AppModel {
         }
     }
 
-    /// The core's settings signal, for the browser sign-in: a wait on an attempt it no longer
+    /// The core's account-page signal, for the browser sign-in: a wait on an attempt it no longer
     /// holds stops, and the browser opens for one that now waits on it.
     pub(super) fn browser_sign_in_signalled(&mut self, sender: &relm4::Sender<AppInput>) {
         let Some(app) = self.app.clone() else {

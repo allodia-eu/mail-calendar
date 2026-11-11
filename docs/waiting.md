@@ -43,8 +43,8 @@ before the work does.
 Every control a person can act on carries a `ControlState`: `enabled`, and `running` while work it
 started is under way. A running control is never enabled. A Settings page is a record the core
 produces (`MailcalApp::account_page` for an account's page), read again on every
-`Surface::Settings` signal; its changes are dispatched (`Intent::AccountPage`) and return at once, and
-the signal is raised when one starts, when one is queued behind it and when each ends. A use's switch carries `blocked`, why the
+`Surface::AccountPage` and `Surface::Settings` signal; its changes are dispatched (`Intent::AccountPage`) and return at once.
+`Surface::AccountPage` is raised when one starts, when one is queued behind it and when each ends, and when a server answers what a page asked it; it moves nothing but the pages, the accounts list and the questions they share with other screens, so a client redraws only those. What a change stores and something outside the page reads raises `Surface::Settings` as it is stored. A use's switch carries `blocked`, why the
 core would refuse pressing it, asked of the registry's `toggle`, which `set_use` acts on too, so a
 switch is enabled exactly when nothing blocks it and no change runs; and `status`, what is wrong
 with the use, said beside it whether or not it can be pressed. Only the page that started a change marks its
@@ -94,7 +94,7 @@ and keeps only which question is open.
 How the account is shared with the person's other devices is the page's `sharing`, for an account
 they can hold while someone is signed in to an Allodia account, and moving it is a change on the
 page (`SetSharing`). What the other devices have to say is the core's too
-(`MailcalApp::allodia_devices`), read again on `Surface::OtherDevices`, which a pass raises as it starts and ends and which moves nothing else, and on `Surface::Settings` for each Keep: the core runs the pass whenever what it compares may have moved,
+(`MailcalApp::allodia_devices`), read again on `Surface::OtherDevices`, which a pass raises as it starts and ends and which moves nothing else, and on `Surface::AccountPage` for each Keep: the core runs the pass whenever what it compares may have moved,
 one asked for while another runs running once more after it, and a pass that ends after the
 sign-in it ran for has gone says nothing. It is `None` until a pass has answered, and says `nothing_found` once one answered with nothing, on which Settings draws no card and the first-run card says there are no accounts. The card draws `checking` while one runs, and each
 question's Keep is the same change on its account's page, running and held as one; what did not

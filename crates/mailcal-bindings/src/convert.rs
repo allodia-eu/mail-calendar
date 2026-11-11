@@ -49,6 +49,7 @@ impl From<AppSurface> for Surface {
             AppSurface::Calendar => Self::Calendar,
             AppSurface::Settings => Self::Settings,
             AppSurface::OtherDevices => Self::OtherDevices,
+            AppSurface::AccountPage => Self::AccountPage,
             AppSurface::Reading => Self::Reading,
             AppSurface::Sending => Self::Sending,
             AppSurface::SyncProgress => Self::SyncProgress,

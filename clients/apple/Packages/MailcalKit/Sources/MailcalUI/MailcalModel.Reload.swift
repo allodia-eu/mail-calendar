@@ -48,6 +48,13 @@ extension MailboxModel {
             refreshAllodiaDevices()
             return
         }
+        // A change on an account's page started, waited or ended, or a server answered what the
+        // page asked: the accounts, the page open and the questions it shares with other screens
+        // are read again, and nothing else. What a change stores raises `.settings` besides.
+        if case .accountPage = surface {
+            refreshAccountsSnapshot()
+            return
+        }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
         // withdrawn it from the Outbox and joined it to the composition the opening names, so it
         // opens through the same context every composer does: the composer saves over that copy,

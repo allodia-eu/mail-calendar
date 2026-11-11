@@ -41,7 +41,7 @@ extension MailboxModel {
     }
 
     /// Opens the browser for the core's sign-in once it waits on one, and closes one the core no
-    /// longer waits on. Run on every Settings signal.
+    /// longer waits on. Run on every AccountPage and Settings signal.
     func driveBrowserSignIn() {
         guard let app else { return }
         let record = app.browserSignIn()

@@ -7,7 +7,7 @@ use crate::{AccountCapability, ControlState};
 
 /// The browser sign-in the core is running: at most one at a time, since a fresh press
 /// supersedes the one still out. Read with `MailcalApp::browser_sign_in` after every
-/// `Surface::Settings` signal.
+/// `Surface::AccountPage` signal.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct BrowserSignIn {
     /// Grows with each sign-in started. A client opens the browser once for each, and names it

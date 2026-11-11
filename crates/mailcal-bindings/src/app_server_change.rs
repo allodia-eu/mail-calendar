@@ -71,7 +71,7 @@ impl MailcalApp {
     /// The question `account_id`'s calendar or contacts is paused for; `None` when it waits on
     /// none. Reached from a use whose problem is
     /// [`UseProblem::ServerChanged`](crate::UseProblem::ServerChanged). Read again after every
-    /// `Surface::Settings` signal, which an allow raises as it starts and ends, and every
+    /// `Surface::AccountPage` signal, which an allow raises as it starts and ends, and every
     /// `Surface::Notices` one, which a lookup replacing the question raises, while it is open.
     #[must_use]
     pub fn account_server_change(&self, account_id: String) -> Option<AccountServerChange> {

@@ -6,7 +6,8 @@
 //! sharing change. A pass asked for while one runs runs once more after it, so nothing asked for
 //! is lost; a pass that ends after the sign-in it ran for has gone says nothing, so a signed-out
 //! device is never shown the last account's questions. What a client draws is
-//! [`AllodiaDevices`], read again on each `Surface::Settings` signal.
+//! [`AllodiaDevices`], read again on each `Surface::OtherDevices` signal, which a pass raises, and
+//! each `Surface::AccountPage` one, which a Keep raises as it starts and ends.
 #![cfg_attr(
     not(any(feature = "allodia-license", test)),
     expect(dead_code, reason = "only a build that can sign in runs a pass")

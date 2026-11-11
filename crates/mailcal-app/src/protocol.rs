@@ -37,6 +37,12 @@ pub enum Surface {
     /// What the person's other devices have to say (pulled via the binding's
     /// `allodia_devices`): a pass starting or ending, which moves nothing else a host draws.
     OtherDevices,
+    /// An account's page and what runs on it (pulled via the binding's `account_page`,
+    /// `browser_sign_in` and the notices a change leaves): a change starting, waiting or ending,
+    /// an answer the page asked a server for, a browser sign-in moving. What a change stores and
+    /// something outside the page reads raises [`Self::Settings`] besides, so this one moves
+    /// nothing else a host draws.
+    AccountPage,
     /// The reading view: the open message's fetched, sanitised body.
     Reading,
     /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.

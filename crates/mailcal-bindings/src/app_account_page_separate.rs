@@ -68,7 +68,7 @@ impl MailcalApp {
                 .offers
                 .answered(&account, ticket, offer)
             {
-                app.app.accounts_changed();
+                app.app.account_page_changed();
             }
         });
     }
