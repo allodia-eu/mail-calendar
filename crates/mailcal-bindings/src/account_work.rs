@@ -210,6 +210,8 @@ pub(crate) struct AccountWork {
     pub(crate) separate: crate::account_page::separate::SeparateState,
     /// The browser sign-in out, and the Nextcloud grant kept from the last.
     pub(crate) browser: crate::account_page::browser::BrowserSignIns,
+    /// What the Allodia account's card keeps between signals.
+    pub(crate) allodia: crate::allodia::AllodiaWork,
     raised: AtomicU64,
 }
 

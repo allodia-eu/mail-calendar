@@ -342,6 +342,11 @@ pub enum Intent {
         /// Which change.
         intent: super::AccountPageIntent,
     },
+    /// A change to the Allodia account's sign-in ([`AllodiaIntent`](super::AllodiaIntent)).
+    Allodia {
+        /// Which change.
+        intent: super::AllodiaIntent,
+    },
     /// A change to an account's folder tree ([`FolderIntent`](super::FolderIntent)).
     Folders {
         /// Which change.

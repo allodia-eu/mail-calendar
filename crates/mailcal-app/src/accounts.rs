@@ -329,6 +329,12 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::AccountPage);
     }
 
+    /// Signals [`Surface::Allodia`]: the Allodia account's card moved, which the binding layer
+    /// keeps and this layer does not see.
+    pub fn allodia_changed(&self) {
+        self.observer.surface_changed(Surface::Allodia);
+    }
+
     /// Signals [`Surface::Settings`] after a change to what an account is used for or links to,
     /// which the binding layer stores and this layer does not see.
     pub fn accounts_changed(&self) {

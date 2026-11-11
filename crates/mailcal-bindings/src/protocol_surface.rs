@@ -24,6 +24,10 @@ pub enum Surface {
     /// shares with other screens). A change that stores something read elsewhere raises
     /// `Settings` besides, so a host redraws only what draws an account's page or its work.
     AccountPage,
+    /// The Allodia account's card (pulled via `MailcalApp::allodia_card`): its sign-in or
+    /// sign-out moving, or the service refusing the stored sign-in. A host redraws Settings →
+    /// Allodia account and the first-run card, and nothing else.
+    Allodia,
     /// The reading view: the open message's fetched, sanitised body.
     Reading,
     /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.

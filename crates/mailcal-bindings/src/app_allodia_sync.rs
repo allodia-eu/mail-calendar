@@ -62,15 +62,24 @@ impl MailcalApp {
         self.request_allodia_pass();
         Ok(())
     }
+}
 
+impl MailcalApp {
     /// What this device knows about its Allodia sign-in; see [`AllodiaGrantHealth`].
     ///
-    /// Cheap and local: it reports what a call has already learned and never asks the service, so a
-    /// client may read it while drawing a screen. A build with no Allodia sign-in has no grant to
-    /// have an opinion about and answers [`AllodiaGrantHealth::Ok`], which is what a client draws
-    /// nothing for.
+    /// Cheap and local: it reports what a call has already learned and never asks the service. A
+    /// build with no Allodia sign-in has no grant to have an opinion about and answers
+    /// [`AllodiaGrantHealth::Ok`]. A client draws it from the Allodia account's card, the notice
+    /// and each failure's own enum.
     #[must_use]
-    pub fn allodia_grant_health(&self) -> AllodiaGrantHealth {
+    #[cfg_attr(
+        not(feature = "allodia-license"),
+        expect(
+            dead_code,
+            reason = "only a build that can sign in asks the service anything"
+        )
+    )]
+    pub(crate) fn allodia_grant_health(&self) -> AllodiaGrantHealth {
         #[cfg(not(feature = "allodia-license"))]
         {
             AllodiaGrantHealth::Ok
@@ -80,9 +89,7 @@ impl MailcalApp {
             self.allodia_health()
         }
     }
-}
 
-impl MailcalApp {
     /// How this account is shared with the person's other devices, read from the bookkeeping. A
     /// device keeping none answers [`AllodiaAccountSyncMode::On`], which is what an account
     /// nobody has excluded is.

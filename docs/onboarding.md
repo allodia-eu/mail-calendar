@@ -58,15 +58,15 @@ is left behind is a spinner on a window that rejects a close.
 - **The pass that follows a sign-in is not this state.** It is a bounded network call rather than a
   wait on somebody in another application, so it draws no way back.
 
-**When it is drawn is the client's choice, within one bound.** Drawing it at once is always
-correct. A client may instead hold it back until the hop has outlasted a threshold (no longer than
-ten seconds) because an ordinary hop puts the browser in front of the person within one, and a
-button drawn for that one is noise on every sign-in that ever works. Windows draws it at once,
-beside the Settings panel's own; macOS, iOS, Android and Linux hold it for eight seconds.
+**The core says when it is drawn**: `AllodiaCard::onboarding` is `SigningIn { escape }`, and
+`escape` turns on once the sign-in has run for eight seconds, on every platform. An ordinary hop
+puts the browser in front of the person within one, and a button drawn for that one is noise on
+every sign-in that ever works. Cancel is `AllodiaIntent::CancelSignIn`, which retires the attempt
+in the core, so a late redirect stores nothing. The Settings card draws its own Cancel at once.
 
-A platform whose own idiom already provides the escape has met the rule by that route: on Android
-returning to the app clears a dismissed browser, which covers everything after the browser opens
-but nothing before it. The threshold is what covers the rest.
+A browser closed without returning tells the core only where the platform reports it (an auth
+session on Apple); a Custom Tab on Android and the system browser on Windows and Linux report
+nothing, so there the way back, or the core's own cap on the wait, is what ends it.
 
 ## Where it sits relative to the welcome screen
 
@@ -194,7 +194,8 @@ that set the account up wrote it down, and re-deriving that is the one thing acc
 to avoid. It spends a round trip re-learning what is in front of us, and for an address whose
 provider cannot be found from its domain (a hosted IMAP domain publishing no autoconfig) it learns
 *less*, dropping the person onto the manual form for an account another device set up without
-trouble. One core call decides it (`setup_from_offer`), so no client re-implements the routing.
+trouble. One core call decides it (`offered_setup`), on every screen that offers one, so no
+client re-implements the routing.
 
 Two things that do not change. The **password is still entered on this device**, because no
 password ever travels. And a record naming no server falls back to detection rather than presenting
@@ -243,9 +244,10 @@ Fill it at boot, from `allodia_sign_in_available()`, and let whichever window op
   and iOS against its accessibility tree. An Apple UI suite exists now
   ([`../clients/apple/UITests`](../clients/apple/UITests)) and could reach the first screen, but only
   by pressing a sign-in that opens a browser at the real account service on every run, which is the
-  same reason the Windows suite leaves it alone. So what is pinned stays the threshold and that an
-  escaped hop ends as a cancellation rather than an error; that either is ever *drawn* is still
-  nobody's gate.
+  same reason the Windows suite leaves it alone. So what is pinned is the core's: the way back
+  turns on after the threshold and an escaped hop says nothing (`app_allodia_sign_in_tests.rs`),
+  and Apple draws the Cancel only on `escape` (`AllodiaCardTests`); that either is ever *drawn* on
+  screen is still nobody's gate.
 - **The empty answer is written on all five and seen on three.** Android, Linux and iOS have been
   run and looked at; macOS and Windows are written against the same contract and compile, so their
   cells stay 🚧 until somebody reaches the state on them.
