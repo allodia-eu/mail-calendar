@@ -3,12 +3,14 @@
 // is empty until they fill it, and checked by the core before it is stored, so an address it
 // refuses is said here and nothing changes. Once one is stored, every calendar whose provider
 // writes a meeting offers Jitsi in the editor. Last, while any account offers a meeting, the one
-// each account's new events take once they have an invitee (rule 10).
+// each account's new events take once they have an invitee (rule 10), drawn again when the
+// calendars change what is on offer.
 //
 // An account's row opens its page rather than carrying a switch of its own: two switches for one
 // setting would be two places to change it, and switching Teams on can need the Microsoft sign-in,
 // which the page holds.
 
+using System.ComponentModel;
 using Allodia.Mailcal.Calendar;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
@@ -118,6 +120,18 @@ public sealed partial class SettingsDialog
         AutomationProperties.SetName(button, MeetingAccountLabels.Spoken(row.Service, name, state));
         button.Click += (_, _) => OpenAccountFromOtherCategory(row.Account.Id);
         return button;
+    }
+
+    /// <summary>What each account's calendars offer comes from the calendar rows, so a calendar
+    /// signal can bring the default group in or change it while Videoconferencing is open.</summary>
+    private void OnCalendarChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(MailboxModel.CalendarVersion)
+            && !_rebuilding
+            && CurrentCategory() == "videoconferencing")
+        {
+            RefreshMeetingDefaults();
+        }
     }
 
     /// <summary>Draws the default per account again, when what the core lists has changed.</summary>

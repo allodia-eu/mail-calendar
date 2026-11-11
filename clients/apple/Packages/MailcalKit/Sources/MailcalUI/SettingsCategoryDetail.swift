@@ -37,10 +37,12 @@ struct SettingsCategoryDetail: View {
                 settingsGroup(L10n.settings_jitsi_server(), L10n.settings_jitsi_server_hint()) {
                     JitsiServerField(model: model)
                 }
+                // The core signals the calendar surface when what the accounts offer changes.
                 let _ = model.calendarVersion
-                if !model.meetingDefaults().isEmpty {
+                let defaults = model.meetingDefaults()
+                if !defaults.isEmpty {
                     settingsGroup(L10n.settings_default_meeting(), L10n.settings_default_meeting_hint()) {
-                        DefaultMeetingList(model: model)
+                        DefaultMeetingList(model: model, rows: defaults)
                     }
                 }
             }
