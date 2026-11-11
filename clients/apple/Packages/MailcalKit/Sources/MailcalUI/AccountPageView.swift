@@ -1,7 +1,7 @@
 // One account's page in Settings → Accounts, in the order docs/settings.md gives: how it is shared,
-// the name it sends under, what it is used for, the accounts it relies on, its shared mailboxes,
-// how it signs in, its own servers and password, its mail settings while it is used for mail, and
-// its removal, last.
+// the name it sends under, what it is used for, the accounts it relies on and those relying on it,
+// its shared mailboxes, how it signs in, its own servers and password, its mail settings while it
+// is used for mail, and its removal, last.
 
 import MailcalBindings
 import SwiftUI
@@ -66,6 +66,9 @@ struct AccountPageView: View {
             AccountUsesSection(model: model, entry: entry, uses: page.uses)
             if !page.links.isEmpty {
                 AccountLinksSection(model: model, entry: entry, pickers: page.links)
+            }
+            if !page.linkedFrom.isEmpty {
+                AccountLinkedFromSection(model: model, entry: entry, linked: page.linkedFrom)
             }
             if let replies = page.replyFallback {
                 AccountReplyFallbackSection(model: model, entry: entry, picker: replies)
@@ -144,9 +147,10 @@ struct AccountPageView: View {
     }
 }
 
-/// A switch per use the account's kind offers, as the core decided each. Switching one off is
-/// confirmed first where it deletes what the device holds of it; switching on one the provider
-/// withholds goes to its sign-in, asking for it.
+/// A switch per use the account's kind offers, as the core decided each, or for a use a link
+/// fills, the account it comes from (docs/accounts.md rule 12). Switching one off is confirmed
+/// first where it deletes what the device holds of it; switching on one the provider withholds
+/// goes to its sign-in, asking for it.
 struct AccountUsesSection: View {
     var model: MailboxModel
     let entry: AccountEntry
@@ -176,7 +180,18 @@ struct AccountUsesSection: View {
         .serverChangeReview(model, $serverChange)
     }
 
+    @ViewBuilder
     private func row(_ toggle: AccountUseSwitch) -> some View {
+        if let linked = LinkedUseRow.of(toggle) {
+            ControlNavRow(title: linked.title, subtitle: linked.note, enabled: linked.enabled) {
+                model.accountPage = linked.opens
+            }
+        } else {
+            useSwitch(toggle)
+        }
+    }
+
+    private func useSwitch(_ toggle: AccountUseSwitch) -> some View {
         let capability = toggle.capability
         let control = toggle.control
         return VStack(alignment: .leading, spacing: 2) {
