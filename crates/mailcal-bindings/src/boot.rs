@@ -66,6 +66,7 @@ pub(crate) use showcase_staging::{
 };
 pub(crate) use stored::{
     PreparedAccount, StoredConfig, connect_graph_calendars, placeholder, prepare_stored_account,
+    skip_reason,
 };
 
 /// Builds a real account-backed app from the host's stored account `configs`: the body of
@@ -435,7 +436,7 @@ fn prepare_accounts(
 ) -> Prepared {
     let mut accounts = Vec::with_capacity(configs.len());
     let mut account_errors = Vec::new();
-    for config_toml in configs {
+    for (position, config_toml) in configs.iter().enumerate() {
         // Stored: a second core in this process may already hold a fresher token for this
         // account than the store does, and it must be adopted rather than raced.
         match prepare_stored_account(config_toml, sink, CredentialOrigin::Stored) {
@@ -458,7 +459,15 @@ fn prepare_accounts(
                     std::iter::once(prepared.account).chain(registry.shared_placeholders(&id));
                 accounts.splice(at..at, listed);
             }
-            Err(err) => account_errors.push(err.to_string()),
+            Err(err) => {
+                log::warn!(
+                    "boot: stored account {} of {} could not be read and was left out: {}",
+                    position + 1,
+                    configs.len(),
+                    skip_reason(&err),
+                );
+                account_errors.push(err.to_string());
+            }
         }
     }
     log::info!(
