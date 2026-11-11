@@ -123,6 +123,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: your diary on screen from the store at launch, filled without opening it, so it is there offline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: refreshes periodically while the app remains open, without requiring another visit to the tab | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Calendar: create with a **calendar picker** (grouped by account) · all-day · notes · location | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendar: a **default calendar** for new events, chosen in Settings → Calendar among the calendars that can take one ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: tap an event to **view** its detail and **edit** it (title, time, notes, location) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: an event's **video meeting** (Microsoft Teams, Google Meet, Zoom and others, whether the calendar made it or an invitation only wrote the link into its text) is joined from its detail with one tap, beside its meeting ID, passcode and dial-in numbers, and marked with a camera on the grid, the month and the agenda ([docs](docs/conferencing.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **add a video meeting** to a new or edited event, or take it off: the calendar's own (Microsoft Teams on a Microsoft calendar, Google Meet on a Google one), or **Jitsi Meet** on your own server, set in Settings → Videoconferencing ([docs](docs/conferencing.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
