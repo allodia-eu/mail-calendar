@@ -38,6 +38,12 @@ public sealed partial class SettingsDialog
     // What the open list or page was drawn from, so a signal that changed none of it is ignored.
     private string? _accountsDrawn;
 
+    // What a core signal read to find the list or page moved, handed to the redraw it starts: each
+    // read is a call into the core on the UI thread, and the redraw would otherwise ask again.
+    private AccountsRead? _accountsRead;
+
+    private sealed record AccountsRead(AccountsSnapshot Snapshot, AccountPage? Page, AllodiaDevices? Devices);
+
     // Whether there was an account when Settings last looked: the last one going is what closes it.
     private bool _hadAccounts;
 
@@ -50,11 +56,13 @@ public sealed partial class SettingsDialog
 
     private UIElement BuildAccounts()
     {
-        var snapshot = _model.AccountsSnapshot();
+        var read = _accountsRead;
+        _accountsRead = null;
+        var snapshot = read?.Snapshot ?? _model.AccountsSnapshot();
         var entry = snapshot.Accounts.FirstOrDefault(account => account.Id == _accountPage);
         // A page whose account has gone is the list.
-        var page = entry is null ? null : OpenPage();
-        var devices = _model.AllodiaDevices();
+        var page = entry is null ? null : read is null ? OpenPage() : read.Page;
+        var devices = read is null ? _model.AllodiaDevices() : read.Devices;
         _accountsDrawn = AccountsFingerprint(snapshot, page, devices);
         var panel = new StackPanel { Spacing = 16 };
         _accountNoticeBar = new InfoBar { IsClosable = true };
@@ -333,7 +341,8 @@ public sealed partial class SettingsDialog
             // stand under "Couldn't save".
             _accountNotice = _changeNotice = null;
         }
-        if (AccountsFingerprint(snapshot, page, _model.AllodiaDevices()) != _accountsDrawn)
+        var devices = _model.AllodiaDevices();
+        if (AccountsFingerprint(snapshot, page, devices) != _accountsDrawn)
         {
             // Drawn again now, a picker whose list is open would close under the pointer and the
             // pick would be lost, and a field holding what is still being typed would send it half
@@ -354,6 +363,7 @@ public sealed partial class SettingsDialog
                 WhenSent(form);
                 return;
             }
+            _accountsRead = new AccountsRead(snapshot, page, devices);
             ShowCategory("accounts");
         }
         else if (_accountNoticeBar is { } bar)
