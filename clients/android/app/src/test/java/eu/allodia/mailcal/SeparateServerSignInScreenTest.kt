@@ -1,6 +1,8 @@
-// The separate server's form with the sign-in at the server's own provider (docs/mail-oauth.md
-// rule 13): drawn above the fields only once the core offers it, with its note beneath, the
-// password kept as the alternative, and the way back open while nothing blocks.
+// The separate server's form with its sign-in in the browser (docs/mail-oauth.md rule 13), drawn
+// from the core's section: above the fields only once the core offers it, with its note beneath
+// and the password kept as the alternative; running as the core says; while the browser holds
+// it, a line saying so with its Cancel, a fresh press still taken; and leaving the screen cancels
+// a sign-in still out.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -24,7 +26,10 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountCapability
+import uniffi.mailcal_bindings.AccountSeparateServer
 import uniffi.mailcal_bindings.AccountSeparateSignIn
+import uniffi.mailcal_bindings.BrowserSignIn
+import uniffi.mailcal_bindings.ControlState
 
 @RunWith(RobolectricTestRunner::class)
 class SeparateServerSignInScreenTest {
@@ -32,30 +37,31 @@ class SeparateServerSignInScreenTest {
 
     private fun ctx(): Context = RuntimeEnvironment.getApplication()
 
-    private val form = separateForm(separateSection(AccountCapability.CALENDAR))
-    private var controls by mutableStateOf(SeparateControls.of(form.section, null))
+    private var section by mutableStateOf(separateSection(AccountCapability.CALENDAR))
     private var showing by mutableStateOf(true)
     private var signIns = 0
     private var skips = 0
     private var dismissed = 0
-    private var left = 0
+    private val cancelled = mutableListOf<BrowserSignIn>()
 
-    private fun offered(step: SeparateSignInStep? = null) = SeparateControls.of(
-        separateSection(AccountCapability.CALENDAR, signIn = AccountSeparateSignIn.PROVIDER),
-        step,
+    private fun offered(signInControl: ControlState = FREE): AccountSeparateServer = separateSection(
+        AccountCapability.CALENDAR,
+        signIn = AccountSeparateSignIn.PROVIDER,
+        signInControl = signInControl,
     )
 
     private fun step() {
         compose.setContent {
             if (showing) {
+                val form = separateForm(section)
                 SeparateServerStepScreen(
                     form,
-                    controls,
+                    SeparateControls.of(form.section),
                     null,
                     { _, _ -> },
                     { skips++ },
                     onSignIn = { signIns++ },
-                    onLeave = { left++ },
+                    onCancelSignIn = { cancelled += it },
                 )
             }
         }
@@ -64,13 +70,15 @@ class SeparateServerSignInScreenTest {
 
     private fun dialog() {
         compose.setContent {
+            val form = separateForm(section)
             SeparateServerDialog(
                 form,
-                controls,
+                SeparateControls.of(form.section),
                 null,
                 { _, _ -> },
                 { dismissed++ },
                 onSignIn = { signIns++ },
+                onCancelSignIn = { cancelled += it },
             )
         }
         compose.waitForIdle()
@@ -86,7 +94,7 @@ class SeparateServerSignInScreenTest {
 
     @Test
     fun an_offered_sign_in_sits_above_the_fields_with_its_note_beneath() {
-        controls = offered()
+        section = offered()
         step()
 
         val button = compose.onNodeWithTag("separate-server-sign-in").assertIsEnabled()
@@ -97,6 +105,7 @@ class SeparateServerSignInScreenTest {
         assertTrue(note.top >= buttonBounds.bottom)
         assertTrue(username.top >= note.bottom)
         compose.onNodeWithText(L10n.setup_field_password(ctx())).assertExists()
+        compose.onNodeWithTag("separate-server-sign-in-cancel").assertDoesNotExist()
 
         button.performClick()
         assertEquals(1, signIns)
@@ -107,7 +116,7 @@ class SeparateServerSignInScreenTest {
         step()
         compose.onNodeWithText(L10n.setup_field_password(ctx())).performTextInput("secr")
 
-        controls = offered()
+        section = offered()
         compose.waitForIdle()
 
         compose.onNodeWithTag("separate-server-sign-in").assertExists()
@@ -116,56 +125,65 @@ class SeparateServerSignInScreenTest {
     }
 
     @Test
-    fun while_it_starts_only_the_way_back_stays() {
-        controls = offered(SeparateSignInStep.STARTING)
+    fun while_the_core_starts_it_the_button_runs() {
+        section = offered(ControlState(enabled = false, running = true))
         step()
-        compose.onNodeWithText(L10n.setup_field_password(ctx())).performTextInput("secret")
 
         compose.onNodeWithTag("separate-server-sign-in").assertIsNotEnabled()
-        compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
+        compose.onNodeWithTag("separate-server-sign-in-running").assertExists()
         compose.onNodeWithTag("separate-server-skip").assertIsEnabled().performClick()
 
         assertEquals(1, skips)
     }
 
     @Test
-    fun while_the_browser_has_it_a_fresh_press_is_taken() {
-        controls = offered(SeparateSignInStep.BROWSER)
+    fun while_the_browser_has_it_the_line_says_so_with_its_cancel_and_a_fresh_press_is_taken() {
+        section = separateWaiting(AccountCapability.CALENDAR)
         step()
 
-        compose.onNodeWithTag("separate-server-sign-in").assertIsEnabled().performClick()
-
-        assertEquals(1, signIns)
-    }
-
-    @Test
-    fun while_it_completes_everything_holds_still() {
-        controls = offered(SeparateSignInStep.COMPLETING)
-        step()
-
-        compose.onNodeWithTag("separate-server-sign-in").assertIsNotEnabled()
+        compose.onNodeWithText(L10n.settings_account_signin_waiting(ctx(), "alice")).assertExists()
+        compose.onNodeWithText(L10n.setup_imap_signin_note(ctx())).assertDoesNotExist()
+        compose.onNodeWithTag("separate-server-connect").assertIsNotEnabled()
         compose.onNodeWithTag("separate-server-skip").assertIsNotEnabled()
+        compose.onNodeWithTag("separate-server-sign-in").assertIsEnabled().performClick()
+        assertEquals(1, signIns)
+
+        compose.onNodeWithTag("separate-server-sign-in-cancel").assertIsEnabled().performClick()
+        assertEquals(listOf(4uL), cancelled.map { it.attempt })
     }
 
     @Test
-    fun leaving_the_screen_says_so_once() {
+    fun leaving_the_screen_cancels_the_sign_in_still_out_once() {
+        section = separateWaiting(AccountCapability.CALENDAR)
         step()
 
         showing = false
         compose.waitForIdle()
 
-        assertEquals(1, left)
+        assertEquals(listOf(4uL), cancelled.map { it.attempt })
     }
 
     @Test
-    fun the_page_dialog_offers_it_and_keeps_cancel_while_it_starts() {
-        controls = offered()
+    fun leaving_the_screen_with_nothing_out_cancels_nothing() {
+        section = offered()
+        step()
+
+        showing = false
+        compose.waitForIdle()
+
+        assertTrue(cancelled.isEmpty())
+    }
+
+    @Test
+    fun the_page_dialog_offers_it_and_keeps_cancel_while_the_browser_has_it() {
+        section = offered()
         dialog()
         compose.onNodeWithTag("separate-server-sign-in").performClick()
         assertEquals(1, signIns)
 
-        controls = offered(SeparateSignInStep.STARTING)
+        section = separateWaiting(AccountCapability.CALENDAR)
         compose.waitForIdle()
+        compose.onNodeWithTag("separate-server-sign-in-cancel").assertExists()
         compose.onNodeWithTag("separate-server-cancel").assertIsEnabled().performClick()
 
         assertEquals(1, dismissed)

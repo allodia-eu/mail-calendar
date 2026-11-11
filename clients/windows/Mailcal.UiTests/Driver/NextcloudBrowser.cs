@@ -17,21 +17,45 @@ internal static class NextcloudBrowser
     /// <summary>The newest sign-in the fixture has started, by its login token; null when none.</summary>
     internal static string? NewestLoginToken()
     {
+        var (exit, token) = Sql("select login_token from oc_login_flow_v2 order by id desc limit 1");
+        return exit == 0 && token.Length > 0 ? token : null;
+    }
+
+    /// <summary>
+    /// Clears the passwords the fixture has refused. Nextcloud counts every refusal from an address
+    /// and, past a handful, delays and then refuses (HTTP 429) everything from it, and every
+    /// request here comes from Docker's one gateway address. A suite refuses passwords on purpose,
+    /// so without this a case fails for the cases that ran before it.
+    /// </summary>
+    internal static void ForgetRefusals()
+    {
+        if (Sql("delete from oc_bruteforce_attempts").Exit != 0)
+        {
+            throw new InvalidOperationException("the fixture's refused sign-ins could not be cleared");
+        }
+    }
+
+    private static (int Exit, string Output) Sql(string statement)
+    {
         var psql = Process.Start(new ProcessStartInfo("docker",
-            ["exec", Database, "psql", "-U", "nextcloud", "-d", "nextcloud", "-tAc",
-             "select login_token from oc_login_flow_v2 order by id desc limit 1"])
+            ["exec", Database, "psql", "-U", "nextcloud", "-d", "nextcloud", "-tAc", statement])
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         })!;
-        var token = psql.StandardOutput.ReadToEnd().Trim();
+        var output = psql.StandardOutput.ReadToEnd().Trim();
         psql.WaitForExit();
-        return psql.ExitCode == 0 && token.Length > 0 ? token : null;
+        return (psql.ExitCode, output);
     }
 
     /// <summary>Waits for a sign-in newer than <paramref name="before"/> and grants it as
     /// <paramref name="user"/>.</summary>
-    internal static void GrantNext(string root, string? before, string user, string password)
+    internal static void GrantNext(string root, string? before, string user, string password) =>
+        GrantToken(root, NextLoginToken(before), user, password);
+
+    /// <summary>Waits for a sign-in newer than <paramref name="before"/> to start at the fixture and
+    /// returns its login token.</summary>
+    internal static string NextLoginToken(string? before)
     {
         string? token = null;
         var deadline = DateTime.UtcNow.AddSeconds(20);
@@ -43,8 +67,13 @@ internal static class NextcloudBrowser
             }
             Thread.Sleep(250);
         }
-        Grant($"{root}/login/v2/flow/{token}", root, user, password).GetAwaiter().GetResult();
+        return token;
     }
+
+    /// <summary>Grants the sign-in <paramref name="token"/> names as <paramref name="user"/>,
+    /// whether or not the app still waits on it.</summary>
+    internal static void GrantToken(string root, string token, string user, string password) =>
+        Grant($"{root}/login/v2/flow/{token}", root, user, password).GetAwaiter().GetResult();
 
     private static async Task Grant(string loginUrl, string root, string user, string password)
     {

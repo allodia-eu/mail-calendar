@@ -1,8 +1,8 @@
 // What is drawn for a calendar or address book an account's sign-in does not reach
 // (docs/accounts.md rule 18): the question a switch to the provider asks before the browser opens,
 // and the form that gives them a sign-in of their own, as setup's step and as the account page's
-// dialog, with the sign-in at the server's own provider when it offers one (docs/mail-oauth.md
-// rule 13). What each decides is UnreachedRules' and SeparateSignIn's; these draw it.
+// dialog, with the sign-in in the browser when the server offers one (docs/mail-oauth.md rule 13).
+// What each decides is the core's, read by UnreachedRules and SeparateSignIn; these draw it.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -11,11 +11,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,6 +21,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.BrowserSignIn
 
 internal fun signInUnreachedTitle(ctx: Context, set: UnreachedSet): String = when (set) {
     UnreachedSet.BOTH -> L10n.signin_unreached_title_both(ctx)
@@ -83,36 +82,45 @@ private class SeparateFields(username: String) {
     val ready: Boolean get() = username.isNotBlank() && password.isNotEmpty()
 }
 
+/** The line under the sign-in: whose it is, or, while the browser holds it, that it waits there as [username]. */
+internal fun separateSignInNote(ctx: Context, controls: SeparateControls, username: String): String = when {
+    controls.nextcloud && controls.waiting != null -> L10n.nextcloud_sign_in_waiting(ctx)
+    controls.nextcloud -> L10n.nextcloud_sign_in_note(ctx)
+    controls.waiting != null -> L10n.settings_account_signin_waiting(ctx, username)
+    else -> L10n.setup_imap_signin_note(ctx)
+}
+
 /**
- * The sign-in at the server's own provider, above the fields once the core has said it is offered,
- * with its note beneath. The fields stay below it, so one being typed in keeps its focus.
+ * The sign-in in the browser, above the fields once the core has said it is offered, with its
+ * line beneath and, while the browser holds it, its Cancel. The fields stay below it, so one
+ * being typed in keeps its focus.
  */
 @Composable
-private fun SeparateSignInOffer(controls: SeparateControls, onSignIn: () -> Unit) {
+private fun SeparateSignInOffer(
+    form: SeparateServerForm,
+    controls: SeparateControls,
+    onSignIn: () -> Unit,
+    onCancelSignIn: (BrowserSignIn) -> Unit,
+) {
     if (!controls.offersSignIn) return
     val ctx = LocalContext.current
-    Button(
+    ControlButton(
+        label = if (controls.nextcloud) L10n.nextcloud_sign_in_button(ctx) else L10n.setup_imap_signin_button(ctx),
+        control = controls.signIn,
+        tag = "separate-server-sign-in",
+        modifier = Modifier.fillMaxWidth(),
         onClick = onSignIn,
-        enabled = controls.editable,
-        modifier = Modifier.fillMaxWidth().testTag("separate-server-sign-in"),
-    ) {
-        if (controls.signingIn) {
-            CircularProgressIndicator(modifier = Modifier.size(18.dp))
-        } else if (controls.nextcloud) {
-            Text(L10n.nextcloud_sign_in_button(ctx))
-        } else {
-            Text(L10n.setup_imap_signin_button(ctx))
-        }
-    }
+    )
     Text(
-        when {
-            !controls.nextcloud -> L10n.setup_imap_signin_note(ctx)
-            controls.signingIn -> L10n.nextcloud_sign_in_waiting(ctx)
-            else -> L10n.nextcloud_sign_in_note(ctx)
-        },
+        separateSignInNote(ctx, controls, form.section.username),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+    controls.waiting?.let { browser ->
+        ControlTextButton(L10n.action_cancel(ctx), browser.cancel, "separate-server-sign-in-cancel") {
+            onCancelSignIn(browser)
+        }
+    }
 }
 
 @Composable
@@ -122,18 +130,22 @@ private fun SeparateServerBody(
     controls: SeparateControls,
     error: String?,
     onSignIn: () -> Unit,
+    onCancelSignIn: (BrowserSignIn) -> Unit,
 ) {
     val ctx = LocalContext.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(L10n.separate_server_body(ctx, form.section.host), style = MaterialTheme.typography.bodyMedium)
-        SeparateSignInOffer(controls, onSignIn)
-        SetupField(
-            fields.username,
-            { fields.username = it },
-            L10n.setup_field_username(ctx),
-            keyboardType = KeyboardType.Email,
-        )
-        PasswordField(fields.password, { fields.password = it }, L10n.setup_field_password(ctx))
+        SeparateSignInOffer(form, controls, onSignIn, onCancelSignIn)
+        HeldFields(controls.connect) { open ->
+            SetupField(
+                fields.username,
+                { fields.username = it },
+                L10n.setup_field_username(ctx),
+                keyboardType = KeyboardType.Email,
+                enabled = open,
+            )
+            PasswordField(fields.password, { fields.password = it }, L10n.setup_field_password(ctx), enabled = open)
+        }
         error?.let {
             Text(
                 it,
@@ -145,10 +157,15 @@ private fun SeparateServerBody(
     }
 }
 
-/** Retires a sign-in still out for the form when it leaves the screen. */
+/**
+ * Cancels a sign-in still out for the form when it leaves the screen, read off the section last
+ * drawn: the form may already be gone from its holder by then.
+ */
 @Composable
-private fun SeparateFormEffects(form: SeparateServerForm, onLeave: () -> Unit) {
-    DisposableEffect(form.accountId) { onDispose(onLeave) }
+private fun SeparateFormEffects(form: SeparateServerForm, onCancelSignIn: (BrowserSignIn) -> Unit) {
+    val drawn by rememberUpdatedState(form)
+    val cancel by rememberUpdatedState(onCancelSignIn)
+    DisposableEffect(form.accountId) { onDispose { drawn.section.browser?.let(cancel) } }
 }
 
 /**
@@ -163,16 +180,16 @@ internal fun SeparateServerStepScreen(
     onConnect: (username: String, password: String) -> Unit,
     onSkip: () -> Unit,
     onSignIn: () -> Unit = {},
-    onLeave: () -> Unit = {},
+    onCancelSignIn: (BrowserSignIn) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     // Kept across the core's redraws of the form, which change its section.
     val fields = remember(form.accountId) { SeparateFields(form.section.username) }
-    SeparateFormEffects(form, onLeave)
+    SeparateFormEffects(form, onCancelSignIn)
     BackHandler(enabled = controls.leavable) { onSkip() }
     StepColumn {
         Text(separateServerTitle(ctx, form.set), style = MaterialTheme.typography.headlineSmall)
-        SeparateServerBody(form, fields, controls, error, onSignIn)
+        SeparateServerBody(form, fields, controls, error, onSignIn, onCancelSignIn)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             ControlTextButton(
                 L10n.separate_server_skip(ctx),
@@ -201,15 +218,15 @@ internal fun SeparateServerDialog(
     onConnect: (username: String, password: String) -> Unit,
     onDismiss: () -> Unit,
     onSignIn: () -> Unit = {},
-    onLeave: () -> Unit = {},
+    onCancelSignIn: (BrowserSignIn) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     val fields = remember(form.accountId) { SeparateFields(form.section.username) }
-    SeparateFormEffects(form, onLeave)
+    SeparateFormEffects(form, onCancelSignIn)
     AlertDialog(
         onDismissRequest = { if (controls.leavable) onDismiss() },
         title = { Text(separateServerTitle(ctx, form.set)) },
-        text = { SeparateServerBody(form, fields, controls, error, onSignIn) },
+        text = { SeparateServerBody(form, fields, controls, error, onSignIn, onCancelSignIn) },
         confirmButton = {
             ControlTextButton(
                 L10n.action_connect(ctx),

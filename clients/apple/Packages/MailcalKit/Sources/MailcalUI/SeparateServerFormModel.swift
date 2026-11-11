@@ -1,8 +1,8 @@
 // What one separate-server form holds while it is on screen, in setup and on the account's page
-// alike, so the two cannot drift: the login and password, the sign-in at the server's own provider,
-// and what each answer does. Connect and Skip are changes on the account's page, which the core
-// runs and draws on its section; the form ends once the core draws none. The decisions are
-// `SeparateServerRules` and `SeparateServerSignIn`.
+// alike, so the two cannot drift: the login and password typed, and whether the password route is
+// drawn beside a sign-in. Connect, Skip and the browser sign-in are changes on the account's page,
+// which the core runs and draws on its section; the form ends once the core draws none. The
+// decisions are `SeparateServerRules` and `SeparateServerSignIn`.
 
 import Foundation
 import MailcalBindings
@@ -13,54 +13,36 @@ import Observation
 final class SeparateServerFormModel {
     var username: String
     var password = ""
-    /// Why the last sign-in in the browser failed; a Connect's failure is the section's.
-    var failure: String?
-    var signIn = SeparateServerSignIn()
-    /// The sign-in with Nextcloud, where the server is Nextcloud.
-    let nextcloud = NextcloudSignIn()
+    private(set) var signIn = SeparateServerSignIn()
     /// The section as the core last drew it.
     private(set) var section: AccountSeparateServer
-    /// The sign-in in flight, held so it can be retired.
-    @ObservationIgnored private var task: Task<Void, Never>?
 
     init(_ ask: SeparateServerAsk) {
         username = ask.username
         section = ask.section
+        signIn.drawn(ask.section, ask.section, started: false)
     }
-
-    /// A sign-in's own core call is running, which nothing interrupts.
-    var completing: Bool { signIn.completing || nextcloud.completing }
-
-    /// Whether the form holds its fields: the core holds Connect, or a sign-in completes.
-    var holding: Bool { !section.connect.enabled || completing }
-
-    /// Connect, as the core draws it, held as well while a sign-in completes.
-    var connectControl: ControlState { section.connect.held(completing) }
-
-    /// Setup's Skip, likewise.
-    var skipControl: ControlState { section.stopUsing.held(completing) }
 
     var canConnect: Bool { SeparateServerRules.canConnect(username, password) }
 
-    /// Skip and Cancel: live while the browser is out, since each retires the attempt, and held
-    /// while a change the form started runs.
+    /// The page's Cancel: held while a change the form started runs, which leaving would not
+    /// stop, and while the core completes a sign-in, which it no longer lets go of.
     var canLeave: Bool {
-        !completing && !section.connect.running && !section.stopUsing.running
+        !section.connect.running && !section.stopUsing.running
+            && (section.browser == nil || cancelsOnLeaving != nil)
     }
 
-    /// What is said under the fields: the sign-in's failure, else the core's.
+    /// What is said under the fields: why the last Connect, Skip or sign-in left the uses where
+    /// they are.
     var said: String? {
-        failure ?? section.failed.map(AccountSettingsLabels.refused)
+        section.failed.map(AccountSettingsLabels.refused)
     }
 
-    /// The core drew the section again. A way in it now offers never takes away a password route
-    /// somebody has begun.
+    /// The core drew the section again.
     func drawn(_ ask: SeparateServerAsk) {
-        if section.signIn == nil, ask.section.signIn != nil {
-            signIn.offered(
-                started: SeparateServerRules.passwordStarted(
-                    ask, username: username, password: password))
-        }
+        let started = SeparateServerRules.passwordStarted(
+            ask, username: username, password: password)
+        signIn.drawn(section, ask.section, started: started)
         section = ask.section
     }
 
@@ -68,11 +50,9 @@ final class SeparateServerFormModel {
         signIn.choosePassword()
     }
 
-    /// Connect: the typed password, tried by the core, retiring a sign-in still out.
+    /// Connect: the typed password, tried by the core.
     func connect(_ model: MailboxModel, _ ask: SeparateServerAsk) {
-        guard connectControl.enabled, canConnect else { return }
-        retire()
-        failure = nil
+        guard section.connect.enabled, canConnect else { return }
         model.changeAccount(
             .connectSeparateServer(
                 account: ask.account, username: username.trimmingCharacters(in: .whitespaces),
@@ -81,73 +61,32 @@ final class SeparateServerFormModel {
 
     /// Setup's Skip: the account stops being used for what needs the sign-in.
     func skip(_ model: MailboxModel, _ ask: SeparateServerAsk) {
-        guard skipControl.enabled else { return }
-        retire()
-        failure = nil
+        guard section.stopUsing.enabled else { return }
         model.changeAccount(.stopUsingSeparateServer(account: ask.account))
     }
 
-    /// Starts a sign-in at the server's own provider, superseding any still out
-    /// (docs/provider-oauth.md rule 13).
-    func startSignIn(_ model: MailboxModel, _ ask: SeparateServerAsk, done: @escaping () -> Void) {
-        guard !holding else { return }
-        task?.cancel()
-        failure = nil
-        let attempt = signIn.begin()
-        task = Task {
-            let outcome = await model.signInSeparateServer(ask) {
-                self.signIn.redirected(attempt)
-            }
-            // An attempt superseded or retired: the form has moved on without it.
-            guard let next = signIn.finish(attempt, outcome) else { return }
-            settle(next, done)
+    /// The sign-in the server offers, in the browser, superseding one still out.
+    func startSignIn(_ model: MailboxModel, _ ask: SeparateServerAsk) {
+        guard section.signInControl.enabled else { return }
+        model.signInSeparateServer(ask.account)
+    }
+
+    /// Cancel beside the line while the browser holds the sign-in.
+    func cancelSignIn(_ model: MailboxModel) {
+        guard let browser = SeparateServerRules.waiting(section), browser.cancel.enabled else {
+            return
         }
+        model.cancelSignIn(browser)
     }
 
-    /// Signs the server in with Nextcloud, moving the uses to the account the grant signs in to.
-    /// A grant whose move failed is kept for the next press.
-    func startNextcloud(
-        _ model: MailboxModel, _ ask: SeparateServerAsk, done: @escaping () -> Void
-    ) {
-        guard section.connect.enabled, !signIn.completing else { return }
-        retireProviderSignIn()
-        failure = nil
-        nextcloud.start(
-            model.app, key: "\(ask.account)|\(ask.uses)",
-            begin: { try $0.beginSeparateServerNextcloudSignIn(accountId: ask.account, uses: ask.uses) },
-            complete: { grant in
-                if let refused = await model.addLinkedNextcloudAccount(ask, grant) {
-                    return .failed(said: refused)
-                }
-                done()
-                return .done
-            })
+    /// The sign-in leaving the form cancels: one still out, unless the core is completing it.
+    var cancelsOnLeaving: BrowserSignIn? {
+        guard let browser = section.browser, browser.cancel.enabled else { return nil }
+        return browser
     }
 
-    /// A way back from a sign-in still out: the attempt is retired and the form returns to its
-    /// offer, saying nothing.
-    func retire() {
-        retireProviderSignIn()
-        nextcloud.cancel()
-    }
-
-    /// The form is gone: a sign-in still out retires, and a grant kept for another try is
-    /// withdrawn.
+    /// The form is gone: a sign-in still out goes with it.
     func leave(_ model: MailboxModel) {
-        retireProviderSignIn()
-        nextcloud.leave(model.app)
-    }
-
-    private func retireProviderSignIn() {
-        task?.cancel()
-        task = nil
-        signIn.retire()
-    }
-
-    private func settle(_ next: SeparateServerNext, _ done: () -> Void) {
-        switch next {
-        case .done: done()
-        case let .stay(reason): failure = reason
-        }
+        if let browser = cancelsOnLeaving { model.cancelSignIn(browser) }
     }
 }

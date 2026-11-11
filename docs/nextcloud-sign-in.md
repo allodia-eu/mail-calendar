@@ -77,15 +77,16 @@ the bindings for the surfaces) owns every decision; a client owns what it draws 
    the app. The client opens the login page in the platform's browser. For an account that exists,
    signed in again or switched over from its page or a prompt, the core polls the server itself
    at `nextcloud_poll_interval_ms()`, and once more when the person closes a browser that tells
-   the app so (`SignInBrowserEnded` with `Closed`, [`waiting.md`](waiting.md)); setup and the
-   separate server's form still poll `poll_nextcloud_sign_in` from the client at that interval,
-   and once more when it returns to the foreground. Twenty minutes after it started the server lets the flow go, and the poll
+   the app so (`SignInBrowserEnded` with `Closed`, [`waiting.md`](waiting.md)), and does the same
+   for a mailbox's separate server (`SignInSeparateServer`); setup still polls
+   `poll_nextcloud_sign_in` from the client at that interval, and once more when it returns to
+   the foreground. Twenty minutes after it started the server lets the flow go, and the poll
    answers `Expired` without asking. The way out of the wait is the one
    [`onboarding.md`](onboarding.md) requires of every browser sign-in.
 
 6. **The grant comes once, so it is kept until it is an account.** The server answers the grant to
    one poll and forgets it. Whoever polled holds the grant in memory (the core, for an account
-   that exists); a completion that fails keeps it, so the next try completes it without a second
+   that exists and for a separate server); a completion that fails keeps it, so the next try completes it without a second
    trip to the browser; a grant that becomes no account is withdrawn
    (`abandon_nextcloud_sign_in`), as the core does when another account's sign-in starts.
 

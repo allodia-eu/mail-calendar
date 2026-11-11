@@ -8,7 +8,6 @@ package eu.allodia.mailcal
 import android.content.Context
 import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
-import java.lang.ref.WeakReference
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
@@ -18,19 +17,6 @@ import uniffi.mailcal_bindings.nextcloudPollIntervalMs
 /** The flights in the air, woken together when the app is in front again. Main thread only. */
 internal object NextcloudFlights {
     private val flying = mutableListOf<NextcloudFlight>()
-
-    // The core the last flight flew with. A grant exists only after a flight, so whatever gives one
-    // up can withdraw it here without a core of its own.
-    private var core: WeakReference<MailcalApp>? = null
-
-    fun flewWith(instance: MailcalApp) {
-        core = WeakReference(instance)
-    }
-
-    /** Withdraws [grant], which became no account. Returns at once. */
-    fun withdraw(grant: String?) {
-        grant?.let { core?.get()?.abandonNextcloudSignIn(it) }
-    }
 
     fun add(flight: NextcloudFlight) {
         flying += flight
@@ -71,7 +57,6 @@ internal fun MainActivity.flyNextcloud(
 ): NextcloudFlight? {
     val instance = app ?: return null
     val flight = NextcloudFlight()
-    NextcloudFlights.flewWith(instance)
     NextcloudFlights.add(flight)
     val interval = nextcloudPollIntervalMs().toLong()
     thread(name = name) {

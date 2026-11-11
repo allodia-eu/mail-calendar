@@ -236,8 +236,8 @@ public static class Program
         }
         window.DispatcherQueue.TryEnqueue(() =>
         {
-            // An existing account's sign-in is the core's, and its redirect goes there first; any
-            // other is the setup flow's waiting on it.
+            // A sign-in the core runs (an existing account's, or its separate server's) has its
+            // redirect go there first; any other is the setup flow's waiting on it.
             if (!window.Model.TakeSignInRedirect(uri))
             {
                 ProtocolAuthCallback.Deliver(uri);

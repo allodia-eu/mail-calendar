@@ -21,6 +21,8 @@ import uniffi.mailcal_bindings.AccountUse
 import uniffi.mailcal_bindings.AccountUseBlock
 import uniffi.mailcal_bindings.AccountUseStatus
 import uniffi.mailcal_bindings.AccountUseSwitch
+import uniffi.mailcal_bindings.BrowserSignIn
+import uniffi.mailcal_bindings.BrowserSignInStage
 import uniffi.mailcal_bindings.CapabilityState
 import uniffi.mailcal_bindings.ConnectionSecurity
 import uniffi.mailcal_bindings.ControlState
@@ -85,6 +87,9 @@ internal fun imapEndpoints() = AccountEndpoints(
 /** A control nothing holds. */
 internal val FREE = ControlState(enabled = true, running = false)
 
+/** A control the core holds, nothing of its own running. */
+internal val HELD = ControlState(enabled = false, running = false)
+
 /** One use's switch as the core would answer it; nothing blocks it unless told. */
 internal fun useSwitch(
     capability: AccountCapability,
@@ -114,7 +119,41 @@ internal fun separateSection(
     connect: ControlState = FREE,
     stopUsing: ControlState = FREE,
     failed: AccountChangeRefusal? = null,
-) = AccountSeparateServer(uses.toList(), "dav.example.org", "alice", signIn, connect, stopUsing, failed)
+    signInControl: ControlState = FREE,
+    browser: BrowserSignIn? = null,
+) = AccountSeparateServer(
+    uses.toList(),
+    "dav.example.org",
+    "alice",
+    signIn,
+    connect,
+    stopUsing,
+    failed,
+    signInControl,
+    browser,
+)
+
+/**
+ * The section while the core's sign-in [attempt] for it waits on the browser, as the core holds
+ * it: Connect and Skip held, the sign-in pressable again. A [redirect] of null is Nextcloud's.
+ */
+internal fun separateWaiting(
+    vararg uses: AccountCapability,
+    signIn: AccountSeparateSignIn = AccountSeparateSignIn.PROVIDER,
+    attempt: ULong = 4uL,
+    redirect: String? = ImapOAuthConfig.REDIRECT_URI,
+) = separateSection(
+    *uses,
+    signIn = signIn,
+    connect = HELD,
+    stopUsing = HELD,
+    browser = BrowserSignIn(
+        attempt,
+        "alice@imap",
+        BrowserSignInStage.InBrowser("https://auth.example.org/$attempt", redirect),
+        FREE,
+    ),
+)
 
 /** The form for [section], for the mailbox `alice@imap`. */
 internal fun separateForm(section: AccountSeparateServer) = UnreachedRules.form("alice@imap", section)!!

@@ -12,8 +12,11 @@ use crate::{AccountCapability, BrowserSignIn, UnreachedUses};
 
 #[path = "account_page_browser_out.rs"]
 mod out;
+#[path = "account_page_browser_steps.rs"]
+mod steps;
 pub(crate) use out::Out;
 use out::{record, working};
+pub(crate) use steps::{Began, Completion, Pending, Run, Target};
 
 /// How long a sign-in waits on the browser before it is over: what a closed browser tab costs,
 /// since closing one tells nobody. The question before the browser waits until it is answered,
@@ -24,53 +27,6 @@ pub(crate) const WAIT_CAP: Duration = Duration::from_mins(5);
 /// browser takes a moment to come up, and once it has, a fresh press starts the sign-in again, as
 /// after a tab closed by accident.
 pub(crate) const OPENING: Duration = Duration::from_secs(2);
-
-/// The handle a started sign-in is completed with.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Pending {
-    /// A Microsoft or Google account's consent.
-    Consent(String),
-    /// A standards or JMAP account's sign-in at its provider.
-    Account(String),
-    /// A Nextcloud Login Flow, polled by the core.
-    Nextcloud(String),
-}
-
-/// What a sign-in's server answered when it was started.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Began {
-    pub(crate) pending: Pending,
-    pub(crate) url: String,
-    /// Where the browser returns; `None` for a Nextcloud sign-in, which returns nothing.
-    pub(crate) redirect_uri: Option<String>,
-    /// The uses a switch to the provider would cost (`docs/accounts.md` rule 18).
-    pub(crate) unreached: Vec<AccountCapability>,
-}
-
-/// What a completion is given.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Completion {
-    Consent {
-        pending: String,
-        callback_url: String,
-    },
-    Account {
-        pending: String,
-        callback_url: String,
-        unreached: Option<UnreachedUses>,
-    },
-    Nextcloud {
-        grant: String,
-    },
-}
-
-/// A completion taken to run, with what its outcome is said with.
-#[derive(Debug)]
-pub(crate) struct Run {
-    pub(crate) account: String,
-    pub(crate) switching: bool,
-    pub(crate) completion: Completion,
-}
 
 #[derive(Debug)]
 enum Stage {
@@ -92,6 +48,7 @@ enum Stage {
 struct Attempt {
     id: u64,
     account: String,
+    target: Target,
     adding: Vec<AccountCapability>,
     switching: bool,
     stage: Stage,
@@ -104,9 +61,10 @@ struct Slot {
     current: Option<Attempt>,
     next: u64,
     serial: u64,
-    /// A Nextcloud grant whose completion failed, kept so the next sign-in of that account
-    /// completes it without a second trip to the browser (`docs/nextcloud-sign-in.md` rule 6).
-    kept: Option<(String, String)>,
+    /// A Nextcloud grant whose completion failed, with the account and what it signed in, kept
+    /// so the next such sign-in completes it without a second trip to the browser
+    /// (`docs/nextcloud-sign-in.md` rule 6).
+    kept: Option<(String, Target, String)>,
     /// A shorter cap than [`WAIT_CAP`], for a test.
     cap: Option<Duration>,
     /// Another time than [`OPENING`], for a test.
@@ -139,11 +97,13 @@ impl BrowserSignIns {
         self.slot.lock().expect("browser sign-in mutex poisoned")
     }
 
-    /// Starts a sign-in of `account`, asking for `adding` besides what it is used for, in place of
-    /// the one out. `switching`: it moves the account from a password to its provider.
+    /// Starts a sign-in of `target` for `account`, asking for `adding` besides what it is used
+    /// for, in place of the one out. `switching`: it moves the account from a password to its
+    /// provider.
     pub(crate) fn start(
         &self,
         account: &str,
+        target: Target,
         adding: &[AccountCapability],
         switching: bool,
     ) -> Start {
@@ -162,16 +122,17 @@ impl BrowserSignIns {
         let (attempt, serial) = (slot.next, slot.serial);
         let kept = slot.kept.take();
         let (stage, withdraw) = match kept {
-            Some((owner, grant)) if owner == account => (
+            Some((owner, of, grant)) if owner == account && of == target => (
                 Stage::Completing(Some(Completion::Nextcloud { grant })),
                 None,
             ),
-            other => (Stage::Starting, other.map(|(_, grant)| grant)),
+            other => (Stage::Starting, other.map(|(_, _, grant)| grant)),
         };
         let completes = matches!(stage, Stage::Completing(_));
         slot.current = Some(Attempt {
             id: attempt,
             account: account.to_owned(),
+            target,
             adding: adding.to_vec(),
             switching,
             stage,
@@ -259,6 +220,10 @@ impl BrowserSignIns {
                     callback_url,
                     unreached: *unreached,
                 },
+                Pending::Separate(pending) => Completion::Separate {
+                    pending: pending.clone(),
+                    callback_url,
+                },
                 Pending::Nextcloud(_) => return false,
             },
             _ => return false,
@@ -322,6 +287,7 @@ impl BrowserSignIns {
         };
         Some(Run {
             account: current.account.clone(),
+            target: current.target.clone(),
             switching: current.switching,
             completion: completion.take()?,
         })
@@ -334,7 +300,7 @@ impl BrowserSignIns {
         let Some(current) = slot.current.take_if(|current| current.id == attempt) else {
             return;
         };
-        slot.kept = grant.map(|grant| (current.account, grant));
+        slot.kept = grant.map(|grant| (current.account, current.target, grant));
     }
 
     /// Ends `attempt` while it has not reached its completion: cancelled, timed out, refused by
@@ -347,6 +313,7 @@ impl BrowserSignIns {
         })?;
         Some(Ended {
             account: current.account,
+            target: current.target,
             switching: current.switching,
         })
     }
@@ -392,8 +359,8 @@ impl BrowserSignIns {
             slot.current = None;
         }
         slot.kept
-            .take_if(|(owner, _)| owner == account)
-            .map(|(_, grant)| grant)
+            .take_if(|(owner, ..)| owner == account)
+            .map(|(_, _, grant)| grant)
     }
 
     /// The sign-in out, as a client draws and drives it.
@@ -410,18 +377,19 @@ impl BrowserSignIns {
             .filter(|current| current.account == account)
             .map(|current| Out {
                 record: record(current),
+                target: current.target.clone(),
                 adding: current.adding.clone(),
                 working: working(current, opening),
             })
     }
 
-    /// The account whose sign-in is out while the control that started it is running.
+    /// The account whose own sign-in is out while the control that started it is running.
     pub(crate) fn working_account(&self) -> Option<String> {
         let slot = self.slot();
         let opening = slot.opening.unwrap_or(OPENING);
         slot.current
             .as_ref()
-            .filter(|current| working(current, opening))
+            .filter(|current| current.target == Target::Account && working(current, opening))
             .map(|current| current.account.clone())
     }
 
@@ -459,6 +427,7 @@ impl BrowserSignIns {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Ended {
     pub(crate) account: String,
+    pub(crate) target: Target,
     pub(crate) switching: bool,
 }
 

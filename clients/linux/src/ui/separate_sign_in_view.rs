@@ -1,19 +1,20 @@
 //! The widgets of a sign-in of its own ([`super::separate_sign_in`]): setup's step, the action
 //! the account's page offers, and the form that action opens over Settings. Each is drawn from
-//! the core's section and the browser sign-in's state; the form is a modal that a redraw of the
+//! the core's section, the browser sign-in included; the form is a modal that a redraw of the
 //! page leaves open and updates in place, so what was typed stands while a connect runs and after
 //! it fails, and setup's step is updated in place the same way (`super::setup`).
 
 use std::{cell::Cell, rc::Rc};
 
 use adw::prelude::*;
-use mailcal_bindings::{AccountCapability, AccountSeparateSignIn, ControlState};
+use mailcal_bindings::{
+    AccountCapability, AccountSeparateSignIn, BrowserSignIn, BrowserSignInStage, ControlState,
+};
 
 use super::{
     AppInput,
     account_settings::AccountsInput,
     controls,
-    separate_server_sign_in::{ProviderInput, SignInStage},
     separate_sign_in::{Password, SeparateForm, SeparateFrom, SeparateInput},
     setup_widgets::{body, entry, heading, page},
     unreached,
@@ -33,21 +34,23 @@ pub(super) struct Fields {
     from: SeparateFrom,
     sender: relm4::Sender<AppInput>,
     sign_in_area: gtk::Box,
-    sign_in: gtk::Button,
-    /// The line under the sign-in, which says whose it is.
+    /// The sign-in's button, drawn from the core's control each time it changes.
+    sign_in: gtk::Box,
+    /// The line under the sign-in, which says whose it is, or that it waits on the browser.
     note: gtk::Label,
-    /// The spinner while a sign-in is out, with the Cancel that retires it while the browser
-    /// holds it.
-    waiting: gtk::Box,
-    spinner: gtk::Spinner,
-    cancel: gtk::Button,
+    /// The Cancel beside that line while the browser holds the sign-in.
+    cancel: gtk::Box,
     username: gtk::Entry,
     password: gtk::Entry,
     error: gtk::Label,
     /// The other way out, then Connect, drawn from the core's controls each time they change.
     actions: gtk::Box,
     drawn: Cell<Option<(ControlState, ControlState, bool)>>,
+    drawn_sign_in: Cell<Option<SignInDrawn>>,
 }
+
+/// The sign-in's control, its way in and the attempt whose Cancel is drawn, as last drawn.
+type SignInDrawn = (ControlState, Option<AccountSeparateSignIn>, Option<u64>);
 
 impl Fields {
     fn append(
@@ -61,17 +64,16 @@ impl Fields {
         // Drawn now and shown when the server answers, above the fields and without taking
         // the focus from one being typed in.
         let sign_in_area = gtk::Box::new(gtk::Orientation::Vertical, 8);
-        let sign_in = gtk::Button::with_label(l10n::setup_imap_signin_button());
+        let sign_in = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         sign_in.set_halign(gtk::Align::Start);
         sign_in_area.append(&sign_in);
+        let line = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         let note = body(l10n::setup_imap_signin_note());
-        sign_in_area.append(&note);
-        let waiting = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        let spinner = gtk::Spinner::new();
-        waiting.append(&spinner);
-        let cancel = gtk::Button::with_label(l10n::action_cancel());
-        waiting.append(&cancel);
-        sign_in_area.append(&waiting);
+        note.set_hexpand(true);
+        line.append(&note);
+        let cancel = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        line.append(&cancel);
+        sign_in_area.append(&line);
         content.append(&sign_in_area);
         let username = entry(l10n::setup_field_username(), &form.section.username, false);
         content.append(&username);
@@ -92,66 +94,47 @@ impl Fields {
             sign_in_area,
             sign_in,
             note,
-            waiting,
-            spinner,
             cancel,
             username,
             password,
             error,
             actions,
             drawn: Cell::new(None),
+            drawn_sign_in: Cell::new(None),
         };
-        fields.connect_sign_in();
         fields.show(form);
         fields
     }
 
-    /// Holds every control while the core or a blocking sign-in call holds the form, shows the
-    /// sign-in once it is offered, and says why the last attempt failed. The browser's wait holds
-    /// nothing: a fresh press supersedes it, and Cancel beside it retires it.
+    /// Draws the form from the core's section: the fields held while the core holds Connect, the
+    /// sign-in once it is offered, running as the core says, with a line and its Cancel while
+    /// the browser holds it, and why the last attempt failed.
     pub(super) fn show(&self, form: &SeparateForm) {
-        let held = form.held();
-        for control in [
-            self.sign_in.upcast_ref::<gtk::Widget>(),
-            self.username.upcast_ref(),
-            self.password.upcast_ref(),
-        ] {
-            control.set_sensitive(!held);
-        }
+        let connect = form.section.connect;
+        controls::hold_field(&self.username, connect);
+        controls::hold_field(&self.password, connect);
         let offers = form.offers();
         self.sign_in_area.set_visible(offers.is_some());
-        let waiting = matches!(form.stage, SignInStage::Waiting(_));
-        let (button, note) = if offers == Some(AccountSeparateSignIn::Nextcloud) {
-            let note = if waiting {
-                l10n::nextcloud_sign_in_waiting()
-            } else {
-                l10n::nextcloud_sign_in_note()
-            };
-            (l10n::nextcloud_sign_in_button(), note)
-        } else {
-            (
-                l10n::setup_imap_signin_button(),
-                l10n::setup_imap_signin_note(),
-            )
-        };
-        self.sign_in.set_label(button);
-        self.note.set_text(note);
-        let out = form.stage != SignInStage::Idle;
-        self.waiting.set_visible(out);
-        self.spinner.set_spinning(out);
-        self.cancel.set_visible(waiting);
+        let waiting = form
+            .section
+            .browser
+            .as_ref()
+            .filter(|browser| matches!(browser.stage, BrowserSignInStage::InBrowser { .. }));
+        self.note
+            .set_text(&note(offers, waiting, &form.section.username));
+        let key = (
+            form.section.sign_in_control,
+            offers,
+            waiting.map(|browser| browser.attempt),
+        );
+        if self.drawn_sign_in.replace(Some(key)) != Some(key) {
+            self.draw_sign_in(form.section.sign_in_control, offers, waiting);
+        }
         let said = form.said();
         self.error.set_text(said.as_deref().unwrap_or_default());
         self.error.set_visible(said.is_some());
-        // A browser sign-in's own core call holds the buttons the core does not know about.
-        let browsing = held && form.section.connect.enabled;
-        let free = |control: ControlState| ControlState {
-            enabled: control.enabled && !browsing,
-            ..control
-        };
-        let connect = free(form.section.connect);
         let other = match self.from {
-            SeparateFrom::Setup => free(form.section.stop_using),
+            SeparateFrom::Setup => form.section.stop_using,
             // The form's own Cancel waits for a connect it would not stop.
             SeparateFrom::Page => ControlState {
                 enabled: !form.section.connect.running,
@@ -161,12 +144,6 @@ impl Fields {
         let key = (connect, other, offers.is_some());
         if self.drawn.replace(Some(key)) != Some(key) {
             self.draw_actions(connect, other, offers.is_some());
-        }
-        // The sign-in leads where it is offered; Enter in the password field still connects.
-        if offers.is_some() {
-            self.sign_in.add_css_class("suggested-action");
-        } else {
-            self.sign_in.remove_css_class("suggested-action");
         }
     }
 
@@ -216,22 +193,56 @@ impl Fields {
         self.window.set_default_widget(Some(&button));
     }
 
-    /// The sign-in and its Cancel send themselves.
-    fn connect_sign_in(&self) {
-        for (button, starts) in [(&self.sign_in, true), (&self.cancel, false)] {
-            let (sender, from) = (self.sender.clone(), self.from);
-            button.connect_clicked(move |_| {
-                let pressed = if starts {
-                    ProviderInput::Start
-                } else {
-                    ProviderInput::Cancel
-                };
-                sender.emit(input(SeparateInput::Provider {
-                    from,
-                    input: pressed,
-                }));
-            });
+    /// The sign-in's button from `control`, leading the form, and the Cancel of the sign-in
+    /// `waiting` in the browser.
+    fn draw_sign_in(
+        &self,
+        control: ControlState,
+        offers: Option<AccountSeparateSignIn>,
+        waiting: Option<&BrowserSignIn>,
+    ) {
+        for slot in [&self.sign_in, &self.cancel] {
+            while let Some(child) = slot.first_child() {
+                slot.remove(&child);
+            }
         }
+        let label = if offers == Some(AccountSeparateSignIn::Nextcloud) {
+            l10n::nextcloud_sign_in_button()
+        } else {
+            l10n::setup_imap_signin_button()
+        };
+        let (sender, from) = (self.sender.clone(), self.from);
+        let button = controls::button(label, control, false, move || {
+            sender.emit(input(SeparateInput::SignIn { from }));
+        });
+        // The sign-in leads where it is offered; Enter in the password field still connects.
+        button.add_css_class("suggested-action");
+        self.sign_in.append(&button);
+        if let Some(browser) = waiting {
+            let sender = self.sender.clone();
+            self.cancel.append(&controls::button(
+                l10n::action_cancel(),
+                browser.cancel,
+                false,
+                move || sender.emit(input(SeparateInput::CancelSignIn { from })),
+            ));
+        }
+    }
+}
+
+/// The line under the sign-in: whose it is, or, while the browser holds it, that it waits there.
+fn note(
+    offers: Option<AccountSeparateSignIn>,
+    waiting: Option<&BrowserSignIn>,
+    username: &str,
+) -> String {
+    match (offers, waiting) {
+        (Some(AccountSeparateSignIn::Nextcloud), Some(_)) => {
+            l10n::nextcloud_sign_in_waiting().to_owned()
+        }
+        (Some(AccountSeparateSignIn::Nextcloud), None) => l10n::nextcloud_sign_in_note().to_owned(),
+        (_, Some(_)) => l10n::settings_account_signin_waiting(username),
+        (_, None) => l10n::setup_imap_signin_note().to_owned(),
     }
 }
 

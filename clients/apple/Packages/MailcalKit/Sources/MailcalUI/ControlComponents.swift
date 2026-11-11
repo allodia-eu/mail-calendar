@@ -66,20 +66,30 @@ struct ControlButton: View {
     var ready = true
     /// The key that presses it, for a step's default or cancel action.
     var shortcut: KeyboardShortcut?
+    /// Whether its label fills the width it is given, as a step's large sign-in does.
+    var wide = false
     let action: () -> Void
 
     var body: some View {
         HStack(spacing: 8) {
             Button(role: role, action: action) {
-                if let systemImage {
-                    Label(title, systemImage: systemImage)
+                if wide {
+                    label.frame(maxWidth: .infinity)
                 } else {
-                    Text(title)
+                    label
                 }
             }
             .keyboardShortcut(shortcut)
             .disabled(!control.enabled || !ready)
             Running(control: control)
+        }
+    }
+
+    @ViewBuilder private var label: some View {
+        if let systemImage {
+            Label(title, systemImage: systemImage)
+        } else {
+            Text(title)
         }
     }
 }

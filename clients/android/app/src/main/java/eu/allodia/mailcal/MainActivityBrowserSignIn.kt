@@ -1,7 +1,8 @@
-// An existing account's browser sign-in, from its page or a notice, which the core runs
-// (BrowserSignInDriver.kt): this host names where the browser returns, opens it once for each
-// attempt the core names, and hands back the redirect. A Custom Tab tells nobody it was closed,
-// so the page's Cancel and the core's cap on the wait end one the person left.
+// A browser sign-in the core runs (BrowserSignInDriver.kt): an existing account's, from its page
+// or a notice, or a separate server's, from its form (MainActivitySeparateServer.kt). This host
+// names where the browser returns, opens it once for each attempt the core names, and hands back
+// the redirect. A Custom Tab tells nobody it was closed, so the form's Cancel and the core's cap
+// on the wait end one the person left.
 package eu.allodia.mailcal
 
 import android.net.Uri
@@ -55,8 +56,9 @@ internal fun MainActivity.redirectToSignIn(data: Uri): Boolean {
 }
 
 /**
- * A setup flow opening its browser on [redirectUri] takes that redirect from an account's sign-in
- * waiting on it: the browser returns to whichever started last.
+ * A setup flow opening its browser on [redirectUri] takes that redirect from the core's sign-in
+ * waiting on it: the browser returns to whichever started last. Only setup's form opens one, so
+ * a separate server's sign-in, whose step and dialog stand in front of that form, never meets it.
  */
 internal fun MainActivity.yieldBrowserSignIn(redirectUri: String) {
     val instance = app ?: return

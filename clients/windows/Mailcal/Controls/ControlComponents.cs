@@ -42,10 +42,16 @@ internal static class ControlComponents
         return line;
     }
 
-    /// <summary>A button. <paramref name="click"/> runs only while it is enabled.</summary>
-    internal static StackPanel Button(string label, ControlState control, string automationId, Action click)
+    /// <summary>A button, drawn with <paramref name="style"/> when one is given.
+    /// <paramref name="click"/> runs only while it is enabled.</summary>
+    internal static StackPanel Button(
+        string label, ControlState control, string automationId, Action click, Style? style = null)
     {
         var button = new Button { Content = label, IsEnabled = control.Enabled };
+        if (style is not null)
+        {
+            button.Style = style;
+        }
         AutomationProperties.SetAutomationId(button, automationId);
         button.Click += (_, _) => click();
         return Beside(button, control, automationId);

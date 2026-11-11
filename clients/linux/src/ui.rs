@@ -117,7 +117,6 @@ mod search_actions;
 mod selection;
 mod selection_input;
 mod selection_pane;
-mod separate_server_sign_in;
 mod separate_sign_in;
 mod separate_sign_in_view;
 mod server_change;

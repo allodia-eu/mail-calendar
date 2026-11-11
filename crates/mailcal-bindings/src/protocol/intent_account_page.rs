@@ -98,6 +98,16 @@ pub enum AccountPageIntent {
     /// Stop using the account for the calendar and contacts its sign-in does not reach, as
     /// setup's step offers in place of a sign-in: what the device holds of them is deleted.
     StopUsingSeparateServer { account: String },
+    /// Move what the account needs a sign-in of its own for (`AccountSeparateServer`) to an
+    /// account its server signs in through the browser, the way the section's `sign_in` names:
+    /// at the server's own provider, or with Nextcloud. `redirect_uri` is where the client listens
+    /// for the browser's return from the provider, the one an IMAP account's sign-in returns to;
+    /// Nextcloud returns nothing, so it is not read there. It supersedes a sign-in still out
+    /// (`BrowserSignIn`), whose steps are the same as `SignIn`'s.
+    SignInSeparateServer {
+        account: String,
+        redirect_uri: String,
+    },
     /// Sign the account in through its browser sign-in: again the way it does, through its
     /// provider in place of its password, or with Nextcloud, whichever its page offers; asking
     /// the provider for `adding` besides what it is used for, for a use whose switch
@@ -148,6 +158,7 @@ impl AccountPageIntent {
             | Self::AllowServerChange { account, .. }
             | Self::ConnectSeparateServer { account, .. }
             | Self::StopUsingSeparateServer { account }
+            | Self::SignInSeparateServer { account, .. }
             | Self::SignIn { account, .. }
             | Self::AnswerUnreached { account, .. }
             | Self::SignInBrowserEnded { account, .. }

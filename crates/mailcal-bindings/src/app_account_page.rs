@@ -72,8 +72,8 @@ impl MailcalApp {
         if let Some(servers) = &mut page.servers {
             servers.sign_in_refused = sign_in_refused;
         }
-        self.draw_browser_sign_in(&mut page);
         page.separate_server = self.separate_section(&account_id, &hold);
+        self.draw_browser_sign_in(&mut page);
         let separate_after = page
             .separate_server
             .as_ref()
@@ -106,6 +106,7 @@ impl MailcalApp {
     pub(crate) fn dispatch_account(&self, intent: AccountPageIntent) {
         match intent {
             AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::SignInSeparateServer { .. }
             | AccountPageIntent::AnswerUnreached { .. }
             | AccountPageIntent::SignInBrowserEnded { .. }
             | AccountPageIntent::CancelSignIn { .. } => self.dispatch_sign_in(intent),
@@ -285,6 +286,7 @@ impl MailcalApp {
             // Tried before anything is kept; the page shows what was stored once it ends.
             // Handled before the queue (`dispatch_sign_in`); only their completion is queued.
             AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::SignInSeparateServer { .. }
             | AccountPageIntent::AnswerUnreached { .. }
             | AccountPageIntent::SignInBrowserEnded { .. }
             | AccountPageIntent::CancelSignIn { .. } => None,

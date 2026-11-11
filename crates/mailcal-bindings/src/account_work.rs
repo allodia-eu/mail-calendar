@@ -104,6 +104,7 @@ impl PageWork {
             // Never queued: each is a step of the browser sign-in, which queues only its
             // completion.
             AccountPageIntent::SignIn { .. }
+            | AccountPageIntent::SignInSeparateServer { .. }
             | AccountPageIntent::AnswerUnreached { .. }
             | AccountPageIntent::SignInBrowserEnded { .. }
             | AccountPageIntent::CancelSignIn { .. } => Self::SignIn { attempt: 0 },

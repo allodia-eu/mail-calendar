@@ -1,6 +1,7 @@
 // An existing account's browser sign-in, which the core holds from the press to the account it
 // changes (docs/waiting.md): signing in again, a switch from a password to the provider or to
-// Nextcloud, a use the provider is asked for, and the banner's Sign in again. This host starts it,
+// Nextcloud, a use the provider is asked for, the banner's Sign in again, and the sign-in a
+// calendar and contacts on a server of their own are given (docs/accounts.md rule 18). This host starts it,
 // opens the browser once for each attempt, listens where the browser returns and hands that back;
 // which step it is at, what it asks, how long it waits and what it came to are the core's.
 //
@@ -63,6 +64,21 @@ public sealed partial class MailboxModel
         }
         Log.Info($"sign-in: started for {LogHandle(accountId)}");
         ChangeAccount(new AccountPageIntent.SignIn(accountId, adding, redirect));
+    }
+
+    /// <summary>Signs what <paramref name="accountId"/> needs a sign-in of its own for in through
+    /// the browser, the way its server offers: at the server's own provider, which returns under
+    /// the app's scheme as a standards account's does, or with Nextcloud, which returns nothing and
+    /// for which the core ignores the redirect. Supersedes a sign-in still out.</summary>
+    internal void SignInSeparately(string accountId)
+    {
+        if (_app is null)
+        {
+            return;
+        }
+        StopListening();
+        Log.Info($"sign-in: started for {LogHandle(accountId)}'s separate server");
+        ChangeAccount(new AccountPageIntent.SignInSeparateServer(accountId, ImapOAuthConfig.RedirectUri));
     }
 
     /// <summary>Cancels <paramref name="browser"/>, from its section's Cancel.</summary>

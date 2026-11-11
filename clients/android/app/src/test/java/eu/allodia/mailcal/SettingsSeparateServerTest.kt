@@ -1,6 +1,7 @@
 // An account's page for a calendar or address book its sign-in does not reach (docs/accounts.md
-// rule 18): the action under exactly the uses the core names, the form it opens and the sign-in it
-// offers, and the question a switch to the provider asks before the browser opens.
+// rule 18): the action under exactly the uses the core names, the form it opens, the sign-in it
+// offers and what cancels that sign-in, and the question a switch to the provider asks before the
+// browser opens.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Column
@@ -157,5 +158,23 @@ class SettingsSeparateServerTest {
         compose.onNodeWithTag("separate-server-sign-in").performClick()
 
         assertEquals(1, signIns)
+    }
+
+    @Test
+    fun the_pages_form_cancels_a_sign_in_on_the_browser_and_closing_it_cancels_one_too() {
+        val entry = mailbox(calendar)
+        section = calendar
+        state.separate.open(UnreachedRules.form(entry.id, separateWaiting(CALENDAR))!!)
+        show(entry)
+
+        compose.onNodeWithText(L10n.settings_account_signin_waiting(ctx(), "alice")).assertExists()
+        compose.onNodeWithTag("separate-server-sign-in-cancel").performClick()
+        assertEquals(listOf(AccountPageIntent.CancelSignIn("alice@imap", 4uL)), changes)
+
+        compose.onNodeWithTag("separate-server-cancel").performClick()
+        compose.waitForIdle()
+
+        assertEquals(null, state.separate.form)
+        assertEquals(List(2) { AccountPageIntent.CancelSignIn("alice@imap", 4uL) }, changes)
     }
 }

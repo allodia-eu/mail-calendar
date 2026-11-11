@@ -53,12 +53,9 @@ pub(super) struct HostTasks {
     pub(super) jmap: AttemptSlot,
     pub(super) imap: AttemptSlot,
     pub(super) allodia: AttemptSlot,
-    /// The attempt of an account's browser sign-in this client opened the browser for
-    /// (`super::browser_sign_in`).
+    /// The attempt of a browser sign-in the core runs this client opened the browser for
+    /// (`super::browser_sign_in`): an account's own, or its separate server's.
     pub(super) browser: super::browser_sign_in::BrowserDriver,
-    /// Signing a separate calendar server in at its own provider
-    /// (`super::separate_server_sign_in`).
-    pub(super) separate: AttemptSlot,
     /// Signing in with Nextcloud from setup (`super::setup_nextcloud`).
     pub(super) nextcloud: AttemptSlot,
     jmap_loopback: Option<OAuthLoopback>,
@@ -147,7 +144,6 @@ impl HostTasks {
             imap: AttemptSlot::empty(),
             allodia: AttemptSlot::empty(),
             browser: super::browser_sign_in::BrowserDriver::new(),
-            separate: AttemptSlot::empty(),
             nextcloud: AttemptSlot::empty(),
             jmap_loopback: None,
         }

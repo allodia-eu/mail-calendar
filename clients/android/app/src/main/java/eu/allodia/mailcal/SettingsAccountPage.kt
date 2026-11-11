@@ -79,12 +79,12 @@ internal fun AccountPage(
     ui.state.separate.form?.takeIf { it.accountId == entry.id }?.let { form ->
         SeparateServerDialog(
             form = form,
-            controls = SeparateControls.of(form.section, ui.state.separate.browser.step),
-            error = ui.state.separate.error ?: form.section.failed?.let { refusalSaid(ctx, it) },
+            controls = SeparateControls.of(form.section),
+            error = form.section.failed?.let { refusalSaid(ctx, it) },
             onConnect = ui.onConnectSeparate,
             onDismiss = { ui.state.separate.close() },
             onSignIn = ui.onSeparateProviderSignIn,
-            onLeave = { ui.state.separate.left() },
+            onCancelSignIn = { browser -> separateCancel(browser)?.let(ui.onChange) },
         )
     }
     if (page.links.isNotEmpty()) {

@@ -219,7 +219,6 @@ pub use composer_open::{
 pub(crate) use connected_account::ConnectedAccount;
 pub(crate) use connectivity_facts::{ConnectivitySnapshot, UseOutage};
 pub use credential_store::{AccountCredentialStore, CredentialStoreError};
-pub use dav_oauth::SeparateServerSignInStart;
 // Re-exported, not merely `#[uniffi::export]`ed: the generated languages see one flat
 // namespace, so a host reaching these through the FFI never names the module, while the Linux
 // client links this crate as Rust and does (`AGENTS.md`, why that client breaks differently).
