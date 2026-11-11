@@ -45,6 +45,8 @@ param(
 $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot '..\Mailcal.UiTests'
 . (Join-Path $PSScriptRoot 'agent-suites.ps1')
+# Every dotnet below runs from the checkout, under the SDK /global.json pins.
+. (Join-Path $PSScriptRoot '..\dotnet-sdk.ps1')
 
 $KnownDatasets = @('showcase', 'harness', 'first-run')
 $Dataset = @($Dataset | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
@@ -63,12 +65,12 @@ if (-not $IsWindows) {
 # Each suite is a `<Name>Tests` class, matched by -Filter as `<Name>.Tests`, and declares its
 # dataset as a trait. Both are read from the suites' own listing of what they compiled rather than
 # from their source, and a suite that declares none is refused rather than never run.
-$build = & dotnet build $project --nologo -v q 2>&1
+$build = Invoke-WithPinnedSdk { & dotnet build $project --nologo -v q 2>&1 }
 if ($LASTEXITCODE -ne 0) {
   $build | ForEach-Object { Write-Host $_ }
   throw "the UI suites did not build"
 }
-$listing = & dotnet run --project $project --no-build -- -list full/json 2>&1
+$listing = Invoke-WithPinnedSdk { & dotnet run --project $project --no-build -- -list full/json 2>&1 }
 if ($LASTEXITCODE -ne 0) { throw "the UI suites could not list their cases: $($listing -join ' ')" }
 $suites = @(ConvertFrom-AgentTestList -Listing ($listing -join "`n") | Where-Object { $_.Name -like $Filter } | Sort-Object Name)
 if (-not $suites) { throw "no suite in $project matched -Filter '$Filter'" }
@@ -96,7 +98,7 @@ if ($chosen) {
   Remove-Item (Join-Path $project 'failures') -Recurse -Force -ErrorAction SilentlyContinue
   Remove-Item $report -ErrorAction SilentlyContinue
   try {
-    & dotnet run --project $project --no-build -- @arguments 2>&1 | ForEach-Object { "$_" } | Tee-Object -Variable output | ForEach-Object { Write-Host $_ }
+    Invoke-WithPinnedSdk { & dotnet run --project $project --no-build -- @arguments 2>&1 } | ForEach-Object { "$_" } | Tee-Object -Variable output | ForEach-Object { Write-Host $_ }
     $exit = $LASTEXITCODE
   }
   finally {

@@ -95,8 +95,15 @@ fn android(run: &Runner<'_>) -> Step {
 /// bindings had the last time somebody remembered, which after an FFI or catalog change is a green
 /// run proving nothing.
 fn windows(run: &Runner<'_>) -> Vec<Step> {
-    if !dotnet_present() {
+    if !dotnet_present(run.root) {
         return vec![run.skip("windows", "no dotnet on PATH")];
+    }
+    if !dotnet_pinned_sdk(run.root) {
+        return vec![run.needs(
+            "windows",
+            "the .NET SDK global.json pins: `dotnet --version` in the checkout names it, and a \
+             newer major installed beside it does not stand in",
+        )];
     }
     let cdylib = cdylib_path();
     vec![
@@ -169,10 +176,23 @@ fn windows(run: &Runner<'_>) -> Vec<Step> {
     ]
 }
 
-/// Whether the .NET SDK answers, rather than whether something called `dotnet` is on the path.
-fn dotnet_present() -> bool {
+/// Whether the dotnet host answers, rather than whether something called `dotnet` is on the path.
+/// `--list-sdks` answers whatever SDK `global.json` pins.
+fn dotnet_present(root: &std::path::Path) -> bool {
+    dotnet_answers(root, "--list-sdks")
+}
+
+/// Whether the SDK `global.json` pins is installed. `--version` resolves the SDK from the working
+/// directory up, so it fails inside the checkout when only another major is, and the steps below
+/// would fail with it for a reason that says nothing about the change.
+fn dotnet_pinned_sdk(root: &std::path::Path) -> bool {
+    dotnet_answers(root, "--version")
+}
+
+fn dotnet_answers(root: &std::path::Path, arg: &str) -> bool {
     std::process::Command::new("dotnet")
-        .arg("--version")
+        .arg(arg)
+        .current_dir(root)
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
