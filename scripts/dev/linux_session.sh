@@ -132,7 +132,7 @@ linux_session_start() { # <resolution> <scale>
   local resolution="$1" scale="$2"
   linux_session_requirements
 
-  local config before
+  local config before runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
   config="$(mktemp)"
   cat >"$config" <<CONFIG
 output HEADLESS-1 resolution $resolution scale $scale
@@ -140,30 +140,109 @@ default_border none
 default_floating_border none
 gaps inner 0
 gaps outer 0
+xwayland disable
+swaybg_command -
 CONFIG
   before="$(linux_session_sockets)"
   local -a no_realtime=()
   command -v setpriv >/dev/null 2>&1 && no_realtime=(setpriv --no-new-privs)
-  env -u DISPLAY -u WAYLAND_DISPLAY \
-    WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 \
-    "${no_realtime[@]}" sway --unsupported-gpu -c "$config" >"${LINUX_SESSION_LOG:-/dev/null}" 2>&1 &
-  LINUX_SESSION_PID=$!
+  # sway's pid and, once it ends, its wait status, so a failure can say how it ended rather than
+  # only that it did. setpriv and env exec, so the pid is sway's own.
+  LINUX_SESSION_STATUS="$(mktemp -p "$runtime" mailcal-sway-status.XXXXXX)"
+  (
+    linux_session_env "${no_realtime[@]}" sway --unsupported-gpu -c "$config" &
+    printf '%s\n' "$!" >"$LINUX_SESSION_STATUS.pid"
+    status=0
+    wait "$!" || status=$?
+    [[ -e "$LINUX_SESSION_STATUS" ]] && printf '%s\n' "$status" >"$LINUX_SESSION_STATUS"
+  ) >"${LINUX_SESSION_LOG:-/dev/null}" 2>&1 &
   # Detach it, so a later pkill does not print a "Terminated" job notice over the log.
   disown
+  local waited=0
+  until [[ -s "$LINUX_SESSION_STATUS.pid" ]]; do
+    [[ "$waited" -lt 100 ]] || die "sway did not start: no process came up within 5 s"
+    sleep 0.05
+    waited=$((waited + 1))
+  done
+  LINUX_SESSION_PID="$(<"$LINUX_SESSION_STATUS.pid")"
+  rm -f "$LINUX_SESSION_STATUS.pid"
 
   LINUX_SESSION_DISPLAY="$(linux_session_new_socket "$before")" || {
     rm -f "$config"
-    kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
-    die "sway opened no Wayland socket, so it did not start. What it printed: ${LINUX_SESSION_LOG:-nothing, set LINUX_SESSION_LOG to keep it}"
+    linux_session_fail "sway opened no Wayland socket, so it did not start"
   }
-  LINUX_SESSION_SWAYSOCK="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/sway-ipc.$(id -u).$LINUX_SESSION_PID.sock"
+  LINUX_SESSION_SWAYSOCK="$runtime/sway-ipc.$(id -u).$LINUX_SESSION_PID.sock"
   linux_session_wait_ready "$LINUX_SESSION_PID" "$LINUX_SESSION_SWAYSOCK" || {
     rm -f "$config"
-    kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
-    die "sway opened its Wayland socket and then never answered, so it did not finish starting. What it printed: ${LINUX_SESSION_LOG:-nothing, set LINUX_SESSION_LOG to keep it}"
+    linux_session_fail "sway opened its Wayland socket and then never answered, so it did not finish starting"
   }
   rm -f "$config"
-  export LINUX_SESSION_DISPLAY LINUX_SESSION_SWAYSOCK LINUX_SESSION_PID
+  export LINUX_SESSION_DISPLAY LINUX_SESSION_SWAYSOCK LINUX_SESSION_PID LINUX_SESSION_STATUS
+}
+
+# Run a command with the compositor's environment: the few variables sway needs, and nothing of the
+# developer's session. A layout in `XKB_DEFAULT_LAYOUT` would change what every typed key means, a
+# `SWAYSOCK` would point `swaymsg` at the developer's own sway, and `DISPLAY` and `WAYLAND_DISPLAY`
+# would hand the developer's desktop to anything sway starts. What does pass is what picks the
+# renderer and its driver (`WLR_*`, Mesa's, EGL's, Vulkan's) and the dynamic loader's path.
+linux_session_env() { # <command> [args...]
+  local -a keep=(
+    "PATH=$PATH"
+    "HOME=$HOME"
+    "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+    "LANG=C.UTF-8"
+    "WLR_BACKENDS=headless"
+    "WLR_LIBINPUT_NO_DEVICES=1"
+  )
+  local name
+  while IFS= read -r name; do
+    case "$name" in
+      WLR_BACKENDS | WLR_LIBINPUT_NO_DEVICES) ;;
+      WLR_* | MESA_* | LIBGL_* | GALLIUM_* | __EGL_* | __GLX_* | VK_* | LD_LIBRARY_PATH)
+        keep+=("$name=${!name}") ;;
+    esac
+  done < <(compgen -e)
+  env -i "${keep[@]}" "$@"
+}
+
+# How the compositor ended, as a phrase: "is still running", "exited with status 1", or "was killed
+# by SIGKILL" with what sends that signal to a process that printed nothing.
+linux_session_exit_report() {
+  [[ -n "${LINUX_SESSION_PID:-}" ]] || { printf 'was never started\n'; return 0; }
+  local status="" waited=0
+  while [[ -z "$status" && "$waited" -lt 20 ]]; do
+    status="$(cat "${LINUX_SESSION_STATUS:-/nonexistent}" 2>/dev/null || true)"
+    [[ -n "$status" ]] && break
+    kill -0 "$LINUX_SESSION_PID" 2>/dev/null && { printf 'is still running\n'; return 0; }
+    sleep 0.05
+    waited=$((waited + 1))
+  done
+  if [[ -z "$status" ]]; then
+    printf 'is gone, and how it ended was not recorded\n'
+  elif [[ "$status" -gt 128 ]]; then
+    local signal
+    signal="SIG$(kill -l "$((status - 128))" 2>/dev/null || printf '%s' "$((status - 128))")"
+    printf 'was killed by %s' "$signal"
+    if [[ "$signal" == SIGKILL ]]; then
+      printf ' (nothing here sends it before giving up: the kernel does, for the out-of-memory killer or a realtime process over `ulimit -R`, which reads %s here)' "$(ulimit -R 2>/dev/null || printf 'unknown')"
+    fi
+    printf '\n'
+  else
+    printf 'exited with status %s\n' "$status"
+  fi
+}
+
+# Stop a compositor that failed to start, and die saying how it ended and what it printed last.
+linux_session_fail() { # <what went wrong>
+  local how log="${LINUX_SESSION_LOG:-}"
+  how="$(linux_session_exit_report)"
+  kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
+  rm -f "${LINUX_SESSION_STATUS:-}"
+  if [[ -n "$log" && -s "$log" ]]; then
+    die "$1. sway (pid $LINUX_SESSION_PID) $how. The last of what it printed ($log):
+$(tail -n 15 "$log")"
+  fi
+  die "$1. sway (pid $LINUX_SESSION_PID) $how. It printed nothing${log:+ to $log}${log:-; set LINUX_SESSION_LOG to keep what it prints}."
 }
 
 # Leaves the session started above where this checkout's later `screenshot.sh` and `control.sh`
@@ -201,6 +280,7 @@ linux_session_stop() {
   marker="$(linux_session_marker)"
   if [[ -n "${LINUX_SESSION_PID:-}" ]]; then
     kill -KILL "$LINUX_SESSION_PID" 2>/dev/null || true
+    rm -f "${LINUX_SESSION_STATUS:-}"
     # Only a marker naming this compositor: one naming another is a session someone else started.
     if [[ "$(head -n 1 "$marker" 2>/dev/null)" == "$LINUX_SESSION_PID" ]]; then
       rm -f "$marker"
@@ -209,6 +289,7 @@ linux_session_stop() {
   LINUX_SESSION_PID=""
   LINUX_SESSION_DISPLAY=""
   LINUX_SESSION_SWAYSOCK=""
+  LINUX_SESSION_STATUS=""
   return 0
 }
 

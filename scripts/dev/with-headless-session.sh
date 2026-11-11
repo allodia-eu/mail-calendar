@@ -37,9 +37,9 @@ status=0
 WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" env -u DISPLAY "$@" || status=$?
 if [[ "$status" -ne 0 ]]; then
   runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-  if kill -0 "$LINUX_SESSION_PID" 2>/dev/null; then state="still running"; else state="gone"; fi
+  state="$(linux_session_exit_report)"
   if [[ -S "$runtime/$LINUX_SESSION_DISPLAY" ]]; then socket="is there"; else socket="is not"; fi
-  warn "the command failed (exit $status). The compositor (pid $LINUX_SESSION_PID) is $state, and its socket $runtime/$LINUX_SESSION_DISPLAY $socket. The last of what it printed:"
+  warn "the command failed (exit $status). The compositor (pid $LINUX_SESSION_PID) $state, and its socket $runtime/$LINUX_SESSION_DISPLAY $socket. The last of what it printed:"
   tail -n 30 "$LINUX_SESSION_LOG" >&2 || true
 fi
 exit "$status"
