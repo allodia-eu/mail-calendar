@@ -169,6 +169,14 @@ public sealed partial class MailboxModel
         _app?.SetCalendarVisibleHours(clamped);
     }
 
+    /// <summary>Persists the calendar a new event is filed on. The core signals the calendar
+    /// surface, and every calendar list read after it carries the new IsDefault.</summary>
+    internal void SetDefaultCalendar(string account, string calendar)
+    {
+        Log.Info("cal: set default calendar");
+        _app?.SetDefaultCalendar(account, calendar);
+    }
+
     /// <summary>Persists the shape a settled pinch (or a menu choice) landed on.</summary>
     internal void SetCalendarLayout(CalendarLayout layout)
     {
