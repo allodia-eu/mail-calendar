@@ -201,8 +201,15 @@ internal static class AccountSettingsRules
         yield return $"notice:{page.Notice?.Id}";
     }
 
-    /// <summary>What the list draws from the other devices' card, for <see cref="Fingerprint"/>'s
-    /// <c>drawnBeside</c>: a pass starting or ending, and a question being answered, redraw it.</summary>
+    /// <summary>What the Accounts category draws from the other devices' card while
+    /// <paramref name="openPage"/> is open, for <see cref="Fingerprint"/>'s <c>drawnBeside</c>: the
+    /// card on the list, and nothing on an account's page, which does not draw it, so a pass
+    /// starting and ending leaves the page alone.</summary>
+    internal static IEnumerable<string> CardFingerprint(AccountPage? openPage, AllodiaDevices? devices) =>
+        openPage is null ? DevicesFingerprint(devices) : [];
+
+    /// <summary>What the other devices' card draws: a pass starting or ending, and a question
+    /// being answered, redraw it.</summary>
     internal static IEnumerable<string> DevicesFingerprint(AllodiaDevices? devices)
     {
         if (devices is null)

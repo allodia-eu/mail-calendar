@@ -51,14 +51,15 @@ public sealed partial class SettingsDialog
     private UIElement BuildAccounts()
     {
         var snapshot = _model.AccountsSnapshot();
-        var page = OpenPage();
+        var entry = snapshot.Accounts.FirstOrDefault(account => account.Id == _accountPage);
+        // A page whose account has gone is the list.
+        var page = entry is null ? null : OpenPage();
         var devices = _model.AllodiaDevices();
         _accountsDrawn = AccountsFingerprint(snapshot, page, devices);
         var panel = new StackPanel { Spacing = 16 };
         _accountNoticeBar = new InfoBar { IsClosable = true };
         ShowNotice(_accountNoticeBar, _accountNotice);
         _accountNoticeBar.Closed += (_, _) => _accountNotice = null;
-        var entry = snapshot.Accounts.FirstOrDefault(account => account.Id == _accountPage);
         if (entry is not null && page is not null)
         {
             panel.Children.Add(BackToAccounts());
@@ -459,12 +460,12 @@ public sealed partial class SettingsDialog
         field.LostFocus += Left;
     }
 
-    /// <summary>What the list or a page is drawn from: the snapshot, what the other devices said,
-    /// the notices about accounts, and the open page's record, which the page draws from calls of
-    /// their own.</summary>
+    /// <summary>What the list or a page is drawn from: the snapshot, what the other devices said
+    /// while the list is open, the notices about accounts, and the open page's record, which the
+    /// page draws from calls of their own.</summary>
     private string AccountsFingerprint(AccountsSnapshot snapshot, AccountPage? page, AllodiaDevices? devices)
     {
-        var beside = AccountSettingsRules.DevicesFingerprint(devices)
+        var beside = AccountSettingsRules.CardFingerprint(page, devices)
             .Concat(AccountNoticesFingerprint())
             .Concat(ServerChangeFingerprint())
             .Concat(AccountSettingsRules.PageFingerprint(page));

@@ -202,4 +202,20 @@ public class AccountSettingsRulesTests
         Assert.NotEqual(drawn[1], string.Join('\n', AccountSettingsRules.DevicesFingerprint(keeping)));
         Assert.NotEqual(drawn[1], string.Join('\n', AccountSettingsRules.DevicesFingerprint(refused)));
     }
+
+    [Fact]
+    public void APassStartingOrEndingLeavesAnAccountsPageAlone()
+    {
+        // The page does not draw the other devices' card, and a sharing change starts a pass that
+        // signals twice more: compared there, each would redraw the page for nothing.
+        var page = CorePage.Of(MailboxOnly());
+        var checking = new AllodiaDevices(true, false, [], [], null);
+        var answered = new AllodiaDevices(false, true, [], [], null);
+        Assert.Empty(AccountSettingsRules.CardFingerprint(page, checking));
+        Assert.Empty(AccountSettingsRules.CardFingerprint(page, answered));
+        // The list draws it, so there the same pass is a redraw.
+        Assert.NotEqual(
+            AccountSettingsRules.CardFingerprint(null, checking),
+            AccountSettingsRules.CardFingerprint(null, answered));
+    }
 }
