@@ -144,11 +144,11 @@ async fn route(mut request: Map<String, Value>) -> Answer {
         ));
     };
     match verb.as_str() {
-        "verbs" => Ok(
-            json!({ "verbs": VERBS.iter().map(|(verb, about)| json!({ "verb": verb, "about": about })).collect::<Vec<_>>() }),
-        ),
-        "ping" => Ok(settle::ping()),
-        "windows" => Ok(tree::windows()),
+        "verbs" => no_args(&request).map(|()| {
+            json!({ "verbs": VERBS.iter().map(|(verb, about)| json!({ "verb": verb, "about": about })).collect::<Vec<_>>() })
+        }),
+        "ping" => no_args(&request).map(|()| settle::ping()),
+        "windows" => no_args(&request).map(|()| tree::windows()),
         "query" => query::query(&args(request)?),
         "wait" => settle::wait(settle::WaitArgs::parse(request)?).await,
         "read" => tree::read(&args(request)?),
@@ -159,11 +159,11 @@ async fn route(mut request: Map<String, Value>) -> Answer {
         "select" => actions::select(&args(request)?),
         "focus" => actions::focus(&args(request)?),
         "action" => actions::action(&args(request)?),
-        "actions" => Ok(actions::actions()),
+        "actions" => no_args(&request).map(|()| actions::actions()),
         "eval" => actions::eval(args(request)?).await,
         "screenshot" => capture::screenshot(args(request)?).await,
         "settle" => settle::settle(args(request)?).await,
-        "quit" => Ok(actions::quit()),
+        "quit" => no_args(&request).map(|()| actions::quit()),
         other => Err(Failure::new(
             format!("no verb {other:?}: {{\"verb\": \"verbs\"}} lists them"),
             "unknown-verb",
@@ -176,6 +176,17 @@ async fn route(mut request: Map<String, Value>) -> Answer {
 pub(super) fn args<T: DeserializeOwned>(request: Map<String, Value>) -> Result<T, Failure> {
     serde_json::from_value(Value::Object(request))
         .map_err(|error| Failure::new(format!("bad arguments: {error}"), "bad-request"))
+}
+
+/// Refuses any argument to a verb that takes none.
+fn no_args(request: &Map<String, Value>) -> Result<(), Failure> {
+    match request.keys().next() {
+        None => Ok(()),
+        Some(key) => Err(Failure::new(
+            format!("bad arguments: this verb takes none, and was given {key:?}"),
+            "bad-request",
+        )),
+    }
 }
 
 /// The argument every verb that acts on one widget takes.

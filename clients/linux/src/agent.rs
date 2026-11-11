@@ -31,13 +31,19 @@ use std::{
     io::{BufRead, BufReader, Write},
     os::unix::{fs::PermissionsExt, net::UnixListener},
     path::{Path, PathBuf},
-    sync::mpsc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        mpsc,
+    },
 };
 
 pub(crate) use settle::surface_changed;
 
 /// The variable that names the socket. Read here and nowhere else.
 const SOCKET_VARIABLE: &str = "MAILCAL_TEST_AGENT";
+
+/// Set by `quit`, and acted on by the thread that wrote its reply.
+static QUIT_ASKED: AtomicBool = AtomicBool::new(false);
 
 /// Starts listening when `MAILCAL_TEST_AGENT` names a socket, and does nothing otherwise.
 pub(crate) fn start() {
@@ -61,7 +67,10 @@ pub(crate) fn start() {
 
 /// Binds the socket, replacing one an earlier run left behind, and leaves it to its owner alone.
 fn listen(path: &Path) -> std::io::Result<UnixListener> {
-    if let Some(parent) = path.parent() {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
         std::fs::create_dir_all(parent)?;
         std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
     }
@@ -96,10 +105,15 @@ fn serve(stream: std::os::unix::net::UnixStream) {
             continue;
         }
         let reply = answer(line);
-        if writeln!(writer, "{reply}")
-            .and_then(|()| writer.flush())
-            .is_err()
-        {
+        let written = writeln!(writer, "{reply}").and_then(|()| writer.flush());
+        if QUIT_ASKED.swap(false, Ordering::SeqCst) {
+            gtk::glib::MainContext::default().invoke(|| {
+                if let Some(application) = gtk::gio::Application::default() {
+                    gtk::gio::prelude::ApplicationExt::quit(&application);
+                }
+            });
+        }
+        if written.is_err() {
             return;
         }
     }

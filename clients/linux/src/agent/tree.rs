@@ -13,6 +13,9 @@ thread_local! {
     static HANDLES: RefCell<Handles> = RefCell::new(Handles::default());
 }
 
+/// How many handles are handed out between sweeps of the widgets that have gone.
+const SWEEP_EVERY: u64 = 4096;
+
 /// Handles stay the same for a widget's whole life, so a caller can query once and act later.
 #[derive(Default)]
 struct Handles {
@@ -36,6 +39,15 @@ pub(super) fn handle(widget: &gtk::Widget) -> u64 {
         }
         handles.next += 1;
         let h = handles.next;
+        // `settle` names every widget on screen each poll, so a widget that went is let go here
+        // rather than kept for the life of the app.
+        if h % SWEEP_EVERY == 0 {
+            handles.widgets.retain(|_, weak| weak.upgrade().is_some());
+            let Handles {
+                by_widget, widgets, ..
+            } = handles;
+            by_widget.retain(|_, h| widgets.contains_key(h));
+        }
         handles.by_widget.insert(key, h);
         handles.widgets.insert(h, widget.downgrade());
         h
@@ -44,14 +56,15 @@ pub(super) fn handle(widget: &gtk::Widget) -> u64 {
 
 /// The widget a handle names, or why there is none.
 pub(super) fn widget(target: &Target) -> Result<gtk::Widget, Failure> {
+    let gone = || Failure::new(format!("element {} is gone: query again", target.h), "gone");
     HANDLES.with_borrow(|handles| match handles.widgets.get(&target.h) {
+        // A handle that was handed out and is no longer kept named a widget that went.
+        None if (1..=handles.next).contains(&target.h) => Err(gone()),
         None => Err(Failure::new(
             format!("no element {}", target.h),
             "no-element",
         )),
-        Some(weak) => weak.upgrade().ok_or_else(|| {
-            Failure::new(format!("element {} is gone: query again", target.h), "gone")
-        }),
+        Some(weak) => weak.upgrade().ok_or_else(gone),
     })
 }
 

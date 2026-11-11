@@ -92,6 +92,12 @@ class LinuxAgentClient(unittest.TestCase):
             {"verb": "query", "text": "Archive", "h": 12, "has": {"text": "x"}},
         )
 
+    def test_a_text_field_is_sent_as_typed(self) -> None:
+        self.assertEqual(
+            linux_agent.request_from("action", ["text=2024", "value=true", "target=3"]),
+            {"verb": "action", "text": "2024", "value": "true", "target": "3"},
+        )
+
     def test_press_activates_the_one_element_it_found(self) -> None:
         status, out, _ = self.call("press", "text=Archive")
         self.assertEqual(status, 0)

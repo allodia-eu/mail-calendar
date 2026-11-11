@@ -69,7 +69,8 @@ fn ten_seconds() -> u64 {
 
 pub(super) async fn wait(args: WaitArgs) -> Answer {
     let started = Instant::now();
-    let deadline = started + Duration::from_millis(args.timeout_ms);
+    // A timeout too long to add to the clock never ends rather than overflowing it.
+    let deadline = started.checked_add(Duration::from_millis(args.timeout_ms));
     loop {
         let found = query::find(&args.filter)?;
         if found.is_empty() == args.absent {
@@ -78,7 +79,7 @@ pub(super) async fn wait(args: WaitArgs) -> Answer {
                 "ms": started.elapsed().as_millis(),
             }));
         }
-        if Instant::now() >= deadline {
+        if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             let failure = if args.absent {
                 Failure::new(
                     format!("still there after {} ms", args.timeout_ms),

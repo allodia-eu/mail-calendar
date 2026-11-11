@@ -8,6 +8,7 @@
 
 Each `key=value` becomes one field of the request. A value that reads as JSON is sent as JSON
 (`h=12`, `active=true`, `has={"text":"Inbox"}`); anything else is sent as text (`text=Archive`).
+A field that only ever holds text is sent as typed, so `text=2024` looks for the label "2024".
 
 Besides the app's own verbs (`verbs` lists them), two do what a person means in one call:
 
@@ -30,6 +31,12 @@ from typing import Any
 
 TIMEOUT_SECONDS = 120
 
+# The fields whose value is always text: read as JSON, `text=3` would be a number the app refuses
+# and `value=true` would be typed in as "True".
+TEXT_FIELDS = frozenset(
+    {"text", "textLike", "type", "name", "icon", "role", "window", "value", "script", "path", "target"}
+)
+
 
 class Refused(Exception):
     def __init__(self, reply: dict[str, Any]) -> None:
@@ -50,7 +57,7 @@ def request_from(verb: str, pairs: list[str]) -> dict[str, Any]:
         key, separator, value = pair.partition("=")
         if not separator or not key:
             raise SystemExit(f"error: '{pair}' is not key=value")
-        request[key] = parse_value(value)
+        request[key] = value if key in TEXT_FIELDS else parse_value(value)
     return request
 
 

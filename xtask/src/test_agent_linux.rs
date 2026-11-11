@@ -12,7 +12,8 @@ use std::path::Path;
 use crate::{git, report::Report};
 
 const MAIN: &str = "clients/linux/src/main.rs";
-const AGENT: &str = "clients/linux/src/agent";
+const AGENT: &str = "clients/linux/src/agent.rs";
+const AGENT_DIR: &str = "clients/linux/src/agent/";
 const SWITCH: &str = "MAILCAL_TEST_AGENT";
 const GATE: &str = "#[cfg(any(debug_assertions, feature = \"dev-harness\"))]";
 
@@ -41,7 +42,7 @@ pub(crate) fn check(root: &Path, report: &mut Report) -> Result<usize, String> {
         .collect();
     let mut agent = 0;
     for name in &files {
-        if name.starts_with(AGENT) {
+        if name == AGENT || name.starts_with(AGENT_DIR) {
             agent += 1;
             continue;
         }

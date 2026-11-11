@@ -12,12 +12,18 @@ use super::{
     tree,
 };
 
-pub(super) fn activate(target: &Target) -> Answer {
+/// The widget a handle names, refused when a person could not act on it either.
+fn usable(target: &Target) -> Result<gtk::Widget, Failure> {
     let widget = tree::widget(target)?;
     if !widget.is_sensitive() {
         return Err(Failure::new("the element is insensitive", "insensitive")
             .with("element", tree::describe(&widget)));
     }
+    Ok(widget)
+}
+
+pub(super) fn activate(target: &Target) -> Answer {
+    let widget = usable(target)?;
     if let Some(row) = widget.downcast_ref::<adw::ExpanderRow>() {
         row.set_expanded(!row.is_expanded());
         return Ok(json!({ "how": "expanded", "expanded": row.is_expanded() }));
@@ -50,6 +56,12 @@ pub(super) fn activate(target: &Target) -> Answer {
         if selectable {
             return Ok(json!({ "how": "selected" }));
         }
+        // Activating the row widget would answer true and do nothing: GTK drops it.
+        return Err(Failure::new(
+            "the row is neither activatable nor selectable: activate the control inside it",
+            "not-activatable",
+        )
+        .with("element", tree::describe(&widget)));
     }
     // A button is clicked at once. Activating one plays its press for a quarter of a second and
     // clicks afterwards, so a reply sent after `activate` would arrive before the click.
@@ -83,8 +95,15 @@ pub(super) struct SetText {
 }
 
 pub(super) fn set_text(args: &SetText) -> Answer {
-    let widget = tree::widget(&Target { h: args.h })?;
+    let widget = usable(&Target { h: args.h })?;
+    let read_only = || {
+        Err(Failure::new("the element is read-only", "not-editable")
+            .with("element", tree::describe(&widget)))
+    };
     if let Some(editable) = widget.dynamic_cast_ref::<gtk::Editable>() {
+        if !editable.is_editable() {
+            return read_only();
+        }
         editable.set_text(&args.text);
         if args.activate {
             // An entry row submits through its own signal; an entry through `activate`.
@@ -97,6 +116,9 @@ pub(super) fn set_text(args: &SetText) -> Answer {
         return Ok(json!({}));
     }
     if let Some(view) = widget.downcast_ref::<gtk::TextView>() {
+        if !view.is_editable() {
+            return read_only();
+        }
         view.buffer().set_text(&args.text);
         return Ok(json!({}));
     }
@@ -116,7 +138,7 @@ pub(super) struct Toggle {
 }
 
 pub(super) fn toggle(args: &Toggle) -> Answer {
-    let widget = tree::widget(&Target { h: args.h })?;
+    let widget = usable(&Target { h: args.h })?;
     let set = |current: bool| args.active.unwrap_or(!current);
     if let Some(toggle) = widget.downcast_ref::<gtk::ToggleButton>() {
         toggle.set_active(set(toggle.is_active()));
@@ -152,12 +174,29 @@ pub(super) struct Select {
 }
 
 pub(super) fn select(args: &Select) -> Answer {
-    let widget = tree::widget(&Target { h: args.h })?;
+    let widget = usable(&Target { h: args.h })?;
+    // A position past the end selects nothing and still answers, so it is refused here.
+    let within = |model: Option<gtk::gio::ListModel>| {
+        let count = model.map_or(0, |model| model.n_items());
+        if args.index < count {
+            Ok(())
+        } else {
+            Err(Failure::new(
+                format!(
+                    "the element has {count} choices, so no choice {}",
+                    args.index
+                ),
+                "no-element",
+            ))
+        }
+    };
     if let Some(combo) = widget.downcast_ref::<adw::ComboRow>() {
+        within(combo.model())?;
         combo.set_selected(args.index);
         return Ok(json!({}));
     }
     if let Some(drop_down) = widget.downcast_ref::<gtk::DropDown>() {
+        within(drop_down.model())?;
         drop_down.set_selected(args.index);
         return Ok(json!({}));
     }
@@ -281,9 +320,8 @@ pub(super) async fn eval(args: Eval) -> Answer {
 }
 
 pub(super) fn quit() -> Value {
-    if let Some(application) = gtk::gio::Application::default() {
-        // After the reply, so the caller hears that the request was taken.
-        glib::idle_add_local_once(move || application.quit());
-    }
+    // The thread serving the caller quits the app once the reply is written, so the caller hears
+    // that the request was taken before the process can end.
+    super::QUIT_ASKED.store(true, std::sync::atomic::Ordering::SeqCst);
     json!({})
 }

@@ -159,6 +159,7 @@ fn a_misspelt_argument_is_refused_rather_than_ignored() {
         code(&json!({ "verb": "wait", "text": "Archive", "timeout": 5 })),
         "bad-request"
     );
+    assert_eq!(code(&json!({ "verb": "ping", "x": 0 })), "bad-request");
 }
 
 fn a_lookup_that_finds_nothing_names_what_is_there(fixture: &Fixture) {
