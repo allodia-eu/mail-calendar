@@ -85,6 +85,7 @@ impl MailcalApp {
         let Some(need) = self.separate_need(account) else {
             return;
         };
+        let moved = need.uses.clone();
         let failed = self
             .add_linked_calendar_account(account.to_owned(), need.uses, username.clone(), password)
             .err()
@@ -92,6 +93,12 @@ impl MailcalApp {
                 username,
                 refusal: AccountChangeRefusal::from(&error),
             });
+        if failed.is_none() {
+            self.account_work.say(
+                account,
+                crate::AccountChangeNotice::SignedInSeparately { uses: moved },
+            );
+        }
         self.account_work.separate.tried(account, failed);
     }
 

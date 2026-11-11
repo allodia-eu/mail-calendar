@@ -17,8 +17,9 @@ use std::time::{Duration, Instant};
 
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, AccountPageIntent, AccountSeparateSignIn, BrowserSignInStage,
-    CapabilityState, Intent, MailcalApp, NoticeKind, SignInBrowserEnd, SignInMethod,
+    AccountCapability, AccountChangeNotice, AccountEntry, AccountPageIntent, AccountSeparateSignIn,
+    BrowserSignInStage, CapabilityState, Intent, MailcalApp, NoticeKind, SignInBrowserEnd,
+    SignInMethod,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
@@ -85,7 +86,8 @@ fn in_browser(app: &MailcalApp) -> (u64, String) {
 fn moved_to(app: &MailcalApp, mailbox: &str) -> String {
     wait("moved the calendar to an account of its own", || {
         let page = app.account_page(mailbox.to_owned())?;
-        if app.browser_sign_in().is_some() {
+        // Remove is held while a change runs on the page, so pressable means it has ended.
+        if app.browser_sign_in().is_some() || !page.remove.enabled {
             return None;
         }
         if let Some(section) = page.separate_server {
@@ -160,6 +162,15 @@ password = "not-this-servers"
         },
     });
     let calendar = moved_to(&app, &mailbox);
+    assert_eq!(
+        app.account_page(mailbox.clone())
+            .and_then(|page| page.notice)
+            .map(|raised| raised.notice),
+        Some(AccountChangeNotice::SignedInSeparately {
+            uses: vec![AccountCapability::Calendar, AccountCapability::Contacts]
+        }),
+        "the mailbox's page says why there are two accounts now"
+    );
 
     let mail = entry(&app, &mailbox);
     assert_eq!(used_for(&mail), [AccountCapability::Mail]);

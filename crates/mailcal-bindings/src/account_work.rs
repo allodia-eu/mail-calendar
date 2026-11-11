@@ -31,6 +31,10 @@ pub(crate) enum PageWork {
         slot: LinkSlot,
         target: Option<String>,
     },
+    /// Stopping the links between the account and `from`.
+    Unlink {
+        from: String,
+    },
     ReplyFallback {
         choice: crate::ReplyFallbackChoice,
     },
@@ -116,6 +120,7 @@ impl PageWork {
                 slot: *slot,
                 target: target.clone(),
             },
+            AccountPageIntent::StopLinking { from, .. } => Self::Unlink { from: from.clone() },
             AccountPageIntent::SetReplyFallback { choice, .. } => {
                 Self::ReplyFallback { choice: *choice }
             }

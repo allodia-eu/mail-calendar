@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use super::Way;
 use crate::{
-    AccountCapability, AccountChangeRefusal, AccountSeparateSignIn, MailcalApp, MailcalError,
+    AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountSeparateSignIn,
+    MailcalApp, MailcalError,
     account_page::{
         browser::{Began, Completion, Pending, Target},
         separate::Failure,
@@ -93,6 +94,7 @@ impl MailcalApp {
         uses: Vec<AccountCapability>,
         completion: Completion,
     ) -> Option<String> {
+        let moved = uses.clone();
         let (answer, kept) = match completion {
             Completion::Separate {
                 pending,
@@ -121,7 +123,13 @@ impl MailcalApp {
             }
         };
         match answer {
-            Ok(_) => self.account_work.separate.tried(account, None),
+            Ok(_) => {
+                self.account_work.separate.tried(account, None);
+                self.account_work.say(
+                    account,
+                    AccountChangeNotice::SignedInSeparately { uses: moved },
+                );
+            }
             Err(error) => {
                 log::info!("sign-in: the separate server's sign-in did not complete ({error})");
                 self.separate_ended(account, AccountChangeRefusal::from(&error));

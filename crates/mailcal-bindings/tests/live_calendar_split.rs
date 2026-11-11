@@ -15,12 +15,27 @@
 
 mod live_oauth;
 
+use std::time::{Duration, Instant};
+
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, ImapLoginRequest, MailcalApp, NoticeKind, SetupRecommendation,
+    AccountCapability, AccountChangeNotice, AccountEntry, AccountPageIntent, ImapLoginRequest,
+    Intent, MailcalApp, NoticeKind, SetupRecommendation, TypedPassword,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
+
+/// Waits for `until` to answer, failing with `what` after a minute.
+fn wait<T>(what: &str, until: impl Fn() -> Option<T>) -> T {
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        if let Some(found) = until() {
+            return found;
+        }
+        assert!(Instant::now() < deadline, "never {what}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
 
 fn entry(app: &MailcalApp, id: &str) -> AccountEntry {
     app.accounts_snapshot()
@@ -106,14 +121,45 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
     let mailbox = app.add_account(config).expect("the mailbox connects").id;
     assert_eq!(outages(&app).0, 1, "{:?}", app.notices().notices);
 
-    let calendar = app
-        .add_linked_calendar_account(
-            mailbox.clone(),
-            vec![AccountCapability::Calendar, AccountCapability::Contacts],
-            LOGIN.to_owned(),
-            PASSWORD.to_owned(),
-        )
-        .expect("the seeded server takes alice's password");
+    // The page's form, as a client sends it: the section is drawn once the refusal is known.
+    wait("drew the separate server's form", || {
+        app.account_page(mailbox.clone())?
+            .separate_server
+            .map(|_| ())
+    });
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::ConnectSeparateServer {
+            account: mailbox.clone(),
+            username: LOGIN.to_owned(),
+            password: TypedPassword {
+                text: PASSWORD.to_owned(),
+            },
+        },
+    });
+    let page = wait("moved the calendar to an account of its own", || {
+        let page = app.account_page(mailbox.clone())?;
+        if let Some(section) = &page.separate_server {
+            assert!(section.failed.is_none(), "the connect failed: {section:?}");
+            return None;
+        }
+        // Remove is held while a change runs on the page, so pressable means it has ended.
+        (page.remove.enabled && page.uses.iter().any(|row| row.linked.is_some())).then_some(page)
+    });
+    let calendar = page
+        .uses
+        .iter()
+        .find(|row| row.capability == AccountCapability::Calendar)
+        .and_then(|row| row.linked.clone())
+        .expect("the calendar row names the account it comes from")
+        .id;
+    assert_eq!(
+        page.notice.map(|raised| raised.notice),
+        Some(AccountChangeNotice::SignedInSeparately {
+            uses: vec![AccountCapability::Calendar, AccountCapability::Contacts]
+        }),
+        "the mailbox's page says why there are two accounts now"
+    );
+    assert!(page.links.is_empty(), "filled slots are said on their rows");
 
     let mail = entry(&app, &mailbox);
     assert_eq!(used_for(&mail), [AccountCapability::Mail]);
@@ -138,6 +184,37 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         moved.uses
     );
     assert_eq!(outages(&app), (0, 0));
+
+    let calendar_page = app.account_page(calendar.clone()).expect("listed");
+    let [taken] = calendar_page.linked_from.as_slice() else {
+        panic!("one mailbox takes it: {:?}", calendar_page.linked_from);
+    };
+    assert_eq!(taken.account.id, mailbox);
+    assert_eq!(
+        taken.leaves_without,
+        [AccountCapability::Calendar, AccountCapability::Contacts],
+        "the mailbox has no server of its own for them any more"
+    );
+    assert!(calendar_page.links.is_empty(), "its one mailbox is implied");
+
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::StopLinking {
+            account: calendar.clone(),
+            from: mailbox.clone(),
+        },
+    });
+    wait("stopped linking", || {
+        let mail = entry(&app, &mailbox);
+        (mail.links.calendar.is_none() && mail.links.contacts.is_none()).then_some(())
+    });
+    let unlinked = app.account_page(mailbox.clone()).expect("listed");
+    assert!(unlinked.uses.iter().all(|row| row.linked.is_none()));
+    assert!(
+        app.account_page(calendar.clone())
+            .expect("listed")
+            .linked_from
+            .is_empty()
+    );
 
     let refused = app.add_linked_calendar_account(
         calendar,

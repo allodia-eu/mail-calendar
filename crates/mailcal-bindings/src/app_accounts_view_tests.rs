@@ -279,3 +279,54 @@ fn an_invitation_in_the_mailbox_files_into_the_calendar_it_links_to_until_the_li
         "a cleared link stops counting at once"
     );
 }
+
+/// A mailbox at `localhost` whose calendar is the cloud's.
+fn mailbox_of(user: &str) -> String {
+    format!(
+        "[links]\ncalendar = \"{CLOUD_ID}\"\n\n[imap]\naddr = \"127.0.0.1:1\"\nserver_name = \"localhost\"\nusername = \"{user}@example.org\"\npassword = \"pw\"\n"
+    )
+}
+
+#[test]
+fn stopping_a_link_clears_both_ends_and_leaves_the_calendar_sending_through_one_that_stays() {
+    let store = Arc::new(RecordingCredentialStore::default());
+    let cloud = format!("[links]\nmail = \"{MAILBOX_ID}\"\n{CLOUD}");
+    let (bob, carol) = (mailbox_of("bob"), mailbox_of("carol"));
+    let app = app_with(
+        "accounts-stop-linking",
+        &store,
+        &[MAILBOX, &bob, &carol, &cloud],
+    );
+    let calendar_of = |app: &MailcalApp| {
+        app.accounts_snapshot()
+            .accounts
+            .into_iter()
+            .find(|entry| entry.id == CLOUD_ID)
+            .expect("listed")
+    };
+
+    app.stop_linking(CLOUD_ID, MAILBOX_ID).expect("stored");
+    let accounts = app.accounts_snapshot().accounts;
+    assert!(accounts[0].links.calendar.is_none());
+    let sender = calendar_of(&app).links.mail.map(|to| to.id);
+    assert_eq!(
+        sender.as_deref(),
+        Some("bob@example.org@localhost"),
+        "two still take it, so it names the first"
+    );
+
+    app.stop_linking(CLOUD_ID, "bob@example.org@localhost")
+        .expect("stored");
+    let sender = calendar_of(&app).links.mail.map(|to| to.id);
+    assert_eq!(
+        sender.as_deref(),
+        Some("carol@example.org@localhost"),
+        "the one left is the one it sends through"
+    );
+    assert_eq!(
+        calendar_of(&app).linked_from.len(),
+        1,
+        "{:?}",
+        calendar_of(&app).linked_from
+    );
+}

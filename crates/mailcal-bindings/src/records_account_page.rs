@@ -76,6 +76,23 @@ pub struct AccountUseSwitch {
     /// the uses that need it, so it follows every status that says why.
     #[uniffi(default = false)]
     pub signs_in_separately: bool,
+    /// The account this use comes from, when a link fills it (`docs/accounts.md` rule 12): drawn
+    /// as a row that opens that account's page rather than as a switch, which could only be off.
+    #[uniffi(default = None)]
+    pub linked: Option<LinkedAccount>,
+}
+
+/// Another account that takes a use from this one through a link, on this account's page.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AccountLinkedFrom {
+    pub account: LinkedAccount,
+    /// What it takes from this account: calendar, contacts or both.
+    pub uses: Vec<AccountCapability>,
+    /// Of `uses`, those it has no server of its own for, so it is left without them once the
+    /// link stops.
+    pub leaves_without: Vec<AccountCapability>,
+    /// Stop linking: confirmed first, then every link between the two goes.
+    pub stop: ControlState,
 }
 
 /// One link slot's picker: "none", then the accounts it may name.
@@ -293,6 +310,11 @@ pub enum AccountChangeNotice {
     /// Nothing the account's sign-in opens answers to `address`. The server will not say
     /// whether no such mailbox exists or it was not shared with the account, so neither does this.
     SharedMailboxNotFound { address: String },
+    /// Stopping the links between this account and another did not take.
+    StopLinkingFailed { refusal: AccountChangeRefusal },
+    /// `uses` sign in separately from the mail, so they moved to an account of their own, linked
+    /// to this one (`docs/accounts.md` rule 18). Said on the mailbox's page, never on setup.
+    SignedInSeparately { uses: Vec<AccountCapability> },
 }
 
 /// Why a change did not take, for a client to say in the person's language: the reasons it can
@@ -374,7 +396,12 @@ pub struct AccountReplyFallback {
 pub struct AccountPage {
     pub account: String,
     pub uses: Vec<AccountUseSwitch>,
+    /// The pickers for links nothing fills yet, and a calendar's mail account while two or more
+    /// link it. A filled calendar or contacts slot is said on its use's row instead.
     pub links: Vec<AccountLinkPicker>,
+    /// The accounts that take a use from this one.
+    #[uniffi(default = [])]
+    pub linked_from: Vec<AccountLinkedFrom>,
     /// While the account is used for mail.
     pub sender_name: Option<AccountSenderName>,
     /// While the account is used for mail.
