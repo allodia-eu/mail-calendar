@@ -31,12 +31,12 @@ const CLIENT_NAME: &str = env!("MAILCAL_APP_NAME");
 
 /// What [`MailcalApp::begin_separate_server_sign_in`] returns: the URL to open in the platform
 /// auth session, and an opaque handle to pass back to the completion.
-pub struct SeparateServerSignInStart {
+pub(crate) struct SeparateServerSignInStart {
     /// The authorization URL to open in the platform auth session.
-    pub authorization_url: String,
+    pub(crate) authorization_url: String,
     /// An opaque handle for `complete_separate_server_sign_in`. **Transient; hold it in memory
     /// only.** It carries the PKCE verifier.
-    pub pending: String,
+    pub(crate) pending: String,
 }
 
 /// The state carried across the browser hop, never persisted.
@@ -151,7 +151,7 @@ impl MailcalApp {
 impl MailcalApp {
     /// Starts signing `uses` of `account_id` in at their server's own provider: discovers the
     /// issuer, registers this app with it, and returns the authorization URL. Not exported: a
-    /// client sends `AccountPageIntent::SignInSeparateServer`. Public for the integration tests.
+    /// client sends `AccountPageIntent::SignInSeparateServer`.
     ///
     /// **Blocking**.
     ///
@@ -160,7 +160,7 @@ impl MailcalApp {
     /// Returns [`MailcalError::Connect`] when the server offers no sign-in this app may use, and
     /// [`MailcalError::Config`] for an account that is not a standards mailbox or `uses` naming
     /// no server it has.
-    pub fn begin_separate_server_sign_in(
+    pub(crate) fn begin_separate_server_sign_in(
         &self,
         account_id: String,
         uses: Vec<AccountCapability>,
@@ -219,7 +219,7 @@ impl MailcalApp {
     /// Returns [`MailcalError::Connect`] when the exchange fails or issues no refresh token,
     /// [`MailcalError::DifferentAccount`] when the server names another account, and the errors
     /// of the move. Both accounts are unchanged on every failure.
-    pub fn complete_separate_server_sign_in(
+    pub(crate) fn complete_separate_server_sign_in(
         &self,
         account_id: String,
         pending: String,

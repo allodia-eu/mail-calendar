@@ -13,9 +13,12 @@
 
 mod live_oauth;
 
+use std::time::{Duration, Instant};
+
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountEntry, CapabilityState, MailcalApp, NoticeKind, SignInMethod,
+    AccountCapability, AccountEntry, AccountPageIntent, BrowserSignInStage, CapabilityState,
+    Intent, MailcalApp, NoticeKind, SignInBrowserEnd, SignInMethod,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
@@ -55,6 +58,44 @@ fn outages(app: &MailcalApp) -> (usize, usize) {
     (calendar, contacts)
 }
 
+/// Waits for `until` to answer, failing with `what` after the sign-in's own time to finish.
+fn wait<T>(what: &str, until: impl Fn() -> Option<T>) -> T {
+    let deadline = Instant::now() + Duration::from_secs(60);
+    loop {
+        if let Some(found) = until() {
+            return found;
+        }
+        assert!(Instant::now() < deadline, "never {what}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+}
+
+/// The attempt and the page it opens, once the core waits on the browser for it.
+fn in_browser(app: &MailcalApp) -> (u64, String) {
+    wait("waited on the browser", || {
+        let sign_in = app.browser_sign_in()?;
+        match sign_in.stage {
+            BrowserSignInStage::InBrowser { url, .. } => Some((sign_in.attempt, url)),
+            _ => None,
+        }
+    })
+}
+
+/// The account the mailbox's calendar moved to, once the sign-in has ended and its form is gone.
+fn moved_to(app: &MailcalApp, mailbox: &str) -> String {
+    wait("moved the calendar to an account of its own", || {
+        let page = app.account_page(mailbox.to_owned())?;
+        if app.browser_sign_in().is_some() {
+            return None;
+        }
+        if let Some(section) = page.separate_server {
+            assert!(section.failed.is_none(), "the sign-in failed: {section:?}");
+            return None;
+        }
+        entry(app, mailbox).links.calendar.map(|to| to.id)
+    })
+}
+
 #[test]
 fn a_calendar_server_with_a_sign_in_of_its_own_is_signed_in_to_there() {
     let (Ok(imap), Ok(_)) = (
@@ -89,22 +130,31 @@ password = "not-this-servers"
     let both = vec![AccountCapability::Calendar, AccountCapability::Contacts];
 
     assert!(
-        app.separate_server_offers_sign_in(mailbox.clone(), both.clone()),
+        app.separate_server_offers_sign_in(mailbox.clone(), both),
         "the calendar server names an issuer whose tokens are for it"
     );
-    let start = app
-        .begin_separate_server_sign_in(mailbox.clone(), both, REDIRECT_URI.to_owned())
-        .expect("discovery and registration succeed");
-    let authorization = url::Url::parse(&start.authorization_url).expect("a well-formed URL");
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SignInSeparateServer {
+            account: mailbox.clone(),
+            redirect_uri: REDIRECT_URI.to_owned(),
+        },
+    });
+    let (attempt, url) = in_browser(&app);
+    let authorization = url::Url::parse(&url).expect("a well-formed URL");
     let scope = live_oauth::param(&authorization, "scope");
     assert!(
         scope.contains("calendars") && scope.contains("contacts") && !scope.contains("mail"),
         "asks for what moves and no mail: {scope}"
     );
-    let callback = sign_in_as_the_user(&authorization, REDIRECT_URI);
-    let calendar = app
-        .complete_separate_server_sign_in(mailbox.clone(), start.pending, callback)
-        .expect("the calendar account connects with the grant");
+    let callback_url = sign_in_as_the_user(&authorization, REDIRECT_URI);
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SignInBrowserEnded {
+            account: mailbox.clone(),
+            attempt,
+            end: SignInBrowserEnd::Redirected { callback_url },
+        },
+    });
+    let calendar = moved_to(&app, &mailbox);
 
     let mail = entry(&app, &mailbox);
     assert_eq!(used_for(&mail), [AccountCapability::Mail]);
