@@ -249,14 +249,16 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             Assert.True(App.Eventually(() => app.Agent.Find(Filter.ById("SeparateServerSignInCancel", "Button")) is { Width: > 0 }, TimeSpan.FromSeconds(10)),
                 "the wait draws its Cancel");
             // The core holds the sign-in: it says where the person is, holds Connect while the
-            // browser has it, and leaves the button pressable for a fresh sign-in.
+            // browser has it, and once the browser has had a moment to come up, which the button
+            // spends running, makes it pressable again for a fresh sign-in.
             Assert.True(App.Eventually(() => app.Agent.Find(Filter.ById("SeparateServerSignInNote")) is { } note
                 && note.Name == Catalog.English("nextcloud_sign_in_waiting"), TimeSpan.FromSeconds(5)),
                 "rule 5: while the browser holds the sign-in, the line says the app notices when the person is done");
             Assert.False(app.Agent.Find(Filter.ById("SeparateServerConnect", "Button"))?.Enabled ?? true,
                 "Connect is held while the sign-in is out");
-            Assert.True(app.Agent.Find(Filter.ById("SeparateServerSignIn", "Button")) is { Enabled: true },
-                "the sign-in stays pressable while the browser waits, so a press starts it afresh");
+            Assert.True(App.Eventually(() => app.Agent.Find(Filter.ById("SeparateServerSignIn", "Button")) is { Enabled: true },
+                TimeSpan.FromSeconds(10)),
+                "the sign-in is pressable again while the browser waits, so a press starts it afresh");
             NextcloudBrowser.GrantNext(NextcloudAccountPageTests.Fixture, before, "alice", "nextcloud-alice-pw");
             Assert.True(app.Agent.WaitGone(Filter.ById("SeparateServerConnect", "Button"), TimeSpan.FromSeconds(60)),
                 "the grant moves the calendar and contacts to an account of their own, and setup goes on");
