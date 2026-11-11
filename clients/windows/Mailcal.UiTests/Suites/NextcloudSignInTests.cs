@@ -47,9 +47,9 @@ public sealed class NextcloudSignInTests(FirstRunApp firstRun) : IClassFixture<F
     private static void FillManualForm(App app, string server)
     {
         new SetupFlow(app).OpenManualSetup("alice@example.org", Filter.ById("DavChoice"));
-        app.Agent.SetValue(Field(app, "DavLogin"), "alice");
-        app.Agent.SetValue(Field(app, "DavPassword"), "typed-password");
-        app.Agent.SetValue(Field(app, "DavCaldavUrl"), server);
+        app.Agent.SetText(Field(app, "DavLogin"), "alice");
+        app.Agent.SetText(Field(app, "DavPassword"), "typed-password");
+        app.Agent.SetText(Field(app, "DavCaldavUrl"), server);
         Leave(app);
     }
 

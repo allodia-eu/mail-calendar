@@ -1,6 +1,7 @@
-// The suites' side of the app's test agent (Mailcal/Services/TestAgent.cs): one JSON object a line
-// each way over a named pipe. Finding and acting happen inside the app, on its UI thread, through
-// the automation peers UI Automation reads.
+// The suites' side of the app's test agent (Mailcal/Services/TestAgent.cs), which speaks the
+// protocol every client's agent does (docs/test-agent.md): one JSON object a line each way over a
+// named pipe. Finding and acting happen inside the app, on its UI thread, through the automation
+// peers UI Automation reads.
 
 using System.IO.Pipes;
 using System.Text;
@@ -57,98 +58,114 @@ internal sealed class Agent : IDisposable
             File.AppendAllText(TracePath, $"{DateTime.Now:HH:mm:ss.fff} {sent}\n    -> {(line.Length > 300 ? line[..300] : line)}\n");
         }
         var answer = JsonNode.Parse(line)!.AsObject();
-        if (answer["error"] is JsonNode error)
+        if (answer["ok"] is not JsonValue ok || !(bool)ok)
         {
-            throw new AgentRefusal($"the test agent refused '{request["op"]}': {error}", (string?)answer["code"]);
+            throw new AgentRefusal($"the test agent refused '{request["verb"]}': {answer["error"]}", (string?)answer["code"]);
         }
         return answer;
     }
 
-    private static JsonObject Op(string op, Filter? filter = null)
+    private static JsonObject Verb(string verb, Filter? filter = null)
     {
         var request = filter?.ToJson() ?? new JsonObject();
-        request["op"] = op;
+        request["verb"] = verb;
         return request;
     }
 
+    private static JsonObject Handle(string verb, Element element) => new() { ["verb"] = verb, ["h"] = element.Handle };
+
     /// <summary>The first element the filter accepts, or null.</summary>
-    internal Element? Find(Filter filter) => Elements(Call(Op("query", filter))).FirstOrDefault();
+    internal Element? Find(Filter filter)
+    {
+        var request = Verb("query", filter);
+        request["index"] = 0;
+        return Elements(Call(request)).FirstOrDefault();
+    }
 
     /// <summary>Every element the filter accepts, in the order UI Automation reports them.</summary>
-    internal IReadOnlyList<Element> FindAll(Filter filter)
-    {
-        var request = Op("query", filter);
-        request["all"] = true;
-        return Elements(Call(request));
-    }
+    internal IReadOnlyList<Element> FindAll(Filter filter) => Elements(Call(Verb("query", filter)));
 
     /// <summary>Waits for the filter to accept something, checked on every turn of the app's UI
     /// thread; null when <paramref name="timeout"/> runs out first.</summary>
     internal Element? Wait(Filter filter, TimeSpan timeout)
     {
-        var request = Op("wait", filter);
+        var request = Verb("wait", filter);
+        request["index"] = 0;
         request["timeoutMs"] = (int)timeout.TotalMilliseconds;
-        var answer = Call(request);
-        return (bool)answer["ok"]! ? Elements(answer).First() : null;
+        try
+        {
+            return Elements(Call(request)).First();
+        }
+        catch (AgentRefusal e) when (e.Code == "timeout")
+        {
+            return null;
+        }
     }
 
     /// <summary>Waits for the filter to accept nothing; whether it did within <paramref name="timeout"/>.</summary>
     internal bool WaitGone(Filter filter, TimeSpan timeout)
     {
-        var request = Op("wait", filter);
+        var request = Verb("wait", filter);
         request["absent"] = true;
         request["timeoutMs"] = (int)timeout.TotalMilliseconds;
-        return (bool)Call(request)["ok"]!;
+        try
+        {
+            Call(request);
+            return true;
+        }
+        catch (AgentRefusal e) when (e.Code == "timeout")
+        {
+            return false;
+        }
     }
 
     /// <summary>Waits until the windows have looked the same for <paramref name="quiet"/>, and at
     /// least <paramref name="floor"/> has passed; whether that happened within <paramref name="cap"/>.</summary>
     internal bool Settle(TimeSpan? quiet = null, TimeSpan? floor = null, TimeSpan? cap = null)
     {
-        var request = Op("settle");
+        var request = Verb("settle");
         request["quietMs"] = (int)(quiet ?? TimeSpan.FromMilliseconds(150)).TotalMilliseconds;
         request["floorMs"] = (int)(floor ?? TimeSpan.Zero).TotalMilliseconds;
         request["capMs"] = (int)(cap ?? TimeSpan.FromSeconds(2)).TotalMilliseconds;
-        return (bool)Call(request)["ok"]!;
+        return (bool)Call(request)["settled"]!;
     }
 
-    /// <summary>The element's state now: its value, toggle, selection and focus as well.</summary>
     /// <summary>Has the app collect, as the release probe does while a suite runs.</summary>
-    internal void Collect() => Call(Op("collect"));
+    internal void Collect() => Call(Verb("collect"));
 
+    /// <summary>The element's state now: its value, toggle, selection and focus as well.</summary>
     internal ElementState Read(Element element) => ElementState.From(Call(Handle("read", element)));
 
     /// <summary>Presses the element: Invoke, or Select where it cannot be invoked. A control that is
-    /// disabled is waited for, as a person waits for one, because a peer refuses to press it.</summary>
+    /// disabled is waited for, as a person waits for one, because the agent refuses to press it.</summary>
     internal void Invoke(Element element)
     {
         if (!App.Eventually(() => Read(element).Element.Enabled, TimeSpan.FromSeconds(5)))
         {
             throw new InvalidOperationException($"'{element.Name}' (#{element.Id}) stayed disabled, so it cannot be pressed");
         }
-        Call(Handle("invoke", element));
+        Call(Handle("activate", element));
     }
 
     internal void Select(Element element) => Call(Handle("select", element));
 
-    /// <summary>Sets a text box's value, which the box takes as an edit.</summary>
-    internal void SetValue(Element element, string value)
+    /// <summary>Sets a text box's text, which the box takes as an edit.</summary>
+    internal void SetText(Element element, string text)
     {
-        var request = Handle("setValue", element);
-        request["value"] = value;
+        var request = Handle("set-text", element);
+        request["text"] = text;
         Call(request);
     }
 
-    /// <summary>Toggles a check box or toggle button; the state it is in afterwards.</summary>
-    internal string Toggle(Element element) => (string)Call(Handle("toggle", element))["toggle"]!;
+    /// <summary>Toggles a check box or toggle button; whether it is on afterwards.</summary>
+    internal bool Toggle(Element element) => (bool)Call(Handle("toggle", element))["active"]!;
 
     /// <summary>Puts a check box or toggle button <paramref name="on"/> or off, whichever it was.</summary>
     internal void SetToggle(Element element, bool on)
     {
-        if ((Read(element).Toggle == "On") != on)
-        {
-            Toggle(element);
-        }
+        var request = Handle("toggle", element);
+        request["active"] = on;
+        Call(request);
     }
 
     internal void ScrollIntoView(Element element) => Call(Handle("scrollIntoView", element));
@@ -193,7 +210,7 @@ internal sealed class Agent : IDisposable
     internal Element? Parent(Element element) => Elements(Call(Handle("parent", element))).FirstOrDefault();
 
     /// <summary>The element that has the keyboard, or null when nothing in the app does.</summary>
-    internal Element? Focused() => Elements(Call(Op("focused"))).FirstOrDefault();
+    internal Element? Focused() => Elements(Call(Verb("focused"))).FirstOrDefault();
 
     /// <summary>Scrolls the first vertically scrollable element at or under <paramref name="element"/>
     /// to its end; whether there was one.</summary>
@@ -205,20 +222,23 @@ internal sealed class Agent : IDisposable
     {
         var request = Handle("scrollTo", element);
         request["percent"] = percent;
-        return (bool)Call(request)["ok"]!;
+        return (bool)Call(request)["scrolled"]!;
     }
 
     /// <summary>The app's open windows, the mailbox first.</summary>
     internal IReadOnlyList<AppWindow> Windows() =>
-        Call(Op("windows"))["windows"]!.AsArray()
-            .Select(w => new AppWindow((long)w!["hwnd"]!, (string)w["title"]!, (string)w["kind"]!))
+        Call(Verb("windows"))["windows"]!.AsArray()
+            .Select(w => new AppWindow((long)w!["h"]!, (string)w["title"]!, (string)w["kind"]!))
             .ToList();
 
-    /// <summary>Every element on screen, one indented line each, for a failure to say what was there.</summary>
-    internal IReadOnlyList<string> Dump() =>
-        Call(Op("dump"))["lines"]!.AsArray().Select(l => (string)l!).ToList();
-
-    private static JsonObject Handle(string op, Element element) => new() { ["op"] = op, ["h"] = element.Handle };
+    /// <summary>Every element, offscreen ones included, one indented line each, for a failure to
+    /// say what was there.</summary>
+    internal IReadOnlyList<string> Dump()
+    {
+        var request = Verb("dump");
+        request["hidden"] = true;
+        return ((string)Call(request)["text"]!).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+    }
 
     private static List<Element> Elements(JsonObject answer) =>
         answer["elements"]!.AsArray().Select(e => Element.From(e!.AsObject())).ToList();
@@ -238,8 +258,8 @@ internal sealed class Agent : IDisposable
     }
 }
 
-/// <summary>A request the test agent refused. <see cref="Code"/> names a refusal a suite acts on
-/// (Mailcal/Services/TestAgent.cs), so a suite never matches on the words.</summary>
+/// <summary>A request the test agent refused. <see cref="Code"/> names the refusal
+/// (docs/test-agent.md, "Refusals"), so a suite never matches on the words.</summary>
 internal sealed class AgentRefusal(string message, string? code) : InvalidOperationException(message)
 {
     internal string? Code { get; } = code;

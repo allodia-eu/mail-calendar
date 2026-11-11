@@ -28,6 +28,6 @@ public sealed class SettingsSharedMailboxesImapTests(ImapHarnessApp harness)
             Assert.True(switches.Any(s => s.Id.Contains(owner, StringComparison.OrdinalIgnoreCase)),
                 $"the shared namespace holds {owner}'s mailbox for alice, and the page has no switch for it. Switches: {names}");
         }
-        Assert.All(switches, s => Assert.Equal("Off", app.Agent.Read(s).Toggle));
+        Assert.All(switches, s => Assert.False(app.Agent.Read(s).Active));
     }, app => app.CloseDialogs());
 }

@@ -37,10 +37,10 @@ public sealed class InvitationCardThemeTests(InvitationCardThemeApp showcase) : 
     private static List<Element> CardLines(App app)
     {
         // The English seed's invitation; pressing the row already open would close it.
-        var heading = Filter.ById("ReadingSubject") with { Window = app.Mailbox.Hwnd, NameLike = "Invitation:*" };
+        var heading = Filter.ById("ReadingSubject") with { Window = app.Mailbox.Hwnd, TextLike = "Invitation:" };
         if (app.Agent.Find(heading) is null)
         {
-            app.Agent.Invoke(app.RowTitled("Invitation:*"));
+            app.Agent.Invoke(app.RowTitled("Invitation:"));
             app.Agent.Wait(heading, App.Patience);
         }
         // The card builds a new expander on every redraw, and the calendar's arrival redraws it, so

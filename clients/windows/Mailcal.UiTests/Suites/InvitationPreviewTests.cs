@@ -73,7 +73,8 @@ public sealed partial class InvitationPreviewTests(HarnessApp harness)
         return (hours, events);
     }
 
-    private static string State(App app, Element expander) => app.Agent.Read(expander).Expanded ?? "(no expand state)";
+    private static string State(App app, Element expander) =>
+        app.Agent.Read(expander).Expanded switch { true => "Expanded", false => "Collapsed", null => "(no expand state)" };
 
     [HarnessFact]
     public void ThePreviewOpensExpandedOnADayWithNothingElseOnIt() => harness.Case(nameof(ThePreviewOpensExpandedOnADayWithNothingElseOnIt), app =>

@@ -256,7 +256,7 @@ public sealed class ReadingWindowTests(DebugLogHarnessApp harness)
             $"'{ThreadSubject}' is a conversation row, carrying the count that makes it one");
         // On its subject, because the header expands on the first click and its sub-rows are drawn
         // below it: the row's centre would land on a sub-row, which is a message.
-        var subject = app.Agent.Find(new Filter { Type = "Text", Under = thread, NameLike = ThreadSubject });
+        var subject = app.Agent.Find(new Filter { Type = "Text", Under = thread, TextLike = ThreadSubject });
         Assert.True(subject is not null, $"the conversation row draws its subject, '{ThreadSubject}'");
         app.ShowMailbox();
         Input.Click(subject!, times: 2);

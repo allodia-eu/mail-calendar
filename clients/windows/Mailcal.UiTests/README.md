@@ -55,7 +55,8 @@ still starts from whatever the one before it left, so it opens what it reads.
 ## The agent
 
 [`Mailcal/Services/TestAgent*.cs`](../Mailcal/Services) listens on the named pipe
-`MAILCAL_TEST_AGENT` names, one JSON object a line each way, and only in a Debug build:
+`MAILCAL_TEST_AGENT` names and speaks the protocol every client's agent does
+([`docs/test-agent.md`](../../../docs/test-agent.md)), only in a Debug build:
 `cargo xtask check-test-agent` fails any change that would let it reach a release one. It walks
 each window's **automation peers**, which are the objects UI Automation reads, so an AutomationId or
 an accessible name a suite finds is the one a screen reader is given. It acts through the same
@@ -85,8 +86,9 @@ an obvious reimplementation finds nothing:
   a box known to have the one being asked about.
 - **A WebView2's content is not walked.** It is the browser's own tree, and searching across the
   composer's editor costs UI Automation seconds a call; nothing a suite looks up lives in it.
-- **A peer measures from its window's client area.** The agent reports physical screen pixels, the
-  unit a press is aimed in.
+- **A peer measures from its window's client area, in physical pixels.** The agent answers the
+  protocol's `bounds` in the window's logical pixels, and `screen` in the physical screen pixels a
+  press is aimed in, which is what `Element`'s rectangle holds.
 - **A peer can refuse its children.** The invitation card's Expander, while offscreen, answers
   `E_OUTOFMEMORY` (raised as `OutOfMemoryException`) every time it is asked; the walk passes over
   it, as UI Automation passes over a subtree it cannot read.

@@ -59,7 +59,8 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
 
     private static string Header(App app) => app.Agent.Find(Filter.ById("MailboxHeader") with { Window = app.Mailbox.Hwnd })?.Name ?? "";
 
-    private static string Expanded(App app, Element row) => app.Agent.Read(row).Expanded ?? "";
+    private static string Expanded(App app, Element row) =>
+        app.Agent.Read(row).Expanded switch { true => "Expanded", false => "Collapsed", null => "" };
 
     /// <summary>Opens a pane row and waits for the list's header to name it: the snapshot arrives
     /// after the press.</summary>

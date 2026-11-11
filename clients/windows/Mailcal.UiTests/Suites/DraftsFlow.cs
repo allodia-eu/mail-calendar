@@ -28,7 +28,7 @@ internal sealed class DraftsFlow(App app)
         {
             Agent.Invoke(sync);
         }
-        var row = new Filter { Type = "ListItem", Under = app.RowsList(), Has = new Filter { NameLike = subject } };
+        var row = new Filter { Type = "ListItem", Under = app.RowsList(), Has = new Filter { Name = subject } };
         var timeout = TimeSpan.FromSeconds(timeoutSec);
         return absent ? Agent.WaitGone(row, timeout) : Agent.Wait(row, timeout) is not null;
     }
@@ -65,7 +65,7 @@ internal sealed class DraftsFlow(App app)
     internal void SetText(string id, string text)
     {
         var field = Agent.Find(Filter.ById(id)) ?? throw new InvalidOperationException($"the composer has no #{id}");
-        Agent.SetValue(field, text);
+        Agent.SetText(field, text);
         Agent.Settle();
     }
 

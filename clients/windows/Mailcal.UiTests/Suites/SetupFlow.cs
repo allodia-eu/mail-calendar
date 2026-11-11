@@ -19,7 +19,7 @@ internal sealed class SetupFlow(App app)
     {
         var email = Agent.Wait(Filter.ById("DetectEmail", "Edit") with { OnScreen = true }, TimeSpan.FromSeconds(15))
             ?? throw new InvalidOperationException("the first-run screen has no address field (#DetectEmail)");
-        Agent.SetValue(email, address);
+        Agent.SetText(email, address);
         Agent.Invoke(Agent.Find(Filter.ById("ManualButton", "Button")) ?? throw new InvalidOperationException("the first-run screen offers no manual set-up"));
         var choice = Agent.Wait(type, TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException($"the manual form has no #{type.Id} account type");
@@ -119,8 +119,8 @@ internal sealed class SetupFlow(App app)
         var dialog = Settings();
         Agent.Select(Agent.Find(new Filter { Id = "SettingsCategory_general", Under = dialog })!);
         Agent.Select(Agent.Find(new Filter { Id = "SettingsCategory_accounts", Under = dialog })!);
-        Agent.Wait(new Filter { Type = "Button", NameLike = "*@*", Under = dialog }, TimeSpan.FromSeconds(10));
-        return Agent.FindAll(new Filter { Type = "Button", NameLike = "*@*", Under = dialog });
+        Agent.Wait(new Filter { Type = "Button", TextLike = "@", Under = dialog }, TimeSpan.FromSeconds(10));
+        return Agent.FindAll(new Filter { Type = "Button", TextLike = "@", Under = dialog });
     }
 
     /// <summary>

@@ -21,7 +21,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
 {
     private const string WholeThread = "no-go";
     private const string OlderOnly = "rollback"; // "Q3 launch" also finds Eva's "Q3 board update"
-    private const string ThreadTitle = "Re: Q3 launch*";
+    private const string ThreadTitle = "Re: Q3 launch";
     private const int ThreadMessages = 3;
     private const string Newest = "Tom de Vries";
     private const string NewestMatch = "Eva Jansen";
@@ -40,7 +40,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
 
     private static void Clear(App app)
     {
-        app.Agent.SetValue(Box(app), "");
+        app.Agent.SetText(Box(app), "");
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(500), floor: TimeSpan.FromMilliseconds(500), cap: TimeSpan.FromSeconds(5));
     }
 
@@ -53,7 +53,7 @@ public sealed partial class SearchTests(ShowcaseApp showcase)
     /// adds a quarter of a second before the core is asked.</summary>
     private static IReadOnlyList<Element> Search(App app, string query, int expected)
     {
-        app.Agent.SetValue(Box(app), query);
+        app.Agent.SetText(Box(app), query);
         IReadOnlyList<Element> rows = [];
         App.Eventually(() => (rows = app.Rows()).Count == expected, TimeSpan.FromSeconds(30));
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300));

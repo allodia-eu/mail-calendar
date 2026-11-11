@@ -82,7 +82,7 @@ public sealed class DraftsTests(HarnessApp harness)
         var box = app.Agent.Find(Filter.ById("SubjectBox")) ?? throw new InvalidOperationException("the resumed composer has no subject field");
         Assert.True(subject == app.Agent.Read(box).Value, "the resumed composer does not hold the subject the draft was saved with");
         // A pill's accessible name is "<address>, Remove recipient", in the app's language.
-        var pills = app.Agent.FindAll(new Filter { Type = "Button", NameLike = $"{Harness.Bob}, *" });
+        var pills = app.Agent.FindAll(new Filter { Type = "Button", TextLike = $"{Harness.Bob}, " });
         Assert.True(pills.Count == 1, $"the resumed composer does not hold the recipient the draft was saved with ({Harness.Bob})");
         Assert.True(flow.DraftHint() == "", "a composer that has saved nothing yet says nothing about saving (docs/drafts.md)");
     }, Subject("resume"));

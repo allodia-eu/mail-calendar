@@ -234,7 +234,9 @@ window, a flipped DEBUG toggle) survives into a normal launch. The rotating log 
 shared, so one file diagnoses whatever ran last. `AppPathsTests` pins that no two dev modes resolve
 to the same subdir and that none resolves to the real paths: the Windows counterpart of
 `DevNamespaceTests`. For `first-run` the collision rule is what makes the mode work at all: an
-account left behind by another mode is an account, and the screen would never come up.
+account left behind by another mode is an account, and the screen would never come up. `demo` is
+in-memory and reads no credential store; its preferences go to `dev-demo`. Any other value logs a
+warning and opens the stored accounts.
 
 The Linux client boots every mode. `stalwart`, `stalwart-multi`, `stalwart-imap` and
 `stalwart-linked` isolate their engine stores under `$XDG_DATA_HOME/mailcal/dev`, `dev-multi`,

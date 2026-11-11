@@ -130,7 +130,7 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         var box = app.Agent.Find(new Filter { Id = "JitsiServerBox", Under = dialog })
             ?? throw new InvalidOperationException("Settings → Videoconferencing draws no Jitsi server field");
         app.Agent.Focus(box);
-        app.Agent.SetValue(box, server);
+        app.Agent.SetText(box, server);
         app.Agent.Focus(app.Agent.Find(new Filter { Id = "SettingsCategory_videoconferencing", Under = dialog })!);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
         app.CloseDialogs();
@@ -173,7 +173,7 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
     {
         SetServer(app, Server);
         var editor = flow.OpenNewEvent();
-        app.Agent.SetValue(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor })!, Title);
+        app.Agent.SetText(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor })!, Title);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
         var box = MeetingBox(app, editor)
             ?? throw new InvalidOperationException("with a Jitsi server set, the harness calendar offers a Video meeting row (rule 9)");
@@ -223,7 +223,7 @@ public sealed class EventVideoMeetingTests(HarnessApp harness)
         SetServer(app, Server);
         SetDefault(app, Jitsi);
         var editor = flow.OpenNewEvent();
-        app.Agent.SetValue(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor })!, DefaultTitle);
+        app.Agent.SetText(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor })!, DefaultTitle);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
         var none = Catalog.English("event_meeting_none");
         Assert.Equal(none, Selection(app, editor));

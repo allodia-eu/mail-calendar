@@ -87,10 +87,10 @@ public sealed class ServerChangeTests(ServerChangeHarnessApp harness) : IClassFi
     public void ACalendarAndContactsAccountOnTheHarnessConnects() => Case(nameof(ACalendarAndContactsAccountOnTheHarnessConnects), (app, flow) =>
     {
         flow.OpenManualSetup(Harness.Alice, Filter.ById("DavChoice"));
-        app.Agent.SetValue(app.Agent.Find(Filter.ById("DavLogin", "Edit"))!, Harness.Alice);
-        app.Agent.SetValue(app.Agent.Find(Filter.ById("DavPassword", "Edit"))!, Seeded);
-        app.Agent.SetValue(app.Agent.Find(Filter.ById("DavCaldavUrl", "Edit"))!, Harness.Base);
-        app.Agent.SetValue(app.Agent.Find(Filter.ById("DavCarddavUrl", "Edit"))!, Harness.Base);
+        app.Agent.SetText(app.Agent.Find(Filter.ById("DavLogin", "Edit"))!, Harness.Alice);
+        app.Agent.SetText(app.Agent.Find(Filter.ById("DavPassword", "Edit"))!, Seeded);
+        app.Agent.SetText(app.Agent.Find(Filter.ById("DavCaldavUrl", "Edit"))!, Harness.Base);
+        app.Agent.SetText(app.Agent.Find(Filter.ById("DavCarddavUrl", "Edit"))!, Harness.Base);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("ConnectButton", "Button"))!);
         flow.CompleteSetupPrompts();
         var dialog = flow.OpenAccount(Harness.Alice);

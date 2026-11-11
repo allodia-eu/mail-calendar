@@ -45,7 +45,7 @@ public sealed class EventAnswerTests(TwoAccountHarnessApp harness)
     {
         var editor = flow.OpenNewEvent();
         flow.InviteeKeys(Harness.Bob, enter: true);
-        app.Agent.SetValue(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor })!, Title);
+        app.Agent.SetText(app.Agent.Find(new Filter { Id = "EventTitleBox", Under = editor })!, Title);
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "PrimaryButton", Type = "Button", Under = editor })!);
         Harness.WaitSchedulingMail(Harness.Bob, "Invitation:", Title);
 

@@ -71,12 +71,12 @@ internal sealed partial class App
             .Select(pattern => new System.Text.RegularExpressions.Regex("^" + System.Text.RegularExpressions.Regex.Escape(pattern).Replace(@"\{count}", @"\d+") + "$"))
             .ToList());
 
-    /// <summary>The row holding a text matching <paramref name="title"/>, scrolled into view because
+    /// <summary>The row holding a text containing <paramref name="title"/>, scrolled into view because
     /// a row below the fold can be found but not pressed; throws naming what the list holds.</summary>
     internal Element RowTitled(string title)
     {
         var list = RowsList();
-        var filter = new Filter { Type = "ListItem", Under = list, Has = new Filter { NameLike = title } };
+        var filter = new Filter { Type = "ListItem", Under = list, Has = new Filter { TextLike = title } };
         // The list is virtualised: a row far from the view has not been built, so it is looked for
         // down the list, a quarter at a time.
         var row = Agent.Find(filter);
@@ -136,7 +136,7 @@ internal sealed partial class App
         {
             return;
         }
-        Agent.Invoke(RowTitled($"*{subject}*"));
+        Agent.Invoke(RowTitled(subject));
         if (!Eventually(() => Agent.Find(Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd })?.Name == subject, Patience))
         {
             throw new InvalidOperationException($"the reading pane never showed '{subject}'");
@@ -179,7 +179,7 @@ internal sealed partial class App
             return;
         }
         Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300), cap: TimeSpan.FromSeconds(5));
-        Agent.SetValue(field, "");
+        Agent.SetText(field, "");
         Input.Type(text);
         if (!Holds())
         {

@@ -32,7 +32,7 @@ public sealed class SettingsVideoconferencingTests(ShowcaseApp showcase)
     {
         var box = Box(app, dialog);
         app.Agent.Focus(box);
-        app.Agent.SetValue(box, text);
+        app.Agent.SetText(box, text);
         app.Agent.Focus(app.Agent.Find(new Filter { Id = $"SettingsCategory_{Tag}", Under = dialog })!);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
     }

@@ -43,7 +43,7 @@ public sealed class SyncProgressPlacementTests(SyncProgressApp showcase) : IClas
         Bar(app);
         // The caption proves the numbers travelled, not only the visibility: a bar drawn from a
         // hardcoded Visible passes every geometric case below and fails this one.
-        Assert.True(app.Agent.Find(new Filter { Type = "Text", Window = app.Mailbox.Hwnd, NameLike = "Downloading 1,200 of 3,387*" }) is not null,
+        Assert.True(app.Agent.Find(new Filter { Type = "Text", Window = app.Mailbox.Hwnd, TextLike = "Downloading 1,200 of 3,387" }) is not null,
             "the caption beside the bar reads the counts the core reported");
     });
 

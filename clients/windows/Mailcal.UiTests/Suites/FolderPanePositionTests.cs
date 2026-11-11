@@ -80,7 +80,7 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
                     ?? throw new InvalidOperationException($"{Harness.Alice} shows no {folder} row; was the harness seeded with its nested folders?"));
             }
             app.OpenFolder("Acme");
-            app.Agent.Invoke(app.RowTitled($"*{Subject}*"));
+            app.Agent.Invoke(app.RowTitled(Subject));
 
             var pane = app.Agent.Find(Filter.ById("MenuItemsScrollViewer") with { Window = app.Mailbox.Hwnd })
                 ?? throw new InvalidOperationException("the folder pane has no scroller");

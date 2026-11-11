@@ -34,6 +34,8 @@ NEVER_ISSUED = 2**31 - 1
 MAIL, CALENDAR, CALENDAR_ONLY = "Mail", "Calendar", "New Event"
 # A button every client draws on the mail view, a phone's included, which has no Sync.
 NEW_MAIL = "New Mail"
+# The folder pane's group above every account's folders, which Windows closes on the calendar.
+ALL_ACCOUNTS = "All Accounts"
 
 ENDPOINT = os.environ.get("MAILCAL_TEST_AGENT", "")
 
@@ -97,7 +99,7 @@ class Conformance(unittest.TestCase):
             self.assertIn("title", window)
 
     def test_an_element_is_described_the_same_way_everywhere(self) -> None:
-        (button,) = self.ask(verb="wait", text=NEW_MAIL)["elements"]
+        (button,) = self.ask(verb="wait", **new_mail())["elements"]
         self.assertLessEqual(NODE_FIELDS, set(button), button)
         self.assertIn(NEW_MAIL, button.get("text", []) + [button.get("tooltip")])
         self.assertIs(button["showing"], True)
@@ -137,7 +139,7 @@ class Conformance(unittest.TestCase):
             self.ask(verb="wait", text=CALENDAR_ONLY)
         finally:
             self.press(**back_to_mail(self.agent))
-        self.ask(verb="wait", text=NEW_MAIL)
+        self.ask(verb="wait", **new_mail())
         self.ask(verb="wait", text=CALENDAR_ONLY, absent=True)
 
     def test_text_set_in_the_search_field_reads_back(self) -> None:
@@ -154,7 +156,7 @@ class Conformance(unittest.TestCase):
             leave_the_field(self.agent, field)
 
     def test_text_cannot_be_set_on_something_that_is_not_a_field(self) -> None:
-        (button,) = self.ask(verb="wait", text=NEW_MAIL)["elements"]
+        (button,) = self.ask(verb="wait", **new_mail())["elements"]
         self.assertEqual(self.refusal(verb="set-text", h=button["h"], text="x")["code"], "not-editable")
 
     def test_a_disabled_control_is_refused(self) -> None:
@@ -187,16 +189,35 @@ class Conformance(unittest.TestCase):
 
 
 def switcher() -> dict[str, Any]:
-    """What tells the view switcher's buttons apart from a heading with the same words."""
-    return {"role": "toggle-button"} if sys.platform.startswith("linux") else {}
+    """What tells the view switcher's buttons apart from a heading with the same words: on
+    Windows they are the navigation pane's items, whose role is a list item."""
+    if sys.platform.startswith("linux"):
+        return {"role": "toggle-button"}
+    if sys.platform == "win32":
+        return {"role": "ListItem"}
+    return {}
+
+
+def new_mail() -> dict[str, Any]:
+    """The New Mail button. WinUI gives a button's label an element of its own beneath it, which
+    the same words find too, so on Windows the button is named by its role."""
+    return {"text": NEW_MAIL, **({"role": "Button"} if sys.platform == "win32" else {})}
 
 
 def back_to_mail(agent: Agent) -> dict[str, Any]:
-    """What leaves the calendar for mail: the switcher's Mail button, or on macOS, whose sidebar is
-    the switcher and names no Mail, the unified Inbox at the top of it."""
-    for filter_ in ({"text": MAIL, **switcher()}, {"text": "Inbox", "index": 0}):
+    """What leaves the calendar for mail: the switcher's Mail button, or on macOS and Windows,
+    whose sidebar is the switcher and names no Mail, the unified Inbox at the top of it. Windows'
+    folder pane closes All Accounts while the calendar is on screen, so it is opened first. Asked
+    once the window has settled: the pane closes the group a moment after the calendar opens."""
+    agent.ask({"verb": "settle"})
+    inbox = {"text": "Inbox", "index": 0}
+    for filter_ in ({"text": MAIL, **switcher()}, inbox):
         if agent.ask({"verb": "query", **filter_})["elements"]:
             return filter_
+    if agent.ask({"verb": "query", "text": ALL_ACCOUNTS, **switcher()})["elements"]:
+        run(agent, {"verb": "press", "text": ALL_ACCOUNTS, **switcher()})
+        agent.ask({"verb": "wait", **inbox})
+        return inbox
     raise AssertionError("nothing on screen leads back to mail")
 
 
@@ -211,7 +232,7 @@ def leave_the_field(agent: Agent, field: int) -> None:
 
 
 def search_field(agent: Agent) -> int | None:
-    for role in ("search-box", "edit", "AXTextField", "AXSearchField"):
+    for role in ("search-box", "edit", "Edit", "AXTextField", "AXSearchField"):
         elements = agent.ask({"verb": "query", "role": role})["elements"]
         if elements:
             return int(elements[0]["h"])

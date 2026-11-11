@@ -81,7 +81,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
         {
             throw new InvalidOperationException($"'{title}' is a weekly rule and shows no weekday row");
         }
-        var ticked = days.Count(day => app.Agent.Read(day).Toggle == "On");
+        var ticked = days.Count(day => app.Agent.Read(day).Active == true);
         app.CloseDialogs();
         return ticked;
     }
@@ -154,7 +154,7 @@ public sealed class EventRepeatTests(HarnessApp harness)
 
     /// <summary>The spoken names of the blocks the week grid draws.</summary>
     private static IReadOnlyList<string> GridBlockNames(App app) =>
-        app.Agent.FindAll(new Filter { Window = app.Mailbox.Hwnd, NameLike = "*" }).Where(e => e.Class == "CalendarItem").Select(e => e.Name).ToList();
+        app.Agent.FindAll(new Filter { Window = app.Mailbox.Hwnd }).Where(e => e.Class == "CalendarItem").Select(e => e.Name).ToList();
     [HarnessFact]
     public void TheEditorOpensTheRuleAsControlsNotAsTheSentenceTheDetailShows() => Case(nameof(TheEditorOpensTheRuleAsControlsNotAsTheSentenceTheDetailShows), (app, flow) =>
     {

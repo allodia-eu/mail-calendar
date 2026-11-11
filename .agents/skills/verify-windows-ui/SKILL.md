@@ -44,6 +44,13 @@ the app through its debug-only **test agent**, which walks the automation peers 
 thread, so a lookup costs milliseconds rather than a cross-process walk. Read the project's README
 before adding a case: it carries the agent's traps and the rules for writing one.
 
+The agent speaks the protocol every desktop client's does ([`docs/test-agent.md`](../../../docs/test-agent.md)),
+so it answers by hand too: launch the app with `MAILCAL_TEST_AGENT` naming a pipe, then
+`python scripts/dev/agent.py --socket <pipe> press text=Calendar role=ListItem`. A `role` is the UI
+Automation control type (`Button`, `Edit`, `ListItem`), and `screen` in an answer is the physical
+screen rectangle a press is aimed in. With `MAILCAL_DEV_ACCOUNT=demo` the app runs on the core's
+in-memory demo account, which is what `scripts/dev/agent_conformance.py` is written against.
+
 **If what you are about to verify is a rule rather than a one-off question, add a case there
 instead.** A rule proven once by hand is a rule that regresses silently the next time; the whole
 reason the suites exist is that `Mailcal.Tests` cannot link anything WinUI-flavoured, so bindings,

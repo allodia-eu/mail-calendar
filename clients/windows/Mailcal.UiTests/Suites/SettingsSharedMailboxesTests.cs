@@ -43,7 +43,7 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
     private static string? Note(App app, Element dialog) =>
         app.Agent.Find(new Filter { Id = "SharedMailboxesNote", Under = dialog })?.Name;
 
-    private static bool IsOn(App app, Element dialog) => app.Agent.Read(Switch(app, dialog)).Toggle == "On";
+    private static bool IsOn(App app, Element dialog) => app.Agent.Read(Switch(app, dialog)).Active == true;
 
     /// <summary>The pane's row for the support mailbox, which is named by its address or by the
     /// name its server holds for it.</summary>
@@ -60,7 +60,7 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
     {
         var dialog = setup.OpenAccount(Harness.Alice);
         if (app.Agent.Wait(new Filter { Id = SwitchId, Under = dialog }, TimeSpan.FromSeconds(30)) is not { } toggle
-            || app.Agent.Read(toggle).Toggle != "On")
+            || app.Agent.Read(toggle).Active != true)
         {
             return;
         }
@@ -88,7 +88,7 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
             "the page is drawn again from what the server answers after the switch, and it is on");
         app.CloseDialogs();
 
-        var account = app.Agent.Wait(new Filter { Type = "ListItem", Window = app.Mailbox.Hwnd, NameLike = "*upport*" }, App.Patience)
+        var account = app.Agent.Wait(new Filter { Type = "ListItem", Window = app.Mailbox.Hwnd, TextLike = "upport" }, App.Patience)
             ?? throw new InvalidOperationException("the support mailbox is switched on and the folder pane has no row for it (rule 5)");
         app.Agent.Expand(account);
         var inbox = app.Agent.Wait(Filter.Named(Catalog.English("folder_inbox"), "ListItem") with { Under = account }, TimeSpan.FromSeconds(60))
@@ -118,7 +118,7 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
 
         harness.RelaunchOnHarness();
         app = harness.App;
-        Assert.True(app.Agent.Wait(new Filter { Type = "ListItem", Window = app.Mailbox.Hwnd, NameLike = "*upport*" }, App.Patience) is not null,
+        Assert.True(app.Agent.Wait(new Filter { Type = "ListItem", Window = app.Mailbox.Hwnd, TextLike = "upport" }, App.Patience) is not null,
             "the support mailbox was switched on before the relaunch, and the folder pane after it has no row for it");
         Assert.True(IsOn(app, new SetupFlow(app).OpenAccount(Harness.Alice)), "alice's page still has the mailbox switched on");
     });
@@ -130,7 +130,7 @@ public sealed class SettingsSharedMailboxesTests(HarnessApp harness)
         app.Agent.SetToggle(Switch(app, dialog), on: true);
         Assert.True(App.Eventually(() => IsOn(app, dialog), TimeSpan.FromSeconds(20)), "the mailbox could not be switched on");
         app.CloseDialogs();
-        Assert.True(app.Agent.Wait(new Filter { Type = "ListItem", Window = app.Mailbox.Hwnd, NameLike = "*upport*" }, App.Patience) is not null,
+        Assert.True(app.Agent.Wait(new Filter { Type = "ListItem", Window = app.Mailbox.Hwnd, TextLike = "upport" }, App.Patience) is not null,
             "the support mailbox is switched on and the folder pane has no row for it");
 
         dialog = setup.OpenAccount(Harness.Alice);

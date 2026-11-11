@@ -209,10 +209,10 @@ public sealed partial class MailboxModel
                 Log.Info("MAILCAL_DEV_ACCOUNT=first-run, an empty namespace: the first-account screen");
                 return new DevAccount([], AppPaths.DevStoreSubdir(raw)!);
             default:
-                // A recognised-elsewhere dev mode this client doesn't support (e.g. demo). Fall back
-                // to the stored accounts, but say so loudly rather than silently connecting the
-                // developer's real accounts as if the switch were ignored.
-                Log.Warn($"MAILCAL_DEV_ACCOUNT='{raw}' is not supported on Windows; using stored accounts. Use 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts), 'stalwart-imap' (IMAP), 'stalwart-linked' (a mailbox beside two calendar and contacts accounts) or 'first-run' (an empty namespace) here.");
+                // A dev mode this client does not know. Fall back to the stored accounts, but say so
+                // loudly rather than silently connecting the developer's real accounts as if the
+                // switch were ignored. 'demo' never reaches here: Start boots it before asking.
+                Log.Warn($"MAILCAL_DEV_ACCOUNT='{raw}' is not supported on Windows; using stored accounts. Use 'demo' (the in-memory demo account), 'stalwart' (JMAP), 'stalwart-multi' (two JMAP accounts), 'stalwart-imap' (IMAP), 'stalwart-linked' (a mailbox beside two calendar and contacts accounts) or 'first-run' (an empty namespace) here.");
                 return null;
         }
     }

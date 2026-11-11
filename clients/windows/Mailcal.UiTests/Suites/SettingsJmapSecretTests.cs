@@ -61,7 +61,7 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         var field = app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog });
         Assert.True(field is not null,
             "the account's page offers a new secret to a JMAP account whose pasted one stopped working: it has no servers to edit and no provider to sign in at");
-        app.Agent.SetValue(field!, secret);
+        app.Agent.SetText(field!, secret);
         app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountPasswordSave", Under = dialog })!);
         var notices = Catalog.Everywhere("settings_account_change_failed_title").ToHashSet();
         Assert.True(App.Eventually(
@@ -87,13 +87,13 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
     public void AJmapMailboxSetUpWithAPasswordConnects() => Case(nameof(AJmapMailboxSetUpWithAPasswordConnects), (app, flow) =>
     {
         flow.OpenManualSetup(Harness.Alice, Filter.ById("JmapChoice"));
-        app.Agent.SetValue(app.Agent.Find(Filter.ById("JmapEmail", "Edit"))!, Harness.Alice);
-        app.Agent.SetValue(app.Agent.Find(Filter.ById("JmapServer", "Edit"))!, Harness.Base);
+        app.Agent.SetText(app.Agent.Find(Filter.ById("JmapEmail", "Edit"))!, Harness.Alice);
+        app.Agent.SetText(app.Agent.Find(Filter.ById("JmapServer", "Edit"))!, Harness.Base);
         // The server is asked whether it offers a sign-in first; the harness's names an issuer no
         // host resolves, so the answer is the password field.
         var password = app.Agent.Wait(Filter.ById("JmapPassword"), TimeSpan.FromSeconds(20))
             ?? throw new InvalidOperationException("the JMAP form never offered its password field");
-        app.Agent.SetValue(password, Seeded);
+        app.Agent.SetText(password, Seeded);
         app.Agent.Invoke(app.Agent.Find(Filter.ById("ConnectButton", "Button"))!);
         flow.CompleteSetupPrompts();
         AssertSignedIn(app, flow, "the password was right");

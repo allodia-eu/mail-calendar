@@ -31,7 +31,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
         {
             if (app.Agent.Find(Filter.ById("DetectEmail", "Edit")) is { } box)
             {
-                app.Agent.SetValue(box, "");
+                app.Agent.SetText(box, "");
             }
         });
 
@@ -113,7 +113,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
         // declining; Continue itself is not pressed, which would leave the screen.
         var box = Field(app, "DetectEmail", "Edit");
         Assert.True(box.Enabled, "the address field is never gated behind an answer to the card (rule 1)");
-        app.Agent.SetValue(box, "someone@example.com");
+        app.Agent.SetText(box, "someone@example.com");
         Assert.True(App.Eventually(() => app.Agent.Find(Filter.ById("ContinueButton", "Button")) is { Enabled: true }, TimeSpan.FromSeconds(3)),
             "an address alone is enough to continue: there is no confirmation and no second ask");
     });
@@ -124,7 +124,7 @@ public sealed class OnboardingTests(FirstRunApp firstRun) : IClassFixture<FirstR
         // "Set up manually" is the one way onto the second step that needs no network, and whatever
         // that step is, the address is one action back (docs/account-autodetect.md, rule 12).
         const string address = "someone@example.com";
-        app.Agent.SetValue(Field(app, "DetectEmail", "Edit"), address);
+        app.Agent.SetText(Field(app, "DetectEmail", "Edit"), address);
         app.Agent.Invoke(Field(app, "ManualButton", "Button"));
         Assert.True(app.Agent.Wait(Filter.ById("ImapHost", "Edit"), TimeSpan.FromSeconds(5)) is not null, "Set up manually opens the manual form");
         var back = app.Agent.Find(Filter.ById("BackButton", "Button"));
