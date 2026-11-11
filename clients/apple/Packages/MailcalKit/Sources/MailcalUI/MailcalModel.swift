@@ -244,12 +244,9 @@ final class MailboxModel {
     /// One-shot on purpose: a flag left set would open the setup sheet the next time somebody
     /// merely closed Settings.
     var addAccountWhenSettingsCloses = false
-    /// What the person's other devices have to say about their mail accounts. Empty until a pass
-    /// has run, which is not the same as a pass that found nothing.
-    var allodiaSync = AllodiaSyncState()
-    /// How each account is shared with the other devices, keyed by account id, what the
-    /// per-account three-position control draws. A local read; it never asks the service.
-    var accountsSyncMode: [String: AllodiaAccountSyncMode] = [:]
+    /// What the person's other devices have to say about this device's accounts, as the core
+    /// keeps it; `nil` draws nothing.
+    var allodiaDevices: AllodiaDevices?
     /// A setup/connect error to surface on the form (invalid fields or a failed login).
     var setupError: String?
     /// The certificate a server presented that could not be verified, when that is why the

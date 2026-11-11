@@ -295,6 +295,32 @@ enum AccountSettingsLabels {
         }
     }
 
+    /// What another device did to one of this device's accounts, as the card asks about it.
+    static func elsewhere(_ question: AllodiaDevicesQuestion) -> String {
+        switch question.elsewhere {
+        case .changed: L10n.settings_allodia_changed_elsewhere(email: question.email)
+        case .removed: L10n.settings_allodia_removed_elsewhere(email: question.email)
+        }
+    }
+
+    /// Why a change to how an account is shared did not take, under its control or its question.
+    static func sharingFailed(_ failure: AllodiaSyncFailure) -> String {
+        switch failure {
+        case .unavailable: L10n.settings_account_sync_failed()
+        case .needsReauth: L10n.settings_allodia_reauth()
+        case .signedOut: L10n.settings_allodia_signed_out_elsewhere()
+        }
+    }
+
+    /// What each sharing position does, said under the control for the position in force.
+    static func sharingHint(_ mode: AllodiaAccountSyncMode) -> String {
+        switch mode {
+        case .on: L10n.settings_account_sync_on_hint()
+        case .paused: L10n.settings_account_sync_paused_hint()
+        case .off: L10n.settings_account_sync_off_hint()
+        }
+    }
+
     /// What removing the account does, naming the accounts that lose their link to it.
     static func removal(_ entry: AccountEntry) -> String {
         removal(address: name(entry), unlinked: AccountSettingsRules.unlinked(entry))

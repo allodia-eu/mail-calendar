@@ -75,19 +75,14 @@ extension MailboxModel {
     private func didOpen(_ app: MailcalApp, dataDir: String, dataDirName: String) {
         self.app = app
         excludeMailStoreFromBackup(dataDir: dataDir)
-        // Where this device remembers what it has synced with the account service. Installed
-        // before anything can ask for a pass; unlike the Keychain writer above it is not
-        // racing a dial, because nothing syncs until somebody asks.
+        // Where this device remembers what it has synced with the account service. The core
+        // starts the other devices' pass once it has it, off this thread.
         installAllodiaSyncStore(app)
         // The App Store side of a subscription. Started at launch rather than when the
         // subscription screen opens, because a renewal, a refund, an Ask to Buy approved by a
         // parent and a purchase made on another device all arrive on the updates stream and
         // nowhere else, and one nobody is listening for is one nobody attaches.
         startAllodiaPurchases(app)
-        // What the person's other devices have to say. Detached, because the pass blocks on
-        // the network and nothing on screen waits for it.
-        readAccountsSynced()
-        Task { await syncAllodiaAccounts() }
         #if os(iOS)
         // Expose the live core to the background-sync task so a BGAppRefreshTask reuses this
         // instance instead of opening a second store/runtime while the app is merely suspended

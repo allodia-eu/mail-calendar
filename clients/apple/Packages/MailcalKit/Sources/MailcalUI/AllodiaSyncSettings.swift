@@ -8,19 +8,18 @@
 import MailcalBindings
 import SwiftUI
 
-/// Offers to set up, accounts that moved elsewhere, and accounts removed elsewhere.
+/// Offers to set up, accounts that moved elsewhere, and accounts removed elsewhere, as the core's
+/// `allodiaDevices` has them.
 ///
-/// Draws nothing at all when there is nothing to say, including before the first pass has run,
-/// which must not look like a pass that found nothing.
+/// Draws nothing before the first pass has answered, and nothing once one answered with nothing:
+/// a heading over an empty list claims something this screen has no reason to say.
 struct AllodiaSyncSettings: View {
     var model: MailboxModel
-    /// Opens the setup flow with the address already typed.
     /// Sets an offered account up on the route its record names, not the address alone.
     let setUp: (AllodiaAccountOffer) -> Void
 
     var body: some View {
-        let state = model.allodiaSync
-        if state.checking || state.failure != nil || state.hasSomethingToSay {
+        if let devices = model.allodiaDevices, !devices.nothingFound {
             GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
                     Text(L10n.settings_allodia_sync_heading()).font(.headline)
@@ -28,9 +27,9 @@ struct AllodiaSyncSettings: View {
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    content(state)
-                    if state.failure != nil {
-                        failureView(state.health)
+                    content(devices)
+                    if let failure = devices.failure {
+                        failureView(failure)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,17 +38,13 @@ struct AllodiaSyncSettings: View {
         }
     }
 
-    /// What a failed pass is allowed to put on screen.
-    ///
-    /// The core's typed answer decides, never the failure's text. A grant that predates a
-    /// permission and one the service revoked are different sentences with different remedies, and
-    /// everything else says nothing about the sign-in at all, so it gets one plain line, and the
-    /// detail stays in the diagnostic log. There is no longer a path from an error's text to a
-    /// screen, which is what put `invalid_scope, unable to issue scope mailcal:accounts:read` in
-    /// front of somebody.
+    /// What a failed pass is allowed to put on screen: the core's typed answer, never a failure's
+    /// text. A grant that predates a permission and one the service revoked are different
+    /// sentences with different remedies; everything else gets one plain line, and the detail
+    /// stays in the diagnostic log.
     @ViewBuilder
-    private func failureView(_ health: AllodiaGrantHealth) -> some View {
-        switch health {
+    private func failureView(_ failure: AllodiaSyncFailure) -> some View {
+        switch failure {
         case .needsReauth:
             // An offer, not an error: they are signed in and one feature is asleep.
             VStack(alignment: .leading, spacing: 6) {
@@ -69,7 +64,7 @@ struct AllodiaSyncSettings: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button(L10n.settings_allodia_sign_in()) { signInAgain() }
             }
-        case .ok:
+        case .unavailable:
             Text(L10n.settings_allodia_sync_unavailable())
                 .font(.caption)
                 .foregroundStyle(.red)
@@ -79,54 +74,61 @@ struct AllodiaSyncSettings: View {
 
     /// The ordinary sign-in again, which is the whole remedy for both states: it asks for the full
     /// current scope set every time, so it widens a grant that predates one and replaces a grant
-    /// the service refused.
+    /// the service refused. The core runs the pass once it is stored.
     private func signInAgain() {
-        Task {
-            if case .signedIn = await model.signInToAllodia() {
-                await model.syncAllodiaAccounts()
-            }
-        }
+        Task { _ = await model.signInToAllodia() }
     }
 
     @ViewBuilder
-    private func content(_ state: AllodiaSyncState) -> some View {
+    private func content(_ devices: AllodiaDevices) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            if state.checking {
+            if devices.checking {
                 HStack(spacing: 8) {
                     ProgressView().controlSize(.small)
                     Text(L10n.settings_allodia_sync_checking()).foregroundStyle(.secondary)
                 }
             }
-            if let report = state.report {
-                ForEach(report.offers, id: \.id) { offer in
-                    HStack {
-                        Text(offer.email)
-                        Spacer()
-                        Button(L10n.settings_allodia_sync_set_up()) { setUp(offer) }
-                    }
+            ForEach(devices.offers, id: \.id) { offer in
+                HStack {
+                    Text(offer.email)
+                    Spacer()
+                    Button(L10n.settings_allodia_sync_set_up()) { setUp(offer) }
                 }
-                // Both of these are questions, and the only answer this device can act on today is
-                // "keep what I have". Applying the other side's settings needs a path for editing
-                // a connected account's server details, which does not exist yet.
-                ForEach(report.changedElsewhere, id: \.accountId) { change in
-                    question(L10n.settings_allodia_changed_elsewhere(email: change.email), change)
-                }
-                ForEach(report.removedElsewhere, id: \.accountId) { change in
-                    question(L10n.settings_allodia_removed_elsewhere(email: change.email), change)
-                }
+            }
+            // The only answer this device can act on is "keep what I have". Applying the other
+            // side's settings needs a path for editing a connected account's server details, which
+            // does not exist yet.
+            ForEach(devices.questions, id: \.accountId) { question in
+                questionRow(question)
             }
         }
     }
 
-    @ViewBuilder
-    private func question(_ text: String, _ change: AllodiaAccountChange) -> some View {
+    private func questionRow(_ question: AllodiaDevicesQuestion) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            // "Keep what I have" is Paused: the other devices keep the account, and this one
-            // stops exchanging changes about it, which is exactly what the question asked.
-            Button(L10n.settings_allodia_keep_local()) {
-                Task { await model.setAllodiaAccountSyncMode(change.accountId, .paused) }
+            Text(AccountSettingsLabels.elsewhere(question))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            // "Keep what I have" pauses the account's sharing: the other devices keep it, and
+            // this one stops exchanging changes about it, which is what the question asked.
+            ControlButton(title: L10n.settings_allodia_keep_local(), control: question.keep) {
+                model.changeAccount(.setSharing(account: question.accountId, mode: .paused))
+            }
+            if let failed = question.failed {
+                SharingFailedLine(failure: failed)
             }
         }
+    }
+}
+
+/// Why a sharing change did not take, as a plain line under what it was asked from.
+struct SharingFailedLine: View {
+    let failure: AllodiaSyncFailure
+
+    var body: some View {
+        Text(AccountSettingsLabels.sharingFailed(failure))
+            .font(.caption)
+            .foregroundStyle(.red)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }

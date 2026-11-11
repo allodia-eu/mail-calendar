@@ -141,11 +141,10 @@ struct AllodiaAccountSettings: View {
             let outcome = await model.signInToAllodia(create: create)
             signingIn = false
             switch outcome {
+            // The core tells the person's other devices of this device's accounts, and asks
+            // what they hold, as soon as the sign-in is stored.
             case let .signedIn(signedIn):
                 account = signedIn
-                // The first thing a new sign-in is for: this device's accounts go up, and whatever
-                // the person's other devices hold comes back.
-                await model.syncAllodiaAccounts()
             // A dismissed browser is not a failure, say nothing and leave the button as it was.
             case .cancelled: break
             case let .failed(error): failure = error
@@ -158,8 +157,5 @@ struct AllodiaAccountSettings: View {
     private func signOut() {
         failure = model.signOutOfAllodia()
         account = model.currentAllodiaAccount()
-        // Nothing left to say about other devices once this one is signed out of the account that
-        // linked them.
-        model.allodiaSync = AllodiaSyncState()
     }
 }
