@@ -20,11 +20,12 @@ struct AccountSetupScreen: View {
     var firstRun: Bool
 
     var body: some View {
-        if model.setupFlow.uses != nil {
+        let flow = model.setupFlowShown
+        if flow.uses != nil {
             SetupUsesStepView(model: model)
-        } else if let ask = model.setupFlow.separateServer {
+        } else if let ask = flow.separateServer {
             SeparateServerStepView(model: model, ask: model.separateServers[.setup] ?? ask)
-        } else if model.setupFlow.links != nil {
+        } else if flow.links != nil {
             SetupLinkStepView(model: model)
         } else {
             // A fresh view whenever the link step hands back to it, so "Add another account"

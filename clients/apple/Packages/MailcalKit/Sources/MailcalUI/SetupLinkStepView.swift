@@ -11,7 +11,7 @@ struct SetupLinkStepView: View {
 
     var body: some View {
         SetupScaffold {
-            if let step = model.setupFlow.links {
+            if let step = model.setupFlowShown.links {
                 Text(L10n.setup_links_title()).font(.title2).bold()
                 Text(L10n.settings_account_links_description())
                     .font(.callout).foregroundStyle(.secondary)

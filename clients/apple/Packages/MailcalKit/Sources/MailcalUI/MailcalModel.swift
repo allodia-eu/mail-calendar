@@ -217,6 +217,9 @@ final class MailboxModel {
     /// What follows a connect: the link step, and the accounts added on the way
     /// (MailcalModel.SetupFlow.swift).
     var setupFlow = SetupFlow()
+    /// The flow as setup's sheet last drew it, kept while that sheet goes away and dropped when
+    /// setup's screen is next shown: see `setupFlowShown`.
+    var setupFlowLeaving: SetupFlow?
     /// The link step's picks are being stored; each stored link signals the core, which must not
     /// redraw the step under the person meanwhile.
     var savingSetupLinks = false
@@ -229,10 +232,10 @@ final class MailboxModel {
     /// What a sign-in's grant withheld, said once setup and its name prompts are done.
     @ObservationIgnored var withheldWaiting: AccountPageNotice?
     /// `true` when no account is configured yet, the host shows the full-screen setup form.
-    var needsSetup = false
+    var needsSetup = false { didSet { if needsSetup { setupFlowLeaving = nil } } }
     /// `true` while the user is adding another account (the setup form as a sheet over the
     /// running app).
-    var addingAccount = false
+    var addingAccount = false { didSet { if addingAccount { setupFlowLeaving = nil } } }
     /// The address an account offered by one of the person's other devices is for, so the setup
     /// sheet opens with the typing done. Empty for every other way in.
     var setupStartEmail = ""
