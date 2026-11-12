@@ -1,152 +1,268 @@
 // SPDX-FileCopyrightText: 2026 Allodia
 // SPDX-License-Identifier: GPL-3.0-only
 
-//! The account-screen FFI methods on [`MailcalApp`]. The records they carry are in
-//! [`crate::allodia_subscription`], and the rules they apply are `purchasing.md`'s, the contract
-//! beside the Allodia Licence.
+//! The Allodia account's subscription section, run by the core (`purchasing.md`, "The account
+//! screen"; `docs/waiting.md`): one read that answers the section, kept for the signed-in
+//! account, and four writes that only ever touch **Allodia's own** subscription, each a
+//! `AllodiaIntent` that returns at once. A store's subscription is changed at that store, and the
+//! section names its page.
 //!
-//! Five calls: one read that answers the whole screen, and four writes that only ever touch
-//! **Allodia's own** subscription. A store's is changed at that store, and the read hands back the
-//! page to open.
-//!
-//! **All five block.** Each makes a token round trip and a request, so a host calls them off the
-//! main thread, exactly as it already does for `sync_allodia_accounts`.
+//! Each call makes a token round trip and a request, so each runs on a thread of the core's own
+//! and ends in `Surface::Allodia`. A write is followed by a read, because the service recomputes
+//! every biller and only it knows what a write did; the write's control runs until that read
+//! lands.
+
+use std::sync::Arc;
 
 use crate::{
-    MailcalApp,
-    allodia_purchase::{AllodiaPlan, AllodiaPurchaseError},
-    allodia_subscription::{
-        AllodiaCancellation, AllodiaCheckout, AllodiaIntervalChange, AllodiaSubscription,
-    },
+    AllodiaPlan, AllodiaPurchaseError, AllodiaSubscriptionCard, AllodiaSubscriptionOutcome,
+    AllodiaSubscriptionState, MailcalApp,
+    allodia_subscription_card::{Answer, Write},
+    allodia_subscription_facts as facts,
 };
 
 #[uniffi::export]
 impl MailcalApp {
-    /// Everything the Allodia account screen needs, in one read.
+    /// The subscription section: read again after every `Surface::Allodia` signal. Local and
+    /// cheap; the page that draws it sends `AllodiaIntent::RefreshSubscription` when it opens.
     ///
-    /// ⚠️ **Not what gates a capability.** This is what the screen *says*; what to switch on comes
-    /// from the entitlement, which is cached and never blocks. Reading this to decide whether a
-    /// feature is on would put a network call in front of it.
-    ///
-    /// **Blocking.** Call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// [`AllodiaPurchaseError::Unavailable`] in a build with no Allodia registration,
-    /// [`AllodiaPurchaseError::NotSignedIn`] when nobody is signed in,
-    /// [`AllodiaPurchaseError::NeedsReauth`] when the stored sign-in predates the permission,
-    /// [`AllodiaPurchaseError::SignedOut`] when the service refused the stored sign-in, and
-    /// [`AllodiaPurchaseError::Unreachable`] when the service could not be asked.
-    pub fn allodia_subscription(&self) -> Result<AllodiaSubscription, AllodiaPurchaseError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            Err(AllodiaPurchaseError::Unavailable)
+    /// ⚠️ **Not what gates a capability.** This is what the section *says*; what to switch on
+    /// comes from the entitlement, which is cached and never blocks.
+    #[must_use]
+    pub fn allodia_subscription_card(&self) -> AllodiaSubscriptionCard {
+        let hidden = AllodiaSubscriptionCard {
+            state: AllodiaSubscriptionState::Hidden,
+            outcome: None,
+            checkout_page: None,
+        };
+        let Some(account) = self.allodia_account() else {
+            return hidden;
+        };
+        if self.allodia_sign_in_ended().is_some() {
+            return hidden;
         }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.read_allodia_subscription()
+        let held = self.account_work.subscription.snapshot(&account.email);
+        let state = match held.answer {
+            None => AllodiaSubscriptionState::Checking,
+            Some(Answer::Unavailable) => AllodiaSubscriptionState::Unavailable,
+            Some(Answer::NeedsReauth) => AllodiaSubscriptionState::NeedsReauth,
+            Some(Answer::Loaded(subscription)) => AllodiaSubscriptionState::Loaded {
+                view: facts::view(&subscription, held.writing, held.reading),
+            },
+        };
+        AllodiaSubscriptionCard {
+            state,
+            outcome: held.outcome,
+            checkout_page: held.page,
+        }
+    }
+}
+
+impl MailcalApp {
+    /// The signed-in account a read or write is for, when the section is drawn at all.
+    fn subscription_account(&self) -> Option<String> {
+        let account = self.allodia_account()?;
+        self.allodia_sign_in_ended()
+            .is_none()
+            .then_some(account.email)
+    }
+
+    /// Reads the subscription because the page drawing it asked.
+    pub(crate) fn refresh_subscription(self: Arc<Self>) {
+        let Some(account) = self.subscription_account() else {
+            return;
+        };
+        if let Some(ticket) = self.account_work.subscription.begin_read(&account) {
+            self.spawn_read(account, ticket, false);
         }
     }
 
-    /// Get a payment page for a new subscription, to open in a **browser**.
+    /// Reads the subscription again after a sign-in, when it had been asked for.
+    pub(crate) fn reread_subscription(self: Arc<Self>) {
+        let Some(account) = self.subscription_account() else {
+            return;
+        };
+        if self.account_work.subscription.asked(&account) {
+            let ticket = self.account_work.subscription.begin_reread(&account);
+            self.spawn_read(account, ticket, false);
+        }
+    }
+
+    fn spawn_read(self: Arc<Self>, account: String, ticket: u64, ends_write: bool) {
+        self.app.allodia_changed();
+        std::thread::spawn(move || {
+            let answer = self.read_answer();
+            self.account_work
+                .subscription
+                .read(&account, ticket, answer);
+            if ends_write {
+                self.account_work.subscription.write_ended(&account);
+            }
+            self.app.allodia_changed();
+        });
+    }
+
+    /// One read, on the caller's thread.
+    fn read_answer(&self) -> Answer {
+        match self.fetch_allodia_subscription() {
+            Ok(subscription) => Answer::Loaded(Box::new(subscription)),
+            Err(AllodiaPurchaseError::NeedsReauth) => Answer::NeedsReauth,
+            Err(error) => {
+                // The refused sign-in is the account card's to say; anything else costs a
+                // sentence, never access.
+                log::warn!("allodia: the subscription read did not come back ({error})");
+                Answer::Unavailable
+            }
+        }
+    }
+
+    /// Runs `write` when the section offers it now, then reads again.
+    pub(crate) fn write_subscription(self: Arc<Self>, write: Write) {
+        let Some(account) = self.subscription_account() else {
+            return;
+        };
+        let offered = match self.allodia_subscription_card().state {
+            AllodiaSubscriptionState::Loaded { view } => facts::permits(&view, write),
+            _ => false,
+        };
+        if !offered || !self.account_work.subscription.begin_write(&account, write) {
+            log::info!("allodia: {} was not on offer", asked(write));
+            return;
+        }
+        self.app.allodia_changed();
+        std::thread::spawn(move || {
+            let currency = self.held_currency(&account);
+            let (outcome, page) = self.run_write(write, currency);
+            self.account_work
+                .subscription
+                .wrote(&account, outcome, page);
+            let ticket = self.account_work.subscription.begin_reread(&account);
+            self.spawn_read(account, ticket, true);
+        });
+    }
+
+    /// The currency the account is billed in, which the service sends only with today's prices.
+    fn held_currency(&self, account: &str) -> String {
+        match self.account_work.subscription.snapshot(account).answer {
+            Some(Answer::Loaded(subscription)) => subscription.prices.currency,
+            _ => String::new(),
+        }
+    }
+
+    /// One write, on the caller's thread: what it came to and a payment page to open.
     ///
-    /// For the builds that sell through Allodia: Windows, Linux and the direct macOS download. On
-    /// iOS and Android the store's own purchase is required, and `link_allodia_purchases` attaches
-    /// the result.
-    ///
-    /// A client checks `actions.can_start_checkout` first; this refuses otherwise, which is what
-    /// stops it selling a second subscription to somebody a store is already charging.
-    ///
-    /// **Blocking.** Call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// As [`MailcalApp::allodia_subscription`], plus
-    /// [`AllodiaPurchaseError::Refused`] carrying why.
-    pub fn start_allodia_checkout(
+    /// ⚠️ Logged as the verb, the period and how it ended: never an amount, a date or the page,
+    /// whose URL is a payment session minted for this person.
+    fn run_write(
         &self,
-        plan: AllodiaPlan,
-    ) -> Result<AllodiaCheckout, AllodiaPurchaseError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            let _ = plan;
-            Err(AllodiaPurchaseError::Unavailable)
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.run_allodia_checkout(plan)
+        write: Write,
+        currency: String,
+    ) -> (Option<AllodiaSubscriptionOutcome>, Option<String>) {
+        let failed = |error: &AllodiaPurchaseError| {
+            let failure = facts::write_failure(error);
+            log::warn!("allodia: {} did not go through ({failure:?})", asked(write));
+            (Some(AllodiaSubscriptionOutcome::Failed { failure }), None)
+        };
+        let page = |url: Option<String>| match url.filter(|url| !url.is_empty()) {
+            Some(url) => {
+                log::info!("allodia: {} was opened in the browser", asked(write));
+                (None, Some(url))
+            }
+            None => failed(&AllodiaPurchaseError::Unreachable),
+        };
+        let accepted = |outcome| {
+            log::info!("allodia: {} was accepted", asked(write));
+            (Some(outcome), None)
+        };
+        match write {
+            Write::Checkout(plan) => match self.allodia_checkout(plan) {
+                Ok(checkout) => page(checkout.checkout_url),
+                Err(error) => failed(&error),
+            },
+            Write::Cancel => match self.allodia_cancel() {
+                Ok(end_date) => accepted(AllodiaSubscriptionOutcome::Cancelled { end_date }),
+                Err(error) => failed(&error),
+            },
+            Write::Resubscribe => match self.allodia_resubscribe() {
+                Ok(checkout) if checkout.reactivated => {
+                    accepted(AllodiaSubscriptionOutcome::Restarted)
+                }
+                Ok(checkout) => page(checkout.checkout_url),
+                Err(error) => failed(&error),
+            },
+            Write::Switch(plan) => match self.allodia_switch(plan) {
+                Ok(change) => accepted(AllodiaSubscriptionOutcome::Switched {
+                    next_payment_date: change.next_payment_date,
+                    amount_in_cents: change.amount_in_cents,
+                    currency,
+                }),
+                Err(error) => failed(&error),
+            },
         }
     }
+}
 
-    /// Stop the recurring charge, keeping everything until the period already paid for runs out.
-    ///
-    /// ⚠️ Only Allodia's own subscription. One bought through a store is cancelled at that store,
-    /// and its `manage_url` is where to send the person.
-    ///
-    /// **Blocking.** Call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// As [`MailcalApp::allodia_subscription`], plus
-    /// [`AllodiaPurchaseError::Refused`] carrying why.
-    pub fn cancel_allodia_subscription(&self) -> Result<AllodiaCancellation, AllodiaPurchaseError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            Err(AllodiaPurchaseError::Unavailable)
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.run_allodia_cancel()
-        }
+/// What a write is called in the diagnostic log.
+fn asked(write: Write) -> String {
+    match write {
+        Write::Checkout(plan) => format!("a {plan:?} checkout"),
+        Write::Cancel => "a cancellation".to_owned(),
+        Write::Resubscribe => "a restart".to_owned(),
+        Write::Switch(plan) => format!("a change to {plan:?}"),
     }
+}
 
-    /// Move between the monthly and the yearly plan.
-    ///
-    /// ⚠️ **Changes the next charge and nothing else.** No money moves today, nothing is refunded,
-    /// and the period already paid for runs on untouched. Say so before asking anybody to confirm:
-    /// the switch is otherwise silent until a date that may be a month away.
-    ///
-    /// **Blocking.** Call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// As [`MailcalApp::allodia_subscription`], plus
-    /// [`AllodiaPurchaseError::Refused`] carrying why.
-    pub fn switch_allodia_interval(
+/// The five calls in a build without the Allodia account: each refuses before any network.
+#[cfg(not(feature = "allodia-license"))]
+impl MailcalApp {
+    #[expect(
+        clippy::unused_self,
+        reason = "the same signature as the build that reads"
+    )]
+    fn fetch_allodia_subscription(
         &self,
-        plan: AllodiaPlan,
-    ) -> Result<AllodiaIntervalChange, AllodiaPurchaseError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            let _ = plan;
-            Err(AllodiaPurchaseError::Unavailable)
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.run_allodia_switch(plan)
-        }
+    ) -> Result<crate::allodia_subscription::AllodiaSubscription, AllodiaPurchaseError> {
+        Err(AllodiaPurchaseError::Unavailable)
     }
 
-    /// Start a cancelled subscription again.
-    ///
-    /// Comes back either restarted on the authorisation already held, with nothing to pay and
-    /// nothing to re-enter, or with a page to open. A client draws both.
-    ///
-    /// **Blocking.** Call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// As [`MailcalApp::allodia_subscription`], plus
-    /// [`AllodiaPurchaseError::Refused`] carrying why.
-    pub fn resubscribe_to_allodia(&self) -> Result<AllodiaCheckout, AllodiaPurchaseError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            Err(AllodiaPurchaseError::Unavailable)
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.run_allodia_resubscribe()
-        }
+    #[expect(
+        clippy::unused_self,
+        reason = "the same signature as the build that writes"
+    )]
+    fn allodia_checkout(
+        &self,
+        _plan: AllodiaPlan,
+    ) -> Result<crate::allodia_subscription::AllodiaCheckout, AllodiaPurchaseError> {
+        Err(AllodiaPurchaseError::Unavailable)
+    }
+
+    #[expect(
+        clippy::unused_self,
+        reason = "the same signature as the build that writes"
+    )]
+    fn allodia_cancel(&self) -> Result<String, AllodiaPurchaseError> {
+        Err(AllodiaPurchaseError::Unavailable)
+    }
+
+    #[expect(
+        clippy::unused_self,
+        reason = "the same signature as the build that writes"
+    )]
+    fn allodia_switch(
+        &self,
+        _plan: AllodiaPlan,
+    ) -> Result<crate::allodia_subscription::AllodiaIntervalChange, AllodiaPurchaseError> {
+        Err(AllodiaPurchaseError::Unavailable)
+    }
+
+    #[expect(
+        clippy::unused_self,
+        reason = "the same signature as the build that writes"
+    )]
+    fn allodia_resubscribe(
+        &self,
+    ) -> Result<crate::allodia_subscription::AllodiaCheckout, AllodiaPurchaseError> {
+        Err(AllodiaPurchaseError::Unavailable)
     }
 }
 
@@ -154,13 +270,17 @@ impl MailcalApp {
 mod calls {
     use allodia_license::{AccountService, Error, Feature};
 
-    use super::{
-        AllodiaCancellation, AllodiaCheckout, AllodiaIntervalChange, AllodiaPlan,
-        AllodiaPurchaseError, AllodiaSubscription,
+    use super::{AllodiaPlan, AllodiaPurchaseError};
+    use crate::{
+        AllodiaGrantHealth, MailcalApp,
+        allodia_subscription::{AllodiaCheckout, AllodiaIntervalChange, AllodiaSubscription},
+        allodia_transport::HttpsTransport,
     };
-    use crate::{AllodiaGrantHealth, MailcalApp, allodia_transport::HttpsTransport};
 
     /// Everything a call needs, gathered once so each of the five reads down the page.
+    ///
+    /// **Each blocks**, on a token round trip and a request: called on a thread of the core's
+    /// own.
     struct Ready {
         service: AccountService,
         transport: HttpsTransport,
@@ -191,7 +311,7 @@ mod calls {
             })
         }
 
-        pub(super) fn read_allodia_subscription(
+        pub(super) fn fetch_allodia_subscription(
             &self,
         ) -> Result<AllodiaSubscription, AllodiaPurchaseError> {
             let ready = self.ready(Feature::ReadSubscription)?;
@@ -203,7 +323,7 @@ mod calls {
             Ok(subscription.into())
         }
 
-        pub(super) fn run_allodia_checkout(
+        pub(super) fn allodia_checkout(
             &self,
             plan: AllodiaPlan,
         ) -> Result<AllodiaCheckout, AllodiaPurchaseError> {
@@ -215,18 +335,17 @@ mod calls {
                 .map_err(|error| self.classify_allodia_failure(&error))
         }
 
-        pub(super) fn run_allodia_cancel(
-            &self,
-        ) -> Result<AllodiaCancellation, AllodiaPurchaseError> {
+        /// What has been paid through, and so when access ends.
+        pub(super) fn allodia_cancel(&self) -> Result<String, AllodiaPurchaseError> {
             let ready = self.ready(Feature::WriteSubscription)?;
             ready
                 .service
                 .cancel_subscription(&ready.transport, &ready.token)
-                .map(Into::into)
+                .map(|cancelled| cancelled.end_date)
                 .map_err(|error| self.classify_allodia_failure(&error))
         }
 
-        pub(super) fn run_allodia_switch(
+        pub(super) fn allodia_switch(
             &self,
             plan: AllodiaPlan,
         ) -> Result<AllodiaIntervalChange, AllodiaPurchaseError> {
@@ -238,9 +357,7 @@ mod calls {
                 .map_err(|error| self.classify_allodia_failure(&error))
         }
 
-        pub(super) fn run_allodia_resubscribe(
-            &self,
-        ) -> Result<AllodiaCheckout, AllodiaPurchaseError> {
+        pub(super) fn allodia_resubscribe(&self) -> Result<AllodiaCheckout, AllodiaPurchaseError> {
             let ready = self.ready(Feature::WriteSubscription)?;
             ready
                 .service

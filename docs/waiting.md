@@ -107,6 +107,16 @@ Cancel. Sign-out is `AllodiaIntent::SignOut`, run off the UI thread, its button 
 and the service's own sign-out page named once in `end_session`. Whether someone is signed in or
 their sign-in has ended is the card's `state`, what a sign-in or sign-out came to its `failure`,
 and the first-run card's progress, its way back included, its `onboarding`.
+The Allodia account's subscription is the core's too (`MailcalApp::allodia_subscription_card`,
+read again on `Surface::Allodia`), kept for the account signed in and forgotten with it. The page
+that draws it sends `AllodiaIntent::RefreshSubscription` when it opens, and a desktop again when
+its window comes back from the checkout browser; a phone again when the app returns to the front.
+A read asked for while one runs is answered by it. Each write (`StartCheckout`, `CancelSubscription`,
+`Resubscribe`, `SwitchInterval`) is an `AllodiaIntent` the core refuses unless the card offers it,
+and its control runs, every other held, from the press until the read that follows it lands; what
+it came to is the card's `outcome`, and a payment page it handed back its `checkout_page`, opened
+once per id. Buying from a phone's own store stays the client's, since no Rust can call StoreKit
+or Play.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -142,6 +152,7 @@ record, not a state the client keeps.
 | An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's sharing and the other devices' card: drawn from `account_page` and `allodia_devices`, a change sent as a page change, the pass run by the core | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia account's sign-in and sign-out: drawn from `allodia_card`, run by the core as `AllodiaIntent`s, the sign-in as its one browser sign-in | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | 🚧 | 🚧 | 🚧 | 🚧 | ✅ |
 
 ## Enforcement
 
@@ -206,6 +217,13 @@ record, not a state the client keeps.
   drives it through the app: no card or control while nobody is signed in, a pass when the
   bookkeeping arrives, Keep pausing the account through `dispatch`, and no control for an account
   the other devices cannot hold.
+- [`allodia_subscription_facts_tests.rs`](../crates/mailcal-bindings/src/allodia_subscription_facts_tests.rs)
+  pins what the subscription section shows: who is billing and which store pages are offered, a
+  status nobody can name granting nothing, renewal and grace, no write the service did not permit,
+  and a running write holding every control;
+  [`allodia_subscription_card_tests.rs`](../crates/mailcal-bindings/src/allodia_subscription_card_tests.rs)
+  pins one read at a time, a write held until the read after it, an older read landing late
+  dropped, and nothing landing for an account that has left.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

@@ -10,9 +10,11 @@
 
 use std::sync::mpsc;
 
+#[cfg(feature = "allodia-license")]
+use crate::AllodiaPurchaseError;
 use crate::{
     LogLevel, MailcalApp,
-    allodia_purchase::{AllodiaPlan, AllodiaPurchaseError},
+    allodia_purchase::AllodiaPlan,
     tests::{ChannelObserver, NullLogger},
 };
 
@@ -26,34 +28,66 @@ fn app() -> std::sync::Arc<MailcalApp> {
     )
 }
 
-/// Every one of the five is refused the same way when there is nobody to act for, and none of them
-/// reaches the network to find that out.
-///
-/// A build with no Allodia registration says [`AllodiaPurchaseError::Unavailable`], which is the
-/// ordinary answer for every build from source; one that has a registration but nobody signed in
-/// says [`AllodiaPurchaseError::NotSignedIn`]. Either way the screen draws nothing rather than a
-/// row of buttons that dead-end.
+/// Nobody signed in draws no section, and no intent reaches the network to find that out: a
+/// build from source, with no Allodia registration, answers the same way.
 #[test]
-fn every_call_refuses_before_it_reaches_the_network() {
-    let app = app();
-    let refusals = [
-        app.allodia_subscription().err(),
-        app.start_allodia_checkout(AllodiaPlan::Yearly).err(),
-        app.cancel_allodia_subscription().err(),
-        app.switch_allodia_interval(AllodiaPlan::Monthly).err(),
-        app.resubscribe_to_allodia().err(),
-    ];
+fn nobody_signed_in_draws_nothing_and_starts_nothing() {
+    use crate::{AllodiaIntent, AllodiaSubscriptionState, Intent};
 
-    for refused in refusals {
-        let refused = refused.expect("nothing here can act yet");
-        #[cfg(not(feature = "allodia-license"))]
-        assert!(matches!(refused, AllodiaPurchaseError::Unavailable));
-        #[cfg(feature = "allodia-license")]
-        assert!(
-            matches!(refused, AllodiaPurchaseError::NotSignedIn),
-            "{refused:?}"
-        );
+    let app = app();
+    for intent in [
+        AllodiaIntent::RefreshSubscription,
+        AllodiaIntent::StartCheckout {
+            plan: AllodiaPlan::Yearly,
+        },
+        AllodiaIntent::CancelSubscription,
+        AllodiaIntent::SwitchInterval {
+            plan: AllodiaPlan::Monthly,
+        },
+        AllodiaIntent::Resubscribe,
+    ] {
+        app.dispatch(Intent::Allodia { intent });
+        let card = app.allodia_subscription_card();
+        assert_eq!(card.state, AllodiaSubscriptionState::Hidden);
+        assert_eq!(card.outcome, None);
     }
+}
+
+/// Signed in and not yet read, the section is checking and offers no write: a write the section
+/// does not offer never reaches the service, whatever a client sends.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_write_the_section_does_not_offer_is_refused_before_the_network() {
+    use crate::{AllodiaIntent, AllodiaSubscriptionState, Intent};
+
+    let app = app();
+    signed_in(&app);
+    assert_eq!(
+        app.allodia_subscription_card().state,
+        AllodiaSubscriptionState::Checking
+    );
+    app.dispatch(Intent::Allodia {
+        intent: AllodiaIntent::CancelSubscription,
+    });
+    let card = app.allodia_subscription_card();
+    assert_eq!(card.state, AllodiaSubscriptionState::Checking);
+    assert_eq!(card.outcome, None);
+}
+
+/// A sign-in the service refused draws no section: the account card says so and carries the
+/// remedy, and nothing the section could say is true until the person signs in again.
+#[cfg(feature = "allodia-license")]
+#[test]
+fn a_refused_sign_in_hides_the_section() {
+    use crate::{AllodiaGrantHealth, AllodiaSubscriptionState};
+
+    let app = app();
+    signed_in(&app);
+    app.note_allodia_health(AllodiaGrantHealth::SignedOut);
+    assert_eq!(
+        app.allodia_subscription_card().state,
+        AllodiaSubscriptionState::Hidden
+    );
 }
 
 /// Every refusal the service documents survives the trip as something a client can switch on, and

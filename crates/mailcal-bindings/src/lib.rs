@@ -40,6 +40,8 @@ mod allodia_health;
 mod allodia_pass;
 mod allodia_purchase;
 mod allodia_subscription;
+mod allodia_subscription_card;
+mod allodia_subscription_facts;
 mod allodia_sync;
 #[cfg(feature = "allodia-license")]
 mod allodia_tokens;
@@ -181,10 +183,11 @@ pub use allodia_purchase::{
     AllodiaOffer, AllodiaPlan, AllodiaPurchaseError, AllodiaPurchaseReport, AllodiaStore,
     AllodiaStoreProduct, AllodiaStorePurchase,
 };
-pub use allodia_subscription::{
-    AllodiaBiller, AllodiaCancellation, AllodiaCheckout, AllodiaIntervalChange, AllodiaOwnStatus,
-    AllodiaOwnSubscription, AllodiaPrices, AllodiaStoreStatus, AllodiaStoreSubscription,
-    AllodiaSubscription, AllodiaSubscriptionActions, AllodiaSubscriptionRefusal,
+pub use allodia_subscription::{AllodiaBiller, AllodiaPrices, AllodiaSubscriptionRefusal};
+pub use allodia_subscription_card::{
+    AllodiaCheckoutOffer, AllodiaCheckoutPage, AllodiaStorePage, AllodiaSubscriptionCard,
+    AllodiaSubscriptionOutcome, AllodiaSubscriptionState, AllodiaSubscriptionView, AllodiaSwitch,
+    AllodiaWriteFailure,
 };
 pub use allodia_sync::{AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode};
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};

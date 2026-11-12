@@ -1,9 +1,12 @@
 //! The Allodia account half of the FFI intent surface, nested behind one `Intent::Allodia`
 //! variant as the other families are. Each is handled by the binding, which holds the grant, and
-//! returns at once: the card says what runs (`AllodiaCard`) until it ends.
+//! returns at once: the card says what runs (`AllodiaCard`, `AllodiaSubscriptionCard`) until it
+//! ends.
+
+use crate::AllodiaPlan;
 
 /// A change to the Allodia account's sign-in, from its card in Settings, the first-run card or
-/// a notice.
+/// a notice, or to its subscription, from Settings.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum AllodiaIntent {
     /// Sign in in the browser, which returns to `redirect_uri`, where the client listens; with
@@ -16,4 +19,18 @@ pub enum AllodiaIntent {
     /// Sign out: the stored grant is erased, and the card names the service's own page to end
     /// its session (`AllodiaCard::end_session`).
     SignOut,
+    /// Read the subscription again: sent by the page that draws it when it opens, and when the
+    /// window comes back from the checkout browser. Dropped while a read or a write runs, which
+    /// answers for it.
+    RefreshSubscription,
+    /// Buy `plan` through Allodia's own checkout: the card names the payment page to open
+    /// (`AllodiaSubscriptionCard::checkout_page`).
+    StartCheckout { plan: AllodiaPlan },
+    /// Stop the recurring charge of Allodia's own subscription, once the person confirmed.
+    CancelSubscription,
+    /// Start a cancelled subscription again: restarted at once, or a payment page to open.
+    Resubscribe,
+    /// Move Allodia's own subscription to `plan`, once the person confirmed. Changes the next
+    /// charge and nothing else.
+    SwitchInterval { plan: AllodiaPlan },
 }
