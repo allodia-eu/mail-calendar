@@ -37,6 +37,10 @@ use crate::l10n;
 /// body-only; one file, so the two hosts cannot drift.
 pub(super) const EDITOR_HTML: &str = include_str!("../../../composer/dist/editor.html");
 
+/// The most room the composer's file list takes before it scrolls: three rows of a name over its
+/// media type and part of a fourth, which shows the list goes on.
+const FILE_LIST_CAP: i32 = 200;
+
 pub(crate) struct ComposerPane {
     root: gtk::Box,
     active_generation: Cell<Option<u64>>,
@@ -175,7 +179,17 @@ impl ComposerPane {
         content.append(&actions);
         let file_list = gtk::ListBox::new();
         file_list.add_css_class("boxed-list");
-        content.append(&file_list);
+        // Hugging its rows up to a cap and scrolling past it: left to grow, the list takes the
+        // editor's room and then the window's, and a file out of view cannot be checked or
+        // removed before sending.
+        content.append(
+            &gtk::ScrolledWindow::builder()
+                .hscrollbar_policy(gtk::PolicyType::Never)
+                .propagate_natural_height(true)
+                .max_content_height(FILE_LIST_CAP)
+                .child(&file_list)
+                .build(),
+        );
         // What the core staged (a forward's originals, a stored draft's own) and a share's files
         // on top; the picker and a drop below add to it (docs/os-integration.md).
         let files = Rc::new(RefCell::new(request.files.clone()));

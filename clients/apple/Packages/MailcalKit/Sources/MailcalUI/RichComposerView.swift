@@ -29,15 +29,25 @@ private struct RichComposerWebView: PlatformViewRepresentable {
     }
 }
 
-/// The least room the editor keeps once the header and the keyboard have taken theirs.
+/// The least room the editor keeps once the header, the files under it and the keyboard have taken
+/// theirs.
 ///
 /// Below this the message being written stops being visible at all, which is worse than making the
-/// header scroll, so past this point the column scrolls instead of shrinking further.
+/// column scroll, so past this point the column scrolls instead of shrinking further.
 ///
-/// Not a taste value: it has to clear the wrapped toolbar plus the editor's own `min-height: 180px`
-/// from the shared bundle. The host pins the document against scrolling (`RichComposerEditor`), so
-/// a frame shorter than its content would overflow with nothing able to reach it.
+/// On a touch screen it is not a taste value: it has to clear the wrapped toolbar plus the editor's
+/// own `min-height: 180px` from the shared bundle. The host pins the document against scrolling
+/// there (`RichComposerEditor`), so a frame shorter than its content would overflow with nothing
+/// able to reach it. The Mac's web view scrolls its own document.
+#if os(macOS)
+private let minimumEditorHeight: CGFloat = 240
+#else
 private let minimumEditorHeight: CGFloat = 280
+#endif
+
+/// What the composer's column spends on its own spacing: the padding at its top and bottom, and the
+/// gap either side of the editor.
+private let columnChrome: CGFloat = 16 * 2 + 12 * 2
 
 /// What the rich composer is for: its heading and its signature slot. Every mode exposes editable
 /// To/Cc/Bcc/Subject fields, opened with what the core answered (`ComposeOpening`), so the user
@@ -119,13 +129,14 @@ struct RichComposeView: View {
     /// Not `private`: RichComposerView.Attachments.swift's `attachmentList` and
     /// `chooseAttachments` read and set it too.
     @State var attachments: [PickedAttachment] = []
+    /// The file rows' natural height, so the list can hug them up to `composerAttachmentCap`.
+    @State var attachmentRowsHeight: CGFloat = 0
     /// Whether the To field takes the caret when the composer appears, the other half of
     /// `opensInBody`, so exactly one of the two is focused.
     private let focusesTo: Bool
-    #if !os(macOS)
-    /// The header's measured height, so the editor below it can take what is left of the screen.
+    /// The measured heights above and below the editor, so it can take what is left of the column.
     @State private var headerHeight: CGFloat = 0
-    #endif
+    @State private var footerHeight: CGFloat = 0
 
     init(
         title: String,
@@ -268,7 +279,7 @@ struct RichComposeView: View {
         // clip its own editor at a narrow width. Everything stretches; the editor takes the slack.
         // Send and Cancel live in the action bar above the editor now (see `actionBar`), not in a
         // row under it, so the message's actions sit together instead of straddling the body.
-        VStack(alignment: .leading, spacing: 12) {
+        composerColumn {
             // The pop-out sits at the composer's top right, where Outlook puts it: it is about the
             // composer as a whole, not an action on the message the bar below holds.
             HStack {
@@ -276,16 +287,10 @@ struct RichComposeView: View {
                 Spacer()
                 popOutButton
             }
-            composerHeader
-            RichComposerWebView(editor: editor)
-                .frame(minHeight: 240, maxHeight: .infinity)
-                .border(.quaternary)
-            composerFooter
         }
         // On the composer's outermost view, so an open recipient list clears the editor's web
         // view. Nearer the field it is sliced off at that view's top edge.
         .recipientSuggestionLayer()
-        .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .composeDraftTracking(currentHeaders) { draftChanges &+= 1 }
         .modifier(composerDrop)
@@ -340,38 +345,65 @@ struct RichComposeView: View {
         )
     }
 
+    /// The touch composer, in one scroll: `composerColumn` with nothing over its header, since the
+    /// navigation bar carries the title.
     #if !os(macOS)
-    /// The touch composer, in one scroll.
+    private var phoneComposerBody: some View {
+        composerColumn { EmptyView() }
+    }
+    #endif
+
+    /// The composer's column, in one scroll: `top` and the header, the editor, then the files and
+    /// the notes under it.
     ///
     /// The column cannot simply be laid out and left: the header grows without a ceiling (wrapped
-    /// recipient pills, an open suggestion list) while the keyboard takes roughly a third of the
-    /// screen, and the editor underneath has a floor it will not go below. Something has to give,
-    /// and without a scroll it is whatever sits at the bottom, so the toolbar clipped mid-row and
-    /// the body could not be reached at all.
+    /// recipient pills, an open suggestion list), the files under the editor take their room, a
+    /// keyboard takes roughly a third of a touch screen, and a desktop window can be short. The
+    /// editor underneath has a floor it will not go below, so something has to give, and without a
+    /// scroll it is whatever sits at the bottom: the attachment list cut off out of reach, or the
+    /// toolbar clipped mid-row.
     ///
-    /// The editor is given the height that is actually left rather than `maxHeight: .infinity`,
-    /// which inside a `ScrollView` means an unbounded web view that never stops growing.
-    @ViewBuilder private var phoneComposerBody: some View {
-        GeometryReader { proxy in
+    /// The editor is given the height that is actually left once the header and the footer are
+    /// measured, rather than `maxHeight: .infinity`, which inside a `ScrollView` means an unbounded
+    /// web view that never stops growing. While the column fits, the editor fills it and nothing
+    /// scrolls; past the floor, the column scrolls and everything in it stays reachable.
+    private func composerColumn<Top: View>(@ViewBuilder top: () -> Top) -> some View {
+        let topView = top()
+        return GeometryReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    composerHeader
-                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                            headerHeight = $0
-                        }
+                    // Each half is measured as one stack, so its height is its rows and the
+                    // spacing between them, which is what the editor has to leave room for.
+                    VStack(alignment: .leading, spacing: 12) {
+                        topView
+                        composerHeader
+                    }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        headerHeight = $0
+                    }
                     RichComposerWebView(editor: editor)
-                        .frame(height: max(minimumEditorHeight, proxy.size.height - headerHeight - 44))
+                        .frame(height: max(
+                            minimumEditorHeight,
+                            proxy.size.height - headerHeight - footerHeight - columnChrome
+                        ))
                         .border(.quaternary)
-                    composerFooter
+                    VStack(alignment: .leading, spacing: 12) {
+                        composerFooter
+                    }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        footerHeight = $0
+                    }
                 }
                 .padding(16)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            #if !os(macOS)
             // Flicking the message down puts the keyboard away, which is the gesture people already
             // use to get back to the header without reaching for Done.
             .scrollDismissesKeyboard(.interactively)
+            #endif
         }
     }
-    #endif
 
     /// The From/recipient/subject fields, the action bar and the optional quote-style picker:
     /// everything above the editor.
@@ -425,21 +457,6 @@ struct RichComposeView: View {
             .onChange(of: editor.storedQuoteStyle) { _, style in
                 if let style { quoteStyle = style }
             }
-        }
-    }
-
-    /// The attachment list and the prepare-failure note, everything below the editor.
-    @ViewBuilder private var composerFooter: some View {
-        attachmentList
-        if let composerError {
-            Text(composerError)
-                .font(.caption)
-                .foregroundStyle(.red)
-        }
-        if let draftHint {
-            Text(draftHint)
-                .font(.caption)
-                .foregroundStyle(draftHintFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
         }
     }
 

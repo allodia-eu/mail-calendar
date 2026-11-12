@@ -1,5 +1,5 @@
-// The rich composer's attachment picker: the picked-file model, the row list, and the file-choose
-// action. Split out of RichComposerView.swift to keep it under 500 lines.
+// The rich composer's attachment picker: the picked-file model, the footer the row list sits in,
+// and the file-choose action. Split out of RichComposerView.swift to keep it under 500 lines.
 
 #if os(macOS)
 import AppKit
@@ -52,7 +52,26 @@ struct PickedAttachment: Identifiable {
     }
 }
 
+/// The most room the composer's file list takes before it scrolls: four rows, so a fifth shows the
+/// list goes on.
+let composerAttachmentCap: CGFloat = 96
+
 extension RichComposeView {
+    /// The attachment list and the prepare-failure note, everything below the editor.
+    @ViewBuilder var composerFooter: some View {
+        attachmentList
+        if let composerError {
+            Text(composerError)
+                .font(.caption)
+                .foregroundStyle(.red)
+        }
+        if let draftHint {
+            Text(draftHint)
+                .font(.caption)
+                .foregroundStyle(draftHintFailed ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+        }
+    }
+
     var attachmentList: some View {
         VStack(alignment: .leading, spacing: 6) {
             if !attachments.isEmpty {
@@ -60,28 +79,57 @@ extension RichComposeView {
                     Text(L10n.attachments_title())
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    ForEach(attachments) { attachment in
-                        HStack(spacing: 6) {
-                            Image(systemName: "paperclip").foregroundStyle(.secondary)
-                            Text(attachment.fileName)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                            Spacer()
-                            Button {
-                                attachments.removeAll { $0.id == attachment.id }
-                            } label: {
-                                Image(systemName: "xmark.circle")
-                            }
-                            .buttonStyle(.borderless)
-                            .help(L10n.action_remove())
-                        }
-                        .font(.caption)
-                    }
+                    attachmentRows
                 }
                 .padding(8)
                 .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
             }
         }
+    }
+
+    /// One row per file, hugging them up to `composerAttachmentCap` and scrolling from there, as
+    /// the reading pane's attachment bar does: left to grow, the list takes the editor's room and
+    /// then runs off the bottom of the composer, and a file out of view cannot be checked or
+    /// removed before sending. A file just added is scrolled to, so picking one shows it.
+    private var attachmentRows: some View {
+        ScrollViewReader { reader in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(attachments) { attachment in
+                        attachmentRow(attachment).id(attachment.id)
+                    }
+                }
+                // Measured rather than capped by `maxHeight` alone: a `ScrollView` takes every
+                // point it is offered, so one file would reserve the whole cap.
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    attachmentRowsHeight = $0
+                }
+            }
+            .frame(height: min(attachmentRowsHeight, composerAttachmentCap))
+            .scrollBounceBehavior(.basedOnSize)
+            .onChange(of: attachments.count) { before, after in
+                guard after > before, let newest = attachments.last else { return }
+                reader.scrollTo(newest.id, anchor: .bottom)
+            }
+        }
+    }
+
+    private func attachmentRow(_ attachment: PickedAttachment) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "paperclip").foregroundStyle(.secondary)
+            Text(attachment.fileName)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Button {
+                attachments.removeAll { $0.id == attachment.id }
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .buttonStyle(.borderless)
+            .help(L10n.action_remove())
+        }
+        .font(.caption)
     }
 
     func chooseAttachments() {
