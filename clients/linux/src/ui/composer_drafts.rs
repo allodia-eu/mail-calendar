@@ -18,7 +18,7 @@ use webkit6::prelude::WebViewExt;
 
 use super::{
     AppModel, composer_fields::ComposerFields, composer_model::ComposerSubmission,
-    composer_open::ComposerTarget, model, reader::ComposerHost,
+    composer_open::ComposerTarget, composer_revision::EditorRevision, model, reader::ComposerHost,
 };
 use crate::l10n;
 
@@ -244,11 +244,13 @@ pub(crate) struct Autosave {
 impl Autosave {
     /// Starts the timer for one composer. `store` runs once the composer has been quiet for the
     /// core's interval, and nothing runs at all until something has changed: a composer nobody
-    /// has touched never saves.
+    /// has touched never saves. `revision` is where the seeding leaves the editor's change count,
+    /// the baseline every sample is measured against.
     pub(crate) fn start(
         &self,
         editor: &webkit6::WebView,
         fields: ComposerFields,
+        revision: Rc<Cell<EditorRevision>>,
         store: impl Fn() + 'static,
     ) {
         self.stop();
@@ -258,7 +260,7 @@ impl Autosave {
         // The editor's answer arrives on a later turn of the loop, so it lands in a flag the next
         // tick reads rather than being returned to the tick that asked.
         let revision_moved = Rc::new(Cell::new(false));
-        let seen_revision = Rc::new(Cell::new(-1));
+        let seen_revision = revision;
         let mut seen_header = fields.fingerprint();
         let mut quiet = 0_u32;
         let mut dirty = false;
@@ -298,27 +300,52 @@ impl Autosave {
 ///
 /// The message body is a WebView with no channel back to this host, so the shared editor bundle
 /// counts its own mutations and this reads the count.
-fn sample_editor(editor: &webkit6::WebView, seen: &Rc<Cell<i32>>, moved: &Rc<Cell<bool>>) {
+fn sample_editor(
+    editor: &webkit6::WebView,
+    seen: &Rc<Cell<EditorRevision>>,
+    moved: &Rc<Cell<bool>>,
+) {
     let seen = Rc::clone(seen);
     let moved = Rc::clone(moved);
+    read_revision(editor, move |revision| {
+        let Some(revision) = revision else {
+            return;
+        };
+        let mut known = seen.get();
+        if known.changed(revision) {
+            moved.set(true);
+        }
+        seen.set(known);
+    });
+}
+
+/// Records the editor's change count as the seeds left it, the autosave's baseline. Called once
+/// every seed has gone in and before anything else is asked of the editor: WebKit answers
+/// scripts in the order they were sent, so a sample sent earlier is answered while the count is
+/// still `Seeding`, and one sent later is measured against this.
+pub(crate) fn record_seeded_revision(
+    editor: &webkit6::WebView,
+    revision: &Rc<Cell<EditorRevision>>,
+) {
+    let revision = Rc::clone(revision);
+    read_revision(editor, move |count| {
+        revision.set(EditorRevision::seeded(count));
+    });
+}
+
+/// Asks the editor for its change count; `None` when it did not answer with one.
+fn read_revision(editor: &webkit6::WebView, then: impl FnOnce(Option<i32>) + 'static) {
     editor.evaluate_javascript(
         "window.composerRevision()",
         None,
         None,
         None::<&gio::Cancellable>,
         move |result| {
-            let Ok(value) = result else {
-                return;
-            };
-            let Ok(revision) = value.to_str().trim().parse::<i32>() else {
-                return;
-            };
-            let previous = seen.replace(revision);
-            // The first answer is the baseline the editor loaded with, never an edit: without it
-            // every composer would store a draft moments after opening.
-            if previous >= 0 && previous != revision {
-                moved.set(true);
-            }
+            then(
+                result
+                    .ok()
+                    .and_then(|value| value.to_str().trim().parse::<i32>().ok()),
+            );
         },
     );
 }

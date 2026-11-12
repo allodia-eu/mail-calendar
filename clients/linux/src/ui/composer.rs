@@ -25,6 +25,7 @@ use super::{
     composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
     composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
+    composer_revision::EditorRevision,
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -240,6 +241,7 @@ impl ComposerPane {
         // Captured once the seeding script returns, so the guard measures the body against what
         // the quote and signature put there rather than against empty.
         let seed = Rc::new(RefCell::new(None));
+        let revision = Rc::new(Cell::new(EditorRevision::default()));
         seed_editor(
             &web,
             request,
@@ -247,6 +249,7 @@ impl ComposerPane {
             signature.as_ref(),
             quote_style,
             Rc::clone(&seed),
+            Rc::clone(&revision),
         );
         content.append(&editor_host);
         toolbar.set_content(Some(&content));
@@ -295,15 +298,16 @@ impl ComposerPane {
         // callback, which Send already owns.
         let idle_editor = web.widget().clone();
         let idle_fields = fields.clone();
-        self.autosave.start(web.widget(), fields, move || {
-            read_document(
-                &idle_editor,
-                &idle_fields,
-                &sender,
-                AppInput::SaveComposerDraft,
-                || {},
-            );
-        });
+        self.autosave
+            .start(web.widget(), fields, revision, move || {
+                read_document(
+                    &idle_editor,
+                    &idle_fields,
+                    &sender,
+                    AppInput::SaveComposerDraft,
+                    || {},
+                );
+            });
         web.load(EDITOR_HTML, false);
         self.hint.replace(Some(hint));
         self.error.replace(Some(error));
@@ -400,6 +404,7 @@ fn seed_editor(
     signature: Option<&Rc<SignatureControl>>,
     quote_style: Option<QuoteStylePicker>,
     seed: Rc<RefCell<Option<String>>>,
+    revision: Rc<Cell<EditorRevision>>,
 ) {
     let labels = editor_labels();
     let body = body_seed_script(request);
@@ -436,7 +441,9 @@ fn seed_editor(
         let quote_style = quote_style.clone();
         let seeded_view = view.clone();
         let ready = editor_host.clone();
+        let revision = Rc::clone(&revision);
         view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, move |_| {
+            super::composer_drafts::record_seeded_revision(&seeded_view, &revision);
             let seed = Rc::clone(&seed);
             let ready = ready.clone();
             seeded_view.evaluate_javascript(

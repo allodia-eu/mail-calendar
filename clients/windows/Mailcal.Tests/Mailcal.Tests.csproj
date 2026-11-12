@@ -334,6 +334,8 @@
     <!-- Leaving a composer and discarding one (docs/drafts.md): which saves, and which asks. Pure
          BCL; the WinUI half that applies them is ComposerView.Drafts.cs. -->
     <Compile Include="..\Mailcal\Services\ComposerExit.cs" Link="Services\ComposerExit.cs" />
+    <!-- Telling the Subject's TextChanged for its opening value from an edit. Pure BCL. -->
+    <Compile Include="..\Mailcal\Services\OpeningTextEcho.cs" Link="Services\OpeningTextEcho.cs" />
     <!-- The call that seeds a composer's body, a reopened message's HTML or a text. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\ComposerBodySeed.cs" Link="Services\ComposerBodySeed.cs" />
     <!-- How a composer opens from the core's ComposeOpening: its kind, the quote seed, the

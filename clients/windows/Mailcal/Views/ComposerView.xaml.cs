@@ -50,6 +50,10 @@ public sealed partial class ComposerView : UserControl
     /// opened. Tracked eagerly because it needs no round-trip into the editor.</summary>
     private bool _headersDirty;
 
+    /// <summary>Recognises the Subject's TextChanged for the value the composer opened with, which
+    /// WinUI raises after the tracking is armed. Null until the composer is bound.</summary>
+    private OpeningTextEcho? _subjectEcho;
+
     /// <summary>How many of the files the composer opened holding are not the user's own work: a
     /// forward's staged originals, which are still in the mailbox. The baseline the live count is
     /// measured against; zero for a share, whose files the user chose and would have to share
@@ -146,13 +150,14 @@ public sealed partial class ComposerView : UserControl
         // reply-all's last recipient as loose text beside one pill (RecipientTokens.Seeded).
         ToField.Text = RecipientTokens.Seeded(request.InitialTo);
         CcField.Text = RecipientTokens.Seeded(request.InitialCc);
-        // Bcc and Subject are pre-filled only by an assistant's draft (docs/mcp.md); every other
-        // path leaves them at the empty defaults. Both are set before the dirty tracking is armed
-        // below, so arriving prefilled is the request's doing rather than the user's.
+        // Set before the dirty tracking is armed below, so arriving prefilled is the request's
+        // doing rather than the user's.
         BccField.Text = RecipientTokens.Seeded(request.InitialBcc);
         // Editable whatever the composer is for. A reply and a forward open with the core's
         // derived `Re:`/`Fwd:` already in it, and renaming a thread here is what the user means
-        // by editing it: the field's value is what gets sent.
+        // by editing it: the field's value is what gets sent. Its TextChanged for this value
+        // arrives after the tracking is armed, so the echo tells it apart (OpeningTextEcho).
+        _subjectEcho = new OpeningTextEcho(request.InitialSubject);
         SubjectBox.Text = request.InitialSubject;
         // Cc and Bcc open collapsed, but never over a recipient the request put there. A reply-all
         // fills Cc, and a mail link may name a Bcc, and a recipient the sender cannot see is one
@@ -306,6 +311,10 @@ public sealed partial class ComposerView : UserControl
 
     private void OnHeaderChanged(object sender, TextChangedEventArgs e)
     {
+        if (_subjectEcho?.IsEdit(SubjectBox.Text) != true)
+        {
+            return;
+        }
         _headersDirty = true;
         NoteDraftChange();
         SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);

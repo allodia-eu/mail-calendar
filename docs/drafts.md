@@ -90,7 +90,11 @@ host's own state and raise their own change.
 **The count is read once the editor is seeded, as the baseline.** Taken on the first sample
 instead, it would hold whatever was typed before that sample, and a short reply written straight
 after opening would never be saved. Taken before the seeds, the quote and the signature would read
-as an edit and every composer would save moments after opening.
+as an edit and every composer would save moments after opening. So a host reads it in the same
+batch that snapshots the seeded document, before the caret moves, and no sample counts until it
+has. A header field the host fills as the composer opens is the same: its change event for that
+value is not an edit, including one the toolkit raises after the composer has started listening
+(WinUI raises `TextChanged` for a value set in code on a later turn).
 
 **An unchanged draft costs no write.** The core compares what it is given against what it last
 put on the server and returns without calling the provider when they match. Pressing "Save as
@@ -346,6 +350,7 @@ and the removal below runs on whatever key the composition had.
 | | Apple | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|
 | Autosave while composing | ✅ | ✅ | ✅ | ✅ |
+| Autosave measures edits from the seeded editor, so an untouched composer saves nothing | ✅ | ✅ | ✅ | ✅ |
 | "Save as draft" | ✅ | ✅ | ✅ | ✅ |
 | Discard removes the server copy | ✅ | ✅ | ✅ | ✅ |
 | Resume from the Drafts folder | ✅ | ✅ | ✅ | ✅ |
@@ -372,10 +377,6 @@ second name for leaving.
 
 ## Known gaps
 
-- **Android and Linux take the editor's baseline on the first sample**, a third of the interval
-  after the composer opens, so a body typed before it and left alone, with no header touched, is
-  not saved by the idle timer until the next edit. Leaving the composer still saves it. Apple reads it as the composer appears, which has not been
-  checked against the order the editor is seeded in.
 - **Closing the app does not leave its composers.** On Windows and Linux, closing the mailbox
   ends the app, and neither the composer in its pane nor a composer window closed with it is left
   first, so what was typed since the last save is lost, and a composer never saved leaves nothing

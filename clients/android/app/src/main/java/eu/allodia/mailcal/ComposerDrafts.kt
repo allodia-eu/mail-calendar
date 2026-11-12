@@ -103,6 +103,11 @@ internal fun ComposerDraftEffects(
     drafts: ComposerDrafts?,
     composition: String,
     webView: WebView?,
+    /**
+     * The editor's change count as the seeds left it: null until they are in, -1 when it could
+     * not be read. Nothing is sampled before it arrives.
+     */
+    seededRevision: Int?,
     /** How many changes the composer has seen. Every one restarts the idle interval. */
     changes: Int,
     onChanged: () -> Unit,
@@ -110,23 +115,18 @@ internal fun ComposerDraftEffects(
     onIdle: () -> Unit,
 ) {
     if (drafts == null) return
-    LaunchedEffect(webView) {
+    LaunchedEffect(webView, seededRevision) {
+        val view = webView ?: return@LaunchedEffect
+        val watch = EditorRevisionWatch(seededRevision ?: return@LaunchedEffect)
         val sample = draftSampleMillis(drafts.idleSeconds)
-        var seen = -1
         while (true) {
             delay(sample)
-            val view = webView ?: continue
             val now = suspendCoroutine { resume ->
                 view.evaluateJavascript("window.composerRevision()") { encoded ->
                     resume.resume(encoded?.toIntOrNull() ?: -1)
                 }
             }
-            if (now >= 0 && now != seen) {
-                // The first reading is the baseline the editor loaded with, never an edit:
-                // without it every composer would store a draft moments after opening.
-                if (seen >= 0) onChanged()
-                seen = now
-            }
+            if (watch.changed(now)) onChanged()
         }
     }
     // The whole timer is a `delay` keyed on the change count: every change cancels and restarts
@@ -187,6 +187,28 @@ internal fun ComposerNotices(error: String?, draftStatus: DraftStatus) {
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(bottom = 8.dp),
         )
+    }
+}
+
+/**
+ * What the autosave makes of the editor's change count.
+ *
+ * The baseline is [seeded], the count the seeds left, never a sample: one read before the seeds are
+ * in counts the quote and the signature as an edit, so a composer nobody touched would be saved,
+ * and one read on a later sample takes in whatever was typed first, so a short reply written
+ * straight after opening would not be (`docs/drafts.md`). A [seeded] of -1 could not be read, and
+ * the first readable sample stands in for it.
+ */
+internal class EditorRevisionWatch(seeded: Int) {
+    private var seen: Int? = seeded.takeIf { it >= 0 }
+
+    /** Takes in one sample and answers whether the message changed since the last one. A sample
+     * of -1 could not be read and changes nothing. */
+    fun changed(now: Int): Boolean {
+        if (now < 0) return false
+        val previous = seen ?: now
+        seen = now
+        return now != previous
     }
 }
 
