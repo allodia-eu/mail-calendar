@@ -11,8 +11,8 @@
 //! opens.
 
 use engine_api::{
-    AccountId, ApiError, FailureClass, Provider, SearchDomain, SharedAccount, SharedAccounts,
-    StoreDomains, SyncError,
+    AccountId, ApiError, FailureClass, Provider, SharedAccount, SharedAccounts, StoreDomains,
+    SyncError,
 };
 use mailcal_account::{SharedUse, SharedUses};
 
@@ -101,11 +101,14 @@ impl<P: Provider> App<P> {
     }
 
     /// The store at `address`, asked of `account`'s live provider for each of `uses`; found when
-    /// any of them opens it, holding what each that did found.
+    /// any of them opens it, holding what each that did found. One provider's failure does not
+    /// hide what another found: a grant from before shared calendars opens a mailbox whose
+    /// calendar its calendar probe is refused.
     ///
     /// # Errors
     ///
-    /// Returns the engine's error when a server did not answer, or refused the sign-in.
+    /// Returns the engine's error when no provider found the store and one did not answer, or
+    /// refused the sign-in.
     pub async fn resolve_shared_store(
         &self,
         account: &AccountId,
@@ -115,7 +118,7 @@ impl<P: Provider> App<P> {
         let Some(handle) = self.account_handle(account).await else {
             return Ok(SharedStoreLookup::NotConnected);
         };
-        let (mut found, mut connected) = (Vec::new(), false);
+        let (mut found, mut connected, mut failed) = (Vec::new(), false, None);
         for kind in uses.iter() {
             let Some(provider) = asked_of(&handle, kind) else {
                 continue;
@@ -126,14 +129,17 @@ impl<P: Provider> App<P> {
                 Err(ApiError::InvalidInput(_)) => {}
                 Err(ApiError::Sync(SyncError::Provider(err)))
                     if err.class() == FailureClass::Permanent => {}
-                Err(err) => return Err(err),
+                Err(err) => {
+                    failed.get_or_insert(err);
+                }
             }
         }
         // Each provider that opens it answers under the address it was asked, so one handle.
-        Ok(match found.into_iter().next() {
-            Some(store) => SharedStoreLookup::Found(store),
-            None if connected => SharedStoreLookup::NotOpenable,
-            None => SharedStoreLookup::NotConnected,
+        Ok(match (found.into_iter().next(), failed) {
+            (Some(store), _) => SharedStoreLookup::Found(store),
+            (None, Some(err)) => return Err(err),
+            (None, None) if connected => SharedStoreLookup::NotOpenable,
+            (None, None) => SharedStoreLookup::NotConnected,
         })
     }
 }
@@ -147,22 +153,14 @@ fn asked_of<P>(account: &crate::Account<P>, kind: SharedUse) -> Option<&P> {
     }
 }
 
-/// The engine's domain for `kind`.
-const fn domain(kind: SharedUse) -> SearchDomain {
-    match kind {
-        SharedUse::Mail => SearchDomain::Mail,
-        SharedUse::Calendar => SearchDomain::Calendar,
-    }
-}
-
 /// Adds `store`, reported by the provider asked for `kind`, to `into`: `kind` joined to what the
 /// store already there under its handle holds, or a store of its own holding `kind` alone. A
 /// provider reports whatever it serves of a store, and only `kind` was asked of this one. A store
 /// that does not hold `kind` is not one this provider opens for it: a server lists every store the
 /// sign-in opens, a colleague's calendar among them, and one without mail is no mailbox.
 fn merge(into: &mut Vec<SharedAccount>, mut store: SharedAccount, kind: SharedUse) {
-    let asked = StoreDomains::of(domain(kind));
-    if !store.domains.contains(domain(kind)) {
+    let asked = StoreDomains::of(kind.domain());
+    if !store.domains.contains(kind.domain()) {
         return;
     }
     if let Some(kept) = into.iter_mut().find(|kept| kept.handle == store.handle) {
@@ -175,16 +173,9 @@ fn merge(into: &mut Vec<SharedAccount>, mut store: SharedAccount, kind: SharedUs
 
 #[cfg(test)]
 mod tests {
-    use engine_api::{SharedAccountId, StoreDomains};
+    use engine_api::{SearchDomain, SharedAccountId, StoreDomains};
 
     use super::*;
-
-    fn holds(store: &SharedAccount) -> SharedUses {
-        SharedUse::ALL
-            .into_iter()
-            .filter(|kind| store.domains.contains(domain(*kind)))
-            .collect()
-    }
 
     fn store(handle: &str, domains: StoreDomains) -> SharedAccount {
         SharedAccount::new(SharedAccountId::try_from(handle).unwrap(), handle, domains)
@@ -201,7 +192,7 @@ mod tests {
         merge(&mut offered, store("group", both()), SharedUse::Calendar);
         assert_eq!(offered.len(), 1);
         assert_eq!(
-            holds(&offered[0]),
+            SharedUses::held_by(&offered[0]),
             SharedUses::of(SharedUse::Mail).with(SharedUse::Calendar)
         );
     }
@@ -214,10 +205,16 @@ mod tests {
         merge(&mut offered, colleague.clone(), SharedUse::Mail);
         assert_eq!(offered, []);
         merge(&mut offered, colleague, SharedUse::Calendar);
-        assert_eq!(holds(&offered[0]), SharedUses::of(SharedUse::Calendar));
+        assert_eq!(
+            SharedUses::held_by(&offered[0]),
+            SharedUses::of(SharedUse::Calendar)
+        );
         // A group asked of the mailbox alone holds mail, whatever else it holds.
         merge(&mut offered, store("group", both()), SharedUse::Mail);
-        assert_eq!(holds(&offered[1]), SharedUses::of(SharedUse::Mail));
+        assert_eq!(
+            SharedUses::held_by(&offered[1]),
+            SharedUses::of(SharedUse::Mail)
+        );
     }
 
     #[test]
@@ -235,5 +232,111 @@ mod tests {
         merge(&mut offered, folders, SharedUse::Mail);
         merge(&mut offered, principal, SharedUse::Calendar);
         assert_eq!(offered.len(), 2);
+    }
+
+    /// A server that answers an address by probing `domain`, as Graph's mailbox and calendar
+    /// halves do, with `refusal` in place of the store when given.
+    #[derive(Debug)]
+    struct Prober {
+        domain: SearchDomain,
+        refusal: Option<engine_api::FailureClass>,
+    }
+
+    #[async_trait::async_trait]
+    impl engine_provider::Provider for Prober {
+        fn connection_info(&self) -> engine_provider::ConnectionInfo {
+            engine_provider::ConnectionInfo::new(
+                engine_provider::Capabilities::none()
+                    .with_mail()
+                    .with_calendars()
+                    .with_shared_accounts(SharedAccounts::ByAddress),
+            )
+        }
+
+        async fn resolve_shared_account(
+            &self,
+            address: &str,
+        ) -> engine_provider::ProviderResult<SharedAccount> {
+            match self.refusal {
+                Some(class) => Err(engine_provider::ProviderError::new(class, "refused")),
+                None => Ok(store(address, StoreDomains::of(self.domain))),
+            }
+        }
+    }
+
+    impl engine_api::MailboxWrites for Prober {}
+    impl engine_provider::CalendarWrites for Prober {}
+
+    struct Silent;
+
+    impl crate::AppObserver for Silent {
+        fn surface_changed(&self, _surface: crate::Surface) {}
+    }
+
+    fn account_id() -> AccountId {
+        AccountId::try_from("alice@example.org@graph.microsoft.com").unwrap()
+    }
+
+    fn app(calendar: Option<engine_api::FailureClass>) -> App<Prober> {
+        let mail = Prober {
+            domain: SearchDomain::Mail,
+            refusal: None,
+        };
+        let calendar = Prober {
+            domain: SearchDomain::Calendar,
+            refusal: calendar,
+        };
+        App::new(
+            engine_api::Engine::open_in_memory().unwrap(),
+            vec![crate::Account {
+                id: account_id(),
+                providers: vec![mail].into(),
+                calendar_provider: Some(calendar),
+                meetings: None,
+                contact_providers: Vec::new(),
+                identity: engine_api::EmailAddress::new("alice@example.org"),
+                dialled: true,
+                uses_mail: true,
+            }],
+            crate::TimeZoneInit {
+                device_zone: engine_api::TimeZoneId::utc(),
+                prefs_path: None,
+            },
+            None,
+            std::sync::Arc::new(Silent),
+            crate::Telemetry::off(None),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_calendar_probe_refused_leaves_the_mailbox_another_provider_found() {
+        // A grant from before shared calendars: the calendar half is refused the scope.
+        let both = SharedUses::of(SharedUse::Mail).with(SharedUse::Calendar);
+        let lookup = app(Some(engine_api::FailureClass::Authentication))
+            .resolve_shared_store(&account_id(), both, "support@example.org")
+            .await
+            .expect("the mailbox was found");
+        let SharedStoreLookup::Found(found) = lookup else {
+            panic!("the mailbox was found: {lookup:?}");
+        };
+        assert_eq!(SharedUses::held_by(&found), SharedUses::of(SharedUse::Mail));
+    }
+
+    #[tokio::test]
+    async fn a_refusal_is_said_when_nothing_else_found_the_store() {
+        let calendar = SharedUses::of(SharedUse::Calendar);
+        assert!(
+            app(Some(engine_api::FailureClass::Authentication))
+                .resolve_shared_store(&account_id(), calendar, "support@example.org")
+                .await
+                .is_err()
+        );
+        assert_eq!(
+            app(Some(engine_api::FailureClass::Permanent))
+                .resolve_shared_store(&account_id(), calendar, "support@example.org")
+                .await
+                .unwrap(),
+            SharedStoreLookup::NotOpenable
+        );
     }
 }

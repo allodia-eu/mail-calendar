@@ -184,12 +184,7 @@ impl AccountRegistry {
             .expect("account registry mutex poisoned")
             .get(id.as_str())
             .map(|entry| crate::boot::placeholder(id.clone(), entry));
-        own.or_else(|| {
-            let (parent, _) = self.shared_parent(id.as_str())?;
-            self.shared_placeholders(&parent)
-                .into_iter()
-                .find(|placeholder| placeholder.id == *id)
-        })
+        own.or_else(|| self.shared_placeholder(id.clone()))
     }
 }
 

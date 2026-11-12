@@ -9,7 +9,11 @@
 
 use std::fmt;
 
-use engine_core::ids::{AccountId, IdError, SharedAccountId};
+use engine_core::{
+    ids::{AccountId, IdError, SharedAccountId},
+    sync::SearchDomain,
+};
+use engine_provider::SharedAccount;
 use serde::{Deserialize, Deserializer, de};
 
 /// What a shared store holds that an account may open: its mail or its calendars.
@@ -29,6 +33,15 @@ impl SharedUse {
         match self {
             Self::Mail => "mail",
             Self::Calendar => "calendar",
+        }
+    }
+
+    /// The engine's domain for it.
+    #[must_use]
+    pub const fn domain(self) -> SearchDomain {
+        match self {
+            Self::Mail => SearchDomain::Mail,
+            Self::Calendar => SearchDomain::Calendar,
         }
     }
 }
@@ -99,6 +112,15 @@ impl SharedUses {
             mail: self.mail || other.mail,
             calendar: self.calendar || other.calendar,
         }
+    }
+
+    /// What `store` holds, as the servers asked found in it.
+    #[must_use]
+    pub fn held_by(store: &SharedAccount) -> Self {
+        SharedUse::ALL
+            .into_iter()
+            .filter(|kind| store.domains.contains(kind.domain()))
+            .collect()
     }
 
     /// Whether there are none.

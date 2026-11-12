@@ -203,20 +203,24 @@ impl AccountRegistry {
     pub(crate) fn shared_placeholders(&self, parent: &str) -> Vec<crate::BoxedAccount> {
         self.shared_children(parent)
             .into_iter()
-            .filter_map(|child| {
-                let dial = self.dial(child.id.as_str())?;
-                Some(mailcal_app::Account {
-                    identity: dial.shared_identity()?.clone(),
-                    providers: Vec::new().into(),
-                    calendar_provider: None,
-                    meetings: None,
-                    contact_providers: Vec::new(),
-                    dialled: false,
-                    uses_mail: dial.capabilities().contains(Capability::Mail),
-                    id: child.id,
-                })
-            })
+            .filter_map(|child| self.shared_placeholder(child.id))
             .collect()
+    }
+
+    /// The provider-less account the app lists for the shared store `id` until it is dialled;
+    /// `None` when `id` is no shared store, or one that opens nothing.
+    pub(crate) fn shared_placeholder(&self, id: AccountId) -> Option<crate::BoxedAccount> {
+        let dial = self.dial(id.as_str())?;
+        Some(mailcal_app::Account {
+            identity: dial.shared_identity()?.clone(),
+            providers: Vec::new().into(),
+            calendar_provider: None,
+            meetings: None,
+            contact_providers: Vec::new(),
+            dialled: false,
+            uses_mail: dial.capabilities().contains(Capability::Mail),
+            id,
+        })
     }
 
     /// How to dial the shared store listed as `id`, from its parent's entry as it is now.

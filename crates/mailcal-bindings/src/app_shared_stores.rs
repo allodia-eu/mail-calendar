@@ -179,7 +179,7 @@ impl MailcalApp {
             return Err(err);
         }
         match (on, was_chosen) {
-            (true, false) => self.open_shared_store(&parent, &child),
+            (true, false) => self.open_shared_store(&child),
             // It holds more than it did: dialled again to open it.
             (true, true) => self.redial(child.as_str()),
             (false, _) => self.drop_shared_store(&child),
@@ -231,7 +231,7 @@ impl MailcalApp {
             let Some(store) = listed.iter().find(|store| store.handle == choice.handle) else {
                 continue;
             };
-            if holds(store).union(choice.holds) != choice.holds {
+            if SharedUses::held_by(store).union(choice.holds) != choice.holds {
                 let gained = entry(store, true);
                 if let Err(err) = self.set_shared_store(account_id.to_owned(), gained, true) {
                     log::info!("shared stores: what a store holds now was not stored ({err})");
@@ -274,14 +274,9 @@ impl MailcalApp {
         self.retry_connections();
     }
 
-    /// Lists the shared store `child` of `parent` and dials it in the background.
-    fn open_shared_store(&self, parent: &AccountId, child: &AccountId) {
-        let Some(placeholder) = self
-            .registry
-            .shared_placeholders(parent.as_str())
-            .into_iter()
-            .find(|placeholder| placeholder.id == *child)
-        else {
+    /// Lists the shared store `child` and dials it in the background.
+    fn open_shared_store(&self, child: &AccountId) {
+        let Some(placeholder) = self.registry.shared_placeholder(child.clone()) else {
             return;
         };
         let app = Arc::clone(&self.app);
@@ -310,7 +305,8 @@ impl MailcalApp {
 
     /// `parent` stopped opening `kind`, as when the use that opens it is switched off: each store
     /// holding `kind` keeps the rest of what it holds, with what the device holds of `kind`
-    /// forgotten, and one left opening nothing is no longer used. Stores the account.
+    /// forgotten, and one left opening nothing is no longer used. Stores the account. A store
+    /// that stays is queued to be dialled, which the caller's dial of `parent` does.
     pub(crate) fn drop_shared_use(
         &self,
         parent: &str,
@@ -325,9 +321,14 @@ impl MailcalApp {
                 self.list_without_providers(&child.id);
                 let (app, id) = (Arc::clone(&self.app), child.id.clone());
                 self.runtime.block_on(|| async move {
-                    app.forget_account_domain(&id, domain(kind)).await;
+                    app.forget_account_domain(&id, kind.domain()).await;
                 });
-                self.redial(child.id.as_str());
+                // Queued, not dialled: the parent is dialled again once its use changed, and its
+                // dial takes this store with it, on the connections it makes.
+                self.disconnected
+                    .lock()
+                    .expect("disconnected mutex poisoned")
+                    .insert(child.id.as_str().to_owned());
             } else {
                 self.registry.set_shared_store(parent, child.choice, false);
                 self.drop_shared_store(&child.id);
@@ -359,29 +360,13 @@ impl MailcalApp {
     }
 }
 
-/// The engine's domain for `kind`.
-const fn domain(kind: SharedUse) -> engine_api::SearchDomain {
-    match kind {
-        SharedUse::Mail => engine_api::SearchDomain::Mail,
-        SharedUse::Calendar => engine_api::SearchDomain::Calendar,
-    }
-}
-
-/// What `store` holds, as an account's uses name it: what the servers asked found in it.
-fn holds(store: &SharedAccount) -> SharedUses {
-    SharedUse::ALL
-        .into_iter()
-        .filter(|kind| store.domains.contains(domain(*kind)))
-        .collect()
-}
-
 /// `store` as Settings draws it.
 fn entry(store: &SharedAccount, selected: bool) -> SharedStoreEntry {
     SharedStoreEntry {
         handle: store.handle.as_str().to_owned(),
         name: store.name.clone(),
         address: store.address.clone(),
-        holds: holds(store),
+        holds: SharedUses::held_by(store),
         selected,
         listed: true,
     }
