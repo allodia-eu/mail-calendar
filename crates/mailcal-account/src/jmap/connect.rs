@@ -20,7 +20,7 @@
 use std::sync::Arc;
 
 use engine_core::{
-    ids::{AddressBookId, SharedMailboxId},
+    ids::{AddressBookId, SharedAccountId},
     sync::SyncUpdate,
 };
 use engine_provider::{ContactSourceSync, ContactsProvider, Provider};
@@ -60,7 +60,7 @@ pub(crate) type JmapTokens<'a> = Option<&'a Arc<GraphTokenSource>>;
 pub async fn connect_jmap_mail_providers(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     Ok(vec![connect_one(config, tokens, None, shared).await?])
 }
@@ -150,7 +150,7 @@ async fn default_address_book(provider: &dyn ContactsProvider) -> Option<Address
 pub async fn connect_jmap_folder(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     // Upcast: `ContactsProvider: Provider`, so the contacts-shaped box this connect returns
     // is a mail provider too. Explicit because a coercion site in tail position is not one
@@ -193,7 +193,7 @@ async fn connect_one(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
     contact_book: Option<AddressBookId>,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn ContactsProvider>, AccountError> {
     let tls = tls_with(&[])?;
     let Some(tokens) = tokens.filter(|_| config.is_oauth()) else {
@@ -242,9 +242,9 @@ async fn connect_one(
 }
 
 /// `config` bound to the mailbox `shared` names, or to the account's own when it is `None`.
-pub(super) fn bind_shared(config: JmapConfig, shared: Option<&SharedMailboxId>) -> JmapConfig {
+pub(super) fn bind_shared(config: JmapConfig, shared: Option<&SharedAccountId>) -> JmapConfig {
     match shared {
-        Some(handle) => config.with_shared_mailbox(handle.clone()),
+        Some(handle) => config.with_shared_account(handle.clone()),
         None => config,
     }
 }

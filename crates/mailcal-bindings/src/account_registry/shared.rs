@@ -6,7 +6,7 @@
 //! So a replaced password, a rotated grant or a new connection pool reaches the shared mailbox
 //! with nothing to keep in step.
 
-use engine_api::{AccountId, EmailAddress, SharedMailboxId};
+use engine_api::{AccountId, EmailAddress, SharedAccountId};
 use mailcal_account::{Capabilities, Capability, SharedMailboxChoice};
 
 use super::{AccountDial, AccountRegistry};
@@ -16,7 +16,7 @@ use crate::connected_account::ConnectedAccount;
 #[derive(Debug, Clone)]
 pub(crate) struct SharedDial {
     /// The server's handle for the mailbox.
-    pub(crate) handle: SharedMailboxId,
+    pub(crate) handle: SharedAccountId,
     /// The address it sends as: its own, or its parent's when the server gives it none.
     pub(crate) identity: EmailAddress,
 }
@@ -83,7 +83,7 @@ impl AccountDial {
     }
 
     /// The handle of the shared mailbox this dial opens, `None` for an account's own.
-    pub(crate) fn shared_handle(&self) -> Option<&SharedMailboxId> {
+    pub(crate) fn shared_handle(&self) -> Option<&SharedAccountId> {
         self.shared().map(|shared| &shared.handle)
     }
 
@@ -151,7 +151,7 @@ impl AccountRegistry {
     pub(crate) fn imap_store(
         &self,
         id: &str,
-    ) -> Option<(super::ImapEntry, Option<SharedMailboxId>)> {
+    ) -> Option<(super::ImapEntry, Option<SharedAccountId>)> {
         if let Some(own) = self.imap(id) {
             return Some((own, None));
         }

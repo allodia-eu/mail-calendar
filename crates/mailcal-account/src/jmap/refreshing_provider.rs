@@ -25,7 +25,7 @@ use engine_provider::{
     EventDraft, EventEdit, EventRsvp, EventWrite, EventWriteReceipt, HandOver, MailEdit,
     MailEditReceipt, MailboxEdit, MailboxEditReceipt, MailboxWrites, MessageReport, Provider,
     ProviderError, ProviderResult, ReportReceipt, ScopeSync, SenderIdentity, SenderIdentityId,
-    SharedMailbox, SourceStream, SubmissionReceipt,
+    SharedAccount, SourceStream, SubmissionReceipt,
 };
 use futures::StreamExt;
 
@@ -251,8 +251,8 @@ impl Provider for RefreshingJmapProvider {
 
     /// Forwarded, because this wrapper reports the session's own capabilities, which say whether
     /// the session lists shared mailboxes (see `sender_identities`).
-    async fn list_shared_mailboxes(&self) -> ProviderResult<Vec<SharedMailbox>> {
-        self.delegate().await?.list_shared_mailboxes().await
+    async fn list_shared_accounts(&self) -> ProviderResult<Vec<SharedAccount>> {
+        self.delegate().await?.list_shared_accounts().await
     }
 }
 

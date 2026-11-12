@@ -35,7 +35,7 @@ fn signing_in_again_keeps_the_pinned_id_the_links_the_shared_mailboxes_and_an_un
             ..AccountLinks::default()
         },
         shared_mailboxes: vec![mailcal_account::SharedMailboxChoice {
-            handle: engine_api::SharedMailboxId::try_from("support@example.org").unwrap(),
+            handle: engine_api::SharedAccountId::try_from("support@example.org").unwrap(),
             name: "Support".to_owned(),
             address: Some("support@example.org".to_owned()),
         }],
