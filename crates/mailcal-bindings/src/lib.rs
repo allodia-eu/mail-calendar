@@ -1,11 +1,10 @@
 //! UniFFI Kotlin/Swift bindings over `mailcal-app`.
 //!
-//! The thin FFI surface the native macOS/Android clients consume: a [`MailcalApp`]
-//! object exposing the unidirectional loop; `dispatch` an [`Intent`] (fire-and-forget,
-//! scheduled on an internal runtime so native never awaits Rust), and the app notifies
-//! a foreign [`Observer`] when a [`Surface`] changes, which the host pulls a snapshot
-//! for ([`MailcalApp::mailbox_list`]). FFI types mirror the pure `mailcal-app` types so
-//! the app stays binding-free.
+//! The thin FFI surface the native clients consume: a [`MailcalApp`] object exposing the
+//! unidirectional loop; `dispatch` an [`Intent`] (fire-and-forget, scheduled on an internal
+//! runtime so native never awaits Rust), and the app notifies a foreign [`Observer`] when a
+//! [`Surface`] changes, which the host pulls a snapshot for ([`MailcalApp::mailbox_list`]). FFI
+//! types mirror the pure `mailcal-app` types so the app stays binding-free.
 
 // A test drives a runtime of its own from the test harness's thread, not from a host's, so the
 // `clippy.toml` rule that keeps FFI calls off the caller's stack does not apply to it.
@@ -312,7 +311,8 @@ pub use repeat_editor::repeat_change_of;
 pub use row_menu::{MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection};
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
-    account_config_toml, jmap_account_config_toml, standard_port,
+    ServerAddressParts, account_config_toml, jmap_account_config_toml, server_address,
+    server_address_parts, standard_port,
 };
 pub use setup_choices::{
     DetectedSetup, SetupChoice, offered_setup, offers_setup_links, provider_setup_choices,

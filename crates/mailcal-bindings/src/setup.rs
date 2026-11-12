@@ -146,6 +146,37 @@ pub fn standard_port(kind: MailServerKind, security: ConnectionSecurity) -> u16 
     }
 }
 
+/// A mail server's address as its host and its port.
+#[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
+pub struct ServerAddressParts {
+    /// The host as written: an IPv6 literal keeps the brackets it was written in.
+    pub host: String,
+    /// The port, empty when the address names none.
+    pub port: String,
+}
+
+/// `address` as its host and its port: the one split every server field uses, so a form never
+/// shows one port while the core dials another (`docs/account-autodetect.md` rule 11). Only
+/// digits after the one colon outside brackets are a port; an IPv6 literal is written
+/// `[::1]:993` before a port, and bare it names none.
+#[must_use]
+#[uniffi::export]
+pub fn server_address_parts(address: String) -> ServerAddressParts {
+    let (host, port) = mailcal_account::split_server_address(&address);
+    ServerAddressParts {
+        host: host.to_owned(),
+        port: port.to_owned(),
+    }
+}
+
+/// The address of `host` at `port`: the host alone when no port is given, an IPv6 literal put in
+/// brackets before its port, and nothing when there is no host.
+#[must_use]
+#[uniffi::export]
+pub fn server_address(host: String, port: String) -> String {
+    mailcal_account::join_server_address(&host, &port)
+}
+
 /// Serializes an [`AccountSetup`] (collected in the host's setup form) into the
 /// account-config TOML the host stores in its OS secure store and passes to
 /// [`MailcalApp::new_accounts`](crate::MailcalApp::new_accounts). Every server takes the same

@@ -7,6 +7,7 @@
 
 use crate::{
     Capabilities, Capability, CertificateException, ConfigError, ConnectionSecurity, OAuthGrant,
+    server_address::{join_server_address, server_name, split_server_address},
 };
 
 /// What the account will authenticate with, from the screen that collected it.
@@ -119,16 +120,18 @@ pub const fn smtp_default_port(security: ConnectionSecurity) -> u16 {
 /// Splits a user-entered server into its TLS server name (the host) and dial address
 /// (`host:port`), applying `default_port` when the input carries none: so a user can
 /// type just `imap.example.net` and never needs to know server ports. An explicit
-/// `host:port` is preserved.
+/// `host:port` is preserved, and an IPv6 literal is dialled in brackets.
 pub(crate) fn host_and_addr(input: &str, default_port: u16) -> (String, String) {
-    if let Some((host, port)) = input.rsplit_once(':')
-        && !host.is_empty()
-        && !port.is_empty()
-        && port.bytes().all(|b| b.is_ascii_digit())
-    {
-        return (host.to_owned(), input.to_owned());
-    }
-    (input.to_owned(), format!("{input}:{default_port}"))
+    let (host, port) = split_server_address(input);
+    let port = if port.is_empty() {
+        default_port.to_string()
+    } else {
+        port.to_owned()
+    };
+    (
+        server_name(host).to_owned(),
+        join_server_address(host, &port),
+    )
 }
 
 /// Writes the `security` key into a server section, but only for STARTTLS; implicit TLS

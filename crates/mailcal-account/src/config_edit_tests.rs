@@ -241,3 +241,33 @@ fn an_edit_never_prints_its_password() {
     edit.password = Some("hunter2".to_owned());
     assert!(!format!("{edit:?}").contains("hunter2"));
 }
+
+#[test]
+fn an_ipv6_literal_is_a_host_bracketed_before_its_port_and_bare_without_one() {
+    let config = load_str(STANDARDS).unwrap();
+    let edited = |host: &str| {
+        let mut edit = config.endpoints();
+        edit.imap_host = Some(host.to_owned());
+        assert_eq!(edit.gap(&config), None, "{host} is a server");
+        config.with_endpoints(&edit).unwrap().config
+    };
+    for (typed, dialled) in [
+        ("[::1]", "[::1]:993"),
+        ("[::1]:1143", "[::1]:1143"),
+        ("::1", "[::1]:993"),
+    ] {
+        let edited = edited(typed);
+        let imap = edited.imap.as_ref().unwrap();
+        assert_eq!(imap.addr, dialled);
+        assert_eq!(imap.server_name, "::1", "its certificate names it bare");
+    }
+    assert_eq!(
+        edited("[::1]").endpoints().imap_host.as_deref(),
+        Some("[::1]"),
+        "read back as typed, the standard port left out"
+    );
+
+    let mut edit = config.endpoints();
+    edit.imap_host = Some(":993".to_owned());
+    assert_eq!(edit.gap(&config), Some(EndpointGap::Imap));
+}

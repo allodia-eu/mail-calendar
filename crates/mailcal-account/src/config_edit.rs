@@ -4,6 +4,7 @@
 use crate::{
     AccountConfig, CalDavAccount, Capabilities, Capability, CardDavAccount, ConfigError,
     ConnectionSecurity, ImapAccount, Secret, SmtpAccount,
+    server_address::split_server_address,
     setup::{host_and_addr, imap_default_port, normalize_caldav_base_url, smtp_default_port},
 };
 
@@ -79,7 +80,7 @@ impl EndpointEdit {
         let no_host = |field: &Option<String>| {
             field
                 .as_deref()
-                .is_none_or(|value| value.trim().is_empty() || value.trim().starts_with(':'))
+                .is_none_or(|value| split_server_address(value).0.is_empty())
         };
         if account.imap.is_some() && no_host(&self.imap_host) {
             Some(EndpointGap::Imap)
@@ -287,8 +288,8 @@ fn kept_server_name(old: Option<(&String, &String)>, addr: &str, derived: String
 /// A server's dial address as a person would type it: the bare host when the port is the standard
 /// one for its security, so a form that switches only the security gets that security's port.
 fn as_typed(addr: &str, default_port: u16) -> String {
-    match addr.rsplit_once(':') {
-        Some((host, port)) if port == default_port.to_string() => host.to_owned(),
+    match split_server_address(addr) {
+        (host, port) if port == default_port.to_string() => host.to_owned(),
         _ => addr.to_owned(),
     }
 }

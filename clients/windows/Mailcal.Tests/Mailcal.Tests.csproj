@@ -225,6 +225,7 @@
          server on a non-standard port is the reason the manual form exists and nothing else
          here can fail when that breaks. -->
     <Compile Include="..\Mailcal\Services\ManualServerField.cs" Link="Services\ManualServerField.cs" />
+    <Compile Include="..\Mailcal\Services\ServerAddressing.cs" Link="Services\ServerAddressing.cs" />
     <!-- What Settings → Accounts' list draws from the core's one snapshot (docs/accounts.md rules
          11 to 14), when an account's page is drawn again from the core's record of it, and what an
          edit of an account's servers sends back. WinUI-free and L10n-free on purpose; each rule

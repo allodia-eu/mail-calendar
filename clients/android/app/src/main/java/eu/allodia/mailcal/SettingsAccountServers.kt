@@ -40,8 +40,9 @@ private fun editedServer(
     address: String?,
     security: ConnectionSecurity,
     standard: ((ConnectionSecurity) -> Int)?,
+    addressing: ServerAddressing,
 ): EditedServer? = address?.let {
-    EditedServer(ManualServerField.splitHost(it).first, ManualServerField(standard).adoptDetected(it, security))
+    EditedServer(addressing.split(it).first, ManualServerField(standard, addressing).adoptDetected(it, security))
 }
 
 /** What Save says the fields leave out, naming the field as the form labels it. */
@@ -74,19 +75,24 @@ internal fun ServersGroup(
     val form = servers.form
     val imapPort = ui.standardPort?.let { lookup -> { s: ConnectionSecurity -> lookup(MailServerKind.IMAP, s) } }
     val smtpPort = ui.standardPort?.let { lookup -> { s: ConnectionSecurity -> lookup(MailServerKind.SMTP, s) } }
-    var imap by remember(entry.id, form) { mutableStateOf(editedServer(form.imapHost, form.imapSecurity, imapPort)) }
-    var smtp by remember(entry.id, form) { mutableStateOf(editedServer(form.smtpHost, form.smtpSecurity, smtpPort)) }
+    val addressing = ui.addressing
+    var imap by remember(entry.id, form) {
+        mutableStateOf(editedServer(form.imapHost, form.imapSecurity, imapPort, addressing))
+    }
+    var smtp by remember(entry.id, form) {
+        mutableStateOf(editedServer(form.smtpHost, form.smtpSecurity, smtpPort, addressing))
+    }
     var caldav by remember(entry.id, form) { mutableStateOf(form.caldavUrl) }
     var carddav by remember(entry.id, form) { mutableStateOf(form.carddavUrl) }
     var login by remember(entry.id, form) { mutableStateOf(form.username) }
     var password by remember(entry.id, form) { mutableStateOf(form.password.orEmpty()) }
     val fields = EndpointFields(
         imapHost = imap?.let {
-            AccountEndpointEdit.joined(it.host, it.field.port, it.field.security, imapPort)
+            AccountEndpointEdit.joined(it.host, it.field.port, it.field.security, imapPort, addressing)
         },
         imapSecurity = imap?.field?.security,
         smtpHost = smtp?.let {
-            AccountEndpointEdit.joined(it.host, it.field.port, it.field.security, smtpPort)
+            AccountEndpointEdit.joined(it.host, it.field.port, it.field.security, smtpPort, addressing)
         },
         smtpSecurity = smtp?.field?.security,
         caldavUrl = caldav?.trim(),
