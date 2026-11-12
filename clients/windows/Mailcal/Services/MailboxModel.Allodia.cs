@@ -12,9 +12,9 @@ public sealed partial class MailboxModel
     // The last of the service's sign-out pages opened, so each is opened once.
     private ulong _allodiaEndSessionOpened;
 
-    /// <summary>Raised on the UI thread when the Allodia account's card may have moved
-    /// (<c>Surface.Allodia</c>): Settings → Allodia account and the first-run card read it again,
-    /// and nothing else.</summary>
+    /// <summary>Raised on the UI thread when the Allodia account's card or its subscription may
+    /// have moved (<c>Surface.Allodia</c>): Settings → Allodia account and the first-run card read
+    /// them again, and nothing else.</summary>
     public event Action? AllodiaChanged;
 
     /// <summary>The Allodia account's card as the core decided it; null before the core is up.
@@ -67,6 +67,7 @@ public sealed partial class MailboxModel
             // against a session someone thought they had left.
             _ = ExternalLauncher.Open(new Uri(end.Url));
         }
+        OpenAllodiaCheckoutPage();
         AllodiaChanged?.Invoke();
     }
 }

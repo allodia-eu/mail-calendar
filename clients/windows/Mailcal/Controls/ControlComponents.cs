@@ -348,13 +348,15 @@ internal sealed class ControlToggle
     }
 }
 
-/// <summary>Asks before a change that deletes something: <paramref name="action"/> does it, Cancel
-/// does not. Collapsed until <see cref="Show"/>; either answer collapses it again.</summary>
+/// <summary>Asks before a change that deletes something or moves a charge: <paramref name="action"/>
+/// does it, <paramref name="dismiss"/> (Cancel unless given) does not. Collapsed until
+/// <see cref="Show"/>; either answer collapses it again.</summary>
 internal sealed class ConfirmPanel
 {
     private readonly Button _confirm;
 
-    internal ConfirmPanel(string title, string message, string action, string automationId, Action<bool> answer)
+    internal ConfirmPanel(
+        string title, string message, string action, string automationId, Action<bool> answer, string? dismiss = null)
     {
         Element = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
         Element.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
@@ -362,7 +364,7 @@ internal sealed class ConfirmPanel
         AutomationProperties.SetAutomationId(text, automationId + "Message");
         Element.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var cancel = new Button { Content = L10n.ActionCancel() };
+        var cancel = new Button { Content = dismiss ?? L10n.ActionCancel() };
         AutomationProperties.SetAutomationId(cancel, automationId + "Cancel");
         _confirm = new Button { Content = action };
         AutomationProperties.SetAutomationId(_confirm, automationId + "Confirm");
