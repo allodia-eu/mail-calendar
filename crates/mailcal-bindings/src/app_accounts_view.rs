@@ -57,11 +57,9 @@ impl MailcalApp {
                 .unwrap_or(usize::MAX)
         };
         facts.sort_by(|a, b| position(&a.id).cmp(&position(&b.id)).then(a.id.cmp(&b.id)));
+        // Kept fresh for each account's page, which is read from memory.
+        self.read_mail_rows_ahead();
         for account in &mut facts {
-            // Kept fresh for its page, which is read from memory.
-            if account.chosen.contains(mailcal_account::Capability::Mail) {
-                self.ask_mail_row(&account.id);
-            }
             if account
                 .chosen
                 .contains(mailcal_account::Capability::Calendar)
