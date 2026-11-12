@@ -356,6 +356,19 @@ fn a_removal_takes_the_page_and_says_on_the_list_what_it_could_not_finish() {
     );
 }
 
+/// The mail half is read at launch, before anything asks for the page, so the page's first read
+/// is drawn whole rather than redrawn once the row arrives.
+#[test]
+fn the_mail_half_is_read_at_launch() {
+    let app = app("account-page-mail-ahead", MAIL_ONLY);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while app.account_work.mail_rows.row(ID).is_none() {
+        assert!(Instant::now() < deadline, "the row was never read at launch");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(settled(&app).mail.is_some());
+}
+
 /// A mail account's page carries its mail half, and a change to it runs through `dispatch` and is
 /// on the page when it ends: the interval in effect, the name it sends under.
 #[test]

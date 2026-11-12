@@ -17,6 +17,16 @@ impl MailcalApp {
         rows.found(account, read, row)
     }
 
+    /// Reads every mail account's row again in the background, so a page opened later is drawn
+    /// from a row already read: at launch, and whenever the accounts list is read.
+    pub(crate) fn read_mail_rows_ahead(&self) {
+        for account in self.registry.facts() {
+            if account.chosen.contains(mailcal_account::Capability::Mail) {
+                self.ask_mail_row(&account.id);
+            }
+        }
+    }
+
     /// Reads `account`'s row again on a thread of its own, and signals the page when it changed.
     pub(crate) fn ask_mail_row(&self, account: &str) {
         // The app first: an ask taken with no thread to answer it would hold every later one.

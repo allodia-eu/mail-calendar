@@ -55,8 +55,9 @@ interval, the watched folders), each a control of its own, a switch to push draw
 folders it will watch: a change to one is stored before it ends, and what follows from it (telling
 the provider the name, reconciling the mail to a new depth or size) runs on afterwards as sync work
 the page does not wait on. Reading a page, or the accounts list, waits on nothing: what the mail
-half draws from the store and the live account list is kept by the core, read again in the
-background whenever either is read and on a change's own thread as it starts and before it ends,
+half draws from the store and the live account list is kept by the core, read in the background
+at launch and again whenever either is read, and on a change's own thread as it starts and before
+it ends,
 and the page is signalled when what was read moved it. For an account whose servers
 can be edited the page carries its `servers`: the form, drawn from the edit being saved while a
 save runs, from the edit the last save refused (its password included, so one field is corrected
