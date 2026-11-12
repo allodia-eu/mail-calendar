@@ -216,36 +216,13 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
         {
             return;
         }
-        // A page just opened is rebuilt by the snapshots that follow it, and a press on the Remove
-        // it replaced lands on a button no longer on screen, so the page never asks. Press the one
-        // on screen until it does.
-        void Remove(Element dialog)
-        {
-            app.Agent.Settle();
-            Element? confirm = null;
-            var asked = App.Eventually(() =>
-            {
-                if ((confirm = app.Agent.Find(new Filter { Id = "AccountRemoveConfirm", Under = dialog })) is not null)
-                {
-                    return true;
-                }
-                app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountRemove", Under = dialog })
-                    ?? throw new InvalidOperationException("the account's page has neither Remove nor its confirmation"));
-                app.Agent.Settle();
-                return false;
-            }, TimeSpan.FromSeconds(15));
-            app.Agent.Invoke(asked && confirm is not null
-                ? confirm
-                : throw new InvalidOperationException("Remove asked nothing before removing the account"));
-            app.Agent.Settle();
-        }
         if (flow.AccountRows().Any(row => row.Name == Bob))
         {
-            Remove(flow.OpenAccount(Bob));
+            flow.Remove(flow.OpenAccount(Bob));
         }
         while (flow.AccountRows().Count(row => row.Name == Address) > 1)
         {
-            Remove(flow.OpenAccount(Address));
+            flow.Remove(flow.OpenAccount(Address));
         }
         // The calendar account a password made is named by the login typed, which is no address,
         // so the list's own lookup does not see it.
@@ -256,7 +233,7 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
             app.Agent.Invoke(linked);
             if (app.Agent.Wait(new Filter { Id = "AccountRemove", Under = settings }, TimeSpan.FromSeconds(10)) is not null)
             {
-                Remove(settings);
+                flow.Remove(settings);
             }
         }
         app.CloseDialogs();
@@ -434,10 +411,7 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
     {
         while (flow.AccountRows().Count(row => row.Name == Address) > 1)
         {
-            var dialog = flow.OpenAccount(Address);
-            app.Agent.Invoke(app.Agent.Find(new Filter { Id = "AccountRemove", Under = dialog })!);
-            app.Agent.Invoke(app.Agent.Wait(new Filter { Id = "AccountRemoveConfirm", Under = dialog }, TimeSpan.FromSeconds(10))!);
-            app.Agent.Settle();
+            flow.Remove(flow.OpenAccount(Address));
         }
         app.CloseDialogs();
         flow.RemoveOnlyAccount(Address);

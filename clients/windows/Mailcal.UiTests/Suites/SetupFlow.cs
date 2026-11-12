@@ -146,13 +146,59 @@ internal sealed class SetupFlow(App app)
         return dialog;
     }
 
+    /// <summary>
+    /// Removes the account whose page is open in <paramref name="dialog"/>, confirmation and all.
+    /// The page is redrawn from every snapshot, and the ones that follow its opening replace its
+    /// buttons: a handle found a moment earlier is refused as gone, or presses a button no longer on
+    /// screen and nothing asks. So each step is found afresh and pressed until it takes.
+    /// </summary>
+    internal void Remove(Element dialog)
+    {
+        bool Press(string id)
+        {
+            try
+            {
+                if (Agent.Find(new Filter { Id = id, Under = dialog }) is not { } button)
+                {
+                    return false;
+                }
+                Agent.Invoke(button);
+                return true;
+            }
+            catch (AgentRefusal e) when (e.Code == "gone")
+            {
+                return false;
+            }
+        }
+        Agent.Settle();
+        var asked = App.Eventually(() =>
+        {
+            if (Agent.Find(new Filter { Id = "AccountRemoveConfirm", Under = dialog }) is not null)
+            {
+                return true;
+            }
+            if (!Press("AccountRemove"))
+            {
+                return false;
+            }
+            Agent.Settle();
+            return Agent.Find(new Filter { Id = "AccountRemoveConfirm", Under = dialog }) is not null;
+        }, TimeSpan.FromSeconds(15));
+        if (!asked)
+        {
+            throw new InvalidOperationException("Remove asked nothing before removing the account");
+        }
+        if (!App.Eventually(() => Press("AccountRemoveConfirm") || Agent.Find(new Filter { Id = "AccountRemove", Under = dialog }) is null, TimeSpan.FromSeconds(10)))
+        {
+            throw new InvalidOperationException("the account's removal could not be confirmed");
+        }
+        Agent.Settle();
+    }
+
     /// <summary>Removes the one account from its page, and waits for the first-run screen it leaves.</summary>
     internal void RemoveOnlyAccount(string address)
     {
-        var dialog = OpenAccount(address);
-        Agent.Invoke(Agent.Find(new Filter { Id = "AccountRemove", Under = dialog })!);
-        Agent.Invoke(Agent.Wait(new Filter { Id = "AccountRemoveConfirm", Under = dialog }, TimeSpan.FromSeconds(10))
-            ?? throw new InvalidOperationException("Remove asked nothing before removing the account"));
+        Remove(OpenAccount(address));
         app.CloseDialogs();
         if (Agent.Wait(Filter.ById("DetectEmail", "Edit") with { OnScreen = true }, TimeSpan.FromSeconds(20)) is null)
         {
