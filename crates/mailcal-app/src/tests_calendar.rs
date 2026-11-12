@@ -21,6 +21,8 @@ mod account_meeting;
 mod conference;
 #[path = "tests_calendar_meeting_default.rs"]
 mod meeting_default;
+#[path = "tests_calendar_reach.rs"]
+mod reach;
 #[path = "tests_calendar_video_meeting.rs"]
 mod video_meeting;
 

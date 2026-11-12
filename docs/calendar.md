@@ -337,6 +337,37 @@ store has a calendar":
 
 Both are decided in `rebuild_calendar_cache`, once, so no surface can hold a different opinion.
 
+### A page outside the window widens it
+
+Every launch expands the **rolling horizon**: 120 days back and 400 ahead of today. A page asked for
+beyond it answers `false` at once, because the page query never touches the store (§5), and the same
+query records the days it could not answer. The bindings then run the widening off the caller's
+thread (`App::widen_calendar`): every account's stored events are expanded over a window reaching
+the page and 91 days past it, the cache is rebuilt over that window, and `Surface::Calendar` tells
+the client to pull again. The page comes back `true` with its events. "Loading this period…" is
+therefore what a client shows while that local expansion runs, and never a resting state for a
+calendar that has been read.
+
+- **The window only grows towards pages asked for, and lasts the session.** Going back two years
+  expands the two years in between, because the engine expands one window; the next launch expands
+  the rolling horizon alone again, so the cost is paid by the session that asked for it. The 91-day
+  step means paging a week at a time widens once a quarter, not once a page.
+- **Nothing narrows it again during the session.** A refresh and a write's rebuild both work over
+  the window as widened, and every expansion and the rebuild that claims it hold one lock, so a
+  rebuild over a narrower window cannot land after a wider one and take a page back to "loading".
+- **The evidence rule above still holds.** Widening a store nobody has read claims nothing.
+- **A widening that cannot expand every account claims nothing new.** One whose calendar another
+  pass holds tries again a few times and is then owed again, so the next page asked for starts
+  another; the pass that held the calendar expands the same window when it finishes.
+- **A widened page shows what the store holds.** A CalDAV or JMAP account fetches every event, so
+  its widened page is complete. A Google or Microsoft account fetches its events over a window
+  instead: the rolling horizon as it stood at the account's first sync, applied once and then
+  carried by the provider's change feed. Outside that window, a page of that account, widened or
+  not, can lack one-off events: its store holds the repeating series and what the change feed has
+  brought since, never what was already there. The rolling horizon itself passes the window's end
+  as the account ages. Fetching a further range into a synced calendar is the engine's to offer,
+  and it does not yet.
+
 ### A calendar that is not connected says so
 
 A calendar the account is used for can fail while the account connects: its server needs a sign-in
@@ -624,7 +655,7 @@ on a large diary. The consequence for the contract is small but real: **the agen
 windowed set the grid draws.** An event with no occurrence in the horizon is still stored and still
 opens by key (its detail read is targeted, not windowed), but it is not in the agenda list: the
 agenda is "what is on in the window we have looked at", not "every event ever synced". Widening the
-window (the `is_materialized`/widen path §4 anticipates) widens the agenda with it.
+window to a page outside the rolling horizon (§4) widens the agenda with it.
 
 And a refresh that changes nothing now **holds no write lease**. `refresh_calendar`'s re-expansion
 (`Engine::expand_horizon`) used to re-derive *every* stored event over the whole horizon on every
@@ -632,8 +663,8 @@ call (thousands of events, under a scope lease held for seconds), so a tap that 
 blocked on that lease and took the very seconds the targeted read had just removed (a real 5 s stall,
 observed on a full diary). The engine now skips a scope whose materialized window already matches the
 one asked for, so a steady-state refresh (or the first one after a same-day relaunch) is a handful of
-cheap reads, not a lease-bound re-expansion. A horizon advance or a display-zone change still
-re-expands (the window carries both), so nothing a user pages to goes unmaterialized.
+cheap reads, not a lease-bound re-expansion. A horizon advance, a widening (§4) or a display-zone
+change still re-expands (the window carries all three).
 
 ---
 
@@ -1658,6 +1689,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | Shape + horizon restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A phone opens on three days, a tablet or a computer on the week, until a shape is chosen (§8) | ✅ | — | ✅ | — | ✅ | — |
 | Stored diary on screen at launch, and filled without being opened | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A page outside the rolling horizon loads rather than staying on "loading" (§4) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Week paging: by swipe | — | ⬜ ⁴ | ⬜ ⁴ | ⬜ ⁴ | ✅ | ⬜ |
 | Continuous day strip + **pinned** hour ruler (rests between weeks) | — | ✅ ⁴ | ✅ ⁴ | ✅ ⁴ | ⬜ | ⬜ |
 | Comes to rest on a **day**: every zoom, every input | — | ✅ ⁴ | ✅ ⁴ | ✅ ⁴ | ⬜ ⁴ | ⬜ ⁴ |

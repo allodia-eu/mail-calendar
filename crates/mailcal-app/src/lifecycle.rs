@@ -85,6 +85,7 @@ impl<P: Provider> App<P> {
             mailbox_list: Surfaced::new(Surface::MailboxList, Arc::clone(&observer)),
             calendar: Surfaced::new(Surface::Calendar, Arc::clone(&observer)),
             calendar_cache: Mutex::new(calendar_cache::CalendarCache::default()),
+            calendar_expansion: tokio::sync::Mutex::new(()),
             calendar_prefs: Mutex::new(CalendarPrefsState::new(prefs_path.clone())),
             folder_pane: Mutex::new(folder_pane::FolderPaneState::new(prefs_path.clone())),
             sender_names: Mutex::new(sender_names::SenderNameState::new(prefs_path.clone())),
