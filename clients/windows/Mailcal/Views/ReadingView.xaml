@@ -80,6 +80,7 @@
                               VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled"
                               SizeChanged="OnActionToolbarSizeChanged">
                     <StackPanel x:Name="ActionButtons" Orientation="Horizontal" Spacing="8"
+                                HorizontalAlignment="Left"
                                 SizeChanged="OnActionToolbarSizeChanged">
                         <!-- Each button's content is an icon + label panel, not a plain string, so
                              WinUI derives NO UIA Name from it, a screen reader announced these five

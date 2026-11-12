@@ -108,6 +108,13 @@ internal static class Desktop
         });
     }
 
+    /// <summary>Maximises <paramref name="hwnd"/>; disposing restores it.</summary>
+    internal static IDisposable Maximised(long hwnd)
+    {
+        ShowWindow((nint)hwnd, ShowMaximise);
+        return new Restore(() => ShowWindow((nint)hwnd, ShowRestore));
+    }
+
     private sealed class Restore(Action restore) : IDisposable
     {
         public void Dispose() => restore();
