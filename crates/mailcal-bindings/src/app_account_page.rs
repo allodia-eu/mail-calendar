@@ -13,7 +13,7 @@ use crate::{
     AccountPage, AccountPageIntent, AccountUseBlock, CapabilityChange, LinkSlot, MailcalApp,
     MailcalError, ReplyFallbackChoice, SyncStrategyKind, account_page, account_page_mail,
     account_registry::Toggle,
-    account_work::{Change, PageWork, Start},
+    account_work::{Change, Start},
 };
 
 #[uniffi::export]
@@ -36,17 +36,9 @@ impl MailcalApp {
             )
         });
         let refused = refused_uses.remove(&account_id).unwrap_or_default();
-        let pushing = hold.going(|work| match work {
-            PageWork::Push(on) => Some(if *on {
-                mailcal_viewmodel::SyncStrategyKind::Push
-            } else {
-                mailcal_viewmodel::SyncStrategyKind::Poll
-            }),
-            _ => None,
-        });
-        let mail = self
-            .runtime
-            .block_on(|| self.app.sync_settings_row(&account_id, pushing));
+        // As last read, and read again in the background, which signals the page if it moved.
+        let mail = self.account_work.mail_rows.row(&account_id);
+        self.ask_mail_row(&account_id);
         let refused_servers = self.account_work.refused_servers(&account_id);
         let reply_fallback = engine_api::AccountId::try_from(account_id.as_str())
             .map_or(ReplyFallbackChoice::Ask, |id| {
@@ -146,6 +138,12 @@ impl MailcalApp {
             let mut next = Some(change);
             while let Some(change) = next {
                 let account = change.account().to_owned();
+                // A switch to push is drawn with the folders it will watch, which its row says.
+                if matches!(change, Change::Page(AccountPageIntent::SetPush { .. }))
+                    && app.read_mail_row(&account)
+                {
+                    app.app.account_page_changed();
+                }
                 // Freed even when the change panics, or every page would stay held until a
                 // restart; the panic still goes on to the crash hook, after the next change is
                 // handed a thread of its own.
@@ -154,6 +152,9 @@ impl MailcalApp {
                         Change::Page(intent) => app.run_account_change(intent),
                         Change::SignIn { attempt, .. } => app.complete_sign_in(attempt),
                     }));
+                // Read while the page is still held, so what the change stored is never drawn
+                // back at the value it left.
+                app.read_mail_row(&account);
                 next = app
                     .account_work
                     .finish(&account, outcome.as_ref().ok().cloned().flatten());
@@ -370,3 +371,6 @@ mod separate;
 
 #[path = "app_account_page_browser.rs"]
 mod browser;
+
+#[path = "app_account_page_mail.rs"]
+mod mail;

@@ -126,3 +126,7 @@ pub(crate) fn mail_half(
 #[cfg(test)]
 #[path = "account_page_mail_tests.rs"]
 mod tests;
+
+#[path = "account_page_mail_rows.rs"]
+mod rows;
+pub(crate) use rows::{MailRows, going_strategy};

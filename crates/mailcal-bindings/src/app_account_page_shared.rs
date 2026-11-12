@@ -2,8 +2,6 @@
 //! background, never on the thread that reads the page, and switching or adding one as a change
 //! on the page.
 
-use std::sync::Arc;
-
 use engine_api::AccountId;
 use mailcal_account::SharedUses;
 use mailcal_app::SharedStoreOffer;
@@ -21,6 +19,7 @@ impl MailcalApp {
     /// their server takes (rule 18); the page is signalled once each answers. What it answered
     /// before is drawn meanwhile.
     pub fn account_page_opened(&self, account_id: String) {
+        self.ask_mail_row(&account_id);
         self.ask_sign_in_options(&account_id, true);
         self.ask_shared(&account_id, true);
         if let Some(need) = self.separate_need(&account_id) {
@@ -40,7 +39,7 @@ impl MailcalApp {
         let shared = &self.account_work.shared;
         // One that cannot open any is answered without asking its server.
         let offer = if self.opens_shared(account_id) {
-            self.ask_shared(account_id, false);
+            self.ask_opening_shared(account_id, false);
             shared.offer(account_id)
         } else {
             Some(Ok(SharedStoreOffer::Unsupported))
@@ -52,9 +51,13 @@ impl MailcalApp {
     ///
     /// [`SharedAnswers::ask`]: crate::account_page::shared::SharedAnswers::ask
     fn ask_shared(&self, account_id: &str, again: bool) {
-        if !self.opens_shared(account_id) {
-            return;
+        if self.opens_shared(account_id) {
+            self.ask_opening_shared(account_id, again);
         }
+    }
+
+    /// [`Self::ask_shared`] for an account already known to open shared stores.
+    fn ask_opening_shared(&self, account_id: &str, again: bool) {
         // The app first: a ticket taken with no thread to answer it would hold every later ask.
         let Some(app) = self.rediscovery.app() else {
             return;
@@ -79,11 +82,7 @@ impl MailcalApp {
         let uses = self.shared_uses(account_id);
         let live = AccountId::try_from(account_id).map_or_else(
             |_| SharedUses::default(),
-            |account| {
-                let app = Arc::clone(&self.app);
-                self.runtime
-                    .block_on(|| async move { app.live_shared_uses(&account, uses).await })
-            },
+            |account| self.app.live_shared_uses(&account, uses),
         );
         Asked {
             uses: self

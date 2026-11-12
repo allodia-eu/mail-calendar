@@ -86,10 +86,8 @@ impl MailcalApp {
         support: DefaultMailAppSupport,
         is_default: Option<bool>,
     ) -> bool {
-        self.runtime.block_on(|| {
-            self.app
-                .should_offer_default_mail_app(support.into(), is_default)
-        })
+        self.app
+            .should_offer_default_mail_app(support.into(), is_default)
     }
 
     /// Records what came of the offer, so it is never put again, then signals
