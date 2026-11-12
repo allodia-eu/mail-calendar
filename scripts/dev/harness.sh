@@ -186,6 +186,8 @@ case "$cmd" in
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       live_suite live_shared_mailboxes
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
+      live_suite live_shared_calendars
+    STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       MAILCAL_EXTRA_CA="$HARNESS_CA" \
       MAILCAL_HARNESS_IMAP="localhost:${STALWART_IMAP_ADDR##*:}" \
       live_suite live_row_menu

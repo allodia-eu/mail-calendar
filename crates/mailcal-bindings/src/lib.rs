@@ -68,7 +68,7 @@ mod app_notices;
 mod app_sender_name;
 mod app_server_change;
 mod app_settings;
-mod app_shared_mailboxes;
+mod app_shared_stores;
 mod app_signatures;
 mod app_snapshots;
 mod autodetect;
@@ -192,7 +192,7 @@ pub use app_display::stored_appearance;
 pub use app_month::{calendar_event_swatch, calendar_palette};
 pub use app_sender_name::sender_label;
 pub use app_server_change::{AccountServerChange, ServerChange};
-pub use app_shared_mailboxes::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView};
+pub use app_shared_stores::{SharedStoreEntry, SharedStoreSupport, SharedStoresView};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
@@ -227,6 +227,7 @@ pub use help::{HelpPage, help_page_url};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
 pub use launch::{launch_status_after_ms, stored_account_is_readable};
 pub use logging::{LogLevel, Logger};
+pub use mailcal_account::{SharedUse, SharedUses};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
@@ -249,14 +250,8 @@ pub use records::{
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
-pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
-    AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
-    AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
-    AccountSharedMailbox, AccountSharedMailboxes, AccountSharing, AccountToggle, AccountUseBlock,
-    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
-    SharedMailboxesNote,
-};
+// Every record of an account's page crosses the FFI, so the module is exported whole.
+pub use records_account_page::*;
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,
     AccountSignIn, AccountSignInLine, AccountSignInRoute, BrowserSignIn, BrowserSignInStage,

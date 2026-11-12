@@ -181,9 +181,10 @@ pub struct AccountShape {
     /// The accounts this one relies on.
     #[serde(default)]
     pub links: AccountLinks,
-    /// The mailboxes this account's sign-in opens besides its own that it is used for.
-    #[serde(default, rename = "shared_mailbox")]
-    pub shared_mailboxes: Vec<crate::SharedMailboxChoice>,
+    /// The stores this account's sign-in opens besides its own that it is used for, in the order
+    /// chosen (`shared_store`).
+    #[serde(default, rename = "shared_store")]
+    pub shared_stores: Vec<crate::SharedStoreChoice>,
 }
 
 impl AccountShape {
@@ -195,7 +196,10 @@ impl AccountShape {
     /// Returns [`ConfigError::Parse`] if the document is not TOML, or if one of these keys holds
     /// something it cannot (an id that is not one, a capability this build does not know).
     pub fn read(text: &str) -> Result<Self, ConfigError> {
-        Ok(toml::from_str(text)?)
+        let mut shape: Self = toml::from_str(text)?;
+        let older: Older = toml::from_str(text)?;
+        shape.shared_stores.splice(0..0, older.shared_mailbox);
+        Ok(shape)
     }
 
     /// What the account is used for: what it stores, or `legacy` when it stores nothing, which
@@ -230,15 +234,23 @@ impl AccountShape {
             }
             root.insert("links".into(), links.into());
         }
-        if !self.shared_mailboxes.is_empty() {
+        if !self.shared_stores.is_empty() {
             let tables: Vec<toml::Value> = self
-                .shared_mailboxes
+                .shared_stores
                 .iter()
                 .map(|choice| choice.write_into().into())
                 .collect();
-            root.insert("shared_mailbox".into(), tables.into());
+            root.insert("shared_store".into(), tables.into());
         }
     }
+}
+
+/// The shared mailboxes stored before a shared store could hold calendars: each a store holding
+/// mail, read into [`AccountShape::shared_stores`] and written back as one.
+#[derive(Deserialize)]
+struct Older {
+    #[serde(default)]
+    shared_mailbox: Vec<crate::SharedStoreChoice>,
 }
 
 /// An empty capability list reads as absent: an account is used for at least one thing, or it

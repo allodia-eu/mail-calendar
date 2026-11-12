@@ -11,26 +11,27 @@ use std::{
     },
 };
 
-use mailcal_account::SharedMailboxChoice;
-use mailcal_app::SharedMailboxOffer;
+use mailcal_account::SharedStoreChoice;
+use mailcal_app::SharedStoreOffer;
 
 use crate::{
     AccountSharedAddress, AccountSharedMailbox, AccountSharedMailboxes, ControlState,
-    SharedMailboxSupport, SharedMailboxesNote,
+    SharedMailboxesNote, SharedStoreSupport,
     account_work::{Hold, PageWork},
-    app_shared_mailboxes::view,
+    app_shared_stores::view,
 };
 
 /// What a server answered: its offer, or `Err` when it was asked and did not answer.
-pub(crate) type Offer = Result<SharedMailboxOffer, ()>;
+pub(crate) type Offer = Result<SharedStoreOffer, ()>;
 
-/// The account as its server was asked: what it is used for, and whether its mailbox was live.
-/// An answer asked of an account that has changed since may no longer hold: a use switched on or
-/// off opens or closes them, and a mailbox that connected can now be asked.
+/// The account as its server was asked: what it is used for, and which of its mailbox and
+/// calendar were live. An answer asked of an account that has changed since may no longer hold: a
+/// use switched on or off opens or closes them, and a mailbox or calendar that connected can now
+/// be asked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Asked {
     pub(crate) uses: mailcal_account::Capabilities,
-    pub(crate) live: bool,
+    pub(crate) live: mailcal_account::SharedUses,
 }
 
 #[derive(Debug, Default)]
@@ -120,7 +121,7 @@ impl SharedAnswers {
         &self,
         account: &str,
         offer: Option<Offer>,
-        chosen: Vec<SharedMailboxChoice>,
+        chosen: Vec<SharedStoreChoice>,
         hold: &Hold,
     ) -> Option<AccountSharedMailboxes> {
         section(offer?, chosen, hold, self.missed_at(account))
@@ -129,21 +130,23 @@ impl SharedAnswers {
 
 fn section(
     offer: Offer,
-    chosen: Vec<SharedMailboxChoice>,
+    chosen: Vec<SharedStoreChoice>,
     hold: &Hold,
     missed: Option<String>,
 ) -> Option<AccountSharedMailboxes> {
     let view = view(offer, chosen);
-    if view.support == SharedMailboxSupport::Unsupported && view.mailboxes.is_empty() {
+    if view.support == SharedStoreSupport::Unsupported && view.stores.is_empty() {
         return None;
     }
     let control = |running: bool| ControlState {
         enabled: !hold.busy,
         running,
     };
+    // The stores holding mail: this is the account's mailboxes.
     let mailboxes = view
-        .mailboxes
+        .stores
         .iter()
+        .filter(|store| store.holds.contains(mailcal_account::SharedUse::Mail))
         .map(|mailbox| {
             let going = hold.going(|work| match work {
                 PageWork::Shared { handle, on } if *handle == mailbox.handle => Some(*on),
@@ -164,15 +167,13 @@ fn section(
         })
         .collect::<Vec<_>>();
     let note = match view.support {
-        SharedMailboxSupport::Listed if mailboxes.is_empty() => {
-            Some(SharedMailboxesNote::NoneShared)
-        }
-        SharedMailboxSupport::ByAddress => Some(SharedMailboxesNote::ByAddress),
-        SharedMailboxSupport::NotConnected => Some(SharedMailboxesNote::NotConnected),
-        SharedMailboxSupport::Unreachable => Some(SharedMailboxesNote::Unreachable),
+        SharedStoreSupport::Listed if mailboxes.is_empty() => Some(SharedMailboxesNote::NoneShared),
+        SharedStoreSupport::ByAddress => Some(SharedMailboxesNote::ByAddress),
+        SharedStoreSupport::NotConnected => Some(SharedMailboxesNote::NotConnected),
+        SharedStoreSupport::Unreachable => Some(SharedMailboxesNote::Unreachable),
         _ => None,
     };
-    let address = (view.support == SharedMailboxSupport::ByAddress).then(|| {
+    let address = (view.support == SharedStoreSupport::ByAddress).then(|| {
         let adding = hold.going(|work| match work {
             PageWork::AddShared(address) => Some(address.clone()),
             _ => None,

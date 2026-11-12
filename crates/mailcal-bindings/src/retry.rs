@@ -71,17 +71,17 @@ impl MailcalApp {
     /// no-op when there is nothing to dial.
     pub(crate) fn retry_connections(&self) {
         let mut ids: Vec<String> = lock(&self.disconnected).drain().collect();
-        // A shared mailbox is opened by its parent's sign-in, so dialling the parent again dials
+        // A shared store is opened by its parent's sign-in, so dialling the parent again dials
         // it again too: otherwise it keeps a connection made with what the parent had before.
         let shared: Vec<String> = ids
             .iter()
-            .flat_map(|id| self.registry.shared_mailboxes(id))
-            .map(|(child, _)| child.as_str().to_owned())
+            .flat_map(|id| self.registry.shared_children(id))
+            .map(|child| child.id.as_str().to_owned())
             .filter(|child| !ids.contains(child))
             .collect();
         ids.extend(shared);
-        // A parent's dial replaces the connections its shared mailboxes draw on, so a shared
-        // mailbox whose parent is dialled now is dialled once that dial is over, on what it made.
+        // A parent's dial replaces the connections its shared stores draw on, so a shared
+        // store whose parent is dialled now is dialled once that dial is over, on what it made.
         let dialled: HashSet<String> = ids.iter().cloned().collect();
         let (after_parent, now): (Vec<String>, Vec<String>) = ids.into_iter().partition(|id| {
             self.registry

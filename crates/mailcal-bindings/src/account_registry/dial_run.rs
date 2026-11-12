@@ -118,6 +118,18 @@ impl AccountDial {
                         .map_err(ConnectFailure::from)
                     }),
                     part(on(Capability::Calendar) && config.caldav.is_some(), async {
+                        // A shared calendar starts at its store's principal, and what it finds
+                        // there is not the account's own to remember.
+                        if let Some(handle) = shared.as_ref() {
+                            return mailcal_account::connect_caldav_shared(
+                                &config,
+                                tokens.as_ref(),
+                                handle,
+                            )
+                            .await
+                            .map(|provider| vec![provider])
+                            .map_err(ConnectFailure::from);
+                        }
                         mailcal_account::connect_caldav_learning(&config, tokens.as_ref())
                             .await
                             .map(|connected| {
@@ -137,7 +149,8 @@ impl AccountDial {
                         ),
                     ),
                     async {
-                        // A shared mailbox is mail alone, under the account's sign-in.
+                        // A shared store is what it holds of mail and calendars, under the
+                        // account's sign-in.
                         if shared.is_some() {
                             return None;
                         }
@@ -320,7 +333,12 @@ impl AccountDial {
                 let has_mail = shared.is_some() || !session.lacks().contains(Capability::Mail);
                 let calendar = part(
                     on(Capability::Calendar),
-                    boot::connect_jmap_calendars(&config, tokens.as_ref(), &providers),
+                    boot::connect_jmap_calendars(
+                        &config,
+                        tokens.as_ref(),
+                        &providers,
+                        shared.as_ref(),
+                    ),
                 )
                 .await;
                 let contacts = part(

@@ -201,12 +201,13 @@ fn a_stored_shared_mailbox_is_listed_once_under_its_own_id_after_a_relaunch() {
     let stored = std::sync::Arc::default();
     let app = boot(&data_dir, vec![ALICE.to_owned()], &stored);
     let parent = app.accounts_snapshot().accounts[0].id.clone();
-    app.set_shared_mailbox(
+    app.set_shared_store(
         parent.clone(),
-        crate::SharedMailboxEntry {
+        crate::SharedStoreEntry {
             handle: "support".to_owned(),
             name: "Support".to_owned(),
             address: Some("support@example.org".to_owned()),
+            holds: crate::SharedUses::of(crate::SharedUse::Mail),
             selected: false,
             listed: true,
         },
@@ -288,4 +289,20 @@ pub(crate) fn note_after_boot_dial(
             "the account's problems never held"
         );
     }
+}
+
+#[test]
+fn an_account_handed_in_twice_takes_every_shared_store_it_opens_with_it() {
+    // The later copy replaces the earlier and its shared stores, which it lists again: a store
+    // left behind would be listed twice.
+    let parent = "alice@jmap:mail.example.org";
+    assert!(crate::boot::opened_by(
+        &format!("{parent}#shared:f"),
+        parent
+    ));
+    assert!(crate::boot::opened_by(parent, parent));
+    assert!(!crate::boot::opened_by(
+        "alice@jmap:mail.example.org.evil",
+        parent
+    ));
 }
