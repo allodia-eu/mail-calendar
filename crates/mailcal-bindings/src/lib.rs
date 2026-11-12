@@ -309,7 +309,8 @@ pub use repeat_editor::repeat_change_of;
 pub use row_menu::{MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection};
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
-    account_config_toml, jmap_account_config_toml, standard_port,
+    ServerAddressParts, account_config_toml, jmap_account_config_toml, server_address,
+    server_address_parts, standard_port,
 };
 pub use setup_choices::{
     DetectedSetup, SetupChoice, offered_setup, offers_setup_links, provider_setup_choices,

@@ -15,11 +15,13 @@ public class ManualServerFieldTests
     // The standard ports, as the core answers them. They are written out here because this
     // assembly loads no cdylib; that they are the SAME numbers the core dials is pinned in
     // `mailcal-bindings`'s own suite, which is the only place that can assert it.
-    private static ManualServerField Imap() =>
-        new(security => security == ConnectionSecurity.ImplicitTls ? (ushort)993 : (ushort)143);
+    private static ManualServerField Imap() => new(
+        security => security == ConnectionSecurity.ImplicitTls ? (ushort)993 : (ushort)143,
+        PlainAddressing.Instance);
 
-    private static ManualServerField Smtp() =>
-        new(security => security == ConnectionSecurity.ImplicitTls ? (ushort)465 : (ushort)587);
+    private static ManualServerField Smtp() => new(
+        security => security == ConnectionSecurity.ImplicitTls ? (ushort)465 : (ushort)587,
+        PlainAddressing.Instance);
 
     [Fact]
     public void AFreshFieldOffersTheStandardSecurePort()
@@ -144,21 +146,5 @@ public class ManualServerFieldTests
         Assert.Equal(ConnectionSecurity.ImplicitTls, field.Security);
         Assert.True(field.FollowsSecurity);
         Assert.Equal("localhost:993", field.Dial("localhost"));
-    }
-
-    // Mirrors the core's own split (mailcal-account's `host_and_addr`), deliberately: the core
-    // decides the address actually dialled, so a client that split differently would show one
-    // port and connect to another. A bare IPv6 literal is not a server either side accepts.
-    [Theory]
-    [InlineData("imap.example.net", "imap.example.net", "")]
-    [InlineData("imap.example.net:993", "imap.example.net", "993")]
-    [InlineData("host:", "host:", "")]
-    [InlineData("host:abc", "host:abc", "")]
-    [InlineData("::1", ":", "1")]
-    public void OnlyAnAllDigitTailIsAPort(string input, string host, string port)
-    {
-        var split = ManualServerField.SplitHost(input);
-        Assert.Equal(host, split.Host);
-        Assert.Equal(port, split.Port);
     }
 }
