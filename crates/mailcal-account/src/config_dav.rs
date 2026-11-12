@@ -77,6 +77,38 @@ impl AccountConfig {
         });
         AccountId::try_from(format!("{username}@dav:{host}").as_str())
     }
+
+    /// The password the account signs in to its calendar and contacts servers with: the one a
+    /// move of them to an account of their own carries. `None` on an account that presents a
+    /// grant instead.
+    #[must_use]
+    pub fn dav_password(&self) -> Option<&Secret> {
+        self.caldav_endpoint()
+            .or_else(|| self.carddav_endpoint())?
+            .password
+    }
+
+    /// Whether this account already signs in to each calendar and contacts server `typed` names
+    /// as the login and with the password `typed` gives it. A password it does not hold is one no
+    /// server has taken from it.
+    #[must_use]
+    pub fn holds_dav_login(&self, typed: &Self) -> bool {
+        let holds = |held: Option<DavEndpoint<'_>>, given: Option<DavEndpoint<'_>>| {
+            given.is_none_or(|given| {
+                held.is_some_and(|held| {
+                    held.username
+                        .trim()
+                        .eq_ignore_ascii_case(given.username.trim())
+                        && held
+                            .password
+                            .zip(given.password)
+                            .is_some_and(|(held, given)| held.expose() == given.expose())
+                })
+            })
+        };
+        holds(self.caldav_endpoint(), typed.caldav_endpoint())
+            && holds(self.carddav_endpoint(), typed.carddav_endpoint())
+    }
 }
 
 /// How a DAV endpoint of `account` authenticates: the credential, and the hosts it may follow a
