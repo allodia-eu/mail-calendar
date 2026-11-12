@@ -66,7 +66,7 @@ fn without_cr_before_lf(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-/// Every text file, tracked or not, with a CRLF in the working tree or the index.
+/// Every text file, tracked or not, with a CRLF in the working tree.
 fn offenders(root: &Path) -> Result<Vec<String>, String> {
     let output = Command::new("git")
         .args([
@@ -94,20 +94,19 @@ fn offenders(root: &Path) -> Result<Vec<String>, String> {
         .collect())
 }
 
-/// The path in one `git ls-files --eol` entry when that file is text with a CRLF in it.
+/// The path in one `git ls-files --eol` entry when that file is text with a CRLF on disk.
 ///
-/// An entry reads `i/<index> w/<worktree> attr/<attributes>\t<path>`. Either side counts: a CRLF
-/// committed under `-text` is a format, and one committed without it is the same fault as one on
-/// disk.
+/// An entry reads `i/<index> w/<worktree> attr/<attributes>\t<path>`. Only the working tree is
+/// read: it is what runs and what the other checks compare, and `.gitattributes` normalises what a
+/// commit stores, so the index side is git's to keep, not this check's.
 fn offending_path(entry: &str) -> Option<&str> {
     let (info, path) = entry.split_once('\t')?;
     let mut fields = info.split_whitespace();
-    let index = fields.next()?.strip_prefix("i/")?;
+    fields.next()?.strip_prefix("i/")?;
     let worktree = fields.next()?.strip_prefix("w/")?;
     let attributes = info.split_once("attr/").map_or("", |(_, a)| a);
-    let crlf = |eol: &str| eol == "crlf" || eol == "mixed";
     let binary_by_choice = attributes.split_whitespace().any(|a| a == "-text");
-    ((crlf(index) || crlf(worktree)) && !binary_by_choice).then_some(path)
+    (matches!(worktree, "crlf" | "mixed") && !binary_by_choice).then_some(path)
 }
 
 #[cfg(test)]
