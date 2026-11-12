@@ -146,16 +146,22 @@ public sealed class ImapSignInTests(HarnessApp harness)
     private static void SelectSecurity(App app, string label)
     {
         var picker = app.Agent.Find(Filter.ById("ImapSecurityPicker", "ComboBox")) ?? throw new InvalidOperationException("the manual form has no IMAP security picker");
-        app.Agent.Expand(picker);
         // The combo also lists its items under itself; the open list's own are the ones drawn, and
         // neither takes a selection through its peer, so the choice is a click, as a person makes it.
+        // A combo's list closes when its window loses the foreground, and its items are exposed a
+        // moment after it opens, so it is opened again whenever it is found closed.
         var named = Filter.Named(label, "ListItem");
         Element? item = null;
         if (!App.Eventually(() =>
             {
+                if (app.Agent.Read(picker).Expanded != true)
+                {
+                    Input.BringToFront(picker.Window);
+                    app.Agent.Expand(picker);
+                }
                 var closed = app.Agent.FindAll(named with { Under = picker }).Select(e => e.Handle).ToHashSet();
                 return (item = app.Agent.FindAll(named).FirstOrDefault(e => !closed.Contains(e.Handle))) is not null;
-            }, TimeSpan.FromSeconds(3)))
+            }, App.Patience))
         {
             throw new InvalidOperationException($"the IMAP security picker offers no '{label}'");
         }
