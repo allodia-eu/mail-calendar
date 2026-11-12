@@ -341,6 +341,13 @@ discard and stores the draft the user threw away, under a key nothing holds any 
 withdrawal can be refused, because an op mid-round-trip cannot be called back; that is logged
 and the removal below runs on whatever key the composition had.
 
+**A discarded composition stays discarded.** The core refuses any later save that names it, and
+so any composition an accepted send finished. Its composer can outlive the discard by a moment (a
+window still closing, an idle timer already running), and a save then would store the message
+again as a draft nothing can name. A host closes the composer after the discard, never before it,
+and on the Mac only once the "Discard draft?" alert has gone, because a window with that alert
+still attached ignores being closed.
+
 ## Per-platform
 
 | | Apple | Windows | Android | Linux |

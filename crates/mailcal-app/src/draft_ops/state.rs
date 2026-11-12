@@ -1,6 +1,9 @@
 //! The per-composition record: what the core knows about each composer that is open.
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 
 use engine_api::{AccountId, InlinePart, MessageIdHeader, PendingOpId, ProviderKey};
 
@@ -79,6 +82,10 @@ pub(crate) struct DraftState {
     /// different draft, so one slot would have the composer nobody touched announce that the
     /// one beside it had saved.
     pub(super) status: HashMap<CompositionId, DraftStatus>,
+    /// Compositions that were discarded or sent. A save naming one stores nothing: its composer
+    /// can outlive the discard by a moment, and a save then would put back the draft the user
+    /// threw away, under a key nothing holds.
+    pub(super) finished: HashSet<CompositionId>,
     /// Held for the length of a save, so the read of the stored key and the write of the new
     /// one cannot be split by another save.
     ///

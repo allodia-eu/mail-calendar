@@ -117,6 +117,10 @@ impl<P: Provider> App<P> {
         // One save at a time: see `DraftState::save`.
         let gate = Arc::clone(&self.drafts.lock().expect("drafts mutex poisoned").save);
         let _saving = gate.lock().await;
+        // Read after the wait: a discard can land while this save queues behind another.
+        if self.is_finished(composition) {
+            return log::info!("drafts: a save after the discard was dropped");
+        }
         // An account already carrying this draft wins over the composer's dropdown: see
         // `Composition::account`.
         let account = match self.composition_account(composition) {
@@ -186,6 +190,11 @@ impl<P: Provider> App<P> {
     /// Also what an accepted send calls, because a sent message's draft is exactly a stored
     /// copy nobody wants any more ([`send_draft`](Self::send_draft)).
     pub(crate) async fn discard_draft(&self, composition: &CompositionId) {
+        self.drafts
+            .lock()
+            .expect("drafts mutex poisoned")
+            .finished
+            .insert(composition.clone());
         let Some(Composition {
             account,
             key,
@@ -383,6 +392,15 @@ impl<P: Provider> App<P> {
         {
             open.queued = Some(op);
         }
+    }
+
+    /// Whether `composition` was discarded or sent, so that nothing may store it again.
+    fn is_finished(&self, composition: &CompositionId) -> bool {
+        self.drafts
+            .lock()
+            .expect("drafts mutex poisoned")
+            .finished
+            .contains(composition)
     }
 
     /// Drops the composition and its hint, answering with what was known about it.
