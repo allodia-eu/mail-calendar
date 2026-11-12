@@ -23,9 +23,10 @@ struct AllodiaAccountSettings: View {
             VStack(alignment: .leading, spacing: 12) {
                 accountBox(card)
                 // A subscription belongs to an account, so there is nothing to say about one
-                // before somebody has signed in. Keyed so whoever signs in has it read again.
-                if case .signedIn = card.state {
-                    AllodiaSubscriptionSettings(model: model).id(model.allodia.subscriptionRead)
+                // before somebody has signed in. Keyed by the account, so whoever signs in next
+                // starts with no note about somebody else's purchase.
+                if case let .signedIn(account) = card.state {
+                    AllodiaSubscriptionSettings(model: model).id(account.email)
                 }
             }
         }

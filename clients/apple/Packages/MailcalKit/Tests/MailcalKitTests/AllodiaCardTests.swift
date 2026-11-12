@@ -1,7 +1,6 @@
 // The Allodia account's card as this client draws it from the core's record (`allodiaCard`):
-// which face Settings shows, when the first-run card offers its way back, the words for what a
-// sign-in or sign-out came to, and when the subscription is read again. Every step of the
-// sign-in is the core's, tested there.
+// which face Settings shows, when the first-run card offers its way back, and the words for what a
+// sign-in or sign-out came to. Every step of the sign-in is the core's, tested there.
 
 import MailcalBindings
 import Testing
@@ -66,20 +65,6 @@ private func card(
         #expect(
             AllodiaCardRules.failure(.signOut(detail: "keychain said no"))
                 == L10n.settings_allodia_failed(error: "keychain said no"))
-    }
-
-    /// The subscription belongs to whoever is signed in, and a sign-in that ended may have given
-    /// the grant its read needs.
-    @Test func theSubscriptionIsReadAgainForWhoeverIsSignedInNow() {
-        let signedIn = card(.signedIn(account: anna))
-        let ben = AllodiaAccount(id: nil, email: "ben@example.org", name: nil)
-        let other = card(.signedIn(account: ben))
-        #expect(AllodiaCardRules.readsSubscriptionAgain(nil, signedIn))
-        #expect(!AllodiaCardRules.readsSubscriptionAgain(signedIn, signedIn))
-        #expect(AllodiaCardRules.readsSubscriptionAgain(signedIn, other))
-        #expect(AllodiaCardRules.readsSubscriptionAgain(signedIn, card()))
-        let signingInAgain = card(.signedIn(account: anna), browser: out)
-        #expect(AllodiaCardRules.readsSubscriptionAgain(signingInAgain, signedIn))
     }
 
     /// The core's sign-in returns where this client already listened for the Allodia sign-in, and
