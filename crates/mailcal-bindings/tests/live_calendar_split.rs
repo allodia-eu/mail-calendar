@@ -19,8 +19,9 @@ use std::time::{Duration, Instant};
 
 use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
-    AccountCapability, AccountChangeNotice, AccountEntry, AccountPageIntent, ImapLoginRequest,
-    Intent, MailcalApp, NoticeKind, SetupRecommendation, TypedPassword,
+    AccountCapability, AccountChangeNotice, AccountChangeRefusal, AccountEntry, AccountPage,
+    AccountPageIntent, ImapLoginRequest, Intent, MailcalApp, NoticeKind, SetupRecommendation,
+    TypedPassword,
 };
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
@@ -68,8 +69,9 @@ fn outages(app: &MailcalApp) -> (usize, usize) {
     (calendar, contacts)
 }
 
-#[test]
-fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
+/// The seeded calendar server's URL, under the name the sign-in's issuer vouches for no token to,
+/// and the sign-in server's IMAP address; `None` when the harness is not named.
+fn harness() -> Option<(String, String)> {
     let (Ok(dav), Ok(imap)) = (
         std::env::var("STALWART_HTTP_ADDR"),
         std::env::var("MAILCAL_HARNESS_OAUTH_IMAP"),
@@ -77,11 +79,15 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         eprintln!(
             "skipping the calendar split: STALWART_HTTP_ADDR or MAILCAL_HARNESS_OAUTH_IMAP unset"
         );
-        return;
+        return None;
     };
     let port = dav.rsplit(':').next().expect("an address with a port");
-    let dav_url = format!("http://localhost:{port}");
-    let app = app("calendar-split", RecordingStore::default());
+    Some((format!("http://localhost:{port}"), imap))
+}
+
+/// Alice's mailbox, signed in at the sign-in server with her calendar and contacts at `dav_url`,
+/// once its page draws the separate server's form.
+fn mailbox_beside(app: &MailcalApp, dav_url: &str, imap: &str) -> String {
     let SetupRecommendation::Imap {
         imap_host,
         smtp_host,
@@ -98,7 +104,7 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         email: "alice@localhost".to_owned(),
         imap_host,
         smtp_host,
-        caldav_base_url: Some(dav_url.clone()),
+        caldav_base_url: Some(dav_url.to_owned()),
         imap_security: Some(imap_security),
         smtp_security: Some(smtp_security),
         oauth_issuer,
@@ -119,7 +125,7 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         .complete_imap_login(start.pending, callback)
         .expect("the code is exchanged");
     let mailbox = app.add_account(config).expect("the mailbox connects").id;
-    assert_eq!(outages(&app).0, 1, "{:?}", app.notices().notices);
+    assert_eq!(outages(app).0, 1, "{:?}", app.notices().notices);
 
     // The page's form, as a client sends it: the section is drawn once the refusal is known.
     wait("drew the separate server's form", || {
@@ -127,17 +133,26 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
             .separate_server
             .map(|_| ())
     });
+    mailbox
+}
+
+/// Connect on `mailbox`'s separate server with `password`, as a client sends it.
+fn connect(app: &MailcalApp, mailbox: &str, password: &str) {
     app.dispatch(Intent::AccountPage {
         intent: AccountPageIntent::ConnectSeparateServer {
-            account: mailbox.clone(),
+            account: mailbox.to_owned(),
             username: LOGIN.to_owned(),
             password: TypedPassword {
-                text: PASSWORD.to_owned(),
+                text: password.to_owned(),
             },
         },
     });
+}
+
+/// `mailbox`'s page once its calendar is an account of its own, and the account it comes from.
+fn moved(app: &MailcalApp, mailbox: &str) -> (AccountPage, String) {
     let page = wait("moved the calendar to an account of its own", || {
-        let page = app.account_page(mailbox.clone())?;
+        let page = app.account_page(mailbox.to_owned())?;
         if let Some(section) = &page.separate_server {
             assert!(section.failed.is_none(), "the connect failed: {section:?}");
             return None;
@@ -152,6 +167,18 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
         .and_then(|row| row.linked.clone())
         .expect("the calendar row names the account it comes from")
         .id;
+    (page, calendar)
+}
+
+#[test]
+fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
+    let Some((dav_url, imap)) = harness() else {
+        return;
+    };
+    let app = app("calendar-split", RecordingStore::default());
+    let mailbox = mailbox_beside(&app, &dav_url, &imap);
+    connect(&app, &mailbox, PASSWORD);
+    let (page, calendar) = moved(&app, &mailbox);
     assert_eq!(
         page.notice.map(|raised| raised.notice),
         Some(AccountChangeNotice::SignedInSeparately {
@@ -225,5 +252,42 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
     assert!(
         refused.is_err(),
         "a calendar account keeps no calendar on another server"
+    );
+}
+
+/// A calendar account already set up for the server and login is linked to only once the server
+/// takes the password typed (`docs/accounts.md` rule 18): a wrong one is said on the form and
+/// links nothing, and the right one links the mailbox to it rather than adding a third account.
+#[test]
+fn a_calendar_account_already_set_up_is_linked_once_its_server_takes_the_password() {
+    let Some((dav_url, imap)) = harness() else {
+        return;
+    };
+    let app = app("calendar-split-existing", RecordingStore::default());
+    let existing = app
+        .add_account(format!(
+            "[caldav]\nbase_url = \"{dav_url}\"\nusername = \"{LOGIN}\"\npassword = \"{PASSWORD}\"\n"
+        ))
+        .expect("the calendar account connects")
+        .id;
+    let mailbox = mailbox_beside(&app, &dav_url, &imap);
+
+    connect(&app, &mailbox, "not-alices-password");
+    let refused = wait("said the password was refused", || {
+        let section = app.account_page(mailbox.clone())?.separate_server?;
+        section.connect.enabled.then_some(section.failed?)
+    });
+    assert_eq!(refused, AccountChangeRefusal::SignInRefused);
+    assert_eq!(app.accounts_snapshot().accounts.len(), 2);
+    let mail = entry(&app, &mailbox);
+    assert!(mail.links.calendar.is_none(), "nothing linked");
+
+    connect(&app, &mailbox, PASSWORD);
+    let (_, calendar) = moved(&app, &mailbox);
+    assert_eq!(calendar, existing, "linked to the account already set up");
+    assert_eq!(
+        app.accounts_snapshot().accounts.len(),
+        2,
+        "no third account"
     );
 }

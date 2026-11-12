@@ -30,14 +30,17 @@ impl MailcalApp {
     /// is asked for when the account's own sign-in does not reach that server. A client sends
     /// `AccountPageIntent::ConnectSeparateServer`; public for the integration tests.
     ///
-    /// Returns the new account's id. **Blocking** (two connects).
+    /// Returns the id of the account they moved to: a new one, or the one already set up for those
+    /// servers and login once they have taken `password`. **Blocking** (two connects).
     ///
     /// # Errors
     ///
     /// Returns [`MailcalError::SignInRefused`] when the server refuses the password,
-    /// [`MailcalError::Connect`] when it cannot be reached, and [`MailcalError::Config`] for an
-    /// empty password, an account that is not a standards one, or `uses` naming neither calendar
-    /// nor contacts or a server the account lacks. Both accounts are unchanged on every failure.
+    /// [`MailcalError::Connect`] when it cannot be reached, [`MailcalError::AlreadySetUp`] when
+    /// the account already set up for those servers and login signs in with a grant, and
+    /// [`MailcalError::Config`] for an empty password, an account that is not a standards one, or
+    /// `uses` naming neither calendar nor contacts or a server the account lacks. The mailbox is
+    /// unchanged on every failure.
     pub fn add_linked_calendar_account(
         &self,
         account_id: String,
@@ -126,12 +129,16 @@ impl MailcalApp {
             .to_toml()
             .map_err(|err| MailcalError::Config(err.to_string()))?;
         // The same servers and login already set up as an account of their own is the account to
-        // link to, and one this move did not add is not one it may remove.
+        // link to, once they have taken the password this move carries; and one this move did not
+        // add is not one it may remove.
         let (moved_to, added) = match self.add_account(toml) {
             Ok(row) => (row.id, true),
             Err(MailcalError::AlreadySetUp {
                 account_id: existing,
-            }) if existing != account_id => (existing, false),
+            }) if existing != account_id => {
+                self.sign_in_set_up(&existing, &calendar)?;
+                (existing, false)
+            }
             // An account used for nothing but these fails as a whole when none of them connects,
             // and it is still these that did not.
             Err(MailcalError::Connect(_)) => {
@@ -163,6 +170,35 @@ impl MailcalApp {
             mailcal_account::account_log_handle(&moved_to),
         );
         Ok(moved_to)
+    }
+
+    /// Has `existing`, the account already set up for `calendar`'s servers and login, sign in
+    /// with the password `calendar` carries: at once when it already does, since its servers took
+    /// that password from it; otherwise tried as its own page tries a typed one, test then apply,
+    /// so a password its servers refuse leaves it as it was. One that signs in with a grant is
+    /// not given a password: it stays as it is, and the move is refused as already set up.
+    fn sign_in_set_up(
+        &self,
+        existing: &str,
+        calendar: &mailcal_account::AccountConfig,
+    ) -> Result<(), MailcalError> {
+        let set_up = || MailcalError::AlreadySetUp {
+            account_id: existing.to_owned(),
+        };
+        let Some(SignInConfig::Imap(held)) = self.registry.sign_in_config(existing) else {
+            return Err(set_up());
+        };
+        if held.holds_dav_login(calendar) {
+            return Ok(());
+        }
+        let Some(password) = calendar.dav_password().filter(|_| !held.is_oauth()) else {
+            return Err(set_up());
+        };
+        log::info!(
+            "accounts: [{}] is tried with the password a move to it carries",
+            mailcal_account::account_log_handle(existing),
+        );
+        self.replace_account_secret(existing.to_owned(), password.expose().to_owned())
     }
 
     /// Why the calendar account just added did not connect one of `uses`, as an error.
