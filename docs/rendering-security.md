@@ -41,7 +41,10 @@ core sanitises it **once** for every client (never re-implemented per platform):
   one message and no script. So is `<font>` with its `color`, `face` and `size`, which Thunderbird
   still writes for a colour, a typeface and a size, and the markers a composer reads a reopened
   draft's quote and signature by: `type` on a `<blockquote>` and `name` on an `<a>`
-  ([`composer-security.md`](composer-security.md) Gate 17).
+  ([`composer-security.md`](composer-security.md) Gate 17). And `wrap` on a `<pre>`: Thunderbird
+  quotes a plain-text message as `<pre wrap>` and draws it wrapped, and the base sheet's
+  `pre[wrap]{white-space:pre-wrap}` draws it the same way here, where it would otherwise run off
+  the pane's right edge. A `<pre>` without it keeps its lines.
 - **Linked:** after sanitising, a web or mail address written as text (`http://`, `https://`,
   `mailto:`, or a `www.` host, opened over `https`) is wrapped in an `<a href>`
   (`html/links.rs`). Text already inside a link, attribute values and `<style>` are left alone.

@@ -96,6 +96,15 @@ fn render_document_forces_proportional_image_height() {
     assert!(doc.contains("height:auto!important"), "{doc}");
 }
 
+/// Thunderbird's `<pre wrap>` quote wraps at the pane's edge, as it does in Thunderbird; a plain
+/// `<pre>` is left to keep its lines.
+#[test]
+fn a_pre_marked_wrap_wraps_and_a_plain_one_does_not() {
+    let doc = render_document("<pre wrap=\"\">a long quoted line</pre>", false, Light);
+    assert!(doc.contains("pre[wrap]{white-space:pre-wrap}"), "{doc}");
+    assert!(!doc.contains("pre{white-space"), "{doc}");
+}
+
 #[test]
 fn the_canvas_is_the_page_a_message_is_drawn_on() {
     // The client paints `MessageScheme::canvas` behind the body area for the whole of an open, and
