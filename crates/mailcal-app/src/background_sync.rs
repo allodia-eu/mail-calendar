@@ -259,19 +259,19 @@ fn newly_arrived(
     let high_water = inbound.first().and_then(|row| row.mail.date_utc);
     let previews = match mark {
         None => Vec::new(),
-        Some(mark) => {
-            // Whichever of the two is later. `>` rather than `Ord::max` because a civil
-            // date-time compares partially.
-            let floor = match session_floor {
-                Some(floor) if floor > mark => floor,
-                _ => mark,
-            };
-            inbound
-                .iter()
-                .filter(|row| row.mail.date_utc.is_some_and(|received| received > floor))
-                .map(|row| preview_of(row))
-                .collect()
-        }
+        // Past the mark, which a pass already saw, and not before the session. The floor is
+        // inclusive: both instants are whole seconds, so mail stamped with the session's own
+        // second may have arrived after it began, and withholding it loses it for good, since
+        // the mark moves past it in this same pass.
+        Some(mark) => inbound
+            .iter()
+            .filter(|row| {
+                row.mail.date_utc.is_some_and(|received| {
+                    received > mark && session_floor.is_none_or(|floor| received >= floor)
+                })
+            })
+            .map(|row| preview_of(row))
+            .collect(),
     };
     NewMailScan {
         previews,
