@@ -296,7 +296,8 @@ def main(argv: List[str]) -> int:
     if args.out is None:
         sys.stdout.write(document)
     else:
-        args.out.write_text(document, encoding="utf-8")
+        with args.out.open("w", encoding="utf-8", newline="\n") as out:
+            out.write(document)
         print("wrote %s" % args.out)
     return 0
 

@@ -56,6 +56,7 @@ const EARLY_CHECKS: &[&str] = &[
     "check-notification-registration",
     "check-portal-runtime",
     "check-store-sandbox",
+    "check-line-endings",
     "check-license-dir",
 ];
 
