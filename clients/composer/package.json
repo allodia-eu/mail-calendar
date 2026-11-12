@@ -5,7 +5,7 @@
   "scripts": {
     "build": "bun run build.ts",
     "check": "bun run build.ts --check",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "bun --bun tsc --noEmit",
     "test": "bun test"
   },
   "devDependencies": {
