@@ -18,10 +18,7 @@ use fakes::{FakeConnector, FakeProvider, account, app, app_with_connector};
 use mailcal_account::SyncDepth;
 
 use super::{Account, sync_account::sync_account_providers};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// Adding an account is an explicit, user-awaited first download, so its background first sync
 /// raises the download bar immediately (unlike a poll / boot-reconnect refresh over

@@ -14,10 +14,7 @@ use fakes::{FakeProvider, account, app, flat_subjects, message, open_folder};
 use mailcal_viewmodel::SearchHorizon;
 
 use super::{Intent, SearchScope};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 // The two rules with enough cases to crowd this file out of the 500-line limit; declared here
 // rather than in `lib.rs` so the whole of mail search stays one test module.

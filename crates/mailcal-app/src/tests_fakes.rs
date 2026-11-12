@@ -2,11 +2,13 @@
 //! observer, the typed-reference helpers, and the `account`/`app`/`message`/`flat_subjects`
 //! builders. The calendar provider and on-demand connectors live in the `calendar` and
 //! `connectors` submodules (re-exported here) so each file stays under the 500-line limit;
-//! the items the tests use are `pub(super)` so the parent test module can reach them.
+//! the items the tests use are `pub(super)`, which from the crate root reaches every test module.
 //!
-//! Included by more than one test file (`tests.rs`, `connectivity_tests.rs`), so not every
-//! consumer uses every fixture; `dead_code` and unused submodule re-exports are allowed
-//! rather than gated per item and per consumer.
+//! Declared once, in `lib.rs`, and reached as `use crate::tests_fakes as fakes;`. Never
+//! `#[path]`-include it into a test module: each inclusion is a distinct type, and every distinct
+//! provider type compiles the whole generic `App` once more, which is most of this crate's test
+//! build. Not every test module uses every fixture, so `dead_code` and unused re-exports are
+//! allowed rather than gated per item.
 #![allow(dead_code, unused_imports)]
 
 use std::sync::{
@@ -34,27 +36,19 @@ use crate::{
     Telemetry, ThreadRef, TimeZoneInit,
 };
 
-// This whole file is `#[path]`-included by several test modules, so these submodules load more
-// than once: the intended shared-test-helper shape, not a real duplicate.
-#[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes/calendar.rs"]
 mod calendar;
-#[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes/calendar_builders.rs"]
 mod calendar_builders;
-#[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes/calendar_variants.rs"]
 mod calendar_variants;
 
 #[path = "tests_fakes/connectors.rs"]
 mod connectors;
-#[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes/fixtures.rs"]
 mod fixtures;
-#[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes/invitation.rs"]
 mod invitation;
-#[allow(clippy::duplicate_mod)]
 #[path = "tests_fakes/provider.rs"]
 mod provider;
 

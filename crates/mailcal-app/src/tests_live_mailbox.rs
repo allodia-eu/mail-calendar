@@ -18,10 +18,7 @@ use fakes::{FakeProvider, account, app, flat_previews, flat_subjects, message, m
 use mailcal_viewmodel::ViewMode;
 
 use super::{Intent, Surface, sync::STREAM_CHUNK_SIZE};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A reconcile pass drops the live cache (its tombstones name no keys, so the cache cannot be
 /// spliced). The **next** streamed commit must not republish a list built from that hole: every

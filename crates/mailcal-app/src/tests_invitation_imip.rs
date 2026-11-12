@@ -21,10 +21,7 @@ use fakes::{
 };
 
 use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef, ReaderId};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 fn invite() -> MessageRef {
     MessageRef {

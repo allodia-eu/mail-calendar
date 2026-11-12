@@ -447,6 +447,8 @@ mod tests_default_mail_app;
 #[cfg(test)]
 mod tests_depth;
 #[cfg(test)]
+mod tests_fakes;
+#[cfg(test)]
 mod tests_folder_coverage;
 #[cfg(test)]
 mod tests_folder_tree;

@@ -16,10 +16,7 @@ use engine_api::{Frequency, Recurrence, RecurrenceRule};
 use fakes::{CalendarFake, calendar_account, calendar_app};
 
 use super::Intent;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The calendar date `offset` days from today.
 fn day_from_today(offset: i64) -> engine_api::CalendarDate {

@@ -29,10 +29,7 @@ use fakes::{InvitationFake, MESSAGE_KEY, invitation_app};
 use mailcal_viewmodel::{InvitationKind, ResponseStatus};
 
 use super::MessageRef;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 const CALDAV_REQUEST: &[u8] =
     include_bytes!("../tests/fixtures/imip/caldav-autoschedule-request.eml");

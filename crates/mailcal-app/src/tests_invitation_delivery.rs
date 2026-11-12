@@ -24,10 +24,7 @@ use engine_provider::ReplyDelivery;
 use fakes::{InvitationFake, MESSAGE_KEY, invitation_app, invitation_app_with_prefs};
 
 use super::{Intent, InvitationResponse, MessageRef, Surface};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The message the invitation arrived in, named the way a client names it.
 fn invite() -> MessageRef {

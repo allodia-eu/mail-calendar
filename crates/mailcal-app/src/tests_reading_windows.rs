@@ -11,10 +11,7 @@ use std::sync::{Arc, Mutex};
 use fakes::{FakeProvider, account, app, message, msg};
 
 use super::{Intent, ReaderId};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A provider holding two readable messages, so two readers can be on different ones.
 fn two_messages() -> FakeProvider {

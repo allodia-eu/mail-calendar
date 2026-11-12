@@ -16,10 +16,7 @@ use fakes::{
 use mailcal_viewmodel::{EmptyReason, SnapshotRow, ViewMode};
 
 use super::{Intent, OutboxIntent, Surface};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 // A selection that moved while a rebuild was running; its own file for the 500-line limit.
 mod staleness;

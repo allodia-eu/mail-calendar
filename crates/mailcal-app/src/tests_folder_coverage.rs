@@ -15,10 +15,7 @@ use fakes::{
 use mailcal_viewmodel::EmptyReason;
 
 use super::Intent;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn a_pass_syncs_a_listed_folder_nobody_has_opened() {
