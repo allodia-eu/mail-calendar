@@ -245,9 +245,12 @@ pub(super) fn quote_headers(original: &engine_api::Message) -> QuoteSource {
             .from
             .first()
             .map_or_else(String::new, crate::reading::format_address),
+        // The `Date:` its sender wrote, as Thunderbird's attribution and Outlook's `Sent:` line
+        // state it; delivery only when it has none. A message delivered late (an import, a
+        // migration, a server that held it) would otherwise be quoted as written that day.
         date: original
-            .received_at
-            .or(original.sent_at)
+            .sent_at
+            .or(original.received_at)
             .map_or_else(String::new, crate::query::format_instant),
         to: crate::reading::format_addresses(&envelope.to),
         cc: crate::reading::format_addresses(&envelope.cc),
@@ -322,5 +325,43 @@ fn lay_over(opening: &mut Opening, prefill: ComposePrefill) {
         if !value.trim().is_empty() {
             *field = value;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use engine_api::UtcDateTime;
+    use engine_core::{
+        ids::{MailboxId, MessageId},
+        mail::Message,
+        membership::Memberships,
+    };
+
+    use super::quote_headers;
+
+    fn delivered(sent: Option<UtcDateTime>) -> Message {
+        let mut message = Message::new(
+            MessageId::try_from("m1").unwrap(),
+            Memberships::of_one(MailboxId::try_from("inbox").unwrap()),
+        );
+        message.received_at = Some(UtcDateTime::new(2026, 10, 12, 22, 33, 0).unwrap());
+        message.sent_at = sent;
+        message
+    }
+
+    /// A message written in January and delivered in October is quoted as written in January, as
+    /// Thunderbird's attribution and Outlook's `Sent:` line say.
+    #[test]
+    fn a_quote_is_dated_when_its_message_was_sent() {
+        let sent = UtcDateTime::new(2026, 1, 7, 10, 0, 0).unwrap();
+        assert_eq!(
+            quote_headers(&delivered(Some(sent))).date,
+            "2026-01-07T10:00:00Z"
+        );
+    }
+
+    #[test]
+    fn a_message_with_no_date_header_is_quoted_with_its_delivery() {
+        assert_eq!(quote_headers(&delivered(None)).date, "2026-10-12T22:33:00Z");
     }
 }

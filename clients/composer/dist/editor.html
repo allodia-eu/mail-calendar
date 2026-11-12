@@ -1624,7 +1624,7 @@
     const out = [];
     let blanks = 0;
     for (const line of lines) {
-      const text = line.pre ? line.text : line.text.replace(/[\t\r ]+/g, " ").trim();
+      const text = line.pre ? line.text : line.text.replace(/[\t\n\f\r ]+/g, " ").trim();
       blanks = text === "" && !line.pre ? blanks + 1 : 0;
       if (blanks <= 1)
         out.push(text);
