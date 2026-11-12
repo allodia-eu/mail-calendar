@@ -79,11 +79,21 @@ fn an_older_answer_landing_late_does_not_replace_a_newer_one() {
     let old = answers.ask("a", &asked(true), false).unwrap();
     answers.answered("a", old, Ok(SharedStoreOffer::ByAddress));
     let new = answers.ask("a", &asked(true), true).unwrap();
-    answers.answered("a", new, Ok(SharedStoreOffer::Listed(Vec::new())));
+    answers.answered(
+        "a",
+        new,
+        Ok(SharedStoreOffer::Listed {
+            stores: Vec::new(),
+            unanswered: mailcal_account::SharedUses::default(),
+        }),
+    );
     answers.answered("a", old, Ok(SharedStoreOffer::Unsupported));
     assert_eq!(
         answers.offer("a"),
-        Some(Ok(SharedStoreOffer::Listed(Vec::new())))
+        Some(Ok(SharedStoreOffer::Listed {
+            stores: Vec::new(),
+            unanswered: mailcal_account::SharedUses::default()
+        }))
     );
 }
 
@@ -99,10 +109,13 @@ fn an_answer_for_an_account_forgotten_meanwhile_is_dropped() {
 #[test]
 fn a_switch_is_titled_by_its_address_and_a_withdrawn_one_says_so() {
     let answers = SharedAnswers::default();
-    let offer = Ok(SharedStoreOffer::Listed(vec![
-        listed("s", "Support team", Some("support@example.org")),
-        listed("n", "news", None),
-    ]));
+    let offer = Ok(SharedStoreOffer::Listed {
+        stores: vec![
+            listed("s", "Support team", Some("support@example.org")),
+            listed("n", "news", None),
+        ],
+        unanswered: mailcal_account::SharedUses::default(),
+    });
     let section = answers
         .section(
             "a",
@@ -148,7 +161,10 @@ fn the_line_under_the_switches_says_what_the_server_answered() {
             .and_then(|section| section.note)
     };
     assert_eq!(
-        note(Ok(SharedStoreOffer::Listed(Vec::new()))),
+        note(Ok(SharedStoreOffer::Listed {
+            stores: Vec::new(),
+            unanswered: mailcal_account::SharedUses::default()
+        })),
         Some(SharedStoresNote::NoneShared)
     );
     assert_eq!(
@@ -178,10 +194,13 @@ fn the_line_under_the_switches_says_what_the_server_answered() {
 #[test]
 fn a_running_switch_and_add_are_drawn_where_they_go_and_hold_the_rest() {
     let answers = SharedAnswers::default();
-    let offer = Ok(SharedStoreOffer::Listed(vec![
-        listed("s", "s", Some("support@example.org")),
-        listed("t", "t", Some("team@example.org")),
-    ]));
+    let offer = Ok(SharedStoreOffer::Listed {
+        stores: vec![
+            listed("s", "s", Some("support@example.org")),
+            listed("t", "t", Some("team@example.org")),
+        ],
+        unanswered: mailcal_account::SharedUses::default(),
+    });
     let hold = Hold {
         busy: true,
         own: vec![PageWork::Shared {
@@ -237,11 +256,14 @@ fn each_row_says_what_switching_it_on_opens() {
     };
     let mail = StoreDomains::of(SearchDomain::Mail);
     let calendar = StoreDomains::of(SearchDomain::Calendar);
-    let offer = Ok(SharedStoreOffer::Listed(vec![
-        holding("group", mail.with(SearchDomain::Calendar)),
-        holding("inbox", mail),
-        holding("dave", calendar),
-    ]));
+    let offer = Ok(SharedStoreOffer::Listed {
+        stores: vec![
+            holding("group", mail.with(SearchDomain::Calendar)),
+            holding("inbox", mail),
+            holding("dave", calendar),
+        ],
+        unanswered: mailcal_account::SharedUses::default(),
+    });
     let section = SharedAnswers::default()
         .section("a", Some(offer), Vec::new(), &Hold::default())
         .expect("the server answered");

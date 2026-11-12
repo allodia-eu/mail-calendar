@@ -212,7 +212,9 @@ impl AccountDial {
                                 shared.as_ref(),
                             )
                             .await;
-                            (Part::from(calendar), reauth)
+                            // A shared store has no sign-in of its own to repeat, and a `403` on
+                            // its calendars is its owner withholding them, not a missing scope.
+                            (Part::from(calendar), reauth && shared.is_none())
                         } else {
                             (Part::Off, withheld.contains(Capability::Calendar))
                         }

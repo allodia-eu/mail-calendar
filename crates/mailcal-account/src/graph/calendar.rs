@@ -304,9 +304,9 @@ impl CalendarWrites for RefreshingGraphCalendarProvider {
 
 /// Connects the Graph calendar provider a Microsoft account syncs its agenda through: **one**
 /// token-refreshing provider for every calendar of the mailbox, or of the shared store `shared`
-/// names, carrying a fetch window centred
-/// on today and the host's `display_zone`. Reads `/me/calendars` once with a fresh token first,
-/// so a token without the calendar scope is refused here rather than on every refresh.
+/// names, carrying a fetch window centred on today and the host's `display_zone`. Reads the
+/// calendar list once with a fresh token first, so a token without the calendar scope is refused
+/// here rather than on every refresh.
 ///
 /// The caller connects this only for its non-fatal effect: a calendar failure (an account whose
 /// OAuth grant predates the `Calendars.ReadWrite` scope 403s here) leaves mail up with an empty

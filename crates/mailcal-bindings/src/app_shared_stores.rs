@@ -74,7 +74,7 @@ impl MailcalApp {
         }
         Ok(view(
             self.shared_offer(&account_id),
-            self.chosen_shared(&account_id),
+            self.shown_shared(&account_id),
         ))
     }
 
@@ -199,6 +199,14 @@ impl MailcalApp {
             .collect()
     }
 
+    /// The stores `account_id` is used for, each holding what the account opens of it now, as
+    /// its row says: a store holding mail and calendars holds only mail once the account's
+    /// calendar is switched off. One the account opens nothing of keeps what it was stored with,
+    /// so its row is still drawn and can be switched off.
+    pub(crate) fn shown_shared(&self, account_id: &str) -> Vec<SharedStoreChoice> {
+        shown(self.chosen_shared(account_id), self.shared_uses(account_id))
+    }
+
     /// What `account_id`'s server says of the stores its sign-in opens: asked of the server only
     /// for an account that may open one. A store it is used for that the server now lists as
     /// holding more than it did gains it here, as a store found by its address does when added
@@ -218,8 +226,11 @@ impl MailcalApp {
             .map_err(|err| {
                 log::info!("shared stores: the server did not list them ({err})");
             })?;
-        if let SharedStoreOffer::Listed(listed) = &offer {
-            self.gain_listed(account_id, listed);
+        if let SharedStoreOffer::Listed { stores, unanswered } = &offer {
+            if !unanswered.is_empty() {
+                log::info!("shared stores: a server did not list them ({unanswered:?})");
+            }
+            self.gain_listed(account_id, stores);
         }
         Ok(offer)
     }
@@ -372,17 +383,37 @@ fn entry(store: &SharedAccount, selected: bool) -> SharedStoreEntry {
     }
 }
 
-/// The view Settings draws: the chosen stores first, then the rest the server listed.
+/// `chosen`, each holding what `opens` opens of it, or what it was stored with when that is
+/// nothing.
+pub(crate) fn shown(chosen: Vec<SharedStoreChoice>, opens: SharedUses) -> Vec<SharedStoreChoice> {
+    chosen
+        .into_iter()
+        .map(|mut choice| {
+            let now = choice.holds.intersect(opens);
+            if !now.is_empty() {
+                choice.holds = now;
+            }
+            choice
+        })
+        .collect()
+}
+
+/// The view Settings draws: the chosen stores first, then the rest the server listed. A chosen
+/// store the server stopped listing is drawn as withdrawn, unless the server for one of the
+/// uses it holds did not answer, which says nothing of it.
 pub(crate) fn view<E>(
     offer: Result<SharedStoreOffer, E>,
     chosen: Vec<SharedStoreChoice>,
 ) -> SharedStoresView {
-    let (support, listed) = match offer {
-        Ok(SharedStoreOffer::Listed(listed)) => (SharedStoreSupport::Listed, listed),
-        Ok(SharedStoreOffer::ByAddress) => (SharedStoreSupport::ByAddress, Vec::new()),
-        Ok(SharedStoreOffer::Unsupported) => (SharedStoreSupport::Unsupported, Vec::new()),
-        Ok(SharedStoreOffer::NotConnected) => (SharedStoreSupport::NotConnected, Vec::new()),
-        Err(_) => (SharedStoreSupport::Unreachable, Vec::new()),
+    let none = SharedUses::default();
+    let (support, listed, unanswered) = match offer {
+        Ok(SharedStoreOffer::Listed { stores, unanswered }) => {
+            (SharedStoreSupport::Listed, stores, unanswered)
+        }
+        Ok(SharedStoreOffer::ByAddress) => (SharedStoreSupport::ByAddress, Vec::new(), none),
+        Ok(SharedStoreOffer::Unsupported) => (SharedStoreSupport::Unsupported, Vec::new(), none),
+        Ok(SharedStoreOffer::NotConnected) => (SharedStoreSupport::NotConnected, Vec::new(), none),
+        Err(_) => (SharedStoreSupport::Unreachable, Vec::new(), none),
     };
     let is_listed = |handle: &SharedAccountId| listed.iter().any(|store| store.handle == *handle);
     let mut stores: Vec<SharedStoreEntry> = chosen
@@ -394,7 +425,9 @@ pub(crate) fn view<E>(
             holds: choice.holds,
             selected: true,
             // Not connected is not the same as withdrawn: nothing was asked.
-            listed: support != SharedStoreSupport::Listed || is_listed(&choice.handle),
+            listed: support != SharedStoreSupport::Listed
+                || is_listed(&choice.handle)
+                || !choice.holds.intersect(unanswered).is_empty(),
         })
         .collect();
     stores.extend(

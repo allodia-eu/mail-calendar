@@ -23,8 +23,15 @@ use crate::App;
 pub enum SharedStoreOffer {
     /// None of the providers asked is connected, so there is nothing to ask yet.
     NotConnected,
-    /// The servers list them.
-    Listed(Vec<SharedAccount>),
+    /// The servers list them. A server that lists them for one of the uses asked but did not
+    /// answer leaves that use in `unanswered`: what it would have listed is not among `stores`,
+    /// and is not known to be gone.
+    Listed {
+        /// What the servers that answered listed.
+        stores: Vec<SharedAccount>,
+        /// The uses whose server lists them and did not answer.
+        unanswered: SharedUses,
+    },
     /// The servers list none, but answer for an address the person types.
     ByAddress,
     /// The servers have no way to open one.
@@ -63,9 +70,13 @@ impl<P: Provider> App<P> {
     /// has no way: the list is what can be drawn, and an address field beside it would offer
     /// what the list already holds.
     ///
+    /// One server not answering does not hide what another listed: the list is drawn with its
+    /// use marked unanswered.
+    ///
     /// # Errors
     ///
-    /// Returns the engine's error when a server was asked and did not answer.
+    /// Returns the engine's error when a server was asked and did not answer, and no other
+    /// listed any.
     pub async fn shared_store_offer(
         &self,
         account: &AccountId,
@@ -75,6 +86,7 @@ impl<P: Provider> App<P> {
             return Ok(SharedStoreOffer::NotConnected);
         };
         let (mut listed, mut by_address, mut connected) = (None, false, false);
+        let (mut unanswered, mut failed) = (SharedUses::default(), None);
         for kind in uses.iter() {
             let Some(provider) = asked_of(&handle, kind) else {
                 continue;
@@ -84,19 +96,27 @@ impl<P: Provider> App<P> {
                 SharedAccounts::Unsupported => {}
                 SharedAccounts::ByAddress => by_address = true,
                 SharedAccounts::Enumerable => {
-                    let found = self.engine.list_shared_accounts(provider).await?;
-                    let all = listed.get_or_insert_with(Vec::new);
-                    for store in found {
-                        merge(all, store, kind);
+                    match self.engine.list_shared_accounts(provider).await {
+                        Ok(found) => {
+                            let all = listed.get_or_insert_with(Vec::new);
+                            for store in found {
+                                merge(all, store, kind);
+                            }
+                        }
+                        Err(err) => {
+                            unanswered = unanswered.with(kind);
+                            failed.get_or_insert(err);
+                        }
                     }
                 }
             }
         }
-        Ok(match listed {
-            Some(listed) => SharedStoreOffer::Listed(listed),
-            None if by_address => SharedStoreOffer::ByAddress,
-            None if connected => SharedStoreOffer::Unsupported,
-            None => SharedStoreOffer::NotConnected,
+        Ok(match (listed, failed) {
+            (Some(stores), _) => SharedStoreOffer::Listed { stores, unanswered },
+            (None, Some(err)) => return Err(err),
+            (None, None) if by_address => SharedStoreOffer::ByAddress,
+            (None, None) if connected => SharedStoreOffer::Unsupported,
+            (None, None) => SharedStoreOffer::NotConnected,
         })
     }
 
@@ -234,12 +254,23 @@ mod tests {
         assert_eq!(offered.len(), 2);
     }
 
-    /// A server that answers an address by probing `domain`, as Graph's mailbox and calendar
-    /// halves do, with `refusal` in place of the store when given.
+    /// A server that opens the stores in `domain`, as `shares` says: listing them as a JMAP or
+    /// CalDAV server does, or answering an address as Graph's mailbox and calendar halves do.
+    /// It answers with `refusal` in place of the store when given.
     #[derive(Debug)]
     struct Prober {
         domain: SearchDomain,
+        shares: SharedAccounts,
         refusal: Option<engine_api::FailureClass>,
+    }
+
+    impl Prober {
+        fn answer(&self, handle: &str) -> engine_provider::ProviderResult<SharedAccount> {
+            match self.refusal {
+                Some(class) => Err(engine_provider::ProviderError::new(class, "refused")),
+                None => Ok(store(handle, StoreDomains::of(self.domain))),
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -249,18 +280,21 @@ mod tests {
                 engine_provider::Capabilities::none()
                     .with_mail()
                     .with_calendars()
-                    .with_shared_accounts(SharedAccounts::ByAddress),
+                    .with_shared_accounts(self.shares),
             )
+        }
+
+        async fn list_shared_accounts(
+            &self,
+        ) -> engine_provider::ProviderResult<Vec<SharedAccount>> {
+            self.answer("support").map(|store| vec![store])
         }
 
         async fn resolve_shared_account(
             &self,
             address: &str,
         ) -> engine_provider::ProviderResult<SharedAccount> {
-            match self.refusal {
-                Some(class) => Err(engine_provider::ProviderError::new(class, "refused")),
-                None => Ok(store(address, StoreDomains::of(self.domain))),
-            }
+            self.answer(address)
         }
     }
 
@@ -277,13 +311,15 @@ mod tests {
         AccountId::try_from("alice@example.org@graph.microsoft.com").unwrap()
     }
 
-    fn app(calendar: Option<engine_api::FailureClass>) -> App<Prober> {
+    fn app(shares: SharedAccounts, calendar: Option<engine_api::FailureClass>) -> App<Prober> {
         let mail = Prober {
             domain: SearchDomain::Mail,
+            shares,
             refusal: None,
         };
         let calendar = Prober {
             domain: SearchDomain::Calendar,
+            shares,
             refusal: calendar,
         };
         App::new(
@@ -312,10 +348,13 @@ mod tests {
     async fn a_calendar_probe_refused_leaves_the_mailbox_another_provider_found() {
         // A grant from before shared calendars: the calendar half is refused the scope.
         let both = SharedUses::of(SharedUse::Mail).with(SharedUse::Calendar);
-        let lookup = app(Some(engine_api::FailureClass::Authentication))
-            .resolve_shared_store(&account_id(), both, "support@example.org")
-            .await
-            .expect("the mailbox was found");
+        let lookup = app(
+            SharedAccounts::ByAddress,
+            Some(engine_api::FailureClass::Authentication),
+        )
+        .resolve_shared_store(&account_id(), both, "support@example.org")
+        .await
+        .expect("the mailbox was found");
         let SharedStoreLookup::Found(found) = lookup else {
             panic!("the mailbox was found: {lookup:?}");
         };
@@ -326,17 +365,55 @@ mod tests {
     async fn a_refusal_is_said_when_nothing_else_found_the_store() {
         let calendar = SharedUses::of(SharedUse::Calendar);
         assert!(
-            app(Some(engine_api::FailureClass::Authentication))
-                .resolve_shared_store(&account_id(), calendar, "support@example.org")
-                .await
-                .is_err()
+            app(
+                SharedAccounts::ByAddress,
+                Some(engine_api::FailureClass::Authentication)
+            )
+            .resolve_shared_store(&account_id(), calendar, "support@example.org")
+            .await
+            .is_err()
         );
         assert_eq!(
-            app(Some(engine_api::FailureClass::Permanent))
-                .resolve_shared_store(&account_id(), calendar, "support@example.org")
-                .await
-                .unwrap(),
+            app(
+                SharedAccounts::ByAddress,
+                Some(engine_api::FailureClass::Permanent)
+            )
+            .resolve_shared_store(&account_id(), calendar, "support@example.org")
+            .await
+            .unwrap(),
             SharedStoreLookup::NotOpenable
+        );
+    }
+
+    #[tokio::test]
+    async fn a_listing_refused_leaves_what_another_server_listed() {
+        // An IMAP mailbox lists its shared folders; the CalDAV server beside it did not answer.
+        let both = SharedUses::of(SharedUse::Mail).with(SharedUse::Calendar);
+        let offer = app(
+            SharedAccounts::Enumerable,
+            Some(engine_api::FailureClass::Retryable),
+        )
+        .shared_store_offer(&account_id(), both)
+        .await
+        .expect("the mailbox listed its stores");
+        let SharedStoreOffer::Listed { stores, unanswered } = offer else {
+            panic!("the mailbox listed its stores: {offer:?}");
+        };
+        assert_eq!(stores.len(), 1);
+        assert_eq!(
+            SharedUses::held_by(&stores[0]),
+            SharedUses::of(SharedUse::Mail)
+        );
+        assert_eq!(unanswered, SharedUses::of(SharedUse::Calendar));
+        // With nothing else listed, the refusal is the answer.
+        assert!(
+            app(
+                SharedAccounts::Enumerable,
+                Some(engine_api::FailureClass::Retryable)
+            )
+            .shared_store_offer(&account_id(), SharedUses::of(SharedUse::Calendar))
+            .await
+            .is_err()
         );
     }
 }
