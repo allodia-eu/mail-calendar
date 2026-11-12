@@ -27,9 +27,9 @@ pub(in crate::ui) enum Redraw {
 ///
 /// Together in one type because they are written and read as one, and because the kind of
 /// redraw is an invariant rather than a field. A caller picks [`open`](Self::open),
-/// [`refresh_in_place`](Self::refresh_in_place) or one of their siblings and cannot express anything else; when it
-/// was a `bool` beside the generation, two of the four sites that bumped the generation forgot
-/// to set it, and a stale `true` silently turned the next *open* into nothing.
+/// [`refresh_in_place`](Self::refresh_in_place) or one of their siblings and cannot express
+/// anything else; when it was a `bool` beside the generation, two of the four sites that bumped the
+/// generation forgot to set it, and a stale `true` silently turned the next *open* into nothing.
 #[derive(Debug)]
 pub(in crate::ui) struct SettingsState {
     generation: u64,
