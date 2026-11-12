@@ -44,7 +44,7 @@ impl<P: Provider> App<P> {
         );
         let can_write = account
             .as_ref()
-            .is_some_and(|account| Self::account_can_write(account))
+            .is_some_and(|account| self.account_can_write(account))
             && !crate::calendar_ops::on_read_only_calendars(&stored, &read_only);
         let at = match occurrence.filter(|token| !token.is_empty()) {
             Some(token) => self.resolve_occurrence(event, &stored, token).await,

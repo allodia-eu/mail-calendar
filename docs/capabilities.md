@@ -105,7 +105,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: agenda + create / delete event | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write affordances gated on per-row `can_write` (a read-only row offers no delete; New event disabled without a writable calendar) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: write-status feedback (spinner while saving, a warning that says whether the change was not saved or could not be confirmed, retry) | ✅ | ✅ | ✅ | 🚧 | ✅ | ✅ |
-| Calendar and contacts say so in a notice when an account's calendar or address book is not connected, show what was last synced, and offer nothing there that could not be saved ([docs](docs/accounts.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendar and contacts say so in a notice when an account's calendar or address book is not connected, or stops answering after it connected, show what was last synced, and offer nothing there that could not be saved ([docs](docs/accounts.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **time grid** (day / 3-day / work-week / week), now line, week numbers, jump-to-today | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: all-day / multi-day banner, capped with a per-day "+N" that expands | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: **month grid** (6×7 cells, "+N more") | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

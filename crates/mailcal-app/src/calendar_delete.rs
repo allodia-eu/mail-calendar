@@ -54,7 +54,7 @@ impl<P: Provider> App<P> {
         // Clone the account handle, then delete with the read guard released.
         let mut status = None;
         if let Some(acct) = self.account_handle(&event.account).await
-            && let Some(provider) = acct.calendar_provider.as_ref()
+            && let Some(provider) = self.connected_calendar(&acct)
         {
             self.set_calendar_write_status(CalendarWriteStatus::Saving);
             let delete = self

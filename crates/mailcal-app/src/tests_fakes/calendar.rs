@@ -6,7 +6,7 @@ use std::{
     collections::BTreeMap,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -130,7 +130,8 @@ pub(crate) struct CalendarFake {
     /// When set, every read fails before it reaches anything: the account is there, the network
     /// is not. The store therefore stays as empty as it was, which is the shape a first launch
     /// with no connection has and the one case where claiming a materialized window is a lie.
-    pub(super) unreachable: bool,
+    /// Shared, so a test can take the server away and give it back while the app owns this.
+    pub(super) unreachable: Arc<AtomicBool>,
     /// When set, an **event delta** (a `sync_events` with a cursor) fails. The initial
     /// snapshot still succeeds, so this fails *only* the post-write reconcile: the path that
     /// turns a landed write into `Reconciled::Failed`, and the calendar status into `Failed`.
@@ -181,7 +182,7 @@ impl CalendarFake {
             reply_delivery: ReplyDelivery::NotReported,
             patch_failure: None,
             create_failure: None,
-            unreachable: false,
+            unreachable: Arc::default(),
             reject_event_delta: false,
             syncs: Arc::new(AtomicUsize::new(0)),
             calendar_users: CalendarUserAddresses::Unknown,
@@ -282,10 +283,8 @@ impl Provider for CalendarFake {
         cursor: Option<&SyncState>,
     ) -> ProviderResult<CalendarListing> {
         self.syncs.fetch_add(1, Ordering::Relaxed);
-        if self.unreachable {
-            return Err(ProviderError::invalid_state(
-                "the server could not be reached",
-            ));
+        if self.unreachable.load(Ordering::Relaxed) {
+            return Err(ProviderError::retryable("the server could not be reached"));
         }
         if cursor.is_some() {
             return Ok(CalendarListing {
@@ -331,10 +330,8 @@ impl Provider for CalendarFake {
             .lock()
             .unwrap()
             .push(calendar.as_str().to_owned());
-        if self.unreachable {
-            return Err(ProviderError::invalid_state(
-                "the server could not be reached",
-            ));
+        if self.unreachable.load(Ordering::Relaxed) {
+            return Err(ProviderError::retryable("the server could not be reached"));
         }
         if cursor.is_some() {
             if self.reject_event_delta {

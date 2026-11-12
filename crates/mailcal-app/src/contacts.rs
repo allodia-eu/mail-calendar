@@ -18,6 +18,7 @@ use mailcal_viewmodel::{ContactDetail, ContactsSnapshot, contacts};
 use crate::{
     App, Surface,
     sync_account::{Reach, reach_of_api, reachability, signin_expired},
+    use_problems::refresh::RefreshedUse,
 };
 
 /// How many people one snapshot holds.
@@ -86,9 +87,12 @@ impl<P: Provider> App<P> {
             // provider is bound to one book: so an account with four address books would
             // re-list the whole address-book home four times, a PROPFIND and a lease claim
             // each, on every refresh. Cards are unaffected either way.
+            let mut discovery = Reach::Busy;
             if let Some(first) = account.contact_providers.first() {
                 let started = Instant::now();
-                match self.engine.sync_address_books(first, &account.id).await {
+                let result = self.engine.sync_address_books(first, &account.id).await;
+                discovery = reach_of_api(&result);
+                match result {
                     Ok(report) => log::debug!(
                         "contacts[a{acct}]: address books +{} -{}{} in {}ms",
                         report.applied.upserted,
@@ -136,9 +140,9 @@ impl<P: Provider> App<P> {
                             );
                         }
                     }
-                    // Counted and logged, never surfaced as an error state: this is a *sync*
-                    // pass, and a half-synced list is still worth showing. A failed **write**
-                    // does reach the user, through `ContactWriteStatus`.
+                    // Counted and logged: a half-synced list is still worth showing, so only a
+                    // pass that reached nothing says so (below). A failed **write** reaches the
+                    // user through `ContactWriteStatus`.
                     Err(error) => {
                         failed += 1;
                         log::warn!(
@@ -148,15 +152,28 @@ impl<P: Provider> App<P> {
                     }
                 }
             }
+            let verdict = reachability(discovery, reaches.iter().copied());
+            // An address book that stops answering beside a working mailbox is its own problem.
             // An account with neither mail nor a calendar learns here whether its server
             // answers; the calendar pass answers for one that has a calendar.
-            if !account.uses_mail && account.calendar_provider.is_none() {
-                if let Some(reachable) = reachability(Reach::Busy, reaches.iter().copied()) {
+            if account.uses_mail {
+                if self.note_use_refreshed(&account.id, RefreshedUse::Contacts, verdict) {
+                    log::info!(
+                        "contacts[a{acct}]: {}",
+                        if verdict == Some(true) {
+                            "answering again"
+                        } else {
+                            "not answering; held until a refresh reaches it"
+                        }
+                    );
+                }
+            } else if account.calendar_provider.is_none() {
+                if let Some(reachable) = verdict {
                     self.set_account_reachable(&account.id, reachable);
                 }
                 self.apply_signin_expired(
                     &account.id,
-                    signin_expired(Reach::Busy, reaches.into_iter()),
+                    signin_expired(discovery, reaches.into_iter()),
                 );
             }
         }
