@@ -1,17 +1,17 @@
-// The Shared mailboxes section of an account's page (docs/shared-mailboxes.md rules 3, 7 and 8),
-// drawn from the page's shared mailboxes: a switch per mailbox the account's sign-in opens besides
-// its own, the line under them and, on a server that lists none, a field for one's address.
+// The Shared mailboxes and calendars section of an account's page (docs/shared-mailboxes.md
+// rules 3, 7, 8 and 10): a switch per store the account's sign-in opens besides its own, saying
+// what it holds, the line under them and, on a server that lists none, a field for one's address.
 // Switching one off is confirmed first, because it deletes what the device holds of it.
 
 import MailcalBindings
 import SwiftUI
 
-struct AccountSharedMailboxesSection: View {
+struct AccountSharedStoresSection: View {
     var model: MailboxModel
     let entry: AccountEntry
-    let shared: AccountSharedMailboxes
+    let shared: AccountSharedStores
 
-    @State private var confirmingOff: AccountSharedMailbox?
+    @State private var confirmingOff: AccountSharedStore?
 
     var body: some View {
         SettingsGroup(
@@ -19,15 +19,14 @@ struct AccountSharedMailboxesSection: View {
             description: L10n.settings_account_shared_description()
         ) {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(shared.mailboxes, id: \.handle) { mailbox in
+                ForEach(shared.stores, id: \.handle) { store in
                     ControlToggle(
-                        title: mailbox.title,
-                        note: mailbox.withdrawn
-                            ? L10n.settings_account_shared_withdrawn() : mailbox.label,
-                        on: mailbox.on,
-                        control: mailbox.control
+                        title: store.title,
+                        note: AccountSettingsLabels.sharedStoreNote(store),
+                        on: store.on,
+                        control: store.control
                     ) { on in
-                        if on { set(mailbox, on: true) } else { confirmingOff = mailbox }
+                        if on { set(store, on: true) } else { confirmingOff = store }
                     }
                 }
                 if let field = shared.address {
@@ -43,18 +42,17 @@ struct AccountSharedMailboxesSection: View {
         }
         .confirmAlert(
             $confirmingOff, action: L10n.action_switch_off(),
-            title: { L10n.settings_account_shared_off_title(mailbox: $0.title) },
+            title: { L10n.settings_account_shared_off_title(store: $0.title) },
             message: { _ in L10n.settings_account_shared_off_message() },
             confirm: { set($0, on: false) })
     }
 
-    private func set(_ mailbox: AccountSharedMailbox, on: Bool) {
-        model.changeAccount(
-            .setSharedMailbox(account: entry.id, handle: mailbox.handle, on: on))
+    private func set(_ store: AccountSharedStore, on: Bool) {
+        model.changeAccount(.setSharedStore(account: entry.id, handle: store.handle, on: on))
     }
 }
 
-/// The address of a mailbox shared with the account, for a server that lists none, drawn with
+/// The address of a store shared with the account, for a server that lists none, drawn with
 /// the address being added or the one the last add found nothing at. Sent with Return or Add,
 /// never per keystroke: each asks the server.
 private struct SharedAddressField: View {
@@ -86,6 +84,6 @@ private struct SharedAddressField: View {
 
     private func add(_ address: String) {
         guard !address.isEmpty, field.add.enabled else { return }
-        model.changeAccount(.addSharedMailbox(account: accountId, address: address))
+        model.changeAccount(.addSharedStore(account: accountId, address: address))
     }
 }

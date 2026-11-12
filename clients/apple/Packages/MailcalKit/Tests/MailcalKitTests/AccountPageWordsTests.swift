@@ -71,15 +71,37 @@ private func toggle(
     }
 
     @Test func theSharedMailboxesSayWhatTheServerAnsweredInWords() {
-        #expect(AccountSettingsLabels.sharedNote(.noneShared) == L10n.settings_account_shared_none())
+        #expect(
+            AccountSettingsLabels.sharedNote(.noneShared)
+                == L10n.settings_account_shared_none())
         #expect(
             AccountSettingsLabels.sharedNote(.unreachable)
                 == L10n.settings_account_shared_unreachable())
         let missed = AccountSettingsLabels.changeFailed(
-            .sharedMailboxNotFound(address: "typo@example.org"))
+            .sharedStoreNotFound(address: "typo@example.org"))
         #expect(missed.title == L10n.settings_account_shared_not_found())
-        let gone = AccountSettingsLabels.changeFailed(.sharedMailboxFailed(refusal: .noLongerShared))
+        let gone = AccountSettingsLabels.changeFailed(.sharedStoreFailed(refusal: .noLongerShared))
         #expect(gone.detail == L10n.settings_account_shared_withdrawn())
+    }
+
+    @Test func aSharedStoreSaysItsLabelAndWhatItHolds() {
+        let control = ControlState(enabled: true, running: false)
+        let group = AccountSharedStore(
+            handle: "s", title: "support@example.org", label: "Support Team",
+            holds: .mailAndCalendar, withdrawn: false, on: false, control: control)
+        #expect(
+            AccountSettingsLabels.sharedStoreNote(group)
+                == "Support Team · \(L10n.settings_account_shared_holds_both())")
+        var dave = group
+        dave.label = nil
+        dave.holds = .calendar
+        #expect(
+            AccountSettingsLabels.sharedStoreNote(dave)
+                == L10n.settings_account_shared_holds_calendar())
+        dave.withdrawn = true
+        #expect(
+            AccountSettingsLabels.sharedStoreNote(dave)
+                == L10n.settings_account_shared_withdrawn())
     }
 
     @Test func aBrowserSignInThatDidNotCompleteIsSaidForWhatItWasTo() {

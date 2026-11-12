@@ -2,7 +2,7 @@
 // is used for (docs/accounts.md rule 13), which other accounts fill what it is not and which take
 // a use from it (rule 12, SettingsAccountLinkedFrom.kt), what happens to an invitation answer its
 // calendar server cannot pass on, the mailboxes its sign-in opens besides its own
-// (SettingsSharedMailboxes.kt), and how it signs in: again, for Microsoft and Google
+// (SettingsSharedStores.kt), and how it signs in: again, for Microsoft and Google
 // (docs/provider-oauth.md rule 11), or switched, for IMAP and JMAP (docs/accounts.md rule 17).
 // The servers, the mail settings and the removal follow, in that order
 // (docs/settings.md).
@@ -99,7 +99,7 @@ internal fun AccountPage(entry: AccountEntry, page: CoreAccountPage, ui: Account
         Spacer(modifier = Modifier.height(8.dp))
         ReplyFallbackGroup(entry, picker, ui)
     }
-    page.shared?.let { SharedMailboxesGroup(entry, it, ui) }
+    page.shared?.let { SharedStoresGroup(entry, it, ui) }
     page.signIn?.let { section ->
         Spacer(modifier = Modifier.height(8.dp))
         AccountSignInGroup(entry, section, ui)

@@ -1,4 +1,4 @@
-//! An account's shared mailboxes on its page (`docs/shared-mailboxes.md` rules 3, 7 and 8): what
+//! An account's shared stores on its page (`docs/shared-mailboxes.md` rules 3, 7 and 8): what
 //! its server answered, kept so the page is drawn on every signal without asking the server each
 //! time, and asked again when the page opens or the account changed since it was asked. The rows,
 //! the line under them and the address field are decided here, so no client keeps a copy.
@@ -15,8 +15,8 @@ use mailcal_account::SharedStoreChoice;
 use mailcal_app::SharedStoreOffer;
 
 use crate::{
-    AccountSharedAddress, AccountSharedMailbox, AccountSharedMailboxes, ControlState,
-    SharedMailboxesNote, SharedStoreSupport,
+    AccountSharedAddress, AccountSharedStore, AccountSharedStores, ControlState, SharedStoreHolds,
+    SharedStoreSupport, SharedStoresNote,
     account_work::{Hold, PageWork},
     app_shared_stores::view,
 };
@@ -123,7 +123,7 @@ impl SharedAnswers {
         offer: Option<Offer>,
         chosen: Vec<SharedStoreChoice>,
         hold: &Hold,
-    ) -> Option<AccountSharedMailboxes> {
+    ) -> Option<AccountSharedStores> {
         section(offer?, chosen, hold, self.missed_at(account))
     }
 }
@@ -133,7 +133,7 @@ fn section(
     chosen: Vec<SharedStoreChoice>,
     hold: &Hold,
     missed: Option<String>,
-) -> Option<AccountSharedMailboxes> {
+) -> Option<AccountSharedStores> {
     let view = view(offer, chosen);
     if view.support == SharedStoreSupport::Unsupported && view.stores.is_empty() {
         return None;
@@ -142,35 +142,33 @@ fn section(
         enabled: !hold.busy,
         running,
     };
-    // The stores holding mail: this is the account's mailboxes.
-    let mailboxes = view
+    let stores = view
         .stores
         .iter()
-        .filter(|store| store.holds.contains(mailcal_account::SharedUse::Mail))
-        .map(|mailbox| {
+        // One holding nothing the account opens would switch on to nothing.
+        .filter_map(|store| Some((store, holds(store.holds)?)))
+        .map(|(store, holds)| {
             let going = hold.going(|work| match work {
-                PageWork::Shared { handle, on } if *handle == mailbox.handle => Some(*on),
+                PageWork::Shared { handle, on } if *handle == store.handle => Some(*on),
                 _ => None,
             });
-            let title = mailbox
-                .address
-                .clone()
-                .unwrap_or_else(|| mailbox.name.clone());
-            AccountSharedMailbox {
-                handle: mailbox.handle.clone(),
-                label: (mailbox.name != title).then(|| mailbox.name.clone()),
+            let title = store.address.clone().unwrap_or_else(|| store.name.clone());
+            AccountSharedStore {
+                handle: store.handle.clone(),
+                label: (store.name != title).then(|| store.name.clone()),
                 title,
-                withdrawn: !mailbox.listed,
-                on: going.unwrap_or(mailbox.selected),
+                holds,
+                withdrawn: !store.listed,
+                on: going.unwrap_or(store.selected),
                 control: control(going.is_some()),
             }
         })
         .collect::<Vec<_>>();
     let note = match view.support {
-        SharedStoreSupport::Listed if mailboxes.is_empty() => Some(SharedMailboxesNote::NoneShared),
-        SharedStoreSupport::ByAddress => Some(SharedMailboxesNote::ByAddress),
-        SharedStoreSupport::NotConnected => Some(SharedMailboxesNote::NotConnected),
-        SharedStoreSupport::Unreachable => Some(SharedMailboxesNote::Unreachable),
+        SharedStoreSupport::Listed if stores.is_empty() => Some(SharedStoresNote::NoneShared),
+        SharedStoreSupport::ByAddress => Some(SharedStoresNote::ByAddress),
+        SharedStoreSupport::NotConnected => Some(SharedStoresNote::NotConnected),
+        SharedStoreSupport::Unreachable => Some(SharedStoresNote::Unreachable),
         _ => None,
     };
     let address = (view.support == SharedStoreSupport::ByAddress).then(|| {
@@ -183,11 +181,22 @@ fn section(
             text: adding.or(missed).unwrap_or_default(),
         }
     });
-    Some(AccountSharedMailboxes {
-        mailboxes,
+    Some(AccountSharedStores {
+        stores,
         note,
         address,
     })
+}
+
+/// What a client says a store holds; `None` for nothing.
+fn holds(uses: mailcal_account::SharedUses) -> Option<SharedStoreHolds> {
+    use mailcal_account::SharedUse::{Calendar, Mail};
+    match (uses.contains(Mail), uses.contains(Calendar)) {
+        (true, true) => Some(SharedStoreHolds::MailAndCalendar),
+        (true, false) => Some(SharedStoreHolds::Mail),
+        (false, true) => Some(SharedStoreHolds::Calendar),
+        (false, false) => None,
+    }
 }
 
 #[cfg(test)]

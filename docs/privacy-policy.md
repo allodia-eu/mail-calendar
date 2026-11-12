@@ -1,6 +1,6 @@
 # Privacy Policy: Allodia Mail & Calendar
 
-**Version 2.9 · Effective: 2026-11-05**
+**Version 2.10 · Effective: 2026-11-11**
 
 Allodia Mail & Calendar is a mail and calendar app that runs on your device and connects to the
 mail provider **you** choose. This policy explains, in plain language, what that means for your
@@ -111,6 +111,13 @@ only while that option is ticked, and you see it on the consent screen; because 
 list them, you type the address of the one you want, and the app sends that address to Microsoft
 alone, to check that you can open it. Nothing about a shared mailbox is sent to Allodia, not even
 with an Allodia account, and switching one off removes its mail from your device.
+
+**Calendars shared with you.** If someone has shared a calendar with you, or you belong to a group
+that has a calendar of its own, you can add it in Settings → Accounts in the same way, where your
+server lists them. The app opens it with the sign-in of the account it was shared with and keeps its
+events on your device exactly as it keeps your own. Nothing about a shared calendar is sent to
+Allodia, not even with an Allodia account, and switching one off removes its events from your
+device.
 
 **The name you send under.** If you set a sender name for an account in Settings, the app stores
 it on your device and, where your provider lets it, also saves it to that account's own settings,

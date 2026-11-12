@@ -17,7 +17,7 @@ import uniffi.mailcal_bindings.AccountSeparateServer
 import uniffi.mailcal_bindings.AccountSharing
 import uniffi.mailcal_bindings.AccountSeparateSignIn
 import uniffi.mailcal_bindings.AccountServers
-import uniffi.mailcal_bindings.AccountSharedMailboxes
+import uniffi.mailcal_bindings.AccountSharedStores
 import uniffi.mailcal_bindings.AccountSignIn
 import uniffi.mailcal_bindings.AccountUse
 import uniffi.mailcal_bindings.AccountUseBlock
@@ -183,7 +183,7 @@ internal fun pageOf(
     senderName: AccountSenderName? = null,
     mail: AccountMailSettings? = null,
     servers: AccountServers? = null,
-    shared: AccountSharedMailboxes? = null,
+    shared: AccountSharedStores? = null,
     signIn: AccountSignIn? = null,
     separate: AccountSeparateServer? = null,
     sharing: AccountSharing? = null,
