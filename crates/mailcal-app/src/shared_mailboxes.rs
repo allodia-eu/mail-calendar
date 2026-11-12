@@ -35,11 +35,10 @@ pub enum SharedMailboxLookup {
 
 impl<P: Provider> App<P> {
     /// Whether `account` has a live mailbox to ask which mailboxes it opens: what
-    /// [`App::shared_mailbox_offer`] answers [`SharedMailboxOffer::NotConnected`] without.
-    pub async fn has_live_mailbox(&self, account: &AccountId) -> bool {
-        self.account_handle(account)
-            .await
-            .is_some_and(|handle| !handle.providers.is_empty())
+    /// [`App::shared_mailbox_offer`] answers [`SharedMailboxOffer::NotConnected`] without. Never
+    /// waits on the account list's lock, so a UI thread may ask it.
+    pub fn has_live_mailbox(&self, account: &AccountId) -> bool {
+        self.accounts.has_mailbox(account)
     }
 
     /// Which mailboxes `account`'s sign-in opens besides its own, asked of its live mailbox.

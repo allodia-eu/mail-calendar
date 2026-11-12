@@ -229,7 +229,7 @@ impl<P: Provider> App<P> {
             // The unified view: every account, each one's INBOX in view. An account with no
             // inbox key contributes rows but nothing in view, so nothing of it is shown.
             let mut inboxes = HashMap::new();
-            let accounts = self.account_ids().await;
+            let accounts = self.account_ids();
             for id in &accounts {
                 if let Some(inbox) = self.inbox_key(id).await {
                     inboxes.insert(id.as_str().to_owned(), inbox);

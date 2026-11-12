@@ -54,7 +54,11 @@ its `sender_name` and its `mail` settings too (fetch depth, message size, push o
 interval, the watched folders), each a control of its own, a switch to push drawn with the
 folders it will watch: a change to one is stored before it ends, and what follows from it (telling
 the provider the name, reconciling the mail to a new depth or size) runs on afterwards as sync work
-the page does not wait on. For an account whose servers
+the page does not wait on. Reading a page, or the accounts list, waits on nothing: what the mail
+half draws from the store and the live account list is kept by the core, read in the background
+at launch and again whenever either is read, and on a change's own thread as it starts and before
+it ends,
+and the page is signalled when what was read moved it. For an account whose servers
 can be edited the page carries its `servers`: the form, drawn from the edit being saved while a
 save runs, from the edit the last save refused (its password included, so one field is corrected
 rather than all retyped), and otherwise from what is stored; and Save, held too while
@@ -203,7 +207,11 @@ record, not a state the client keeps.
 - [`app_account_page_tests.rs`](../crates/mailcal-bindings/src/app_account_page_tests.rs) drives a
   change through `dispatch`: it runs and the page comes back free, one the core refuses leaves a
   notice, and a mail setting and a name asked for while it runs are both on the page once they
-  end.
+  end; and the page, its opening and the accounts list are read while a change to the account
+  list is held up, without waiting on it.
+  [`account_page_mail_rows_tests.rs`](../crates/mailcal-bindings/src/account_page_mail_rows_tests.rs)
+  pins the mail half's kept row: a read moves the page only when it found something else, an
+  older read never replaces a newer one, and one read is out at a time.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
   ([`controls.rs`](../clients/linux/src/ui/controls.rs), the name's row in
   [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs), and a redraw

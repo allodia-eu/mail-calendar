@@ -88,6 +88,19 @@ fn settled(app: &MailcalApp) -> AccountPage {
     }
 }
 
+/// The page once its mail half has been read, which it is in the background.
+fn with_mail(app: &MailcalApp) -> AccountPage {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let page = settled(app);
+        if page.mail.is_some() {
+            return page;
+        }
+        assert!(Instant::now() < deadline, "the mail half was never read");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 fn set_use(app: &MailcalApp, capability: AccountCapability, on: bool) {
     app.dispatch(Intent::AccountPage {
         intent: AccountPageIntent::SetUse {
@@ -343,12 +356,28 @@ fn a_removal_takes_the_page_and_says_on_the_list_what_it_could_not_finish() {
     );
 }
 
+/// The mail half is read at launch, before anything asks for the page, so the page's first read
+/// is drawn whole rather than redrawn once the row arrives.
+#[test]
+fn the_mail_half_is_read_at_launch() {
+    let app = app("account-page-mail-ahead", MAIL_ONLY);
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while app.account_work.mail_rows.row(ID).is_none() {
+        assert!(
+            Instant::now() < deadline,
+            "the row was never read at launch"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(settled(&app).mail.is_some());
+}
+
 /// A mail account's page carries its mail half, and a change to it runs through `dispatch` and is
 /// on the page when it ends: the interval in effect, the name it sends under.
 #[test]
 fn a_mail_setting_changes_through_the_page() {
     let app = app("account-page-mail", MAIL_ONLY);
-    let page = settled(&app);
+    let page = with_mail(&app);
     let mail = page.mail.expect("a mail account has its mail settings");
     // The server never answered, so nothing says it pushes: it checks on a timer.
     assert!(mail.push.is_none());
@@ -410,4 +439,51 @@ fn a_refused_add_keeps_the_address_it_was_given() {
         app.account_work.shared.missed_at(ID).as_deref(),
         Some("team@example.org")
     );
+}
+
+/// The page, the accounts list and opening the page read only memory: a change to the account list
+/// that a slow reader holds up never holds up the thread that draws them.
+#[test]
+fn reading_the_page_never_waits_on_the_account_list() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let app = app("account-page-unheld", MAIL_ONLY);
+    with_mail(&app);
+
+    let release = Arc::new(AtomicBool::new(false));
+    let (held_tx, held_rx) = mpsc::channel();
+    let holder = {
+        let (app, release) = (Arc::clone(&app), Arc::clone(&release));
+        std::thread::spawn(move || {
+            let core = Arc::clone(&app.app);
+            app.runtime.block_on(|| async move {
+                core.hold_account_list(async move {
+                    held_tx.send(()).expect("the test waits");
+                    while !release.load(Ordering::Relaxed) {
+                        tokio::time::sleep(Duration::from_millis(5)).await;
+                    }
+                })
+                .await;
+            });
+        })
+    };
+    held_rx.recv().expect("the list is held");
+
+    let (read_tx, read_rx) = mpsc::channel();
+    {
+        let app = Arc::clone(&app);
+        std::thread::spawn(move || {
+            app.account_page_opened(ID.to_owned());
+            let listed = app.accounts_snapshot().accounts.len();
+            let page = app.account_page(ID.to_owned());
+            read_tx.send((listed, page)).expect("the test waits");
+        });
+    }
+    let read = read_rx.recv_timeout(Duration::from_secs(2));
+    release.store(true, Ordering::Relaxed);
+    holder.join().expect("the holder lets go");
+    let (listed, page) = read.expect("read while the account list was held");
+    assert_eq!(listed, 1);
+    let page = page.expect("the account is listed");
+    assert!(page.mail.is_some(), "drawn from what was last read");
 }

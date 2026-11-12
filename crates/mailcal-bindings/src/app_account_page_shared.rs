@@ -2,8 +2,6 @@
 //! background, never on the thread that reads the page, and switching or adding one as a change
 //! on the page.
 
-use std::sync::Arc;
-
 use engine_api::AccountId;
 use mailcal_app::SharedMailboxOffer;
 
@@ -20,6 +18,7 @@ impl MailcalApp {
     /// their server takes (rule 18); the page is signalled once each answers. What it answered
     /// before is drawn meanwhile.
     pub fn account_page_opened(&self, account_id: String) {
+        self.ask_mail_row(&account_id);
         self.ask_sign_in_options(&account_id, true);
         self.ask_shared(&account_id, true);
         if let Some(need) = self.separate_need(&account_id) {
@@ -39,7 +38,7 @@ impl MailcalApp {
         let shared = &self.account_work.shared;
         // One that cannot open any is answered without asking its server.
         let offer = if self.opens_shared_mailboxes(account_id) {
-            self.ask_shared(account_id, false);
+            self.ask_opening_shared(account_id, false);
             shared.offer(account_id)
         } else {
             Some(Ok(SharedMailboxOffer::Unsupported))
@@ -56,9 +55,13 @@ impl MailcalApp {
     ///
     /// [`SharedAnswers::ask`]: crate::account_page::shared::SharedAnswers::ask
     fn ask_shared(&self, account_id: &str, again: bool) {
-        if !self.opens_shared_mailboxes(account_id) {
-            return;
+        if self.opens_shared_mailboxes(account_id) {
+            self.ask_opening_shared(account_id, again);
         }
+    }
+
+    /// [`Self::ask_shared`] for an account already known to open shared mailboxes.
+    fn ask_opening_shared(&self, account_id: &str, again: bool) {
         // The app first: a ticket taken with no thread to answer it would hold every later ask.
         let Some(app) = self.rediscovery.app() else {
             return;
@@ -80,11 +83,8 @@ impl MailcalApp {
 
     /// The account as its server would be asked now.
     fn asked_as(&self, account_id: &str) -> Asked {
-        let live = AccountId::try_from(account_id).is_ok_and(|account| {
-            let app = Arc::clone(&self.app);
-            self.runtime
-                .block_on(|| async move { app.has_live_mailbox(&account).await })
-        });
+        let live = AccountId::try_from(account_id)
+            .is_ok_and(|account| self.app.has_live_mailbox(&account));
         Asked {
             uses: self
                 .registry

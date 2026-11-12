@@ -48,10 +48,7 @@ impl MailcalApp {
     ///
     /// An empty list means the last account is gone, and the client returns to first-run setup.
     pub fn accounts_snapshot(&self) -> AccountsSnapshot {
-        let app = std::sync::Arc::clone(&self.app);
-        let order = self
-            .runtime
-            .block_on(|| async move { app.account_ids().await });
+        let order = self.app.account_ids();
         let mut facts = self.registry.facts();
         let position = |id: &str| {
             order
@@ -60,6 +57,8 @@ impl MailcalApp {
                 .unwrap_or(usize::MAX)
         };
         facts.sort_by(|a, b| position(&a.id).cmp(&position(&b.id)).then(a.id.cmp(&b.id)));
+        // Kept fresh for each account's page, which is read from memory.
+        self.read_mail_rows_ahead();
         for account in &mut facts {
             if account
                 .chosen
