@@ -105,7 +105,7 @@ internal static class EventConferenceSection
                 VerticalAlignment = VerticalAlignment.Center,
             };
             AutomationProperties.SetAutomationId(button, id("EventJoin"));
-            button.Click += (_, _) => _ = Windows.System.Launcher.LaunchUriAsync(join);
+            button.Click += (_, _) => _ = ExternalLauncher.Open(join);
             Grid.SetColumn(button, 2);
             heading.Children.Add(button);
         }
@@ -152,7 +152,7 @@ internal static class EventConferenceSection
                 Padding = new Thickness(0, 2, 0, 2),
             };
             AutomationProperties.SetName(button, number.Number);
-            button.Click += (_, _) => _ = Windows.System.Launcher.LaunchUriAsync(dial);
+            button.Click += (_, _) => _ = ExternalLauncher.Open(dial);
             row.Children.Add(button);
         }
         else

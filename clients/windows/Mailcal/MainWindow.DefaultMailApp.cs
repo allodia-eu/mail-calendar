@@ -10,7 +10,6 @@ using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
-using Windows.System;
 
 namespace Allodia.Mailcal;
 
@@ -108,7 +107,7 @@ public sealed partial class MainWindow
     {
         try
         {
-            await Launcher.LaunchUriAsync(new Uri(DefaultMailApp.SettingsUri(AppIdentity.Aumid)));
+            await ExternalLauncher.Open(new Uri(DefaultMailApp.SettingsUri(AppIdentity.Aumid)));
         }
         catch (Exception error)
         {

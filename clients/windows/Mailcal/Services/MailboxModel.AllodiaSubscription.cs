@@ -225,7 +225,7 @@ public sealed partial class MailboxModel
     {
         if (Uri.TryCreate(store.ManageUrl, UriKind.Absolute, out var url))
         {
-            _ = Windows.System.Launcher.LaunchUriAsync(url);
+            _ = ExternalLauncher.Open(url);
         }
     }
 
@@ -239,7 +239,7 @@ public sealed partial class MailboxModel
         {
             return AllodiaWriteFailure.Unexplained;
         }
-        await Windows.System.Launcher.LaunchUriAsync(url);
+        await ExternalLauncher.Open(url);
         return null;
     }
 }

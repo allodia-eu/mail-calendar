@@ -254,7 +254,7 @@ public sealed partial class ReadingView
             && _model?.ShouldOpenExternalLink(uri) == true
             && Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
         {
-            _ = Windows.System.Launcher.LaunchUriAsync(parsed);
+            _ = ExternalLauncher.Open(parsed);
         }
     }
 
