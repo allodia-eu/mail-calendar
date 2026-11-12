@@ -88,14 +88,15 @@ import Testing
         #expect(field.followsSecurity)
     }
 
-    @Test func onlyAnAllDigitTailIsAPort() {
-        #expect(ManualServerField.splitHost("imap.example.net").port.isEmpty)
+    @Test func theFieldSplitsAndJoinsAsTheCoreDoes() {
         #expect(ManualServerField.splitHost("imap.example.net:993").host == "imap.example.net")
         #expect(ManualServerField.splitHost("imap.example.net:993").port == "993")
-        #expect(ManualServerField.splitHost("host:").port.isEmpty)
-        #expect(ManualServerField.splitHost("host:abc").port.isEmpty)
-        // Mirrors the core, which splits the same way; a bare IPv6 literal is not a server
-        // either side accepts.
-        #expect(ManualServerField.splitHost("::1").host == ":")
+        #expect(ManualServerField.splitHost("::1").host == "::1")
+        #expect(ManualServerField.splitHost("::1").port.isEmpty)
+        #expect(ManualServerField.splitHost("[::1]:1143").host == "[::1]")
+
+        let field = ManualServerField(.imap)
+        #expect(field.dial("::1") == "[::1]:993")
+        #expect(field.dial("[::1]:1025") == "[::1]:1025")
     }
 }

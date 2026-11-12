@@ -40,21 +40,21 @@ internal object AccountEndpointEdit {
     }
 
     /**
-     * The address to store: a host the person wrote a port into as written, as the setup form
-     * dials it; otherwise the bare host when the port is empty or the standard one for
-     * [security], and `host:port` when it is not.
+     * The address to store, joined as the core joins it: the bare host when the port is empty or
+     * the standard one for [security], and `host:port` when it is not, a port the person wrote
+     * into the host winning over the port field, as the setup form dials it.
      */
     fun joined(
         host: String,
         port: String,
         security: ConnectionSecurity,
         standardPort: ((ConnectionSecurity) -> Int)?,
+        addressing: ServerAddressing,
     ): String {
-        val bareHost = host.trim()
-        val barePort = port.trim()
-        if (ManualServerField.splitHost(bareHost).second.isNotEmpty()) return bareHost
+        val (bareHost, inHost) = addressing.split(host)
+        val chosen = inHost.ifEmpty { port.trim() }
         val standard = standardPort?.invoke(security)?.toString()
-        return if (barePort.isEmpty() || barePort == standard) bareHost else "$bareHost:$barePort"
+        return if (chosen.isEmpty() || chosen == standard) bareHost else addressing.join(bareHost, chosen)
     }
 
 }

@@ -16,13 +16,15 @@ class ManualServerFieldTest {
     // The standard ports, as the core answers them. They are written out here because this suite
     // loads no cdylib; that they are the SAME numbers the core dials is pinned in
     // `mailcal-bindings`'s own suite, which is the only place that can assert it.
-    private fun imap() = ManualServerField { security ->
-        if (security == ConnectionSecurity.IMPLICIT_TLS) 993 else 143
-    }
+    private fun imap() = ManualServerField(
+        { security -> if (security == ConnectionSecurity.IMPLICIT_TLS) 993 else 143 },
+        plainAddressing,
+    )
 
-    private fun smtp() = ManualServerField { security ->
-        if (security == ConnectionSecurity.IMPLICIT_TLS) 465 else 587
-    }
+    private fun smtp() = ManualServerField(
+        { security -> if (security == ConnectionSecurity.IMPLICIT_TLS) 465 else 587 },
+        plainAddressing,
+    )
 
     @Test
     fun `a fresh field offers the standard secure port`() {
@@ -91,22 +93,5 @@ class ManualServerFieldTest {
         val field = imap().adoptDetected("imap.example.net", ConnectionSecurity.START_TLS)
         assertEquals("143", field.port)
         assertTrue(field.followsSecurity)
-    }
-
-    @Test
-    fun `only an all-digit tail is a port`() {
-        assertEquals(
-            "imap.example.net" to "",
-            ManualServerField.splitHost("imap.example.net"),
-        )
-        assertEquals(
-            "imap.example.net" to "993",
-            ManualServerField.splitHost("imap.example.net:993"),
-        )
-        assertEquals("host:" to "", ManualServerField.splitHost("host:"))
-        assertEquals("host:abc" to "", ManualServerField.splitHost("host:abc"))
-        // Mirrors the core, which splits the same way; a bare IPv6 literal is not a server
-        // either side accepts.
-        assertEquals(":" to "1", ManualServerField.splitHost("::1"))
     }
 }

@@ -167,6 +167,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     notices = notices.notices,
     noticeHandlers = noticeHandlers(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
+    addressing = ServerAddressing.core,
     endpointsGap = { id, endpoints -> app?.accountEndpointsGap(id, endpoints) },
     // Add account opens setup in place of Settings, and cancelling or finishing returns to Accounts.
     onAddAccount = {

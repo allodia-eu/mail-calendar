@@ -55,6 +55,8 @@ internal class AccountsSettingsUi(
     val notices: List<Notice> = emptyList(),
     val noticeHandlers: NoticeHandlers = NoticeHandlers(),
     val standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,
+    // How a server's address splits and joins: the core's, or the address as typed without one.
+    val addressing: ServerAddressing = ServerAddressing.asTyped,
     // What an edit of an account's servers leaves out, asked of the core as the person types.
     val endpointsGap: (accountId: String, AccountEndpoints) -> AccountEndpointsGap? = { _, _ -> null },
     val onAddAccount: () -> Unit = {},

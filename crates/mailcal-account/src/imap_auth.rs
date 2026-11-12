@@ -301,26 +301,14 @@ fn registrable_domain(host: &str) -> String {
 
 /// The host part of a `host` or `host:port` server field.
 fn host_of(server: &str) -> &str {
-    let server = server.trim();
-    match server.rsplit_once(':') {
-        Some((host, port)) if !host.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => host,
-        _ => server,
-    }
+    crate::server_address_host(server)
 }
 
 /// The `host:port` to dial, applying the standard port for the chosen security when the field
-/// carries none: the same defaulting the setup builder does, so a probe and the connect that
-/// follows it reach the same server.
+/// carries none: the setup builder's own defaulting, so a probe and the connect that follows it
+/// reach the same server.
 fn dial_addr(server: &str, security: ConnectionSecurity) -> String {
-    let server = server.trim();
-    if host_of(server) == server {
-        let port = match security {
-            ConnectionSecurity::ImplicitTls => 993,
-            ConnectionSecurity::StartTls => 143,
-        };
-        return format!("{server}:{port}");
-    }
-    server.to_owned()
+    crate::setup::host_and_addr(server, crate::imap_default_port(security)).1
 }
 
 /// The engine's transport enum for this account's connection security.

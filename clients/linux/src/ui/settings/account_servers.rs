@@ -7,7 +7,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use mailcal_bindings::{
     AccountEndpoints, AccountEndpointsGap, AccountEntry, AccountPageIntent, AccountServers,
-    ConnectionSecurity, MailServerKind, standard_port,
+    ConnectionSecurity, MailServerKind, server_address, server_address_parts, standard_port,
 };
 
 use super::{PageContext, group};
@@ -230,37 +230,39 @@ fn entry_row(section: &adw::PreferencesGroup, title: &str, text: &str) -> adw::E
 }
 
 /// A stored address, `host` or `host:port`, as its host and its port, the default one when it
-/// names none.
+/// names none; split as the core splits it.
 pub(super) fn split(
     address: &str,
     server: MailServerKind,
     security: ConnectionSecurity,
 ) -> (String, String) {
-    let named = address.rsplit_once(':').filter(|(host, port)| {
-        !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) && !host.contains(':')
-    });
-    match named {
-        Some((host, port)) => (host.to_owned(), port.to_owned()),
-        None => (
-            address.to_owned(),
-            standard_port(server, security).to_string(),
-        ),
+    let parts = server_address_parts(address.to_owned());
+    if parts.port.is_empty() {
+        (parts.host, standard_port(server, security).to_string())
+    } else {
+        (parts.host, parts.port)
     }
 }
 
-/// The address to store: the bare host when the port is the default for `security` or left
-/// empty, `host:port` otherwise.
+/// The address to store, joined as the core joins it: the bare host when the port is the default
+/// for `security` or left empty, `host:port` otherwise. A port written into the host field is
+/// kept, never doubled.
 pub(super) fn joined(
     host: &str,
     port: &str,
     server: MailServerKind,
     security: ConnectionSecurity,
 ) -> String {
-    let (host, port) = (host.trim(), port.trim());
-    if port.is_empty() || port == standard_port(server, security).to_string() {
-        host.to_owned()
+    let parts = server_address_parts(host.to_owned());
+    let port = if parts.port.is_empty() {
+        port.trim().to_owned()
     } else {
-        format!("{host}:{port}")
+        parts.port
+    };
+    if port == standard_port(server, security).to_string() {
+        parts.host
+    } else {
+        server_address(parts.host, port)
     }
 }
 
@@ -427,6 +429,27 @@ mod tests {
             joined("imap.example.org", "143", Server::Imap, starttls),
             "imap.example.org"
         );
+        assert_eq!(
+            joined("imap.example.org:1025", "1143", Server::Imap, tls),
+            "imap.example.org:1025",
+            "a port written into the host field is kept, never doubled"
+        );
+    }
+
+    #[test]
+    fn an_ipv6_literal_is_stored_in_brackets_before_its_port() {
+        let tls = ConnectionSecurity::ImplicitTls;
+        assert_eq!(
+            split("[::1]:1143", Server::Imap, tls),
+            ("[::1]".to_owned(), "1143".to_owned())
+        );
+        assert_eq!(
+            split("::1", Server::Imap, tls),
+            ("::1".to_owned(), "993".to_owned())
+        );
+        assert_eq!(joined("[::1]", "1143", Server::Imap, tls), "[::1]:1143");
+        assert_eq!(joined("::1", "1143", Server::Imap, tls), "[::1]:1143");
+        assert_eq!(joined("[::1]", "993", Server::Imap, tls), "[::1]");
     }
 
     #[test]

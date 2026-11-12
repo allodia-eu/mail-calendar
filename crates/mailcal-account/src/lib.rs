@@ -50,6 +50,7 @@ mod recurrence_shape;
 mod repeat_draft;
 mod repeat_summary;
 mod series_warning;
+mod server_address;
 mod setup;
 mod setup_choices;
 mod shared_mailbox;
@@ -134,6 +135,7 @@ pub use repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary, summarize_repe
 pub use series_warning::{
     SeriesEditTouches, SeriesEditWarning, series_edit_touches, series_edit_warning,
 };
+pub use server_address::{join_server_address, server_address_host, split_server_address};
 pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };

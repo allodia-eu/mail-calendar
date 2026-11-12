@@ -14,10 +14,11 @@ import uniffi.mailcal_bindings.MailServerKind
  * The rule is `docs/account-autodetect.md`'s and binds every client; this is the Android client's
  * copy of it, Compose-free so it can be tested without composing a screen.
  *
- * The standard port is passed in rather than fetched, because the JVM suite that tests this loads
- * no cdylib: a call across the FFI here would crash every test that composes the screen, and the
- * rule would be one no test could reach. [ManualServerPair.fromCore] is what the app uses;
- * the numbers themselves are pinned against the core in `mailcal-bindings`.
+ * The standard port and the address's split and join ([ServerAddressing]) are passed in rather
+ * than fetched, because the JVM suite that tests this loads no cdylib: a call across the FFI here
+ * would crash every test that composes the screen, and the rule would be one no test could reach.
+ * [ManualServerPair.fromCore] is what the app uses; the numbers themselves are pinned against the
+ * core in `mailcal-bindings`.
  *
  * A null lookup means no port is suggested. That is what a preview or a test gets, and it is
  * still correct: a blank port submits a bare host, which the core resolves to the same standard
@@ -25,12 +26,17 @@ import uniffi.mailcal_bindings.MailServerKind
  */
 class ManualServerField private constructor(
     private val standard: ((ConnectionSecurity) -> Int)?,
+    private val addressing: ServerAddressing,
     val security: ConnectionSecurity,
     val port: String,
     private val typedByHand: Boolean,
 ) {
-    constructor(standard: ((ConnectionSecurity) -> Int)?) : this(
+    constructor(
+        standard: ((ConnectionSecurity) -> Int)?,
+        addressing: ServerAddressing = ServerAddressing.asTyped,
+    ) : this(
         standard,
+        addressing,
         ConnectionSecurity.IMPLICIT_TLS,
         standard.suggest(ConnectionSecurity.IMPLICIT_TLS),
         false,
@@ -42,6 +48,7 @@ class ManualServerField private constructor(
     /** The user picked a security. The port follows only while it is still ours. */
     fun choose(chosen: ConnectionSecurity): ManualServerField = ManualServerField(
         standard,
+        addressing,
         chosen,
         if (typedByHand) port else standard.suggest(chosen),
         typedByHand,
@@ -56,6 +63,7 @@ class ManualServerField private constructor(
         val byHand = typed.isNotBlank()
         return ManualServerField(
             standard,
+            addressing,
             security,
             if (byHand) typed else standard.suggest(security),
             byHand,
@@ -67,41 +75,25 @@ class ManualServerField private constructor(
      * the field shows what detection found and stops following the picker.
      */
     fun adoptDetected(host: String, detected: ConnectionSecurity): ManualServerField {
-        val found = splitHost(host).second
+        val found = addressing.split(host).second
         return ManualServerField(
             standard,
+            addressing,
             detected,
             found.ifEmpty { standard.suggest(detected) },
             found.isNotEmpty(),
         )
     }
 
-    /** The `host:port` this field submits, or the bare host when it carries no port of its own. */
+    /**
+     * The `host:port` this field submits, or the bare host when it carries no port of its own,
+     * joined as the core joins it.
+     */
     fun dial(host: String): String {
-        val typed = host.trim()
+        val (bare, typed) = addressing.split(host)
         // A host the user already wrote a port into wins: two ports would be a contradiction, and
         // the one in the host field is the one they can see beside the name.
-        if (typed.isEmpty() || splitHost(typed).second.isNotEmpty()) return typed
-        val chosen = port.trim()
-        return if (chosen.isEmpty()) typed else "$typed:$chosen"
-    }
-
-    companion object {
-        /**
-         * Splits a typed server into host and port.
-         *
-         * Mirrors the core's own split (`mailcal-account`'s `host_and_addr`) deliberately: the
-         * core decides the address actually dialled, so a client that split differently would
-         * show one port and connect to another. A bare IPv6 literal is not a server either side
-         * accepts.
-         */
-        fun splitHost(input: String): Pair<String, String> {
-            val at = input.lastIndexOf(':')
-            if (at <= 0 || at == input.length - 1) return input to ""
-            val tail = input.substring(at + 1)
-            if (!tail.all { it in '0'..'9' }) return input to ""
-            return input.substring(0, at) to tail
-        }
+        return addressing.join(bare, typed.ifEmpty { port })
     }
 }
 
@@ -120,10 +112,16 @@ data class ManualServerPair(
     val smtp: ManualServerField = ManualServerField(null),
 ) {
     companion object {
-        /** The pair the running app uses, its ports answered by the core. */
+        /** The pair the running app uses, its ports and addresses answered by the core. */
         fun fromCore(standardPort: (MailServerKind, ConnectionSecurity) -> Int) = ManualServerPair(
-            imap = ManualServerField { security -> standardPort(MailServerKind.IMAP, security) },
-            smtp = ManualServerField { security -> standardPort(MailServerKind.SMTP, security) },
+            imap = ManualServerField(
+                { security -> standardPort(MailServerKind.IMAP, security) },
+                ServerAddressing.core,
+            ),
+            smtp = ManualServerField(
+                { security -> standardPort(MailServerKind.SMTP, security) },
+                ServerAddressing.core,
+            ),
         )
     }
 }

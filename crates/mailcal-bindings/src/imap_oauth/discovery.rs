@@ -303,11 +303,7 @@ pub(super) async fn resources_again(
 
 /// The host of a `host` or `host:port` server field.
 pub(crate) fn host_only(server: &str) -> &str {
-    let server = server.trim();
-    match server.rsplit_once(':') {
-        Some((host, port)) if !host.is_empty() && port.bytes().all(|b| b.is_ascii_digit()) => host,
-        _ => server,
-    }
+    mailcal_account::server_address_host(server)
 }
 
 /// The one message a user ever sees for any of these: this provider's sign-in is not

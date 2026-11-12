@@ -200,8 +200,8 @@ public sealed partial class AccountSetupView : UserControl
                     break;
                 default:
                     ShowServerFields(
-                        ManualServerField.SplitHost(route.ImapHost).Host,
-                        ManualServerField.SplitHost(route.SmtpHost).Host);
+                        ServerAddressing.Core.Split(route.ImapHost).Host,
+                        ServerAddressing.Core.Split(route.SmtpHost).Host);
                     // A discovered CalDAV endpoint is prefilled (opt-out, clear it to skip calendar);
                     // it reuses the IMAP credentials at connect.
                     CaldavUrl.Text = route.CaldavUrl;

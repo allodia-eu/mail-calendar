@@ -51,32 +51,21 @@ struct ManualServerField: Equatable {
         port = typedByHand ? found : String(standardPort(kind: kind, security: security))
     }
 
-    /// The `host:port` this field submits, or the bare host when it carries no port of its own.
+    /// The `host:port` this field submits, or the bare host when it carries no port of its own,
+    /// joined as the core joins it: an IPv6 literal goes in brackets before its port.
     func dial(_ host: String) -> String {
-        let typed = host.trimmingCharacters(in: .whitespaces)
+        let typed = ManualServerField.splitHost(host)
         // A host the user already wrote a port into wins: two ports would be a contradiction, and
         // the one in the host field is the one they can see beside the name.
-        if typed.isEmpty || !ManualServerField.splitHost(typed).port.isEmpty {
-            return typed
-        }
-        let chosen = port.trimmingCharacters(in: .whitespaces)
-        return chosen.isEmpty ? typed : "\(typed):\(chosen)"
+        return serverAddress(host: typed.host, port: typed.port.isEmpty ? port : typed.port)
     }
 
-    /// Splits a typed server into host and port.
-    ///
-    /// Mirrors the core's own split (`mailcal-account`'s `host_and_addr`) deliberately: the core
-    /// decides the address actually dialled, so a client that split differently would show one
-    /// port and connect to another. A bare IPv6 literal is not a server either side accepts.
+    /// Splits a typed server into host and port, as the core does: the core decides the address
+    /// actually dialled, so a form that split differently would show one port and connect to
+    /// another.
     static func splitHost(_ input: String) -> (host: String, port: String) {
-        guard let at = input.lastIndex(of: ":") else { return (input, "") }
-        let head = String(input[input.startIndex..<at])
-        let tail = String(input[input.index(after: at)...])
-        guard !head.isEmpty, !tail.isEmpty, tail.allSatisfy(\.isASCII), tail.allSatisfy(\.isNumber)
-        else {
-            return (input, "")
-        }
-        return (head, tail)
+        let parts = serverAddressParts(address: input)
+        return (parts.host, parts.port)
     }
 }
 
