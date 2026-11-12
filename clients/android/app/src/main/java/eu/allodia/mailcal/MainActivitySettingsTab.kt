@@ -112,19 +112,14 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             allodia = AllodiaSettings(available = allodiaSignInOffered(), card = allodiaCard),
                             onAllodia = { changeAllodia(it) },
                             onAllodiaManage = { manageAllodiaAccount() },
-                            // The subscription on that account: what is being charged, by whom,
-                            // and the way to start one (MainActivityAllodiaPurchases.kt).
-                            allodiaSubscription = allodiaSubscription,
-                            onAllodiaRefreshSubscription = { refreshAllodiaSubscription() },
-                            onAllodiaBuy = { buyAllodiaSubscription(it) },
-                            onAllodiaManageStore = { manageAllodiaStoreSubscription(it) },
-                            onAllodiaSubscriptionClosed = { forgetAllodiaPurchaseInFlight() },
-                            // The three writes against Allodia's own subscription. Each blocks
-                            // on the network and re-reads afterwards
-                            // (MainActivityAllodiaWrites.kt).
-                            onAllodiaCancel = { cancelAllodiaSubscription() },
-                            onAllodiaResubscribe = { resubscribeToAllodia() },
-                            onAllodiaSwitch = { switchAllodiaInterval(it) },
+                            // The subscription on that account, as the core keeps it, and what
+                            // buying from this build's shop keeps beside it
+                            // (MainActivityAllodiaPurchases.kt).
+                            allodiaSubscription = AllodiaSubscriptionUi(
+                                card = allodiaSubscription,
+                                store = allodiaStore,
+                                actions = allodiaSubscriptionActions { changeAllodia(allodiaSignIn()) },
+                            ),
                             // Accounts, what the person's other devices have to say, drawn above
                             // their own accounts because an offer becomes one of them.
                             allodiaDevices = allodiaDevices,

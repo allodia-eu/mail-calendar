@@ -31,6 +31,7 @@ import com.android.billingclient.api.queryPurchasesAsync
 import kotlinx.coroutines.CompletableDeferred
 import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaPlan
+import uniffi.mailcal_bindings.AllodiaPrices
 import uniffi.mailcal_bindings.AllodiaStorePurchase
 import uniffi.mailcal_bindings.AllodiaStore
 import uniffi.mailcal_bindings.AllodiaStoreProduct
@@ -96,8 +97,8 @@ internal class GooglePlayBillingProvider(
     // The price string is **drawn, never parsed**: it is already localised and Play's commission is
     // already in it. A base plan Play does not offer in this country is left out rather than
     // raised, so a person sees the plans that are available rather than an error about one that
-    // is not.
-    override suspend fun offers(): List<AllodiaOffer> {
+    // is not. Allodia's own [checkout] list is not sold through Play, so it is never read here.
+    override suspend fun offers(checkout: AllodiaPrices?): List<AllodiaOffer> {
         val details = productDetails()
         if (details == null) {
             // ⚠️ **The one line that says why nothing is for sale.** Play answers nothing about

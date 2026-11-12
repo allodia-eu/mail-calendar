@@ -20,17 +20,20 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaPlan
+import uniffi.mailcal_bindings.AllodiaPrices
 import uniffi.mailcal_bindings.AllodiaPurchaseReport
 import uniffi.mailcal_bindings.MailcalApp
 
 // Runs redemption passes and keeps Play's own callback wired to one.
 //
-// One per app. It owns no UI state: a screen asks it to buy and reads the entitlement afterwards
-// like any other.
+// One per app. It owns no UI state: a screen asks it to buy, and every pass ends in [onLinked],
+// which asks the core to read the subscription again.
 internal class AllodiaPurchases(
     context: Context,
     private val app: MailcalApp,
     private val scope: CoroutineScope,
+    // Told what every pass came to, `null` when nothing was outstanding.
+    private val onLinked: (AllodiaPurchaseReport?) -> Unit,
 ) {
     private val billing =
         allodiaBillingProvider(
@@ -41,12 +44,10 @@ internal class AllodiaPurchases(
             onPurchaseReported = { scope.launch { linkOutstanding() } },
         )
 
-    // What this build's shop will sell, in the order the core says to draw it.
-    //
-    // Further offers are added by the caller, which knows whether this platform may draw them at
-    // all; the ordering is the core's either way.
-    suspend fun offers(others: List<AllodiaOffer> = emptyList()): List<AllodiaOffer> =
-        app.orderAllodiaOffers(offers = billing.offers() + others)
+    // What this build's shop will sell, in the order the core says to draw it. [checkout] is
+    // Allodia's own list while the core sells its checkout.
+    suspend fun offers(checkout: AllodiaPrices?): List<AllodiaOffer> =
+        app.orderAllodiaOffers(offers = billing.offers(checkout))
 
     // Buys a period and carries the purchase through to the account service.
     //
@@ -68,18 +69,21 @@ internal class AllodiaPurchases(
     // `report.finish` is deliberately not acted on here. It names what the service has finished
     // with, which an Apple client turns into a StoreKit `finish()`; on Play the purchase is already
     // acknowledged and there is nothing left for a device to do. On the checkout route nothing is
-    // ever outstanding, so this returns before any of that.
+    // ever outstanding, so [onLinked] hears `null` at once.
     //
     // Safe to call at any time and from anywhere; the core deduplicates and paces the retries.
-    suspend fun linkOutstanding(): AllodiaPurchaseReport? {
+    suspend fun linkOutstanding() {
         val outstanding = billing.outstanding()
-        if (outstanding.isEmpty()) return null
         // The pass makes network round trips and the core call blocks on them, so it goes off the
         // main thread exactly as the sign-in and sync passes do.
-        return runCatching {
-                withContext(Dispatchers.IO) { app.linkAllodiaPurchases(outstanding) }
+        val report =
+            if (outstanding.isEmpty()) {
+                null
+            } else {
+                runCatching { withContext(Dispatchers.IO) { app.linkAllodiaPurchases(outstanding) } }
+                    .getOrNull()
             }
-            .getOrNull()
+        onLinked(report)
     }
 
     fun close() {
