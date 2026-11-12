@@ -8,6 +8,8 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+# The link-scheme policy a `LinkUrl` is checked against, shared with the reading view.
+engine-html = { workspace = true }
 encoding_rs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

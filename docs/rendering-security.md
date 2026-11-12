@@ -18,52 +18,38 @@ only because Layer 1 below drops the message's own `<meta>`.
 
 ## The layers
 
-Defence in depth: each layer holds even if another is weakened. Layers 1–2 are **shared Rust**
-(written once, identical for every client); layer 3 is the **native host renderer** (each client
-implements every gate).
+Defence in depth: each layer holds even if another is weakened. Layers 1–2 are **shared Rust** in
+the engine's `engine-html` (written once, identical for every client and for every other host of
+the engine); layer 3 is the **native host renderer** (each client implements every gate). The
+engine's
+[`html.md`](https://github.com/allodia-eu/email-calendar-sync-engine/blob/main/docs/agent-guidance/html.md)
+is authoritative for layers 1 and 2: exactly what the sanitiser removes, keeps, links and reports,
+and what the document's policy allows. What follows is what the clients rely on.
 
-### Layer 1: Core sanitisation (shared) · `crates/mailcal-app/src/html/mod.rs`
+### Layer 1: Sanitisation (shared) · `engine_html::sanitize`
 
-The engine returns the raw `text/html` part **unsanitized** by design (it is hostile input). The
-core sanitises it **once** for every client (never re-implemented per platform):
+The engine returns the raw `text/html` part **unsanitised** by design (it is hostile input). The
+core passes it through `engine_html::sanitize` **once** for every client, before the reading
+snapshot carries it, and no client sanitises a body itself:
 
-- **Removed:** `<script>` + contents, event handlers (`on*`), `<iframe>`/`<object>`/`<embed>`/
-  `<form>`, `<base>`/`<meta>` (so a message can't set its own refresh/CSP), any URL scheme
-  other than `http(s)`/`mailto`/`tel`/`data`/`cid`, and a `tel:` link gate 4a would not open (its
-  words stay, as text).
-- **Kept:** presentational HTML/CSS: inline `style`, `<style>` blocks, `class` and `id` (stripping
-  CSS makes real mail illegible), and remote `<img>` sources (the load is gated downstream, not the
-  markup). `id` is a selector hook exactly like `class`: a newsletter's mobile layout commonly
-  hangs off it alone, its container table carrying a fixed `width="600"` that only
-  `table[id=templateContainer]{width:100% !important}`, inside a `max-width:480px` `@media` block,
-  narrows. It is kept **unprefixed**, or that rule would match nothing and the message would lay
-  out 600px wide in a phone's ~384px viewport. Nothing here collides: the reading document holds
-  one message and no script. So is `<font>` with its `color`, `face` and `size`, which Thunderbird
-  still writes for a colour, a typeface and a size, and the markers a composer reads a reopened
-  draft's quote and signature by: `type` on a `<blockquote>` and `name` on an `<a>`
-  ([`composer-security.md`](composer-security.md) Gate 17).
-- **Linked:** after sanitising, a web or mail address written as text (`http://`, `https://`,
-  `mailto:`, or a `www.` host, opened over `https`) is wrapped in an `<a href>`
-  (`html/links.rs`). Text already inside a link, attribute values and `<style>` are left alone.
-  The finder is `mailcal_app::linkify`, the one the native surfaces under Gate 8 use, so an address
-  is a link on every surface or on none, and its scheme is always one gate 4a opens. A link loads
-  nothing, so it never raises `has_remote_images`. Bare domains and bare email addresses are not
-  linked: too much ordinary prose matches them. A `tel:` address written as text is not linked
-  either: a bare number is not enough to say it is one, and dialling what turns out to be something
-  else is a call the reader did not ask for. A sender who wants a number to be dialled marks it up
-  as a link, which the sanitiser keeps.
-- **Reported:** `has_remote_images`: whether the body *would* load a remote resource (remote
-  `<img>`, CSS `url(...)`, `@import`, protocol-relative `//…`, refs inside `<style>`), so a client
-  offers the "load remote images" confirmation only when there is something to gate.
-- **Resolved (inline images):** an inbound `<img src="cid:…">` (an inline image whose bytes live
-  in a sibling MIME part with a matching `Content-ID`) is rewritten to a self-contained `data:`
+- **Removed:** script, event handlers, frames, objects, forms, `<base>` and `<meta>` (so a message
+  cannot set its own refresh, policy or viewport), any URL scheme other than
+  `http(s)`/`mailto`/`tel`/`data`/`cid`, and a `tel:` link gate 4a would not open (its words stay,
+  as text).
+- **Kept:** presentational HTML and CSS, `class` and `id` (unprefixed, because a newsletter's
+  mobile layout hangs off them), `<font>`, and the markers a composer reads a reopened draft's
+  quote and signature by ([`composer-security.md`](composer-security.md) Gate 17).
+- **Linked:** a web or mail address written as text becomes a link. The finder is
+  `engine_html::linkify`, the one the native surfaces under Gate 8a use, so an address is a link on
+  every surface or on none, and its scheme is always one gate 4a opens. Bare domains, bare email
+  addresses and bare numbers are not linked.
+- **Reported:** `has_remote_images`, so a client offers the "load remote images" confirmation only
+  when there is something to load.
+- **Resolved (inline images):** an `<img src="cid:…">` is rewritten to a self-contained `data:`
   URI (`inline_cid_images`, fed by the engine's `message_inline_parts`), so it renders under the
-  existing CSP with no network load. This is done **once in shared Rust** for every client. Two
-  hard limits keep it safe: only `image/*` parts are inlined (the rewrite can **never** emit an
-  executable/document `data:` such as `data:text/html`), and only an `<img src>` is rewritten (the
-  one place the sanitiser keeps `cid:`). Inline images are part of the message (**local**, not a
-  remote fetch), so they do **not** set `has_remote_images` and are **not** gated behind the
-  remote-image opt-in; an unresolved or non-image `cid:` is left as an inert broken image.
+  policy with no network load. Only an `image/*` part is inlined, and only into an `<img src>`.
+  Inline images are part of the message, so they do **not** set `has_remote_images` and are **not**
+  gated behind the remote-image opt-in.
 - **Downloadable attachments:** regular MIME attachments are projected as sanitised metadata
   (`AttachmentRow`) beside the body and are **never loaded into the WebView, rendered, or executed
   in-app**. Save and Open are both explicit, per-attachment user actions; in both, the shared core
@@ -83,34 +69,27 @@ core sanitises it **once** for every client (never re-implemented per platform):
   cross-platform gate: a client may not ship the attachment surface until it meets every cell
   below.
 
-### Layer 2: Strict-CSP document (shared) · `render_message_html` / `render_document`
+### Layer 2: Strict-CSP document (shared) · `render_message_html` over `engine_html::render_document`
 
 The sanitised fragment is wrapped in a complete HTML document with a strict
-`Content-Security-Policy` and base styling, built in shared Rust so **the security boundary and
-the presentation are identical across clients**:
+`Content-Security-Policy` and base styling, so **the security boundary and the presentation are
+identical across clients**: nothing loads unless allowed, no script runs even if one survived
+sanitisation, and the document has no base origin to resolve a URL against.
 
-- `default-src 'none'`: nothing loads unless explicitly allowed below.
-- `img-src data:` by default: only inline images render; **every remote image is blocked**, so a
-  message cannot phone home or track the open. When the user opts in, remote `http(s)` is added to
-  `img-src` and the document is re-rendered. Plain `http` is included because senders still write
-  it, mostly in signatures; Apple's ATS and Android's cleartext policy refuse such a load before
-  the CSP is asked, so each is lifted: Apple's for web content only, Android's for the whole app,
+- `img-src data:` by default: only inline images render, and **every remote image is blocked**,
+  so a message cannot phone home or track the open. When the user opts in, remote `http(s)` is
+  added and the document is re-rendered. Plain `http` is included because senders still write it,
+  mostly in signatures; Apple's ATS and Android's cleartext policy refuse such a load before the
+  policy is asked, so each is lifted: Apple's for web content only, Android's for the whole app,
   whose own connections are the core's sockets and never met it (matrix: "Opted-in `http` image
   loads").
-- No `script-src`: scripts never run, even if one survived sanitisation.
-- The document has **no resolvable base origin**, so relative/remote URLs can't be rebased.
+- **A blocked image is an empty box.** While remote images are blocked, every image that is not a
+  `data:` one is hidden: its box keeps the layout, and no broken-image icon or alt text reads as a
+  fault in the message. An unresolved `cid:` is hidden the same way. A screen reader skips it too;
+  the remote-images offer is what says images are held back.
 - A dark render moves the message's colours **after** sanitisation, writing only colour values and
   `prefers-color-scheme` media features: never an element, an attribute or a URL, so it cannot
   reopen anything Layer 1 closed ([`reading-dark-mode.md`](reading-dark-mode.md), rule 8).
-
-⚠️ **The directives are one policy, separated by semicolons.** A `content` attribute holds a policy
-*list*, and a comma starts a second policy which is enforced alongside the first, so the document
-gets the intersection of the two. A comma in place of a semicolon therefore separates
-`default-src 'none'` from the `style-src` and `img-src` that soften it, and both fall back to
-`'none'`: every message renders with no CSS at all, its own and the base sheet's alike, and not
-even an inline `data:` image loads. It reads as a rendering bug rather than a policy one, and an
-assertion that each directive is *present* passes throughout, which is why
-`the_document_carries_one_policy_rather_than_two` asserts on the separators instead.
 
 ### Layer 3: Native host renderer (per platform, implement **every** gate)
 
@@ -270,16 +249,8 @@ Source of truth per client:
 
 ## Known gaps / follow-ups
 
-- **Inline-image height pin is overridden globally.** The reading document's base CSS uses
-  `img { max-width: 100%; height: auto !important }` (`html/mod.rs`, `base_css`) so a width-pinned image
-  can't keep a fixed height while `max-width` shrinks its width: the squashed-aspect-ratio fix. The
-  `!important` is deliberately broad, so it *also* overrides a message that pins **only** the height
-  (e.g. a signature `<img style="height:32px">` with auto width): such an image renders at its full
-  intrinsic height instead of the requested size. A narrower rule (force `height:auto` only when the
-  width is also constrained) would fix this, but **this CSS is load-bearing for already-validated
-  rendering** (the corporate-logo aspect-ratio case): any change here carries a real regression risk
-  and MUST land with extensive tests across all four pin combinations (width-only, height-only,
-  both, neither) before it ships. Tracked as a follow-up.
+The shared layers' own gaps, the image height pin among them, are in the engine's `html.md`.
+
 - **An extension-less attachment opens as `.bin` on Windows and Linux.** Both write the temp copy
   with the extension from the sender's file name and fall back to `.bin` when it has none
   (`ExtensionFor`, `safe_extension`), so a PDF sent as a bare `invoice` reaches the OS untyped:

@@ -47,6 +47,9 @@ mailcal-composer = { workspace = true }
 mailcal-viewmodel = { workspace = true }
 engine-api = { workspace = true }
 engine-provider = { workspace = true }
+# The reading document, the print page, the link policy and the address finder behind
+# `rendering.rs`.
+engine-html = { workspace = true }
 # Construct the demo provider's sample mail (Mailbox/Message).
 engine-core = { workspace = true }
 # Load the account config + build the real (IMAP) provider for `new_account`.

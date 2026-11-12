@@ -76,7 +76,7 @@ impl<P: Provider> App<P> {
         } = opening;
         let body_html = html
             .filter(|html| !html.trim().is_empty())
-            .map(|html| crate::html::sanitize_for_composer(&html, &pictures))
+            .map(|html| engine_html::sanitize_for_composer(&html, &pictures))
             .unwrap_or_default();
         let mut state = self.drafts.lock().expect("drafts mutex poisoned");
         // A composer that has just opened has saved nothing, whatever a composition of this

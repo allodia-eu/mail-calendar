@@ -232,10 +232,10 @@ white, black, white on every message opened, for as long as the open took (75–
 a real account). Every client painted a hole, because every client had only been told what *not*
 to draw.
 
-The colour is the core's, `MessageScheme::canvas` (reaching a client as `message_canvas(scheme)`)
-([`html/document.rs`](../crates/mailcal-app/src/html/document.rs)), and it is the same constant
-`base_css` gives the reading document in that scheme, so the sheet a client paints and the page a
-web view paints inside it cannot drift into two colours. The scheme is the **message's**, not the
+The colour is shared, the engine's `MessageScheme::canvas` in `engine-html` (reaching a client as
+`message_canvas(scheme)`), and it is the same constant `base_css` gives the reading document in
+that scheme, so the sheet a client paints and the page a web view paints inside it cannot drift
+into two colours. The scheme is the **message's**, not the
 app's: a dark app reading with dark messages switched off draws a white page
 ([`reading-dark-mode.md`](reading-dark-mode.md)). So the ink over the area follows the page rather
 than the app, or a dark theme's label colours are white on white, and each client reaches that its

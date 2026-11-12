@@ -56,7 +56,6 @@ mod folder_pane_snapshot;
 mod form_factor;
 mod helpers;
 mod hidden_rows;
-mod html;
 mod outbox_ops;
 // The meeting-invitation card: the RSVP gate and the text/conflict rules (pure), and the
 // assembly that reads the account's diary (impure). Split so the contract has tests that can fail.
@@ -83,7 +82,6 @@ mod invitations_tests;
 // calendar server will accept as a stored resource.
 mod itip;
 mod lifecycle;
-mod linkify;
 mod live_mailbox;
 mod mail_compose;
 mod mail_compose_quote;
@@ -144,10 +142,8 @@ use display_settings::DisplaySettingsState;
 use draft_ops::DraftState;
 pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE, moved::*};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
-pub use html::{Canvas, MessageScheme, print, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
-pub use linkify::{FoundLink, TextSegment, find_links, segments as link_segments};
 pub use mail_ops::result::{MailActionError, SendActionError};
 pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;

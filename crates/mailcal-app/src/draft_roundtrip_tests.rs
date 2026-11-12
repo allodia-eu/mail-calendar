@@ -15,10 +15,11 @@
 use std::path::PathBuf;
 
 use engine_api::{DraftAttachmentDisposition, EmailAddress, InlinePart};
+use engine_html::sanitize_for_composer;
 use mailcal_composer::ComposerDocument;
 use serde_json::{Value, json};
 
-use crate::{helpers::new_message_id, html::sanitize_for_composer, mail_compose::rich_draft};
+use crate::{helpers::new_message_id, mail_compose::rich_draft};
 
 const ENTRIES: usize = 80;
 

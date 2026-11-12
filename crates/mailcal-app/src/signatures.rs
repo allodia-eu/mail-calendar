@@ -186,7 +186,7 @@ pub struct SignatureBody {
 fn stored(name: String, body_html: &str, body_plain: String) -> StoredSignature {
     StoredSignature {
         name,
-        body_html: crate::html::sanitize(body_html).html,
+        body_html: engine_html::sanitize(body_html).into_html(),
         body_plain,
     }
 }

@@ -9,9 +9,10 @@
 
 use core::fmt;
 
+use engine_html::link::without_number_spaces;
 use serde::{Deserialize, Serialize};
 
-use crate::{LinkUrl, without_number_spaces};
+use crate::LinkUrl;
 
 /// The longest request accepted, in bytes. A link request carries the selected words, which can be
 /// the whole message; the dialog shows a field, not a document.
