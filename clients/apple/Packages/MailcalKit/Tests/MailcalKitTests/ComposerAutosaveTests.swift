@@ -7,41 +7,35 @@ import Testing
 
 @Suite struct ComposerAutosaveTests {
 
-    @Test func nothingCountsWhileTheSeedsAreGoingIn() {
+    /// Feeds one watch the samples in order, each a change count and the seeds' count, and answers
+    /// what it made of each. `#expect` evaluates its argument in a closure, which cannot call a
+    /// mutating method, so the samples are taken here and the answers asserted together.
+    private func answers(_ samples: [(now: Int, seeded: Int?)]) -> [Bool] {
         var watch = EditorRevisionWatch()
-        #expect(!watch.changed(now: 0, seeded: nil))
-        #expect(!watch.changed(now: 4, seeded: nil))
+        return samples.map { watch.changed(now: $0.now, seeded: $0.seeded) }
+    }
+
+    @Test func nothingCountsWhileTheSeedsAreGoingIn() {
+        #expect(answers([(0, nil), (4, nil)]) == [false, false])
     }
 
     @Test func theSeedsAreTheBaselineNotAnEdit() {
         // The quote, the signature and a reopened quote's attribution moved the count to 4 before
         // the first sample: an untouched composer must not read as written.
-        var watch = EditorRevisionWatch()
-        #expect(!watch.changed(now: 0, seeded: nil))
-        #expect(!watch.changed(now: 4, seeded: 4))
-        #expect(!watch.changed(now: 4, seeded: 4))
+        #expect(answers([(0, nil), (4, 4), (4, 4)]) == [false, false, false])
     }
 
     @Test func typingBeforeTheFirstSampleIsAnEdit() {
         // The seeds left 4 and the user typed before the first sample: that sample is the edit,
         // not the baseline, so a short reply written straight after opening is saved.
-        var watch = EditorRevisionWatch()
-        #expect(watch.changed(now: 7, seeded: 4))
-        #expect(!watch.changed(now: 7, seeded: 4))
-        #expect(watch.changed(now: 9, seeded: 4))
+        #expect(answers([(7, 4), (7, 4), (9, 4)]) == [true, false, true])
     }
 
     @Test func aCountThatCouldNotBeReadChangesNothing() {
-        var watch = EditorRevisionWatch()
-        #expect(!watch.changed(now: -1, seeded: 4))
-        #expect(!watch.changed(now: 4, seeded: 4))
-        #expect(!watch.changed(now: -1, seeded: 4))
-        #expect(watch.changed(now: 5, seeded: 4))
+        #expect(answers([(-1, 4), (4, 4), (-1, 4), (5, 4)]) == [false, false, false, true])
     }
 
     @Test func aBaselineThatCouldNotBeReadIsTakenFromTheFirstSample() {
-        var watch = EditorRevisionWatch()
-        #expect(!watch.changed(now: 6, seeded: -1))
-        #expect(watch.changed(now: 8, seeded: -1))
+        #expect(answers([(6, -1), (8, -1)]) == [false, true])
     }
 }
