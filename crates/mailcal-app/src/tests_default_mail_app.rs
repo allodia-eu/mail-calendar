@@ -29,14 +29,8 @@ async fn a_build_that_can_act_offers_once_an_account_exists() {
         &surfaces,
     );
 
-    assert!(
-        app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await
-    );
-    assert!(
-        app.should_offer_default_mail_app(DefaultMailAppSupport::OpenSettings, Some(false))
-            .await
-    );
+    assert!(app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)));
+    assert!(app.should_offer_default_mail_app(DefaultMailAppSupport::OpenSettings, Some(false)));
 }
 
 #[tokio::test]
@@ -49,8 +43,7 @@ async fn nothing_is_offered_by_a_core_that_cannot_remember_the_answer() {
     let app = app(vec![account("acct", FakeProvider::new())], &surfaces);
 
     assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await,
+        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)),
         "an offer whose answer cannot be stored is one that would be put again and again"
     );
 }
@@ -62,10 +55,7 @@ async fn nothing_is_offered_before_the_first_account() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app_with_prefs(Vec::new(), prefs("no-account"), &surfaces);
 
-    assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await
-    );
+    assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)));
 }
 
 #[tokio::test]
@@ -79,15 +69,9 @@ async fn nothing_is_offered_where_the_build_can_do_nothing_about_it() {
         &surfaces,
     );
 
-    assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::Unsupported, Some(false))
-            .await
-    );
+    assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::Unsupported, Some(false)));
     // Not even when the host cannot tell whether it is already the default.
-    assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::Unsupported, None)
-            .await
-    );
+    assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::Unsupported, None));
 }
 
 #[tokio::test]
@@ -99,10 +83,7 @@ async fn nothing_is_offered_when_we_are_already_the_default() {
         &surfaces,
     );
 
-    assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(true))
-            .await
-    );
+    assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(true)));
 }
 
 #[tokio::test]
@@ -117,10 +98,7 @@ async fn an_unknown_default_is_treated_as_not_default() {
         &surfaces,
     );
 
-    assert!(
-        app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, None)
-            .await
-    );
+    assert!(app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, None));
 }
 
 #[tokio::test]
@@ -133,24 +111,16 @@ async fn the_offer_is_put_once_and_the_answer_survives_a_relaunch() {
         &surfaces,
     );
 
-    assert!(
-        app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await
-    );
+    assert!(app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)));
     app.record_default_mail_app_offer(DefaultMailAppOutcome::Accepted)
         .await;
 
     // Spent for this session,
-    assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await
-    );
+    assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)));
     // and for every one after it: the answer is in the preferences file, not in memory.
     let relaunched = app_with_prefs(vec![account("acct", FakeProvider::new())], path, &surfaces);
     assert!(
-        !relaunched
-            .should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await
+        !relaunched.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
     );
     assert_eq!(relaunched.default_mail_app_offer(), Some(true));
 }
@@ -164,10 +134,7 @@ async fn a_declined_offer_is_never_put_again() {
     app.record_default_mail_app_offer(DefaultMailAppOutcome::Declined)
         .await;
 
-    assert!(
-        !app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
-            .await
-    );
+    assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)));
     // Declined and accepted are both spent, and are still told apart, so Settings can say which.
     assert_eq!(app.default_mail_app_offer(), Some(false));
 }

@@ -210,6 +210,8 @@ pub(crate) struct AccountWork {
     pub(crate) separate: crate::account_page::separate::SeparateState,
     /// The browser sign-in out, and the Nextcloud grant kept from the last.
     pub(crate) browser: crate::account_page::browser::BrowserSignIns,
+    /// The row each account's mail half is drawn from.
+    pub(crate) mail_rows: crate::account_page_mail::MailRows,
     raised: AtomicU64,
 }
 
@@ -311,6 +313,7 @@ impl AccountWork {
         self.sign_in.forget(account);
         self.server_change_tried(account, None);
         self.separate.forget(account);
+        self.mail_rows.forget(account);
     }
 
     /// What `account`'s last allow of a server change came to: `failed` is the change it did not

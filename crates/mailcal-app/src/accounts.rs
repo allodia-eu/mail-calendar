@@ -335,14 +335,18 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::Settings);
     }
 
-    /// Every account's id, mail or not, in the order the host stored them.
-    pub async fn account_ids(&self) -> Vec<AccountId> {
-        self.accounts
-            .read()
-            .await
-            .iter()
-            .map(|account| account.id.clone())
-            .collect()
+    /// Every account's id, mail or not, in the order the host stored them. Never waits on the
+    /// account list's lock, so a UI thread may ask it.
+    pub fn account_ids(&self) -> Vec<AccountId> {
+        self.accounts.ids()
+    }
+
+    /// Holds the account list as a change to it would, until `until` ends: for the tests that a
+    /// screen read on a UI thread never waits on it.
+    #[doc(hidden)]
+    pub async fn hold_account_list<T>(&self, until: impl Future<Output = T>) -> T {
+        let _held = self.accounts.write().await;
+        until.await
     }
 
     /// A cheap clone of one account's handle, taken under the read guard and returned so
@@ -417,6 +421,10 @@ impl<P: Provider> App<P> {
             .collect()
     }
 }
+
+#[path = "account_list.rs"]
+mod list;
+pub(crate) use list::AccountList;
 
 #[path = "account_domains.rs"]
 mod domains;
