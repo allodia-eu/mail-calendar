@@ -6,8 +6,8 @@ use mailcal_bindings::{
 };
 
 use super::{
-    Announcements, about, allodia_sign_in_ended, answer, asks, belongs, beneath, core_remedy,
-    glyph, marks, more, offers, prominent, screen_of, words,
+    Announcements, about, answer, asks, belongs, beneath, core_remedy, glyph, marks, more, offers,
+    prominent, screen_of, words,
 };
 use crate::{
     l10n,
@@ -188,25 +188,6 @@ fn the_account_page_lists_its_own_notices_in_order() {
         .map(|notice| notice.id.as_str())
         .collect();
     assert_eq!(ids, ["one", "two"]);
-}
-
-#[test]
-fn the_allodia_card_follows_its_notice() {
-    let offline = notice(
-        "offline",
-        NoticeScreens::Everywhere,
-        NoticeSeverity::Degraded,
-        None,
-    );
-    let ended = Notice {
-        kind: NoticeKind::AllodiaSignInEnded {
-            address: "anna@example.org".to_owned(),
-        },
-        ..offline.clone()
-    };
-
-    assert!(allodia_sign_in_ended(&[offline.clone(), ended]));
-    assert!(!allodia_sign_in_ended(&[offline]));
 }
 
 #[test]

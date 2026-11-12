@@ -67,13 +67,6 @@ pub(super) fn about<'a>(notices: &'a [Notice], account: &str) -> Vec<&'a Notice>
         .collect()
 }
 
-/// Whether the account service refused the Allodia sign-in, which the Allodia card draws.
-pub(super) fn allodia_sign_in_ended(notices: &[Notice]) -> bool {
-    notices
-        .iter()
-        .any(|notice| matches!(notice.kind, NoticeKind::AllodiaSignInEnded { .. }))
-}
-
 /// The mark an account's row carries while a notice is about it (rule 6).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AccountMark {

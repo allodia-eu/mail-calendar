@@ -1,94 +1,83 @@
 //! Settings → Allodia account → Subscription: what is being charged, by whom, until when, the way
 //! to start one, and the three things somebody may do to the subscription Allodia bills directly.
 //!
-//! Its Apple, Android and Windows twins are `AllodiaSubscriptionSettings.swift`,
-//! `AllodiaSubscriptionCard.kt` and `SettingsDialog.AllodiaSubscription.cs`: keep the states and
-//! the wording in step.
+//! **What this file draws is what the core decided** (`MailcalApp::allodia_subscription_card`):
+//! which writes exist, whether one runs, which store pages to offer and what a write came to. A
+//! store's subscription is changed only at that store, so its button opens the store's page.
 //!
-//! The rules are `purchasing.md`, the contract beside the Allodia Licence, and the core holds every
-//! one of them. **What this file draws is what the core answered.** Which offers exist and in what
-//! order is the core's `order_allodia_offers`; `actions` decides which buttons exist at all,
-//! because the rule behind it has to account for three billers at once; and a store's subscription
-//! is changed only at that store, so its button opens the store's page rather than doing anything.
-//!
-//! ⚠️ **Linux sells through Allodia's own checkout**, which is a link here: Flatpak has no commerce
-//! and there is no programme to enrol in. So the buy buttons price today's list from `prices`, in
-//! minor units this side formats, rather than drawing a store's own formatted string.
+//! ⚠️ **Linux sells through Allodia's own checkout**, a link opened in the browser: Flatpak has no
+//! commerce. So the buy buttons price today's list from the card, in minor units this side
+//! formats, in the order the core's `order_allodia_offers` gives.
 
 use adw::prelude::*;
-use mailcal_bindings::{AllodiaOffer, AllodiaPlan, AllodiaStore, AllodiaSubscription};
+use mailcal_bindings::{
+    AllodiaCheckoutOffer, AllodiaOffer, AllodiaPlan, AllodiaStore, AllodiaSubscriptionState,
+    AllodiaSubscriptionView, ControlState,
+};
 
 use super::{PageContext, group_titled};
 use crate::{
     l10n,
     ui::{
         AppInput,
-        allodia_subscription::{SubscriptionAnswer, SubscriptionInput, SubscriptionWrite},
-        allodia_subscription_facts as facts,
+        allodia_subscription::{SubscriptionInput, SubscriptionWrite, outcome_text},
+        allodia_subscription_facts as facts, controls,
         mailbox::plain_text_row,
-        notice_rules, timestamps,
+        timestamps,
     },
 };
 
 const RESPONSE_KEEP: &str = "keep";
 const RESPONSE_GO_AHEAD: &str = "go-ahead";
 
-/// The section, or `None` while nobody is signed in: a subscription belongs to an account, and
-/// there is nothing to say about one that does not exist.
-///
-/// `None` too when the service refused the sign-in: the account card says so and carries the
-/// remedy, and nothing this section could say is true until the person signs in again.
+/// The section, or `None` while the core draws none: nobody signed in, or a sign-in the service
+/// refused, which the account card says and carries the remedy for.
 pub(super) fn subscription(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
-    // A subscription belongs to an account, so nobody signed in is nothing to draw.
-    ctx.app.allodia_account()?;
-    if notice_rules::allodia_sign_in_ended(&ctx.app.notices().notices) {
-        return None;
-    }
-    let state = &ctx.allodia_subscription;
+    let card = ctx.app.allodia_subscription_card();
     let section = group_titled(l10n::settings_subscription_heading());
-    match &state.answer {
-        // Nobody has asked yet, so this build asks now. A network round trip, which is why it
-        // waits for somebody to open the page that draws it rather than running at connect. A
-        // refusal the core no longer reports is a stale answer, and is asked again too.
-        None | Some(SubscriptionAnswer::SignedOut) => {
-            if !state.checking {
-                ctx.sender
-                    .emit(AppInput::AllodiaSubscription(SubscriptionInput::Read));
-            }
+    match &card.state {
+        AllodiaSubscriptionState::Hidden => return None,
+        // Nothing read yet, so the page that draws it asks now; a read already out answers for
+        // this one, and the core drops the second.
+        AllodiaSubscriptionState::Checking => {
+            ctx.sender
+                .emit(AppInput::AllodiaSubscription(SubscriptionInput::Refresh));
             section.add(&checking_row());
         }
-        // Deliberately quiet. A read that did not arrive costs a sentence, never access: whether a
-        // capability is on is the entitlement's answer, and it is local.
-        Some(SubscriptionAnswer::Unavailable) => {
+        // Deliberately quiet: a read that did not arrive costs a sentence, never access.
+        AllodiaSubscriptionState::Unavailable => {
             section.add(&text_row(l10n::settings_subscription_unavailable()));
         }
-        // An offer rather than an error: they are signed in and this one read is asleep, and the
-        // ordinary sign-in asks for the full current scope set.
-        Some(SubscriptionAnswer::NeedsReauth) => section.add(&reauth_row(&ctx.sender)),
-        Some(SubscriptionAnswer::Loaded(subscription)) => loaded(&section, ctx, subscription),
+        AllodiaSubscriptionState::NeedsReauth => section.add(&reauth_row(&ctx.sender)),
+        AllodiaSubscriptionState::Loaded { view } => loaded(&section, ctx, view),
     }
-    if let Some(note) = &state.note {
-        section.add(&text_row(note));
+    if let Some(outcome) = &card.outcome {
+        section.add(&text_row(&outcome_text(outcome, l10n::active_locale())));
     }
     Some(section)
 }
 
-fn loaded(section: &adw::PreferencesGroup, ctx: &PageContext, subscription: &AllodiaSubscription) {
-    let writing = ctx.allodia_subscription.writing;
-    if subscription.entitled {
-        section.add(&active_row(&ctx.sender, &ctx.window, subscription, writing));
+fn loaded(section: &adw::PreferencesGroup, ctx: &PageContext, view: &AllodiaSubscriptionView) {
+    // A read beside the answer, after a return from the checkout browser: the answer stays drawn.
+    if view.refreshing {
+        let spinner = adw::Spinner::new();
+        spinner.set_valign(gtk::Align::Center);
+        section.set_header_suffix(Some(&spinner));
+    }
+    if view.entitled {
+        section.add(&active_row(&ctx.sender, &ctx.window, view));
         // Not a lapse, and never drawn as one: the charge is being retried and access continues.
-        if facts::in_grace(subscription)
-            && let Some(first) = facts::billers(subscription).first()
+        if view.grace
+            && let Some(biller) = &view.billed_by
         {
             section.add(&text_row(&l10n::settings_subscription_grace(
-                &facts::biller_name(first),
+                &facts::biller_name(biller),
             )));
         }
-        // Reported, never resolved. Cancelling one of them without asking is a decision about
-        // somebody else's money, so each exit is offered and none is taken.
-        if !subscription.duplicate_billing.is_empty() {
-            let names: Vec<String> = subscription
+        // Reported, never resolved: cancelling one without asking is a decision about somebody's
+        // money, so each exit is offered and none is taken.
+        if !view.duplicate_billing.is_empty() {
+            let names: Vec<String> = view
                 .duplicate_billing
                 .iter()
                 .map(facts::biller_name)
@@ -98,72 +87,86 @@ fn loaded(section: &adw::PreferencesGroup, ctx: &PageContext, subscription: &All
             section.add(&row);
         }
     } else {
-        section.add(&free_row(&ctx.sender, &offers(ctx, subscription), writing));
+        let offers = view
+            .checkout
+            .as_ref()
+            .map(|checkout| offers(ctx, checkout))
+            .unwrap_or_default();
+        let row = free_row(&ctx.sender, &offers);
+        for manage in store_page_buttons(&ctx.sender, view) {
+            row.add_suffix(&manage);
+        }
+        section.add(&row);
     }
 }
 
 /// What a paid account says: who is charging, until when, and everything that may be done about
-/// it, in one row. The shape the account card next door already uses for its three buttons.
+/// it, in one row.
 fn active_row(
     sender: &relm4::Sender<AppInput>,
     window: &gtk::Window,
-    subscription: &AllodiaSubscription,
-    writing: bool,
+    view: &AllodiaSubscriptionView,
 ) -> adw::ActionRow {
     let row = plain_text_row();
-    let billers = facts::billers(subscription);
-    if let Some(first) = billers.first() {
+    if let Some(biller) = &view.billed_by {
         row.set_title(&l10n::settings_subscription_billed_by(&facts::biller_name(
-            first,
+            biller,
         )));
     }
-    if let Some(end) = subscription
-        .current_period_end
+    if let Some(end) = view
+        .period_end
         .as_deref()
         .and_then(|raw| timestamps::account_date(raw, l10n::active_locale()))
     {
-        row.set_subtitle(&if facts::will_renew(subscription) {
+        row.set_subtitle(&if view.renews {
             l10n::settings_subscription_renews(&end)
         } else {
             l10n::settings_subscription_ends(&end)
         });
     }
-    // A store's subscription is the store's to change, so this opens its page rather than offering
-    // a cancel button that would have nothing to call. One button per store: an account carries
-    // two subscriptions at one store the moment somebody resubscribes there.
-    for store in facts::manageable_stores(subscription) {
-        let biller = if store.source == AllodiaStore::Apple {
-            "Apple"
-        } else {
-            "Google Play"
-        };
-        let manage = button(&l10n::settings_subscription_manage(biller));
-        let url = store.manage_url.clone();
-        let sender = sender.clone();
-        manage.connect_clicked(move |_| {
-            sender.emit(AppInput::AllodiaSubscription(
-                SubscriptionInput::OpenStorePage(url.clone()),
-            ));
-        });
+    for manage in store_page_buttons(sender, view) {
         row.add_suffix(&manage);
     }
-    for write in write_buttons(sender, window, subscription, writing) {
+    for write in write_buttons(sender, window, view) {
         row.add_suffix(&write);
     }
     row
 }
 
-/// What may be done to Allodia's own subscription, which the service decided: a client draws
-/// exactly what `actions` permits and works nothing out for itself.
+/// One button per store with something left to manage there, each opening that store's page: a
+/// store's subscription is changed there and nowhere else. Drawn on the free half too, since on
+/// hold and paused grant nothing and are put right only at the store.
+fn store_page_buttons(
+    sender: &relm4::Sender<AppInput>,
+    view: &AllodiaSubscriptionView,
+) -> Vec<gtk::Button> {
+    view.store_pages
+        .iter()
+        .map(|page| {
+            let manage = gtk::Button::with_label(&l10n::settings_subscription_manage(
+                facts::store_name(page.store),
+            ));
+            manage.set_valign(gtk::Align::Center);
+            let (url, sender) = (page.url.clone(), sender.clone());
+            manage.connect_clicked(move |_| {
+                sender.emit(AppInput::AllodiaSubscription(
+                    SubscriptionInput::OpenStorePage(url.clone()),
+                ));
+            });
+            manage
+        })
+        .collect()
+}
+
+/// What may be done to Allodia's own subscription, as the core decided it.
 fn write_buttons(
     sender: &relm4::Sender<AppInput>,
     window: &gtk::Window,
-    subscription: &AllodiaSubscription,
-    writing: bool,
+    view: &AllodiaSubscriptionView,
 ) -> Vec<gtk::Button> {
     let mut buttons = Vec::new();
-    if let Some(target) = facts::switch_target(subscription) {
-        let label = if target == AllodiaPlan::Yearly {
+    if let Some(switch) = &view.switch {
+        let label = if switch.to == AllodiaPlan::Yearly {
             l10n::settings_subscription_switch_yearly()
         } else {
             l10n::settings_subscription_switch_monthly()
@@ -172,42 +175,51 @@ fn write_buttons(
             sender,
             window,
             label,
-            switch_question(subscription),
-            SubscriptionWrite::Switch(target),
+            switch.control,
+            switch_question(view),
+            SubscriptionWrite::Switch(switch.to),
         ));
     }
-    if facts::offers_restart(subscription) {
-        let restart = button(l10n::settings_subscription_resubscribe());
-        let sender = sender.clone();
-        restart.connect_clicked(move |_| {
-            sender.emit(AppInput::AllodiaSubscription(SubscriptionInput::Write(
-                SubscriptionWrite::Resubscribe,
-            )));
-        });
-        buttons.push(restart);
+    if let Some(control) = view.resubscribe {
+        buttons.push(write_button(
+            sender,
+            l10n::settings_subscription_resubscribe(),
+            control,
+            SubscriptionWrite::Resubscribe,
+        ));
     }
-    if subscription.actions.can_cancel {
-        let cancel = asking_button(
+    if let Some(control) = view.cancel {
+        buttons.push(asking_button(
             sender,
             window,
             l10n::settings_subscription_cancel(),
-            cancel_question(subscription),
+            control,
+            cancel_question(view),
             SubscriptionWrite::Cancel,
-        );
-        cancel.add_css_class("destructive-action");
-        buttons.push(cancel);
-    }
-    for button in &buttons {
-        button.set_sensitive(!writing);
+        ));
     }
     buttons
+}
+
+/// A button that sends `write` on the press.
+fn write_button(
+    sender: &relm4::Sender<AppInput>,
+    label: &str,
+    control: ControlState,
+    write: SubscriptionWrite,
+) -> gtk::Button {
+    let sender = sender.clone();
+    controls::button(label, control, false, move || {
+        sender.emit(AppInput::AllodiaSubscription(SubscriptionInput::Write(
+            write,
+        )));
+    })
 }
 
 /// What an account nobody is charging says, and the two periods it may be bought for.
 fn free_row(
     sender: &relm4::Sender<AppInput>,
-    offers: &[AllodiaOffer],
-    writing: bool,
+    offers: &[(AllodiaOffer, ControlState)],
 ) -> adw::ActionRow {
     let row = text_row(l10n::settings_subscription_free());
     if offers.is_empty() {
@@ -216,53 +228,49 @@ fn free_row(
     // What renewing means, beside the buttons and not a click away: somebody agreeing to a
     // recurring charge is owed it.
     row.set_subtitle(l10n::settings_subscription_terms());
-    for offer in offers {
-        // **The period is on the button, not under it.** It is the thing being chosen, so a row of
-        // buttons that all read "Subscribe" makes the reader pair each one with a line of small
-        // print to find out what it does.
+    for (offer, control) in offers {
+        // **The period is on the button, not under it.** It is the thing being chosen.
         let label = if offer.plan == AllodiaPlan::Yearly {
             l10n::settings_subscription_buy_yearly(&offer.display_price)
         } else {
             l10n::settings_subscription_buy_monthly(&offer.display_price)
         };
-        let buy = button(&label);
+        let buy = write_button(
+            sender,
+            &label,
+            *control,
+            SubscriptionWrite::Checkout(offer.plan),
+        );
         buy.add_css_class("suggested-action");
-        buy.set_sensitive(!writing);
-        let sender = sender.clone();
-        let plan = offer.plan;
-        buy.connect_clicked(move |_| {
-            sender.emit(AppInput::AllodiaSubscription(SubscriptionInput::Write(
-                SubscriptionWrite::Checkout(plan),
-            )));
-        });
         row.add_suffix(&buy);
     }
     row
 }
 
-/// The plans this build's shop will sell, in the core's order.
-///
-/// Empty while something is already being charged: the service refuses a second subscription for
-/// one plan, so offering one would be drawing a button whose only outcome is a refusal. That
-/// answer is `can_start_checkout`'s and is read rather than worked out here.
-fn offers(ctx: &PageContext, subscription: &AllodiaSubscription) -> Vec<AllodiaOffer> {
-    if !subscription.checkout_available || !subscription.actions.can_start_checkout {
-        return Vec::new();
-    }
+/// The plans Allodia's checkout sells, priced from today's list, in the core's order.
+fn offers(ctx: &PageContext, checkout: &AllodiaCheckoutOffer) -> Vec<(AllodiaOffer, ControlState)> {
     let locale = l10n::active_locale();
-    let prices = &subscription.prices;
-    ctx.app.order_allodia_offers(vec![
-        AllodiaOffer {
-            plan: AllodiaPlan::Yearly,
-            store: AllodiaStore::Allodia,
-            display_price: facts::minor_units(prices.yearly_in_cents, &prices.currency, locale),
-        },
-        AllodiaOffer {
-            plan: AllodiaPlan::Monthly,
-            store: AllodiaStore::Allodia,
-            display_price: facts::minor_units(prices.monthly_in_cents, &prices.currency, locale),
-        },
-    ])
+    let prices = &checkout.prices;
+    let offer = |plan, minor| AllodiaOffer {
+        plan,
+        store: AllodiaStore::Allodia,
+        display_price: facts::minor_units(minor, &prices.currency, locale),
+    };
+    ctx.app
+        .order_allodia_offers(vec![
+            offer(AllodiaPlan::Yearly, prices.yearly_in_cents),
+            offer(AllodiaPlan::Monthly, prices.monthly_in_cents),
+        ])
+        .into_iter()
+        .map(|offer| {
+            let control = if offer.plan == AllodiaPlan::Yearly {
+                checkout.yearly
+            } else {
+                checkout.monthly
+            };
+            (offer, control)
+        })
+        .collect()
 }
 
 /// What one confirmation asks.
@@ -279,13 +287,13 @@ struct Question {
 }
 
 /// What stopping the recurring charge asks.
-fn cancel_question(subscription: &AllodiaSubscription) -> Question {
+fn cancel_question(view: &AllodiaSubscriptionView) -> Question {
     Question {
         title: l10n::settings_subscription_cancel_title(),
         // ⚠️ The date is the whole reassurance: somebody cancelling wants to know they are not
         // losing what they have already paid for. A cancellation with no date reads as "it stops
         // now", which is the one thing it does not do.
-        body: l10n::settings_subscription_cancel_body(&paid_through(subscription)),
+        body: l10n::settings_subscription_cancel_body(&paid_through(view)),
         go_ahead: l10n::settings_subscription_cancel(),
         // **Never "Cancel" for the way out.** On this question that word is the thing being asked
         // about, so the answer that does nothing has to say what it keeps.
@@ -300,10 +308,10 @@ fn cancel_question(subscription: &AllodiaSubscription) -> Question {
 /// because a price change never reaches somebody who already subscribed, and quoting the list
 /// price would tell a long-standing subscriber a number they will not be charged. The amount comes
 /// back from the switch itself and is said afterwards.
-fn switch_question(subscription: &AllodiaSubscription) -> Question {
+fn switch_question(view: &AllodiaSubscriptionView) -> Question {
     Question {
         title: l10n::settings_subscription_switch_title(),
-        body: l10n::settings_subscription_switch_body(&paid_through(subscription)),
+        body: l10n::settings_subscription_switch_body(&paid_through(view)),
         go_ahead: l10n::action_update(),
         keep: l10n::action_cancel(),
         destructive: false,
@@ -315,13 +323,14 @@ fn asking_button(
     sender: &relm4::Sender<AppInput>,
     window: &gtk::Window,
     label: &str,
+    control: ControlState,
     question: Question,
     write: SubscriptionWrite,
 ) -> gtk::Button {
-    let button = button(label);
     let sender = sender.clone();
     let window = window.clone();
-    button.connect_clicked(move |_| {
+    let destructive = question.destructive;
+    controls::button(label, control, destructive, move || {
         let dialog = adw::AlertDialog::new(Some(question.title), Some(&question.body));
         dialog.add_response(RESPONSE_KEEP, question.keep);
         dialog.add_response(RESPONSE_GO_AHEAD, question.go_ahead);
@@ -341,16 +350,16 @@ fn asking_button(
                 )));
             }
         });
-    });
-    button
+    })
 }
 
 /// The day both confirmations talk about: what has already been paid for.
 ///
 /// The wire when this build cannot read it, which is the same fallback the section's own dates
 /// take: a sentence with the wire in it is still true, and one with no date at all is not.
-fn paid_through(subscription: &AllodiaSubscription) -> String {
-    facts::paid_through(subscription)
+fn paid_through(view: &AllodiaSubscriptionView) -> String {
+    view.paid_through
+        .as_deref()
         .and_then(|raw| timestamps::account_date(raw, l10n::active_locale()))
         .unwrap_or_default()
 }

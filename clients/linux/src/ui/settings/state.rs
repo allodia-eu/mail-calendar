@@ -35,16 +35,10 @@ pub(in crate::ui) struct SettingsState {
     generation: u64,
     category: Category,
     redraw: Redraw,
-    /// Who the Allodia card last drew as signed in: the subscription is forgotten when it moves.
-    pub(in crate::ui) allodia_seen: Option<String>,
-    /// Whether a sign-in was out when the card was last read: one ending reads the subscription
-    /// again.
-    pub(in crate::ui) allodia_signing_in: bool,
     /// The last of the service's sign-out pages opened, so each is opened once.
     pub(in crate::ui) allodia_end_session: u64,
-    /// What the subscription section has learned, for the same reason: its read is a network
-    /// round trip and its writes are three more.
-    pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
+    /// The last of the subscription's payment pages opened, so each is opened once.
+    pub(in crate::ui) allodia_checkout_opened: u64,
     /// The account whose page Accounts shows, or `None` for the list. Here because a change on
     /// that page redraws the window, and the page must survive it.
     pub(in crate::ui) account: Option<String>,
@@ -68,10 +62,8 @@ impl Default for SettingsState {
             generation: 0,
             category: Category::General,
             redraw: Redraw::Open,
-            allodia_seen: None,
-            allodia_signing_in: false,
             allodia_end_session: 0,
-            allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
+            allodia_checkout_opened: 0,
             account: None,
             separate: None,
             separate_forms: 0,
@@ -177,7 +169,6 @@ impl SettingsState {
         RenderState {
             generation: self.generation,
             category: self.category,
-            allodia_subscription: &self.allodia_subscription,
             account: self.account.as_deref(),
             separate: self.separate.as_ref(),
             notice: self.notice.as_ref(),
