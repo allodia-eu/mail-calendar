@@ -111,7 +111,8 @@ The Allodia account's subscription is the core's too (`MailcalApp::allodia_subsc
 read again on `Surface::Allodia`), kept for the account signed in and forgotten with it. The page
 that draws it sends `AllodiaIntent::RefreshSubscription` when it opens, and a desktop again when
 its window comes back from the checkout browser; a phone again when the app returns to the front.
-A read asked for while one runs is answered by it. Each write (`StartCheckout`, `CancelSubscription`,
+A read asked for while one runs runs once more after it, since the one out may predate what
+prompted the ask. Each write (`StartCheckout`, `CancelSubscription`,
 `Resubscribe`, `SwitchInterval`) is an `AllodiaIntent` the core refuses unless the card offers it,
 and its control runs, every other held, from the press until the read that follows it lands; what
 it came to is the card's `outcome`, and a payment page it handed back its `checkout_page`, opened

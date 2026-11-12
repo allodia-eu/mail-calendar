@@ -92,13 +92,17 @@ impl MailcalApp {
         self.app.allodia_changed();
         std::thread::spawn(move || {
             let answer = self.read_answer();
-            self.account_work
+            let again = self
+                .account_work
                 .subscription
                 .read(&account, ticket, answer);
             if ends_write {
                 self.account_work.subscription.write_ended(&account);
             }
             self.app.allodia_changed();
+            if let Some(again) = again {
+                self.spawn_read(account, again, false);
+            }
         });
     }
 

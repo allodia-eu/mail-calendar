@@ -183,6 +183,9 @@ struct Held {
     /// The ticket of the answer held: an older read landing later is dropped.
     ticket: u64,
     reading: u32,
+    /// A read was asked for while one ran: one more runs once it lands, since the one out may
+    /// predate what prompted the ask (a store purchase attached meanwhile).
+    again: bool,
     /// From the press until the read that follows it ends.
     writing: Option<Write>,
     outcome: Option<AllodiaSubscriptionOutcome>,
@@ -240,12 +243,16 @@ impl SubscriptionWork {
         held.answer.is_some() || held.reading > 0
     }
 
-    /// Starts a read the person asked for: its ticket, or `None` while a read or a write runs,
-    /// which answers for it.
+    /// Starts a read the page asked for: its ticket, or `None` while a write runs, whose read
+    /// follows it, or while a read runs, after which one more runs.
     pub(crate) fn begin_read(&self, account: &str) -> Option<u64> {
         let mut inner = self.lock();
         let held = Self::current(&mut inner, account);
-        if held.reading > 0 || held.writing.is_some() {
+        if held.writing.is_some() {
+            return None;
+        }
+        if held.reading > 0 {
+            held.again = true;
             return None;
         }
         Some(inner.ticket())
@@ -258,17 +265,21 @@ impl SubscriptionWork {
         inner.ticket()
     }
 
-    /// A read landed. Dropped when it is older than the answer held, or the account left.
-    pub(crate) fn read(&self, account: &str, ticket: u64, answer: Answer) {
+    /// A read landed. Dropped when it is older than the answer held, or the account left. The
+    /// ticket of one more read to run when one was asked for meanwhile.
+    pub(crate) fn read(&self, account: &str, ticket: u64, answer: Answer) -> Option<u64> {
         let mut inner = self.lock();
-        let Some(held) = Self::landing(&mut inner, account) else {
-            return;
-        };
+        let held = Self::landing(&mut inner, account)?;
         held.reading = held.reading.saturating_sub(1);
         if ticket > held.ticket {
             held.ticket = ticket;
             held.answer = Some(answer);
         }
+        if held.reading > 0 || !held.again {
+            return None;
+        }
+        held.again = false;
+        Some(inner.ticket())
     }
 
     /// Starts `write`; `false` while another runs. The last outcome goes.

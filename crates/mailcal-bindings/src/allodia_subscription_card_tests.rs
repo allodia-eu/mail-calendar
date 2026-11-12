@@ -9,18 +9,24 @@ use crate::{AllodiaPlan, AllodiaSubscriptionOutcome, AllodiaWriteFailure};
 
 const ME: &str = "person@example.test";
 
-/// A second press while a read runs is answered by the read already out.
+/// One read at a time: one asked for while another runs runs once after it, however many asked,
+/// since the read out may predate what prompted the ask.
 #[test]
-fn one_read_at_a_time() {
+fn one_read_at_a_time_and_one_more_after_it() {
     let work = SubscriptionWork::default();
     assert!(!work.asked(ME));
     let ticket = work.begin_read(ME).expect("nothing runs");
     assert!(work.begin_read(ME).is_none());
+    assert!(work.begin_read(ME).is_none());
     assert!(work.snapshot(ME).reading);
-    work.read(ME, ticket, Answer::Unavailable);
+    let again = work
+        .read(ME, ticket, Answer::Unavailable)
+        .expect("one more, for the asks meanwhile");
     let held = work.snapshot(ME);
-    assert!(!held.reading);
+    assert!(held.reading);
     assert_eq!(held.answer, Some(Answer::Unavailable));
+    assert_eq!(work.read(ME, again, Answer::NeedsReauth), None);
+    assert!(!work.snapshot(ME).reading);
     assert!(work.asked(ME));
     assert!(work.begin_read(ME).is_some());
 }
