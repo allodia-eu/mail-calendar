@@ -51,13 +51,27 @@ password = "typed"
 }
 
 fn booted(name: &str, config: &mailcal_account::AccountConfig) -> (Arc<MailcalApp>, String) {
+    booted_beside(name, config, &[])
+}
+
+/// [`booted`], with `others` set up before it.
+fn booted_beside(
+    name: &str,
+    config: &mailcal_account::AccountConfig,
+    others: &[mailcal_account::AccountConfig],
+) -> (Arc<MailcalApp>, String) {
     let recorder = Arc::new(RecordingCredentialStore::default());
     let (tx, _rx) = mpsc::channel();
+    let configs = others
+        .iter()
+        .chain([config])
+        .map(|config| config.to_toml().unwrap())
+        .collect();
     let app = MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
-        vec![config.to_toml().unwrap()],
+        configs,
         temp_data_dir(name).to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         crate::analytics::test_device(),
@@ -165,4 +179,39 @@ fn a_linked_calendar_needs_a_password_and_something_to_move() {
         Err(MailcalError::Config(_))
     ));
     unchanged(&app, &id);
+}
+
+/// A calendar account already set up for the server and login is linked to only once the server
+/// has taken the password typed: one that signs in with a grant is never given a password, so
+/// the move is refused as already set up and both stay as they were.
+#[test]
+fn a_calendar_account_already_set_up_is_not_linked_on_a_password_never_tried() {
+    let before = with_calendar();
+    let dav_only = before
+        .calendar_account_for(&[mailcal_account::Capability::Calendar])
+        .unwrap()
+        .with_dav_login("alice", "unused")
+        .with_dav_grant(grant());
+    let existing = dav_only.account_id().unwrap().as_str().to_owned();
+    let (app, id) = booted_beside("split-existing", &before, &[dav_only]);
+
+    let linked = app.add_linked_calendar_account(
+        id.clone(),
+        vec![AccountCapability::Calendar],
+        "alice".to_owned(),
+        "typed".to_owned(),
+    );
+
+    assert!(
+        matches!(&linked, Err(MailcalError::AlreadySetUp { account_id }) if *account_id == existing),
+        "{linked:?}"
+    );
+    let Some(SignInConfig::Imap(config)) = app.registry.sign_in_config(&id) else {
+        panic!("the mailbox is registered");
+    };
+    assert!(config.caldav.is_some(), "the mailbox keeps its calendar");
+    let Some(SignInConfig::Imap(kept)) = app.registry.sign_in_config(&existing) else {
+        panic!("the calendar account is registered");
+    };
+    assert!(kept.is_oauth(), "the calendar account keeps its grant");
 }
