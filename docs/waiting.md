@@ -153,7 +153,7 @@ record, not a state the client keeps.
 | An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's sharing and the other devices' card: drawn from `account_page` and `allodia_devices`, a change sent as a page change, the pass run by the core | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia account's sign-in and sign-out: drawn from `allodia_card`, run by the core as `AllodiaIntent`s, the sign-in as its one browser sign-in | ✅ | ✅ | ✅ | ✅ | ✅ |
-| The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | 🚧 | 🚧 | 🚧 | 🚧 | ✅ |
+| The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
