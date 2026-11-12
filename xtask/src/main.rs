@@ -46,6 +46,7 @@ mod gate_steps;
 mod git;
 mod icons;
 mod license_dir;
+mod line_endings;
 mod log_hygiene;
 mod notification_registration;
 mod portal_runtime;
@@ -126,6 +127,11 @@ pub(crate) const TASKS: &[Task] = &[
         name: "check-store-sandbox",
         label: "store sandbox (the Store build grants what the client uses)",
         run: store_sandbox::run,
+    },
+    Task {
+        name: "check-line-endings",
+        label: "line endings (every text file in the working tree is LF)",
+        run: line_endings::run,
     },
     Task {
         name: "check-license-dir",
@@ -217,6 +223,16 @@ fn main() -> ExitCode {
     match name.as_str() {
         "gate" => gate::run(&root, &args[1..]),
         "checks" => checks(&root),
+        "fix-line-endings" => match line_endings::fix(&root) {
+            Ok(count) => {
+                println!("{count} file(s) rewritten with LF line endings.");
+                ExitCode::SUCCESS
+            }
+            Err(why) => {
+                eprintln!("xtask: fix-line-endings: {why}");
+                ExitCode::FAILURE
+            }
+        },
         _ => single(&root, name),
     }
 }
@@ -276,6 +292,10 @@ fn list() {
     for task in TASKS {
         println!("  {:<24} {}", task.name, task.label);
     }
+    println!(
+        "  {:<24} rewrites what check-line-endings names with LF",
+        "fix-line-endings"
+    );
     println!("\ngate options: --keep-going, --list, --clients");
 }
 

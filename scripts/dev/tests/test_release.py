@@ -345,6 +345,15 @@ class WritesTheIndexRow(unittest.TestCase):
             subject.insert_index_row("# Notes\n\nNo table here.\n", "| new |")
 
 
+class WritesLf(unittest.TestCase):
+    def test_a_written_note_keeps_lf_on_every_host(self) -> None:
+        """Text mode on Windows writes CRLF, which `cargo xtask check-line-endings` refuses."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "note.md"
+            subject._write(path, "# 0.3.0\n\n- a\n")
+            self.assertEqual(path.read_bytes(), b"# 0.3.0\n\n- a\n")
+
+
 class RefusesWhenThereIsNothingToRelease(unittest.TestCase):
     def test_an_empty_unreleased_directory_stops_the_release(self) -> None:
         """A version number describing no user-facing change is a release nobody can write a note

@@ -342,6 +342,11 @@ the capture drivers, each client's own build script, and the scripts the Python 
 Actions' `shell: bash` on `windows-*` runners is Git Bash too, so the dev box and CI run the same
 interpreter. Set `MAILCAL_BASH` if yours lives somewhere unusual.
 
+⚠️ **Python on Windows writes CRLF in text mode**, a scripted edit included, and bash then reads
+the `\r` as part of a command. Open a file for writing with `newline="\n"`.
+`cargo xtask check-line-endings` refuses a CRLF text file in the working tree, and
+`cargo xtask fix-line-endings` rewrites it LF.
+
 ⚠️ **On Windows, a bare tool name is a name Windows also has**, and `System32` answers first.
 `bash.exe` there is *WSL's* launcher: `CreateProcess` searches `System32` before `PATH`, so
 `shutil.which("bash")` can answer Git Bash while `subprocess.run(["bash", …])` in the same
