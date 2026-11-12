@@ -194,7 +194,8 @@ def main(argv) -> int:
     except ManifestError as problem:
         print("msix_manifest: %s" % problem, file=sys.stderr)
         return 1
-    (args.out or args.manifest).write_text(rewritten, encoding="utf-8")
+    with (args.out or args.manifest).open("w", encoding="utf-8", newline="\n") as out:
+        out.write(rewritten)
     return 0
 
 

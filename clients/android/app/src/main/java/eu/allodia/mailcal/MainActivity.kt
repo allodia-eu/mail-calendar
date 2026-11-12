@@ -25,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AnalyticsConsent
@@ -283,9 +282,6 @@ class MainActivity : AppCompatActivity() {
     // The equivalent handle for an in-flight IMAP sign-in. Separate again, so no two flows can
     // clobber each other. Not persisted, it carries the PKCE verifier.
     internal var pendingImapLogin: String? = null
-    // The equivalent handle for an in-flight Allodia account sign-in. Separate again. Not
-    // persisted, it carries the PKCE verifier.
-    internal var pendingAllodiaSignIn: String? = null
     // A notification deep-link (accountId + messageKey) waiting to be opened once the Rust app
     // has finished connecting. Set from the launch intent (cold start) or onNewIntent (resumed);
     // drained and cleared in connect() once `app` is ready.
@@ -308,22 +304,12 @@ class MainActivity : AppCompatActivity() {
     // The same, for an in-flight IMAP sign-in, set while discovery and registration run and the
     // browser is open.
     internal var signingInImap by mutableStateOf(false)
-    // The same, for an in-flight Allodia account sign-in, set while the metadata read and the
-    // browser hop run, and again from the redirect until the grant is stored.
-    internal var signingInAllodia by mutableStateOf(false)
-    // Whether that hop has outlasted the first-run card's threshold, so the card owes the person a
-    // way back (docs/onboarding.md). Only that card reads it: the settings card is reached from an
-    // app somebody is already using, and dismissing the tab is its way out.
-    internal var allodiaSignInSlow by mutableStateOf(false)
-    // Which hop is the current one. A stale escape timer, or a browser open posted from a metadata
-    // read that finished after the person gave up, must not land on the attempt that replaced it.
-    internal var allodiaAttempt = 0L
-    // Who is signed in to an Allodia account, or null. Seeded at connect from what boot restored
-    // and re-read after every sign-in or sign-out; it is a local read that never asks the service.
-    internal var allodiaAccount by mutableStateOf<AllodiaAccount?>(null)
-    // What the Allodia card says about the last sign-in or sign-out that failed (allodiaFailureSaid),
-    // or null. Cleared when a new attempt starts.
-    internal var allodiaFailure by mutableStateOf<String?>(null)
+    // The Allodia account's card as the core keeps it (`allodiaCard`), read again on every ALLODIA
+    // signal: who is signed in, the sign-in out and what the last one came to
+    // (MainActivityAllodia.kt).
+    internal var allodiaCard by mutableStateOf(ALLODIA_SIGNED_OUT)
+    // The last sign-out page opened, so each is opened once.
+    internal var allodiaEndSessionOpened = 0uL
     // What the person's other devices have to say about this device's accounts, as the core keeps
     // it (`allodia_devices`), read again on every Settings signal. Null until a pass has answered.
     internal var allodiaDevices by mutableStateOf<AllodiaDevices?>(null)

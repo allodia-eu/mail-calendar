@@ -12,10 +12,13 @@
 //   * The copy may not out-run the capability matrix: phone and computer, never web.
 //   * The card claims the account LIST and nothing else, never the mail, never a password.
 //
+// How far it has got, and what the last sign-in came to, is the core's AllodiaCard: the view keeps
+// none of it.
+//
 // Its own partial, like the JMAP sign-in beside it, so the code-behind stays clear of the 500-line
 // limit.
 
-using System.Threading.Tasks;
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -26,10 +29,6 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class AccountSetupView
 {
-    // The browser hop is outstanding: no button to press again, which would discard the first
-    // flow's verifier.
-    private bool _onboardingSigningIn;
-    private string? _onboardingFailure;
     // What the panel was last drawn from, so a Settings signal that changed none of it leaves the
     // panel, and the button under the pointer, alone.
     private string? _onboardingDrawn;
@@ -56,7 +55,7 @@ public sealed partial class AccountSetupView
             OnboardingAllodiaPanel.Visibility = Visibility.Collapsed;
             return;
         }
-        if (!firstRun)
+        if (!firstRun || Model?.AllodiaCard() is not { } card)
         {
             var outstanding = Model?.AllodiaDevices()?.Offers ?? System.Array.Empty<AllodiaAccountOffer>();
             if (outstanding.Length == 0)
@@ -70,8 +69,8 @@ public sealed partial class AccountSetupView
             return;
         }
         OnboardingAllodiaPanel.Visibility = Visibility.Visible;
-        OnboardingAllodiaPanel.Children.Add(OnboardingContent());
-        if (_onboardingFailure is { } failure)
+        OnboardingAllodiaPanel.Children.Add(OnboardingContent(card));
+        if (AllodiaCardRules.Said(card.Failure, CoreErrorCopy.AllodiaWords()) is { } failure)
         {
             OnboardingAllodiaPanel.Children.Add(new TextBlock
             {
@@ -102,36 +101,46 @@ public sealed partial class AccountSetupView
         });
     }
 
-    private UIElement OnboardingContent()
+    private UIElement OnboardingContent(AllodiaCard card)
     {
-        var signedIn = Model?.SignedInAllodiaAccount() is not null;
-        if (_onboardingSigningIn || (signedIn && Model?.AllodiaDevices()?.Checking == true))
+        switch (card.Onboarding)
         {
-            var busy = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-            busy.Children.Add(new ProgressRing { IsActive = true, Width = 16, Height = 16 });
-            busy.Children.Add(new TextBlock
+            case AllodiaOnboarding.SigningIn:
             {
-                Text = _onboardingSigningIn
-                    ? L10n.SettingsAllodiaSigningIn()
-                    : L10n.SettingsAllodiaSyncChecking(),
-                VerticalAlignment = VerticalAlignment.Center,
-                Opacity = 0.7,
-            });
-            if (_onboardingSigningIn)
-            {
-                // Closing the browser sends nothing back: the redirect is a custom scheme, which
-                // has no socket to drop, so an abandoned sign-in would sit here until the core's
-                // own cap. Cancel is the only way back to the card. The sync pass below needs
-                // none, no browser, and it ends on its own.
-                var cancel = new Button { Content = L10n.ActionCancel() };
-                cancel.Click += (_, _) => Model?.CancelAllodiaSignIn();
-                busy.Children.Add(cancel);
+                var busy = Busy(L10n.SettingsAllodiaSigningIn());
+                // The redirect is a custom scheme, which has no socket to drop, so a browser
+                // closed on the sign-in sends nothing back. Cancel is the way back to the card,
+                // drawn once the core says the sign-in has run long enough to need it.
+                if (AllodiaCardRules.OnboardingCancel(card) is { } cancel && card.Browser is { } browser)
+                {
+                    busy.Children.Add(ControlComponents.Button(
+                        L10n.ActionCancel(), cancel, "OnboardingAllodiaCancel", () => Model?.CancelAllodiaSignIn(browser)));
+                }
+                return busy;
             }
-            return busy;
+            // The pass that follows needs no way back: no browser, and it ends on its own.
+            case AllodiaOnboarding.Checking:
+                return Busy(L10n.SettingsAllodiaSyncChecking());
+            // Signed in and asked. Offers become the fast route; none means this account has no
+            // mail accounts on it yet.
+            case AllodiaOnboarding.SignedIn:
+                return Offers();
+            default:
+                return Recommendation(card);
         }
-        // Signed in and asked. Offers become the fast route; none means this account has no mail
-        // accounts on it yet.
-        return signedIn ? Offers() : Recommendation();
+    }
+
+    private static StackPanel Busy(string text)
+    {
+        var busy = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        busy.Children.Add(new ProgressRing { IsActive = true, Width = 16, Height = 16 });
+        busy.Children.Add(new TextBlock
+        {
+            Text = text,
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.7,
+        });
+        return busy;
     }
 
     /// <summary>
@@ -202,12 +211,14 @@ public sealed partial class AccountSetupView
             });
             var setUp = new Button { Content = L10n.SettingsAllodiaSyncSetUp() };
             var taken = offer;
+            // The route Settings → Accounts opens an offer on (ResetToDetect).
             setUp.Click += (_, _) =>
             {
                 DetectEmail.Text = taken.Email;
                 ContinueButton.IsEnabled = true;
-                ApplyRoute(AccountDetectForm.Route(
-                    MailcalBindingsMethods.SetupFromOffer(taken)));
+                var offered = MailcalBindingsMethods.OfferedSetup(taken);
+                Model?.SetupDetected(offered);
+                ApplyRoute(AccountDetectForm.Route(offered, taken.Email));
             };
             row.Children.Add(setUp);
             panel.Children.Add(row);
@@ -215,40 +226,39 @@ public sealed partial class AccountSetupView
         return panel;
     }
 
-    private UIElement Recommendation()
+    private UIElement Recommendation(AllodiaCard card)
     {
         var panel = new StackPanel { Spacing = 12 };
-        var card = new StackPanel { Spacing = 6 };
-        card.Children.Add(new TextBlock
+        var content = new StackPanel { Spacing = 6 };
+        content.Children.Add(new TextBlock
         {
             Text = L10n.SetupAllodiaRecommended(),
             Foreground = ThemePalette.Brush(ThemePalette.AccentText(this.IsDark())),
         });
-        card.Children.Add(new TextBlock
+        content.Children.Add(new TextBlock
         {
             Text = L10n.SetupAllodiaTitle(),
             Style = (Style)Application.Current.Resources["SubtitleTextBlockStyle"],
         });
-        card.Children.Add(new TextBlock
+        content.Children.Add(new TextBlock
         {
             Text = L10n.SetupAllodiaSubtitle(),
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.8,
         });
-        var create = new Button
-        {
-            Content = L10n.SetupAllodiaCreate(),
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-        };
-        create.Click += (_, _) => _ = StartOnboardingSignInAsync(create: true);
-        card.Children.Add(create);
+        content.Children.Add(ControlComponents.Button(
+            L10n.SetupAllodiaCreate(),
+            card.Create,
+            "OnboardingAllodiaCreate",
+            () => Model?.SignInToAllodia(create: true),
+            (Style)Application.Current.Resources["AccentButtonStyle"]));
 
         // One control rather than a heading beside a button, so a screen reader announces the offer
         // and its action together, and the name carries the ACTION, never the "Recommended"
         // marker.
         var group = new Border
         {
-            Child = card,
+            Child = content,
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Background = ThemePalette.Brush(ThemePalette.CardBackground(this.IsDark())),
@@ -259,28 +269,12 @@ public sealed partial class AccountSetupView
 
         // One line, not a second control of equal weight.
         var signIn = new HyperlinkButton { Content = L10n.SetupAllodiaHaveOne() };
-        signIn.Click += (_, _) => _ = StartOnboardingSignInAsync(create: false);
+        signIn.Click += (_, _) => Model?.SignInToAllodia();
         panel.Children.Add(signIn);
         return panel;
     }
 
-    private async Task StartOnboardingSignInAsync(bool create)
-    {
-        if (_onboardingSigningIn || Model is null)
-        {
-            return;
-        }
-        _onboardingFailure = null;
-        _onboardingSigningIn = true;
-        RenderOnboarding();
-        // The core runs the pass once the sign-in takes, so what the other devices hold arrives
-        // before the person is asked to type anything, through OnOnboardingSignal.
-        _onboardingFailure = (await Model.SignInToAllodiaAsync(create))?.Said;
-        _onboardingSigningIn = false;
-        RenderOnboarding();
-    }
-
-    /// <summary>A Settings signal: the core raises one when a pass starts and when it ends.</summary>
+    /// <summary>The Allodia card or the other devices' pass moved.</summary>
     private void OnOnboardingSignal()
     {
         if (OnboardingFingerprint() != _onboardingDrawn)
@@ -290,7 +284,7 @@ public sealed partial class AccountSetupView
     }
 
     private string OnboardingFingerprint() => string.Join('\n', [
-        $"{Model?.NeedsSetup}/{Model?.SignedInAllodiaAccount() is not null}/{_onboardingSigningIn}/{_onboardingFailure}",
+        $"{Model?.NeedsSetup}/{AllodiaCardRules.OnboardingFingerprint(Model?.AllodiaCard())}",
         .. AccountSettingsRules.DevicesFingerprint(Model?.AllodiaDevices()),
     ]);
 }

@@ -56,6 +56,7 @@ const EARLY_CHECKS: &[&str] = &[
     "check-notification-registration",
     "check-portal-runtime",
     "check-store-sandbox",
+    "check-line-endings",
     "check-license-dir",
 ];
 
@@ -94,10 +95,13 @@ pub(crate) fn all(
         Err(why) => out.push(run.needs("format (nightly rustfmt)", &why)),
         Ok(pin) => {
             run.ensure_rustfmt(&pin);
+            // `rustup run`, not `cargo +<pin>`: the `+` is read by whichever `cargo` answers, and
+            // one started inside `cargo xtask` is the toolchain's own binary, which looks for
+            // rustup under `CARGO_HOME` and fails when rustup lives elsewhere.
             out.push(run.external(
                 "format (nightly rustfmt)",
-                "cargo",
-                &[&format!("+{pin}"), "fmt", "--all", "--check"],
+                "rustup",
+                &["run", &pin, "cargo", "fmt", "--all", "--check"],
             ));
         }
     }
@@ -223,7 +227,7 @@ pub(crate) fn all(
 
 /// Prints the step list without running anything.
 pub(crate) fn print_list(clients: bool) {
-    println!("1  format          cargo +<rust-nightly.toml> fmt --all --check");
+    println!("1  format          rustup run <rust-nightly.toml> cargo fmt --all --check");
     println!("2  file length     cargo xtask check-file-length");
     println!("3  docs            cargo doc --workspace --exclude mailcal-linux --no-deps");
     for name in EARLY_CHECKS {

@@ -134,7 +134,7 @@ async fn jmap_calendar_create_read_patch_delete_round_trips() {
     let id = config.account_id().expect("account id");
 
     // The JMAP *calendar* provider: the same neutral `Provider` the app writes through.
-    let provider = &connect_jmap_calendar_provider(&config, None)
+    let provider = &connect_jmap_calendar_provider(&config, None, None)
         .await
         .expect("connect JMAP calendar provider");
     // JMAP now advertises writable calendars, but with no per-object guard, so a stale edit

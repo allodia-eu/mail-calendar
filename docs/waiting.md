@@ -99,6 +99,14 @@ one asked for while another runs running once more after it, and a pass that end
 sign-in it ran for has gone says nothing. It is `None` until a pass has answered, and says `nothing_found` once one answered with nothing, on which Settings draws no card and the first-run card says there are no accounts. The card draws `checking` while one runs, and each
 question's Keep is the same change on its account's page, running and held as one; what did not
 take is said on the control and the question, as `failed`.
+The Allodia account's sign-in and sign-out are the core's as well (`MailcalApp::allodia_card`,
+read again on `Surface::Allodia`). The sign-in is the one browser sign-in the core holds, started
+as `AllodiaIntent::SignIn` from Settings, the first-run card, a notice or another card, and opened
+and handed back by the same driver as an account's; the card draws it from `browser` with its
+Cancel. Sign-out is `AllodiaIntent::SignOut`, run off the UI thread, its button running meanwhile
+and the service's own sign-out page named once in `end_session`. Whether someone is signed in or
+their sign-in has ended is the card's `state`, what a sign-in or sign-out came to its `failure`,
+and the first-run card's progress, its way back included, its `onboarding`.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -133,6 +141,7 @@ record, not a state the client keeps.
 | A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes, its browser sign-in run by the core (`SignInSeparateServer`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's sharing and the other devices' card: drawn from `account_page` and `allodia_devices`, a change sent as a page change, the pass run by the core | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Allodia account's sign-in and sign-out: drawn from `allodia_card`, run by the core as `AllodiaIntent`s, the sign-in as its one browser sign-in | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 

@@ -70,7 +70,7 @@ impl MailcalApp {
         let prepared =
             boot::prepare_stored_account(&config_toml, &sink, CredentialOrigin::FreshSignIn)?;
         let forget: Vec<_> = moved.iter().filter_map(domain_of).collect();
-        let shared_before = self.registry.shared_mailboxes(&account_id);
+        let shared_before = self.registry.shared_children(&account_id);
         // The principals the old servers named would start the new config's connects at the
         // old servers, so they go first; a failed replacement only costs the next connect its
         // shortcut.
@@ -84,11 +84,11 @@ impl MailcalApp {
             None,
             must_connect,
         )?;
-        // A mail server on another host leaves no shared mailbox the old one opened.
-        let shared_after = self.registry.shared_mailboxes(&account_id);
-        for (child, _) in shared_before {
-            if !shared_after.iter().any(|(kept, _)| *kept == child) {
-                self.drop_shared_mailbox(&child);
+        // A server on another host leaves no shared store the old one opened.
+        let shared_after = self.registry.shared_children(&account_id);
+        for child in shared_before {
+            if !shared_after.contains(&child) {
+                self.drop_shared_store(&child.id);
             }
         }
         // Whichever path kept them, the stored servers are what the page's form is drawn from now.

@@ -86,7 +86,7 @@ public sealed partial class MailboxModel
     {
         try
         {
-            return await Windows.System.Launcher.LaunchUriAsync(new Uri(loginUrl));
+            return await ExternalLauncher.Open(new Uri(loginUrl));
         }
         catch (Exception ex)
         {

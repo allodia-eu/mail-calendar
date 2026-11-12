@@ -265,9 +265,10 @@ internal fun notificationDeepLink(intent: AndroidIntent?): Pair<String, String>?
 // scheme and the host (OAuthRedirect) so the JVM suite can assert it, in particular that JMAP and
 // the Allodia account, which share the application-id scheme, are told apart by their host.
 //
-// An existing account's sign-in from Settings or a notice and a separate server's are the core's,
-// and take the redirect they wait on before any setup flow does; a setup flow opening its browser
-// on the same redirect cancelled the core's first (MainActivityBrowserSignIn.kt).
+// An existing account's sign-in from Settings or a notice, a separate server's and the Allodia
+// account's are the core's, and take the redirect they wait on before any setup flow does; a setup
+// flow opening its browser on the same redirect cancelled the core's first
+// (MainActivityBrowserSignIn.kt).
 internal fun MainActivity.completeOAuthRedirect(data: Uri) {
     if (redirectToSignIn(data)) return
     when (
@@ -281,7 +282,8 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
     ) {
         OAuthRedirect.GOOGLE -> completeGoogleLogin(data.toString())
         OAuthRedirect.MICROSOFT -> completeMicrosoftLogin(data.toString())
-        OAuthRedirect.ALLODIA -> completeAllodiaSignIn(data.toString())
+        // The Allodia account's sign-in is the core's, so one arriving here was cancelled.
+        OAuthRedirect.ALLODIA -> logUiWarn("allodia: the browser returned to a sign-in no longer waiting")
         OAuthRedirect.IMAP -> completeImapSignIn(data.toString())
         OAuthRedirect.JMAP -> completeJmapSignIn(data.toString())
         null -> Unit

@@ -29,7 +29,11 @@ public struct ComposerWindow: View {
                     // `onDisappear`, which is the one place that runs however the window went,
                     // including the red button. Clearing it first would flip this view into the
                     // branch below while the window was still up, and leave an empty one behind.
-                    dismiss()
+                    //
+                    // On the next turn of the main actor: a discard arrives from inside the
+                    // "Discard draft?" alert, and a window with that alert still attached ignores
+                    // being closed.
+                    Task { @MainActor in dismiss() }
                 }
                 .navigationTitle(context.windowTitle)
             } else {

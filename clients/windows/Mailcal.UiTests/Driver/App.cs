@@ -76,6 +76,7 @@ internal sealed partial class App : IDisposable
             AssertShowcaseDriver();
         }
         var (environment, pipe) = LaunchEnvironment(env, dataset);
+        PrepareStore(environment);
         // Through the shell, so the app inherits none of this process's handles: a child holding the
         // suites' output open keeps whatever reads it waiting after the last case.
         var launchedAt = DateTimeOffset.Now;
@@ -113,6 +114,7 @@ internal sealed partial class App : IDisposable
     internal static App StartedBy(Action activate, IReadOnlyDictionary<string, string>? env = null)
     {
         var (environment, pipe) = LaunchEnvironment(env, Dataset.Harness);
+        PrepareStore(environment);
         WithEnvironment(environment, activate);
         Process? process = null;
         if (!Eventually(() => (process = Process.GetProcessesByName("Mailcal").FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
@@ -148,6 +150,9 @@ internal sealed partial class App : IDisposable
             },
             ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : HarnessCa.For(Repo),
             ["MAILCAL_TEST_AGENT"] = pipe,
+            // Nothing a case presses opens a browser or another app: a sign-in is completed with the
+            // requests its page makes (NextcloudBrowser), so a tab would be left behind and nothing more.
+            ["MAILCAL_NO_EXTERNAL_OPEN"] = "1",
         };
         if (dataset == Dataset.Showcase)
         {
@@ -164,6 +169,31 @@ internal sealed partial class App : IDisposable
     }
 
     private static int _launches;
+
+    /// <summary>
+    /// Puts a harness store's preferences where the cases expect them. The showcase pins both
+    /// through <c>MAILCAL_SHOWCASE</c> and persists neither.
+    /// <list type="bullet">
+    /// <item>The language is English, which the cases' copy is read in (<see cref="Catalog.English"/>).
+    /// Left at "system", the app follows the host's display language, so on a Dutch Windows every
+    /// case that reads a sentence fails.</item>
+    /// <item>The window placement is forgotten, so the window opens at the app's own default size.
+    /// The app reopens where it was closed, so a window left maximised by one launch, a case or the
+    /// developer would size every later one, and a case that needs a narrow reading pane cannot
+    /// reach it in a full-screen window.</item>
+    /// </list>
+    /// </summary>
+    private static void PrepareStore(Dictionary<string, string?> environment)
+    {
+        if (environment["MAILCAL_DEV_ACCOUNT"] is not { } devAccount)
+        {
+            return;
+        }
+        var store = DataDir.Store(devAccount);
+        Directory.CreateDirectory(store);
+        File.WriteAllText(Path.Combine(store, "language.txt"), "en");
+        File.Delete(Path.Combine(store, "window.txt"));
+    }
 
     /// <summary>Runs <paramref name="start"/> with <paramref name="environment"/> set in this
     /// process, which the shell and COM hand to what they start, and puts the old values back.</summary>
@@ -290,17 +320,7 @@ internal sealed partial class App : IDisposable
     /// </summary>
     private void DeclineDefaultMailAppOffer(string devAccount)
     {
-        // Each harness account runs on a store of its own (AppPaths.DevStoreSubdir).
-        var store = devAccount.Trim().ToLowerInvariant() switch
-        {
-            "stalwart" => "dev",
-            "stalwart-multi" => "dev-multi",
-            "stalwart-imap" => "dev-imap",
-            "stalwart-linked" => "dev-linked",
-            "first-run" => "dev-first-run",
-            _ => throw new InvalidOperationException($"no harness store is known for MAILCAL_DEV_ACCOUNT={devAccount}"),
-        };
-        var prefs = Path.Combine(DataDir.Root, store, "preferences.toml");
+        var prefs = Path.Combine(DataDir.Store(devAccount), "preferences.toml");
         bool Answered() => File.Exists(prefs)
             && File.ReadLines(prefs).Any(line => line.TrimStart().StartsWith("default_mail_app_offer", StringComparison.Ordinal));
         if (Answered())

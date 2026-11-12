@@ -10,17 +10,20 @@
 //! The **category** is absent in a build carrying no Allodia registration, which is the ordinary
 //! answer for a build from source; never a row that opens an empty page.
 //!
-//! Each piece takes the sender rather than the whole `PageContext`, the shape `secret_remedy_row`
-//! uses next door in `accounts`: they need nothing else from it, and a context cannot be built
-//! without an app.
+//! Drawn from the core's `allodia_card`, which says who is signed in, the sign-in out and what the
+//! last one came to. Each piece takes the sender rather than the whole `PageContext`: they need
+//! nothing else from it, and a context cannot be built without an app.
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
+use mailcal_bindings::{
+    AccountChangeRefusal, AllodiaCard, AllodiaCardState, AllodiaFailure, ControlState,
+};
 
 use super::{PageContext, group, page_box};
 use crate::{
     l10n,
-    ui::{AppInput, mailbox::plain_text_row, notice_rules},
+    ui::{AppInput, controls, mailbox::plain_text_row},
 };
 
 /// The category's page.
@@ -29,8 +32,8 @@ use crate::{
 /// category entirely otherwise, so there is no empty-page case to draw.
 pub(super) fn page(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_allodia_heading());
-    if let Some(section) = allodia(ctx) {
-        content.append(&section);
+    if mailcal_bindings::allodia_sign_in_available() {
+        content.append(&allodia(&ctx.app.allodia_card(), &ctx.sender));
     }
     // The subscription sits under the account it belongs to, and is drawn only while somebody is
     // signed in on a grant the service has not refused (`super::subscription`).
@@ -40,54 +43,78 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
     content
 }
 
-/// The group, or `None` when this build carries no Allodia sign-in.
-pub(super) fn allodia(ctx: &PageContext) -> Option<adw::PreferencesGroup> {
-    if !mailcal_bindings::allodia_sign_in_available() {
-        return None;
-    }
+/// The group, drawn from the core's card.
+pub(super) fn allodia(
+    card: &AllodiaCard,
+    sender: &relm4::Sender<AppInput>,
+) -> adw::PreferencesGroup {
     let section = group(
         l10n::settings_allodia_heading(),
         l10n::settings_allodia_description(),
     );
-    if ctx.allodia_signing_in {
-        section.add(&signing_in_row(&ctx.sender));
-    } else if let Some(account) = ctx.app.allodia_account() {
-        // Drawn while the Allodia notice is in force, so the card and the notice never disagree;
-        // the notices signal redraws this page when it comes or goes.
-        if notice_rules::allodia_sign_in_ended(&ctx.app.notices().notices) {
-            section.add(&session_ended_row(&ctx.sender, &account));
-        } else {
-            section.add(&signed_in_row(&ctx.sender, &account));
-        }
+    if let Some(browser) = &card.browser {
+        section.add(&signing_in_row(sender, browser.cancel));
     } else {
-        // Signed out offers both routes. Someone who has no account and someone returning to one
-        // need different pages, and a lone "Sign in" sends the first of them through a form asking
-        // for a password they never set. The header suffix is where libadwaita puts a group-level
-        // action, and it holds both.
-        let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        buttons.append(&create_button(&ctx.sender));
-        buttons.append(&sign_in_button(&ctx.sender));
-        section.set_header_suffix(Some(&buttons));
+        match &card.state {
+            AllodiaCardState::SignedIn { account } => {
+                section.add(&signed_in_row(sender, account, card.sign_out));
+            }
+            AllodiaCardState::Ended { account } => {
+                section.add(&session_ended_row(
+                    sender,
+                    account,
+                    card.sign_in,
+                    card.sign_out,
+                ));
+            }
+            // Signed out offers both routes. Someone who has no account and someone returning to
+            // one need different pages, and a lone "Sign in" sends the first of them through a
+            // form asking for a password they never set. The header suffix is where libadwaita
+            // puts a group-level action, and it holds both.
+            AllodiaCardState::SignedOut => {
+                let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+                buttons.append(&create_button(sender, card.create));
+                buttons.append(&sign_in_button(sender, card.sign_in));
+                section.set_header_suffix(Some(&buttons));
+            }
+        }
     }
-    if let Some(failure) = &ctx.allodia_failure {
-        section.add(&failure_row(failure));
+    if let Some(failure) = &card.failure {
+        section.add(&failure_row(&failure_said(failure)));
     }
-    Some(section)
+    section
 }
 
-/// The browser hop is outstanding: no button to press again, and a way out; a dismissed browser
-/// gives this listener nothing until its five-minute cap.
-fn signing_in_row(sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
+/// Why the last sign-in or sign-out did not work, in the card's words: also the first-run card's.
+pub(in crate::ui) fn failure_said(failure: &AllodiaFailure) -> String {
+    match failure {
+        AllodiaFailure::SignIn { refusal } => match refusal {
+            AccountChangeRefusal::StaleSignIn => l10n::signin_stale().to_owned(),
+            AccountChangeRefusal::BrowserNotOpened => {
+                l10n::settings_allodia_browser_failed().to_owned()
+            }
+            AccountChangeRefusal::NotFinished => l10n::settings_allodia_timeout().to_owned(),
+            other => l10n::settings_allodia_failed(&crate::ui::core_error::refusal_said(other)),
+        },
+        AllodiaFailure::SignOut { detail } => l10n::settings_allodia_failed(detail),
+    }
+}
+
+/// The browser hop is outstanding: no button to press again, and a way out.
+fn signing_in_row(sender: &relm4::Sender<AppInput>, cancel: ControlState) -> adw::ActionRow {
     let row = plain_text_row();
     row.set_title(l10n::settings_allodia_signing_in());
-    let spinner = gtk::Spinner::new();
-    spinner.start();
+    let spinner = adw::Spinner::new();
     row.add_suffix(&spinner);
-    let cancel = gtk::Button::with_label(l10n::action_cancel());
-    cancel.set_valign(gtk::Align::Center);
     let sender = sender.clone();
-    cancel.connect_clicked(move |_| sender.emit(AppInput::CancelAllodiaSignIn));
-    row.add_suffix(&cancel);
+    row.add_suffix(&controls::button(
+        l10n::action_cancel(),
+        cancel,
+        false,
+        move || {
+            sender.emit(AppInput::CancelAllodiaSignIn);
+        },
+    ));
     row
 }
 
@@ -97,16 +124,14 @@ fn signing_in_row(sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
 fn signed_in_row(
     sender: &relm4::Sender<AppInput>,
     account: &mailcal_bindings::AllodiaAccount,
+    sign_out: ControlState,
 ) -> adw::ActionRow {
     let row = plain_text_row();
     row.set_title(&l10n::settings_allodia_signed_in(&account.email));
     if let Some(name) = account.name.as_deref().filter(|name| !name.is_empty()) {
         row.set_subtitle(name);
     }
-    let sign_out = gtk::Button::with_label(l10n::settings_allodia_sign_out());
-    sign_out.set_valign(gtk::Align::Center);
-    let out = sender.clone();
-    sign_out.connect_clicked(move |_| out.emit(AppInput::SignOutOfAllodia));
+    let sign_out = sign_out_button(sender, sign_out);
 
     // Managing and deleting are the same page, named twice on purpose: an account someone can
     // create has to offer deletion somewhere findable, and "Manage account" is not the word
@@ -142,21 +167,24 @@ fn signed_in_row(
 fn session_ended_row(
     sender: &relm4::Sender<AppInput>,
     account: &mailcal_bindings::AllodiaAccount,
+    sign_in: ControlState,
+    sign_out: ControlState,
 ) -> adw::ActionRow {
     let row = plain_text_row();
     row.set_title(&l10n::settings_allodia_session_ended(&account.email));
     row.set_subtitle(l10n::settings_allodia_session_ended_hint());
 
-    let again = gtk::Button::with_label(l10n::settings_allodia_reauth_action());
-    again.add_css_class("suggested-action");
-    again.set_valign(gtk::Align::Center);
     let to_sign_in = sender.clone();
-    again.connect_clicked(move |_| to_sign_in.emit(AppInput::StartAllodiaSignIn));
-
-    let sign_out = gtk::Button::with_label(l10n::settings_allodia_sign_out());
-    sign_out.set_valign(gtk::Align::Center);
-    let out = sender.clone();
-    sign_out.connect_clicked(move |_| out.emit(AppInput::SignOutOfAllodia));
+    let again = controls::button(
+        l10n::settings_allodia_reauth_action(),
+        sign_in,
+        false,
+        move || {
+            to_sign_in.emit(AppInput::StartAllodiaSignIn);
+        },
+    );
+    again.add_css_class("suggested-action");
+    let sign_out = sign_out_button(sender, sign_out);
 
     row.add_suffix(&again);
     row.add_suffix(&sign_out);
@@ -164,21 +192,37 @@ fn session_ended_row(
 }
 
 /// Creating an account: its own button beside the sign-in, not a link inside the sign-in page.
-fn create_button(sender: &relm4::Sender<AppInput>) -> gtk::Button {
-    let create = gtk::Button::with_label(l10n::settings_allodia_create());
-    create.set_valign(gtk::Align::Center);
+fn create_button(sender: &relm4::Sender<AppInput>, control: ControlState) -> gtk::Button {
     let sender = sender.clone();
-    create.connect_clicked(move |_| sender.emit(AppInput::StartAllodiaRegistration));
-    create
+    controls::button(l10n::settings_allodia_create(), control, false, move || {
+        sender.emit(AppInput::StartAllodiaRegistration);
+    })
 }
 
-fn sign_in_button(sender: &relm4::Sender<AppInput>) -> gtk::Button {
-    let sign_in = gtk::Button::with_label(l10n::settings_allodia_sign_in());
-    sign_in.add_css_class("suggested-action");
-    sign_in.set_valign(gtk::Align::Center);
+fn sign_in_button(sender: &relm4::Sender<AppInput>, control: ControlState) -> gtk::Button {
     let sender = sender.clone();
-    sign_in.connect_clicked(move |_| sender.emit(AppInput::StartAllodiaSignIn));
+    let sign_in = controls::button(
+        l10n::settings_allodia_sign_in(),
+        control,
+        false,
+        move || {
+            sender.emit(AppInput::StartAllodiaSignIn);
+        },
+    );
+    sign_in.add_css_class("suggested-action");
     sign_in
+}
+
+fn sign_out_button(sender: &relm4::Sender<AppInput>, control: ControlState) -> gtk::Button {
+    let sender = sender.clone();
+    controls::button(
+        l10n::settings_allodia_sign_out(),
+        control,
+        false,
+        move || {
+            sender.emit(AppInput::SignOutOfAllodia);
+        },
+    )
 }
 
 /// Why the last attempt did not work. Its own row rather than the group's description, which says

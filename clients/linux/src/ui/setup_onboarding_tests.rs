@@ -66,7 +66,7 @@ fn a_pass_that_has_not_answered_is_not_an_empty_account(window: &adw::Applicatio
 ///
 /// A sign-in that goes wrong in the browser; or on the service behind it; leaves this card
 /// spinning against a listener with a five-minute cap, on a window that rejects a close. So the
-/// way back appears once the hop has outlasted [`SIGN_IN_ESCAPE_AFTER`], and not before: an
+/// way back appears once the core says the hop has run long enough, and not before: an
 /// ordinary hop is in front of the person within a second, and a button drawn for that one is
 /// noise on every successful sign-in there will ever be.
 fn a_browser_hop_that_does_not_come_back_can_be_escaped(window: &adw::ApplicationWindow) {

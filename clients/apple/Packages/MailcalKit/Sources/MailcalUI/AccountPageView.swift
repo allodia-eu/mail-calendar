@@ -74,7 +74,7 @@ struct AccountPageView: View {
                 AccountReplyFallbackSection(model: model, entry: entry, picker: replies)
             }
             if let shared = page.shared {
-                AccountSharedMailboxesSection(model: model, entry: entry, shared: shared)
+                AccountSharedStoresSection(model: model, entry: entry, shared: shared)
             }
             if let section = page.signIn {
                 AccountSignInSection(model: model, entry: entry, section: section)

@@ -405,3 +405,28 @@ fn the_allodia_notice_is_blocked_while_a_paid_capability_is_about_to_lapse() {
         "Blocked is drawn first"
     );
 }
+
+/// The Allodia notice's Sign in again is drawn running while the sign-in it starts is, as an
+/// account's is: by the core, whichever surface pressed it.
+#[test]
+fn the_allodia_notice_runs_while_the_allodia_sign_in_does() {
+    let connectivity = ConnectivitySnapshot {
+        allodia_sign_in_ended: Some("me@allodia.example".to_owned()),
+        ..quiet()
+    };
+    let running = |signing_in: Option<&str>| {
+        let facts = NoticeFacts {
+            connectivity: &connectivity,
+            skipped_at_launch: 0,
+            folder_notice: None,
+            provider: &oauth,
+            address: &mail_address,
+            questions: &Questions::default(),
+            signing_in,
+        };
+        only(&NoticeBook::default().snapshot(raise(&facts)).notices).running
+    };
+    assert!(running(Some(crate::allodia::ACCOUNT_ID)));
+    assert!(!running(Some("someone")));
+    assert!(!running(None));
+}

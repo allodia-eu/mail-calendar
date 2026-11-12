@@ -32,26 +32,21 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AllodiaAccountOffer
+import uniffi.mailcal_bindings.AllodiaCard
+import uniffi.mailcal_bindings.AllodiaIntent
+import uniffi.mailcal_bindings.AllodiaOnboarding
 
 /**
- * Everything the first-run card needs, gathered by the activity rather than the screen.
- *
- * The sign-in leaves for the browser and returns through `onNewIntent`, so nothing this screen
- * remembered would still be there when it does.
+ * Everything the first-run card needs, gathered by the activity rather than the screen: [card] is
+ * the core's, and [onChange] sends what was pressed.
  */
 internal data class OnboardingAllodia(
     val offered: Boolean,
-    val signingIn: Boolean,
-    // Whether the hop has outlasted its threshold, so the busy row draws the way back.
-    val escapable: Boolean,
-    val signedIn: Boolean,
-    val checking: Boolean,
+    val card: AllodiaCard,
     // What the last pass answered with, or null while none has answered. `Some empty` is "this
     // account has no mail accounts"; null is "we have not looked", and only the first may say so.
     val offers: List<AllodiaAccountOffer>?,
-    val onCreate: () -> Unit,
-    val onSignIn: () -> Unit,
-    val onCancelSignIn: () -> Unit,
+    val onChange: (AllodiaIntent) -> Unit,
     // Whether this is the screen somebody cannot skip. The card is asked once; the offers are not.
     val firstRun: Boolean,
 )
@@ -68,15 +63,10 @@ internal data class OnboardingAllodia(
 @Composable
 internal fun OnboardingAllodiaCard(
     offered: Boolean,
-    signingIn: Boolean,
-    signedIn: Boolean,
+    card: AllodiaCard,
     offers: List<AllodiaAccountOffer>?,
-    checking: Boolean,
-    onCreate: () -> Unit,
-    onSignIn: () -> Unit,
+    onChange: (AllodiaIntent) -> Unit,
     onSetUp: (AllodiaAccountOffer) -> Unit,
-    escapable: Boolean = false,
-    onCancelSignIn: () -> Unit = {},
     firstRun: Boolean = true,
 ) {
     if (!offered) return
@@ -92,14 +82,14 @@ internal fun OnboardingAllodiaCard(
         }
         return
     }
-    when {
-        signingIn || (signedIn && checking) -> Row(
+    when (val progress = card.onboarding) {
+        is AllodiaOnboarding.SigningIn, AllodiaOnboarding.Checking -> Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             CircularProgressIndicator()
             Text(
-                if (signingIn) {
+                if (progress is AllodiaOnboarding.SigningIn) {
                     L10n.settings_allodia_signing_in(ctx)
                 } else {
                     L10n.settings_allodia_sync_checking(ctx)
@@ -107,14 +97,18 @@ internal fun OnboardingAllodiaCard(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            // The way out of a hop that did not come back. Only for the browser leg: the pass
-            // below it is a bounded network call, not a wait on somebody in another application.
-            if (signingIn && escapable) {
-                TextButton(onClick = onCancelSignIn) { Text(L10n.action_cancel(ctx)) }
+            // The way out of a hop that did not come back, once the core says it has run long
+            // enough to owe one. Only for the browser leg: the pass after it is a bounded network
+            // call, not a wait on somebody in another application.
+            val browser = card.browser
+            if (progress is AllodiaOnboarding.SigningIn && progress.escape && browser != null) {
+                ControlTextButton(L10n.action_cancel(ctx), browser.cancel, "allodia-onboarding-cancel") {
+                    onChange(AllodiaIntent.CancelSignIn(browser.attempt))
+                }
             }
         }
 
-        signedIn -> {
+        AllodiaOnboarding.SignedIn -> {
             // Signed in and asked. Offers become the fast route; none means this account has no
             // mail accounts on it yet -- which is said in words, because the alternative is a
             // divider over an address field with the card gone, and that reads as a failed
@@ -138,44 +132,56 @@ internal fun OnboardingAllodiaCard(
             }
         }
 
-        else -> {
-            // One control, not a heading beside a button: a screen reader announces the offer and
-            // its action together. The label carries the ACTION, never the "Recommended" marker.
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .semantics { contentDescription = L10n.setup_allodia_title(ctx) },
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(
-                        L10n.setup_allodia_recommended(ctx),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(
-                        L10n.setup_allodia_title(ctx),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    Text(
-                        L10n.setup_allodia_subtitle(ctx),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    TextButton(onClick = onCreate) {
-                        Text(L10n.setup_allodia_create(ctx))
-                    }
-                }
-            }
-            // One line, not a second card of equal weight.
-            TextButton(onClick = onSignIn) {
-                Text(L10n.setup_allodia_have_one(ctx))
+        AllodiaOnboarding.Offering -> Offer(card, onChange)
+    }
+    OnboardingDivider()
+}
+
+/** The recommendation, the way back for someone who already has one, and why the last sign-in failed. */
+@Composable
+private fun Offer(card: AllodiaCard, onChange: (AllodiaIntent) -> Unit) {
+    val ctx = LocalContext.current
+    // One control, not a heading beside a button: a screen reader announces the offer and its
+    // action together. The label carries the ACTION, never the "Recommended" marker.
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics { contentDescription = L10n.setup_allodia_title(ctx) },
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                L10n.setup_allodia_recommended(ctx),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                L10n.setup_allodia_title(ctx),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                L10n.setup_allodia_subtitle(ctx),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ControlTextButton(L10n.setup_allodia_create(ctx), card.create, "allodia-onboarding-create") {
+                onChange(allodiaSignIn(create = true))
             }
         }
     }
-    OnboardingDivider()
+    // One line, not a second card of equal weight.
+    ControlTextButton(L10n.setup_allodia_have_one(ctx), card.signIn, "allodia-onboarding-sign-in") {
+        onChange(allodiaSignIn())
+    }
+    card.failure?.let { failure ->
+        Text(
+            allodiaFailureSaid(ctx, failure),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+        )
+    }
 }
 
 /// The accounts the person's other devices hold. The button carries the whole record, not the

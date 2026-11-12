@@ -74,6 +74,10 @@ impl MailcalApp {
             self.dispatch_account(intent);
             return;
         }
+        if let Intent::Allodia { intent } = intent {
+            self.dispatch_allodia(intent);
+            return;
+        }
         // A key-routed intent carries its row's owning-account id; an unparseable id (in
         // practice impossible; it is a real row's account) is dropped rather than risk
         // routing the action to the wrong account. A calendar write is still settled, because

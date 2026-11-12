@@ -182,10 +182,10 @@ internal static class AccountSettingsRules
         }
         if (page.Shared is { } shared)
         {
-            foreach (var mailbox in shared.Mailboxes)
+            foreach (var store in shared.Stores)
             {
-                yield return $"shared:{mailbox.Handle}={mailbox.Title}/{mailbox.Label}/{mailbox.Withdrawn}/{mailbox.On}/"
-                    + Control(mailbox.Control);
+                yield return $"shared:{store.Handle}={store.Title}/{store.Label}/{store.Holds}/{store.Withdrawn}/{store.On}/"
+                    + Control(store.Control);
             }
             yield return $"shared-note:{shared.Note}";
             if (shared.Address is { } address)

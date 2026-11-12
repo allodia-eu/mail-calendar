@@ -283,8 +283,8 @@ impl MailcalApp {
                 self.set_push_folder(account, key, on);
                 None
             }
-            intent @ (AccountPageIntent::SetSharedMailbox { .. }
-            | AccountPageIntent::AddSharedMailbox { .. }) => self.run_shared_change(intent),
+            intent @ (AccountPageIntent::SetSharedStore { .. }
+            | AccountPageIntent::AddSharedStore { .. }) => self.run_shared_change(intent),
             AccountPageIntent::UsePassword { account, password } => {
                 self.use_password(account, password.text)
             }

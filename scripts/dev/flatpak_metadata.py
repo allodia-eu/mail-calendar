@@ -621,10 +621,9 @@ def build(
     out_dir.mkdir(parents=True, exist_ok=True)
     desktop_path = out_dir / f"{APP_ID}.desktop"
     metainfo_path = out_dir / f"{APP_ID}.metainfo.xml"
-    desktop_path.write_text(
-        desktop_entry(name, summary_by_locale, locales, package=package), encoding="utf-8"
-    )
-    metainfo_path.write_text(
+    _write(desktop_path, desktop_entry(name, summary_by_locale, locales, package=package))
+    _write(
+        metainfo_path,
         metainfo(
             template_path.read_text(encoding="utf-8"),
             name=name,
@@ -637,13 +636,18 @@ def build(
             notes=notes,
             licence=project_license(links_licensed, repo_root=repo_root),
         ),
-        encoding="utf-8",
     )
     if package == "snap":
         return [desktop_path, metainfo_path]
     service_path = out_dir / f"{APP_ID}.service"
-    service_path.write_text(dbus_service(package=package), encoding="utf-8")
+    _write(service_path, dbus_service(package=package))
     return [desktop_path, metainfo_path, service_path]
+
+
+def _write(path: Path, text: str) -> None:
+    """Writes `text` with LF line endings, which text mode on Windows would turn into CRLF."""
+    with path.open("w", encoding="utf-8", newline="\n") as out:
+        out.write(text)
 
 
 def main(argv: list[str] | None = None) -> int:

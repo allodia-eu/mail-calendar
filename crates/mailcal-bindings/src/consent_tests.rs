@@ -34,10 +34,11 @@ fn signing_in_again_keeps_the_pinned_id_the_links_the_shared_mailboxes_and_an_un
             calendar: Some(calendar),
             ..AccountLinks::default()
         },
-        shared_mailboxes: vec![mailcal_account::SharedMailboxChoice {
+        shared_stores: vec![mailcal_account::SharedStoreChoice {
             handle: engine_api::SharedAccountId::try_from("support@example.org").unwrap(),
             name: "Support".to_owned(),
             address: Some("support@example.org".to_owned()),
+            holds: mailcal_account::SharedUses::of(mailcal_account::SharedUse::Mail),
         }],
     };
     let mut signed_in = AccountShape::default();
@@ -55,5 +56,5 @@ fn signing_in_again_keeps_the_pinned_id_the_links_the_shared_mailboxes_and_an_un
     );
     assert_eq!(chose_again.links, stored.links);
     // Chosen again without shared mailboxes, so none is kept that nothing would open.
-    assert!(chose_again.shared_mailboxes.is_empty());
+    assert!(chose_again.shared_stores.is_empty());
 }

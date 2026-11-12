@@ -672,6 +672,11 @@ MAILCAL_OPEN_FIRST=1 scripts/dev/boot.sh windows   # same hooks on WinUI (env pa
 # the correction below: it is no longer the only way to drive a gesture.
 MAILCAL_SWIPE=archive scripts/dev/boot.sh windows
 
+# Windows only: open nothing outside the app (a browser sign-in, a link, a meeting's Join) and carry
+# on as though the OS had. The UI suites launch with it, since they complete a sign-in with the
+# requests its page makes and a browser tab would only be left behind.
+MAILCAL_NO_EXTERNAL_OPEN=1 scripts/dev/boot.sh windows
+
 # Every platform: pretend the calendar server reported a verdict on the RSVP it promised to send.
 # The ONLY way to reach the "the organiser wasn't told" prompt, because no harness server produces
 # a reported failure (docs/invitations.md -> "Exercising it"). Reads in the CORE, so it needs no

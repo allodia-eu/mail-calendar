@@ -118,7 +118,9 @@ impl MailcalApp {
                 };
                 (answer, kept)
             }
-            Completion::Consent { .. } | Completion::Account { .. } => {
+            Completion::Consent { .. }
+            | Completion::Account { .. }
+            | Completion::Allodia { .. } => {
                 return None;
             }
         };

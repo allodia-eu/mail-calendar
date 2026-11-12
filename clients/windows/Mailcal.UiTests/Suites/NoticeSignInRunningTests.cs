@@ -7,9 +7,9 @@
 // the harness's sign-in server (stalwart-oauth, http://localhost:28081) is the one here that runs
 // such a sign-in. A JMAP account at it is planted beside the canned harness account, with a client
 // registered for it there and a refresh token the server never issued, so the launch's refresh is
-// refused by the server itself and the core raises the notice. The press opens the default browser
-// on the server's login page; nothing comes back from it, and the case ends the sign-in with the
-// account page's Cancel. Close the tab it leaves.
+// refused by the server itself and the core raises the notice. The press hands the server's login
+// page to the OS, which the suites' launch holds back (MAILCAL_NO_EXTERNAL_OPEN); nothing comes back
+// from it, and the case ends the sign-in with the account page's Cancel.
 
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;

@@ -108,20 +108,10 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             },
                             analyticsPayloadPreview = { instance.analyticsPayloadPreview() },
                             // Accounts, the Allodia account, then per-account fetch depth + sync
-                            // behaviour. The Allodia state is the activity's: a sign-in leaves for
-                            // the browser and returns through onNewIntent, so nothing this screen
-                            // held would still be there.
-                            allodia = AllodiaSettings(
-                                available = allodiaSignInOffered(),
-                                account = allodiaAccount,
-                                signingIn = signingInAllodia,
-                                failure = allodiaFailure,
-                                signInEnded = notices.allodiaSignInEnded,
-                            ),
-                            onAllodiaSignIn = { signInToAllodia() },
-                            onAllodiaCreate = { registerAllodiaAccount() },
+                            // behaviour. The Allodia card is the core's (MainActivityAllodia.kt).
+                            allodia = AllodiaSettings(available = allodiaSignInOffered(), card = allodiaCard),
+                            onAllodia = { changeAllodia(it) },
                             onAllodiaManage = { manageAllodiaAccount() },
-                            onAllodiaSignOut = { signOutOfAllodia() },
                             // The subscription on that account: what is being charged, by whom,
                             // and the way to start one (MainActivityAllodiaPurchases.kt).
                             allodiaSubscription = allodiaSubscription,

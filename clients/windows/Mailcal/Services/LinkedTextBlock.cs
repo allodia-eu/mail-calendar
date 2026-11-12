@@ -53,7 +53,7 @@ internal static class LinkedTextBlock
         if (MailcalBindingsMethods.ShouldOpenExternalLink(url)
             && Uri.TryCreate(url, UriKind.Absolute, out var uri))
         {
-            _ = Windows.System.Launcher.LaunchUriAsync(uri);
+            _ = ExternalLauncher.Open(uri);
         }
     }
 }

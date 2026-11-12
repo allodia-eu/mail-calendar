@@ -1,8 +1,8 @@
-// Settings → Accounts: the Allodia-account card, above the mail accounts. Its Apple, Windows and
-// Linux twins are AllodiaAccountSettings.swift, SettingsDialog.Allodia.cs and settings/allodia.rs:
-// keep the states and the wording in step.
+// Settings → Allodia account: the Allodia-account card, drawn from the core's `allodiaCard()`. Its
+// Apple, Windows and Linux twins are AllodiaAccountSettings.swift, SettingsDialog.Allodia.cs and
+// settings/allodia.rs: keep the states and the wording in step.
 //
-// It sits BESIDE the account list rather than in it, because an Allodia account is not a mail
+// It sits apart from the account list rather than in it, because an Allodia account is not a mail
 // account: no mailbox, no switcher entry, and a token issued for it cannot touch anyone's mail.
 // The setup wizard never offers it.
 package eu.allodia.mailcal
@@ -21,33 +21,29 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import uniffi.mailcal_bindings.AccountChangeRefusal
 import uniffi.mailcal_bindings.AllodiaAccount
-import uniffi.mailcal_bindings.MailcalException
+import uniffi.mailcal_bindings.AllodiaCard
+import uniffi.mailcal_bindings.AllodiaCardState
+import uniffi.mailcal_bindings.AllodiaFailure
+import uniffi.mailcal_bindings.AllodiaIntent
 
 /**
- * What the card needs to draw itself. Held by the activity rather than the composable so a sign-in
- * survives the browser hop: the redirect re-enters through `onNewIntent`, not through this screen.
- *
- * [available] is what this build carries, false for a build from source, and the card is then not
- * mounted at all. [failure] is the line the card shows, as [allodiaFailureSaid] puts it.
- * [signInEnded] is whether the core's connectivity snapshot names a refused Allodia sign-in.
+ * What the card draws: [available] is what this build carries, false for a build from source, and
+ * the card is then not mounted at all; [card] is the core's.
  */
 internal data class AllodiaSettings(
     val available: Boolean = false,
-    val account: AllodiaAccount? = null,
-    val signingIn: Boolean = false,
-    val failure: String? = null,
-    val signInEnded: Boolean = false,
+    val card: AllodiaCard = ALLODIA_SIGNED_OUT,
 ) {
-    // The service refused the stored grant. The account is still named, because the grant is kept
-    // until the person acts, but nothing it held can be reached and waiting will not change that.
-    val sessionEnded: Boolean
-        get() = account != null && signInEnded
+    /** Who is signed in on a sign-in the service has not refused, or null. */
+    val signedIn: AllodiaAccount?
+        get() = (card.state as? AllodiaCardState.SignedIn)?.account
 }
 
 /**
- * Signed out → sign in or create; signing in → a spinner; signed in → who, and what to do about it;
- * a sign-in the service ended → which one, and the two ways on from it.
+ * Signed out → sign in or create; a sign-in out → a spinner and Cancel; signed in → who, and what
+ * to do about it; a sign-in the service ended → which one, and the two ways on from it.
  *
  * Both routes are offered when signed out because someone who has no account and someone returning
  * to one need different pages, and guessing wrong costs a round trip through a form they did not
@@ -56,19 +52,20 @@ internal data class AllodiaSettings(
 @Composable
 internal fun AllodiaAccountCard(
     state: AllodiaSettings,
-    onSignIn: () -> Unit,
-    onCreate: () -> Unit,
+    onChange: (AllodiaIntent) -> Unit,
     onManage: () -> Unit,
-    onSignOut: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    val card = state.card
     SettingsGroupCard(
         L10n.settings_allodia_heading(ctx),
         L10n.settings_allodia_description(ctx),
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
+            val browser = card.browser
+            val account = card.state
             when {
-                state.signingIn -> {
+                browser != null -> {
                     CircularProgressIndicator()
                     Text(
                         L10n.settings_allodia_signing_in(ctx),
@@ -76,10 +73,13 @@ internal fun AllodiaAccountCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 8.dp),
                     )
+                    ControlTextButton(L10n.action_cancel(ctx), browser.cancel, "allodia-cancel") {
+                        onChange(AllodiaIntent.CancelSignIn(browser.attempt))
+                    }
                 }
-                state.sessionEnded && state.account != null -> {
+                account is AllodiaCardState.Ended -> {
                     Text(
-                        L10n.settings_allodia_session_ended(ctx, state.account.email),
+                        L10n.settings_allodia_session_ended(ctx, account.account.email),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Text(
@@ -88,22 +88,20 @@ internal fun AllodiaAccountCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     // The ordinary sign-in: it replaces the stored grant once it completes.
-                    TextButton(onClick = onSignIn) {
-                        Text(L10n.settings_allodia_reauth_action(ctx))
+                    ControlTextButton(L10n.settings_allodia_reauth_action(ctx), card.signIn, "allodia-sign-in") {
+                        onChange(allodiaSignIn())
                     }
-                    TextButton(onClick = onSignOut) {
-                        Text(L10n.settings_allodia_sign_out(ctx))
-                    }
+                    SignOutButton(card, onChange)
                 }
-                state.account != null -> {
+                account is AllodiaCardState.SignedIn -> {
                     // The name is what the person recognises, but the address is what identifies
                     // the account, so the address is always shown, and the name only when the
                     // service holds one.
-                    state.account.name?.takeIf { it.isNotBlank() }?.let { name ->
+                    account.account.name?.takeIf { it.isNotBlank() }?.let { name ->
                         Text(name, style = MaterialTheme.typography.bodyMedium)
                     }
                     Text(
-                        L10n.settings_allodia_signed_in(ctx, state.account.email),
+                        L10n.settings_allodia_signed_in(ctx, account.account.email),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -121,23 +119,21 @@ internal fun AllodiaAccountCard(
                     TextButton(onClick = onManage) {
                         Text(L10n.settings_allodia_delete(ctx))
                     }
-                    TextButton(onClick = onSignOut) {
-                        Text(L10n.settings_allodia_sign_out(ctx))
-                    }
+                    SignOutButton(card, onChange)
                 }
                 else -> {
-                    TextButton(onClick = onSignIn) {
-                        Text(L10n.settings_allodia_sign_in(ctx))
+                    ControlTextButton(L10n.settings_allodia_sign_in(ctx), card.signIn, "allodia-sign-in") {
+                        onChange(allodiaSignIn())
                     }
-                    TextButton(onClick = onCreate) {
-                        Text(L10n.settings_allodia_create(ctx))
+                    ControlTextButton(L10n.settings_allodia_create(ctx), card.create, "allodia-create") {
+                        onChange(allodiaSignIn(create = true))
                     }
                 }
             }
-            state.failure?.let { failure ->
+            card.failure?.let { failure ->
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    failure,
+                    allodiaFailureSaid(ctx, failure),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -146,12 +142,24 @@ internal fun AllodiaAccountCard(
     }
 }
 
+@Composable
+private fun SignOutButton(card: AllodiaCard, onChange: (AllodiaIntent) -> Unit) {
+    ControlTextButton(L10n.settings_allodia_sign_out(LocalContext.current), card.signOut, "allodia-sign-out") {
+        onChange(AllodiaIntent.SignOut)
+    }
+}
+
 /**
- * What the card says for a sign-in or sign-out that did not complete: the service's own words,
- * apart from the browser returning from another sign-in, whose remedy is signing in again
- * (docs/provider-oauth.md rule 3).
+ * Why the last sign-in or sign-out did not work, in the Settings card's words and the first-run
+ * card's. A browser returning from another sign-in is remedied by signing in again
+ * (docs/provider-oauth.md rule 3); any other refusal is worded as an account's page words it.
  */
-internal fun allodiaFailureSaid(error: Throwable, ctx: Context): String = when (error) {
-    is MailcalException.StaleSignIn -> L10n.signin_stale(ctx)
-    else -> L10n.settings_allodia_failed(ctx, coreErrorText(error).orEmpty())
+internal fun allodiaFailureSaid(ctx: Context, failure: AllodiaFailure): String = when (failure) {
+    is AllodiaFailure.SignIn -> when (val refusal = failure.refusal) {
+        AccountChangeRefusal.StaleSignIn -> L10n.signin_stale(ctx)
+        AccountChangeRefusal.BrowserNotOpened -> L10n.settings_allodia_browser_failed(ctx)
+        AccountChangeRefusal.NotFinished -> L10n.settings_allodia_timeout(ctx)
+        else -> L10n.settings_allodia_failed(ctx, refusalSaid(ctx, refusal))
+    }
+    is AllodiaFailure.SignOut -> L10n.settings_allodia_failed(ctx, failure.detail)
 }

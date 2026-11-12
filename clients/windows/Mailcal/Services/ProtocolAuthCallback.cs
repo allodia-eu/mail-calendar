@@ -4,8 +4,8 @@
 // listener instead (GoogleOAuth.cs).
 //
 // The OS delivers the redirect by ACTIVATING this app, which `Program` routes into Deliver; the
-// in-flight sign-in awaits the armed slot. An existing account's sign-in never arms it: the core
-// holds that one, and Program hands it its redirect first. One slot is enough because setup's
+// in-flight sign-in awaits the armed slot. An existing account's sign-in and the Allodia account's
+// never arm it: the core holds those, and Program hands them their redirect first. One slot is enough because setup's
 // flows run one at a time (SignInFlight), and the slot is armed for specific redirect hosts, so a
 // stray or late activation from another flow can never complete this one.
 

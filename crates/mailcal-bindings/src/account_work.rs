@@ -139,11 +139,11 @@ impl PageWork {
             AccountPageIntent::SaveServers { endpoints, .. } => {
                 Self::Servers(Box::new(endpoints.clone()))
             }
-            AccountPageIntent::SetSharedMailbox { handle, on, .. } => Self::Shared {
+            AccountPageIntent::SetSharedStore { handle, on, .. } => Self::Shared {
                 handle: handle.clone(),
                 on: *on,
             },
-            AccountPageIntent::AddSharedMailbox { address, .. } => Self::AddShared(address.clone()),
+            AccountPageIntent::AddSharedStore { address, .. } => Self::AddShared(address.clone()),
             AccountPageIntent::UsePassword { .. } => Self::Password,
             AccountPageIntent::AllowServerChange { shown, .. } => Self::ServerChange(shown.clone()),
             AccountPageIntent::ConnectSeparateServer { username, .. } => Self::SeparateServer {
@@ -210,6 +210,8 @@ pub(crate) struct AccountWork {
     pub(crate) separate: crate::account_page::separate::SeparateState,
     /// The browser sign-in out, and the Nextcloud grant kept from the last.
     pub(crate) browser: crate::account_page::browser::BrowserSignIns,
+    /// What the Allodia account's card keeps between signals.
+    pub(crate) allodia: crate::allodia::AllodiaWork,
     raised: AtomicU64,
 }
 

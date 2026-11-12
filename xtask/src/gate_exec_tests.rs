@@ -1,7 +1,10 @@
 use std::{path::Path, process::Command};
 
-use super::{Runner, as_typed};
-use crate::gate::{Outcome, Palette};
+use super::{Runner, as_typed, local_sdk_dir, sdk_dir_property};
+use crate::{
+    fixture::Repo,
+    gate::{Outcome, Palette},
+};
 
 const PLAIN: Palette = Palette {
     bold: "",
@@ -56,4 +59,41 @@ fn after_a_failure_the_rest_is_not_run_unless_asked_to_keep_going() {
         going.external("second", missing, &[]).1,
         Outcome::Fail
     ));
+}
+
+#[test]
+fn an_sdk_dir_counts_only_while_its_folder_exists() {
+    let repo = Repo::new(&[]);
+    let sdk = repo.root().join("android-sdk");
+    // Escaped as Android Studio writes it, so a Windows path round-trips.
+    let escaped = sdk
+        .to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace(':', "\\:");
+    repo.write(
+        "clients/android/local.properties",
+        &format!("sdk.dir={escaped}\n"),
+    );
+    assert_eq!(local_sdk_dir(repo.root()), None);
+
+    std::fs::create_dir_all(&sdk).expect("could not create the SDK folder");
+    assert_eq!(local_sdk_dir(repo.root()), Some(sdk));
+}
+
+#[test]
+fn an_sdk_dir_is_read_as_a_properties_file_reads_it() {
+    let read = |text: &str| sdk_dir_property(text).map(|p| p.to_string_lossy().into_owned());
+    assert_eq!(read("#sdk.dir=/opt/sdk\n! sdk.dir=/opt/sdk\n"), None);
+    assert_eq!(read("sdk.directory=/opt/sdk\n"), None);
+    assert_eq!(read("  sdk.dir = /opt/sdk\n"), Some("/opt/sdk".into()));
+    assert_eq!(read("sdk.dir:/opt/sdk\n"), Some("/opt/sdk".into()));
+    assert_eq!(
+        read("sdk.dir=/old\nsdk.dir=/new\n"),
+        Some("/new".into()),
+        "the last assignment wins"
+    );
+    assert_eq!(
+        read(r"sdk.dir=C\:\\Users\\me\\AppData\\Local\\Android\\Sdk"),
+        Some(r"C:\Users\me\AppData\Local\Android\Sdk".into())
+    );
 }

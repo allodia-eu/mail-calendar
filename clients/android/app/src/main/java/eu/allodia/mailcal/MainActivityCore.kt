@@ -155,7 +155,7 @@ internal fun MainActivity.connect(
                 // Who is signed in to an Allodia account, if anyone. A local read of what boot
                 // restored from the secure store, it never asks the service, so it costs the
                 // connect nothing and Settings has an answer before it is first opened.
-                activity.allodiaAccount = connected.allodiaAccount()
+                activity.seeAllodia(connected)
                 // This build's shop, opened here rather than when the card is first drawn: a
                 // renewal, a deferred payment clearing, or a purchase made on another device
                 // arrives on the shop's own callback, and nothing is listening until it is open.

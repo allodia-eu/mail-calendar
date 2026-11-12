@@ -9,4 +9,16 @@ internal static class DataDir
     internal static string Root { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         Brand.WindowsDataDir.Replace('/', Path.DirectorySeparatorChar));
+
+    /// <summary>The store, preferences included, a harness launch with <paramref name="devAccount"/>
+    /// runs on: each has one of its own (AppPaths.DevStoreSubdir).</summary>
+    internal static string Store(string devAccount) => Path.Combine(Root, devAccount.Trim().ToLowerInvariant() switch
+    {
+        "stalwart" => "dev",
+        "stalwart-multi" => "dev-multi",
+        "stalwart-imap" => "dev-imap",
+        "stalwart-linked" => "dev-linked",
+        "first-run" => "dev-first-run",
+        _ => throw new InvalidOperationException($"no harness store is known for MAILCAL_DEV_ACCOUNT={devAccount}"),
+    });
 }

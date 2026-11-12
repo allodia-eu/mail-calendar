@@ -287,11 +287,15 @@ capturing the redirect), because that is inherently platform-specific.
     them re-consents.** A sign-in requests the scopes below for what the account is used for
     ([`accounts.md`](accounts.md)), and `MICROSOFT_GRAPH_SCOPES` is all of them, which is what an
     account used for everything asks for. Each must be a delegated permission on the Azure app
-    registration's **API permissions** or Microsoft returns `access_denied` at consent; list every
-    one there, so an administrator's "Grant admin consent" covers any subset a person chooses. The
-    table is the justification an administrator reviewing the app asks for: every scope names the
-    calls it permits, what the user gets from them, and which choice requests it. Graph paths are
-    relative to `https://graph.microsoft.com/v1.0/me`.
+    registration's **API permissions** or Microsoft returns `access_denied` at consent. The
+    registration lists **exactly** the scopes in the table, as delegated Microsoft Graph
+    permissions, and nothing else: "Grant admin consent" in the Entra admin centre grants what the
+    registration lists, not what a sign-in asks for, so a permission listed there and not here is
+    granted to every tenant that consents that way with no feature behind it, and one missing there
+    is left out of that grant, so the person who chooses its use is asked again. The table is the
+    justification an administrator reviewing the app asks for: every scope names the calls it
+    permits, what the user gets from them, and which choice requests it. Graph paths are relative
+    to `https://graph.microsoft.com/v1.0/me`.
 
     | Scope | Calls | What it provides | Requested for |
     |---|---|---|---|
@@ -304,11 +308,12 @@ capturing the redirect), because that is inherently platform-specific.
     | `User.ReadBasic.All` | `GET /users` (at the tenant, not under `/me`), `/users/{id}/photo` | colleagues from a work or school directory, and their photos | colleagues, beside contacts; never on a personal account, which has no directory |
     | `Mail.ReadWrite.Shared` | the `Mail.ReadWrite` calls under `/users/{address}` rather than `/me`, and `GET /users/{address}/mailFolders/inbox` to check an address the person typed | a mailbox the person was given access to, read and written like their own ([`shared-mailboxes.md`](shared-mailboxes.md)) | shared mailboxes, beside mail; never on a personal account |
     | `Mail.Send.Shared` | `POST /users/{address}/sendMail` | sending from that mailbox's address; `Mail.ReadWrite.Shared` does not grant it | shared mailboxes, beside mail |
+    | `Calendars.ReadWrite.Shared` | the `Calendars.ReadWrite` calls under `/users/{address}` rather than `/me`, and `GET /users/{address}/calendar` to check an address the person typed | a calendar in another person's or a group's mailbox the person was given access to, read and written as its owner allows ([`shared-mailboxes.md`](shared-mailboxes.md) rule 12) | shared mailboxes and calendars, beside calendar; never on a personal account |
     | `OnlineMeetings.ReadWrite` | `POST /onlineMeetings/createOrGet`, `GET /onlineMeetings?$filter=JoinWebUrl eq '…'`, `DELETE /onlineMeetings/{id}` | a Teams meeting for an event on a calendar that is not Microsoft's, and deleting it again when the event could not be saved ([`conferencing.md`](conferencing.md) rules 14 to 16) | video meetings; never on a personal account, for which Microsoft makes no online meeting |
 
     **A use the grant withholds is not opened.** Each use has one scope it cannot open without
     (`Mail.ReadWrite`, `Calendars.ReadWrite`, `Contacts.ReadWrite`, `User.ReadBasic.All`,
-    `Mail.ReadWrite.Shared`, `OnlineMeetings.ReadWrite`), and a
+    `Mail.ReadWrite.Shared`, `Calendars.ReadWrite.Shared`, `OnlineMeetings.ReadWrite`), and a
     stored `granted_scopes` without it leaves that use closed, compared as Microsoft spells the
     scope back (`Mail.ReadWrite`, any case, for `https://graph.microsoft.com/Mail.ReadWrite`). Mail
     is no exception: an account whose grant withholds it opens as an account without mail
@@ -322,6 +327,19 @@ capturing the redirect), because that is inherently platform-specific.
     `GET /me`), and Microsoft issues a refresh token for `offline_access` alone, so `openid`,
     `profile` and `email` would be lines on the consent screen with no feature behind them. A grant
     that already holds them keeps them; nobody is asked to consent again for their absence.
+
+    **An administrator approves the whole set once, or the next use asks again.** Consent given
+    through a sign-in covers the scopes that sign-in asked for, so an administrator who consented
+    for the organisation from an account set up for mail alone has approved mail alone, and the
+    next person who switches the calendar on is asked again or, where user consent is off, sent to
+    their administrator. Two routes approve every use at once: sign in from the app once, on a work
+    account with every use ticked, and tick **Consent on behalf of your organization** on
+    Microsoft's consent screen; or, once the app is in the tenant, choose **Grant admin consent**
+    under the app's **Permissions** in **Enterprise applications**, which grants the registration's
+    set. An organisation that will not approve one use approves through the first route with that
+    use unticked; the people who leave it off connect, and where user consent is off a person
+    who ticks it is sent to the administrator. A grant is never narrowed by a sign-in that asks for less: a permission this
+    app stops requesting stays in a tenant's grant until an administrator revokes it there.
 
     ⚠️ **A scope the account cannot grant is a setup failure, not a missing feature.** That
     `access_denied` happens *during consent*, so an unregistered or admin-gated permission does

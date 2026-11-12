@@ -1,7 +1,7 @@
-// An account's page, its shared mailboxes (docs/shared-mailboxes.md rules 3, 7 and 8), drawn from
-// the page's record: a switch per mailbox the account's sign-in opens besides its own, the line
-// under them and, on a server that lists none, a field for one's address. The core asks the server
-// and keeps its answer. A nested ContentDialog is not allowed, so switching a mailbox off is
+// An account's page, its shared mailboxes and calendars (docs/shared-mailboxes.md rules 3, 7, 8 and
+// 10): a switch per store the account's sign-in opens besides its own, saying what it holds, the
+// line under them and, on a server that lists none, a field for one's address. The core asks the
+// server and keeps its answer. A nested ContentDialog is not allowed, so switching a store off is
 // confirmed inline, under its switch, as a use is.
 
 using Allodia.Mailcal.Controls;
@@ -16,12 +16,12 @@ namespace Allodia.Mailcal.Dialogs;
 public sealed partial class SettingsDialog
 {
     /// <summary>The section, as the page's record has it.</summary>
-    private UIElement SharedGroup(AccountEntry entry, AccountSharedMailboxes shared)
+    private UIElement SharedGroup(AccountEntry entry, AccountSharedStores shared)
     {
         var stack = new StackPanel { Spacing = 8 };
-        foreach (var mailbox in shared.Mailboxes)
+        foreach (var store in shared.Stores)
         {
-            stack.Children.Add(SharedRow(entry.Id, mailbox));
+            stack.Children.Add(SharedRow(entry.Id, store));
         }
         if (shared.Address is { } address)
         {
@@ -38,24 +38,44 @@ public sealed partial class SettingsDialog
         return group;
     }
 
-    private static string SharedNoteText(SharedMailboxesNote note) => note switch
+    private static string SharedNoteText(SharedStoresNote note) => note switch
     {
-        SharedMailboxesNote.NoneShared => L10n.SettingsAccountSharedNone(),
-        SharedMailboxesNote.ByAddress => L10n.SettingsAccountSharedByAddress(),
-        SharedMailboxesNote.NotConnected => L10n.SettingsAccountSharedNotConnected(),
+        SharedStoresNote.NotConnected => L10n.SettingsAccountSharedNotConnected(),
+        SharedStoresNote.NoneShared => L10n.SettingsAccountSharedNone(),
+        SharedStoresNote.ByAddress => L10n.SettingsAccountSharedByAddress(),
         _ => L10n.SettingsAccountSharedUnreachable(),
     };
 
-    /// <summary>One mailbox's switch, named by its address, with the server's label or the line
-    /// saying it is no longer shared beneath it. Switching off deletes what the device holds of
-    /// the mailbox, so it is asked first; cancelling puts the switch back.</summary>
-    private StackPanel SharedRow(string accountId, AccountSharedMailbox mailbox)
+    /// <summary>What a store holds, in words.</summary>
+    internal static string SharedHoldsText(SharedStoreHolds holds) => holds switch
     {
-        void Set(bool on) => _model.ChangeAccount(new AccountPageIntent.SetSharedMailbox(accountId, mailbox.Handle, on));
-        var asking = $"shared:{accountId}:{mailbox.Handle}";
+        SharedStoreHolds.Mail => L10n.SettingsAccountSharedHoldsMail(),
+        SharedStoreHolds.Calendar => L10n.SettingsAccountSharedHoldsCalendar(),
+        _ => L10n.SettingsAccountSharedHoldsBoth(),
+    };
+
+    /// <summary>What a store's switch says beneath its title: that the server no longer lists it,
+    /// or its label beside what it holds.</summary>
+    internal static string SharedStoreNote(AccountSharedStore store)
+    {
+        if (store.Withdrawn)
+        {
+            return L10n.SettingsAccountSharedWithdrawn();
+        }
+        var holds = SharedHoldsText(store.Holds);
+        return store.Label is { } label ? $"{label} · {holds}" : holds;
+    }
+
+    /// <summary>One store's switch, named by its address, with what it holds and the server's
+    /// label, or the line saying it is no longer shared, beneath it. Switching off deletes what the
+    /// device holds of the store, so it is asked first; cancelling puts the switch back.</summary>
+    private StackPanel SharedRow(string accountId, AccountSharedStore store)
+    {
+        void Set(bool on) => _model.ChangeAccount(new AccountPageIntent.SetSharedStore(accountId, store.Handle, on));
+        var asking = $"shared:{accountId}:{store.Handle}";
         ControlToggle? toggle = null;
         var confirm = new ConfirmPanel(
-            L10n.SettingsAccountSharedOffTitle(mailbox.Title),
+            L10n.SettingsAccountSharedOffTitle(store.Title),
             L10n.SettingsAccountSharedOffMessage(),
             L10n.ActionSwitchOff(),
             "SharedMailboxOff",
@@ -72,11 +92,11 @@ public sealed partial class SettingsDialog
                 }
             });
         toggle = new ControlToggle(
-            mailbox.Title,
-            mailbox.Withdrawn ? L10n.SettingsAccountSharedWithdrawn() : mailbox.Label,
-            mailbox.On,
-            mailbox.Control,
-            $"SharedMailbox_{mailbox.Title}",
+            store.Title,
+            SharedStoreNote(store),
+            store.On,
+            store.Control,
+            $"SharedMailbox_{store.Title}",
             on =>
             {
                 if (_rebuilding)
@@ -94,7 +114,7 @@ public sealed partial class SettingsDialog
                     confirm.Show();
                 }
             });
-        if (_confirmOpen == asking && mailbox.On)
+        if (_confirmOpen == asking && store.On)
         {
             toggle.HoldOff();
             confirm.Show();
@@ -103,30 +123,32 @@ public sealed partial class SettingsDialog
         {
             _confirmOpen = null;
         }
-        confirm.Enabled = mailbox.Control.Enabled;
+        confirm.Enabled = store.Control.Enabled;
         var row = new StackPanel { Spacing = 2 };
         row.Children.Add(toggle.Element);
         row.Children.Add(confirm.Element);
         return row;
     }
 
-    /// <summary>A field for the address of a mailbox shared with the account, for a server that
-    /// lists none, drawn with the address being added or the one the last add found nothing at.
-    /// Sent with Enter or Add, never per keystroke: each asks the server. The page is not drawn
-    /// again while it holds an address Add has not sent.</summary>
+    /// <summary>A field for the address of a store shared with the account, for a server that
+    /// lists none, drawn with the address being added or the one the last add found nothing at,
+    /// and Add beside it, as on every other client. Sent with Enter or Add, never per keystroke:
+    /// each asks the server. The page is not drawn again while it holds an address Add has not
+    /// sent.</summary>
     private StackPanel SharedAddress(string accountId, AccountSharedAddress address)
     {
         var field = new TextBox { Header = L10n.SettingsAccountSharedAddress(), MinWidth = 260, Text = address.Text };
         field.InputScope = new InputScope { Names = { new InputScopeName(InputScopeNameValue.EmailNameOrAddress) } };
         AutomationProperties.SetAutomationId(field, "SharedMailboxAddress");
-        var line = new StackPanel { Spacing = 8 };
+        var line = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         line.Children.Add(field);
         var state = ControlComponents.Form(line);
-        var add = ControlComponents.FormButton(L10n.ActionAdd(), address.Add, "SharedMailboxAdd", null, () =>
+        void Send()
         {
             state.Unsent = false;
-            _model.ChangeAccount(new AccountPageIntent.AddSharedMailbox(accountId, field.Text.Trim()));
-        });
+            _model.ChangeAccount(new AccountPageIntent.AddSharedStore(accountId, field.Text.Trim()));
+        }
+        var add = ControlComponents.FormButton(L10n.ActionAdd(), address.Add, "SharedMailboxAdd", null, Send);
         void Follow()
         {
             state.Unsent = field.Text != address.Text;
@@ -141,12 +163,13 @@ public sealed partial class SettingsDialog
                 e.Handled = true;
                 if (address.Add.Enabled && field.Text.Trim().Length > 0)
                 {
-                    state.Unsent = false;
-                    _model.ChangeAccount(new AccountPageIntent.AddSharedMailbox(accountId, field.Text.Trim()));
+                    Send();
                 }
             }
         };
         Follow();
+        // Level with the field's box rather than its header.
+        add.Element.VerticalAlignment = VerticalAlignment.Bottom;
         line.Children.Add(add.Element);
         return line;
     }

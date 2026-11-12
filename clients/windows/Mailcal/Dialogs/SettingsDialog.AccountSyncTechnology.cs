@@ -52,7 +52,7 @@ public sealed partial class SettingsDialog
         var learnMore = new HyperlinkButton { Content = L10n.SettingsAccountSyncTechnologyLearnMore() };
         // The help page opens in the user's browser: this app's only WebView2 is the locked-down
         // reading island (docs/rendering-security.md), which is not a browser.
-        learnMore.Click += async (_, _) => await Windows.System.Launcher.LaunchUriAsync(
+        learnMore.Click += async (_, _) => await ExternalLauncher.Open(
             new System.Uri(MailcalBindingsMethods.HelpPageUrl(HelpPage.OptimiseGmailSync)));
         explanation.Children.Add(learnMore);
 

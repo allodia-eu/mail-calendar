@@ -128,16 +128,27 @@ internal sealed partial class App
 
     /// <summary>The message titled <paramref name="subject"/> open in the reading pane: its row
     /// pressed, and the pane's subject read back, which is the evidence the open finished. One open
-    /// already is left alone: pressing the open row again closes it.</summary>
+    /// already is left alone.</summary>
+    /// <remarks>
+    /// A press on a row within the desktop's double-click time of the last press on it is that
+    /// double-click's second half, and the list opens nothing for it (MailListView.ReadingWindows.cs).
+    /// The case before may have pressed this row a moment ago, so a press that opened nothing is
+    /// made once more, past that time, which is a first click again.
+    /// </remarks>
     internal void OpenMessage(string subject)
     {
+        bool Showing() => Agent.Find(Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd })?.Name == subject;
         var heading = Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd, OnScreen = true };
         if (Agent.Find(heading)?.Name == subject)
         {
             return;
         }
         Agent.Invoke(RowTitled(subject));
-        if (!Eventually(() => Agent.Find(Filter.ById("ReadingSubject") with { Window = Mailbox.Hwnd })?.Name == subject, Patience))
+        if (!Eventually(Showing, Input.DoubleClickTime + TimeSpan.FromMilliseconds(250)))
+        {
+            Agent.Invoke(RowTitled(subject));
+        }
+        if (!Eventually(Showing, Patience))
         {
             throw new InvalidOperationException($"the reading pane never showed '{subject}'");
         }

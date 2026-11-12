@@ -170,11 +170,14 @@ pub async fn connect_jmap_folder(
 /// Returns [`AccountError::Jmap`] if the connection or session discovery fails, or
 /// [`AccountError::SigninRejected`] if the server refuses the account's credential: a dead OAuth
 /// grant, or a password/API token it answers `401` to.
+///
+/// `shared` binds it to the calendars of a store shared with the account rather than its own.
 pub async fn connect_jmap_calendar_provider(
     config: &JmapAccountConfig,
     tokens: JmapTokens<'_>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
-    Ok(connect_one(config, tokens, None, None).await?)
+    Ok(connect_one(config, tokens, None, shared).await?)
 }
 
 /// Connects a single JMAP provider from `config`, boxed behind the neutral

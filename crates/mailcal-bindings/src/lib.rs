@@ -68,7 +68,7 @@ mod app_notices;
 mod app_sender_name;
 mod app_server_change;
 mod app_settings;
-mod app_shared_mailboxes;
+mod app_shared_stores;
 mod app_signatures;
 mod app_snapshots;
 mod autodetect;
@@ -174,9 +174,7 @@ pub use account_page::setup_link_pickers;
 pub use account_sign_in::AccountSignInOptions;
 pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};
-pub use allodia::{
-    AllodiaAccount, AllodiaSignInStart, allodia_sign_in_available, is_allodia_account_config,
-};
+pub use allodia::*;
 pub use allodia_devices::*;
 pub use allodia_health::AllodiaGrantHealth;
 pub use allodia_purchase::{
@@ -188,15 +186,13 @@ pub use allodia_subscription::{
     AllodiaOwnSubscription, AllodiaPrices, AllodiaStoreStatus, AllodiaStoreSubscription,
     AllodiaSubscription, AllodiaSubscriptionActions, AllodiaSubscriptionRefusal,
 };
-pub use allodia_sync::{
-    AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode, setup_from_offer,
-};
+pub use allodia_sync::{AllodiaAccountKind, AllodiaAccountOffer, AllodiaAccountSyncMode};
 pub use analytics::{AnalyticsConsent, DeviceClass, DeviceInfo, Platform};
 pub use app_display::stored_appearance;
 pub use app_month::{calendar_event_swatch, calendar_palette};
 pub use app_sender_name::sender_label;
 pub use app_server_change::{AccountServerChange, ServerChange};
-pub use app_shared_mailboxes::{SharedMailboxEntry, SharedMailboxSupport, SharedMailboxesView};
+pub use app_shared_stores::{SharedStoreEntry, SharedStoreSupport, SharedStoresView};
 pub use autodetect::{
     DetectedServerRow, DnsError, MissReason, MxRecord, MxResolution, MxResolver,
     SetupRecommendation, SrvRecord, SrvResolution,
@@ -231,6 +227,7 @@ pub use help::{HelpPage, help_page_url};
 pub use imap_oauth::{ImapAuthOffer, ImapLoginRequest, ImapLoginStart};
 pub use launch::{launch_status_after_ms, stored_account_is_readable};
 pub use logging::{LogLevel, Logger};
+pub use mailcal_account::{SharedUse, SharedUses};
 pub use mailto::{MailtoPrefill, parse_mailto_uri};
 pub use meeting_editor::{InviteeCheck, check_meeting_invitee, meeting_invitee_patch};
 pub use microsoft::{MicrosoftLoginStart, begin_microsoft_login};
@@ -238,8 +235,8 @@ pub use native_fault::watch_for_native_faults;
 pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
-    AccountPageIntent, BulkAction, EventIntent, FolderIntent, Intent, InvitationResponse,
-    NoticeIntent, OutboxIntent, SearchScope, SelectedRow,
+    AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
+    InvitationResponse, NoticeIntent, OutboxIntent, SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -253,14 +250,8 @@ pub use records::{
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
-pub use records_account_page::{
-    AccountChangeNotice, AccountChangeNoticeRaised, AccountChangeRefusal, AccountCountChoice,
-    AccountEndpointsGap, AccountLinkPicker, AccountLinkedFrom, AccountMailSettings, AccountPage,
-    AccountReplyFallback, AccountSenderName, AccountServers, AccountSharedAddress,
-    AccountSharedMailbox, AccountSharedMailboxes, AccountSharing, AccountToggle, AccountUseBlock,
-    AccountUseStatus, AccountUseSwitch, AccountWatchedFolder, ControlState, ReplyFallbackChoice,
-    SharedMailboxesNote,
-};
+// Every record of an account's page crosses the FFI, so the module is exported whole.
+pub use records_account_page::*;
 pub use records_account_sign_in::{
     AccountPasswordField, AccountSecretKind, AccountSeparateServer, AccountSeparateSignIn,
     AccountSignIn, AccountSignInLine, AccountSignInRoute, BrowserSignIn, BrowserSignInStage,

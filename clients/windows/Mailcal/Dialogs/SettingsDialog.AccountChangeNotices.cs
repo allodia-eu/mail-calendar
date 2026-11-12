@@ -26,7 +26,7 @@ public sealed partial class SettingsDialog
         AccountChangeNotice.RemoveFailed removal => RemovalFailed(L10n.RemoveAccountFailed(removal.Detail)),
         AccountChangeNotice.ServersFailed servers => new(
             InfoBarSeverity.Error, L10n.SettingsAccountServersFailed(), AccountUseText.Refused(servers.Refusal)),
-        AccountChangeNotice.SharedMailboxFailed shared => ChangeFailed(AccountUseText.Refused(shared.Refusal)),
+        AccountChangeNotice.SharedStoreFailed shared => ChangeFailed(AccountUseText.Refused(shared.Refusal)),
         AccountChangeNotice.PasswordFailed password => ChangeFailed(AccountUseText.Refused(password.Refusal)),
         AccountChangeNotice.StopLinkingFailed stop => ChangeFailed(AccountUseText.Refused(stop.Refusal)),
         AccountChangeNotice.SignInFailed signIn => new(
@@ -48,7 +48,7 @@ public sealed partial class SettingsDialog
                 L10n.SettingsAccountSignedInSeparatelyContacts(),
                 L10n.SettingsAccountSignedInSeparatelyBoth()).For(separately.Uses)),
         // Not a failure of the app: the address is the person's to check.
-        AccountChangeNotice.SharedMailboxNotFound => new(
+        AccountChangeNotice.SharedStoreNotFound => new(
             InfoBarSeverity.Warning, L10n.SettingsAccountSharedNotFound(), string.Empty),
         _ => ChangeFailed(L10n.ErrorUnknown()),
     };

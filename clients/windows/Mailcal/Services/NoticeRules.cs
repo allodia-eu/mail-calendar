@@ -64,15 +64,6 @@ internal static class NoticeRules
     };
 
     /// <summary>
-    /// Whether a sign-in started from a notice is a failed remedy (rule 10): it ended without
-    /// signing in and with something to say, and the browser answered. A sign-in whose wait for
-    /// the browser ran out is not one: closing the tab is all it takes to get there, and a closed
-    /// browser is not a failure.
-    /// </summary>
-    internal static bool RemedyFailed(bool signedIn, string? error, bool unanswered) =>
-        !signedIn && error is not null && !unanswered;
-
-    /// <summary>
     /// What the core runs for a notice's action, or null for a flow this client runs itself. A
     /// Retry is the core's: it refreshes the notice's screen, which dials the account again, and
     /// marks the notice when that dial ends with the notice still standing, which only it can tell
@@ -108,11 +99,6 @@ internal static class NoticeRules
     /// lesser of the two buttons.</summary>
     internal static bool OffersSecond(Notice notice) =>
         Offers(notice) && notice.SecondAction is not null && notice.SecondActionLabel is not null;
-
-    /// <summary>Whether the account service refused the Allodia sign-in, which the Allodia card
-    /// draws.</summary>
-    internal static bool AllodiaSignInEnded(IReadOnlyList<Notice> notices) =>
-        notices.Any(notice => notice.Kind is NoticeKind.AllodiaSignInEnded);
 
     /// <summary>Whether the device has no network, which the folder pane's connection status
     /// says.</summary>

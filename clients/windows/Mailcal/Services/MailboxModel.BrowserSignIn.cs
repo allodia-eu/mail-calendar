@@ -1,9 +1,10 @@
 // An existing account's browser sign-in, which the core holds from the press to the account it
 // changes (docs/waiting.md): signing in again, a switch from a password to the provider or to
 // Nextcloud, a use the provider is asked for, the banner's Sign in again, and the sign-in a
-// calendar and contacts on a server of their own are given (docs/accounts.md rule 18). This host starts it,
-// opens the browser once for each attempt, listens where the browser returns and hands that back;
-// which step it is at, what it asks, how long it waits and what it came to are the core's.
+// calendar and contacts on a server of their own are given (docs/accounts.md rule 18), and the
+// Allodia account's sign-in (MailboxModel.Allodia.cs). This host starts it, opens the browser once
+// for each attempt, listens where the browser returns and hands that back; which step it is at,
+// what it asks, how long it waits and what it came to are the core's.
 //
 // A custom-scheme redirect arrives as a protocol activation, which Program hands to
 // TakeSignInRedirect before any setup flow sees it. A Google redirect arrives on a loopback port
@@ -140,7 +141,7 @@ public sealed partial class MailboxModel
         bool opened;
         try
         {
-            opened = await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            opened = await ExternalLauncher.Open(new Uri(url));
         }
         catch (Exception ex)
         {

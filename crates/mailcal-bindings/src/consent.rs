@@ -59,7 +59,7 @@ pub(crate) fn keep_stored_shape(signed_in: &mut AccountShape, stored: Option<Acc
         .as_ref()
         .is_some_and(|uses| uses.contains(mailcal_account::Capability::SharedMailboxes))
     {
-        signed_in.shared_mailboxes = stored.shared_mailboxes;
+        signed_in.shared_stores = stored.shared_stores;
     }
 }
 

@@ -349,10 +349,7 @@ pub(crate) fn gradle_wrapper(root: &Path) -> PathBuf {
 /// Without one, the suite dies at configuration with "SDK location not found": a failure that says
 /// nothing about the change under test, on a host that simply does not build Android.
 pub(crate) fn android_sdk_found(root: &Path) -> bool {
-    let local = root.join("clients/android/local.properties");
-    if std::fs::read_to_string(local)
-        .is_ok_and(|t| t.lines().any(|l| l.trim_start().starts_with("sdk.dir")))
-    {
+    if local_sdk_dir(root).is_some() {
         return true;
     }
     if ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
@@ -362,6 +359,45 @@ pub(crate) fn android_sdk_found(root: &Path) -> bool {
         return true;
     }
     default_sdk_path().is_some_and(|p| p.is_dir())
+}
+
+/// The SDK `clients/android/local.properties` names, when that folder exists.
+///
+/// `.worktreeinclude` copies the file into every new worktree, so an uninstalled SDK stays named
+/// in each one; trusting the line alone sends the gate into a Gradle run that cannot configure.
+fn local_sdk_dir(root: &Path) -> Option<PathBuf> {
+    let text = std::fs::read_to_string(root.join("clients/android/local.properties")).ok()?;
+    sdk_dir_property(&text).filter(|dir| dir.is_dir())
+}
+
+/// The `sdk.dir` value as a Java properties file reads it: `#` and `!` start a comment, `=`, `:`
+/// or whitespace separates the key, a backslash escapes the next character (Android Studio writes
+/// `C\:\\Users` on Windows), and the last assignment wins.
+fn sdk_dir_property(text: &str) -> Option<PathBuf> {
+    let mut found = None;
+    for line in text.lines().map(str::trim_start) {
+        let Some(rest) = line.strip_prefix("sdk.dir") else {
+            continue;
+        };
+        let value = if let Some(value) = rest.trim_start().strip_prefix(['=', ':']) {
+            value
+        } else if rest.starts_with(char::is_whitespace) {
+            rest
+        } else {
+            continue;
+        };
+        let mut path = String::new();
+        let mut chars = value.trim_start().chars();
+        while let Some(c) = chars.next() {
+            path.push(if c == '\\' {
+                chars.next().unwrap_or(c)
+            } else {
+                c
+            });
+        }
+        found = Some(PathBuf::from(path.trim_end()));
+    }
+    found
 }
 
 /// The per-OS directory the SDK manager installs into, which Gradle finds with nothing set.

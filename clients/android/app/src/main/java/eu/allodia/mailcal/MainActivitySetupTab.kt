@@ -104,14 +104,9 @@ private fun MainActivity.SetupForm(instance: MailcalApp, ctx: Context) {
                             // go (docs/onboarding.md).
                             allodia = OnboardingAllodia(
                                 offered = allodiaSignInOffered(),
-                                signingIn = signingInAllodia,
-                                escapable = allodiaSignInSlow,
-                                signedIn = allodiaAccount != null,
-                                checking = allodiaDevices?.checking == true,
+                                card = allodiaCard,
                                 offers = onboardingOffers(allodiaDevices),
-                                onCreate = { registerAllodiaAccount() },
-                                onSignIn = { signInToAllodia() },
-                                onCancelSignIn = { cancelAllodiaSignIn() },
+                                onChange = { changeAllodia(it) },
                                 // Another account added from the link step is not the first.
                                 firstRun = needsSetup && !setupFlow.addedAny,
                             ),

@@ -93,7 +93,7 @@ public sealed partial class MailboxModel
             // block, off the UI thread with them.
             var start = await Task.Run(() => app.BeginJmapLogin(email, server, JmapOAuthConfig.RedirectUri));
             // Open the default browser (where the user is usually already signed in).
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+            await ExternalLauncher.Open(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancelToken);
             // The token exchange blocks too.
             configToml = await Task.Run(() => app.CompleteJmapLogin(start.Pending, callbackUrl));

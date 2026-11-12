@@ -233,8 +233,9 @@ pub(crate) async fn connect_graph_calendars(
     id: &AccountId,
     tokens: Arc<GraphTokenSource>,
     display_zone: TimeZoneId,
+    shared: Option<&engine_api::SharedAccountId>,
 ) -> (Result<Vec<Box<dyn Provider>>, ConnectFailure>, bool) {
-    match mailcal_account::connect_graph_calendar_provider(id, tokens, display_zone).await {
+    match mailcal_account::connect_graph_calendar_provider(id, tokens, display_zone, shared).await {
         Ok(provider) => (Ok(vec![provider]), false),
         Err(err @ mailcal_account::AccountError::CalendarAccessDenied(_)) => {
             log::warn!("graph: calendar access denied; re-authentication needed: {err}");
