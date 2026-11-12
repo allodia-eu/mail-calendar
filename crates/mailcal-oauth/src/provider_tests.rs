@@ -119,6 +119,29 @@ fn microsoft_requests_no_openid_connect_scope() {
     }
 }
 
+/// The per-scope table in `docs/provider-oauth.md` rule 10 is what the app registration's API
+/// permissions are set from, and "Grant admin consent" grants that list rather than the request,
+/// so the table names exactly the scopes a sign-in can ask for.
+#[test]
+fn the_documented_registration_permissions_are_exactly_the_requested_set() {
+    let doc = include_str!("../../../docs/provider-oauth.md");
+    let rule = doc
+        .split("\n10. **")
+        .nth(1)
+        .and_then(|rest| rest.split("\n11. **").next())
+        .expect("provider-oauth.md has rules 10 and 11");
+    let documented: std::collections::BTreeSet<&str> = rule
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix("| `"))
+        .filter_map(|cell| cell.split('`').next())
+        .collect();
+    let requested: std::collections::BTreeSet<&str> = MICROSOFT_GRAPH_SCOPES
+        .iter()
+        .map(|scope| scope.trim_start_matches("https://graph.microsoft.com/"))
+        .collect();
+    assert_eq!(documented, requested);
+}
+
 fn google() -> OAuthProviderConfig {
     OAuthProviderConfig::google(
         "google-client",
