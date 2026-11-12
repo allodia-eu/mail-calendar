@@ -214,6 +214,10 @@ internal static class Input
     /// <summary>The display scale of <paramref name="hwnd"/>: 1.0 at 100%, 2.0 at 200%.</summary>
     internal static double Scale(long hwnd) => GetDpiForWindow((nint)hwnd) / 96.0;
 
+    /// <summary>The desktop's double-click time, which the app reads too: two presses on one row
+    /// this close together are a double-click to it, however they were made.</summary>
+    internal static TimeSpan DoubleClickTime => TimeSpan.FromMilliseconds(GetDoubleClickTime());
+
     private static void Send(params ReadOnlySpan<NativeInput> inputs)
     {
         var sent = SendInput((uint)inputs.Length, inputs.ToArray(), Marshal.SizeOf<NativeInput>());
@@ -297,6 +301,7 @@ internal static class Input
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern void keybd_event(byte vk, byte scan, uint flags, nuint extra);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
+    [DllImport("user32.dll")] private static extern uint GetDoubleClickTime();
     [DllImport("user32.dll")] private static extern uint MapVirtualKeyW(uint code, uint mapType);
     [DllImport("user32.dll")] private static extern bool SetProcessDpiAwarenessContext(nint context);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int index);
