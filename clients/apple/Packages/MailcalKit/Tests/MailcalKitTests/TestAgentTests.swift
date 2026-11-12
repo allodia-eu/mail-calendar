@@ -66,8 +66,9 @@ struct TestAgentTests {
     }
 
     @Test func theSocketAnswersItsOwnerAlone() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("agent-\(getpid())")
+        // Not `temporaryDirectory`: on the simulator that is inside the device's data directory,
+        // whose path alone overruns a socket's 104 bytes.
+        let directory = URL(fileURLWithPath: "/tmp/mailcal-agent-\(getpid())")
         let path = directory.appendingPathComponent("agent.sock").path
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data("left behind by an earlier run".utf8).write(to: URL(fileURLWithPath: path))
