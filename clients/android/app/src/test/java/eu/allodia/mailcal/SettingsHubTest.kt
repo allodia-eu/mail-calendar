@@ -34,6 +34,7 @@ import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaAccount
+import uniffi.mailcal_bindings.AllodiaCardState
 import uniffi.mailcal_bindings.AccountSignatureRow
 import uniffi.mailcal_bindings.Attribution
 import uniffi.mailcal_bindings.QuoteStyleKind
@@ -128,10 +129,8 @@ class SettingsHubTest {
                 analyticsPayloadPreview = { "{}" },
                 // Defaults to a build from source: no Allodia route, so the category is absent.
                 allodia = allodia,
-                onAllodiaSignIn = {},
-                onAllodiaCreate = {},
+                onAllodia = {},
                 onAllodiaManage = {},
-                onAllodiaSignOut = {},
                 allodiaSubscription = AllodiaSubscriptionUi(),
                 onAllodiaRefreshSubscription = {},
                 onAllodiaBuy = {},
@@ -306,7 +305,9 @@ class SettingsHubTest {
             initialCategory = SettingsCategory.ALLODIA,
             allodia = AllodiaSettings(
                 available = true,
-                account = AllodiaAccount(id = null, email = "someone@example.com", name = null),
+                card = ALLODIA_SIGNED_OUT.copy(
+                    state = AllodiaCardState.SignedIn(AllodiaAccount(id = null, email = "someone@example.com", name = null)),
+                ),
             ),
         )
         compose

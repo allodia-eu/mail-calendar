@@ -30,7 +30,6 @@ public sealed partial class MailboxModel
             var email = Accounts.FirstOrDefault(a => a.Id == id)?.Email ?? id;
             return new ConnectionIssue(id, email, _app?.ConnectionDetail(id));
         }).ToList();
-        UpdateAllodiaSignInEnded(NoticeRules.AllodiaSignInEnded(notices));
         RaiseConnectionStatus();
     }
 

@@ -33,7 +33,8 @@ pub(crate) struct NoticeFacts<'a> {
     pub(crate) address: &'a dyn Fn(&str) -> String,
     /// The questions the core is holding (rule 8).
     pub(crate) questions: &'a Questions,
-    /// The account whose browser sign-in is out: a notice it answers is drawn running.
+    /// The account whose browser sign-in is out, the Allodia account's being `ACCOUNT_ID`: a
+    /// notice it answers is drawn running.
     pub(crate) signing_in: Option<&'a str>,
 }
 
@@ -276,12 +277,15 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
     }
     questions::raise(facts, &mut raised);
     for notice in &mut raised {
-        if notice.action == Some(NoticeAction::SignInAgain)
-            && notice.account.is_some()
-            && notice.account.as_deref() == facts.signing_in
-        {
-            notice.running = true;
-        }
+        notice.running = match notice.action {
+            Some(NoticeAction::SignInAgain) => {
+                notice.account.is_some() && notice.account.as_deref() == facts.signing_in
+            }
+            Some(NoticeAction::SignInToAllodia) => {
+                facts.signing_in == Some(crate::allodia::ACCOUNT_ID)
+            }
+            _ => notice.running,
+        };
     }
     raised
 }

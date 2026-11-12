@@ -8,22 +8,46 @@
 //!     cargo run -p mailcal-bindings --features allodia-license --example allodia_signin
 //!
 //! It binds a loopback listener (what the Linux client and every desktop OAuth flow do), boots an
-//! app over a temporary data directory, prints the authorization URL to open, waits for the
-//! redirect, completes the sign-in; then **boots a second app** from what the first one stored, to
-//! prove the entry comes back as a signed-in account and not as an account error. It signs out at
-//! the end, so nothing is left behind but the temporary directory it names.
+//! app over a temporary data directory, starts the sign-in as a client does
+//! (`AllodiaIntent::SignIn`), prints the authorization URL the core holds, waits for the redirect
+//! and hands it back; then **boots a second app** from what the first one stored, to prove the
+//! entry comes back as a signed-in account and not as an account error. It signs out at the end,
+//! so nothing is left behind but the temporary directory it names.
 
 use std::{
     collections::BTreeMap,
     io::{BufRead, BufReader, Write},
     net::{Ipv4Addr, SocketAddrV4, TcpListener},
     sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use mailcal_bindings::{
-    AccountCredentialStore, CredentialStoreError, DeviceClass, DeviceInfo, LogLevel, Logger,
-    MailcalApp, NoticeKind, Observer, Platform, Surface, allodia_sign_in_available,
+    AccountCredentialStore, AccountPageIntent, AllodiaCard, AllodiaCardState, AllodiaIntent,
+    BrowserSignInStage, CredentialStoreError, DeviceClass, DeviceInfo, Intent, LogLevel, Logger,
+    MailcalApp, NoticeKind, Observer, Platform, SignInBrowserEnd, Surface,
+    allodia_sign_in_available,
 };
+
+/// Waits until `done` answers, for as long as a person may take in the browser.
+fn until<T>(mut done: impl FnMut() -> Option<T>) -> Result<T, Box<dyn std::error::Error>> {
+    let deadline = Instant::now() + Duration::from_mins(5);
+    while Instant::now() < deadline {
+        if let Some(found) = done() {
+            return Ok(found);
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    Err("the core never got there".into())
+}
+
+/// Waits until the card says the sign-in or sign-out ended, and answers it.
+fn settled(app: &MailcalApp) -> Result<AllodiaCard, Box<dyn std::error::Error>> {
+    until(|| {
+        let card = app.allodia_card();
+        (card.browser.is_none() && !card.sign_out.running).then_some(card)
+    })
+}
 
 /// A host store, in memory. The real ones are a Keychain, a Credential Manager and an Android
 /// Keystore; what matters for this probe is only that it is the same port, keyed the same way.
@@ -154,14 +178,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let redirect_uri = format!("http://127.0.0.1:{}/", listener.local_addr()?.port());
     println!("redirect: {redirect_uri}\n");
 
-    let start = app.begin_allodia_sign_in(redirect_uri.clone())?;
-    println!(
-        "Open this, sign in, and come back:\n\n{}\n",
-        start.authorization_url
-    );
+    app.dispatch(Intent::Allodia {
+        intent: AllodiaIntent::SignIn {
+            create: false,
+            redirect_uri: redirect_uri.clone(),
+        },
+    });
+    let (out, url) = until(|| {
+        let out = app.browser_sign_in()?;
+        match &out.stage {
+            BrowserSignInStage::InBrowser { url, .. } => Some((out.clone(), url.clone())),
+            _ => None,
+        }
+    })?;
+    println!("Open this, sign in, and come back:\n\n{url}\n");
 
     let callback_url = await_redirect(&listener, &redirect_uri)?;
-    let account = app.complete_allodia_sign_in(start.pending, callback_url)?;
+    app.dispatch(Intent::AccountPage {
+        intent: AccountPageIntent::SignInBrowserEnded {
+            account: out.account,
+            attempt: out.attempt,
+            end: SignInBrowserEnd::Redirected { callback_url },
+        },
+    });
+    let card = settled(&app)?;
+    let AllodiaCardState::SignedIn { account } = card.state else {
+        return Err(format!("not signed in: {:?}", card.failure).into());
+    };
     println!("\nsigned in: {} ({:?})", account.email, account.name);
     assert_eq!(app.allodia_account().as_ref(), Some(&account));
 
@@ -196,7 +239,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         "every stored account came back"
     );
 
-    relaunched.sign_out_of_allodia()?;
+    relaunched.dispatch(Intent::Allodia {
+        intent: AllodiaIntent::SignOut,
+    });
+    let card = settled(&relaunched)?;
+    assert_eq!(
+        card.state,
+        AllodiaCardState::SignedOut,
+        "{:?}",
+        card.failure
+    );
+    println!(
+        "  end the session at: {:?}",
+        card.end_session.map(|end| end.url)
+    );
     println!(
         "\nsigned out; the store now holds {} entry/entries",
         store.configs().len()

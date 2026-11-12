@@ -9,7 +9,6 @@ use mailcal_bindings::{
 };
 
 use super::{
-    allodia::{AllodiaOutcome, AllodiaPrepared},
     allodia_subscription::SubscriptionInput,
     calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
     composer_model::ComposerSubmission,
@@ -341,12 +340,6 @@ pub(crate) enum AppInput {
     StartAllodiaRegistration,
     ManageAllodiaAccount,
     CancelAllodiaSignIn,
-    /// The browser hop for this attempt has outlasted the card's threshold, so the
-    /// first-run card owes the person a way back ([`super::setup_onboarding`]).
-    AllodiaSignInSlow(u64),
-    /// The core answered an Allodia sign-in's begin, off the main thread.
-    AllodiaPrepared(u64, Result<Box<AllodiaPrepared>, String>),
-    AllodiaSignInFinished(u64, AllodiaOutcome),
     SignOutOfAllodia,
     /// Everything the subscription section asks for, in one variant: it is one screen's
     /// traffic, and every piece of it ends in the same re-read.

@@ -12,7 +12,7 @@
 //   * The copy may not out-run the capability matrix: phone and computer, never web.
 //   * The card claims the account LIST and nothing else, never the mail, never a password.
 //   * Nobody may be stranded on it. This is the one screen a person cannot skip, so the busy state
-//     a sign-in puts it in always has a way out.
+//     a sign-in puts it in has a way out once the core says it has run long enough to need one.
 
 import MailcalBindings
 import SwiftUI
@@ -31,35 +31,20 @@ struct OnboardingAllodiaCard: View {
     /// offers are not a pitch, and are shown on any add while they remain.
     var firstRun = true
 
-    /// Who is signed in. Read on appear and after every attempt; the answer is local and never asks
-    /// the service.
-    @State private var account: AllodiaAccount?
-    @State private var signingIn = false
-    @State private var failure: String?
-    /// The running sign-in, held so it can be retired. Cancelling it is what stops an attempt
-    /// somebody escaped from opening a browser or storing a grant behind their back.
-    @State private var signIn: Task<Void, Never>?
-    /// Whether the hop has outlasted its threshold, so the busy row draws the way back.
-    @State private var escapable = false
-
     var body: some View {
         if allodiaSignInAvailable() {
-            if firstRun {
+            if firstRun, let card = model.allodia.card {
                 VStack(alignment: .leading, spacing: 12) {
-                    content
-                    if let failure {
-                        Text(L10n.settings_allodia_failed(error: failure))
+                    content(card)
+                    if let failure = card.failure {
+                        Text(AllodiaCardRules.failure(failure))
                             .font(.caption)
                             .foregroundStyle(.red)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     divider
                 }
-                // Both belong to the card: only it can be mid-sign-in, and only it reads who is
-                // signed in. A later add shows rows and needs neither.
-                .task { account = model.currentAllodiaAccount() }
-                .task(id: signingIn) { await armEscape() }
-            } else if let found, !found.isEmpty {
+            } else if !firstRun, let found, !found.isEmpty {
                 // A later add is not pitched the card again, and is still shown the accounts it
                 // has left to set up: somebody who set up one of three has two to go.
                 VStack(alignment: .leading, spacing: 12) {
@@ -82,30 +67,37 @@ struct OnboardingAllodiaCard: View {
     }
 
     @ViewBuilder
-    private var content: some View {
-        if signingIn || (account != nil && model.allodiaDevices?.checking == true) {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text(
-                    signingIn
-                        ? L10n.settings_allodia_signing_in()
-                        : L10n.settings_allodia_sync_checking()
-                )
-                .foregroundStyle(.secondary)
-                // Only for the browser leg: the pass below it is a bounded network call, not a
-                // wait on somebody in another application, and draws no way back.
-                if signingIn, escapable {
-                    Button(L10n.action_cancel()) { escape() }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.tint)
+    private func content(_ card: AllodiaCard) -> some View {
+        switch card.onboarding {
+        case .signingIn:
+            busy(L10n.settings_allodia_signing_in()) {
+                // Nothing is reported for the way back, and the card returns to the offer it
+                // started from.
+                if let browser = AllodiaCardRules.escape(card) {
+                    ControlButton(title: L10n.action_cancel(), control: browser.cancel) {
+                        model.cancelAllodiaSignIn(browser)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.tint)
                 }
             }
-        } else if account != nil {
-            // Signed in and asked. Offers become the fast route; none means this account has no
-            // mail accounts on it yet.
-            offers
-        } else {
-            recommendation
+        // The pass after the sign-in is a bounded network call, not a wait on somebody in
+        // another application, and draws no way back.
+        case .checking: busy(L10n.settings_allodia_sync_checking()) {}
+        // Signed in and asked. Offers become the fast route; none means this account has no mail
+        // accounts on it yet.
+        case .signedIn: offers
+        case .offering: recommendation(card)
+        }
+    }
+
+    private func busy<Escape: View>(
+        _ text: String, @ViewBuilder escape: () -> Escape
+    ) -> some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small)
+            Text(text).foregroundStyle(.secondary)
+            escape()
         }
     }
 
@@ -168,7 +160,7 @@ struct OnboardingAllodiaCard: View {
     /// and its action together, and the label carries the **action**, never the "Recommended"
     /// marker.
     @ViewBuilder
-    private var recommendation: some View {
+    private func recommendation(_ card: AllodiaCard) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 6) {
                 Text(L10n.setup_allodia_recommended())
@@ -179,8 +171,10 @@ struct OnboardingAllodiaCard: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(L10n.setup_allodia_create()) { begin(create: true) }
-                    .buttonStyle(.borderedProminent)
+                ControlButton(title: L10n.setup_allodia_create(), control: card.create) {
+                    model.signInToAllodia(create: true)
+                }
+                .buttonStyle(.borderedProminent)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(6)
@@ -191,51 +185,10 @@ struct OnboardingAllodiaCard: View {
         // One line, not a second card of equal weight. `.plain` rather than `.link`, which does
         // not exist on iOS: the weight is what the contract asks for, and a borderless button
         // carries it on both platforms.
-        Button(L10n.setup_allodia_have_one()) { begin(create: false) }
-            .buttonStyle(.plain)
-            .foregroundStyle(.tint)
-    }
-
-    /// Arms the way back rather than drawing it: a hop that comes straight back never puts a button
-    /// in front of somebody who had no reason to read it.
-    ///
-    /// Owned by the busy state through `.task(id: signingIn)`, so SwiftUI restarts this clock when
-    /// a hop begins and cancels it when one ends, an attempt can never be armed by an older one's
-    /// timer, and there is no timer left running for a card that has gone.
-    private func armEscape() async {
-        escapable = false
-        guard signingIn else { return }
-        try? await Task.sleep(for: SignInAttempts.escapeAfter)
-        // `try?` swallows the cancellation that ending the hop raises, so the check is here.
-        if !Task.isCancelled { escapable = true }
-    }
-
-    private func begin(create: Bool) {
-        failure = nil
-        signingIn = true
-        signIn = Task {
-            let outcome = await model.signInToAllodia(create: create)
-            // An attempt the person escaped: they are back at the offer already, and nothing this
-            // one answers belongs on a screen that has moved on.
-            guard !Task.isCancelled else { return }
-            signingIn = false
-            switch outcome {
-            case let .signedIn(signedIn):
-                // The core asks what their other devices hold as soon as the sign-in is stored,
-                // before they are asked to type anything.
-                account = signedIn
-            // A dismissed browser is not a failure, say nothing and leave the card as it was.
-            case .cancelled: break
-            case let .failed(error): failure = error
-            }
+        ControlButton(title: L10n.setup_allodia_have_one(), control: card.signIn) {
+            model.signInToAllodia()
         }
-    }
-
-    /// The person's way out of a hop that did not come back. Nothing is reported: a sign-in
-    /// somebody abandoned is not a failure, and the card returns to the offer it started from.
-    private func escape() {
-        signIn?.cancel()
-        signIn = nil
-        signingIn = false
+        .buttonStyle(.plain)
+        .foregroundStyle(.tint)
     }
 }

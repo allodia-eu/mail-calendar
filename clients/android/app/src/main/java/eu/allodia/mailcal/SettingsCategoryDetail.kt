@@ -19,6 +19,7 @@ import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
+import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.Appearance
@@ -82,10 +83,8 @@ internal fun CategoryDetail(
     onSetAnalytics: (Boolean) -> Unit,
     analyticsPayloadPreview: () -> String,
     allodia: AllodiaSettings,
-    onAllodiaSignIn: () -> Unit,
-    onAllodiaCreate: () -> Unit,
+    onAllodia: (AllodiaIntent) -> Unit,
     onAllodiaManage: () -> Unit,
-    onAllodiaSignOut: () -> Unit,
     // The subscription, drawn under the account card and only while somebody is signed in. Its
     // state is the activity's for the same reason: buying leaves for Play's sheet or a browser.
     allodiaSubscription: AllodiaSubscriptionUi,
@@ -264,18 +263,13 @@ internal fun CategoryDetail(
         // and its token cannot touch mail. The category is only reachable in a build that carries
         // the registration, so this draws unconditionally.
         SettingsCategory.ALLODIA -> {
-            AllodiaAccountCard(
-                allodia,
-                onAllodiaSignIn,
-                onAllodiaCreate,
-                onAllodiaManage,
-                onAllodiaSignOut,
-            )
+            AllodiaAccountCard(allodia, onAllodia, onAllodiaManage)
             // The subscription belongs to the account above it, so it is drawn under that card
             // and only once there is one to draw it for. A sign-in that has ended has none, and the
-            // read can say so a moment before the snapshot the card above reads does.
-            if (allodia.account != null &&
-                !allodia.sessionEnded &&
+            // read can say so a moment before the card above does. A sign-in out takes it away
+            // until it ends, when it reads again.
+            if (allodia.signedIn != null &&
+                allodia.card.browser == null &&
                 allodiaSubscription.state != AllodiaSubscriptionState.SignedOut
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -286,7 +280,7 @@ internal fun CategoryDetail(
                     onManageStore = onAllodiaManageStore,
                     // The same sign-in as the card above, not a special one: there is nothing to
                     // migrate, only a claim this device never asked for and now does.
-                    onSignInAgain = onAllodiaSignIn,
+                    onSignInAgain = { onAllodia(allodiaSignIn()) },
                     onClosed = onAllodiaSubscriptionClosed,
                     onCancel = onAllodiaCancel,
                     onResubscribe = onAllodiaResubscribe,
@@ -300,7 +294,7 @@ internal fun CategoryDetail(
         SettingsCategory.ACCOUNTS -> AccountsSettings(
             ui = accountsUi,
             allodiaSyncCard = {
-                AllodiaSyncCard(allodiaDevices, onAllodiaSetUp, accountsUi.onChange, onAllodiaSignIn)
+                AllodiaSyncCard(allodiaDevices, onAllodiaSetUp, accountsUi.onChange) { onAllodia(allodiaSignIn()) }
             },
         ) { entry, page -> AccountPage(entry, page, accountsUi) }
 

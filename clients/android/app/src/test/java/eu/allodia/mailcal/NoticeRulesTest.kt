@@ -159,10 +159,8 @@ class NoticeRulesTest {
 
         assertTrue(NoticeRules.offersSecond(question))
         assertFalse(NoticeRules.offersSecond(notice("n", action = NoticeAction.RETRY)))
-        assertFalse(NoticeRules.held(question, null))
-        assertTrue(NoticeRules.held(question.copy(running = true), null))
-        assertTrue(NoticeRules.held(question, "q"))
-        assertFalse(NoticeRules.held(question, "other"))
+        assertFalse(NoticeRules.held(question))
+        assertTrue(NoticeRules.held(question.copy(running = true)))
     }
 
     @Test
@@ -185,15 +183,6 @@ class NoticeRulesTest {
 
         // A narrower grant is not a dead sign-in.
         assertEquals(setOf("a"), NoticeRules.expired(notices))
-    }
-
-    @Test
-    fun `the Allodia card follows its notice`() {
-        val offline = notice("offline", screens = NoticeScreens.EVERYWHERE, kind = NoticeKind.Offline)
-        val ended = notice("allodia", screens = NoticeScreens.EVERYWHERE, kind = NoticeKind.AllodiaSignInEnded("anna@example.org"))
-
-        assertTrue(NoticeRules.allodiaSignInEnded(listOf(offline, ended)))
-        assertFalse(NoticeRules.allodiaSignInEnded(listOf(offline)))
     }
 
     @Test

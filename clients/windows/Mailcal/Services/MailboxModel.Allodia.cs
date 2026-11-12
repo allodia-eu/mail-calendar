@@ -1,101 +1,49 @@
-// The Allodia-account half of MailboxModel (split out to keep each file under the 500-line limit):
-// the browser sign-in, who is signed in, and signing out. The twin of the Microsoft sign-in in
-// MailboxModel.Accounts.cs, same rendezvous, same off-the-UI-thread rule.
-//
-// The core owns discovery, PKCE, the exchange, the identity lookup and the Credential Manager
-// write, so nothing here ever holds a token.
+// The Allodia-account half of MailboxModel: the card the core keeps for it, and the changes to its
+// sign-in. The core runs the sign-in as its one browser sign-in (MailboxModel.BrowserSignIn.cs opens
+// it and hands its redirect back) and the sign-out on a thread of its own; nothing here holds a
+// token or a step of either.
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
-/// <summary>A failed sign-in to an Allodia account: the sentence to show, whether the browser
-/// returned from another sign-in, which a reauth offer says beneath its button, and whether the
-/// browser never came back at all, which a closed tab also comes to and a notice does not count as
-/// a failure.</summary>
-internal sealed record AllodiaSignInFailure(string Said, bool Stale, bool Unanswered = false);
-
 public sealed partial class MailboxModel
 {
-    // Cancels a sign-in that is waiting on the browser redirect. A custom-scheme flow gets no
-    // signal when the user simply closes the browser, unlike a loopback listener, whose socket
-    // surfaces one, so without this the card would sit on "Signing in…" until the five-minute cap.
-    private CancellationTokenSource? _allodiaSignIn;
+    // The last of the service's sign-out pages opened, so each is opened once.
+    private ulong _allodiaEndSessionOpened;
 
-    /// <summary>
-    /// Who is signed in to an Allodia account, or <c>null</c>. Cheap and local, it reads what the
-    /// last launch restored or the last sign-in wrote, and never asks the service.
-    /// </summary>
+    /// <summary>Raised on the UI thread when the Allodia account's card may have moved
+    /// (<c>Surface.Allodia</c>): Settings → Allodia account and the first-run card read it again,
+    /// and nothing else.</summary>
+    public event Action? AllodiaChanged;
+
+    /// <summary>The Allodia account's card as the core decided it; null before the core is up.
+    /// Local and cheap.</summary>
     // `internal`, like every signature naming a generated UniFFI type: they are emitted internal,
     // so a public one is a CS0051 accessibility error.
-    internal AllodiaAccount? SignedInAllodiaAccount() => _app?.AllodiaAccount();
+    internal AllodiaCard? AllodiaCard() => _app?.AllodiaCard();
 
-    /// <summary>
-    /// Runs a sign-in and returns <c>null</c> on success or when the user gave up, and the failure
-    /// otherwise. The core reads the service's own OAuth metadata, mints the authorisation
-    /// URL, exchanges the redirect, asks whose account it is and stores the grant.
-    /// </summary>
-    internal async Task<AllodiaSignInFailure?> SignInToAllodiaAsync(bool create = false)
+    /// <summary>Signs in to an Allodia account in the browser, or creates one with
+    /// <paramref name="create"/>. Supersedes a browser sign-in still out.</summary>
+    internal void SignInToAllodia(bool create = false)
     {
-        if (_app is null)
-        {
-            return new(L10n.SettingsAllodiaFailed(L10n.AppUnavailable()), false);
-        }
-        using var cancel = new CancellationTokenSource();
-        _allodiaSignIn = cancel;
-        try
-        {
-            // Arm the redirect rendezvous BEFORE opening the browser: the browser returns to our
-            // custom scheme, delivered here as a protocol activation routed by Program.
-            using var callback = ProtocolAuthCallback.Expect(AllodiaOAuthConfig.CallbackHost);
-            // Discovery is two network round trips and the core call blocks on them. `_app!`, like
-            // the Microsoft flow's: the null check above does not survive into a lambda over a
-            // field, so the compiler needs telling.
-            var start = await Task.Run(
-                () => create
-                    ? _app!.BeginAllodiaRegistration(AllodiaOAuthConfig.RedirectUri)
-                    : _app!.BeginAllodiaSignIn(AllodiaOAuthConfig.RedirectUri));
-            await ExternalLauncher.Open(new Uri(start.AuthorizationUrl));
-            var callbackUrl = await callback.WaitAsync(cancel.Token);
-            // The exchange and the identity lookup block too.
-            await Task.Run(() => _app!.CompleteAllodiaSignIn(start.Pending, callbackUrl));
-            // Never who: a log line describes the user's mail and never names an address
-            // (docs/logging.md), and this file is what a support request arrives with.
-            Log.Info("allodia: signed in; the grant is stored");
-            return null;
-        }
-        catch (OperationCanceledException)
-        {
-            // The user pressed Cancel while the browser step was outstanding, return to the card
-            // quietly; the disposed callback slot ignores any late redirect.
-            Log.Info("allodia: sign-in cancelled by user");
-            return null;
-        }
-        catch (TimeoutException ex)
-        {
-            Log.Warn("allodia: sign-in timed out waiting for the browser");
-            return new AllodiaSignInFailure(L10n.SettingsAllodiaFailed(CoreErrorCopy.Said(ex)), false, Unanswered: true);
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"allodia: sign-in failed: {CoreError.Describe(ex)}");
-            // A browser that returned from another sign-in is said on its own: nothing failed,
-            // and signing in again goes straight through.
-            return ex is MailcalException.StaleSignIn
-                ? new AllodiaSignInFailure(L10n.SigninStale(), true)
-                : new AllodiaSignInFailure(L10n.SettingsAllodiaFailed(CoreErrorCopy.Said(ex)), false);
-        }
-        finally
-        {
-            _allodiaSignIn = null;
-        }
+        Log.Info("allodia: sign-in started");
+        _app?.Dispatch(new Intent.Allodia(new AllodiaIntent.SignIn(create, AllodiaOAuthConfig.RedirectUri)));
     }
 
-    /// <summary>Aborts a sign-in waiting on the browser redirect. Safe when none is in flight.</summary>
-    internal void CancelAllodiaSignIn() => _allodiaSignIn?.Cancel();
+    /// <summary>Stops <paramref name="browser"/>, the card's sign-in out, which then says
+    /// nothing.</summary>
+    internal void CancelAllodiaSignIn(BrowserSignIn browser) =>
+        _app?.Dispatch(new Intent.Allodia(new AllodiaIntent.CancelSignIn(browser.Attempt)));
+
+    /// <summary>Signs out: the core erases the stored grant and the card names the service's own
+    /// page to end its session.</summary>
+    /// <remarks>
+    /// The erase is local, which is what removing a mail account is too: the grant stays alive at
+    /// the service until it expires or the person revokes it there, and the end-session page closes
+    /// the browser's session rather than the grant.
+    /// </remarks>
+    internal void SignOutOfAllodia() => _app?.Dispatch(new Intent.Allodia(new AllodiaIntent.SignOut()));
 
     /// <summary>
     /// Opens the service's own account page, where someone changes their details or deletes the
@@ -109,35 +57,16 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>
-    /// Signs out: the core forgets the account and erases its stored grant. Returns the failure
-    /// text when the Credential Manager refused the delete, and <c>null</c> on success.
-    /// </summary>
-    /// <remarks>
-    /// The erase is local, which is what removing a mail account is too: the grant stays alive at
-    /// the service until it expires or the person revokes it there, and the end-session hop below
-    /// closes the browser's session rather than the grant.
-    /// </remarks>
-    internal string? SignOutOfAllodia()
+    private void OnAllodiaSignal()
     {
-        try
+        if (AllodiaCard() is { } card && AllodiaCardRules.EndSessionToOpen(card, _allodiaEndSessionOpened) is { } end)
         {
-            // Best-effort and deliberately unreported: this device is signed out whatever happens
-            // to the browser. What opening it buys is the next sign-in asking who you are rather
-            // than completing silently against a session someone thought they had left. It does
-            // not end the grant at the service, a refresh token carrying offline_access outlives
-            // it by design.
-            var endSession = _app?.SignOutOfAllodia();
-            if (endSession is { } url)
-            {
-                _ = ExternalLauncher.Open(new Uri(url));
-            }
-            return null;
+            _allodiaEndSessionOpened = end.Id;
+            // Best-effort and unreported: this device is signed out whatever the browser does. What
+            // it buys is the next sign-in asking who you are rather than completing silently
+            // against a session someone thought they had left.
+            _ = ExternalLauncher.Open(new Uri(end.Url));
         }
-        catch (Exception ex)
-        {
-            Log.Error($"allodia: sign-out failed: {CoreError.Describe(ex)}");
-            return CoreError.Describe(ex);
-        }
+        AllodiaChanged?.Invoke();
     }
 }

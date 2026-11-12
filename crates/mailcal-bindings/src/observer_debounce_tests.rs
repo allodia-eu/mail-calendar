@@ -23,6 +23,7 @@ fn to_app(surface: Surface) -> AppSurface {
         Surface::Settings => AppSurface::Settings,
         Surface::OtherDevices => AppSurface::OtherDevices,
         Surface::AccountPage => AppSurface::AccountPage,
+        Surface::Allodia => AppSurface::Allodia,
         Surface::Reading => AppSurface::Reading,
         Surface::Sending => AppSurface::Sending,
         Surface::SyncProgress => AppSurface::SyncProgress,

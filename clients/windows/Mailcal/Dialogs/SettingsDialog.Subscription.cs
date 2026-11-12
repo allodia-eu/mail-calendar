@@ -19,6 +19,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -61,15 +62,12 @@ public sealed partial class SettingsDialog
     /// an account, and there is nothing to say about one that does not exist. Also <c>null</c> once
     /// the service has refused the sign-in, which the account card says instead.
     /// </summary>
-    private UIElement? BuildAllodiaSubscription()
+    private UIElement? BuildAllodiaSubscription(AllodiaCard card)
     {
-        if (_model.SignedInAllodiaAccount() is not { } account)
-        {
-            return null;
-        }
-        // The read's own SignedOut answer hides it too: it can arrive a moment before the
-        // notices signal that turns the account card above into the ended one.
-        if (AllodiaSessionEnded() || _subscription.Status == AllodiaSubscriptionStatus.SignedOut)
+        // The read's own SignedOut answer hides it too: it can arrive a moment before the signal
+        // that turns the account card above into the ended one.
+        if (card.State is not AllodiaCardState.SignedIn { Account: var account }
+            || _subscription.Status == AllodiaSubscriptionStatus.SignedOut)
         {
             // Nothing to ask again: a read on a refused grant answers the same, so a return to the
             // window is not a reason to make one.
@@ -88,7 +86,7 @@ public sealed partial class SettingsDialog
         }
         var panel = new StackPanel { Spacing = 6 };
         panel.Children.Add(Heading(L10n.SettingsSubscriptionHeading()));
-        panel.Children.Add(SubscriptionState());
+        panel.Children.Add(SubscriptionState(card));
         if (_subscription.Note is { } note)
         {
             panel.Children.Add(Description(note));
@@ -160,7 +158,7 @@ public sealed partial class SettingsDialog
         }
     }
 
-    private UIElement SubscriptionState() => _subscription.Status switch
+    private UIElement SubscriptionState(AllodiaCard card) => _subscription.Status switch
     {
         AllodiaSubscriptionStatus.Checking => Busy(L10n.SettingsSubscriptionChecking()),
         // Deliberately quiet. A read that did not arrive costs a sentence, never access: whether a
@@ -169,20 +167,19 @@ public sealed partial class SettingsDialog
             Description(L10n.SettingsSubscriptionUnavailable()),
         // An offer rather than an error: they are signed in and this one read is asleep, and the
         // ordinary sign-in asks for the full current scope set.
-        AllodiaSubscriptionStatus.NeedsReauth => Reauth(),
+        AllodiaSubscriptionStatus.NeedsReauth => Reauth(card),
         // Never reached: BuildAllodiaSubscription builds no card on this answer, and the account
         // card says the sign-in ended.
         AllodiaSubscriptionStatus.SignedOut => new StackPanel(),
         _ => Answered(_subscription.Subscription!),
     };
 
-    private UIElement Reauth()
+    private UIElement Reauth(AllodiaCard card)
     {
         var panel = new StackPanel { Spacing = 6 };
         panel.Children.Add(Description(L10n.SettingsSubscriptionReauth()));
-        var again = new Button { Content = L10n.SettingsAllodiaReauthAction() };
-        again.Click += (_, _) => StartAllodiaSignIn(create: false);
-        panel.Children.Add(again);
+        panel.Children.Add(ControlComponents.Button(
+            L10n.SettingsAllodiaReauthAction(), card.SignIn, "SubscriptionSignInAgain", () => _model.SignInToAllodia()));
         return panel;
     }
 

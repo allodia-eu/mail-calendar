@@ -222,6 +222,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia::tests::a_refused_sign_in_says_it_ended_and_offers_both_ways();
     crate::ui::settings::allodia::tests::neither_the_address_nor_the_failure_is_parsed_as_markup();
     crate::ui::settings::allodia::tests::every_card_row_is_reachable_from_the_keyboard();
+    crate::ui::settings::allodia::tests::the_card_draws_what_the_core_says();
+    crate::ui::settings::allodia::tests::a_failure_is_said_in_the_cards_words();
     crate::ui::settings::subscription::tests::a_paid_account_names_its_biller_and_says_when();
     crate::ui::settings::subscription::tests::
         a_stores_subscription_is_offered_its_page_and_no_write();

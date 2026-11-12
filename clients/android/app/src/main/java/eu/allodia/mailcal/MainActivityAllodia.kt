@@ -1,27 +1,44 @@
-// Signing in to an Allodia account, driven from the activity: begin → browser → complete, plus
-// signing out. The twin of the JMAP sign-in in MainActivityCore.kt, and it holds no token of its
-// own, the core exchanges the code, asks the service whose account it is, and writes the grant
-// through the same SecureStore every mail account uses.
-//
-// Both core calls BLOCK on the network, so both run off the main thread.
+// Signing in to an Allodia account, which the core runs (docs/waiting.md): a press sends an
+// AllodiaIntent, the browser sign-in driver opens the sign-in and hands back its redirect as it does
+// an account's (MainActivityBrowserSignIn.kt), and both cards are drawn from the core's
+// `allodiaCard()`. What is left here is the core's signal and the service's own pages: the one a
+// sign-out names and Manage account.
 package eu.allodia.mailcal
 
-import kotlin.concurrent.thread
+import uniffi.mailcal_bindings.AllodiaCard
+import uniffi.mailcal_bindings.AllodiaCardState
+import uniffi.mailcal_bindings.AllodiaIntent
+import uniffi.mailcal_bindings.AllodiaOnboarding
+import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.Intent
+import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.allodiaSignInAvailable
 
 // Whether this build carries the route at all. False is the ordinary answer for a build from
 // source, and the settings card then draws nothing rather than a button that dead-ends.
 internal fun allodiaSignInOffered(): Boolean = allodiaSignInAvailable()
 
-// Starts a sign-in: asks the core for the authorization URL, which reads the service's own OAuth
-// metadata, so it blocks, then opens the browser and holds the pending handle until the redirect
-// returns to onNewIntent → completeAllodiaSignIn.
-internal fun MainActivity.signInToAllodia() = beginAllodia(create = false)
+/** What the cards draw before the core has said anything: nobody signed in, nothing running. */
+internal val ALLODIA_SIGNED_OUT = ControlState(enabled = true, running = false).let { free ->
+    AllodiaCard(
+        state = AllodiaCardState.SignedOut,
+        browser = null,
+        signIn = free,
+        create = free,
+        signOut = free,
+        failure = null,
+        endSession = null,
+        onboarding = AllodiaOnboarding.Offering,
+    )
+}
 
-// Starts a registration: the same flow asking the service for its sign-up page instead. The
-// redirect, the exchange and the store are identical, so onNewIntent needs to know nothing about
-// which of the two started it.
-internal fun MainActivity.registerAllodiaAccount() = beginAllodia(create = true)
+/** The sign-in, or with [create] creating an account first, returning to this app's redirect. */
+internal fun allodiaSignIn(create: Boolean = false): AllodiaIntent =
+    AllodiaIntent.SignIn(create, AllodiaOAuthConfig.REDIRECT_URI)
+
+internal fun MainActivity.changeAllodia(intent: AllodiaIntent) {
+    app?.dispatch(Intent.Allodia(intent))
+}
 
 // Opens the page where someone changes their details or deletes the account. Nothing is pending
 // and nothing comes back: this is a page, not a flow.
@@ -31,160 +48,38 @@ internal fun MainActivity.manageAllodiaAccount() {
     openAllodiaAccountPage(this, url)
 }
 
-// How long a hop runs before the first-run card owes the person a way back (docs/onboarding.md).
-//
-// Returning to the app is the ordinary way out on Android, and onResume already takes it, but
-// only once there is a browser to have been dismissed. The window this covers is the one before
-// that: the metadata read blocks on the network, and while it hangs the card spins over an app
-// the person is already looking at, with nothing to come back from.
-internal const val ALLODIA_SIGN_IN_ESCAPE_AFTER_MS = 8_000L
-
-private fun MainActivity.beginAllodia(create: Boolean) {
-    val activity = this
-    val instance = activity.app ?: return
-    if (activity.signingInAllodia) return
-    activity.allodiaFailure = null
-    activity.signingInAllodia = true
-    activity.allodiaSignInSlow = false
-    val attempt = activity.allodiaAttempt + 1
-    activity.allodiaAttempt = attempt
-    logUiInfo("allodia: sign-in starting")
-    // The way back, armed rather than drawn: a hop that comes straight back never puts a button in
-    // front of somebody who had no reason to read it.
-    activity.mainHandler.postDelayed({
-        if (activity.allodiaAttempt == attempt && activity.signingInAllodia) {
-            activity.allodiaSignInSlow = true
-        }
-    }, ALLODIA_SIGN_IN_ESCAPE_AFTER_MS)
-    thread(name = "mailcal-allodia-begin") {
-        try {
-            val start = if (create) {
-                instance.beginAllodiaRegistration(AllodiaOAuthConfig.REDIRECT_URI)
-            } else {
-                instance.beginAllodiaSignIn(AllodiaOAuthConfig.REDIRECT_URI)
-            }
-            activity.mainHandler.post {
-                // The read that just finished may be one the person gave up on. Opening a browser
-                // for an attempt they escaped is the whole reason this is checked here.
-                if (activity.allodiaAttempt != attempt) {
-                    logUiInfo("allodia: sign-in was cancelled before the browser opened")
-                    return@post
-                }
-                activity.pendingAllodiaSignIn = start.pending
-                logUiInfo("allodia: opening the browser")
-                openAllodiaSignIn(activity, start.authorizationUrl)
-            }
-        } catch (e: Exception) {
-            logUiWarn("allodia: sign-in could not start (${e.message})")
-            activity.mainHandler.post {
-                if (activity.allodiaAttempt != attempt) return@post
-                activity.signingInAllodia = false
-                activity.allodiaSignInSlow = false
-                activity.allodiaSignInFailed(e)
-            }
-        }
-    }
+/** The card at connect, read without acting on it: a page the core named before is not new. */
+internal fun MainActivity.seeAllodia(instance: MailcalApp) {
+    allodiaCard = instance.allodiaCard()
+    allodiaEndSessionOpened = allodiaCard.endSession?.id ?: 0uL
 }
 
-// The person's way out of a hop that did not come back. Nothing is reported: a sign-in somebody
-// abandoned is not a failure, and the card returns to the offer it started from.
-//
-// The attempt is retired rather than only flagged, so a metadata read still running cannot open a
-// browser afterwards, that is what the escape has to prevent, not merely stop drawing.
-internal fun MainActivity.cancelAllodiaSignIn() {
-    if (!signingInAllodia) return
-    logUiInfo("allodia: sign-in cancelled by the person")
-    allodiaAttempt += 1
-    signingInAllodia = false
-    allodiaSignInSlow = false
-    pendingAllodiaSignIn = null
-    allodiaRemedyEnded(failed = false)
-}
-
-// Completes a sign-in from the redirect [callbackUrl]: the core exchanges the code, asks the
-// service whose account it is, and stores the grant before it reports success. Nothing here writes
-// a credential.
-internal fun MainActivity.completeAllodiaSignIn(callbackUrl: String) {
-    val activity = this
-    val instance = activity.app ?: return
-    val pending = activity.pendingAllodiaSignIn ?: run {
-        // The redirect arrived with nothing armed to receive it, the sign-in was cancelled before
-        // the browser came back. Silence here is what makes such a thing invisible, so say it.
-        logUiWarn("allodia: redirect arrived but no sign-in was pending; ignoring it")
-        return
-    }
-    activity.pendingAllodiaSignIn = null
-    activity.signingInAllodia = true
-    logUiInfo("allodia: redirect received, completing")
-    thread(name = "mailcal-allodia-complete") {
-        try {
-            val account = instance.completeAllodiaSignIn(pending, callbackUrl)
-            logUiInfo("allodia: signed in")
-            activity.mainHandler.post {
-                activity.allodiaAccount = account
-                // The read that found a refused grant left nothing to draw, and the card is
-                // about to appear again under an account that has one.
-                if (activity.allodiaSubscription.state == AllodiaSubscriptionState.SignedOut) {
-                    activity.allodiaSubscription =
-                        activity.allodiaSubscription.copy(state = AllodiaSubscriptionState.Checking)
-                }
-                activity.allodiaFailure = null
-                activity.signingInAllodia = false
-                activity.allodiaSignInSlow = false
-                activity.allodiaRemedyEnded(failed = false)
-                // The core has started the pass this sign-in is for; the card and each account's
-                // sharing control appear with the sign-in.
-                activity.refreshAccountsSnapshot()
-                // A sign-in is also the remedy the subscription card offers, for a grant that
-                // predates the permission that read needs or one recorded before the account id
-                // was. Re-read here, because the card asks once when it appears and somebody who
-                // took the remedy is still looking at it.
-                activity.refreshAllodiaSubscription()
-            }
-        } catch (e: Exception) {
-            logUiWarn("allodia: sign-in did not complete (${coreErrorText(e)})")
-            activity.mainHandler.post {
-                activity.signingInAllodia = false
-                activity.allodiaSignInSlow = false
-                activity.allodiaSignInFailed(e)
-            }
-        }
-    }
-}
-
-// Where a sign-in that did not complete is reported. Settings' card draws [allodiaFailure]; one
-// the refused sign-in's notice started is said on that notice. A dismissed browser never reaches
-// here.
-private fun MainActivity.allodiaSignInFailed(e: Exception) {
-    allodiaFailure = allodiaFailureSaid(e, this)
-    allodiaRemedyEnded(failed = true)
-}
-
-// Signs out: the core forgets the account and erases its stored grant before it touches the
-// network, then hands back where to end the browser's own session.
-//
-// Opening that page is best-effort and deliberately not reported: this device is already signed
-// out whatever happens to it. What it buys is the next sign-in asking who you are, instead of
-// completing silently against a session someone thought they had left. It does not end the grant
-// at the service, a refresh token carrying offline_access outlives it by design.
-//
-// The account is forgotten in memory whatever the store does, so the card is re-read from the core
-// rather than cleared here: a delete that failed leaves the app signed out and says why.
-internal fun MainActivity.signOutOfAllodia() {
-    val instance = app ?: return
-    var endSession: String? = null
-    allodiaFailure = try {
-        endSession = instance.signOutOfAllodia()
-        null
-    } catch (e: Exception) {
-        logUiWarn("allodia: sign-out did not complete (${e.message})")
-        allodiaFailureSaid(e, this)
-    }
-    allodiaAccount = instance.allodiaAccount()
-    // The core forgets what the other devices said, and each account's sharing control goes.
-    refreshAccountsSnapshot()
-    endSession?.let { url ->
+/**
+ * The core's Allodia signal: the cards read the card again, the service's sign-out page opens once,
+ * and the subscription read goes with the sign-in it was made under.
+ */
+internal fun MainActivity.allodiaSignalled(instance: MailcalApp) {
+    val before = allodiaCard
+    val card = instance.allodiaCard()
+    allodiaCard = card
+    card.endSession?.takeIf { it.id > allodiaEndSessionOpened }?.let { end ->
+        allodiaEndSessionOpened = end.id
+        // Best-effort and unreported: this device is signed out whatever the browser does. What it
+        // buys is the next sign-in asking who you are rather than completing silently against a
+        // session someone thought they had left.
         logUiInfo("allodia: ending the browser session")
-        openAllodiaAccountPage(this, url)
+        runCatching { openAllodiaAccountPage(this, end.url) }
     }
+    // Another account, none, or a sign-in that ended: the subscription section, which is not drawn
+    // while a sign-in is out, reads again when it next appears.
+    val ended = before.browser != null && card.browser == null
+    if (ended || signedInAddress(before) != signedInAddress(card)) {
+        allodiaSubscription = AllodiaSubscriptionUi()
+    }
+}
+
+private fun signedInAddress(card: AllodiaCard): String? = when (val state = card.state) {
+    is AllodiaCardState.SignedIn -> state.account.email
+    is AllodiaCardState.Ended -> state.account.email
+    AllodiaCardState.SignedOut -> null
 }

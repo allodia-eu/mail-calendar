@@ -52,7 +52,6 @@ pub(super) struct HostTasks {
     pub(super) microsoft: AttemptSlot,
     pub(super) jmap: AttemptSlot,
     pub(super) imap: AttemptSlot,
-    pub(super) allodia: AttemptSlot,
     /// The attempt of a browser sign-in the core runs this client opened the browser for
     /// (`super::browser_sign_in`): an account's own, or its separate server's.
     pub(super) browser: super::browser_sign_in::BrowserDriver,
@@ -142,7 +141,6 @@ impl HostTasks {
             microsoft: AttemptSlot::empty(),
             jmap: AttemptSlot::empty(),
             imap: AttemptSlot::empty(),
-            allodia: AttemptSlot::empty(),
             browser: super::browser_sign_in::BrowserDriver::new(),
             nextcloud: AttemptSlot::empty(),
             jmap_loopback: None,

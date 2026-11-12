@@ -44,6 +44,10 @@ pub enum Surface {
     /// and something outside the page reads raises [`Self::Settings`] besides, so this one moves
     /// nothing else a host draws.
     AccountPage,
+    /// The Allodia account's card (pulled via the binding's `allodia_card`): its sign-in or
+    /// sign-out moving, or the service refusing the stored sign-in. Drawn in Settings and on the
+    /// first-run card, and nowhere else.
+    Allodia,
     /// The reading view: the open message's fetched, sanitised body.
     Reading,
     /// The outgoing-send status; drives the composer's "sending…" → "sent" hint.

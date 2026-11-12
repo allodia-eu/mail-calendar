@@ -1,15 +1,12 @@
-//! The Allodia sign-in FFI methods on [`MailcalApp`]. Split out of `allodia.rs`, which holds the
-//! records and the stored shape, to keep each file under the 500-line limit; UniFFI collects these
-//! exported methods crate-wide.
+//! The Allodia account's sign-in and sign-out on [`MailcalApp`]. Split out of `allodia.rs`, which
+//! holds the records and the stored shape, to keep each file under the 500-line limit.
 //!
-//! Two calls with a person in between, the same shape every other browser sign-in here has:
-//! [`MailcalApp::begin_allodia_sign_in`] discovers the service and mints the authorization URL plus
-//! an opaque `pending` handle the host holds, and
-//! [`MailcalApp::complete_allodia_sign_in`] takes the browser's redirect back, exchanges the code,
+//! Two steps with a person in between, the shape every other browser sign-in here has:
+//! `begin_allodia` discovers the service and mints the authorization URL plus an opaque `pending`
+//! handle, and `complete_allodia_sign_in` takes the browser's redirect back, exchanges the code,
 //! asks the service whose account it is, and writes the grant to the host's secure store itself.
-//!
-//! **Both block.** They make network round trips, so a host calls them off the main thread;
-//! exactly as it already does for `begin_jmap_login` and `detect_account_settings`.
+//! Both block, so the core runs them on threads of its own as the one browser sign-in it holds
+//! (`app_allodia_sign_in`); neither the handle nor the code ever reaches a client.
 
 #[cfg(feature = "allodia-license")]
 use crate::allodia::StoredAccount;
@@ -47,64 +44,6 @@ pub(crate) fn unavailable<T>() -> Result<T, MailcalError> {
 
 #[uniffi::export]
 impl MailcalApp {
-    /// Starts an Allodia sign-in: reads the service's own OAuth metadata and builds the PKCE
-    /// authorization URL to open.
-    ///
-    /// `redirect_uri` stays the host's because only the host knows it: the desktop and mobile
-    /// clients that claim a URI scheme redirect to `<application-id>://account-oauth`, and Linux
-    /// binds a loopback port per flow.
-    ///
-    /// **Blocking** (it makes two discovery round trips); call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`MailcalError::Config`] if this build carries no Allodia sign-in, or
-    /// [`MailcalError::Connect`] if the service's metadata could not be read.
-    pub fn begin_allodia_sign_in(
-        &self,
-        redirect_uri: String,
-    ) -> Result<AllodiaSignInStart, MailcalError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            drop(redirect_uri);
-            unavailable()
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.begin_allodia(redirect_uri, allodia_license::Prompt::SignIn)
-        }
-    }
-
-    /// Starts an Allodia **registration**: the same flow, asking the service for its sign-up page
-    /// rather than its sign-in one.
-    ///
-    /// Two entry points rather than one flag, because a client draws two controls and the call
-    /// site should say which. [`Self::complete_allodia_sign_in`] finishes either.
-    ///
-    /// A service that does not advertise `prompt=create` gets an ordinary authorization request,
-    /// so this never fails for want of support: its sign-in page is where someone registers
-    /// anyway.
-    ///
-    /// **Blocking**; call it off the main thread.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::begin_allodia_sign_in`].
-    pub fn begin_allodia_registration(
-        &self,
-        redirect_uri: String,
-    ) -> Result<AllodiaSignInStart, MailcalError> {
-        #[cfg(not(feature = "allodia-license"))]
-        {
-            drop(redirect_uri);
-            unavailable()
-        }
-        #[cfg(feature = "allodia-license")]
-        {
-            self.begin_allodia(redirect_uri, allodia_license::Prompt::Create)
-        }
-    }
-
     /// The page where someone manages the account, including deleting it.
     ///
     /// `None` when this build has no Allodia sign-in, which is the same answer
@@ -126,12 +65,81 @@ impl MailcalApp {
         }
     }
 
+    /// Who is signed in to an Allodia account, or `None`.
+    ///
+    /// Cheap and local; it reads what the last launch restored or the last sign-in wrote, and
+    /// never asks the service. Nothing a client draws from an Allodia account may wait on the
+    /// network, that rule is `entitlement.md`'s and starts here.
+    #[must_use]
+    pub fn allodia_account(&self) -> Option<AllodiaAccount> {
+        self.allodia
+            .lock()
+            .expect("allodia account lock")
+            .as_ref()
+            .map(|stored| stored.account())
+    }
+}
+
+/// The sign-in and sign-out the core runs for the Allodia account's card
+/// (`app_allodia_sign_in`). Each blocks, on a thread of the core's own.
+impl MailcalApp {
+    /// Starts an Allodia sign-in: reads the service's own OAuth metadata and builds the PKCE
+    /// authorization URL, returning to `redirect_uri`; with `create`, asking for the service's
+    /// sign-up page, which a service that does not advertise `prompt=create` answers with its
+    /// sign-in page, where someone registers anyway.
+    ///
+    /// # Errors
+    ///
+    /// [`MailcalError::Config`] if this build carries no Allodia sign-in, or
+    /// [`MailcalError::Connect`] if the service's metadata could not be read.
+    pub(crate) fn begin_allodia(
+        &self,
+        redirect_uri: String,
+        create: bool,
+    ) -> Result<AllodiaSignInStart, MailcalError> {
+        #[cfg(not(feature = "allodia-license"))]
+        {
+            drop((redirect_uri, create));
+            unavailable()
+        }
+        #[cfg(feature = "allodia-license")]
+        {
+            let prompt = if create {
+                allodia_license::Prompt::Create
+            } else {
+                allodia_license::Prompt::SignIn
+            };
+            log::info!("allodia: sign-in requested; reading the service's OAuth metadata");
+            let signin = self
+                .runtime
+                .block_on(|| allodia_license::SignIn::discover(&redirect_uri))
+                .map_err(|err| {
+                    log::warn!("allodia: sign-in could not start; {err}");
+                    MailcalError::Connect(err.to_string())
+                })?;
+            let request = signin.begin(prompt);
+            let pending = PendingAllodiaSignIn {
+                redirect_uri,
+                state: request.state,
+                verifier: request.pkce.verifier().to_owned(),
+                endpoints: signin.endpoints(),
+            };
+            let pending = serde_json::to_string(&pending)
+                .map_err(|err| MailcalError::Config(err.to_string()))?;
+            log::info!("allodia: opening the authorization page; awaiting the redirect");
+            Ok(AllodiaSignInStart {
+                authorization_url: request.authorization_url,
+                pending,
+            })
+        }
+    }
+
     /// Completes an Allodia sign-in from the host's held `pending` handle and the browser's
     /// redirect `callback_url`: validates the redirect, exchanges the code, asks the service whose
     /// account it is, and **writes the grant to the host's secure store** through
     /// [`crate::credential_store`]. Returns who signed in; the host stores nothing itself.
     ///
-    /// **Blocking**; call it off the main thread.
+    /// **Blocking**: run on a thread of the core's own.
     ///
     /// # Errors
     ///
@@ -139,7 +147,7 @@ impl MailcalApp {
     /// malformed, and [`MailcalError::Connect`] if the user cancelled, the exchange failed, the
     /// service issued no refresh token, or it would not say whose account this is. In every case
     /// nothing is stored and any previous sign-in is left as it was.
-    pub fn complete_allodia_sign_in(
+    pub(crate) fn complete_allodia_sign_in(
         &self,
         pending: String,
         callback_url: String,
@@ -274,27 +282,14 @@ impl MailcalApp {
         }
     }
 
-    /// Who is signed in to an Allodia account, or `None`.
-    ///
-    /// Cheap and local; it reads what the last launch restored or the last sign-in wrote, and
-    /// never asks the service. Nothing a client draws from an Allodia account may wait on the
-    /// network, that rule is `entitlement.md`'s and starts here.
-    #[must_use]
-    pub fn allodia_account(&self) -> Option<AllodiaAccount> {
-        self.allodia
-            .lock()
-            .expect("allodia account lock")
-            .as_ref()
-            .map(|stored| stored.account())
-    }
-
     /// Signs out: forgets the account, erases its stored grant, and returns where to send the
     /// browser to end **its** session, when the service advertised one.
     ///
     /// Erasing comes first and touches no network, so a sign-out cannot fail halfway and leave
     /// someone signed in. The returned URL is the client's to open afterwards, and it is
     /// optional in both senses: `None` when nothing was signed in or the service advertised no
-    /// endpoint, and a failure to open it changes nothing here.
+    /// endpoint, and a failure to open it changes nothing here. **Blocking** (the platform store
+    /// is written): run on a thread of the core's own.
     ///
     /// ⚠️ **It does not end this install's grant at the service, and neither does anything else
     /// here.** That endpoint closes the browser session and the tokens bound to it, but a refresh
@@ -308,7 +303,7 @@ impl MailcalApp {
     /// Returns [`MailcalError::Connect`] if the platform store refused the delete. The account is
     /// forgotten in memory either way: an entry that outlives the sign-out comes back at the next
     /// launch with no explanation, so the host is told rather than the removal being reverted.
-    pub fn sign_out_of_allodia(&self) -> Result<Option<String>, MailcalError> {
+    pub(crate) fn sign_out_of_allodia(&self) -> Result<Option<String>, MailcalError> {
         let stored = self.allodia.lock().expect("allodia account lock").take();
         let Some(stored) = stored else {
             return Ok(None);
@@ -351,42 +346,6 @@ impl MailcalApp {
                 MailcalError::Connect(err.to_string())
             })?;
         Ok(end_session)
-    }
-}
-
-/// The part of a sign-in that is not exported: shared by the two entry points above.
-impl MailcalApp {
-    /// The body both entry points share: discover, build the URL, and package the handle.
-    #[cfg(feature = "allodia-license")]
-    fn begin_allodia(
-        &self,
-        redirect_uri: String,
-        prompt: allodia_license::Prompt,
-    ) -> Result<AllodiaSignInStart, MailcalError> {
-        {
-            log::info!("allodia: sign-in requested; reading the service's OAuth metadata");
-            let signin = self
-                .runtime
-                .block_on(|| allodia_license::SignIn::discover(&redirect_uri))
-                .map_err(|err| {
-                    log::warn!("allodia: sign-in could not start; {err}");
-                    MailcalError::Connect(err.to_string())
-                })?;
-            let request = signin.begin(prompt);
-            let pending = PendingAllodiaSignIn {
-                redirect_uri,
-                state: request.state,
-                verifier: request.pkce.verifier().to_owned(),
-                endpoints: signin.endpoints(),
-            };
-            let pending = serde_json::to_string(&pending)
-                .map_err(|err| MailcalError::Config(err.to_string()))?;
-            log::info!("allodia: opening the authorization page; awaiting the redirect");
-            Ok(AllodiaSignInStart {
-                authorization_url: request.authorization_url,
-                pending,
-            })
-        }
     }
 }
 
@@ -442,7 +401,7 @@ mod tests {
     fn a_build_without_a_registration_refuses_the_flow_offline() {
         let app = app();
         assert!(
-            app.begin_allodia_sign_in("app://account-oauth".to_owned())
+            app.begin_allodia("app://account-oauth".to_owned(), false)
                 .is_err()
         );
         assert!(

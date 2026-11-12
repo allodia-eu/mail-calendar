@@ -12,31 +12,26 @@
 import MailcalBindings
 import SwiftUI
 
-/// Signed out → sign in or create; signing in → a spinner; signed in → who, and what to do next;
-/// a sign-in the service refused → whose sign-in ended, and signing in again.
+/// Drawn from the core's card (`allodiaCard`): signed out → sign in or create; a sign-in out → a
+/// spinner and its Cancel; signed in → who, and what to do next; a sign-in the service refused →
+/// whose sign-in ended, and signing in again.
 struct AllodiaAccountSettings: View {
     var model: MailboxModel
 
-    /// Who is signed in. Seeded from the core on appear and re-read after every sign-in or
-    /// sign-out, which is cheap: the answer is local and never asks the service.
-    @State private var account: AllodiaAccount?
-    @State private var signingIn = false
-    /// The last failure, in the service's own words. Cleared when a new attempt starts.
-    @State private var failure: String?
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            accountBox
-            // A subscription belongs to an account, so there is nothing to say about one before
-            // somebody has signed in. Keyed on the account so signing in or out rebuilds it and
-            // its read runs again for whoever is signed in now.
-            if let account, !ended {
-                AllodiaSubscriptionSettings(model: model).id(account.email)
+        if let card = model.allodia.card {
+            VStack(alignment: .leading, spacing: 12) {
+                accountBox(card)
+                // A subscription belongs to an account, so there is nothing to say about one
+                // before somebody has signed in. Keyed so whoever signs in has it read again.
+                if case .signedIn = card.state {
+                    AllodiaSubscriptionSettings(model: model).id(model.allodia.subscriptionRead)
+                }
             }
         }
     }
 
-    private var accountBox: some View {
+    private func accountBox(_ card: AllodiaCard) -> some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 Text(L10n.settings_allodia_heading()).font(.headline)
@@ -44,9 +39,9 @@ struct AllodiaAccountSettings: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                content
-                if let failure {
-                    Text(L10n.settings_allodia_failed(error: failure))
+                content(card)
+                if let failure = card.failure {
+                    Text(AllodiaCardRules.failure(failure))
                         .font(.caption)
                         .foregroundStyle(.red)
                         .fixedSize(horizontal: false, vertical: true)
@@ -55,54 +50,65 @@ struct AllodiaAccountSettings: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(6)
         }
-        .task { account = model.currentAllodiaAccount() }
     }
 
     @ViewBuilder
-    private var content: some View {
-        if signingIn {
+    private func content(_ card: AllodiaCard) -> some View {
+        switch AllodiaCardRules.face(card) {
+        case let .signingIn(browser):
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
                 Text(L10n.settings_allodia_signing_in()).foregroundStyle(.secondary)
-            }
-        } else if let account, ended {
-            ended(account)
-        } else if let account {
-            // The name is what the person recognises, but the address is what identifies the
-            // account, so it is the address that is always shown, and the name only when the
-            // service holds one.
-            VStack(alignment: .leading, spacing: 6) {
-                if let name = account.name, !name.isEmpty {
-                    Text(name).font(.callout)
+                ControlButton(title: L10n.action_cancel(), control: browser.cancel) {
+                    model.cancelAllodiaSignIn(browser)
                 }
-                Text(L10n.settings_allodia_signed_in(email: account.email))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                // Managing and deleting are the same page, named twice on purpose: an account
-                // someone can create has to offer deletion somewhere findable, and "Manage
-                // account" is not the word anybody looks for when they want out.
-                Button(L10n.settings_allodia_manage()) { manage() }
-                Text(L10n.settings_allodia_manage_hint())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button(L10n.settings_allodia_delete()) { manage() }
-                Button(L10n.settings_allodia_sign_out()) { signOut() }
             }
-        } else {
+        case .signedOut:
             // Both routes. Someone who has no account and someone returning to one need different
             // pages, and a lone "Sign in" sends the first of them through a form asking for a
             // password they never set.
             HStack(spacing: 12) {
-                Button(L10n.settings_allodia_sign_in()) { signIn() }
-                Button(L10n.settings_allodia_create()) { create() }
+                ControlButton(title: L10n.settings_allodia_sign_in(), control: card.signIn) {
+                    model.signInToAllodia()
+                }
+                ControlButton(title: L10n.settings_allodia_create(), control: card.create) {
+                    model.signInToAllodia(create: true)
+                }
+            }
+        case let .signedIn(account): signedIn(account, card)
+        case let .ended(account): ended(account, card)
+        }
+    }
+
+    /// The name is what the person recognises, but the address is what identifies the account, so
+    /// it is the address that is always shown, and the name only when the service holds one.
+    private func signedIn(_ account: AllodiaAccount, _ card: AllodiaCard) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let name = account.name, !name.isEmpty {
+                Text(name).font(.callout)
+            }
+            Text(L10n.settings_allodia_signed_in(email: account.email))
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            // Managing and deleting are the same page, named twice on purpose: an account someone
+            // can create has to offer deletion somewhere findable, and "Manage account" is not the
+            // word anybody looks for when they want out. The page opens in the same in-app browser
+            // tab the sign-in uses, which is what makes it open already signed in.
+            Button(L10n.settings_allodia_manage()) { model.openAllodiaAccountPage() }
+            Text(L10n.settings_allodia_manage_hint())
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(L10n.settings_allodia_delete()) { model.openAllodiaAccountPage() }
+            ControlButton(title: L10n.settings_allodia_sign_out(), control: card.signOut) {
+                model.signOutOfAllodia()
             }
         }
     }
 
     /// The service refused the stored sign-in. Its address stays on screen so the person knows
     /// which account to sign in to again; nothing else here can work until they do.
-    private func ended(_ account: AllodiaAccount) -> some View {
+    private func ended(_ account: AllodiaAccount, _ card: AllodiaCard) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(L10n.settings_allodia_session_ended(email: account.email))
                 .font(.callout)
@@ -112,50 +118,14 @@ struct AllodiaAccountSettings: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
-                Button(L10n.settings_allodia_reauth_action()) { signIn() }
-                    .buttonStyle(.borderedProminent)
-                Button(L10n.settings_allodia_sign_out()) { signOut() }
+                ControlButton(title: L10n.settings_allodia_reauth_action(), control: card.signIn) {
+                    model.signInToAllodia()
+                }
+                .buttonStyle(.borderedProminent)
+                ControlButton(title: L10n.settings_allodia_sign_out(), control: card.signOut) {
+                    model.signOutOfAllodia()
+                }
             }
         }
-    }
-
-    /// Whether the service refused the sign-in: drawn while the Allodia notice is in force, so the
-    /// card and the notice cannot disagree.
-    private var ended: Bool { NoticeRules.allodiaSignInEnded(model.notices ?? []) }
-
-    private func signIn() { begin(create: false) }
-
-    /// Creating an account: the same flow asking the service for its sign-up page instead.
-    private func create() { begin(create: true) }
-
-    /// Opens the page where someone changes their details or deletes the account, in the same
-    /// in-app browser tab the sign-in uses, which is what makes it open already signed in.
-    private func manage() {
-        model.openAllodiaAccountPage()
-    }
-
-    private func begin(create: Bool) {
-        Task {
-            failure = nil
-            signingIn = true
-            let outcome = await model.signInToAllodia(create: create)
-            signingIn = false
-            switch outcome {
-            // The core tells the person's other devices of this device's accounts, and asks
-            // what they hold, as soon as the sign-in is stored.
-            case let .signedIn(signedIn):
-                account = signedIn
-            // A dismissed browser is not a failure, say nothing and leave the button as it was.
-            case .cancelled: break
-            case let .failed(error): failure = error
-            }
-        }
-    }
-
-    /// The account is forgotten in memory whatever the store does, so re-read rather than assuming:
-    /// a delete that failed leaves the app signed out and says why.
-    private func signOut() {
-        failure = model.signOutOfAllodia()
-        account = model.currentAllodiaAccount()
     }
 }

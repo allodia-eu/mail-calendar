@@ -291,8 +291,10 @@ impl MailcalApp {
         drop(held);
         // The connectivity snapshot carries the refusal as a banner, so the host is told to read
         // it again whenever it is raised or taken down.
+        // The Allodia account's card draws the refusal too.
         if banner_moved {
             self.app.signal_connectivity();
+            self.app.allodia_changed();
         }
     }
 

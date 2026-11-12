@@ -152,8 +152,9 @@ fn signed_in_choices(
     }
 }
 
-/// [`setup_from_offer`](crate::setup_from_offer), as the found card takes it: the route an
-/// account from one of the person's other devices opens, with the choices that card offers.
+/// The route an account from one of the person's other devices opens, as the found card takes
+/// it, with the choices that card offers: what every screen that offers one sets it up with
+/// (`docs/onboarding.md`).
 #[uniffi::export]
 #[must_use]
 pub fn offered_setup(offer: AllodiaAccountOffer) -> DetectedSetup {

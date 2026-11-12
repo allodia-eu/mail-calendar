@@ -53,7 +53,7 @@ struct AllodiaSyncSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(L10n.settings_allodia_reauth_action()) { signInAgain() }
+                signInAgain(L10n.settings_allodia_reauth_action())
             }
         case .signedOut:
             VStack(alignment: .leading, spacing: 6) {
@@ -62,7 +62,7 @@ struct AllodiaSyncSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Button(L10n.settings_allodia_sign_in()) { signInAgain() }
+                signInAgain(L10n.settings_allodia_sign_in())
             }
         case .unavailable:
             Text(L10n.settings_allodia_sync_unavailable())
@@ -75,8 +75,10 @@ struct AllodiaSyncSettings: View {
     /// The ordinary sign-in again, which is the whole remedy for both states: it asks for the full
     /// current scope set every time, so it widens a grant that predates one and replaces a grant
     /// the service refused. The core runs the pass once it is stored.
-    private func signInAgain() {
-        Task { _ = await model.signInToAllodia() }
+    private func signInAgain(_ title: String) -> some View {
+        ControlButton(title: title, control: model.allodiaSignInControl) {
+            model.signInToAllodia()
+        }
     }
 
     @ViewBuilder

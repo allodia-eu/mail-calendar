@@ -64,8 +64,8 @@ public sealed partial class SettingsDialog : ContentDialog
         _hadAccounts = model.AccountsSnapshot().Accounts.Length > 0;
         model.AccountsChanged += OnAccountsChanged;
         Closed += (_, _) => model.AccountsChanged -= OnAccountsChanged;
-        model.AccountsChanged += OnAllodiaSignInMoved;
-        Closed += (_, _) => model.AccountsChanged -= OnAllodiaSignInMoved;
+        model.AllodiaChanged += OnAllodiaChanged;
+        Closed += (_, _) => model.AllodiaChanged -= OnAllodiaChanged;
         model.OtherDevicesChanged += OnOtherDevices;
         Closed += (_, _) => model.OtherDevicesChanged -= OnOtherDevices;
         model.RemovalFailed += OnRemovalFailed;

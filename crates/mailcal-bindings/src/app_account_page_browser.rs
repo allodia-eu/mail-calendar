@@ -27,6 +27,8 @@ enum Way {
     SeparateProvider,
     /// A mailbox's separate server, with Nextcloud.
     SeparateNextcloud,
+    /// The Allodia account, at its sign-up page when `create`.
+    Allodia { create: bool },
 }
 
 impl Way {
@@ -81,7 +83,10 @@ impl MailcalApp {
                 end,
             } => match end {
                 SignInBrowserEnd::Redirected { callback_url } => {
-                    if browser.returned(attempt, callback_url) {
+                    let returned = browser.returned(attempt, callback_url);
+                    if returned && browser.is_allodia(attempt) {
+                        std::thread::spawn(move || app.complete_allodia(attempt));
+                    } else if returned {
                         self.queue_change(Change::SignIn { account, attempt });
                     }
                 }
@@ -174,6 +179,9 @@ impl MailcalApp {
                 if let Some(grant) = withdraw {
                     self.abandon_nextcloud_sign_in(grant);
                 }
+                if let Way::Allodia { .. } = way {
+                    Self::allodia_began(&self, attempt);
+                }
                 std::thread::spawn(move || {
                     let began = self.begin_way(&account, way, &target, adding, redirect_uri);
                     self.begun(attempt, began);
@@ -237,6 +245,7 @@ impl MailcalApp {
             Way::SeparateProvider | Way::SeparateNextcloud => {
                 self.begin_separate(account, way, target, redirect_uri)
             }
+            Way::Allodia { create } => self.begin_allodia_way(redirect_uri, create),
         }
     }
 
@@ -377,7 +386,7 @@ impl MailcalApp {
                 let spent = matches!(answer, Ok(()) | Err(MailcalError::DifferentAccount));
                 (answer, (!spent).then_some(grant))
             }
-            Completion::Separate { .. } => return None,
+            Completion::Separate { .. } | Completion::Allodia { .. } => return None,
         };
         browser.completed(attempt, kept);
         self.app.signal_notices();
@@ -414,8 +423,10 @@ impl MailcalApp {
     /// Says on its account's page why a sign-in ended before its completion, and on the notices
     /// whose remedy it was.
     fn sign_in_ended(&self, ended: &Ended, refusal: AccountChangeRefusal) {
-        if let Target::Separate { .. } = ended.target {
-            return self.separate_ended(&ended.account, refusal);
+        match ended.target {
+            Target::Separate { .. } => return self.separate_ended(&ended.account, refusal),
+            Target::Allodia { .. } => return self.allodia_ended(refusal),
+            Target::Account => {}
         }
         self.account_work.say(
             &ended.account,
@@ -430,12 +441,18 @@ impl MailcalApp {
     /// Marks the remedy of every notice that signs `account` in again as failed, whichever
     /// surface started the sign-in: it did not answer them.
     fn sign_in_remedy_failed(&self, account: &str) {
+        self.remedy_failed(NoticeAction::SignInAgain, Some(account));
+    }
+
+    /// Marks the remedy of every notice whose `action` is the sign-in that did not complete, for
+    /// `account` or the Allodia account's (`None`), as failed.
+    fn remedy_failed(&self, action: NoticeAction, account: Option<&str>) {
         let shown = self.notices();
         let mut book = self.notice_book.lock().expect("notice-book mutex poisoned");
         let mut marked = false;
         for notice in shown.notices.iter().filter(|notice| {
-            notice.account.as_deref() == Some(account)
-                && notice.action == Some(NoticeAction::SignInAgain)
+            notice.action == Some(action)
+                && (account.is_none() || notice.account.as_deref() == account)
         }) {
             marked |= book.note_remedy_failed(&notice.id);
         }
@@ -450,6 +467,13 @@ impl MailcalApp {
     fn signal_sign_in(&self) {
         self.app.account_page_changed();
         self.app.signal_notices();
+        if self
+            .account_work
+            .allodia
+            .moved(self.account_work.browser.allodia_key())
+        {
+            self.app.allodia_changed();
+        }
     }
 }
 
@@ -462,6 +486,8 @@ fn redirect_of(authorization_url: &str) -> Option<String> {
         .map(|(_, value)| value.into_owned())
 }
 
+#[path = "app_allodia_sign_in.rs"]
+mod allodia;
 #[path = "app_account_page_browser_draw.rs"]
 mod draw;
 #[path = "app_account_page_browser_separate.rs"]

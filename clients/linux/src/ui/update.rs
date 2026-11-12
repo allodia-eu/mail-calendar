@@ -67,7 +67,7 @@ impl AppModel {
                     self.dispatch(Intent::ReportDeviceTimeZone { id: zone });
                 }
             }
-            AppInput::Notice(input) => self.notice_input(input, sender.input_sender().clone()),
+            AppInput::Notice(input) => self.notice_input(input, sender.input_sender()),
             AppInput::ShowMail => self.primary = PrimaryView::Mail,
             AppInput::ShowCalendar => self.show_calendar(),
             AppInput::ShowContacts => self.show_contacts(sender.input_sender().clone()),
@@ -387,21 +387,10 @@ impl AppModel {
             | AppInput::ImapCallbackReceived(_)
             | AppInput::ImapFinished(..)
             | AppInput::AlreadySetUp(_)) => self.update_sign_in(message, sender),
-            AppInput::StartAllodiaSignIn => {
-                self.start_allodia_sign_in(sender.input_sender().clone());
-            }
-            AppInput::StartAllodiaRegistration => {
-                self.start_allodia(sender.input_sender().clone(), true);
-            }
+            AppInput::StartAllodiaSignIn => self.start_allodia(false),
+            AppInput::StartAllodiaRegistration => self.start_allodia(true),
             AppInput::ManageAllodiaAccount => self.manage_allodia_account(),
             AppInput::CancelAllodiaSignIn => self.cancel_allodia_sign_in(),
-            AppInput::AllodiaSignInSlow(attempt) => self.allodia_sign_in_slow(attempt),
-            AppInput::AllodiaPrepared(attempt, prepared) => {
-                self.allodia_prepared(attempt, prepared, sender.input_sender().clone());
-            }
-            AppInput::AllodiaSignInFinished(attempt, outcome) => {
-                self.allodia_sign_in_finished(attempt, outcome);
-            }
             AppInput::SignOutOfAllodia => self.sign_out_of_allodia(),
             AppInput::AllodiaSubscription(input) => {
                 self.allodia_subscription_input(input, sender.input_sender().clone());

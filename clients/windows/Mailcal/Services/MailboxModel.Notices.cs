@@ -3,7 +3,6 @@
 // run through a flow this client already has, or by the core for a Retry. Which notice is drawn
 // where is NoticeRules.
 
-using System.Threading.Tasks;
 using Allodia.Mailcal.ViewModels;
 using uniffi.mailcal_bindings;
 
@@ -70,8 +69,7 @@ public sealed partial class MailboxModel
 
     /// <summary>Runs <paramref name="action"/>, one of <paramref name="notice"/>'s: a Retry through
     /// the core, which judges it, a question's answer as the intent this client already had for it
-    /// (rule 8), and every other through the flow this client already has (rule 7), reporting one
-    /// that did not complete (rule 10).</summary>
+    /// (rule 8), and every other through the flow this client already has (rule 7).</summary>
     internal void RunNoticeAction(Notice notice, NoticeAction action)
     {
         if (NoticeRules.CoreRemedy(notice, action) is { } core)
@@ -94,7 +92,8 @@ public sealed partial class MailboxModel
                 SignIn(account, []);
                 break;
             case NoticeAction.SignInToAllodia:
-                _ = ReportUnlessDoneAsync(notice, SignInToAllodiaFromNoticeAsync());
+                // Likewise.
+                SignInToAllodia();
                 break;
             case NoticeAction.OpenAccountSettings:
                 AccountSettingsRequested?.Invoke(notice.Account);
@@ -104,14 +103,6 @@ public sealed partial class MailboxModel
                 break;
             default:
                 break;
-        }
-    }
-
-    private async Task ReportUnlessDoneAsync(Notice notice, Task<bool> remedy)
-    {
-        if (await remedy)
-        {
-            _ui.TryEnqueue(() => _app?.Dispatch(new Intent.Notices(new NoticeIntent.RemedyFailed(notice.Id))));
         }
     }
 }

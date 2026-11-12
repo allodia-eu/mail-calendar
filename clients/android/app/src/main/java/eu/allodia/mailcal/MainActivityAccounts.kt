@@ -286,10 +286,7 @@ internal fun MainActivity.completeJmapSignIn(callbackUrl: String) {
 
 // Called from onResume: resets any sign-in whose browser can close with no callback (Custom Tabs
 // give none) and so leaves no way for its spinner to hear the flow died. JMAP is the exception,
-// its tab runs in its OWN task (openJmapSignIn), so resuming does not mean the browser is gone,
-// and Allodia's spinner is reset even though its flow lives in MainActivityAllodia.kt: it shares
-// the same Custom-Tab-in-this-task shape as Microsoft/Google, so it belongs with this cleanup
-// rather than splitting one lifecycle concern across two files.
+// its tab runs in its OWN task (openJmapSignIn), so resuming does not mean the browser is gone.
 internal fun MainActivity.cancelAbandonedSignIns() {
     // Returning from the Microsoft browser with the sign-in still pending means the user
     // dismissed it without completing (a real redirect nulls the pending handle in onNewIntent
@@ -305,18 +302,8 @@ internal fun MainActivity.cancelAbandonedSignIns() {
         signingInGoogle = false
         pendingGoogleLogin = null
     }
-    // And for a dismissed Allodia account sign-in. Its Custom Tab runs in THIS task (the
-    // Microsoft/Google shape, not JMAP's own-task one), so resuming means the tab is gone:
-    // and without this the Settings card would sit on "Signing in…" with no way back.
-    if (signingInAllodia && pendingAllodiaSignIn != null) {
-        logUiInfo("allodia: sign-in cancelled (browser dismissed)")
-        signingInAllodia = false
-        allodiaSignInSlow = false
-        pendingAllodiaSignIn = null
-        allodiaRemedyEnded(failed = false)
-    }
-    // An existing account's sign-in and a separate server's are the core's, and a return to the
-    // app ends neither: each form offers Cancel, and the core caps the wait
+    // An existing account's sign-in, a separate server's and the Allodia account's are the core's,
+    // and a return to the app ends none: each card offers Cancel, and the core caps the wait
     // (MainActivityBrowserSignIn.kt).
     resumeNextcloudSignIns()
     // A JMAP sign-in is handled differently on purpose. Its browser runs in its own task
