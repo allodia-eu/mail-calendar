@@ -38,11 +38,16 @@ struct Fixture {
     clicks: Rc<Cell<u32>>,
     rows: Rc<Cell<u32>>,
     entry: gtk::Entry,
+    applied: Rc<Cell<u32>>,
+    banner: adw::Banner,
+    opened: Rc<Cell<u32>>,
 }
 
 fn fixture() -> Fixture {
     let clicks = Rc::new(Cell::new(0));
     let rows = Rc::new(Cell::new(0));
+    let applied = Rc::new(Cell::new(0));
+    let opened = Rc::new(Cell::new(0));
     let content = gtk::Box::new(gtk::Orientation::Vertical, 6);
     content.append(&gtk::Label::new(Some("Inbox")));
     let archive = gtk::Button::with_label("Archive");
@@ -61,14 +66,41 @@ fn fixture() -> Fixture {
         .activatable(true)
         .build();
     list.append(&work);
+    // A row whose click is its button's, as a message row's is.
+    let open = gtk::Button::from_icon_name(crate::ui::icons::FORWARD);
+    open.connect_clicked({
+        let opened = opened.clone();
+        move |_| opened.set(opened.get() + 1)
+    });
+    let message = adw::ActionRow::builder().title("Lunch on Friday").build();
+    message.add_suffix(&open);
+    message.set_activatable_widget(Some(&open));
+    list.append(&message);
     list.append(&adw::ExpanderRow::builder().title("Thread").build());
     list.append(&adw::SwitchRow::builder().title("Dark messages").build());
+    let server = adw::EntryRow::builder()
+        .title("Server")
+        .show_apply_button(true)
+        .build();
+    server.connect_apply({
+        let applied = applied.clone();
+        move |_| applied.set(applied.get() + 1)
+    });
+    list.append(&server);
     list.connect_row_activated({
         let rows = rows.clone();
         move |_, _| rows.set(rows.get() + 1)
     });
     content.append(&list);
     content.append(&gtk::Label::new(Some("Copied")));
+    // A button whose words are a child label, as most of the app's are.
+    content.append(
+        &gtk::Button::builder()
+            .child(&gtk::Label::new(Some("Keep current")))
+            .build(),
+    );
+    let banner = adw::Banner::new("Images are blocked");
+    content.append(&banner);
     let window = gtk::Window::builder()
         .title("Agent test")
         .default_width(400)
@@ -86,6 +118,9 @@ fn fixture() -> Fixture {
         clicks,
         rows,
         entry,
+        applied,
+        banner,
+        opened,
     }
 }
 
@@ -99,6 +134,8 @@ pub(crate) fn run() {
     a_lookup_that_finds_nothing_names_what_is_there(&fixture);
     text_typed_in_is_found_again(&fixture);
     rows_toggles_and_expanders_answer_activation(&fixture);
+    a_field_is_submitted_as_return_submits_it(&fixture);
+    a_button_says_its_child_label_and_a_hidden_banner_says_nothing(&fixture);
     the_dump_folds_containers_that_carry_nothing();
     a_handle_to_a_destroyed_widget_says_it_is_gone();
     a_window_draws_its_own_picture();
@@ -202,6 +239,16 @@ fn rows_toggles_and_expanders_answer_activation(fixture: &Fixture) {
     assert_eq!(fixture.rows.get(), 1);
     assert_eq!(ok(&json!({ "verb": "read", "h": work }))["selected"], true);
 
+    // GTK clicks a row's button a quarter of a second after the row is chosen; the reply waits.
+    let message =
+        only(&json!({ "verb": "query", "type": "AdwActionRow", "text": "Lunch on Friday" }));
+    ok(&json!({ "verb": "activate", "h": message }));
+    assert_eq!(
+        fixture.opened.get(),
+        1,
+        "the reply came before the row's button clicked"
+    );
+
     let thread = only(&json!({ "verb": "query", "type": "AdwExpanderRow" }));
     assert_eq!(
         ok(&json!({ "verb": "activate", "h": thread }))["expanded"],
@@ -215,6 +262,39 @@ fn rows_toggles_and_expanders_answer_activation(fixture: &Fixture) {
         true
     );
     assert_eq!(ok(&json!({ "verb": "read", "h": dark }))["active"], true);
+}
+
+/// An entry row showing an apply button commits on Return through `apply`, and only through it,
+/// so a submit that emitted the row's other signal would set the text and commit nothing.
+fn a_field_is_submitted_as_return_submits_it(fixture: &Fixture) {
+    let server = only(&json!({ "verb": "query", "type": "AdwEntryRow", "text": "Server" }));
+    ok(&json!({ "verb": "set-text", "h": server, "text": "https://meet.example.org" }));
+    assert_eq!(fixture.applied.get(), 0, "typing alone commits nothing");
+    ok(&json!({
+        "verb": "set-text", "h": server, "text": "https://meet.example.org/", "activate": true
+    }));
+    assert_eq!(fixture.applied.get(), 1);
+}
+
+fn a_button_says_its_child_label_and_a_hidden_banner_says_nothing(fixture: &Fixture) {
+    let reply = ok(&json!({ "verb": "query", "text": "Keep current" }));
+    let elements = reply["elements"].as_array().expect("a list of elements");
+    assert_eq!(
+        elements.len(),
+        1,
+        "the label inside is the button's echo: {reply}"
+    );
+    assert_eq!(elements[0]["type"], "GtkButton");
+    assert_eq!(
+        ok(&json!({ "verb": "activate", "h": elements[0]["h"] }))["how"],
+        "clicked"
+    );
+
+    let hidden = json!({ "verb": "query", "text": "Images are blocked" });
+    assert_eq!(ok(&hidden)["elements"], json!([]));
+    fixture.banner.set_revealed(true);
+    only(&hidden);
+    fixture.banner.set_revealed(false);
 }
 
 fn the_dump_folds_containers_that_carry_nothing() {

@@ -5,6 +5,10 @@
 // getUriForFile throws IllegalArgumentException for a file outside a declared root, which is
 // exactly the misconfiguration that would otherwise only surface as a crash on a user's phone
 // the moment they tap Share.
+//
+// Not on a Windows host. FileProvider matches a file to a root with `startsWith(root + '/')`,
+// which no path Robolectric builds there can satisfy, so every file reads as outside every root.
+// Android's own separator is '/', so the answer this test gives is Linux's and macOS's to give.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -15,6 +19,7 @@ import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -37,6 +42,7 @@ class LogShareIntentTest {
     // (deleted) roots and fail for a reason that has nothing to do with the intent under test.
     @Test
     fun the_share_is_a_plain_text_send_of_a_readable_fileprovider_stream() {
+        assumeFalse("FileProvider cannot match a Windows path to a root", File.separatorChar == '\\')
         val intent = buildLogShareIntent(ctx, logFile())
 
         assertEquals(Intent.ACTION_SEND, intent.action)

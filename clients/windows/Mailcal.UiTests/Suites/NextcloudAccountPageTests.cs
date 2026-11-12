@@ -9,10 +9,9 @@
 // test or a stand-in that refuses DAV can reach.
 //
 // The server is the engine's Nextcloud fixture (docker/nextcloud in email-calendar-sync-engine,
-// `docker compose up -d --wait`, 127.0.0.1:18082). Each sign-in opens the default browser on the
-// fixture's login page, and Driver/NextcloudBrowser.cs does in its place what the person does
-// there; close the tabs it leaves. The cases run in the order written, and the last removes the
-// account.
+// `docker compose up -d --wait`, 127.0.0.1:18082). Each sign-in hands the fixture's login page to
+// the OS, which the suites' launch holds back, and Driver/NextcloudBrowser.cs does in its place what
+// the person does there. The cases run in the order written, and the last removes the account.
 
 using System.Runtime.CompilerServices;
 using Allodia.Mailcal.UiTests.Driver;

@@ -481,12 +481,16 @@ first-run analytics preview, consent and withdrawal; the time-zone prompt; foreg
 Settings navigation; Diagnostics view/export; periodic calendar refresh; and notifications off then
 on, proving the portal sees only the enabled message. It goes on through reading, reply/send, search,
 calendar visibility/colour/default selection, calendar create → detail → edit → delete, meeting
-invitations, contacts, recipient autosuggest, signatures, and mail actions. It ends on
-`stalwart-multi`, the only shape that can show one person filed in two accounts. All of it runs
-against the Stalwart harness through semantic AT-SPI actions; no stored coordinates or synthetic key
-events are involved. Screenshots, the final tree, and
-privacy-safe stdout/stderr land under `target/ui-test-artifacts/linux/<timestamp>`; a failure captures
-the tree and window before teardown. `--no-build` reuses the current debug binary.
+invitations, contacts, recipient autosuggest, signatures, and mail actions. It relaunches on
+`stalwart-multi`, the only shape that can show one person filed in two accounts, and then on the
+showcase for the notices and questions no fixture can stage. Each of those is a leg:
+`--list-legs` names them and `--leg <name>` runs one after the legs it needs. A leg acts through
+the app's test agent ([`docs/test-agent.md`](../docs/test-agent.md)) and asks AT-SPI only what a
+screen reader gets; the Calendar tab is clicked with a real pointer, and Escape and Return are real
+keystrokes where the key is what is tested. Screenshots, the final tree, each leg's time and
+privacy-safe stdout/stderr land under `target/ui-test-artifacts/linux/<timestamp>`; a failure
+captures the agent's and AT-SPI's trees and the window before teardown. `--no-build` reuses the
+current debug binary.
 
 The unit tests need a display too, which is what `with-headless-session.sh` is for: run on the
 desktop they drive the live compositor, and a test that pumps the main loop then dispatches Wayland

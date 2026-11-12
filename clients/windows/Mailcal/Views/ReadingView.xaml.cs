@@ -168,9 +168,11 @@ public sealed partial class ReadingView : UserControl
 
     // The reading pane is user-resizable (the draggable list|reading divider) down to a narrow
     // width where the action labels, long in Dutch and other locales, overflow. The buttons sit
-    // in a horizontally-scrolling ScrollViewer, so the inner panel is always arranged at its full
-    // NATURAL width (never clamped to the viewport), a reliable read even when it overflows,
-    // unlike an in-place Measure. Cache that natural width while the labels are shown (their
+    // in a horizontally-scrolling ScrollViewer, so the inner panel is never clamped to the viewport,
+    // a reliable read even when it overflows, unlike an in-place Measure. It is left-aligned
+    // because a stretching child is arranged at the viewport's width whenever that is the wider,
+    // and the width learnt would be the pane's: a wider pane would then drop the labels and no
+    // narrower one bring them back. Cache that natural width while the labels are shown (their
     // strings are static, so it's constant), then collapse to icon-only whenever the pane is
     // narrower than that and restore the labels once it's comfortably wider again. The Windows
     // twin of the Apple client's compact-width toolbar (labels ⇢ icons at a narrow size class).

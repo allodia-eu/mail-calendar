@@ -53,7 +53,7 @@ public sealed partial class MailboxModel
     {
         if (_app?.AllodiaAccountUrl() is { } url)
         {
-            _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            _ = ExternalLauncher.Open(new Uri(url));
         }
     }
 
@@ -65,7 +65,7 @@ public sealed partial class MailboxModel
             // Best-effort and unreported: this device is signed out whatever the browser does. What
             // it buys is the next sign-in asking who you are rather than completing silently
             // against a session someone thought they had left.
-            _ = Windows.System.Launcher.LaunchUriAsync(new Uri(end.Url));
+            _ = ExternalLauncher.Open(new Uri(end.Url));
         }
         AllodiaChanged?.Invoke();
     }

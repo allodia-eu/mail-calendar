@@ -125,6 +125,27 @@ public sealed class ReadingActionRowTests(HarnessApp harness)
         AssertOneRow(Buttons(app), "labelled");
     });
 
+    /// <summary>
+    /// The labels are dropped below the width they need and restored above it, and that width is
+    /// learnt from the row itself while it shows them. Learnt off a row stretched to the pane, it is
+    /// the pane's width, so a wider pane dropped them and no width afterwards brought them back.
+    /// </summary>
+    [HarnessFact]
+    public void AWiderWindowKeepsTheLabelsAndRestoringItStillShowsThem() => Case(nameof(AWiderWindowKeepsTheLabelsAndRestoringItStillShowsThem), app =>
+    {
+        using var sized = Desktop.Resized(app.Mailbox.Hwnd, 1440, 900);
+        Buttons(app);
+        Assert.True(SetLabelled(app, true),
+            "the reading pane never reached its labelled width, even with the navigation pane collapsed. Run it on a larger display");
+        using (Desktop.Maximised(app.Mailbox.Hwnd))
+        {
+            app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+            Assert.True(Labelled(app), "maximising the window widened the reading pane, and the row dropped its labels");
+        }
+        app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+        Assert.True(Labelled(app), "restored to the size that showed the labels, the row still draws none");
+    });
+
     [HarnessFact]
     public void TheMenuBehindItOffersTheExportUnderASpokenName() => Case(nameof(TheMenuBehindItOffersTheExportUnderASpokenName), app =>
     {

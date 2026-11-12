@@ -9,12 +9,11 @@
 // never draws, all of which render without an error.
 //
 // The server is a stand-in in this process (Driver/NextcloudStandIn.cs), which records what the app
-// asked it. The cases that press the sign-in open the person's default browser on the stand-in's
-// own page, so they skip on a CI runner, which has no browser to open; close the tabs they leave.
+// asked it. A press hands the stand-in's own page to the OS, which the suites' launch holds back
+// (MAILCAL_NO_EXTERNAL_OPEN), so these cases open no browser and run on a CI runner too.
 // The found card needs a domain whose detection finds a Nextcloud server, which no loopback server
 // stands in for: verify it by hand against a real one.
 
-using System.Runtime.CompilerServices;
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
 
@@ -108,7 +107,7 @@ public sealed class NextcloudSignInTests(FirstRunApp firstRun) : IClassFixture<F
             Assert.True(Shown(app, "NextcloudSignInButton") is null, "rule 1: a server that does not say it is Nextcloud is offered the password alone");
         });
 
-    [BrowserFact]
+    [OfflineFact]
     public void TheWaitIsSaidWithACancelAtOnceAndCancelStopsThePoll() =>
         Case(nameof(TheWaitIsSaidWithACancelAtOnceAndCancelStopsThePoll), app =>
         {
@@ -131,7 +130,7 @@ public sealed class NextcloudSignInTests(FirstRunApp firstRun) : IClassFixture<F
             Assert.Equal(polls, server.Count(NextcloudStandIn.Poll));
         });
 
-    [BrowserFact]
+    [OfflineFact]
     public void AGrantThatMadeNoAccountIsTriedAgainWithoutTheBrowserAndWithdrawnWhenSetupIsLeft() =>
         Case(nameof(AGrantThatMadeNoAccountIsTriedAgainWithoutTheBrowserAndWithdrawnWhenSetupIsLeft), app =>
         {
@@ -159,24 +158,4 @@ public sealed class NextcloudSignInTests(FirstRunApp firstRun) : IClassFixture<F
             Assert.True(App.Eventually(() => server.Count(NextcloudStandIn.Withdraw) == 1, TimeSpan.FromSeconds(10)),
                 "rule 6: leaving the form withdraws the grant that became no account");
         });
-}
-
-/// <summary>
-/// A case that opens the person's default browser: it needs a Debug build and a desktop with a
-/// browser, so it skips on a CI runner, saying why.
-/// </summary>
-public sealed class BrowserFactAttribute : FactAttribute
-{
-    public BrowserFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
-        : base(sourceFilePath, sourceLineNumber)
-    {
-        if (!App.HasBuild())
-        {
-            Skip = "no Debug build to launch (clients/windows/build-and-run.ps1 -NoRun)";
-        }
-        else if (Environment.GetEnvironmentVariable("CI") == "true")
-        {
-            Skip = "opens the default browser, which a CI runner has none of";
-        }
-    }
 }

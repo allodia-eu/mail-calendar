@@ -265,6 +265,12 @@ def insert_index_row(changelog, row):
     )
 
 
+def _write(path, text):
+    """Writes `text` with LF line endings, which text mode on Windows would turn into CRLF."""
+    with path.open("w", encoding="utf-8", newline="\n") as out:
+        out.write(text)
+
+
 def resolve_version(current, fragments, requested):
     """The version this release lands on, and any warning worth printing about it."""
     declared = "minor" if any(f.bump == "minor" for f in fragments) else "patch"
@@ -404,19 +410,15 @@ def main(argv=None):
             return 1
 
     RELEASED_DIR.mkdir(parents=True, exist_ok=True)
-    note_path.write_text(text, encoding="utf-8")
+    _write(note_path, text)
     # Before the fragments are deleted: the released note keeps each change's headline and its
     # engineering commentary, but the user-facing note survives only inside the per-platform
     # sections; already merged into an authored summary wherever a store's cap could not hold the
     # list. So the announcement can be assembled now or never.
     ANNOUNCEMENTS_DIR.mkdir(parents=True, exist_ok=True)
-    announcement_path.write_text(
-        announcement.build(version, date, fragments), encoding="utf-8"
-    )
+    _write(announcement_path, announcement.build(version, date, fragments))
     try:
-        CHANGELOG_PATH.write_text(
-            insert_index_row(CHANGELOG_PATH.read_text(encoding="utf-8"), row), encoding="utf-8"
-        )
+        _write(CHANGELOG_PATH, insert_index_row(CHANGELOG_PATH.read_text(encoding="utf-8"), row))
     except ReleaseError as error:
         note_path.unlink()
         print("ERROR: {}".format(error), file=sys.stderr)

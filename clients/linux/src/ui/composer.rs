@@ -435,8 +435,10 @@ fn seed_editor(
         let seed = Rc::clone(&seed);
         let quote_style = quote_style.clone();
         let seeded_view = view.clone();
+        let ready = editor_host.clone();
         view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, move |_| {
             let seed = Rc::clone(&seed);
+            let ready = ready.clone();
             seeded_view.evaluate_javascript(
                 "composerDocument()",
                 None,
@@ -451,6 +453,9 @@ fn seed_editor(
                             picker.reflect(&document);
                         }
                         seed.replace(Some(document));
+                        // Named for a test or script (`docs/test-agent.md`) only now: from here a
+                        // composer nobody has written in closes without asking.
+                        ready.set_widget_name("composer-editor");
                     }
                 },
             );

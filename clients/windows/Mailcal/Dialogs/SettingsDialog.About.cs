@@ -37,7 +37,7 @@ public sealed partial class SettingsDialog
         // The forum opens in the user's browser: this app's only WebView2 is the locked-down
         // reading island (docs/rendering-security.md), which is not a browser.
         open.Click += async (_, _) =>
-            await Windows.System.Launcher.LaunchUriAsync(new System.Uri(about.SupportUrl));
+            await Services.ExternalLauncher.Open(new System.Uri(about.SupportUrl));
         support.Children.Add(open);
         panel.Children.Add(Group(
             L10n.AboutSupportHeading(), L10n.AboutSupportDescription(), support));

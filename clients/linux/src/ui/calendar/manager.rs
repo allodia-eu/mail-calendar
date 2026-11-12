@@ -132,6 +132,7 @@ fn color_popover(
     for hex in calendar_palette() {
         let button = gtk::Button::new();
         button.update_property(&[AccessibleProperty::Label(&hex)]);
+        button.set_widget_name(&format!("calendar-colour-{}", hex.trim_start_matches('#')));
         button.set_child(Some(&palette_swatch(&hex, 30)));
         let app = Arc::clone(&app);
         let account = calendar.account.clone();

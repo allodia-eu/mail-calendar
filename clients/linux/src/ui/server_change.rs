@@ -146,6 +146,15 @@ fn content(
     dialog.set_child(Some(&content));
     dialog.set_default_widget(Some(&not_now));
     dialog.set_focus(Some(&not_now));
+    // Drawn again after Allow has run, the question's controls are new, and the one that held
+    // focus went with the old ones: nothing would take Escape. The default answer takes focus once
+    // the dialog has settled on its new child; asked for any sooner, the dialog drops it.
+    let focus = not_now.downgrade();
+    gtk::glib::idle_add_local_once(move || {
+        if let Some(button) = focus.upgrade().filter(gtk::prelude::WidgetExt::is_mapped) {
+            button.grab_focus();
+        }
+    });
     dialog.set_can_close(!question.allow.running);
     dialog.set_title(title(change));
     content

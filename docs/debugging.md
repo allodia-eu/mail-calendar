@@ -428,8 +428,8 @@ scripts/dev/control.sh linux ui-dump | grep -i "<the popover's list>"   # AT-SPI
 scripts/dev/control.sh linux key Escape                                 # and it can be dismissed
 ```
 
-The AT-SPI dump is the one to reach for: it is also the assertion oracle, so a popover you can grep
-for is a popover you can write a `test-linux-ui.sh` leg against.
+Either tree answers it: `control.sh linux agent dump` lists the popover among the app's own
+widgets, and a popover either tree holds is one a `test-linux-ui.sh` leg can be written against.
 
 ### Linux semantic acceptance
 
@@ -441,18 +441,23 @@ scripts/dev/screenshot.sh linux /tmp/mailcal-linux.png
 scripts/dev/test-linux-ui.sh --start-harness
 ```
 
-The wrapper drives one Stalwart-backed run, in order: the seeded remote-image fixture: the privacy
-banner, opt-in, Reply only after the editor announces readiness, the derived recipient as a pill,
-Send, the success banner; **search**: narrowing, the how-far-back line, the scope filter, and the
-unsearched list back when the field is cleared; the **calendar** agenda plus create → detail → edit
-→ delete; the three seeded **meeting-invitation** fixtures: the iMIP request with its three answer
-buttons and day preview, the published `.ics` that must draw no card, and the one landing on an
-empty day; **contacts**: the sections, two namesakes staying two rows, and search; **recipient
-autosuggest** in the composer; and **signatures**: the empty state, both slot pickers, and a
-signature created through the core. It saves each state, the AT-SPI tree, and logs under
-`target/ui-test-artifacts/linux/<timestamp>`. It never uses a personal account, screen coordinates,
-or synthetic key events. The exact Ubuntu packages, and what each capture route can and cannot do,
-are in [`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window).
+The wrapper drives one Stalwart-backed run as a sequence of named legs, then relaunches on the
+showcase for the notices and questions no fixture can stage. `--list-legs` names each leg and what
+it covers; `--leg <name>` runs one, after the legs it needs, which is the loop to iterate on:
+
+```sh
+scripts/dev/test-linux-ui.sh --list-legs
+scripts/dev/test-linux-ui.sh --no-build --leg meeting
+```
+
+A leg finds, presses, types and waits through the app's [test agent](test-agent.md), over one
+connection for the whole run. It asks AT-SPI only what a screen reader gets: an accessible name, a
+role, a description. The Calendar tab is clicked with a real pointer, the run's one guard on
+pointer input, and Escape and Return are real keystrokes where the key itself is what is tested. It
+never uses a personal account. It saves each state, the AT-SPI tree and the logs under
+`target/ui-test-artifacts/linux/<timestamp>`, with each leg's time in `leg-times.tsv`. The exact
+Ubuntu packages, and what each capture route can and cannot do, are in
+[`clients/linux/README.md`](../clients/linux/README.md#capture-and-control-the-window).
 
 ## 4b. Showcase mode: the store screenshot set
 
@@ -666,6 +671,11 @@ MAILCAL_OPEN_FIRST=1 scripts/dev/boot.sh windows   # same hooks on WinUI (env pa
 # the gesture and the row's context menu use. Still useful as a *deterministic* shortcut, but see
 # the correction below: it is no longer the only way to drive a gesture.
 MAILCAL_SWIPE=archive scripts/dev/boot.sh windows
+
+# Windows only: open nothing outside the app (a browser sign-in, a link, a meeting's Join) and carry
+# on as though the OS had. The UI suites launch with it, since they complete a sign-in with the
+# requests its page makes and a browser tab would only be left behind.
+MAILCAL_NO_EXTERNAL_OPEN=1 scripts/dev/boot.sh windows
 
 # Every platform: pretend the calendar server reported a verdict on the RSVP it promised to send.
 # The ONLY way to reach the "the organiser wasn't told" prompt, because no harness server produces
@@ -1309,9 +1319,6 @@ When a result cannot be squared with the diff, rule the cache out by running tha
 
 ## Known gaps / follow-ups
 
-- **The Linux acceptance run drives no analytics consent and no Diagnostics.** Mail actions,
-  search, the calendar, invitations, contacts and signatures are all driven; those two are not.
-  Verify them by hand for now.
 - **There is no `--set docs` driver for Linux.** `doc_screens_for` in
   [`showcase.sh`](../scripts/dev/showcase.sh) offers it none: the four `setup-*` moments are driven
   by an address the client types, and the Linux setup flow takes no seeded one.

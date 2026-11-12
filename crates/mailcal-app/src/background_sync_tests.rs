@@ -263,6 +263,48 @@ fn the_launch_catch_up_is_marked_seen_rather_than_reported() {
 }
 
 #[test]
+fn mail_stamped_with_the_session_s_own_second_is_reported() {
+    // Both instants are whole seconds, so a message delivered in the second the app opened
+    // carries the session start itself. Withheld, it would be lost for good: the mark moves past
+    // it in the same pass.
+    let messages = vec![msg(
+        "same-second",
+        "inbox",
+        "a@x.com",
+        "Arrived as the app opened",
+        Some("2026-06-01T09:00:00Z"),
+    )];
+    let mark = Some("2026-05-31T18:00:00Z".parse().unwrap());
+    let session_start = Some("2026-06-01T09:00:00Z".parse().unwrap());
+    let scan = newly_arrived(&messages, "inbox", Some(OWNER), mark, session_start);
+    let subjects: Vec<&str> = scan
+        .previews
+        .iter()
+        .map(|preview| preview.subject.as_str())
+        .collect();
+    assert_eq!(subjects, ["Arrived as the app opened"]);
+}
+
+#[test]
+fn mail_stamped_with_the_mark_itself_is_not_reported_again() {
+    // The mark is the newest instant a pass already saw, so equal to it is seen.
+    let messages = vec![msg(
+        "seen",
+        "inbox",
+        "a@x.com",
+        "Seen",
+        Some("2026-06-01T10:00:00Z"),
+    )];
+    let mark = Some("2026-06-01T10:00:00Z".parse().unwrap());
+    let session_start = Some("2026-06-01T09:00:00Z".parse().unwrap());
+    let scan = newly_arrived(&messages, "inbox", Some(OWNER), mark, session_start);
+    assert!(
+        scan.previews.is_empty(),
+        "a message the previous pass reported is not announced twice"
+    );
+}
+
+#[test]
 fn a_session_floor_below_the_mark_changes_nothing() {
     // A long-running desktop: the session started before mail the previous pass already
     // reported, so the mark is the later of the two and stays in charge.

@@ -73,6 +73,7 @@ pub(super) fn append_invitee_section(
     }
     let field = RecipientField::new(l10n::event_invitee_field(), app);
     field.set_placeholder(l10n::event_invitee_field());
+    field.set_id("event-invitee");
     let error = gtk::Label::new(None);
     error.add_css_class("error");
     error.set_xalign(0.0);

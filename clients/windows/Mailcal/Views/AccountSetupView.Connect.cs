@@ -82,7 +82,7 @@ public sealed partial class AccountSetupView
 
     // Open the Early Access sign-up page in the default browser.
     private async void OnOpenGoogleEarlyAccess(object sender, RoutedEventArgs e) =>
-        await Windows.System.Launcher.LaunchUriAsync(new System.Uri(L10n.SetupGoogleEarlyAccessUrl()));
+        await ExternalLauncher.Open(new System.Uri(L10n.SetupGoogleEarlyAccessUrl()));
 
     // The Google sign-in button is enabled only once the Early Access box is checked AND nothing is
     // already submitting (so it can't fire twice or while a connect is in flight).

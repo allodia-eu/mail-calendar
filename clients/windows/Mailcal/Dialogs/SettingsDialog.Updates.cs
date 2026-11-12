@@ -123,7 +123,7 @@ public sealed partial class SettingsDialog
         // consumer machines.
         if (AppIdentity.UpdateSource is { } source)
         {
-            var opened = await Windows.System.Launcher.LaunchUriAsync(source);
+            var opened = await ExternalLauncher.Open(source);
             Log.Info(opened
                 ? "update: opened the installer file in the browser"
                 : "update: the installer file could not be opened");

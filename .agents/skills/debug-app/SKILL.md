@@ -224,14 +224,12 @@ looks like it is working. `clients/linux/README.md` has the measurements.
 
 
 For the complete Linux proof, prefer `scripts/dev/test-linux-ui.sh --start-harness`. It owns a
-private compositor + D-Bus + AT-SPI session and asserts, against the seeded harness: blocked-image →
-opt-in → Reply → Send, a forward and the files it carries into the composer, search (narrowing, how
-far back, the scope filter, clearing it), the calendar agenda plus create → detail → edit → delete, a meeting whose invitations, roster
-change and cancellation reach the invitees' own mailboxes,
-three meeting-invitation fixtures, contacts, recipient autosuggest, signatures, and mail actions
-(read, flag, archive) on a message it delivers for itself. It preserves screenshots, tree, and logs
-under `target/ui-test-artifacts/linux/`. Spam and permanent delete it leaves alone: verify those by
-hand.
+private compositor + D-Bus + AT-SPI session and runs named legs against the seeded harness, then on
+the showcase: `--list-legs` says what each covers, and `--leg <name>` runs one after the legs it
+needs, which is the loop to use while a leg is red. The legs act through the test agent above, over
+one connection, and keep AT-SPI for what a screen reader gets (a name, a role, a description). It
+preserves screenshots, both trees, logs and each leg's time under `target/ui-test-artifacts/linux/`.
+Spam and permanent delete it leaves alone: verify those by hand.
 
 **On macOS and the iPhone/iPad simulators, start with the test agent too.** Every debug build that
 `build-and-run.sh` (so `boot.sh`) launches on the Mac or a simulator listens on a socket of its own

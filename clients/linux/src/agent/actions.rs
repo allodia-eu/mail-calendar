@@ -22,7 +22,7 @@ fn usable(target: &Target) -> Result<gtk::Widget, Failure> {
     Ok(widget)
 }
 
-pub(super) fn activate(target: &Target) -> Answer {
+pub(super) async fn activate(target: &Target) -> Answer {
     let widget = usable(target)?;
     if let Some(row) = widget.downcast_ref::<adw::ExpanderRow>() {
         row.set_expanded(!row.is_expanded());
@@ -45,11 +45,15 @@ pub(super) fn activate(target: &Target) -> Answer {
         // A click reaches the list, which announces `row-activated`; an action row hears its
         // activation from there too. Activating the row widget itself skips the list.
         if row.is_activatable() {
+            let clicked = ClickWatch::on(row);
             match &list {
                 Some(list) => list.emit_by_name::<()>("row-activated", &[row]),
                 None => {
                     row.activate();
                 }
+            }
+            if let Some(watch) = clicked {
+                watch.clicked().await;
             }
             return Ok(json!({ "how": "row-activated" }));
         }
@@ -84,6 +88,45 @@ pub(super) fn activate(target: &Target) -> Answer {
     .with("element", tree::describe(&widget)))
 }
 
+/// The button an action row activates for its row, watched for its click. GTK reaches it through
+/// the button's mnemonic, which plays its press for a quarter of a second before it clicks, so a
+/// reply sent at once would arrive before the row's action had started: the next request could
+/// act on the screen the action is about to replace.
+struct ClickWatch {
+    button: gtk::Button,
+    handler: glib::SignalHandlerId,
+    fired: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl ClickWatch {
+    fn on(row: &gtk::ListBoxRow) -> Option<Self> {
+        let button = row
+            .downcast_ref::<adw::ActionRow>()?
+            .activatable_widget()?
+            .downcast::<gtk::Button>()
+            .ok()?;
+        let fired = std::rc::Rc::new(std::cell::Cell::new(false));
+        let handler = button.connect_clicked({
+            let fired = fired.clone();
+            move |_| fired.set(true)
+        });
+        Some(Self {
+            button,
+            handler,
+            fired,
+        })
+    }
+
+    /// Returns once the button has clicked, or after a second if it never does.
+    async fn clicked(self) {
+        let started = std::time::Instant::now();
+        while !self.fired.get() && started.elapsed() < std::time::Duration::from_secs(1) {
+            glib::timeout_future(std::time::Duration::from_millis(10)).await;
+        }
+        self.button.disconnect(self.handler);
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct SetText {
@@ -106,11 +149,14 @@ pub(super) fn set_text(args: &SetText) -> Answer {
         }
         editable.set_text(&args.text);
         if args.activate {
-            // An entry row submits through its own signal; an entry through `activate`.
-            if let Some(row) = widget.downcast_ref::<adw::EntryRow>() {
-                row.emit_by_name::<()>("entry-activated", &[]);
-            } else {
-                widget.activate();
+            match widget.downcast_ref::<adw::EntryRow>() {
+                // Enter on a row that shows an apply button applies it, and that is all such a
+                // row answers: its other signal would set the text and commit nothing.
+                Some(row) if row.shows_apply_button() => row.emit_by_name::<()>("apply", &[]),
+                Some(row) => row.emit_by_name::<()>("entry-activated", &[]),
+                None => {
+                    widget.activate();
+                }
             }
         }
         return Ok(json!({}));

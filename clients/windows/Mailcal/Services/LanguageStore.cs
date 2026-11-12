@@ -49,20 +49,24 @@ internal static class LanguageStore
 
     /// <summary>
     /// Applies <paramref name="choice"/> to the resource language override, the empty string
-    /// (follow the OS) for "system", else the BCP-47 tag. Routes through
-    /// <see cref="L10n.SetLanguage"/> (an MRT-Core ResourceContext qualifier), which, unlike
-    /// ApplicationLanguages.PrimaryLanguageOverride, needs no package identity, so it works in
-    /// the unpackaged dev build. Call at startup before any window or resource loads, and again
-    /// whenever the user changes the picker.
+    /// (follow the OS) for "system", else the BCP-47 tag. Call at startup before any window or
+    /// resource loads, and again whenever the user changes the picker.
     /// </summary>
     /// <remarks>
-    /// The choice drives the *dates* as well as the words, via <see cref="AppCulture"/>, the
-    /// resource qualifier alone leaves <c>CultureInfo</c> on the host's regional format, which is
-    /// how a fully Dutch UI ended up listing "Mon"/"Sun" (see the note in that file).
+    /// Three things follow it. Our own strings, through <see cref="L10n.SetLanguage"/> (an MRT-Core
+    /// ResourceContext qualifier). WinUI's own strings (the navigation pane's Settings item, an
+    /// InfoBar icon's spoken name), which come from its resources rather than ours, through the
+    /// Windows App SDK's language override; that one needs no package identity, unlike the WinRT
+    /// <c>Windows.Globalization</c> override, and without it they follow the OS display language
+    /// whatever was chosen. And the *dates*, through <see cref="AppCulture"/>: the resource
+    /// qualifier alone leaves <c>CultureInfo</c> on the host's regional format, which is how a
+    /// fully Dutch UI ended up listing "Mon"/"Sun" (see the note in that file).
     /// </remarks>
     public static void Apply(string choice)
     {
-        L10n.SetLanguage(L10n.Locales.Contains(choice) ? choice : "");
+        var language = L10n.Locales.Contains(choice) ? choice : "";
+        L10n.SetLanguage(language);
+        Microsoft.Windows.Globalization.ApplicationLanguages.PrimaryLanguageOverride = language;
         AppCulture.Apply(choice);
     }
 }

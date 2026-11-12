@@ -236,7 +236,7 @@ public sealed partial class MailboxModel
                 // null, from a route that offered no choice, asks for everything.
                 uses);
             // Open the default browser (Edge, where the user is usually already signed in).
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+            await ExternalLauncher.Open(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancelToken);
             // The token exchange + folder connect block, so run them off the UI thread.
             var row = await Task.Run(() => _app!.CompleteMicrosoftLogin(start.Pending, callbackUrl));
