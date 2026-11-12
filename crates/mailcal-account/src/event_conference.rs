@@ -95,7 +95,7 @@ fn project(conference: &Conference) -> Option<EventConference> {
     let join_url = video
         .filter(|entry| entry.uri.scheme() == UriScheme::Https)
         .map(|entry| entry.uri.as_str())
-        .filter(|link| state == ConferenceState::Ready && mailcal_composer::is_openable_link(link))
+        .filter(|link| state == ConferenceState::Ready && engine_html::link::is_openable_link(link))
         .map(str::to_owned);
     let dial_in: Vec<DialIn> = conference.entry_points.iter().filter_map(dial_in).collect();
     Some(EventConference {
@@ -127,11 +127,11 @@ fn dial_in(entry: &EntryPoint) -> Option<DialIn> {
     let number = entry.phone_number()?;
     // The server's URI, else the number that URI dials before its pause: never the label, which
     // is free text from whoever wrote the invitation and may name another number entirely.
-    let uri = mailcal_composer::openable_link(entry.uri.as_str()).or_else(|| {
+    let uri = engine_html::link::openable_link(entry.uri.as_str()).or_else(|| {
         entry
             .uri
             .phone_number()
-            .and_then(|own| mailcal_composer::openable_link(&format!("tel:{own}")))
+            .and_then(|own| engine_html::link::openable_link(&format!("tel:{own}")))
     });
     Some(DialIn {
         number: number.to_owned(),

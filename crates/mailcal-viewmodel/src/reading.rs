@@ -20,7 +20,7 @@ pub struct AttachmentRow {
 /// `html` is **already sanitised**: the product core strips the engine's raw, hostile
 /// `text/html` to a safe, inert subset (scripts, event handlers, and frames removed) while
 /// **preserving presentational CSS**, and flags remote references in `has_remote_images`.
-/// A host must not render `html` directly: wrap it with `mailcal_app::render_document`
+/// A host must not render `html` directly: wrap it with `engine_html::render_document`
 /// (FFI `render_message_html`), which is the security boundary; its strict CSP blocks
 /// scripts and, by default, every remote load (so remote images don't load until the user
 /// opts in). Render the result in a WebView with scripting off and navigation blocked, or
@@ -51,14 +51,14 @@ pub struct ReadingSnapshot {
     /// copy: so the sender can see whom they Bcc'd; a received message never carries it.
     pub bcc: String,
     /// The sanitised HTML body, when the message carries an HTML part. Presentational CSS
-    /// is preserved; a host renders this via `mailcal_app::render_document` (which wraps it
+    /// is preserved; a host renders this via `engine_html::render_document` (which wraps it
     /// in a strict-CSP document) inside a WebView with scripting off and navigation blocked.
     pub html: Option<String>,
     /// The plain-text body, when the message carries one.
     pub plain: Option<String>,
     /// Whether the HTML references a remote resource (a remote image or CSS background) that
     /// is blocked by default. When `true`, a host offers a "load remote images" confirmation
-    /// and, on accept, re-renders with `render_document(.., load_remote_images = true)`.
+    /// and, on accept, re-renders with `render_message_html(.., load_remote_images = true)`.
     pub has_remote_images: bool,
     /// Whether the body could not be **fetched** (provider/network error), as distinct from
     /// a message that genuinely has no body (`html`/`plain` both `None`, `load_error` false).

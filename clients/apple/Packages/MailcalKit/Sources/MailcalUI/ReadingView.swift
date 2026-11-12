@@ -43,7 +43,7 @@ let attachmentBarCap: CGFloat = 176
 /// How far from the pane's edges the reading view draws, one value so the header, the recipients,
 /// the action row, the attachment bar, the invitation card and a plain-text body all start on the
 /// same vertical line. The HTML body's own inset is in the shared renderer's stylesheet, where
-/// every client picks it up (`crates/mailcal-app/src/html`).
+/// every client picks it up (the engine's `engine-html`).
 ///
 /// Not `private`: ReadingView.Attachments.swift and InvitationCardView.swift inset to it too
 /// (Swift's `private` on a top-level declaration is file-scoped).

@@ -13,7 +13,7 @@
 //! adapter over that type structurally cannot leak HTML it was never given, which is a stronger
 //! guarantee than a rule in a policy module that a future contributor can route around.
 //!
-//! This runs on **already-sanitised** HTML (`crate::html::sanitize`), so it faces an inert
+//! This runs on **already-sanitised** HTML (`engine_html::sanitize`), so it faces an inert
 //! subset rather than arbitrary markup. It is still written defensively: unterminated tags,
 //! nested comments and stray `<` are all treated as text-or-drop, never as a parse failure.
 
