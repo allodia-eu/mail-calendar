@@ -151,7 +151,7 @@ describe("a draft Thunderbird stored", () => {
         Quote: {
           style: "Indented",
           attribution: { line: "Op 7-1-2026 om 11:00 schreef Newsletter:", headers: [] },
-          body_html: expect.stringContaining('<pre class="moz-quote-pre">Second of two messages'),
+          body_html: expect.stringContaining('<pre wrap="" class="moz-quote-pre">Second of two'),
           body_plain: expect.stringContaining("Second of two messages"),
         },
       },

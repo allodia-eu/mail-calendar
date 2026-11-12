@@ -151,6 +151,15 @@ fn preserves_the_quote_and_signature_markers_other_clients_write() {
     assert!(out.contains(r#"name="_MailAutoSig""#), "{out}");
 }
 
+/// Thunderbird's quote of a plain-text message is `<pre wrap>`, which it draws wrapped; the base
+/// sheet's `pre[wrap]` rule needs the attribute to reach it.
+#[test]
+fn preserves_the_wrap_thunderbird_puts_on_a_quoted_pre() {
+    let out = sanitize(r#"<pre wrap="" class="moz-quote-pre" onclick="x()">quoted</pre>"#).html;
+    assert!(out.contains(r#"wrap="""#), "{out}");
+    assert!(!out.contains("onclick"), "{out}");
+}
+
 #[test]
 fn preserves_the_id_a_responsive_media_query_selects_on() {
     // A newsletter's whole mobile layout hangs off `id`: the container table is a fixed 600px
