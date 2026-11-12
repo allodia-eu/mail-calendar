@@ -1,5 +1,5 @@
 //! What a separate server's own sign-in refuses before anything is asked of a provider. A sign-in
-//! that completes is the live suite's (`tests/live_calendar_sign_in.rs`).
+//! that completes is the live suite's (`tests/live/live_calendar_sign_in.rs`).
 
 use std::sync::{Arc, mpsc};
 

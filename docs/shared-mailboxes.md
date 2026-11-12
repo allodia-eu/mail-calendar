@@ -58,7 +58,7 @@ mailbox is one of them. A client without the section leaves the use's switch out
 for" list and offers no setup choice for it, so the account is never asked for a permission with
 nothing on screen to use it.
 
-**Verified live** through `crates/mailcal-bindings/tests/live_shared_mailboxes.rs`
+**Verified live** through `crates/mailcal-bindings/tests/live/live_shared_mailboxes.rs`
 (`scripts/dev/harness.sh test`), against the harness's `support` group mailbox, over JMAP and over
 IMAP: listed, chosen, synced into its own folders and none of alice's, its name taken from the
 server (JMAP), a message sent from it filed in its own Sent under its own address, stored, and
@@ -66,7 +66,7 @@ switched off again. On Microsoft 365, by hand on Linux on 2026-10-28 against a w
 in with the use chosen, a shared mailbox added by address, its mail synced into a mailbox of its
 own and From set to it when composing from it.
 
-Shared calendars are verified live through `crates/mailcal-bindings/tests/live_shared_calendars.rs`,
+Shared calendars are verified live through `crates/mailcal-bindings/tests/live/live_shared_calendars.rs`,
 against the harness's `support` group and the calendar dave shares with alice read-only, over JMAP
 and over CalDAV: listed with what each holds, the group's mailbox and calendar as one store over
 JMAP, chosen from the page's switch, synced as an account of its own with its owner's calendars and

@@ -307,10 +307,10 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   and somewhere else: a dropped `redirect_uri` is rejected on the next refresh, a dropped
   `issuer` silently stops checking RFC 9207, a dropped STARTTLS flag connects the account to a
   port the provider may not have open.
-- **Live, harness-gated**, both in CI: `mailcal-account/tests/live_imap_auth.rs` holds the
+- **Live, harness-gated**, both in CI: `mailcal-account/tests/live/live_imap_auth.rs` holds the
   decision against two real servers (the seeded one answers "only pre-registered apps", the
   sign-in server offers a sign-in once its autoconfig names the issuer), and
-  `mailcal-bindings/tests/live_imap_oauth.rs` runs the sign-in end to end through the FFI a
+  `mailcal-bindings/tests/live/live_imap_oauth.rs` runs the sign-in end to end through the FFI a
   client calls, from detection to an account connected over OAUTHBEARER. Both need the harness's
   certificate bundle and the hostname the certificates carry; the headers say how, because
   getting either wrong fail-softs to "ask for a password", which is indistinguishable from the

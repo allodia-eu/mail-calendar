@@ -8,17 +8,16 @@
 //! ```sh
 //! scripts/dev/harness.sh up
 //! STALWART_HTTP_ADDR=127.0.0.1:28080 \
-//!   cargo test -p mailcal-bindings --test live_link_suggestions -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_link_suggestions:: --nocapture
 //! ```
 
 // Shared with the sign-in tests, which use the rest of it.
 #[allow(dead_code)]
-mod live_oauth;
-
 use std::time::{Duration, Instant};
 
-use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{AccountCapability, AccountEntry, CapabilityState, JmapSetup};
+
+use crate::live_oauth::{RecordingStore, app};
 
 /// A calendar-and-contacts account for `username` on the harness.
 fn dav(base: &str, username: &str, password: &str) -> String {

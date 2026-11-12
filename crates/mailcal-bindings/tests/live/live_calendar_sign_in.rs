@@ -8,19 +8,18 @@
 //! ```sh
 //! MAILCAL_EXTRA_CA="$PWD/docker/stalwart/tls/harness-ca.pem" \
 //!   MAILCAL_HARNESS_IMAP=localhost:12993 \
-//!   cargo test -p mailcal-bindings --test live_calendar_sign_in -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_calendar_sign_in:: --nocapture
 //! ```
-
-mod live_oauth;
 
 use std::time::{Duration, Instant};
 
-use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
     AccountCapability, AccountChangeNotice, AccountEntry, AccountPageIntent, AccountSeparateSignIn,
     BrowserSignInStage, CapabilityState, Intent, MailcalApp, NoticeKind, SignInBrowserEnd,
     SignInMethod,
 };
+
+use crate::live_oauth::{self, LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
 

@@ -7,7 +7,7 @@
 //! # Two accounts signed in with the engine's tools/google-oauth, one personal and one Workspace;
 //! # mint an access token from each narrowed to userinfo.email (`scope=` on the refresh), then:
 //! GOOGLE_PERSONAL_ACCESS_TOKEN=... GOOGLE_WORKSPACE_ACCESS_TOKEN=... \
-//!   cargo test -p mailcal-account --test live_google_affiliation -- --nocapture
+//!   cargo test -p mailcal-account --test live -- live_google_affiliation:: --nocapture
 //! ```
 
 use engine_api::{Affiliation, RetryConfig};

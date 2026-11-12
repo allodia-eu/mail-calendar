@@ -67,7 +67,7 @@ rustls-pki-types = { workspace = true }
 # library so the app can turn it into a per-sync window.
 time = { workspace = true }
 
-# The gated live JMAP integration test (`tests/live_jmap.rs`) drives the connected
+# The gated live JMAP integration test (`tests/live/live_jmap.rs`) drives the connected
 # provider directly, so it needs the provider trait + domain types and a test runtime.
 # These duplicate normal deps because an integration test is a separate crate that only
 # sees dev-dependencies. The test skips unless `STALWART_HTTP_ADDR` is set, so the

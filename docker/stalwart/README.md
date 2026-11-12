@@ -28,7 +28,7 @@ Then run the gated JMAP live test against it (from the repo root):
 export STALWART_HTTP_ADDR=127.0.0.1:28080
 export STALWART_ACCOUNT=alice@test.local
 export STALWART_PASSWORD=harness-alice-pw
-cargo test -p mailcal-account --test live_jmap -- --nocapture
+cargo test -p mailcal-account --test live -- live_jmap:: --nocapture
 ```
 
 To drive the **macOS app** against it, add a JMAP account in the setup form with
@@ -151,7 +151,7 @@ apart, so changing one means changing all of them.
 ## The sign-in server
 
 `stalwart-oauth` is a second, unseeded Stalwart holding alice alone. It exists so
-[`live_jmap_oauth.rs`](../../crates/mailcal-bindings/tests/live_jmap_oauth.rs) can run a JMAP
+[`live_jmap_oauth.rs`](../../crates/mailcal-bindings/tests/live/live_jmap_oauth.rs) can run a JMAP
 account's "Sign in with your provider" end to end: discovery (RFC 9728, RFC 8414), dynamic
 registration (RFC 7591), the PKCE code exchange and a connect on the grant.
 
@@ -190,8 +190,8 @@ and the browser opens the Stalwart login, where alice signs in as `alice@test.lo
 `harness-alice-pw`. Typed on the manual form instead, the same server gets "only pre-registered
 apps", because no autoconfig carried the issuer.
 
-[`live_imap_oauth.rs`](../../crates/mailcal-bindings/tests/live_imap_oauth.rs) runs that sign-in
-end to end in CI, and [`live_imap_auth.rs`](../../crates/mailcal-account/tests/live_imap_auth.rs)
+[`live_imap_oauth.rs`](../../crates/mailcal-bindings/tests/live/live_imap_oauth.rs) runs that sign-in
+end to end in CI, and [`live_imap_auth.rs`](../../crates/mailcal-account/tests/live/live_imap_auth.rs)
 holds both servers' answers. By hand on an Android emulator, `localhost` is the emulator itself,
 so `adb reverse` has to carry `443`, `12995` and `28081` first; that route has not been tried.
 

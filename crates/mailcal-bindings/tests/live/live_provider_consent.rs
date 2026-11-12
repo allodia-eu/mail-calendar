@@ -10,7 +10,7 @@
 //! (`.env`, see `BUILDING.md`). By hand:
 //! ```sh
 //! MAILCAL_LIVE_CONSENT=microsoft MAILCAL_LIVE_CAPABILITIES=calendar MAILCAL_LIVE_ADD=contacts \
-//!   cargo test -p mailcal-bindings --test live_provider_consent -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_provider_consent:: --nocapture
 //! ```
 //! Nothing is written outside a temp directory; the grant is left at the provider, where it can
 //! be removed from the account's app permissions.

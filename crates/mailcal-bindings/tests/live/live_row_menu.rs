@@ -11,20 +11,19 @@
 //! scripts/dev/harness.sh up
 //! STALWART_HTTP_ADDR=127.0.0.1:28080 MAILCAL_HARNESS_IMAP=localhost:12993 \
 //!   MAILCAL_EXTRA_CA=docker/stalwart/tls/harness-ca.pem \
-//!   cargo test -p mailcal-bindings --test live_row_menu -- --nocapture --test-threads=1
+//!   cargo test -p mailcal-bindings --test live -- live_row_menu:: --nocapture --test-threads=1
 //! ```
 
 // Shared with the sign-in tests, which use the rest of it.
 #[allow(dead_code)]
-mod live_oauth;
-
 use std::time::{Duration, Instant};
 
-use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{
     FolderRole, Intent, JmapSetup, MailcalApp, MessageKind, RowAction, RowMenu, SelectedRow,
     SnapshotRow, ThreadRow, ViewMode,
 };
+
+use crate::live_oauth::{RecordingStore, app};
 
 /// Each seeded conversation: its subject, how many messages it holds, and its newest one.
 const CONVERSATIONS: [(&str, usize, MessageKind); 3] = [

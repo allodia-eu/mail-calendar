@@ -169,8 +169,17 @@ case "$cmd" in
     while IFS= read -r name; do
       [[ -v caller_set[$name] ]] || unbrand+=(-u "$name")
     done < <(brand_keys)
+    # Each package's live suites are modules of one `live` test binary, so a suite is the module
+    # filter `<suite>::`, and both packages' binaries are run with it. A filter that matches
+    # nothing passes, so a suite that ran no test at all is refused: a renamed module would
+    # otherwise stop being tested without anything going red.
     live_suite() {
-      env "${unbrand[@]}" cargo test --workspace --exclude mailcal-linux --test "$1" -- --nocapture
+      local out
+      out="$(mktemp)"
+      env "${unbrand[@]}" cargo test --workspace --exclude mailcal-linux --test live -- "$1::" --nocapture \
+        2>&1 | tee "$out"
+      grep -qE '^running [1-9]' "$out" || die "no live suite is called $1"
+      rm -f "$out"
     }
     STALWART_HTTP_ADDR="$STALWART_HTTP_ADDR" \
       STALWART_ACCOUNT="alice@test.local" \

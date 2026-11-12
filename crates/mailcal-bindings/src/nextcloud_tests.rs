@@ -1,6 +1,6 @@
 //! The browser half of a Nextcloud sign-in, against a stand-in server: what is asked, what the app
 //! password is named, and what a grant carries. A sign-in that connects an account is the live
-//! suite's (`tests/live_nextcloud_sign_in.rs`).
+//! suite's (`tests/live/live_nextcloud_sign_in.rs`).
 
 use super::{NextcloudGrant, client_name, password_name, test_grant};
 use crate::{

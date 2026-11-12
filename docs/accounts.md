@@ -103,7 +103,7 @@ The core owns the shape (`mailcal_account::AccountShape`); no client reads or wr
 A client ✅ in the mail-surfaces row reads the rows the core already filters; it holds no rule of
 its own.
 
-**Verified live** on 2026-10-01 through `crates/mailcal-bindings/tests/live_provider_consent.rs`,
+**Verified live** on 2026-10-01 through `crates/mailcal-bindings/tests/live/live_provider_consent.rs`,
 with a person at each consent screen: a Microsoft account signed in for its calendar alone asked
 for `offline_access`, `User.Read` and `Calendars.ReadWrite`, opened its calendar and no mail, and
 signing it in again to add contacts bound its address book in place; a Google account signed in for
@@ -115,12 +115,12 @@ A Microsoft grant names every scope the app was ever granted for that account, n
 for, so what opens is decided by the choice and never by the grant alone.
 
 Switching how an account signs in is checked against the harness's sign-in server by
-`crates/mailcal-bindings/tests/live_sign_in_switch.rs` (`scripts/dev/harness.sh test`): a JMAP
+`crates/mailcal-bindings/tests/live/live_sign_in_switch.rs` (`scripts/dev/harness.sh test`): a JMAP
 account goes from its password to signing in and back under one id, and an IMAP sign-in signs in
 again on the client it registered and keeps its grant over a password the server refuses.
 
 Link suggestions are checked against the harness by
-`crates/mailcal-bindings/tests/live_link_suggestions.rs` (`scripts/dev/harness.sh test`), in the
+`crates/mailcal-bindings/tests/live/live_link_suggestions.rs` (`scripts/dev/harness.sh test`), in the
 shape of the `stalwart-linked` dev account: Stalwart lists each user's address in their principal's
 `calendar-user-address-set`, so alice's calendar is suggested for her mailbox, and her mailbox for
 it, while bob's calendar is offered without being suggested.

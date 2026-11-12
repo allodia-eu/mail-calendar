@@ -12,7 +12,7 @@
 //! ```sh
 //! (cd docker/stalwart && docker compose up -d --wait)
 //! STALWART_HTTP_ADDR=127.0.0.1:28080 STALWART_ACCOUNT=alice@test.local \
-//!   STALWART_PASSWORD=harness-alice-pw cargo test -p mailcal-account --test live_jmap -- --nocapture
+//!   STALWART_PASSWORD=harness-alice-pw cargo test -p mailcal-account --test live -- live_jmap:: --nocapture
 //! ```
 
 use engine_api::{
