@@ -345,6 +345,16 @@ scripts/dev/control.sh iphone hardware-keyboard off
 Check for the keyboard rather than assuming it: a dump with it up lists its keys
 (`ui-dump | grep -c "AXButton.* return$"` is non-zero).
 
+⚠️ **`idb ui text` can leave Shift held.** After text containing `@` or `:`, later text arrives
+shifted (`alice@TEST>LOCAL`), and neither a Shift or Caps Lock key event nor toggling the hardware
+keyboard clears it. Rebooting the simulator does, and turns the hardware keyboard off again, so
+the on-screen one then covers a form until `control.sh iphone hardware-keyboard on`. Read a typed
+field back before pressing anything that sends it.
+
+⚠️ **After an XCUITest run, idb sees an empty app**: `ui-dump` prints only `AXApplication [0,0]`,
+and neither relaunching the app nor restarting the companion helps. Reboot the simulator, or drive
+it through the test agent (`control.sh iphone agent dump`), which asks the app from inside.
+
 **Re-read the frame after every change: iOS layout moves under you.** A centred screen re-centres
 when a disclosure expands, so coordinates from an earlier `describe-all` land on the wrong element
 (or on nothing). Resolve the frame and tap in the *same* step.

@@ -162,7 +162,19 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   `mailcal-bindings/tests/live_nextcloud_sign_in.rs` signs in through the server's own pages,
   connects CalDAV and CardDAV with the app password, signs in again and removes the account,
   asserting each withdrawal at the server. It is not in CI: this repository's harness is
-  Stalwart, and the fixture is the engine's.
+  Stalwart, and the fixture is the engine's. Two of its behaviours read as an app fault. It keeps
+  `/var/www/html` on an anonymous volume that Compose reuses when the container is recreated,
+  while its PostgreSQL starts empty, so an old `config.php` can meet a new database and
+  `status.php` answers 500 (`password authentication failed for user "oc_admin"`): bring it down
+  with `docker compose down -v` before `up`. And after a few refused sign-ins it throttles the
+  address they came from and answers 429, which the app correctly reports as unreachable, so the
+  separate-server step stops appearing; reset it for the compose network's gateway, which moves
+  when the network is recreated:
+
+  ```
+  gateway=$(docker network inspect nextcloud-harness_default -f '{{(index .IPAM.Config 0).Gateway}}')
+  docker exec -u www-data pim-nextcloud-harness php occ security:bruteforce:reset "$gateway"
+  ```
 - **Clients**: each client's PR adds the assertions its platform can make about the four
   surfaces. Linux asserts the poll and its wake (`nextcloud_flight_tests.rs`), the found card,
   the manual pane and the separate-server step drawn, the account page's section, and the banner's
