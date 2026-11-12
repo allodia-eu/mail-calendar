@@ -74,7 +74,7 @@ impl MailcalApp {
         }
         Ok(view(
             self.shared_offer(&account_id),
-            self.chosen_shared(&account_id),
+            self.shown_shared(&account_id),
         ))
     }
 
@@ -179,7 +179,7 @@ impl MailcalApp {
             return Err(err);
         }
         match (on, was_chosen) {
-            (true, false) => self.open_shared_store(&parent, &child),
+            (true, false) => self.open_shared_store(&child),
             // It holds more than it did: dialled again to open it.
             (true, true) => self.redial(child.as_str()),
             (false, _) => self.drop_shared_store(&child),
@@ -197,6 +197,14 @@ impl MailcalApp {
             .into_iter()
             .map(|child| child.choice)
             .collect()
+    }
+
+    /// The stores `account_id` is used for, each holding what the account opens of it now, as
+    /// its row says: a store holding mail and calendars holds only mail once the account's
+    /// calendar is switched off. One the account opens nothing of keeps what it was stored with,
+    /// so its row is still drawn and can be switched off.
+    pub(crate) fn shown_shared(&self, account_id: &str) -> Vec<SharedStoreChoice> {
+        shown(self.chosen_shared(account_id), self.shared_uses(account_id))
     }
 
     /// What `account_id`'s server says of the stores its sign-in opens: asked of the server only
@@ -218,8 +226,11 @@ impl MailcalApp {
             .map_err(|err| {
                 log::info!("shared stores: the server did not list them ({err})");
             })?;
-        if let SharedStoreOffer::Listed(listed) = &offer {
-            self.gain_listed(account_id, listed);
+        if let SharedStoreOffer::Listed { stores, unanswered } = &offer {
+            if !unanswered.is_empty() {
+                log::info!("shared stores: a server did not list them ({unanswered:?})");
+            }
+            self.gain_listed(account_id, stores);
         }
         Ok(offer)
     }
@@ -231,7 +242,7 @@ impl MailcalApp {
             let Some(store) = listed.iter().find(|store| store.handle == choice.handle) else {
                 continue;
             };
-            if holds(store).union(choice.holds) != choice.holds {
+            if SharedUses::held_by(store).union(choice.holds) != choice.holds {
                 let gained = entry(store, true);
                 if let Err(err) = self.set_shared_store(account_id.to_owned(), gained, true) {
                     log::info!("shared stores: what a store holds now was not stored ({err})");
@@ -274,14 +285,9 @@ impl MailcalApp {
         self.retry_connections();
     }
 
-    /// Lists the shared store `child` of `parent` and dials it in the background.
-    fn open_shared_store(&self, parent: &AccountId, child: &AccountId) {
-        let Some(placeholder) = self
-            .registry
-            .shared_placeholders(parent.as_str())
-            .into_iter()
-            .find(|placeholder| placeholder.id == *child)
-        else {
+    /// Lists the shared store `child` and dials it in the background.
+    fn open_shared_store(&self, child: &AccountId) {
+        let Some(placeholder) = self.registry.shared_placeholder(child.clone()) else {
             return;
         };
         let app = Arc::clone(&self.app);
@@ -310,7 +316,8 @@ impl MailcalApp {
 
     /// `parent` stopped opening `kind`, as when the use that opens it is switched off: each store
     /// holding `kind` keeps the rest of what it holds, with what the device holds of `kind`
-    /// forgotten, and one left opening nothing is no longer used. Stores the account.
+    /// forgotten, and one left opening nothing is no longer used. Stores the account. A store
+    /// that stays is queued to be dialled, which the caller's dial of `parent` does.
     pub(crate) fn drop_shared_use(
         &self,
         parent: &str,
@@ -325,9 +332,14 @@ impl MailcalApp {
                 self.list_without_providers(&child.id);
                 let (app, id) = (Arc::clone(&self.app), child.id.clone());
                 self.runtime.block_on(|| async move {
-                    app.forget_account_domain(&id, domain(kind)).await;
+                    app.forget_account_domain(&id, kind.domain()).await;
                 });
-                self.redial(child.id.as_str());
+                // Queued, not dialled: the parent is dialled again once its use changed, and its
+                // dial takes this store with it, on the connections it makes.
+                self.disconnected
+                    .lock()
+                    .expect("disconnected mutex poisoned")
+                    .insert(child.id.as_str().to_owned());
             } else {
                 self.registry.set_shared_store(parent, child.choice, false);
                 self.drop_shared_store(&child.id);
@@ -359,45 +371,49 @@ impl MailcalApp {
     }
 }
 
-/// The engine's domain for `kind`.
-const fn domain(kind: SharedUse) -> engine_api::SearchDomain {
-    match kind {
-        SharedUse::Mail => engine_api::SearchDomain::Mail,
-        SharedUse::Calendar => engine_api::SearchDomain::Calendar,
-    }
-}
-
-/// What `store` holds, as an account's uses name it: what the servers asked found in it.
-fn holds(store: &SharedAccount) -> SharedUses {
-    SharedUse::ALL
-        .into_iter()
-        .filter(|kind| store.domains.contains(domain(*kind)))
-        .collect()
-}
-
 /// `store` as Settings draws it.
 fn entry(store: &SharedAccount, selected: bool) -> SharedStoreEntry {
     SharedStoreEntry {
         handle: store.handle.as_str().to_owned(),
         name: store.name.clone(),
         address: store.address.clone(),
-        holds: holds(store),
+        holds: SharedUses::held_by(store),
         selected,
         listed: true,
     }
 }
 
-/// The view Settings draws: the chosen stores first, then the rest the server listed.
+/// `chosen`, each holding what `opens` opens of it, or what it was stored with when that is
+/// nothing.
+pub(crate) fn shown(chosen: Vec<SharedStoreChoice>, opens: SharedUses) -> Vec<SharedStoreChoice> {
+    chosen
+        .into_iter()
+        .map(|mut choice| {
+            let now = choice.holds.intersect(opens);
+            if !now.is_empty() {
+                choice.holds = now;
+            }
+            choice
+        })
+        .collect()
+}
+
+/// The view Settings draws: the chosen stores first, then the rest the server listed. A chosen
+/// store the server stopped listing is drawn as withdrawn, unless the server for one of the
+/// uses it holds did not answer, which says nothing of it.
 pub(crate) fn view<E>(
     offer: Result<SharedStoreOffer, E>,
     chosen: Vec<SharedStoreChoice>,
 ) -> SharedStoresView {
-    let (support, listed) = match offer {
-        Ok(SharedStoreOffer::Listed(listed)) => (SharedStoreSupport::Listed, listed),
-        Ok(SharedStoreOffer::ByAddress) => (SharedStoreSupport::ByAddress, Vec::new()),
-        Ok(SharedStoreOffer::Unsupported) => (SharedStoreSupport::Unsupported, Vec::new()),
-        Ok(SharedStoreOffer::NotConnected) => (SharedStoreSupport::NotConnected, Vec::new()),
-        Err(_) => (SharedStoreSupport::Unreachable, Vec::new()),
+    let none = SharedUses::default();
+    let (support, listed, unanswered) = match offer {
+        Ok(SharedStoreOffer::Listed { stores, unanswered }) => {
+            (SharedStoreSupport::Listed, stores, unanswered)
+        }
+        Ok(SharedStoreOffer::ByAddress) => (SharedStoreSupport::ByAddress, Vec::new(), none),
+        Ok(SharedStoreOffer::Unsupported) => (SharedStoreSupport::Unsupported, Vec::new(), none),
+        Ok(SharedStoreOffer::NotConnected) => (SharedStoreSupport::NotConnected, Vec::new(), none),
+        Err(_) => (SharedStoreSupport::Unreachable, Vec::new(), none),
     };
     let is_listed = |handle: &SharedAccountId| listed.iter().any(|store| store.handle == *handle);
     let mut stores: Vec<SharedStoreEntry> = chosen
@@ -409,7 +425,9 @@ pub(crate) fn view<E>(
             holds: choice.holds,
             selected: true,
             // Not connected is not the same as withdrawn: nothing was asked.
-            listed: support != SharedStoreSupport::Listed || is_listed(&choice.handle),
+            listed: support != SharedStoreSupport::Listed
+                || is_listed(&choice.handle)
+                || !choice.holds.intersect(unanswered).is_empty(),
         })
         .collect();
     stores.extend(

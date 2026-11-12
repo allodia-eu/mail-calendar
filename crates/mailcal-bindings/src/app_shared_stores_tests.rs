@@ -37,10 +37,10 @@ fn handles(view: &SharedStoresView) -> Vec<(&str, bool, bool)> {
 #[test]
 fn the_chosen_mailboxes_come_first_and_the_rest_the_server_listed_after() {
     let view = view::<()>(
-        Ok(SharedStoreOffer::Listed(vec![
-            listed("a", "a@example.org"),
-            listed("b", "b@example.org"),
-        ])),
+        Ok(SharedStoreOffer::Listed {
+            stores: vec![listed("a", "a@example.org"), listed("b", "b@example.org")],
+            unanswered: mailcal_account::SharedUses::default(),
+        }),
         vec![chosen("b", "b@example.org")],
     );
     assert_eq!(view.support, SharedStoreSupport::Listed);
@@ -50,7 +50,10 @@ fn the_chosen_mailboxes_come_first_and_the_rest_the_server_listed_after() {
 #[test]
 fn a_chosen_mailbox_the_server_stopped_listing_is_kept_and_says_so() {
     let view = view::<()>(
-        Ok(SharedStoreOffer::Listed(Vec::new())),
+        Ok(SharedStoreOffer::Listed {
+            stores: Vec::new(),
+            unanswered: mailcal_account::SharedUses::default(),
+        }),
         vec![chosen("b", "b@example.org")],
     );
     assert_eq!(handles(&view), [("b", true, false)]);
@@ -78,14 +81,56 @@ fn each_store_says_what_it_holds() {
     let group = mail().with(SharedUse::Calendar);
     let calendar = StoreDomains::of(SearchDomain::Calendar);
     let view = view::<()>(
-        Ok(SharedStoreOffer::Listed(vec![
-            listed_holding("a", "a@example.org", calendar.with(SearchDomain::Mail)),
-            listed_holding("c", "c@example.org", calendar),
-        ])),
+        Ok(SharedStoreOffer::Listed {
+            stores: vec![
+                listed_holding("a", "a@example.org", calendar.with(SearchDomain::Mail)),
+                listed_holding("c", "c@example.org", calendar),
+            ],
+            unanswered: mailcal_account::SharedUses::default(),
+        }),
         vec![chosen("b", "b@example.org")],
     );
     let holds: Vec<_> = view.stores.iter().map(|store| store.holds).collect();
     assert_eq!(holds, [mail(), group, SharedUses::of(SharedUse::Calendar)]);
+}
+
+#[test]
+fn a_chosen_store_the_unanswered_server_holds_is_not_called_withdrawn() {
+    // The mailbox listed nothing chosen; the calendar server did not answer.
+    let calendars = SharedStoreChoice {
+        holds: SharedUses::of(SharedUse::Calendar),
+        ..chosen("c", "c@example.org")
+    };
+    let view = view::<()>(
+        Ok(SharedStoreOffer::Listed {
+            stores: vec![listed("a", "a@example.org")],
+            unanswered: SharedUses::of(SharedUse::Calendar),
+        }),
+        vec![chosen("b", "b@example.org"), calendars],
+    );
+    assert_eq!(view.support, SharedStoreSupport::Listed);
+    assert_eq!(
+        handles(&view),
+        [("b", true, false), ("c", true, true), ("a", false, true)]
+    );
+}
+
+#[test]
+fn a_chosen_store_shows_what_the_account_opens_of_it_now() {
+    let group = SharedStoreChoice {
+        holds: mail().with(SharedUse::Calendar),
+        ..chosen("g", "g@example.org")
+    };
+    let calendars = SharedStoreChoice {
+        holds: SharedUses::of(SharedUse::Calendar),
+        ..chosen("c", "c@example.org")
+    };
+    let holds: Vec<_> = shown(vec![group, calendars], mail())
+        .into_iter()
+        .map(|choice| choice.holds)
+        .collect();
+    // The calendar alone, which the account no longer opens, keeps its row to be switched off.
+    assert_eq!(holds, [mail(), SharedUses::of(SharedUse::Calendar)]);
 }
 
 #[test]

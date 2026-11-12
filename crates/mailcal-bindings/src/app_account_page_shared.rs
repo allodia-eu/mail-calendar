@@ -45,7 +45,7 @@ impl MailcalApp {
         } else {
             Some(Ok(SharedStoreOffer::Unsupported))
         };
-        shared.section(account_id, offer, self.chosen_shared(account_id), hold)
+        shared.section(account_id, offer, self.shown_shared(account_id), hold)
     }
 
     /// Asks `account_id`'s server on a thread of its own, when [`SharedAnswers::ask`] says so.
@@ -114,7 +114,7 @@ impl MailcalApp {
                     .shared
                     .offer(&account)
                     .unwrap_or(Ok(SharedStoreOffer::NotConnected));
-                let Some(mailbox) = view(offer, self.chosen_shared(&account))
+                let Some(mailbox) = view(offer, self.shown_shared(&account))
                     .stores
                     .into_iter()
                     .find(|mailbox| mailbox.handle == handle)

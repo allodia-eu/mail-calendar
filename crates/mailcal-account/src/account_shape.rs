@@ -17,15 +17,18 @@ use crate::ConfigError;
 ///
 /// `Colleagues` is a sub-choice of `Contacts` on a Microsoft or Google account: the people in
 /// the person's work or school directory, which a provider grants as a separate permission.
-/// `SharedMailboxes` is the same for `Mail` on a Microsoft account: the mailboxes the person was
-/// given access to (`docs/shared-mailboxes.md`). `Meetings` is a use of its own, beside them: the
+/// `SharedMailboxes` is the same for `Mail` and `Calendar` on a Microsoft account: the mailboxes
+/// and calendars the person was given access to, each opened beside the use it belongs to
+/// (`docs/shared-mailboxes.md`). `Meetings` is a use of its own, beside them: the
 /// video meetings the account's provider makes for an event on any calendar
 /// (`docs/accounts.md` rule 19).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Capability {
     /// Reading and sending mail.
     Mail,
-    /// Mailboxes the person was given access to, beside the account's own.
+    /// Mailboxes and calendars the person was given access to, beside the account's own: their
+    /// mail beside mail and their calendars beside calendar. Stored as `shared_mailboxes`, its name
+    /// from before it opened calendars.
     SharedMailboxes,
     /// The account's calendar.
     Calendar,

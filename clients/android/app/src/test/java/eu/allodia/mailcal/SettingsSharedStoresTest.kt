@@ -162,7 +162,7 @@ class SettingsSharedStoresTest {
             CoreAccountKind.MICROSOFT,
             AccountCapability.MAIL to CapabilityState.OFF,
             AccountCapability.SHARED_MAILBOXES to CapabilityState.OFF,
-            AccountCapability.CALENDAR to CapabilityState.ON,
+            AccountCapability.CALENDAR to CapabilityState.OFF,
         )
         state.snapshot = AccountsSnapshot(listOf(microsoft))
         state.page = microsoft.id
@@ -175,7 +175,7 @@ class SettingsSharedStoresTest {
                     AccountCapability.SHARED_MAILBOXES,
                     on = false,
                     control = held,
-                    blocked = uniffi.mailcal_bindings.AccountUseBlock.NEEDS_MAIL,
+                    blocked = uniffi.mailcal_bindings.AccountUseBlock.NEEDS_MAIL_OR_CALENDAR,
                 ),
             ),
         )
@@ -186,6 +186,6 @@ class SettingsSharedStoresTest {
             }
         }
         compose.onNodeWithTag("account-use-SHARED_MAILBOXES").assertIsOff().assertIsNotEnabled()
-        compose.onNodeWithText("Switch on Mail first.").assertExists()
+        compose.onNodeWithText("Switch on Mail or Calendar first.").assertExists()
     }
 }

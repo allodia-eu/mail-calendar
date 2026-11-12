@@ -51,6 +51,7 @@ pub const MICROSOFT_GRAPH_SCOPES: &[&str] = &[
     "https://graph.microsoft.com/User.ReadBasic.All",
     "https://graph.microsoft.com/Mail.ReadWrite.Shared",
     "https://graph.microsoft.com/Mail.Send.Shared",
+    "https://graph.microsoft.com/Calendars.ReadWrite.Shared",
     "https://graph.microsoft.com/OnlineMeetings.ReadWrite",
 ];
 

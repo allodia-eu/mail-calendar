@@ -3,8 +3,9 @@
 Platforms: all
 Bump: minor
 
-> A store a JMAP or CalDAV account's sign-in opens besides its own, such as a group's or a
-> colleague's, is offered on the account's page with what it holds and, once switched on, is an
+> A store a JMAP, CalDAV or Microsoft 365 account's sign-in opens besides its own, such as a
+> group's or a colleague's, is offered on the account's page with what it holds (on Microsoft, by
+> its address, under the use that already opened shared mailboxes) and, once switched on, is an
 > account of its own with its owner's mail and calendars and their rights: a group's mailbox and
 > calendar are one switch.
 

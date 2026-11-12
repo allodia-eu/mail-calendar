@@ -102,35 +102,43 @@ private func provider() -> UseOffer {
         #expect((everything.caldavURL + everything.carddavURL).isEmpty)
     }
 
-    @Test func sharedMailboxesCountOnlyBesideMail() {
-        let microsoft = UseOffer(choices: [AccountCapability.mail, .sharedMailboxes, .contacts].map {
-            SetupChoice(capability: $0, on: true, serverFound: true)
-        })
+    @Test func sharedMailboxesAndCalendarsCountBesideMailOrTheCalendar() {
+        let microsoft = UseOffer(
+            choices: [AccountCapability.mail, .sharedMailboxes, .calendar, .contacts].map {
+                SetupChoice(capability: $0, on: true, serverFound: true)
+            })
         #expect(
             SetupUses.chosen(
-                microsoft, mail: true, calendar: nil, contacts: off, colleagues: nil,
+                microsoft, mail: true, calendar: off, contacts: off, colleagues: nil,
                 sharedMailboxes: true
             ).uses == [.mail, .sharedMailboxes])
         #expect(
             SetupUses.chosen(
-                microsoft, mail: false, calendar: nil, contacts: on, colleagues: nil,
+                microsoft, mail: false, calendar: on, contacts: off, colleagues: nil,
+                sharedMailboxes: true
+            ).uses == [.sharedMailboxes, .calendar])
+        #expect(
+            SetupUses.chosen(
+                microsoft, mail: false, calendar: off, contacts: on, colleagues: nil,
                 sharedMailboxes: true
             ).uses == [.contacts])
     }
 
-    @Test func sharedMailboxesWaitForMailAndGoWithIt() {
-        var choices = UseChoices(UseOffer(choices: [AccountCapability.mail, .sharedMailboxes, .calendar].map {
-            SetupChoice(capability: $0, on: true, serverFound: true)
-        }))
+    @Test func sharedMailboxesAndCalendarsWaitForMailOrTheCalendarAndGoWithBoth() {
+        var choices = UseChoices(
+            UseOffer(choices: [AccountCapability.mail, .sharedMailboxes, .calendar, .contacts].map {
+                SetupChoice(capability: $0, on: true, serverFound: true)
+            }))
         #expect(choices.isOn(.sharedMailboxes))
-        #expect(choices.chosen.uses == [.mail, .sharedMailboxes, .calendar])
         choices.set(.mail, false)
+        #expect(choices.isOn(.sharedMailboxes), "the calendar still opens them")
+        choices.set(.calendar, false)
         #expect(!choices.isOn(.sharedMailboxes))
         #expect(!choices.canFlip(.sharedMailboxes))
         choices.set(.sharedMailboxes, true)
         #expect(!choices.isOn(.sharedMailboxes))
         // Not a use of its own: it never holds the account's last use on.
-        #expect(!choices.canFlip(.calendar))
+        #expect(!choices.canFlip(.contacts))
     }
 
     @Test func teamsMeetingsStartOnCountWhateverElseIsOnAndNeverHoldTheLastUse() {

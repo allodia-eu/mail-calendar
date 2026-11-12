@@ -68,7 +68,7 @@ internal fun switchNote(ctx: Context, switch: AccountUseSwitch): String? {
 internal fun blockSaid(ctx: Context, block: AccountUseBlock): String = when (block) {
     AccountUseBlock.LAST_USE -> L10n.settings_account_use_last(ctx)
     AccountUseBlock.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
-    AccountUseBlock.NEEDS_MAIL -> L10n.settings_account_shared_needs_mail(ctx)
+    AccountUseBlock.NEEDS_MAIL_OR_CALENDAR -> L10n.settings_account_shared_needs_mail(ctx)
     AccountUseBlock.NOT_OFFERED -> L10n.settings_account_use_not_offered(ctx)
     AccountUseBlock.NEEDS_SERVER -> L10n.settings_account_use_needs_endpoint(ctx)
 }
