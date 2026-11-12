@@ -363,7 +363,10 @@ fn the_mail_half_is_read_at_launch() {
     let app = app("account-page-mail-ahead", MAIL_ONLY);
     let deadline = Instant::now() + Duration::from_secs(5);
     while app.account_work.mail_rows.row(ID).is_none() {
-        assert!(Instant::now() < deadline, "the row was never read at launch");
+        assert!(
+            Instant::now() < deadline,
+            "the row was never read at launch"
+        );
         std::thread::sleep(Duration::from_millis(10));
     }
     assert!(settled(&app).mail.is_some());
