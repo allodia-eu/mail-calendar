@@ -140,7 +140,7 @@ public sealed partial class MailboxModel
         bool opened;
         try
         {
-            opened = await Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            opened = await ExternalLauncher.Open(new Uri(url));
         }
         catch (Exception ex)
         {

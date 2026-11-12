@@ -58,7 +58,7 @@ public sealed partial class MailboxModel
                 () => create
                     ? _app!.BeginAllodiaRegistration(AllodiaOAuthConfig.RedirectUri)
                     : _app!.BeginAllodiaSignIn(AllodiaOAuthConfig.RedirectUri));
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+            await ExternalLauncher.Open(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancel.Token);
             // The exchange and the identity lookup block too.
             await Task.Run(() => _app!.CompleteAllodiaSignIn(start.Pending, callbackUrl));
@@ -105,7 +105,7 @@ public sealed partial class MailboxModel
     {
         if (_app?.AllodiaAccountUrl() is { } url)
         {
-            _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+            _ = ExternalLauncher.Open(new Uri(url));
         }
     }
 
@@ -130,7 +130,7 @@ public sealed partial class MailboxModel
             var endSession = _app?.SignOutOfAllodia();
             if (endSession is { } url)
             {
-                _ = Windows.System.Launcher.LaunchUriAsync(new Uri(url));
+                _ = ExternalLauncher.Open(new Uri(url));
             }
             return null;
         }

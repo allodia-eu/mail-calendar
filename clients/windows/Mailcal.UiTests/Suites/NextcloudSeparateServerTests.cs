@@ -11,8 +11,9 @@
 //
 // The mailbox is alice's on the Stalwart harness over IMAP; its calendar server is the engine's
 // Nextcloud fixture (docker/nextcloud in email-calendar-sync-engine, 127.0.0.1:18082), which refuses
-// the harness password, as any separate server would. The sign-in opens the default browser on the
-// fixture's login page, and Driver/NextcloudBrowser.cs does in its place what the person does there.
+// the harness password, as any separate server would. The sign-in hands the fixture's login page to
+// the OS, which the suites' launch holds back, and Driver/NextcloudBrowser.cs does in its place what
+// the person does there.
 // The cases run in the order written; the last removes both accounts. The fixture slows and then
 // refuses every sign-in from this host as refused passwords mount up, and each connect here sends it
 // one, so each case starts with them forgotten (NextcloudBrowser.ForgetRefusals).

@@ -95,7 +95,7 @@ public sealed partial class MailboxModel
             // update the account already set up asks about.
             unreached = start.Unreached ?? [];
             // Open the default browser, where the person is usually already signed in.
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(start.AuthorizationUrl));
+            await ExternalLauncher.Open(new Uri(start.AuthorizationUrl));
             var callbackUrl = await callback.WaitAsync(cancelToken);
             // The token exchange blocks too.
             configToml = await Task.Run(() => app.CompleteImapLogin(start.Pending, callbackUrl));

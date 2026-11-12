@@ -150,6 +150,9 @@ internal sealed partial class App : IDisposable
             },
             ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : HarnessCa.For(Repo),
             ["MAILCAL_TEST_AGENT"] = pipe,
+            // Nothing a case presses opens a browser or another app: a sign-in is completed with the
+            // requests its page makes (NextcloudBrowser), so a tab would be left behind and nothing more.
+            ["MAILCAL_NO_EXTERNAL_OPEN"] = "1",
         };
         if (dataset == Dataset.Showcase)
         {
