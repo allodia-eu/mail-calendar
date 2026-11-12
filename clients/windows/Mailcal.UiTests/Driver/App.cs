@@ -76,7 +76,7 @@ internal sealed partial class App : IDisposable
             AssertShowcaseDriver();
         }
         var (environment, pipe) = LaunchEnvironment(env, dataset);
-        PinEnglish(environment);
+        PrepareStore(environment);
         // Through the shell, so the app inherits none of this process's handles: a child holding the
         // suites' output open keeps whatever reads it waiting after the last case.
         var launchedAt = DateTimeOffset.Now;
@@ -114,7 +114,7 @@ internal sealed partial class App : IDisposable
     internal static App StartedBy(Action activate, IReadOnlyDictionary<string, string>? env = null)
     {
         var (environment, pipe) = LaunchEnvironment(env, Dataset.Harness);
-        PinEnglish(environment);
+        PrepareStore(environment);
         WithEnvironment(environment, activate);
         Process? process = null;
         if (!Eventually(() => (process = Process.GetProcessesByName("Mailcal").FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
@@ -171,12 +171,19 @@ internal sealed partial class App : IDisposable
     private static int _launches;
 
     /// <summary>
-    /// Sets a harness store's language to English, which the cases' copy is read in
-    /// (<see cref="Catalog.English"/>). Left at "system", the app follows the host's display
-    /// language, so on a Dutch Windows every case that reads a sentence fails. The showcase pins
-    /// its own through <c>MAILCAL_SHOWCASE</c>.
+    /// Puts a harness store's preferences where the cases expect them. The showcase pins both
+    /// through <c>MAILCAL_SHOWCASE</c> and persists neither.
+    /// <list type="bullet">
+    /// <item>The language is English, which the cases' copy is read in (<see cref="Catalog.English"/>).
+    /// Left at "system", the app follows the host's display language, so on a Dutch Windows every
+    /// case that reads a sentence fails.</item>
+    /// <item>The window placement is forgotten, so the window opens at the app's own default size.
+    /// The app reopens where it was closed, so a window left maximised by one launch, a case or the
+    /// developer would size every later one, and a case that needs a narrow reading pane cannot
+    /// reach it in a full-screen window.</item>
+    /// </list>
     /// </summary>
-    private static void PinEnglish(Dictionary<string, string?> environment)
+    private static void PrepareStore(Dictionary<string, string?> environment)
     {
         if (environment["MAILCAL_DEV_ACCOUNT"] is not { } devAccount)
         {
@@ -185,6 +192,7 @@ internal sealed partial class App : IDisposable
         var store = DataDir.Store(devAccount);
         Directory.CreateDirectory(store);
         File.WriteAllText(Path.Combine(store, "language.txt"), "en");
+        File.Delete(Path.Combine(store, "window.txt"));
     }
 
     /// <summary>Runs <paramref name="start"/> with <paramref name="environment"/> set in this

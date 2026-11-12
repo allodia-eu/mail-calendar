@@ -90,29 +90,39 @@ internal static class Desktop
     /// units XAML is written in, restored first if it was maximised; disposing puts it back as it
     /// was. The app keeps its bounds for the next launch, so a case that shrinks it puts it back.
     /// </summary>
+    /// <remarks>
+    /// What is put back is the window's placement, its restored rectangle and whether it was
+    /// maximised, and not its bounds: a maximised window's bounds are the screen, and moving the
+    /// restored window to them would make the screen its restored size, which the app then keeps.
+    /// </remarks>
     internal static IDisposable Resized(long hwnd, double width, double height)
     {
         var handle = (nint)hwnd;
-        var saved = Bounds(hwnd);
-        var maximised = IsZoomed(handle);
+        var saved = Placement(handle);
         var scale = GetDpiForWindow(handle) / 96.0;
         ShowWindow(handle, ShowRestore);
-        MoveWindow(handle, saved.X, saved.Y, (int)(width * scale), (int)(height * scale), true);
-        return new Restore(() =>
-        {
-            MoveWindow(handle, saved.X, saved.Y, saved.Width, saved.Height, true);
-            if (maximised)
-            {
-                ShowWindow(handle, ShowMaximise);
-            }
-        });
+        var restored = Bounds(hwnd);
+        MoveWindow(handle, restored.X, restored.Y, (int)(width * scale), (int)(height * scale), true);
+        return new Restore(() => SetWindowPlacement(handle, ref saved));
     }
 
-    /// <summary>Maximises <paramref name="hwnd"/>; disposing restores it.</summary>
+    /// <summary>Maximises <paramref name="hwnd"/>; disposing puts back the placement it had.</summary>
     internal static IDisposable Maximised(long hwnd)
     {
-        ShowWindow((nint)hwnd, ShowMaximise);
-        return new Restore(() => ShowWindow((nint)hwnd, ShowRestore));
+        var handle = (nint)hwnd;
+        var saved = Placement(handle);
+        ShowWindow(handle, ShowMaximise);
+        return new Restore(() => SetWindowPlacement(handle, ref saved));
+    }
+
+    private static NativePlacement Placement(nint hwnd)
+    {
+        var placement = new NativePlacement { Length = (uint)Marshal.SizeOf<NativePlacement>() };
+        if (!GetWindowPlacement(hwnd, ref placement))
+        {
+            throw new InvalidOperationException($"window {hwnd} gave no placement, so a resize could not be put back");
+        }
+        return placement;
     }
 
     private sealed class Restore(Action restore) : IDisposable
@@ -124,8 +134,9 @@ internal static class Desktop
     private const int ShowMaximise = 3;
 
     [DllImport("user32.dll")] private static extern bool MoveWindow(nint hwnd, int x, int y, int width, int height, bool repaint);
-    [DllImport("user32.dll")] private static extern bool IsZoomed(nint hwnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(nint hwnd, int command);
+    [DllImport("user32.dll")] private static extern bool GetWindowPlacement(nint hwnd, ref NativePlacement placement);
+    [DllImport("user32.dll")] private static extern bool SetWindowPlacement(nint hwnd, ref NativePlacement placement);
     [DllImport("user32.dll")] private static extern uint GetDpiForWindow(nint hwnd);
 
     private const uint WmGetIcon = 0x007F;
@@ -137,6 +148,25 @@ internal static class Desktop
         public int Top;
         public int Right;
         public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    // WINDOWPLACEMENT: the show state, and the restored rectangle in workspace coordinates.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePlacement
+    {
+        public uint Length;
+        public uint Flags;
+        public uint ShowCmd;
+        public NativePoint MinPosition;
+        public NativePoint MaxPosition;
+        public NativeRect NormalPosition;
     }
 
     [DllImport("user32.dll")] private static extern bool GetWindowRect(nint hwnd, out NativeRect rect);
