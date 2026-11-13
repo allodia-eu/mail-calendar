@@ -147,3 +147,19 @@ fn every_tile_can_be_removed() {
     assert!(files.tiles[0].remove.enabled);
     assert!(!files.tiles[0].remove.running);
 }
+
+#[test]
+fn a_request_read_again_seeds_only_a_list_that_is_not_there_yet() {
+    // An Outbox edit's opening is pulled until the host dismisses it; a second pull after the
+    // user added a file must not put the list back to what the message was withdrawn with.
+    let lists = ComposerFileLists::default();
+    let c = composition("edit");
+    lists.open_if_absent(&c, vec![file("/staged/a.pdf", "a.pdf")]);
+    lists.add(&c, vec![file("/picked/b.pdf", "b.pdf")]);
+    lists.open_if_absent(&c, vec![file("/staged/a.pdf", "a.pdf")]);
+    assert_eq!(names(&lists, &c), ["a.pdf", "b.pdf"]);
+    assert!(
+        lists.read(&c).changed,
+        "the staged file is what it opened with"
+    );
+}

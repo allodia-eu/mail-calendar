@@ -9,7 +9,7 @@
 
 use std::{collections::HashMap, sync::Mutex};
 
-use mailcal_app::CompositionId;
+use mailcal_app::{CompositionId, StagedAttachment};
 use mailcal_composer::{safe_file_name, safe_media_type};
 
 use crate::{
@@ -124,6 +124,19 @@ impl ComposerFileLists {
         self.lock().insert(composition.clone(), list);
     }
 
+    /// [`Self::open`] for a composition that has no list yet, and nothing for one that has: an
+    /// Outbox edit's opening is read until the host dismisses it, and a later read must not undo a
+    /// file the user added or removed in between.
+    pub(crate) fn open_if_absent(
+        &self,
+        composition: &CompositionId,
+        files: Vec<ComposerFileAttachment>,
+    ) {
+        if !self.lock().contains_key(composition) {
+            self.open(composition, files);
+        }
+    }
+
     pub(crate) fn add(
         &self,
         composition: &CompositionId,
@@ -218,6 +231,18 @@ impl MailcalApp {
             .composer_files
             .remove(&composition_id(composition)?, &file))
     }
+}
+
+/// What the core staged for a composer to open holding, as the list's entries.
+pub(crate) fn staged_files(files: Vec<StagedAttachment>) -> Vec<ComposerFileAttachment> {
+    files
+        .into_iter()
+        .map(|file| ComposerFileAttachment {
+            path: file.path,
+            file_name: file.file_name,
+            media_type: file.media_type,
+        })
+        .collect()
 }
 
 fn composition_id(value: String) -> Result<CompositionId, MailcalError> {

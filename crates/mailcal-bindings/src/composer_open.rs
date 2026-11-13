@@ -16,8 +16,9 @@ use mailcal_app::{
 };
 
 use crate::{
-    ComposerFileAttachment, MailcalApp, MailcalError,
+    MailcalApp, MailcalError,
     composer::{message_ref, send_account},
+    composer_file_list::staged_files,
 };
 
 /// What a composer is opened on.
@@ -268,17 +269,7 @@ impl MailcalApp {
         // with what the composer opens holding.
         let files = std::mem::take(&mut opening.attachments);
         if !moved {
-            self.composer_files.open(
-                &opened,
-                files
-                    .into_iter()
-                    .map(|file| ComposerFileAttachment {
-                        path: file.path,
-                        file_name: file.file_name,
-                        media_type: file.media_type,
-                    })
-                    .collect(),
-            );
+            self.composer_files.open(&opened, staged_files(files));
         }
         Ok(ComposeOpening::from(opening))
     }
