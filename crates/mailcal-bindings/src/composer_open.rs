@@ -12,7 +12,7 @@ use mailcal_app::{
     ComposeKind as AppComposeKind, ComposeOpening as AppComposeOpening,
     ComposeOrigin as AppComposeOrigin, ComposePrefill as AppComposePrefill,
     ComposerState as AppComposerState, CompositionId, MovedSignature as AppMovedSignature,
-    QuoteSource as AppQuoteSource, StagedAttachment,
+    QuoteSource as AppQuoteSource,
 };
 
 use crate::{
@@ -62,7 +62,8 @@ pub enum ComposeOrigin {
 }
 
 /// Everything a composer holds that its composition does not, read off it as it moves to another
-/// view: the fields, the editor's document, the files, and what it was doing with the signature.
+/// view: the fields, the editor's document, and what it was doing with the signature. The files are
+/// the composition's (`composer_files`), so they move with it.
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct ComposerState {
     /// The From dropdown's account, or `None` where it follows the default.
@@ -77,8 +78,6 @@ pub struct ComposerState {
     pub subject: String,
     /// The editor's document, as its `composerDocument()` wrote it.
     pub document_json: String,
-    /// The files the composer holds, where they are now. They stay there.
-    pub files: Vec<ComposerFileAttachment>,
     /// What the composer was doing with the signature.
     pub signature: MovedSignature,
     /// Whether anything was written in it, against what it opened with.
@@ -206,11 +205,8 @@ pub struct ComposeOpening {
     /// reply's or forward's, which is what lets the seed order above tell the two apart.
     /// A stored one carries the original's headers and no body: the stored quote holds the body.
     pub quote: Option<QuoteSource>,
-    /// The files the composer opens holding, already in the staging directory the host named.
-    /// It must open holding all of them: a stored message's next save replaces it, so a file left
-    /// out is taken off it.
-    pub attachments: Vec<ComposerFileAttachment>,
-    /// Whether a forward's originals could not be staged, so the composer opens saying so.
+    /// Whether a forward's originals could not be staged, so the composer opens saying so. The
+    /// files it opens holding are the composition's: read them with `composer_files`.
     pub attachments_failed: bool,
     /// Whether to seed the account's signature. A stored message already carries its own.
     pub seeds_signature: bool,
@@ -256,16 +252,35 @@ impl MailcalApp {
     ) -> Result<ComposeOpening, MailcalError> {
         let composition = CompositionId::new(composition)
             .ok_or_else(|| MailcalError::Engine("composition id is blank".to_owned()))?;
+        let moved = matches!(origin, ComposeOrigin::Moved { .. });
         let origin = app_origin(origin)?;
         let prefill = prefill.map(app_prefill).transpose()?;
         let app = Arc::clone(&self.app);
-        self.runtime
+        let opened = composition.clone();
+        let mut opening = self
+            .runtime
             .block_on(|| async move {
                 app.open_composer(composition, origin, prefill, &staging_directory)
                     .await
             })
-            .map(ComposeOpening::from)
-            .map_err(MailcalError::Engine)
+            .map_err(MailcalError::Engine)?;
+        // A move keeps the composition, and so its files; every other opening starts its list
+        // with what the composer opens holding.
+        let files = std::mem::take(&mut opening.attachments);
+        if !moved {
+            self.composer_files.open(
+                &opened,
+                files
+                    .into_iter()
+                    .map(|file| ComposerFileAttachment {
+                        path: file.path,
+                        file_name: file.file_name,
+                        media_type: file.media_type,
+                    })
+                    .collect(),
+            );
+        }
+        Ok(ComposeOpening::from(opening))
     }
 }
 
@@ -298,15 +313,6 @@ fn app_state(state: ComposerState) -> Result<AppComposerState, MailcalError> {
         bcc: state.bcc,
         subject: state.subject,
         document: state.document_json,
-        attachments: state
-            .files
-            .into_iter()
-            .map(|file| StagedAttachment {
-                path: file.path,
-                file_name: file.file_name,
-                media_type: file.media_type,
-            })
-            .collect(),
         signature: state.signature.into(),
         written: state.written,
     })
@@ -384,15 +390,6 @@ impl From<AppComposeOpening> for ComposeOpening {
             body_html: opening.body_html,
             body_text: opening.body_text,
             quote: opening.quote.map(QuoteSource::from),
-            attachments: opening
-                .attachments
-                .into_iter()
-                .map(|file| ComposerFileAttachment {
-                    path: file.path,
-                    file_name: file.file_name,
-                    media_type: file.media_type,
-                })
-                .collect(),
             attachments_failed: opening.attachments_failed,
             seeds_signature: opening.seeds_signature,
             moved: opening.moved.map(|moved| MovedComposer {

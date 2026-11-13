@@ -47,6 +47,22 @@ pub enum ComposerHostRequest {
         /// A step can be redone.
         redo: bool,
     },
+    /// The height the editor's content needs, in CSS pixels, sent in its growing mode whenever it
+    /// changes. A notice: the host sizes the editor to `composer_editor_height` of it
+    /// (`docs/composer-layout.md`, rule 5).
+    Height {
+        /// The height.
+        px: u32,
+    },
+    /// Where the caret is, in CSS pixels from the top of the editor's page, sent in its growing
+    /// mode as it moves. A notice: the host keeps it in view with `composer_caret_scroll`
+    /// (`docs/composer-layout.md`, rule 6).
+    Caret {
+        /// The caret's top edge.
+        top: u32,
+        /// The caret's bottom edge.
+        bottom: u32,
+    },
 }
 
 /// Reads one message the editor posted, or `None` when it is not a request this product knows.
@@ -65,6 +81,11 @@ pub fn parse_composer_host_request(message: String) -> Option<ComposerHostReques
         HostRequestKind::History(steps) => ComposerHostRequest::History {
             undo: steps.undo,
             redo: steps.redo,
+        },
+        HostRequestKind::Height(height) => ComposerHostRequest::Height { px: height.px },
+        HostRequestKind::Caret(caret) => ComposerHostRequest::Caret {
+            top: caret.top,
+            bottom: caret.bottom,
         },
     })
 }
@@ -114,10 +135,14 @@ pub fn composer_link_answer_script(id: u64, answer: ComposerLinkAnswer) -> Strin
 /// The script that tells the editor which requests this host answers, so it asks for them rather
 /// than drawing its own. Run it once the page has loaded; without it the editor draws everything
 /// itself.
+///
+/// It also asks for the growing mode's [`ComposerHostRequest::Height`] and
+/// [`ComposerHostRequest::Caret`], which the editor sends only once `useGrowingComposer()` has
+/// switched that mode on.
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_script() -> String {
-    "window.setComposerHostRequests([\"link\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"height\",\"caret\"]);".to_owned()
 }
 
 /// The same, for a host that also keeps the body's undo state, because its platform asks whether
@@ -127,7 +152,7 @@ pub fn composer_host_requests_script() -> String {
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_with_history_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"history\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"history\",\"height\",\"caret\"]);".to_owned()
 }
 
 #[cfg(test)]
@@ -161,6 +186,23 @@ mod tests {
             Some(ComposerHostRequest::History {
                 undo: false,
                 redo: true,
+            })
+        );
+    }
+
+    #[test]
+    fn the_growing_modes_notices_reach_the_client_as_their_fields() {
+        let height = r#"{"id":0,"request":{"height":{"px":640}}}"#;
+        assert_eq!(
+            parse_composer_host_request(height.to_owned()),
+            Some(ComposerHostRequest::Height { px: 640 })
+        );
+        let caret = r#"{"id":0,"request":{"caret":{"top":12,"bottom":30}}}"#;
+        assert_eq!(
+            parse_composer_host_request(caret.to_owned()),
+            Some(ComposerHostRequest::Caret {
+                top: 12,
+                bottom: 30
             })
         );
     }

@@ -35,6 +35,29 @@ pub enum HostRequestKind {
     Link(LinkRequest),
     /// The body's undo history changed. A notice rather than a request: nothing answers it.
     History(HistorySteps),
+    /// The height the editor's content needs, in its growing mode (`docs/composer-layout.md`,
+    /// rule 5). A notice.
+    Height(ContentHeight),
+    /// Where the caret is, in its growing mode (`docs/composer-layout.md`, rule 6). A notice.
+    Caret(CaretSpan),
+}
+
+/// The height the editor's toolbar and text need together, in whole CSS pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ContentHeight {
+    /// The height.
+    pub px: u32,
+}
+
+/// The caret's top and bottom edges, in whole CSS pixels from the top of the editor's page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CaretSpan {
+    /// The caret's top edge.
+    pub top: u32,
+    /// The caret's bottom edge, never above its top.
+    pub bottom: u32,
 }
 
 /// Whether the body's history has a step to take back and one to put back, for a host whose menu
@@ -85,6 +108,11 @@ pub fn parse_host_request(message: &str) -> Option<HostRequest> {
         return None;
     }
     let envelope: Envelope = serde_json::from_str(message).ok()?;
+    if let HostRequestKind::Caret(caret) = &envelope.request
+        && caret.bottom < caret.top
+    {
+        return None;
+    }
     Some(HostRequest {
         id: envelope.id,
         kind: envelope.request,
