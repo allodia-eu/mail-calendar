@@ -342,7 +342,7 @@ pub(crate) enum AppInput {
     CancelAllodiaSignIn,
     SignOutOfAllodia,
     /// Everything the subscription section asks for, in one variant: it is one screen's
-    /// traffic, and every piece of it ends in the same re-read.
+    /// traffic.
     AllodiaSubscription(SubscriptionInput),
     /// The Settings sidebar moved to a page. Records it so a later redraw rebuilds on the
     /// page the person is looking at rather than the one the model last named.

@@ -234,6 +234,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::subscription::tests::a_write_in_flight_stops_a_second_one();
     crate::ui::settings::subscription::tests::the_buy_buttons_name_their_period_and_their_price();
     crate::ui::settings::subscription::tests::an_account_that_cannot_buy_is_offered_nothing();
+    crate::ui::settings::subscription::tests::a_store_page_is_offered_on_the_free_half();
     crate::ui::settings::subscription::tests::
         a_grant_that_predates_the_read_offers_the_one_thing_that_fixes_it();
     crate::ui::settings::subscription::tests::every_subscription_row_is_reachable_from_the_keyboard(

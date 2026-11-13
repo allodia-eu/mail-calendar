@@ -392,9 +392,7 @@ impl AppModel {
             AppInput::ManageAllodiaAccount => self.manage_allodia_account(),
             AppInput::CancelAllodiaSignIn => self.cancel_allodia_sign_in(),
             AppInput::SignOutOfAllodia => self.sign_out_of_allodia(),
-            AppInput::AllodiaSubscription(input) => {
-                self.allodia_subscription_input(input, sender.input_sender().clone());
-            }
+            AppInput::AllodiaSubscription(input) => self.allodia_subscription_input(input),
             AppInput::SettingsCategoryShown(category) => {
                 self.settings.record_category(category);
             }

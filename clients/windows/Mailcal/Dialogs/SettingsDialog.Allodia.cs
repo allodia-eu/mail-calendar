@@ -10,7 +10,8 @@
 // screen at all, absent, never present-and-broken (SettingsDialog.Categories).
 //
 // Drawn from the core's AllodiaCard, which says who is signed in, the sign-in out and what the last
-// sign-in or sign-out came to (AllodiaCardRules); the dialog keeps none of it.
+// sign-in or sign-out came to (AllodiaCardRules), and its AllodiaSubscriptionCard; the dialog keeps
+// none of it.
 //
 // Its own partial, like the Accounts category itself, so SettingsDialog.cs stays clear of the
 // 500-line limit.
@@ -28,8 +29,6 @@ public sealed partial class SettingsDialog
     // What the category was last drawn from, so a signal that moved none of it leaves the panel,
     // and the button under the pointer, alone.
     private string? _allodiaDrawn;
-    // Who the card named when last drawn or signalled, and whether a sign-in was out.
-    private (string? Email, bool SigningIn) _allodiaSeen;
 
     // The card, or null in a build that carries no Allodia registration, which is the ordinary
     // answer for a build from source, and draws nothing at all rather than a dead button.
@@ -39,8 +38,8 @@ public sealed partial class SettingsDialog
         {
             return null;
         }
-        _allodiaDrawn = card.ToString();
-        _allodiaSeen = (AllodiaCardRules.Account(card)?.Email, card.Browser is not null);
+        var subscription = _model.AllodiaSubscriptionCard();
+        _allodiaDrawn = AllodiaDrawn(card, subscription);
         var panel = new StackPanel { Spacing = 6 };
         panel.Children.Add(Heading(L10n.SettingsAllodiaHeading()));
         panel.Children.Add(Description(L10n.SettingsAllodiaDescription()));
@@ -51,9 +50,9 @@ public sealed partial class SettingsDialog
         }
         // The subscription sits under the account it belongs to, and is drawn only while somebody
         // is signed in (SettingsDialog.Subscription.cs).
-        if (BuildAllodiaSubscription(card) is { } subscription)
+        if (subscription is not null && BuildAllodiaSubscription(card, subscription) is { } section)
         {
-            panel.Children.Add(subscription);
+            panel.Children.Add(section);
         }
         return panel;
     }
@@ -151,25 +150,22 @@ public sealed partial class SettingsDialog
         return line;
     }
 
-    // The card moved (Surface.Allodia). The subscription read is about the account it was made
-    // for, so it is forgotten when the account named moves or a sign-in ends: signing in again is
-    // the remedy the read's reauth state offers, and leaves the same account behind. The category
-    // is drawn again when it is the one open and what it draws moved, and so is an Accounts list
-    // offering the sign-in again.
+    // What a redraw of the category compares: the account's card and its subscription's.
+    private static string AllodiaDrawn(AllodiaCard card, AllodiaSubscriptionCard? subscription) =>
+        $"{card}/{AllodiaSubscriptionRules.Fingerprint(subscription)}";
+
+    // The card or the subscription moved (Surface.Allodia). The category is drawn again when it is
+    // the one open and what it draws moved, and so is an Accounts list offering the sign-in again.
     private void OnAllodiaChanged()
     {
         if (_model.AllodiaCard() is not { } card)
         {
             return;
         }
-        (string? Email, bool SigningIn) seen = (AllodiaCardRules.Account(card)?.Email, card.Browser is not null);
-        if (seen.Email != _allodiaSeen.Email || (_allodiaSeen.SigningIn && !seen.SigningIn))
-        {
-            ForgetAllodiaSubscriptionRead();
-        }
-        _allodiaSeen = seen;
         OnAllodiaChangedOnAccounts();
-        if (_rebuilding || CurrentCategory() != "allodia" || card.ToString() == _allodiaDrawn)
+        if (_rebuilding
+            || CurrentCategory() != "allodia"
+            || AllodiaDrawn(card, _model.AllodiaSubscriptionCard()) == _allodiaDrawn)
         {
             return;
         }

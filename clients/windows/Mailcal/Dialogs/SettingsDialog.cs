@@ -132,7 +132,7 @@ public sealed partial class SettingsDialog : ContentDialog
             _editingSignature = null;
             _deletingSignature = null;
         }
-        CloseAllodiaSubscription(tag);
+        ShowingAllodiaSubscription(tag);
         // Leaving Accounts goes back to its list, and what a page said goes with it.
         if (tag != "accounts")
         {

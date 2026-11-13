@@ -12,76 +12,57 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AllodiaOffer, AllodiaOwnStatus, AllodiaOwnSubscription, AllodiaPlan, AllodiaPrices,
-    AllodiaStore, AllodiaStoreStatus, AllodiaStoreSubscription, AllodiaSubscription,
-    AllodiaSubscriptionActions,
+    AllodiaBiller, AllodiaOffer, AllodiaPlan, AllodiaStore, AllodiaStorePage,
+    AllodiaSubscriptionView, AllodiaSwitch, ControlState,
 };
 
-use super::{active_row, cancel_question, free_row, reauth_row, switch_question, write_buttons};
+use super::{
+    active_row, cancel_question, free_row, reauth_row, store_page_buttons, switch_question,
+    write_buttons,
+};
 use crate::{
     l10n,
     ui::{
         AppInput,
         allodia_subscription::{SubscriptionInput, SubscriptionWrite},
+        controls::tests::spins,
         mailbox::tests::{every_row_belongs_to_a_list, rendered_labels},
     },
 };
 
-fn subscription(entitled: bool) -> AllodiaSubscription {
-    AllodiaSubscription {
-        entitled,
-        plan: if entitled { "paid" } else { "free" }.to_owned(),
-        current_period_end: Some("2026-11-01T00:00:00+00:00".to_owned()),
-        own: None,
-        stores: Vec::new(),
+const FREE: ControlState = ControlState {
+    enabled: true,
+    running: false,
+};
+
+/// What the core decides for a paid account of Allodia's own that permits nothing.
+fn paid() -> AllodiaSubscriptionView {
+    AllodiaSubscriptionView {
+        entitled: true,
+        billed_by: Some(AllodiaBiller::Allodia),
+        period_end: Some("2026-11-01T00:00:00+00:00".to_owned()),
+        renews: true,
+        grace: false,
         duplicate_billing: Vec::new(),
-        actions: AllodiaSubscriptionActions {
-            can_cancel: false,
-            can_resubscribe: false,
-            can_switch_interval: false,
-            can_start_checkout: true,
+        store_pages: Vec::new(),
+        paid_through: Some("2026-11-01T00:00:00+00:00".to_owned()),
+        switch: None,
+        resubscribe: None,
+        cancel: None,
+        checkout: None,
+        refreshing: false,
+    }
+}
+
+fn offer(plan: AllodiaPlan, price: &str) -> (AllodiaOffer, ControlState) {
+    (
+        AllodiaOffer {
+            plan,
+            store: AllodiaStore::Allodia,
+            display_price: price.to_owned(),
         },
-        prices: AllodiaPrices {
-            monthly_in_cents: 499,
-            yearly_in_cents: 4900,
-            currency: "EUR".to_owned(),
-        },
-        checkout_available: true,
-    }
-}
-
-fn own(status: AllodiaOwnStatus, interval: AllodiaPlan) -> AllodiaOwnSubscription {
-    AllodiaOwnSubscription {
-        status,
-        interval,
-        amount_in_cents: 499,
-        next_payment_date: Some("2026-11-01T00:00:00+00:00".to_owned()),
-        current_period_end: Some("2026-11-01T00:00:00+00:00".to_owned()),
-        cancelled_at: None,
-    }
-}
-
-fn store(status: AllodiaStoreStatus) -> AllodiaStoreSubscription {
-    AllodiaStoreSubscription {
-        source: AllodiaStore::Google,
-        status,
-        interval: AllodiaPlan::Monthly,
-        product_id: None,
-        price_in_cents: None,
-        currency: None,
-        current_period_end: None,
-        auto_renewing: true,
-        environment: "production".to_owned(),
-        manage_url: "https://example.test/manage".to_owned(),
-    }
-}
-
-fn offer(plan: AllodiaPlan, price: &str) -> AllodiaOffer {
-    AllodiaOffer {
-        plan,
-        store: AllodiaStore::Allodia,
-        display_price: price.to_owned(),
-    }
+        FREE,
+    )
 }
 
 fn window() -> gtk::Window {
@@ -92,14 +73,14 @@ fn labels(widget: &impl IsA<gtk::Widget>) -> Vec<String> {
     rendered_labels(widget.as_ref())
 }
 
+/// What each button reads, from the label it renders: a control component's button holds its
+/// label as a child beside its spinner.
 fn button_labels(widget: &impl IsA<gtk::Widget>) -> Vec<String> {
-    let mut found = Vec::new();
-    collect_buttons(widget.as_ref(), &mut found);
-    found
-        .iter()
-        .filter_map(gtk::Button::label)
-        .map(|label| label.to_string())
-        .collect()
+    buttons(widget).iter().map(button_label).collect()
+}
+
+fn button_label(button: &gtk::Button) -> String {
+    rendered_labels(button.upcast_ref()).join(" ")
 }
 
 fn buttons(widget: &impl IsA<gtk::Widget>) -> Vec<gtk::Button> {
@@ -124,10 +105,7 @@ fn collect_buttons(widget: &gtk::Widget, found: &mut Vec<gtk::Button>) {
 /// they do not.
 pub(crate) fn a_paid_account_names_its_biller_and_says_when() {
     let (sender, _receiver) = relm4::channel();
-    let mut answer = subscription(true);
-    answer.own = Some(own(AllodiaOwnStatus::Active, AllodiaPlan::Monthly));
-
-    let row = active_row(&sender, &window(), &answer, false);
+    let row = active_row(&sender, &window(), &paid());
     let shown = labels(&row);
     assert!(
         shown.iter().any(|label| label.contains("Allodia")),
@@ -151,10 +129,14 @@ pub(crate) fn a_paid_account_names_its_biller_and_says_when() {
 /// happen.
 pub(crate) fn a_stores_subscription_is_offered_its_page_and_no_write() {
     let (sender, receiver) = relm4::channel();
-    let mut answer = subscription(true);
-    answer.stores = vec![store(AllodiaStoreStatus::Active)];
+    let mut answer = paid();
+    answer.billed_by = Some(AllodiaBiller::Google);
+    answer.store_pages = vec![AllodiaStorePage {
+        store: AllodiaStore::Google,
+        url: "https://example.test/manage".to_owned(),
+    }];
 
-    let row = active_row(&sender, &window(), &answer, false);
+    let row = active_row(&sender, &window(), &answer);
     let shown = button_labels(&row);
     assert_eq!(
         shown,
@@ -170,26 +152,18 @@ pub(crate) fn a_stores_subscription_is_offered_its_page_and_no_write() {
     ));
 }
 
-/// ⚠️ **`actions` decides, never this file.** The service computed it with every biller in view,
-/// which no client is in a position to do: a write drawn where it is refused is a button whose only
-/// outcome is an error.
+/// ⚠️ **The core decides which writes exist, never this file**: a write drawn where it is refused
+/// is a button whose only outcome is an error.
 pub(crate) fn no_write_is_drawn_that_the_service_has_not_permitted() {
     let (sender, _receiver) = relm4::channel();
-    let mut answer = subscription(true);
-    answer.own = Some(own(AllodiaOwnStatus::Cancelled, AllodiaPlan::Monthly));
-
     assert!(
-        write_buttons(&sender, &window(), &answer, false).is_empty(),
+        write_buttons(&sender, &window(), &paid()).is_empty(),
         "nothing is permitted, so nothing is drawn"
     );
 
-    answer.actions.can_cancel = true;
-    answer.actions.can_resubscribe = true;
-    answer.actions.can_switch_interval = true;
-    let shown: Vec<String> = write_buttons(&sender, &window(), &answer, false)
+    let shown: Vec<String> = write_buttons(&sender, &window(), &permitting())
         .iter()
-        .filter_map(gtk::Button::label)
-        .map(|label| label.to_string())
+        .map(button_label)
         .collect();
     assert_eq!(
         shown,
@@ -211,11 +185,7 @@ pub(crate) fn no_write_is_drawn_that_the_service_has_not_permitted() {
 /// here.
 pub(crate) fn the_two_writes_that_change_a_charge_ask_before_they_act() {
     let (sender, receiver) = relm4::channel();
-    let mut answer = subscription(true);
-    answer.own = Some(own(AllodiaOwnStatus::Cancelled, AllodiaPlan::Monthly));
-    answer.actions.can_cancel = true;
-    answer.actions.can_resubscribe = true;
-    answer.actions.can_switch_interval = true;
+    let answer = permitting();
 
     let cancelling = cancel_question(&answer);
     // ⚠️ The date is the whole reassurance, and a cancellation with no date reads as "it stops
@@ -239,7 +209,7 @@ pub(crate) fn the_two_writes_that_change_a_charge_ask_before_they_act() {
     assert!(switching.body.contains("1 Nov 2026"), "{}", switching.body);
 
     // The restart asks nothing and writes on the press.
-    write_buttons(&sender, &window(), &answer, false)[1].emit_clicked();
+    write_buttons(&sender, &window(), &answer)[1].emit_clicked();
     assert!(matches!(
         receiver.recv_sync(),
         Some(AppInput::AllodiaSubscription(SubscriptionInput::Write(
@@ -248,19 +218,47 @@ pub(crate) fn the_two_writes_that_change_a_charge_ask_before_they_act() {
     ));
 }
 
-/// While a write is outstanding every button that would start a second one is insensitive: two
-/// writes racing each other is two decisions about one person's money.
+/// While a write runs its button spins and every button that would start a second one is held:
+/// two writes racing each other is two decisions about one person's money.
 pub(crate) fn a_write_in_flight_stops_a_second_one() {
     let (sender, _receiver) = relm4::channel();
-    let mut answer = subscription(true);
-    answer.own = Some(own(AllodiaOwnStatus::Active, AllodiaPlan::Monthly));
-    answer.actions.can_cancel = true;
+    let held = ControlState {
+        enabled: false,
+        running: false,
+    };
+    let mut answer = permitting();
+    answer.cancel = Some(ControlState {
+        enabled: false,
+        running: true,
+    });
+    answer.resubscribe = Some(held);
+    answer.switch = Some(AllodiaSwitch {
+        to: AllodiaPlan::Yearly,
+        control: held,
+    });
 
-    for button in write_buttons(&sender, &window(), &answer, true) {
-        assert!(!button.is_sensitive(), "{:?}", button.label());
+    let drawn = write_buttons(&sender, &window(), &answer);
+    for button in &drawn {
+        assert!(!button.is_sensitive(), "{}", button_label(button));
     }
-    for button in write_buttons(&sender, &window(), &answer, false) {
-        assert!(button.is_sensitive(), "{:?}", button.label());
+    assert!(spins(&drawn[2]), "the cancellation is the work running");
+    assert!(!spins(&drawn[0]) && !spins(&drawn[1]));
+    for button in write_buttons(&sender, &window(), &permitting()) {
+        assert!(button.is_sensitive(), "{}", button_label(&button));
+    }
+}
+
+/// A cancelled subscription of Allodia's own whose service permits all three writes.
+fn permitting() -> AllodiaSubscriptionView {
+    AllodiaSubscriptionView {
+        renews: false,
+        switch: Some(AllodiaSwitch {
+            to: AllodiaPlan::Yearly,
+            control: FREE,
+        }),
+        resubscribe: Some(FREE),
+        cancel: Some(FREE),
+        ..paid()
     }
 }
 
@@ -273,7 +271,7 @@ pub(crate) fn the_buy_buttons_name_their_period_and_their_price() {
         offer(AllodiaPlan::Monthly, "4,99 EUR"),
     ];
 
-    let row = free_row(&sender, &offers, false);
+    let row = free_row(&sender, &offers);
     let shown = button_labels(&row);
     assert_eq!(
         shown,
@@ -297,11 +295,34 @@ pub(crate) fn the_buy_buttons_name_their_period_and_their_price() {
     ));
 }
 
+/// ⚠️ A store holding somebody without access (on hold, paused) still gets its page on the free
+/// half: that is where a failed card is replaced and a pause lifted.
+pub(crate) fn a_store_page_is_offered_on_the_free_half() {
+    let (sender, _receiver) = relm4::channel();
+    let held = AllodiaSubscriptionView {
+        entitled: false,
+        billed_by: None,
+        store_pages: vec![AllodiaStorePage {
+            store: AllodiaStore::Google,
+            url: "https://example.test/manage".to_owned(),
+        }],
+        ..paid()
+    };
+    let shown: Vec<String> = store_page_buttons(&sender, &held)
+        .iter()
+        .map(button_label)
+        .collect();
+    assert_eq!(
+        shown,
+        vec![l10n::settings_subscription_manage("Google Play")]
+    );
+}
+
 /// A shop with nothing to sell draws no button and no small print: the terms belong to an offer,
 /// and stating them under nothing claims a purchase is available when it is not.
 pub(crate) fn an_account_that_cannot_buy_is_offered_nothing() {
     let (sender, _receiver) = relm4::channel();
-    let row = free_row(&sender, &[], false);
+    let row = free_row(&sender, &[]);
     assert_eq!(button_labels(&row), [] as [String; 0]);
     // An untouched row answers with the empty string rather than nothing, which is the same
     // absence and the shape the account card next door already asserts on.
@@ -330,16 +351,11 @@ pub(crate) fn a_grant_that_predates_the_read_offers_the_one_thing_that_fixes_it(
 /// and announced by a screen reader; an `AdwActionRow` outside a list is neither.
 pub(crate) fn every_subscription_row_is_reachable_from_the_keyboard() {
     let (sender, _receiver) = relm4::channel();
-    let mut answer = subscription(true);
-    answer.own = Some(own(AllodiaOwnStatus::Active, AllodiaPlan::Monthly));
-    answer.actions.can_cancel = true;
-
     let section = adw::PreferencesGroup::new();
-    section.add(&active_row(&sender, &window(), &answer, false));
+    section.add(&active_row(&sender, &window(), &permitting()));
     section.add(&free_row(
         &sender,
         &[offer(AllodiaPlan::Yearly, "49,00 EUR")],
-        false,
     ));
     section.add(&reauth_row(&sender));
     every_row_belongs_to_a_list(section.upcast_ref::<gtk::Widget>());

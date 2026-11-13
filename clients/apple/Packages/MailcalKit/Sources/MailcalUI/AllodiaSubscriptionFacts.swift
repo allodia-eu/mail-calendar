@@ -1,10 +1,9 @@
-// What the subscription section says about who is charging, and what it may offer a way into.
-//
-// Pure and SwiftUI-free on purpose: every one of these is a sentence somebody reads about their own
-// money, so each is decided here and asserted in `AllodiaSubscriptionSectionTests`, rather than
-// being visible only on a live paid account. The twins are `AllodiaSubscriptionCard.cs`,
-// `AllodiaSubscriptionModel.kt` and `allodia_subscription_facts.rs`.
+// How the subscription section words what the core decided (`allodiaSubscriptionCard`): who is
+// charging, what a buy button says, what a write came to, a date and an amount in minor units.
+// Pure and SwiftUI-free, so each sentence is asserted in a unit test. Linux's twin is
+// `allodia_subscription_facts.rs`; keep the wording in step with every client's.
 
+import Foundation
 import MailcalBindings
 
 extension AllodiaBiller {
@@ -26,6 +25,18 @@ extension AllodiaBiller {
     }
 }
 
+extension AllodiaStore {
+    /// What a store is called on its page's button.
+    var displayName: String {
+        switch self {
+        case .apple: return "Apple"
+        case .google: return "Google Play"
+        // The service never reports its own billing as a store.
+        case .allodia: return "Allodia"
+        }
+    }
+}
+
 extension AllodiaPlan {
     /// The button that buys this period, priced.
     ///
@@ -39,102 +50,135 @@ extension AllodiaPlan {
         case .monthly: return L10n.settings_subscription_buy_monthly(price: price)
         }
     }
-}
 
-/// Everyone charging for this account right now, in a stable order: Allodia's own billing first,
-/// then each store in the order the service listed them.
-///
-/// ⚠️ **"Right now" is the whole of it, and reading every store the service listed was a bug.** The
-/// list keeps a subscription after it ends, so an account that bought at one store and later at
-/// another carries both, and naming the first named the dead one: an Android device billed by
-/// Google Play was told it was billed by Apple, whose sandbox subscription had run out hours
-/// earlier.
-///
-/// Whether a store still has something to manage is a different question, answered by
-/// `allodiaStoreCanBeManaged`, and the two part company on the states that matter most.
-///
-/// Pure, so the sentence a screen says about being charged twice is unit-testable.
-func allodiaBillers(of subscription: AllodiaSubscription) -> [AllodiaBiller] {
-    var billers: [AllodiaBiller] = []
-    if let own = subscription.own, own.status != .pendingFirstPayment {
-        billers.append(.allodia)
-    }
-    // Distinct for the same reason the manage buttons are: two subscriptions at one store is an
-    // ordinary shape, and naming that store twice would say somebody is charged twice by it.
-    var billing: Set<AllodiaStore> = []
-    billers.append(contentsOf: subscription.stores
-        .filter { allodiaStoreIsBilling($0.status) && billing.insert($0.source).inserted }
-        .map { store in
-            switch store.source {
-            case .apple: return .apple
-            case .google: return .google
-            // The service never reports its own billing as a store, so this arm is unreachable
-            // rather than meaningful. Saying "Allodia" is still the right answer if it is reached.
-            case .allodia: return .allodia
-            }
-        })
-    return billers
-}
-
-/// Whether a store subscription is one somebody is still on: renewing, being retried, or cancelled
-/// and running out the period already paid for.
-///
-/// The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
-/// exclusion: a status this build does not know is **never read as permission**, which is the rule
-/// the core states about the same enum.
-func allodiaStoreIsBilling(_ status: AllodiaStoreStatus) -> Bool {
-    switch status {
-    case .active, .grace, .cancelled: return true
-    case .onHold, .paused, .expired, .revoked: return false
-    case .unknown: return false
+    /// The button that moves Allodia's own subscription to this period.
+    var switchLabel: String {
+        switch self {
+        case .yearly: return L10n.settings_subscription_switch_yearly()
+        case .monthly: return L10n.settings_subscription_switch_monthly()
+        }
     }
 }
 
-/// The stores worth offering a way into, one entry per store rather than per subscription.
-///
-/// ⚠️ **An account can carry more than one subscription at the same store**, and it does the moment
-/// somebody resubscribes: the lapsed one is still inside the period it was paid for, so both are
-/// manageable and both were drawn, as two identical buttons opening the same page. A store's
-/// subscription page is the store's, not the subscription's, so one button is the whole of what
-/// there is to offer.
-func allodiaManageableStores(of subscription: AllodiaSubscription) -> [AllodiaStoreSubscription] {
-    var seen: Set<AllodiaStore> = []
-    return subscription.stores
-        .filter { allodiaStoreCanBeManaged($0.status) }
-        .filter { seen.insert($0.source).inserted }
+/// Whether the App Store's offers are fetched and drawn: only on an answer that grants nothing,
+/// since each fetch is a StoreKit round trip and the service refuses a second subscription.
+func allodiaSellsHere(_ state: AllodiaSubscriptionState?) -> Bool {
+    if case let .loaded(view)? = state { return !view.entitled }
+    return false
 }
 
-/// Whether the store still has something for this person to do about this subscription.
-///
-/// ⚠️ **Not the same question as who is billing them, and the two answers differ on exactly the
-/// states somebody needs most.** On hold and paused grant nothing, so neither may claim the "billed
-/// by" line, and both are fixed only at the store: a card that failed is replaced there and a pause
-/// is lifted there. Dropping their button strands the person it matters to.
-///
-/// Expired and revoked are the other way about. Nothing is left to manage, and offering the route
-/// anyway walks somebody into the store's own resubscribe button while another source is already
-/// charging them, which is the duplicate billing this contract warns about rather than causes.
-func allodiaStoreCanBeManaged(_ status: AllodiaStoreStatus) -> Bool {
-    switch status {
-    case .active, .grace, .cancelled, .onHold, .paused: return true
-    case .expired, .revoked: return false
-    // A status this build does not know names no action it could offer.
-    case .unknown: return false
+/// The sentence what a write came to earns.
+@MainActor func allodiaOutcomeText(_ outcome: AllodiaSubscriptionOutcome) -> String {
+    switch outcome {
+    case let .cancelled(endDate):
+        return L10n.settings_subscription_cancelled(date: allodiaDate(endDate) ?? endDate)
+    case .restarted:
+        return L10n.settings_subscription_resubscribed()
+    case let .switched(nextPaymentDate, amountInCents, currency):
+        return L10n.settings_subscription_switched(
+            date: nextPaymentDate.flatMap(allodiaDate) ?? "",
+            amount: allodiaMinorUnits(amountInCents, currency: currency)
+        )
+    case let .failed(failure):
+        return allodiaRefusalText(failure)
     }
 }
 
-/// Whether anything will charge again, which decides between "renews on" and "runs until".
+/// A refusal's own words.
 ///
-/// A store subscription says so itself; Allodia's own says so by still having a next payment.
-/// Pure, and deliberately not a reading of `entitled`, which answers a different question.
-func allodiaWillRenew(_ subscription: AllodiaSubscription) -> Bool {
-    if subscription.stores.contains(where: \.autoRenewing) { return true }
-    guard let own = subscription.own else { return false }
-    return own.status == .active && own.nextPaymentDate != nil
+/// ⚠️ **A code, never a message from anywhere else**: "you have already cancelled" and "that
+/// cannot change while a charge is being retried" are different things to say, and only the code
+/// tells them apart.
+@MainActor func allodiaRefusalText(_ failure: AllodiaWriteFailure) -> String {
+    switch failure {
+    case .alreadyCancelled: return L10n.settings_subscription_refused_already_cancelled()
+    case .alreadyActive: return L10n.settings_subscription_refused_already_active()
+    case .alreadyOnInterval: return L10n.settings_subscription_refused_already_on_interval()
+    case .notSwitchable: return L10n.settings_subscription_refused_not_switchable()
+    case .notFound: return L10n.settings_subscription_refused_not_found()
+    case .unexplained: return L10n.settings_subscription_write_failed()
+    }
 }
 
-/// Whether a charge has failed and is being retried. **Access continues**, so this is never drawn
-/// as a lapse.
-func allodiaInGrace(_ subscription: AllodiaSubscription) -> Bool {
-    subscription.stores.contains { $0.status == .grace } || subscription.own?.status == .pastDue
+/// Minor units and a currency as something a reader recognises.
+///
+/// ⚠️ **Only for what Allodia bills directly.** A store's price is the store's own formatted
+/// string, drawn and never recomputed.
+@MainActor func allodiaMinorUnits(_ minorUnits: Int64, currency: String?) -> String {
+    let amount = Decimal(minorUnits) / 100
+    guard let currency, !currency.isEmpty else { return "\(amount)" }
+    allodiaAmountFormatter.currencyCode = currency
+    return allodiaAmountFormatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
 }
+
+/// Built once: `NumberFormatter` loads ICU locale data on construction, which the date helpers
+/// below carry the same warning about.
+@MainActor private let allodiaAmountFormatter: NumberFormatter = {
+    let output = NumberFormatter()
+    output.numberStyle = .currency
+    return output
+}()
+
+/// An ISO 8601 date from the account service as a plain calendar date.
+///
+/// Day precision on purpose: a renewal is a date somebody's bank statement will agree with, and an
+/// hour and minute in this sentence would invite a comparison with a clock that means nothing here.
+@MainActor func allodiaDate(_ raw: String) -> String? {
+    guard !raw.isEmpty else { return nil }
+    if let date = allodiaInstant(raw) {
+        return allodiaDateFormatter.string(from: date)
+    }
+    // A shape this build cannot read. The leading ten characters are still the right day, so the
+    // sentence stays true and only stops being localised.
+    return String(raw.prefix(10))
+}
+
+/// An ISO 8601 instant in the shapes the **account service** sends.
+///
+/// ⚠️ **`parseUtcInstant` alone is not enough.** It requires a `Z` suffix because the engine's
+/// timestamps carry one; the account service is a different server and sends a numeric offset,
+/// which it would leave as the raw string, drawn as `2026-09-18` to a Dutch reader who should see
+/// `18 september 2026`.
+private func allodiaInstant(_ raw: String) -> Date? {
+    if let date = parseUtcInstant(raw) { return date }
+    for parser in allodiaIsoParsers {
+        if let date = parser.date(from: raw) { return date }
+    }
+    return allodiaDayParser.date(from: String(raw.prefix(10)))
+}
+
+/// Built once each: `ISO8601DateFormatter` loads ICU data on construction, the same cost the
+/// timestamp helpers carry a warning about. Fractional seconds are a separate parser rather than a
+/// flag, because the option makes a formatter **require** them rather than allow them, so one
+/// configuration cannot read both shapes.
+private nonisolated(unsafe) let allodiaIsoParsers: [ISO8601DateFormatter] = [
+    {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime]
+        return iso
+    }(),
+    {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return iso
+    }(),
+]
+
+/// A date with no time at all, which is what the service sends for a period that ends on a day
+/// rather than at an instant. POSIX locale: this parses the wire, it never formats for a reader.
+private let allodiaDayParser: DateFormatter = {
+    let parser = DateFormatter()
+    parser.locale = Locale(identifier: "en_US_POSIX")
+    parser.timeZone = TimeZone(secondsFromGMT: 0)
+    parser.dateFormat = "yyyy-MM-dd"
+    return parser
+}()
+
+/// Built once: `DateFormatter` loads ICU locale data on construction, which the timestamp helpers
+/// carry the same warning about.
+@MainActor private let allodiaDateFormatter: DateFormatter = {
+    let output = DateFormatter()
+    output.dateStyle = .long
+    output.timeStyle = .none
+    return output
+}()

@@ -6,11 +6,7 @@ use adw::prelude::*;
 use mailcal_bindings::MailcalApp;
 use widgets::{choice, dialog_box, group, group_titled, page_box};
 
-use super::{
-    AppInput,
-    allodia_subscription::{SubscriptionInput, SubscriptionState},
-    icons,
-};
+use super::{AppInput, allodia_subscription::SubscriptionInput, icons};
 use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
@@ -76,9 +72,6 @@ pub(crate) enum Category {
 pub(super) struct RenderState<'a> {
     pub(super) generation: u64,
     pub(super) category: Category,
-    /// What the subscription section has learned, for the same reason: a read and a write each
-    /// outlive several window rebuilds.
-    pub(super) allodia_subscription: &'a SubscriptionState,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     /// The form for a sign-in of its own an account's page opened.
@@ -125,9 +118,6 @@ struct PageContext {
     sender: relm4::Sender<AppInput>,
     window: gtk::Window,
     navigation: gtk::Stack,
-    /// What the subscription section has learned. It lives in the model rather than in this
-    /// window because the window is rebuilt from scratch on every change.
-    allodia_subscription: SubscriptionState,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
     /// The page of the account Accounts shows, read once for the redraw.
@@ -243,7 +233,7 @@ impl SettingsWindow {
             // Connected where the window is built rather than on every render: a refresh reuses
             // the window, and a handler added per refresh would fire once per redraw it has ever
             // had. The section ignores a return until it has answered once, so this costs a round
-            // trip only on the page that draws one.
+            // trip only where a section is drawn.
             let returning = sender.clone();
             window.connect_is_active_notify(move |window| {
                 if window.is_active() {
@@ -267,7 +257,6 @@ impl SettingsWindow {
             sender,
             window: window.clone(),
             navigation: navigation.clone(),
-            allodia_subscription: state.allodia_subscription.clone(),
             account: state.account.map(str::to_owned),
             page: None,
             devices: None,

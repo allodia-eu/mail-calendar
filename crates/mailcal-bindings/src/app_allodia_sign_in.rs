@@ -12,6 +12,7 @@ use crate::{
     AllodiaOnboarding, ControlState, MailcalApp, MailcalError, NoticeAction,
     account_page::browser::{Began, Completion, Pending, Target},
     allodia::ACCOUNT_ID,
+    allodia_subscription_card::Write,
 };
 
 #[uniffi::export]
@@ -91,6 +92,11 @@ impl MailcalApp {
                 }
             }
             AllodiaIntent::SignOut => app.sign_out(),
+            AllodiaIntent::RefreshSubscription => app.refresh_subscription(),
+            AllodiaIntent::StartCheckout { plan } => app.write_subscription(Write::Checkout(plan)),
+            AllodiaIntent::CancelSubscription => app.write_subscription(Write::Cancel),
+            AllodiaIntent::Resubscribe => app.write_subscription(Write::Resubscribe),
+            AllodiaIntent::SwitchInterval { plan } => app.write_subscription(Write::Switch(plan)),
         }
     }
 
@@ -137,9 +143,18 @@ impl MailcalApp {
             _ => Err(MailcalError::Config("not an Allodia sign-in".to_owned())),
         };
         browser.completed(attempt, None);
-        if let Err(error) = answer {
-            log::info!("allodia: the browser sign-in did not complete");
-            self.allodia_ended(AccountChangeRefusal::from(&error));
+        match answer {
+            Err(error) => {
+                log::info!("allodia: the browser sign-in did not complete");
+                self.allodia_ended(AccountChangeRefusal::from(&error));
+            }
+            // A subscription section already drawn reads again: what it said may have been the
+            // sign-in this one replaces.
+            Ok(_) => {
+                if let Some(app) = self.rediscovery.app() {
+                    app.reread_subscription();
+                }
+            }
         }
         self.signal_sign_in();
     }
@@ -165,6 +180,7 @@ impl MailcalApp {
                 .sign_out_of_allodia()
                 .map_err(|error| error.to_string());
             self.account_work.allodia.signed_out(answer);
+            self.account_work.subscription.forget();
             self.app.allodia_changed();
         });
     }

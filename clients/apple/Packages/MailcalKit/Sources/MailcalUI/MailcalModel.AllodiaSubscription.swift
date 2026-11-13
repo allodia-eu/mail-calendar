@@ -1,53 +1,14 @@
-// The subscription side of the Allodia account: the one read that answers the whole section, and
-// the purchase that starts one.
-//
-// The rules are `purchasing.md`, the contract beside the Allodia Licence, and the core holds every
-// one of them. What is here is the hop off the main thread that each blocking core call takes, and
-// the translation of a core answer into the few things a screen can be in.
+// The subscription side of the Allodia account. The core reads it and runs every write to
+// Allodia's own subscription (`allodiaSubscriptionCard`, `AllodiaIntent`), each returning at once;
+// what is here is sending those, and the App Store purchase, which stays this client's because no
+// Rust can call StoreKit.
 //
 // ⚠️ **None of this gates a capability.** `allodiaEntitlement` does, locally and without a network
-// call. This read is what the screen *says*, so a service that cannot be reached costs somebody a
+// call. The card is what the screen *says*, so a service that cannot be reached costs somebody a
 // sentence, never access they have paid for.
 
 import Foundation
 import MailcalBindings
-
-/// What the subscription section has to draw.
-enum AllodiaSubscriptionState: Equatable {
-    /// The read is in flight. Distinct from `unavailable`: nothing has been learned yet, and a
-    /// spinner and a failure are different things to put in front of somebody.
-    case checking
-    /// The read did not come back, or this deployment has no billing configured.
-    case unavailable
-    /// The read could not be made at all, because this device's sign-in predates the permission it
-    /// needs. An offer rather than an error: they are signed in, one thing is asleep, and the
-    /// ordinary sign-in asks for the full current scope set. Kept apart from `unavailable` because
-    /// the remedies differ: waiting fixes an outage and never fixes this.
-    case needsReauth
-    /// The service refused the sign-in outright. The account card above says so and offers signing
-    /// in again, so this section draws nothing of its own.
-    case signedOut
-    /// The service answered.
-    case loaded(AllodiaSubscriptionView)
-}
-
-/// The answer, with the parts a screen needs alongside it.
-struct AllodiaSubscriptionView: Equatable {
-    let subscription: AllodiaSubscription
-    /// What can be bought here, in the core's order. Empty while something is already being
-    /// charged: the service refuses a second subscription for one plan, so offering one would be
-    /// drawing a button whose only outcome is a refusal.
-    let offers: [AllodiaOffer]
-    /// Whether some purchase has been waiting long enough to be worth saying so. Money was taken
-    /// and nothing has been granted, and a screen that draws nothing here leaves the person with
-    /// no way to find that out.
-    let anythingStuck: Bool
-    /// Whether the pass just dropped a purchase because a **different** Allodia account already
-    /// owns it, which is what signing in to a second account on a device that has bought something
-    /// looks like. Nothing was granted here and nothing will be, so the person is told rather than
-    /// left to wonder why a subscription they paid for is not on this account.
-    let claimedElsewhere: Bool
-}
 
 /// How one trip through the purchase sheet ended, as a screen sees it.
 enum AllodiaBuyOutcome {
@@ -62,19 +23,15 @@ enum AllodiaBuyOutcome {
     case failed(String)
 }
 
-/// What a read that did not come back is allowed to put on screen.
-///
-/// ⚠️ **The core's typed answer decides, never the failure's text.** A sign-in that predates the
-/// permission this read needs, and one the service refused, each have a remedy, and drawing either
-/// as an outage tells somebody to wait for something that will never arrive.
-///
-/// Pure, so the choice is unit-testable: the pane around it is not, needing a live `MailcalApp`.
-func allodiaReadFailure(_ error: Error) -> AllodiaSubscriptionState {
-    switch error as? AllodiaPurchaseError {
-    case .NeedsReauth: .needsReauth
-    case .SignedOut: .signedOut
-    default: .unavailable
-    }
+/// What a redemption pass owes somebody a sentence about. The ids are not carried: a person
+/// cannot act on a store transaction id.
+struct AllodiaPassNotes: Equatable {
+    /// Some purchase has waited long enough to be worth saying so: money was taken and nothing has
+    /// been granted.
+    var stuck = false
+    /// The pass dropped a purchase a **different** Allodia account already owns, so nothing was
+    /// granted here and nothing will be.
+    var claimedElsewhere = false
 }
 
 extension MailboxModel {
@@ -90,33 +47,45 @@ extension MailboxModel {
         purchases.startListening()
     }
 
-    /// Everything the subscription section draws, in one pass.
+    /// Asks the core to read the subscription again. A read already running answers for it.
+    func refreshAllodiaSubscription() {
+        app?.dispatch(intent: .allodia(intent: .refreshSubscription))
+    }
+
+    /// Stops the recurring charge on Allodia's own subscription, once the person confirmed.
+    func cancelAllodiaSubscription() {
+        app?.dispatch(intent: .allodia(intent: .cancelSubscription))
+    }
+
+    /// Moves Allodia's own subscription to `plan`, once the person confirmed.
+    func switchAllodiaInterval(to plan: AllodiaPlan) {
+        app?.dispatch(intent: .allodia(intent: .switchInterval(plan: plan)))
+    }
+
+    /// Starts a cancelled subscription of Allodia's own again.
     ///
-    /// The redemption pass runs first, so a purchase made on another device, or one this device
-    /// could not attach last time, is attached before the state it produces is read back.
-    func allodiaSubscriptionState() async -> AllodiaSubscriptionState {
-        guard let app else { return .unavailable }
-        let pass = await runAllodiaRedemption()
-        // The read is a network round trip and the core call blocks on it, so it goes off the main
-        // thread exactly as the sign-in and sync passes do.
-        let read = await Task.detached(priority: .userInitiated) {
-            Result { try app.allodiaSubscription() }
-        }.value
-        let answer: AllodiaSubscription
-        switch read {
-        case let .success(subscription): answer = subscription
-        case let .failure(error): return allodiaReadFailure(error)
+    /// ⚠️ **A payment page the core hands back is never opened here**: that would be the external
+    /// purchase link this platform may not draw. The read that follows says where the
+    /// subscription stands.
+    func resubscribeToAllodia() {
+        app?.dispatch(intent: .allodia(intent: .resubscribe))
+    }
+
+    /// Carries what the store still offers to the account service, then has the subscription read
+    /// again, so a purchase made on another device or one this device could not attach last time
+    /// is in the answer.
+    ///
+    /// A pass that could not reach the service is not a failure here: the purchase stays
+    /// outstanding and the next pass tries again, which is the whole of what keeps it safe.
+    func linkAllodiaPurchasesThenRefresh() async -> AllodiaPassNotes {
+        var notes = AllodiaPassNotes()
+        if let purchases = allodiaPurchases,
+           let report = try? await purchases.linkOutstanding() {
+            notes = AllodiaPassNotes(
+                stuck: report.anythingStuck, claimedElsewhere: !report.claimedElsewhere.isEmpty)
         }
-        // Offers cost a StoreKit round trip, so they are fetched only when they can be drawn.
-        let offers = answer.entitled ? [] : await allodiaPurchases?.offers() ?? []
-        return .loaded(
-            AllodiaSubscriptionView(
-                subscription: answer,
-                offers: offers,
-                anythingStuck: pass.stuck,
-                claimedElsewhere: pass.claimedElsewhere
-            )
-        )
+        refreshAllodiaSubscription()
+        return notes
     }
 
     /// Buys a period through the App Store and carries it to the account service.
@@ -151,64 +120,5 @@ extension MailboxModel {
             logAppleLifecycle("allodia: purchase did not complete (\(error))")
             return .failed("\(error)")
         }
-    }
-
-    /// Stops the recurring charge on Allodia's own subscription. Access runs to the date it
-    /// answers, and nothing is refunded.
-    func cancelAllodiaSubscription() async -> AllodiaWriteResult {
-        await allodiaWrite { app in
-            let cancellation = try app.cancelAllodiaSubscription()
-            return .cancelled(endDate: cancellation.endDate)
-        }
-    }
-
-    /// Moves Allodia's own subscription to the other period. Nothing is charged today.
-    func switchAllodiaInterval(to plan: AllodiaPlan) async -> AllodiaWriteResult {
-        await allodiaWrite { app in
-            .switched(try app.switchAllodiaInterval(plan: plan))
-        }
-    }
-
-    /// Starts a cancelled subscription of Allodia's own again.
-    ///
-    /// ⚠️ **A payment page is not opened here.** The service answers either a reactivation, which
-    /// is the shape the button is drawn for, or a page to pay on; opening the second would be the
-    /// external purchase link this platform may not draw. It is reported as nothing said at all,
-    /// and the re-read that follows says where the subscription actually stands.
-    func resubscribeToAllodia() async -> AllodiaWriteResult {
-        await allodiaWrite { app in
-            try app.resubscribeToAllodia().reactivated ? .reactivated : .silent
-        }
-    }
-
-    /// One write, off the main thread, with its refusal turned into something a screen can say.
-    ///
-    /// **Blocking in the core**, exactly as the read is, so it takes the same hop.
-    private func allodiaWrite(
-        _ call: @Sendable @escaping (MailcalApp) throws -> AllodiaWriteResult
-    ) async -> AllodiaWriteResult {
-        guard let app else { return .failed(.unexplained) }
-        return await Task.detached(priority: .userInitiated) {
-            do {
-                return try call(app)
-            } catch {
-                // The core's typed reason, never its text: a refusal and an unreachable service
-                // are different sentences and only the code tells them apart.
-                return .failed(allodiaWriteFailure(error))
-            }
-        }.value
-    }
-
-    /// One redemption pass, reporting the two endings that owe somebody a sentence.
-    ///
-    /// A pass that could not reach the service is not a failure here: the purchase stays
-    /// outstanding and the next pass tries again, which is the whole of what keeps it safe.
-    ///
-    /// The ids are deliberately not carried out: a person cannot act on a store transaction id, so
-    /// only whether each happened reaches the screen.
-    private func runAllodiaRedemption() async -> (stuck: Bool, claimedElsewhere: Bool) {
-        guard let purchases = allodiaPurchases else { return (false, false) }
-        guard let report = try? await purchases.linkOutstanding() else { return (false, false) }
-        return (report.anythingStuck, !report.claimedElsewhere.isEmpty)
     }
 }

@@ -1,9 +1,9 @@
-// Buying a subscription, driven from the activity: the one read the card draws, the purchase that
-// starts a subscription, and the page a store's own subscription is changed on.
+// The subscription section, driven from the activity: asking the core to read it again, the
+// payment page a checkout names, and the half of buying the core cannot do, Play's.
 //
-// The rules are `purchasing.md`, the contract beside the Allodia Licence. Which shop this build
-// sells through is `allodiaBillingProvider`, one file per flavour, so nothing here branches on the
-// build. Its Apple twin is MailcalModel.AllodiaSubscription.swift.
+// The read, Allodia's checkout and the three writes are the core's (`AllodiaIntent`), and the
+// section is drawn from its card. Which shop this build sells through is `allodiaBillingProvider`,
+// one file per flavour, so nothing here branches on the build.
 //
 // ⚠️ **None of this gates a capability.** `allodiaEntitlement` does, locally and without a network
 // call. A service that cannot be reached costs somebody a sentence, never access they paid for.
@@ -17,25 +17,30 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.AllodiaPlan
-import uniffi.mailcal_bindings.AllodiaStoreSubscription
+import uniffi.mailcal_bindings.AllodiaPrices
+import uniffi.mailcal_bindings.AllodiaPurchaseReport
+import uniffi.mailcal_bindings.AllodiaStorePage
+import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 
-// The scope every purchase and every read of this card runs in. Its own rather than a composable's:
-// both flows leave the app, for Play's sheet or for a browser, and a scope belonging to a screen
-// that was recomposed in the meantime would drop the pass that records what was bought.
+// The scope every purchase runs in. Its own rather than a composable's: Play's sheet leaves the
+// app, and a scope belonging to a screen recomposed in the meantime would drop the pass that
+// records what was bought.
 internal fun allodiaPurchaseScope(): CoroutineScope =
     CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
 // Opens this build's shop, once, at connect.
 //
-// A build carrying no Allodia registration has no account to attach a purchase to and no card that
-// offers one, so it opens no connection to Play either: absent, rather than present and
-// unreachable, which is the posture the whole category already takes.
+// A build carrying no Allodia registration has no account to attach a purchase to and no section
+// that offers one, so it opens no connection to Play either.
 internal fun MainActivity.startAllodiaPurchases(instance: MailcalApp) {
     if (!allodiaSignInOffered() || allodiaPurchases != null) return
     allodiaPurchases =
-        AllodiaPurchases(context = this, app = instance, scope = allodiaPurchaseScope)
+        AllodiaPurchases(context = this, app = instance, scope = allodiaPurchaseScope) { report ->
+            allodiaLinked(report)
+        }
 }
 
 internal fun MainActivity.closeAllodiaPurchases() {
@@ -44,75 +49,89 @@ internal fun MainActivity.closeAllodiaPurchases() {
     allodiaPurchaseScope.cancel()
 }
 
-// Everything the subscription card draws, in one pass.
-//
-// The redemption pass runs first, so a purchase made on another device, or one this device could
-// not attach last time, is attached before the state it produces is read back.
+/** What the section has to draw what it can at once: the actions the activity answers. */
+internal fun MainActivity.allodiaSubscriptionActions(onSignInAgain: () -> Unit) =
+    AllodiaSubscriptionActions(
+        onShown = {
+            allodiaSubscriptionOnScreen = true
+            refreshAllodiaSubscription()
+        },
+        onClosed = {
+            allodiaSubscriptionOnScreen = false
+            forgetAllodiaPurchaseInFlight()
+        },
+        onOffers = { loadAllodiaOffers(it) },
+        onBuy = { buyAllodiaSubscription(it) },
+        onManageStore = { manageAllodiaStoreSubscription(it) },
+        onSignInAgain = onSignInAgain,
+        onWrite = { changeAllodia(it) },
+    )
+
+// Reads the subscription again, after carrying over anything Play still holds, so a purchase made
+// on another device or one this device could not attach last time is in what is read back.
 internal fun MainActivity.refreshAllodiaSubscription() {
     val instance = app ?: return
-    val purchases = allodiaPurchases ?: return
-    allodiaPurchaseScope.launch {
-        val report = purchases.linkOutstanding()
-        val stuck = report?.anythingStuck == true
-        // A list rather than a flag, because the core names which purchases; a person cannot act
-        // on a store transaction id, so only whether it happened reaches the screen.
-        val claimedElsewhere = report?.claimedElsewhere.orEmpty().isNotEmpty()
-        // The read is a network round trip and the core call blocks on it, so it goes off the main
-        // thread exactly as the sign-in and sync passes do.
-        val answer =
-            runCatching { withContext(Dispatchers.IO) { instance.allodiaSubscription() } }
-                .getOrElse { error ->
-                    // ⚠️ **The core's typed answer decides what a failed read may say, never the
-                    // failure's text.** A sign-in that predates the permission this read needs is
-                    // an offer with a remedy, a grant the service refused is a sign-in that has
-                    // ended, and drawing either as an outage tells somebody to wait for something
-                    // that will never arrive.
-                    val state = allodiaSubscriptionReadFailed(error)
-                    logUiWarn("allodia: the subscription could not be read ($state)")
-                    allodiaSubscription = allodiaSubscription.copy(
-                        state = state,
-                        accountId = instance.allodiaAccount()?.id,
-                    )
-                    return@launch
-                }
-        // Offers cost a round trip to the shop, so they are fetched only when they can be drawn.
-        val offers = if (answer.entitled) emptyList() else purchases.offers()
-        allodiaSubscription = allodiaSubscription.copy(
-            state = AllodiaSubscriptionState.Loaded(
-                AllodiaSubscriptionView(
-                    subscription = answer,
-                    offers = offers,
-                    anythingStuck = stuck,
-                    claimedElsewhere = claimedElsewhere,
-                )
-            ),
-            accountId = instance.allodiaAccount()?.id,
-        )
+    val purchases = allodiaPurchases
+    if (purchases == null) {
+        instance.dispatch(REFRESH_SUBSCRIPTION)
+    } else {
+        // The pass ends in [allodiaLinked], which asks for the read.
+        allodiaPurchaseScope.launch { purchases.linkOutstanding() }
     }
 }
 
-// Buys a period and carries the purchase through to the account service.
-//
-// Returns the card to an ordinary state once the purchase has been attached or has been left
-// safely outstanding. Somebody who closes the app in between loses nothing: Play still reports the
-// purchase, so the next pass picks it up.
-internal fun MainActivity.buyAllodiaSubscription(plan: AllodiaPlan) {
+private val REFRESH_SUBSCRIPTION = Intent.Allodia(AllodiaIntent.RefreshSubscription)
+
+// A pass ended: what it found is said, and the subscription is read again whenever it attached
+// something or the section is on screen.
+private fun MainActivity.allodiaLinked(report: AllodiaPurchaseReport?) {
+    allodiaStore = allodiaStore.copy(
+        anythingStuck = report?.anythingStuck == true,
+        // A list rather than a flag, because the core names which purchases; a person cannot act
+        // on a store transaction id, so only whether it happened reaches the screen.
+        claimedElsewhere = report?.claimedElsewhere.orEmpty().isNotEmpty(),
+    )
+    if (report != null || allodiaSubscriptionOnScreen) app?.dispatch(REFRESH_SUBSCRIPTION)
+}
+
+// What this build's shop sells, for an account nobody is charging.
+private fun MainActivity.loadAllodiaOffers(prices: AllodiaPrices?) {
+    val instance = app ?: return
     val purchases = allodiaPurchases ?: return
-    if (allodiaSubscription.buying != null) return
-    allodiaSubscription = allodiaSubscription.copy(buying = plan, note = null)
+    allodiaPurchaseScope.launch {
+        val offers = purchases.offers(prices)
+        val accountId = withContext(Dispatchers.IO) { instance.allodiaAccount()?.id }
+        allodiaStore = allodiaStore.copy(offers = offers, accountId = accountId)
+    }
+}
+
+/** The payment page the core's card names, opened once for each id. */
+internal fun MainActivity.openAllodiaCheckoutPage() {
+    val page = allodiaSubscription.checkoutPage?.takeIf { it.id > allodiaCheckoutOpened } ?: return
+    allodiaCheckoutOpened = page.id
+    // ⚠️ The browser, never a web view: this page carries the payment method and the
+    // authorisation for a recurring charge, the reason RFC 8252 keeps an authorization request out
+    // of one.
+    logUiInfo("allodia: opening the payment page in the browser")
+    runCatching { CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(page.url)) }
+        .onFailure { logUiWarn("allodia: the payment page could not be opened") }
+}
+
+// Buys a period. On Play the purchase is carried through to the account service before this
+// returns, or left safely outstanding; on Allodia's checkout the core opens the payment page.
+private fun MainActivity.buyAllodiaSubscription(plan: AllodiaPlan) {
+    val purchases = allodiaPurchases ?: return
+    if (allodiaStore.buying != null) return
+    allodiaStore = allodiaStore.copy(buying = plan, note = null)
     allodiaPurchaseScope.launch {
         val outcome = purchases.buy(this@buyAllodiaSubscription, plan)
-        allodiaSubscription = allodiaSubscription.copy(buying = null, note = noteFor(outcome, plan))
-        // Re-read rather than assume: what was bought is granted only once the account service has
-        // attached it, and this read is what says whether it has. On the checkout route there is
-        // nothing to have been granted yet, and the read is what will find it when there is.
-        if (outcome !is AllodiaPurchaseOutcome.Cancelled) refreshAllodiaSubscription()
+        allodiaStore = allodiaStore.copy(buying = null, note = noteFor(outcome, plan))
     }
 }
 
 // ⚠️ **Every ending is logged, the quiet ones most of all.** A dismissed sheet says nothing to the
-// person, deliberately, so a purchase that never had a chance and one somebody thought better of
-// look identical on screen, and the log is the only place they can be told apart.
+// person, so a purchase that never had a chance and one somebody thought better of look identical
+// on screen, and the log is the only place they can be told apart.
 private fun MainActivity.noteFor(outcome: AllodiaPurchaseOutcome, plan: AllodiaPlan): String? =
     when (outcome) {
         is AllodiaPurchaseOutcome.Bought -> {
@@ -120,40 +139,35 @@ private fun MainActivity.noteFor(outcome: AllodiaPurchaseOutcome, plan: AllodiaP
             null
         }
         is AllodiaPurchaseOutcome.SentToCheckout -> {
-            logUiInfo("allodia: a $plan checkout was opened in the browser")
+            logUiInfo("allodia: a $plan checkout was asked for")
             null
         }
         is AllodiaPurchaseOutcome.Cancelled -> {
             logUiInfo("allodia: a $plan purchase ended without one")
             null
         }
-        // The shop's messages name products and storefronts, never an address or a secret, so
-        // showing and logging one stays inside the never-log-content rule.
+        // The shop's messages name products and storefronts, never an address or a secret.
         is AllodiaPurchaseOutcome.Unavailable -> {
             logUiWarn("allodia: a $plan purchase did not complete (${outcome.reason})")
             L10n.settings_subscription_failed(this, outcome.reason)
         }
     }
 
-// The card has gone, so nothing is waiting on a sheet any more.
+// The section has gone, so nothing is waiting on a sheet any more.
 //
 // ⚠️ **Letting go of the wait is not abandoning the purchase.** Play reports it on its own
 // listener, which starts a pass of its own, and a purchase nothing attached is refunded after three
-// days rather than lost. What this buys is the way back from a flow the shop never answers, which
-// would otherwise leave every button disabled behind a spinner that does not stop.
-internal fun MainActivity.forgetAllodiaPurchaseInFlight() {
-    if (allodiaSubscription.buying != null) {
-        logUiInfo("allodia: the subscription card was closed while a purchase was in flight")
+// days rather than lost.
+private fun MainActivity.forgetAllodiaPurchaseInFlight() {
+    if (allodiaStore.buying != null) {
+        logUiInfo("allodia: the subscription section was closed while a purchase was in flight")
     }
-    // The note goes with it. It answers an attempt somebody has just made, so it survives the
-    // re-read that follows one, and reading "your next payment becomes X" on opening Settings a
-    // week later is a statement about nothing that just happened.
-    allodiaSubscription = allodiaSubscription.copy(buying = null, note = null)
+    // The note answers an attempt somebody has just made; read a week later it is about nothing.
+    allodiaStore = allodiaStore.copy(buying = null, note = null)
 }
 
-// Opens the store's own subscription page, which is the only thing that can change a subscription
-// the store is billing.
-internal fun MainActivity.manageAllodiaStoreSubscription(store: AllodiaStoreSubscription) {
+// Opens the store's own subscription page, the only thing that can change what that store bills.
+private fun MainActivity.manageAllodiaStoreSubscription(page: AllodiaStorePage) {
     logUiInfo("allodia: opening the store's subscription page")
-    CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(store.manageUrl))
+    CustomTabsIntent.Builder().build().launchUrl(this, Uri.parse(page.url))
 }
