@@ -442,11 +442,14 @@ pub(crate) mod tests {
         let button = super::button("Remove", RUNNING, true, || {});
         assert!(!button.is_sensitive() && spins(&button));
         assert!(button.has_css_class("destructive-action"));
-        let button = super::icon_button("user-trash-symbolic", "Remove", RUNNING, || {});
+        let button = super::icon_button(super::super::icons::REMOVE, "Remove", RUNNING, || {});
         assert!(!button.is_sensitive() && spins(&button));
-        let button = super::icon_button("user-trash-symbolic", "Remove", FREE, || {});
+        let button = super::icon_button(super::super::icons::REMOVE, "Remove", FREE, || {});
         assert!(button.is_sensitive() && !spins(&button));
-        assert_eq!(button.icon_name().as_deref(), Some("user-trash-symbolic"));
+        assert_eq!(
+            button.icon_name().as_deref(),
+            Some(super::super::icons::REMOVE)
+        );
 
         let picked = Rc::new(Cell::new(None));
         let heard = picked.clone();
