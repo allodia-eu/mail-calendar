@@ -246,10 +246,9 @@ impl<P: Provider> App<P> {
             .account_handle(&calendar)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
-        let provider = acct
-            .calendar_provider
-            .as_ref()
-            .ok_or_else(|| "the account has no calendar provider".to_owned())?;
+        let provider = self
+            .connected_calendar(&acct)
+            .ok_or_else(|| "the calendar is not connected".to_owned())?;
 
         let write = self
             .engine

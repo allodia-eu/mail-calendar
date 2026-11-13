@@ -64,8 +64,7 @@ impl<P: Provider> App<P> {
             // What the *adapter* will accept, which is the authority: a book the server
             // reports as writable is still read-only through an adapter bound elsewhere.
             let destinations = self.engine.contact_destinations(
-                account
-                    .contact_providers
+                self.connected_contacts(&account)
                     .iter()
                     .map(std::convert::AsRef::as_ref),
             );
@@ -95,7 +94,8 @@ impl<P: Provider> App<P> {
     }
 
     /// `sources` with `writable` kept only where an edit has somewhere to go now: an adapter
-    /// bound to the card's account that writes to a book the card is in.
+    /// connected to the card's account (`App::connected_contacts`) that writes to a book the card
+    /// is in.
     ///
     /// A stored card says whether its server lets it be edited, which stays true of a card
     /// synced before its address book stopped connecting; offering its edit then produces a
@@ -109,8 +109,7 @@ impl<P: Provider> App<P> {
                 Some(handle) => self
                     .engine
                     .contact_destinations(
-                        handle
-                            .contact_providers
+                        self.connected_contacts(&handle)
                             .iter()
                             .map(std::convert::AsRef::as_ref),
                     )
@@ -191,12 +190,12 @@ impl<P: Provider> App<P> {
             self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
-        let Some(provider) = handle.contact_providers.iter().find(|provider| {
+        let Some(provider) = self.connected_contacts(&handle).iter().find(|provider| {
             provider
                 .contact_destination()
                 .is_some_and(|destination| destination.writable && destination.address_book == book)
         }) else {
-            log::warn!("create_contact: the chosen book has no writable adapter bound");
+            log::warn!("create_contact: the chosen book has no writable adapter connected");
             self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };
@@ -273,12 +272,12 @@ impl<P: Provider> App<P> {
         };
         // A card belongs to every book it is a member of; the adapter is the one bound to a
         // book it is in.
-        let Some(provider) = handle.contact_providers.iter().find(|provider| {
+        let Some(provider) = self.connected_contacts(&handle).iter().find(|provider| {
             provider.contact_destination().is_some_and(|destination| {
                 destination.writable && base.address_books.contains(&destination.address_book)
             })
         }) else {
-            log::warn!("update_contact: the card's book has no writable adapter bound");
+            log::warn!("update_contact: the card's book has no writable adapter connected");
             self.set_contact_write_status(ContactWriteStatus::NotSaved);
             return;
         };

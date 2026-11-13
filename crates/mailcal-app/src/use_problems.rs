@@ -9,12 +9,19 @@
 //! person allows the new one (`docs/account-autodetect.md` rule 14): the change waits here,
 //! beside the problem it explains, so a dial that fails again keeps the use paused and one that
 //! connects after all lifts the pause.
+//!
+//! A use that connected and then stops answering is recorded here too, by its refreshes
+//! (`use_refresh.rs`), and a use with any problem is not written through, whatever adapter it
+//! holds (`App::connected_calendar`, `App::connected_contacts`).
 
 use std::collections::BTreeMap;
 
-use engine_api::AccountId;
+use engine_api::{AccountId, ContactsProvider};
 
-use crate::{App, protocol::Surface};
+use crate::{Account, App, protocol::Surface};
+
+#[path = "use_refresh.rs"]
+pub(crate) mod refresh;
 
 /// Why a use the account is used for did not connect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -87,6 +94,8 @@ pub struct ServerChange {
 pub(crate) struct UseState {
     problems: BTreeMap<String, UseProblems>,
     changes: BTreeMap<String, ServerChange>,
+    /// Refreshes in a row that reached nothing, per account, for a use that has no problem yet.
+    misses: BTreeMap<String, refresh::Misses>,
 }
 
 /// What a use's problem becomes when a dial reports `now` and the use was `before`: a paused use
@@ -106,6 +115,8 @@ impl UseState {
     /// anything changed.
     fn note(&mut self, account: &str, problems: UseProblems) -> bool {
         let before = self.problems.get(account).copied().unwrap_or_default();
+        // A dial answers for the uses afresh, so the refreshes before it count for nothing.
+        self.misses.remove(account);
         let after = UseProblems {
             calendar: held(before.calendar, problems.calendar),
             contacts: held(before.contacts, problems.contacts),
@@ -226,6 +237,29 @@ impl<P> App<P> {
             problems.contacts = None;
         }
         self.note_use_problems(account, problems);
+    }
+
+    /// The calendar adapter `account` is written through: bound, and its use without a problem.
+    /// A use that did not connect, or stopped answering after it did, shows what was last synced
+    /// and takes no change (`docs/accounts.md` rule 16).
+    pub(crate) fn connected_calendar<'a>(&self, account: &'a Account<P>) -> Option<&'a P> {
+        account
+            .calendar_provider
+            .as_ref()
+            .filter(|_| self.use_problems(&account.id).calendar.is_none())
+    }
+
+    /// The contact adapters `account` is written through: those bound, while its address book has
+    /// no problem, and none otherwise; the same rule as [`Self::connected_calendar`].
+    pub(crate) fn connected_contacts<'a>(
+        &self,
+        account: &'a Account<P>,
+    ) -> &'a [Box<dyn ContactsProvider>] {
+        if self.use_problems(&account.id).contacts.is_none() {
+            &account.contact_providers
+        } else {
+            &[]
+        }
     }
 
     /// What `account`'s calendar and contacts last failed with.
