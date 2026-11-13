@@ -8,11 +8,11 @@ use std::{
 };
 
 use gtk::gio;
-use mailcal_bindings::{ComposerFileAttachment, MailcalApp, Recipients};
+use mailcal_bindings::{MailcalApp, Recipients};
 
 use super::{
     AppInput, AppModel,
-    composer_model::{ComposerSubmission, PickedFile},
+    composer_model::ComposerSubmission,
     composer_notice::ComposerNotice,
     reader::{ComposerHost, ReadingSource},
     web_security::safe_extension,
@@ -207,30 +207,16 @@ fn submit(
         cc: submission.cc.clone(),
         bcc: submission.bcc.clone(),
     };
-    let files = submission
-        .files
-        .iter()
-        .map(file_attachment)
-        .collect::<Vec<_>>();
     // The composition the composer opened on: the conversation a reply or forward belongs to
-    // was joined to it then, and an accepted send takes its stored draft out of Drafts
-    // (`docs/drafts.md`).
+    // was joined to it then, its files are the ones the core holds for it, and an accepted send
+    // takes its stored draft out of Drafts (`docs/drafts.md`).
     app.submit_composition(
         submission.request.composition.clone(),
         recipients,
         submission.subject.clone(),
         submission.document_json.clone(),
-        files,
         submission.from.clone(),
     )
-}
-
-fn file_attachment(file: &PickedFile) -> ComposerFileAttachment {
-    ComposerFileAttachment {
-        path: file.path.clone(),
-        file_name: file.file_name.clone(),
-        media_type: file.media_type.clone(),
-    }
 }
 
 #[cfg(test)]
@@ -337,7 +323,6 @@ mod tests {
             bcc: String::new(),
             subject: request.subject.clone(),
             document_json: DOCUMENT.to_owned(),
-            files: Vec::new(),
             from: Some(account),
             request,
         };

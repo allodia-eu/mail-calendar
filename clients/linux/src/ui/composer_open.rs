@@ -8,12 +8,14 @@
 
 use std::{os::unix::fs::PermissionsExt, path::PathBuf};
 
-use mailcal_bindings::{ComposeOpening, ComposeOrigin, ComposePrefill, MailcalApp};
+use mailcal_bindings::{
+    ComposeOpening, ComposeOrigin, ComposePrefill, ComposerFileAttachment, MailcalApp,
+};
 
 use super::{
     AppInput, AppModel,
     composer_draft::PendingNavigation,
-    composer_model::{ComposeContext, ComposeKind, PickedFile, new_composition},
+    composer_model::{ComposeContext, ComposeKind, new_composition},
     model::OpenedMessage,
     reader::{ComposerHost, ReadingSource},
     timestamps::MailClock,
@@ -37,8 +39,6 @@ pub(crate) struct ComposerOpened {
     /// of once the window has it.
     pub(crate) moved_from: Option<String>,
     pub(crate) opening: Result<ComposeOpening, ()>,
-    /// Files the composer opens holding on top of the ones the core staged: a share's.
-    pub(crate) extra_files: Vec<PickedFile>,
 }
 
 impl AppModel {
@@ -77,12 +77,15 @@ impl AppModel {
     /// their files, and a large one would freeze the window. The composer appears when the
     /// answer does, holding everything, because one shown before its files arrived could be sent,
     /// or a draft saved, without them.
+    ///
+    /// `extra_files` are a share's, added to the composition's list once it is open, so they
+    /// count as the user's own (`docs/composer-layout.md`, rule 8).
     pub(super) fn open_composer_on(
         &self,
         origin: ComposeOrigin,
         prefill: Option<ComposePrefill>,
         target: ComposerTarget,
-        extra_files: Vec<PickedFile>,
+        extra_files: Vec<ComposerFileAttachment>,
         sender: &relm4::Sender<AppInput>,
     ) {
         self.open_composer_into(None, origin, prefill, target, extra_files, sender);
@@ -96,7 +99,7 @@ impl AppModel {
         origin: ComposeOrigin,
         prefill: Option<ComposePrefill>,
         target: ComposerTarget,
-        extra_files: Vec<PickedFile>,
+        extra_files: Vec<ComposerFileAttachment>,
         sender: &relm4::Sender<AppInput>,
     ) {
         let Some(app) = self.app.clone() else {
@@ -120,12 +123,16 @@ impl AppModel {
             }
             let opening = app
                 .open_composer(
-                    composition,
+                    composition.clone(),
                     origin,
                     directory.to_string_lossy().into_owned(),
                     prefill,
                 )
                 .map_err(|_| ());
+            // Before the composer is on screen, so its tiles are drawn holding them.
+            if opening.is_ok() && !extra_files.is_empty() {
+                let _ = app.add_composer_files(composition, extra_files);
+            }
             // Removes the directory only when the core staged nothing into it.
             let _ = std::fs::remove_dir(&directory);
             sender.emit(AppInput::ComposerOpened(Box::new(ComposerOpened {
@@ -133,7 +140,6 @@ impl AppModel {
                 draft,
                 moved_from,
                 opening,
-                extra_files,
             })));
         });
     }
@@ -148,7 +154,6 @@ impl AppModel {
             draft,
             moved_from,
             opening,
-            extra_files,
         } = opened;
         let (Some(app), Ok(opening)) = (self.app.clone(), opening) else {
             self.notice = Some(
@@ -165,8 +170,7 @@ impl AppModel {
             ComposerTarget::Pane => ComposerHost::Pane,
             ComposerTarget::Window => ComposerHost::Window(self.next_composer_window()),
         };
-        let mut request = self.compose_context(&app, opening, host);
-        request.files.extend(extra_files);
+        let request = self.compose_context(&app, opening, host);
         if let Some(composition) = moved_from {
             self.release_popped_out_composer(&composition);
         }

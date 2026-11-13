@@ -1,26 +1,27 @@
-//! Files the user adds to a draft: the Attach button's picker, the list of what is attached, and
-//! the drop target that takes a file dragged onto the composer.
+//! Files the user adds to a draft: the Attach button's picker and the drop target that takes a
+//! file dragged onto the composer. What is attached is the core's list, drawn by
+//! [`super::composer_file_tiles`].
 //!
 //! Split out of [`super::composer`] so that file stays the composer's chrome and the editor host.
 //!
 //! **A drop is handled natively, not by the page.** The editor bundle refuses `drop` (see
 //! `main.ts`), because web code only ever sees a `File` with no path: it could neither hand the
-//! bytes to Rust for a streamed send nor put a removable row in the list below. The host gets the
+//! bytes to Rust for a streamed send nor put a removable tile above the message. The host gets the
 //! path, so both work, and the page is handed a picture only when the user asks for one.
 
 use std::{
-    cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
 };
 
 use adw::prelude::*;
-use gtk::{accessible::Property as AccessibleProperty, gdk, gio, glib};
+use gtk::{gdk, gio, glib};
+use mailcal_bindings::ComposerFileAttachment;
 use serde_json::json;
 use webkit6::prelude::WebViewExt;
 
-use super::composer_model::PickedFile;
-use crate::{l10n, ui::icons};
+use super::composer_file_tiles::FileTiles;
+use crate::l10n;
 
 /// The responses of the drop question. Ids rather than labels, so the answer does not move when a
 /// translation does.
@@ -28,9 +29,9 @@ const RESPONSE_INLINE: &str = "inline";
 const RESPONSE_ATTACH: &str = "attach";
 const RESPONSE_CANCEL: &str = "cancel";
 
-/// One selected or dropped file as the composer records it: the path Rust reads the bytes from on
-/// send, plus the name and media type the outgoing MIME part carries.
-pub(super) fn picked_file(path: &Path) -> Option<PickedFile> {
+/// One selected or dropped file as the core takes it: the path Rust reads the bytes from on send,
+/// plus the name and media type the outgoing MIME part carries.
+pub(super) fn picked_file(path: &Path) -> Option<ComposerFileAttachment> {
     let file_name = path.file_name()?.to_str()?.to_owned();
     // The same guess a shared file gets, so a file attached by "Open With" and the same file
     // attached from the dialog are typed identically. Unlike a share, which offers the core a
@@ -40,7 +41,7 @@ pub(super) fn picked_file(path: &Path) -> Option<PickedFile> {
         guessed if guessed.is_empty() => "application/octet-stream".to_owned(),
         guessed => guessed,
     };
-    Some(PickedFile {
+    Some(ComposerFileAttachment {
         path: path.to_string_lossy().into_owned(),
         file_name,
         media_type,
@@ -49,33 +50,27 @@ pub(super) fn picked_file(path: &Path) -> Option<PickedFile> {
 
 pub(super) fn connect_file_picker(
     button: &gtk::Button,
-    list: &gtk::ListBox,
-    files: &Rc<RefCell<Vec<PickedFile>>>,
+    tiles: &Rc<FileTiles>,
     window: &impl IsA<gtk::Window>,
 ) {
-    let list = list.clone();
-    let files = Rc::clone(files);
+    let tiles = Rc::downgrade(tiles);
     let parent: gtk::Window = window.as_ref().clone();
     button.connect_clicked(move |_| {
         let dialog = gtk::FileDialog::new();
-        let list = list.clone();
-        let files = Rc::clone(&files);
+        let tiles = tiles.clone();
         let parent = parent.clone();
         glib::MainContext::default().spawn_local(async move {
             let Ok(selected) = dialog.open_multiple_future(Some(&parent)).await else {
                 return;
             };
-            for index in 0..selected.n_items() {
-                if let Some(path) = selected
-                    .item(index)
-                    .and_downcast::<gio::File>()
-                    .and_then(|file| file.path())
-                    && let Some(picked) = picked_file(&path)
-                {
-                    files.borrow_mut().push(picked);
-                }
+            let paths: Vec<PathBuf> = (0..selected.n_items())
+                .filter_map(|index| selected.item(index).and_downcast::<gio::File>())
+                .filter_map(|file| file.path())
+                .collect();
+            // The composer may have closed while the dialog was open.
+            if let Some(tiles) = tiles.upgrade() {
+                attach_all(&paths, &tiles);
             }
-            render_files(&list, &files);
         });
     });
 }
@@ -146,33 +141,34 @@ pub(super) type AcceptFiles = Rc<dyn Fn(Vec<PathBuf>) -> bool>;
 pub(super) fn accept_files(
     answer: PictureAnswer,
     show: ShowPicture,
-    list: &gtk::ListBox,
-    files: &Rc<RefCell<Vec<PickedFile>>>,
+    tiles: &Rc<FileTiles>,
     window: &impl IsA<gtk::Window>,
     error: &gtk::Label,
 ) -> AcceptFiles {
-    let list = list.clone();
-    let files = Rc::clone(files);
+    // Weak: the tiles live in the composer this closure is installed on.
+    let tiles = Rc::downgrade(tiles);
     let parent: gtk::Window = window.as_ref().clone();
     let error = error.clone();
     Rc::new(move |paths: Vec<PathBuf>| {
+        let Some(tiles) = tiles.upgrade() else {
+            return false;
+        };
         let sorted = sort_drop(paths);
         if sorted.attach.is_empty() && sorted.pictures.is_empty() {
             return false;
         }
-        attach_all(&sorted.attach, &list, &files);
+        attach_all(&sorted.attach, &tiles);
         match (sorted.pictures.is_empty(), answer) {
             (true, _) => {}
             (false, PictureAnswer::Ask) => ask_and_place(
                 sorted.pictures,
                 Rc::clone(&show),
-                list.clone(),
-                Rc::clone(&files),
+                Rc::downgrade(&tiles),
                 parent.clone(),
                 error.clone(),
             ),
             (false, PictureAnswer::ShowInMessage) => {
-                place_in_message(sorted.pictures, &show, &list, &files, &error);
+                place_in_message(sorted.pictures, &show, &tiles, &error);
             }
         }
         true
@@ -195,24 +191,16 @@ pub(super) fn install_drop_target(target: &impl IsA<gtk::Widget>, accept: Accept
     target.as_ref().add_controller(drop);
 }
 
-fn attach_all(paths: &[PathBuf], list: &gtk::ListBox, files: &Rc<RefCell<Vec<PickedFile>>>) {
-    if paths.is_empty() {
-        return;
-    }
-    for path in paths {
-        if let Some(picked) = picked_file(path) {
-            files.borrow_mut().push(picked);
-        }
-    }
-    render_files(list, files);
+/// Hands the core every file among `paths` there is something to attach of, in one call.
+fn attach_all(paths: &[PathBuf], tiles: &Rc<FileTiles>) {
+    tiles.add(paths.iter().filter_map(|path| picked_file(path)).collect());
 }
 
 /// Asks how the dropped pictures should go into the message, then does it.
 fn ask_and_place(
     pictures: Vec<PathBuf>,
     show: ShowPicture,
-    list: gtk::ListBox,
-    files: Rc<RefCell<Vec<PickedFile>>>,
+    tiles: std::rc::Weak<FileTiles>,
     parent: gtk::Window,
     error: gtk::Label,
 ) {
@@ -227,9 +215,14 @@ fn ask_and_place(
     dialog.set_default_response(Some(RESPONSE_INLINE));
     dialog.set_close_response(RESPONSE_CANCEL);
     glib::MainContext::default().spawn_local(async move {
-        match dialog.choose_future(Some(&parent)).await.as_str() {
-            RESPONSE_ATTACH => attach_all(&pictures, &list, &files),
-            RESPONSE_INLINE => place_in_message(pictures, &show, &list, &files, &error),
+        let response = dialog.choose_future(Some(&parent)).await;
+        // The composer may have closed while the question was open.
+        let Some(tiles) = tiles.upgrade() else {
+            return;
+        };
+        match response.as_str() {
+            RESPONSE_ATTACH => attach_all(&pictures, &tiles),
+            RESPONSE_INLINE => place_in_message(pictures, &show, &tiles, &error),
             _ => {}
         }
     });
@@ -242,8 +235,7 @@ fn ask_and_place(
 fn place_in_message(
     pictures: Vec<PathBuf>,
     show: &ShowPicture,
-    list: &gtk::ListBox,
-    files: &Rc<RefCell<Vec<PickedFile>>>,
+    tiles: &Rc<FileTiles>,
     error: &gtk::Label,
 ) {
     let mut unreadable = Vec::new();
@@ -257,7 +249,7 @@ fn place_in_message(
     if !unreadable.is_empty() {
         error.set_text(l10n::compose_image_failed());
         error.set_visible(true);
-        attach_all(&unreadable, list, files);
+        attach_all(&unreadable, tiles);
     }
 }
 
@@ -278,32 +270,6 @@ pub(super) fn show_in_message(editor: &webkit6::WebView) -> ShowPicture {
             |_| {},
         );
     })
-}
-
-pub(super) fn render_files(list: &gtk::ListBox, files: &Rc<RefCell<Vec<PickedFile>>>) {
-    while let Some(child) = list.first_child() {
-        list.remove(&child);
-    }
-    for (index, file) in files.borrow().iter().enumerate() {
-        let row = adw::ActionRow::builder()
-            .title(&file.file_name)
-            .subtitle(&file.media_type)
-            .use_markup(false)
-            .build();
-        let remove = gtk::Button::from_icon_name(icons::REMOVE);
-        remove.set_tooltip_text(Some(l10n::action_remove()));
-        remove.update_property(&[AccessibleProperty::Label(l10n::action_remove())]);
-        let list_for_remove = list.clone();
-        let files = Rc::clone(files);
-        remove.connect_clicked(move |_| {
-            if index < files.borrow().len() {
-                files.borrow_mut().remove(index);
-                render_files(&list_for_remove, &files);
-            }
-        });
-        row.add_suffix(&remove);
-        list.append(&row);
-    }
 }
 
 #[cfg(test)]

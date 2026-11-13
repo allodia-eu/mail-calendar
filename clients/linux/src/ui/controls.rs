@@ -78,6 +78,28 @@ pub(super) fn button(
     button
 }
 
+/// A button drawn as an icon, named by `label` in its tooltip and to assistive technology. The
+/// spinner takes the icon's place while the work it started runs.
+pub(super) fn icon_button(
+    icon: &str,
+    label: &str,
+    control: ControlState,
+    clicked: impl Fn() + 'static,
+) -> gtk::Button {
+    let button = gtk::Button::new();
+    match spinner(control) {
+        Some(spinner) => button.set_child(Some(&spinner)),
+        None => button.set_icon_name(icon),
+    }
+    button.set_tooltip_text(Some(label));
+    button.update_property(&[gtk::accessible::Property::Label(label)]);
+    button.add_css_class("flat");
+    button.set_valign(gtk::Align::Center);
+    button.set_sensitive(control.enabled);
+    button.connect_clicked(move |_| clicked());
+    button
+}
+
 /// A row that opens something, a question or a form, and starts no work of its own: it is only
 /// held, while a change runs on the page, and the spinner is the control's that started it.
 pub(super) fn button_row(
@@ -420,6 +442,11 @@ pub(crate) mod tests {
         let button = super::button("Remove", RUNNING, true, || {});
         assert!(!button.is_sensitive() && spins(&button));
         assert!(button.has_css_class("destructive-action"));
+        let button = super::icon_button("user-trash-symbolic", "Remove", RUNNING, || {});
+        assert!(!button.is_sensitive() && spins(&button));
+        let button = super::icon_button("user-trash-symbolic", "Remove", FREE, || {});
+        assert!(button.is_sensitive() && !spins(&button));
+        assert_eq!(button.icon_name().as_deref(), Some("user-trash-symbolic"));
 
         let picked = Rc::new(Cell::new(None));
         let heard = picked.clone();

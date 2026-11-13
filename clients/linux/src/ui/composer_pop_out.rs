@@ -2,14 +2,14 @@
 //! what it held (`docs/reading-window.md`, "Popping a composer out").
 //!
 //! The composition does not move; only its view does. The window opens on the composition the
-//! pane's composer had, so its saves go on superseding the same stored draft, and the pane lets go
-//! of it without leaving: leaving would save and close the composition the window has just opened
-//! on.
+//! pane's composer had, so its saves go on superseding the same stored draft and its files are the
+//! ones the core already holds for it, and the pane lets go of it without leaving: leaving would
+//! save and close the composition the window has just opened on.
 
 use std::rc::Rc;
 
 use adw::prelude::*;
-use mailcal_bindings::{ComposeOrigin, ComposerFileAttachment, ComposerState, MovedSignature};
+use mailcal_bindings::{ComposeOrigin, ComposerState, MovedSignature};
 
 use super::{
     AppInput, AppModel,
@@ -127,15 +127,6 @@ impl AppModel {
             bcc: submission.bcc,
             subject: submission.subject,
             document_json: submission.document_json,
-            files: submission
-                .files
-                .into_iter()
-                .map(|file| ComposerFileAttachment {
-                    path: file.path,
-                    file_name: file.file_name,
-                    media_type: file.media_type,
-                })
-                .collect(),
             signature,
             written,
         };

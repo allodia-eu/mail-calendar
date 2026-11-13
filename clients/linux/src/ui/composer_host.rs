@@ -3,6 +3,8 @@
 //! (`parse_composer_host_request`), which knows the whole vocabulary, so anything acted on here is
 //! a request the product has a type for; an answer goes back through the script the core builds.
 
+use std::rc::{Rc, Weak};
+
 use adw::prelude::*;
 use gtk::{gio, glib};
 use mailcal_bindings::{
@@ -11,6 +13,7 @@ use mailcal_bindings::{
 };
 use webkit6::{WebView, prelude::*};
 
+use super::composer_layout::ComposerColumn;
 use crate::l10n;
 
 const RESPONSE_CANCEL: &str = "cancel";
@@ -19,7 +22,11 @@ const RESPONSE_APPLY: &str = "apply";
 
 /// Registers the channel on `view`, before its page loads. The editor asks for nothing until it
 /// runs `announce_script`.
-pub(crate) fn install(view: &WebView) {
+///
+/// `column` is the composer's, whose editor runs in its growing mode and reports its height and
+/// caret (`docs/composer-layout.md`); the signature editor has none, and its page never sends
+/// either.
+pub(crate) fn install(view: &WebView, column: Option<&Rc<ComposerColumn>>) {
     let Some(manager) = view.user_content_manager() else {
         return;
     };
@@ -27,8 +34,9 @@ pub(crate) fn install(view: &WebView) {
     if !manager.register_script_message_handler(&channel, None) {
         return;
     }
-    // Weak: the view owns the manager this handler is attached to.
+    // Weak: the view owns the manager this handler is attached to, and the column holds the view.
     let view = view.downgrade();
+    let column: Option<Weak<ComposerColumn>> = column.map(Rc::downgrade);
     manager.connect_script_message_received(Some(channel.as_str()), move |_, value| {
         let Some(view) = view.upgrade() else {
             return;
@@ -50,6 +58,16 @@ pub(crate) fn install(view: &WebView) {
             // Never announced here: nothing in GTK asks whether Undo can be chosen
             // (`docs/undo.md`, rule 2).
             ComposerHostRequest::History { .. } => {}
+            ComposerHostRequest::Height { px } => {
+                if let Some(column) = column.as_ref().and_then(Weak::upgrade) {
+                    column.content_height(px);
+                }
+            }
+            ComposerHostRequest::Caret { top, bottom } => {
+                if let Some(column) = column.as_ref().and_then(Weak::upgrade) {
+                    column.caret(top, bottom);
+                }
+            }
         }
     });
 }
