@@ -106,6 +106,8 @@ fn a_step_the_gate_stops_says_why_and_takes_what_it_started_with_it() {
         Outcome::Skip(why) => assert_eq!(why, "stopped: \"fails\" failed"),
         other => panic!("{other:?}"),
     }
+    let log = std::fs::read_to_string(repo.root().join("target/gate/00-long.log")).unwrap();
+    assert!(log.contains("stopped: \"fails\" failed"), "{log}");
     assert!(beat.exists(), "the process under the step never started");
     let count = || std::fs::read_to_string(&beat).unwrap_or_default();
     let before = count();
