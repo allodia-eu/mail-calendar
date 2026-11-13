@@ -111,7 +111,7 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
         .next()
         .expect("the column holds the composer");
     let order: Vec<gtk::Widget> =
-        std::iter::successors(content.first_child(), |child| child.next_sibling()).collect();
+        std::iter::successors(content.first_child(), gtk::Widget::next_sibling).collect();
     assert_eq!(order.len(), 6, "{order:?}");
     assert!(order[0].is::<gtk::Grid>(), "the header first");
     assert!(
