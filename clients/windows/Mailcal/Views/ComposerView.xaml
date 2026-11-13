@@ -158,9 +158,12 @@
                                Style="{StaticResource CaptionTextBlockStyle}" />
 
                     <!-- The files, as the core holds them: a tile each, in rows of equal-width columns
-                         that wrap, with no cap of their own (ComposerView.Files.cs). -->
+                         that wrap, with no cap of their own (ComposerView.Files.cs). An ItemsRepeater
+                         is in UI Automation's raw view unless told otherwise, where a screen reader
+                         skips the group the tiles belong to. -->
                     <ItemsRepeater x:Name="FileTiles" Visibility="Collapsed"
-                                   AutomationProperties.AutomationId="ComposerFiles">
+                                   AutomationProperties.AutomationId="ComposerFiles"
+                                   AutomationProperties.AccessibilityView="Content">
                         <ItemsRepeater.Layout>
                             <UniformGridLayout MinItemWidth="200" MinColumnSpacing="8" MinRowSpacing="8"
                                                ItemsStretch="Fill" />

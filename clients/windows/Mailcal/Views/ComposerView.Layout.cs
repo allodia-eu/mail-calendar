@@ -1,7 +1,9 @@
-// How tall the message is, and where the column scrolls to keep the caret in view
-// (docs/composer-layout.md, rules 5 and 6). The core decides both; this measures and applies.
+// How tall the message is, where the column scrolls to keep the caret in view, and the wheel over
+// the message (docs/composer-layout.md, rules 2, 5 and 6). The core decides the first two; this
+// measures and applies.
 
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Input;
 using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Views;
@@ -11,6 +13,28 @@ public sealed partial class ComposerView
     /// <summary>The height the editor's page last said its content needs, in CSS pixels, which
     /// are this toolkit's device-independent pixels. Nothing until the page first reports.</summary>
     private double _contentHeight;
+
+    /// <summary>
+    /// Hands the wheel turned over the message to the column (docs/composer-layout.md, rule 2).
+    /// </summary>
+    /// <remarks>
+    /// The WebView2 passes the wheel on to its page and marks the event handled, so the
+    /// ScrollViewer around it never scrolls; in growing mode the page has nothing to scroll
+    /// either, and the wheel over most of the composer would move nothing. The event still bubbles,
+    /// so a handler that takes handled events sees it. Vertical only: a wide table in the message
+    /// keeps its own horizontal scroll.
+    /// </remarks>
+    private void ListenForWheel() =>
+        EditorFrame.AddHandler(PointerWheelChangedEvent, new PointerEventHandler(OnEditorWheel), handledEventsToo: true);
+
+    private void OnEditorWheel(object sender, PointerRoutedEventArgs e)
+    {
+        var wheel = e.GetCurrentPoint(ComposerScroll).Properties;
+        if (!wheel.IsHorizontalMouseWheel)
+        {
+            ComposerScroll.ChangeView(null, ComposerScroll.VerticalOffset - wheel.MouseWheelDelta, null);
+        }
+    }
 
     private void OnColumnSizeChanged(object sender, SizeChangedEventArgs e) => SizeEditor();
 

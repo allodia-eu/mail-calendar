@@ -3,11 +3,11 @@
 // column scrolls; Mailcal.Tests cannot link the ScrollViewer or the WebView2, so nothing else sees
 // whether the page's notices reach them.
 //
-// THE WHEEL OVER THE MESSAGE. The message is a page in a WebView2, which takes the wheel for its
-// own scroll. In growing mode the page has nothing to scroll, and a wheel that stopped there would
-// leave the column reachable only by its scroll bar, the one gesture people use most gone over most
-// of the composer. So the wheel is real input, over the message's text, and the oracle is the
-// heading at the column's top moving.
+// THE WHEEL OVER THE MESSAGE. The message is a page in a WebView2, which marks every wheel event
+// over it handled. In growing mode the page has nothing to scroll, and a wheel that stopped there
+// would leave the column reachable only by its scroll bar, the one gesture people use most gone
+// over most of the composer. So the wheel is real input, over the message's text, and the oracle
+// is the heading at the column's top coming back.
 //
 // The keys and the wheel are real, with the window in front. Nothing is sent; each composer is
 // discarded.
@@ -69,12 +69,10 @@ public sealed class ComposerColumnTests(ShowcaseApp showcase)
     {
         WriteALongMessage(app);
         Assert.True(Title(app) is not { Rendered: true }, "the long message left the heading on screen, so this case cannot see the wheel move anything");
+        // The agent gives the editor the rectangle of its visible part, which the message fills once
+        // the heading and the toolbar have scrolled off the top, so its middle is over the text.
         var editor = app.Steady(Editor(app));
-        var column = app.Steady(app.Agent.Find(Filter.ById("ComposerScroll")) ?? throw new InvalidOperationException("the composer has no column scroller"));
-        // The middle of the column's visible part, which the message fills once the heading and
-        // its toolbar have scrolled off the top: the pointer is over the message's text.
-        var (x, y) = ((int)(column.X + column.Width / 2), (int)(column.Y + column.Height / 2));
-        Assert.True(y > editor.Y && y < editor.Y + editor.Height, "the middle of the column is not over the message, so the wheel would not be turned where this case says");
+        var (x, y) = ((int)(editor.X + editor.Width / 2), (int)(editor.Y + editor.Height / 2));
         Input.BringToFront(editor.Window);
         for (var notch = 0; notch < 40 && Title(app) is not { Rendered: true }; notch++)
         {

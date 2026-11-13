@@ -21,8 +21,9 @@ public sealed class ComposerCcBccTests(ShowcaseApp showcase)
     // its input, whose closed suggestion popup sits under the input.
     private const double CentreToleranceDip = 2;
 
-    // The least height the editor keeps once Cc and Bcc are open on a short window. Before the
-    // header scrolled, a 640-epx window left it about 20: a sliver nobody can write in.
+    // The least height of the message that can be brought into view once Cc and Bcc are open on a
+    // short window. With the header fixed above it, a 640-epx window left it about 20: a sliver
+    // nobody can write in.
     private const double EditorFloorDip = 120;
 
     private void Case(string name, Action<App> body) =>
@@ -75,9 +76,15 @@ public sealed class ComposerCcBccTests(ShowcaseApp showcase)
             new DraftsFlow(app).OpenNewComposer();
             app.Agent.SetToggle(Chevron(app), on: true);
             app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
+            // The composer is one column that scrolls (docs/composer-layout.md): the header may take
+            // the window, and scrolling down brings the message into view. The agent reports the
+            // editor's visible part, which is what someone can write in.
+            var column = Field(app, "ComposerScroll") ?? throw new InvalidOperationException("the composer has no column scroller");
+            app.Agent.ScrollToEnd(column);
+            app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(500));
             var editor = app.Steady(Field(app, "Editor") ?? throw new InvalidOperationException("no editor"));
             var floor = EditorFloorDip * Input.Scale(editor.Window);
-            Assert.True(editor.Height >= floor, $"the editor is {editor.Height}px tall against a {floor}px floor: the header took the height the message needs instead of scrolling");
+            Assert.True(editor.Height >= floor, $"scrolled to its end, the column shows {editor.Height}px of the message against a {floor}px floor: the message is not given the room the column has left");
             Assert.True(Field(app, "SendButton") is { Rendered: true }, "Send is gone from the composer on a short window");
         }, app =>
         {

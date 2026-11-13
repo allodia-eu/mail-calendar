@@ -58,6 +58,7 @@ public sealed partial class ComposerView : UserControl
     {
         this.InitializeComponent();
         _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync, HostRequested = OnHostRequested };
+        ListenForWheel();
         HistoryKeys.RedoOnShiftChord(SubjectBox);
     }
 

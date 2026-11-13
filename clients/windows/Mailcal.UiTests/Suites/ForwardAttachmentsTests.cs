@@ -63,9 +63,17 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
             ? app.Agent.FindAll(new Filter { Id = "ComposerFileTile", Type = "ListItem", Under = grid })
             : [];
 
+    /// <summary>The tiles once the grid has drawn them: it makes them on the layout pass after the
+    /// composer appears, so a read as Send appears can come too early.</summary>
+    private static IReadOnlyList<Element> DrawnAttachments(App app)
+    {
+        App.Eventually(() => Attachments(app).Count > 0, TimeSpan.FromSeconds(5));
+        return Attachments(app);
+    }
+
     private static Element TheStagedFile(App app)
     {
-        var tiles = Attachments(app);
+        var tiles = DrawnAttachments(app);
         return tiles.Count == 1
             ? tiles[0]
             : throw new InvalidOperationException($"the forward composer holds {tiles.Count} file tile(s), not the one file the original carries");
@@ -88,7 +96,7 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
     public void AForwardOpensHoldingTheOriginalsFileUnderTheNameItsSenderGaveIt() => Case(nameof(AForwardOpensHoldingTheOriginalsFileUnderTheNameItsSenderGaveIt), app =>
     {
         OpenForward(app);
-        var tiles = Attachments(app);
+        var tiles = DrawnAttachments(app);
         Assert.True(tiles.Count == 1,
             $"the forward composer shows {tiles.Count} file tile(s) for a message carrying one file: an empty grid claims the original had nothing attached");
         Assert.True(tiles[0].Name == FileName,
