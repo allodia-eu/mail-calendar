@@ -47,7 +47,7 @@ its own, and every file and every line can be reached the same way at any window
 
 | Platform | The column | The files | The message's height | Caret |
 |---|---|---|---|---|
-| macOS | a `ScrollView` (`RichComposerView.swift`) | a `LazyVGrid` of tiles | `composer_editor_height`, from the `height` notice | scrolled to by `composer_caret_scroll` |
+| macOS | a `ScrollView` (`RichComposerView.swift`); `WKWebView` keeps every wheel event over it, so `EditorWebView` hands the vertical part to the column | a `LazyVGrid` of tiles | `composer_editor_height`, from the `height` notice | scrolled to by `composer_caret_scroll` |
 | iOS/iPadOS | a `ScrollView`, inside the keyboard's safe area | a `LazyVGrid` of tiles | as macOS | as macOS |
 | Windows | a `ScrollViewer` (`ComposerView.xaml`) | a wrapping grid of tiles | as macOS | as macOS |
 | Linux | a `GtkScrolledWindow` (`ui/composer.rs`) | a `GtkFlowBox` of tiles | as macOS | as macOS |

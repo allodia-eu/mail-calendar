@@ -42,13 +42,11 @@ struct ComposeHost: View {
     /// one names is the one the composer opened on.
     private var drafts: ComposerDrafts {
         ComposerDrafts(
-            save: { composition, recipients, subject, documentJson, files, from in
-                model.saveDraft(composition, recipients, subject, documentJson, files, from: from)
+            save: { composition, recipients, subject, documentJson, from in
+                model.saveDraft(composition, recipients, subject, documentJson, from: from)
             },
-            leave: { composition, recipients, subject, documentJson, files, from in
-                model.saveDraftAndClose(
-                    composition, recipients, subject, documentJson, files, from: from
-                )
+            leave: { composition, recipients, subject, documentJson, from in
+                model.saveDraftAndClose(composition, recipients, subject, documentJson, from: from)
             },
             discard: { model.discardDraft($0) },
             close: { model.closeComposition($0) },
@@ -75,8 +73,6 @@ struct ComposeHost: View {
             initialSubject: opening.subject,
             initialBody: context.plainBody ?? "",
             initialHTML: opening.bodyHtml,
-            initialAttachments: opening.attachments,
-            addedAttachments: context.addedAttachments,
             initialError: context.initialError,
             composition: opening.composition,
             quote: context.quote,
@@ -90,6 +86,11 @@ struct ComposeHost: View {
             // moved composer is offered what the one it left was (`offersSignatures`).
             signatures: offersSignatures ? signatures : nil,
             drafts: drafts,
+            files: ComposerFileVerbs(
+                read: { model.composerFiles($0) },
+                add: { model.addComposerFiles($0, $1) },
+                remove: { model.removeComposerFile($0, $1) }
+            ),
             moved: opening.moved,
             popOut: popOut
         ) { submission in

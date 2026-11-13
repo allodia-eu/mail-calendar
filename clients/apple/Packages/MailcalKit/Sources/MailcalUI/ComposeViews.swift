@@ -39,8 +39,6 @@ struct ComposerSubmission {
     let subject: String
     /// The rendered editor document.
     let documentJson: String
-    /// The files the composer holds: picked, dropped, forwarded, shared or resumed.
-    let files: [ComposerFileAttachment]
     /// The account picked in the From dropdown, or `nil` to let the core derive it.
     let from: String?
     /// The composition the composer opened on: the core joined it to the message a reply answers
@@ -74,8 +72,6 @@ struct ComposeContext: Identifiable, Equatable {
     /// The `completeComposerQuoteAttribution` argument for a reopened message whose original is
     /// known, or `nil`.
     let quoteAttribution: String?
-    /// Files the host adds to what the core staged: a share's.
-    var addedAttachments: [ComposerFileAttachment] = []
     /// A line the composer opens showing, for something the route could not bring: files a share
     /// could not hand over.
     var notice: String?

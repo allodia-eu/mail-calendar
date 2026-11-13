@@ -45,8 +45,10 @@ extension MailboxModel {
             }
         }.value
         guard let opening else { return nil }
+        // A share's files join what the core staged. Added after opening, so they count as
+        // written: the user would have to share them again (`docs/composer-layout.md`, rule 8).
+        _ = addComposerFiles(composition, addedAttachments)
         var context = composeContext(for: opening)
-        context.addedAttachments = addedAttachments
         context.notice = notice
         context.isShare = isShare
         return context

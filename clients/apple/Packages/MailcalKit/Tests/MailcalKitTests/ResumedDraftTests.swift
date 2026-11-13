@@ -3,8 +3,8 @@
 //
 // The join between the composition and the copy on the server is the core's, and is held by its
 // own Rust tests. What is Apple's, and what is covered here, is how the reopened message travels
-// to the composer: what it opens with, which files are its baseline, and that the editor is
-// seeded with the message's HTML rather than its words.
+// to the composer: what it opens with, and that the editor is seeded with the message's HTML rather
+// than its words. Its files are the core's (`tests_composer_files.rs`).
 
 import Foundation
 import MailcalBindings
@@ -16,32 +16,21 @@ import Testing
 
     @Test func anEditedQueuedSendOpensThroughItsStoredBody() {
         // The core has saved the queued send into Drafts under the opening's composition. It opens
-        // through its own HTML, with its text beside it, holding every file it was queued with, so
-        // its baseline is all of them and closing it untouched is not "written".
-        let file = ComposerFileAttachment(
-            path: "/tmp/staging/terms.pdf",
-            fileName: "terms.pdf",
-            mediaType: "application/pdf"
-        )
+        // through its own HTML, with its text beside it.
         let opening = composeOpening(
             composition: "c-queued", bodyHtml: "<p>Terms</p>", bodyText: "Terms",
-            attachments: [file], seedsSignature: false
+            seedsSignature: false
         )
         let context = composeContext(opening)
         #expect(context.mode == .new)
         #expect(context.plainBody == "Terms")
         #expect(context.initialError == nil)
-        #expect(
-            ComposeOpeningSeed.baselineAttachmentCount(
-                opening: opening.attachments, added: context.addedAttachments
-            ) == 1
-        )
     }
 
     @Test func aForwardWhoseFilesCouldNotBeStagedOpensSayingSo() {
         let opening = ComposeOpening(
             composition: "c-1", kind: .forward, account: "acct-1", to: "", cc: "", bcc: "",
-            subject: "Fwd: Terms", bodyHtml: "", bodyText: "", quote: nil, attachments: [],
+            subject: "Fwd: Terms", bodyHtml: "", bodyText: "", quote: nil,
             attachmentsFailed: true, seedsSignature: true
         )
         #expect(composeContext(opening).initialError == L10n.compose_forward_attachments_failed())

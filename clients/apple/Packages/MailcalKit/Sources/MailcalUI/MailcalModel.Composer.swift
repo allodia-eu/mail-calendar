@@ -24,7 +24,6 @@ extension MailboxModel {
                 recipients: submission.recipients,
                 subject: submission.subject,
                 documentJson: submission.documentJson,
-                files: submission.files,
                 from: submission.from
             )
             return true

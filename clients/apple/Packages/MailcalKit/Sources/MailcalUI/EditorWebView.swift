@@ -54,6 +54,24 @@ final class EditorWebView: HistoryWebView {
         filter(menu)
     }
 
+    /// Whether a vertical scroll over the editor goes to the column around it, set for the
+    /// composer, whose page grows with its text and has nothing of its own to scroll
+    /// (`docs/composer-layout.md`, rule 2).
+    ///
+    /// ⚠️ `WKWebView` takes every wheel event over it, even when its page cannot move, so without
+    /// this the column scrolled everywhere except over the message. Only the vertical part is
+    /// handed on: a table wider than the column still scrolls sideways inside the page.
+    var passesVerticalScroll = false
+
+    override func scrollWheel(with event: NSEvent) {
+        if passesVerticalScroll, abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX),
+           let column = enclosingScrollView {
+            column.scrollWheel(with: event)
+            return
+        }
+        super.scrollWheel(with: event)
+    }
+
     /// Files dropped on the message itself, handed to the host.
     ///
     /// Set by `RichComposerEditor.mount()`, which forwards to `ComposerDropModifier`, the owner of
