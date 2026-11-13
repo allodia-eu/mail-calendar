@@ -38,7 +38,7 @@ class ComposerDiscardTest {
         cc: String = "",
         bcc: String = "",
         subject: String = "",
-        attachments: Int = 0,
+        filesChanged: Boolean = false,
     ) = composerHeadersEdited(
         to = to,
         initialTo = "bob@test.local",
@@ -48,7 +48,7 @@ class ComposerDiscardTest {
         initialBcc = "",
         subject = subject,
         initialSubject = "",
-        attachments = attachments,
+        filesChanged = filesChanged,
     )
 
     /** A mail link as the core decoded it: every field may arrive pre-filled, none of it typed. */
@@ -57,7 +57,7 @@ class ComposerDiscardTest {
         cc: String = "carol@test.local",
         bcc: String = "dave@test.local",
         subject: String = "Lunch on Friday",
-        attachments: Int = 0,
+        filesChanged: Boolean = false,
     ) = composerHeadersEdited(
         to = to,
         initialTo = "bob@test.local",
@@ -67,7 +67,7 @@ class ComposerDiscardTest {
         initialBcc = "dave@test.local",
         subject = subject,
         initialSubject = "Lunch on Friday",
-        attachments = attachments,
+        filesChanged = filesChanged,
     )
 
     @Test
@@ -87,7 +87,7 @@ class ComposerDiscardTest {
                 initialBcc = "",
                 subject = "",
                 initialSubject = "",
-                attachments = 0,
+                filesChanged = false,
             ),
         )
     }
@@ -104,7 +104,7 @@ class ComposerDiscardTest {
                 initialBcc = "",
                 subject = "",
                 initialSubject = "",
-                attachments = 0,
+                filesChanged = false,
             ),
         )
     }
@@ -140,11 +140,11 @@ class ComposerDiscardTest {
     }
 
     @Test
-    fun a_typed_cc_bcc_subject_or_attachment_each_make_it_a_draft() {
+    fun a_typed_cc_bcc_subject_or_a_changed_file_each_make_it_a_draft() {
         assertTrue(untouchedReply(cc = "carol@test.local"))
         assertTrue(untouchedReply(bcc = "dave@test.local"))
         assertTrue(untouchedReply(subject = "Re: lunch"))
-        assertTrue(untouchedReply(attachments = 1))
+        assertTrue(untouchedReply(filesChanged = true))
     }
 
     /**

@@ -48,6 +48,9 @@ internal class ComposerHostChannel(
             }
             // Never announced here: Android offers no Undo outside a keyboard (`docs/undo.md`, rule 2).
             is ComposerHostRequest.History -> Unit
+            // Sent only in the growing mode, which this host never turns on: its page is already
+            // the composer's one scroll (`docs/composer-layout.md`).
+            is ComposerHostRequest.Height, is ComposerHostRequest.Caret -> Unit
         }
     }
 }

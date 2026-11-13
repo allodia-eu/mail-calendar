@@ -2,7 +2,7 @@
 //
 // A drop is handled NATIVELY, not by the page. The editor bundle refuses `drop`, because web code
 // only ever sees a `File` with no path: it could neither hand the bytes to Rust for a streamed send
-// nor put a removable row in the attachment list. The host resolves the drop to a staged file, so
+// nor put a removable tile above the message. The host resolves the drop to a staged file, so
 // both work, and the page is handed a picture only when the user asks for one.
 //
 // A picture raises the question the other formats do not: it can be shown where the user is typing
@@ -29,18 +29,19 @@ import androidx.compose.ui.draganddrop.toAndroidDragEvent
 import androidx.compose.ui.platform.LocalContext
 import java.io.File
 import kotlin.concurrent.thread
+import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.composerImageDataUrl
 
 // What a drop turns into, before anything is shown or attached.
 internal data class DroppedComposerFiles(
     // Files with nothing to decide: attached straight away.
-    val attach: List<PickedComposerFile> = emptyList(),
+    val attach: List<ComposerFileAttachment> = emptyList(),
     // Pictures, which the user is asked about.
-    val pictures: List<PickedComposerFile> = emptyList(),
+    val pictures: List<ComposerFileAttachment> = emptyList(),
 )
 
-internal fun sortDroppedFiles(files: List<PickedComposerFile>): DroppedComposerFiles {
+internal fun sortDroppedFiles(files: List<ComposerFileAttachment>): DroppedComposerFiles {
     val (pictures, attach) = files.partition { it.mediaType.startsWith("image/") }
     return DroppedComposerFiles(attach = attach, pictures = pictures)
 }
@@ -97,9 +98,9 @@ internal fun Modifier.composerDropTarget(onDropped: (DroppedComposerFiles) -> Un
 // them.
 @Composable
 internal fun ComposerDroppedPictureQuestion(
-    pictures: List<PickedComposerFile>,
+    pictures: List<ComposerFileAttachment>,
     webView: WebView?,
-    onAttach: (List<PickedComposerFile>) -> Unit,
+    onAttach: (List<ComposerFileAttachment>) -> Unit,
     onUnreadable: () -> Unit,
     onAnswered: () -> Unit,
 ) {
@@ -162,15 +163,15 @@ private fun ComposerImageChoiceDialog(
 // instead: the user asked for it to be in the message, and losing it silently is the worse answer.
 internal fun showPicturesInMessage(
     webView: WebView?,
-    pictures: List<PickedComposerFile>,
-    onUnreadable: (List<PickedComposerFile>) -> Unit,
+    pictures: List<ComposerFileAttachment>,
+    onUnreadable: (List<ComposerFileAttachment>) -> Unit,
 ) {
     if (pictures.isEmpty()) {
         return
     }
     thread(name = "mailcal-read-pictures") {
-        val unreadable = mutableListOf<PickedComposerFile>()
-        val readable = mutableListOf<Pair<PickedComposerFile, String>>()
+        val unreadable = mutableListOf<ComposerFileAttachment>()
+        val readable = mutableListOf<Pair<ComposerFileAttachment, String>>()
         for (picture in pictures) {
             try {
                 readable += picture to composerImageDataUrl(picture.path)
