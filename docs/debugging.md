@@ -1300,6 +1300,11 @@ A cold `cargo build -p mailcal-bindings` into an empty build directory, on Windo
 sccache keys on absolute paths, and every rustc call names the build directory, so it misses across
 worktrees, its base-directory setting included.
 
+A hit costs what the filesystem makes it cost. kache clones a cached unit into `target/` where the
+filesystem can, and copies it where it cannot, as on ext4. Copying is most of a new worktree's first
+`cargo xtask gate`, which fills a build directory per lane: measured on ext4, one takes 54 s for
+4.6 GB, and a run with `--clients` on Linux fills four.
+
 Three things decide whether a worktree hits:
 
 - **The same gitignored inputs.** A worktree without `.env` or the brand files builds a different
