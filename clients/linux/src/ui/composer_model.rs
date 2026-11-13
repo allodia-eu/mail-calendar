@@ -46,15 +46,10 @@ pub(crate) struct ComposeContext {
     /// The composition the core joined to this composer as it opened: what every save, the
     /// discard, the close and the send name (`docs/drafts.md`).
     pub(crate) composition: String,
-    /// Files the composer opens holding: the ones the core staged, and a share's on top.
-    pub(crate) files: Vec<PickedFile>,
-    /// How many of `files` the core staged: a forward's originals or a stored message's own,
-    /// still in the mailbox, so closing over them unchanged loses nothing. A share's files are
-    /// counted from the start, because the user chose them.
-    pub(crate) opening_files: usize,
-    /// Whether a forward's originals could not be staged, so the composer opens saying so.
+    /// Whether a forward's originals could not be staged, so the composer opens saying so. The
+    /// files it opens holding are the composition's, in the core (`docs/composer-layout.md`).
     pub(crate) attachments_failed: bool,
-    /// What a composer moved from another view brings besides its fields and files: the editor's
+    /// What a composer moved from another view brings besides its fields: the editor's
     /// document, whether it was written in, and its signature choice. `None` for every other
     /// opening (`docs/reading-window.md`, "Popping a composer out").
     pub(crate) moved: Option<MovedComposer>,
@@ -101,20 +96,11 @@ impl ComposeContext {
             subject,
             body_html,
             body_text,
-            attachments,
             attachments_failed,
             seeds_signature,
             moved,
             ..
         } = opening;
-        let files: Vec<PickedFile> = attachments
-            .into_iter()
-            .map(|file| PickedFile {
-                path: file.path,
-                file_name: file.file_name,
-                media_type: file.media_type,
-            })
-            .collect();
         Self {
             kind,
             host,
@@ -130,8 +116,6 @@ impl ComposeContext {
             initial_from: Some(account).filter(|account| !account.is_empty()),
             seeds_signature,
             composition,
-            opening_files: files.len(),
-            files,
             attachments_failed,
             moved,
         }
@@ -227,14 +211,6 @@ pub(crate) fn compose_title(kind: ComposeKind) -> &'static str {
     }
 }
 
-/// Metadata for one native file selected for an outgoing message.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct PickedFile {
-    pub(crate) path: String,
-    pub(crate) file_name: String,
-    pub(crate) media_type: String,
-}
-
 /// Editor and header values captured by the Send action.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ComposerSubmission {
@@ -244,7 +220,6 @@ pub(crate) struct ComposerSubmission {
     pub(crate) bcc: String,
     pub(crate) subject: String,
     pub(crate) document_json: String,
-    pub(crate) files: Vec<PickedFile>,
     pub(crate) from: Option<String>,
 }
 

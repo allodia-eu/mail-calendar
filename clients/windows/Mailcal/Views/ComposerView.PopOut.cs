@@ -58,7 +58,6 @@ public sealed partial class ComposerView
                 BccField.Text,
                 SubjectBox.Text,
                 documentJson,
-                _attachments.Select(a => a.File).ToArray(),
                 MovedSignatureNow(),
                 await IsDirtyAsync());
             _draftIdle?.Stop();

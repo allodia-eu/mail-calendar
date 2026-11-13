@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlinx.coroutines.delay
-import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.DraftStatus
 import uniffi.mailcal_bindings.Recipients
 
@@ -39,11 +38,10 @@ internal data class ComposerSubmission(
     val subject: String,
     /** The rendered editor document. */
     val documentJson: String,
-    /** The files the composer holds: picked, dropped, shared, forwarded or resumed. */
-    val files: List<ComposerFileAttachment>,
     /**
-     * The composition the composer opened on, so the send carries the conversation and quoted
-     * pictures joined to it and an accepted send takes its stored draft out of Drafts.
+     * The composition the composer opened on, so the send carries the conversation, the quoted
+     * pictures and the files joined to it, and an accepted send takes its stored draft out of
+     * Drafts.
      */
     val composition: String,
 )

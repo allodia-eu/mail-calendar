@@ -4,6 +4,8 @@
 // MailboxModel records the tapped row's header as an OpenedMessage and projects the FFI
 // ReadingSnapshot into a ReadingBody. Mirrors the macOS OpenedMessage / ReadingSnapshot split.
 
+using Allodia.Mailcal.Services;
+
 namespace Allodia.Mailcal.ViewModels;
 
 /// <summary>
@@ -154,18 +156,5 @@ public sealed class MessageAttachment
     public ulong Size { get; init; }
 
     /// <summary>Compact detail text for the list row.</summary>
-    public string Detail => $"{MediaType} · {FormatBytes(Size)}";
-
-    private static string FormatBytes(ulong bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB"];
-        var value = (double)bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-        return unit == 0 ? $"{bytes} {units[unit]}" : $"{value:0.#} {units[unit]}";
-    }
+    public string Detail => $"{MediaType} · {ByteSize.Format(Size)}";
 }

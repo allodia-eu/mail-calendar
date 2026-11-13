@@ -3,8 +3,7 @@
 //! wrong, so each is pinned on its own.
 
 use mailcal_bindings::{
-    ComposeKind, ComposeOpening, ComposerFileAttachment, MovedComposer, MovedSignature,
-    QuoteSource, QuoteStyleKind,
+    ComposeKind, ComposeOpening, MovedComposer, MovedSignature, QuoteSource, QuoteStyleKind,
 };
 use serde_json::Value;
 
@@ -28,7 +27,6 @@ fn opening(kind: ComposeKind) -> ComposeOpening {
         body_html: String::new(),
         body_text: String::new(),
         quote: None,
-        attachments: Vec::new(),
         attachments_failed: false,
         seeds_signature: true,
         moved: None,
@@ -44,14 +42,6 @@ fn original() -> QuoteSource {
         subject: "Planning".to_owned(),
         body_html: "<p>Already sanitised</p>".to_owned(),
         body_plain: "Already sanitised".to_owned(),
-    }
-}
-
-fn file(name: &str) -> ComposerFileAttachment {
-    ComposerFileAttachment {
-        path: format!("/staged/{name}"),
-        file_name: name.to_owned(),
-        media_type: "application/pdf".to_owned(),
     }
 }
 
@@ -111,19 +101,11 @@ fn the_composer_opens_on_the_composition_and_account_the_core_answered_with() {
     assert_eq!(unnamed.initial_from, None);
 }
 
-/// A forward's originals and a stored draft's own files are still in the mailbox, so a composer
-/// closed over them unchanged has lost nothing.
+/// A forward whose originals could not be staged opens saying so. The files it does hold are the
+/// composition's, read from the core as the composer draws them.
 #[test]
-fn the_files_the_core_staged_are_the_baseline_for_every_kind() {
-    for kind in [ComposeKind::Forward, ComposeKind::New, ComposeKind::Reply] {
-        let opened = context(ComposeOpening {
-            attachments: vec![file("plan.pdf"), file("notes.pdf")],
-            ..opening(kind)
-        });
-        assert_eq!(opened.files.len(), 2);
-        assert_eq!(opened.opening_files, 2, "{kind:?}");
-        assert_eq!(opened.files[0].path, "/staged/plan.pdf");
-    }
+fn a_forward_that_could_not_stage_its_files_opens_saying_so() {
+    assert!(!context(opening(ComposeKind::Forward)).attachments_failed);
     let failed = context(ComposeOpening {
         attachments_failed: true,
         ..opening(ComposeKind::Forward)

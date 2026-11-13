@@ -6,22 +6,22 @@
 //! arriving over a draft asks before replacing it, because a launch the user did not aim at this
 //! window must never throw away what they were writing.
 //!
-//! What is different is the payload: the composer opens holding attachments the core did not stage,
-//! laid on top of the ones it did. Their names and media types were decided by the shared core, so
-//! nothing here inspects a file.
+//! What is different is the payload: the composer opens holding files the core did not stage,
+//! added to the composition's list right after it opens. Their names and media types were decided
+//! by the shared core, so nothing here inspects a file.
 //!
 //! One consequence is worth knowing before it surprises someone: a share-opened composer counts as
-//! **dirty from the moment it opens**, because [`super::composer_draft::headers_edited`] measures
-//! the file count against the files the core staged, and a share's are not among them. So
-//! navigating away from one asks, where navigating away from an untouched reply does not. That is
-//! the rule working, not a leak: the file was the user's choice in their file manager, exactly as a
-//! picked one is their choice in the dialog. The files the core staged, a forward's originals or a
-//! stored draft's own, read the other way for the same reason: they are still in the mailbox, so
-//! abandoning the composer loses nothing.
+//! **written in from the moment it opens**, because the core's `ComposerFiles::changed` measures
+//! the list against what the composer opened holding, and a share's files were added after
+//! (`docs/composer-layout.md`, rule 8). So leaving one keeps it in Drafts, where leaving an
+//! untouched reply does not. That is the rule working, not a leak: the file was the user's choice
+//! in their file manager, exactly as a picked one is their choice in the dialog. A forward's
+//! originals or a stored draft's own read the other way for the same reason: they are still in the
+//! mailbox, so abandoning the composer loses nothing.
 
-use mailcal_bindings::{ComposeOrigin, ComposePrefill, SharePrefill};
+use mailcal_bindings::{ComposeOrigin, ComposePrefill, ComposerFileAttachment, SharePrefill};
 
-use super::{AppInput, AppModel, composer_model::PickedFile, composer_open::ComposerTarget};
+use super::{AppInput, AppModel, composer_open::ComposerTarget};
 
 impl AppModel {
     /// Opens a composer for what another application shared with this one: a new message from
@@ -69,16 +69,8 @@ impl AppModel {
 
 /// A share's fields, laid over a new message, and the files it brings. Its text brings no
 /// sign-off of its own.
-fn share_prefill(prefill: SharePrefill) -> (ComposePrefill, Vec<PickedFile>) {
-    let files = prefill
-        .attachments
-        .into_iter()
-        .map(|attachment| PickedFile {
-            path: attachment.path,
-            file_name: attachment.file_name,
-            media_type: attachment.media_type,
-        })
-        .collect();
+fn share_prefill(prefill: SharePrefill) -> (ComposePrefill, Vec<ComposerFileAttachment>) {
+    let files = prefill.attachments;
     let fields = ComposePrefill {
         to: prefill.to,
         cc: prefill.cc,

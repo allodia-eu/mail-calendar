@@ -41,14 +41,14 @@ public sealed partial class MailLinkTests(ShowcaseApp showcase)
     /// <summary>
     /// The recipients the composer holds, top first. The three fields are one control used three
     /// times, so a pill looks the same in each; they are stacked To, Cc, Bcc, so top to bottom is
-    /// the field order, which makes "the Bcc landed in Bcc" something this can fail on. The header
-    /// fields scroll in a box capped at part of the composer (ComposerView.Layout.cs), so on a
-    /// short pane Bcc is below its fold, where a pill reports no position: the pills are read at the
-    /// top and again at the end, and each must be drawn in one of the two.
+    /// the field order, which makes "the Bcc landed in Bcc" something this can fail on. The
+    /// composer is one column that scrolls (docs/composer-layout.md), so on a short pane Bcc can be
+    /// below its fold, where a pill reports no position: the pills are read at the top and again at
+    /// the end, and each must be drawn in one of the two.
     /// </summary>
     private static List<string> Recipients(App app)
     {
-        var header = app.Agent.Find(Filter.ById("HeaderScroll")) ?? throw new InvalidOperationException("the composer has no header scroller (#HeaderScroll)");
+        var header = app.Agent.Find(Filter.ById("ComposerScroll")) ?? throw new InvalidOperationException("the composer has no column scroller (#ComposerScroll)");
         List<string> Drawn(double percent)
         {
             app.Agent.ScrollTo(header, percent);

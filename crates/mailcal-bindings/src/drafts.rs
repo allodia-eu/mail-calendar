@@ -11,7 +11,7 @@ use mailcal_app::{
 use crate::{
     MailcalApp, MailcalError,
     composer::{ComposerBlob, Recipients, prepare_rich, send_account},
-    composer_files::{ComposerFileAttachment, prepare_with_files},
+    composer_files::prepare_with_files,
 };
 
 /// The state of the most recent draft save (pulled after a `Surface::DraftStatus` signal).
@@ -112,16 +112,15 @@ impl MailcalApp {
         Ok(())
     }
 
-    /// [`MailcalApp::save_draft`] for a composer holding **files**: the attachments the user
-    /// picked, and the ones a resumed draft opened with.
+    /// [`MailcalApp::save_draft`] for a composer: the message with the files the composition
+    /// holds (`composer_files`), the ones the user attached and the ones it opened with.
     ///
     /// The byte read happens here rather than in the host, exactly as on
     /// [`MailcalApp::submit_composition`], so file content does not cross the FFI.
     ///
-    /// **A composer holding files saves through this one, never the other.** A save replaces
-    /// the copy on the server, so a save that left the files out would take them off it: the
-    /// user's attachment would be gone from a draft they are still writing, with nothing
-    /// said.
+    /// **A composer saves through this one, never the other.** A save replaces the copy on the
+    /// server, so a save that left the files out would take them off it: the user's attachment
+    /// would be gone from a draft they are still writing, with nothing said.
     ///
     /// # Errors
     ///
@@ -134,7 +133,6 @@ impl MailcalApp {
         recipients: Recipients,
         subject: String,
         document_json: String,
-        files: Vec<ComposerFileAttachment>,
         from: Option<String>,
     ) -> Result<(), MailcalError> {
         self.save_with_files(
@@ -142,7 +140,6 @@ impl MailcalApp {
             recipients,
             subject,
             &document_json,
-            files,
             from,
             false,
         )
@@ -171,18 +168,9 @@ impl MailcalApp {
         recipients: Recipients,
         subject: String,
         document_json: String,
-        files: Vec<ComposerFileAttachment>,
         from: Option<String>,
     ) -> Result<(), MailcalError> {
-        self.save_with_files(
-            composition,
-            recipients,
-            subject,
-            &document_json,
-            files,
-            from,
-            true,
-        )
+        self.save_with_files(composition, recipients, subject, &document_json, from, true)
     }
 
     /// Removes this composition's stored draft from the server and forgets the composition.
@@ -194,9 +182,9 @@ impl MailcalApp {
     ///
     /// Returns [`MailcalError::Engine`] if `composition` is blank.
     pub fn discard_draft(&self, composition: String) -> Result<(), MailcalError> {
-        self.spawn_dispatch(AppIntent::Drafts(DraftsIntent::Discard {
-            composition: composition_id(composition)?,
-        }));
+        let composition = composition_id(composition)?;
+        self.composer_files.forget(&composition);
+        self.spawn_dispatch(AppIntent::Drafts(DraftsIntent::Discard { composition }));
         Ok(())
     }
 
@@ -217,9 +205,9 @@ impl MailcalApp {
     ///
     /// Returns [`MailcalError::Engine`] if `composition` is blank.
     pub fn close_composition(&self, composition: String) -> Result<(), MailcalError> {
-        self.spawn_dispatch(AppIntent::Drafts(DraftsIntent::Close {
-            composition: composition_id(composition)?,
-        }));
+        let composition = composition_id(composition)?;
+        self.composer_files.forget(&composition);
+        self.spawn_dispatch(AppIntent::Drafts(DraftsIntent::Close { composition }));
         Ok(())
     }
 
@@ -257,13 +245,16 @@ impl MailcalApp {
         recipients: Recipients,
         subject: String,
         document_json: &str,
-        files: Vec<ComposerFileAttachment>,
         from: Option<String>,
         then_close: bool,
     ) -> Result<(), MailcalError> {
         let composition = composition_id(composition)?;
+        let files = self.composer_files.attachments(&composition);
         let prepared = prepare_with_files(document_json, files)?;
         let from = send_account(from)?;
+        if then_close {
+            self.composer_files.forget(&composition);
+        }
         let Recipients { to, cc, bcc } = recipients;
         self.spawn_with_files(prepared, move |document, blobs| {
             AppIntent::Drafts(DraftsIntent::Save {

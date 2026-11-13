@@ -73,19 +73,15 @@ pub(crate) enum PendingNavigation {
 /// is exactly the noise this guard must not create. Typing something and deleting it again lands
 /// back on the opening values and counts as clean, which is true; there is nothing left to lose.
 ///
-/// The attachment count is measured the same way, against `opened_with`, which is **not** simply
-/// what the composer opened holding: it is the files the core staged. A forward's originals and a
-/// stored draft's own are still in the mailbox, so abandoning the composer loses nothing and must
-/// not be worth a prompt; a share's files the user chose in their file manager and would have to
-/// share again, so those count from the start. Removing a staged file, like adding any file,
-/// changes the count and does count.
+/// The files are the core's answer, `ComposerFiles::changed` (`docs/composer-layout.md`, rule 8):
+/// a forward's originals and a stored draft's own are still in the mailbox, so abandoning the
+/// composer loses nothing, while a share's, a picked one and a removed one all count.
 pub(crate) fn headers_edited(
     current: &HeaderValues,
     opening: &HeaderValues,
-    attachments: usize,
-    opened_with: usize,
+    files_changed: bool,
 ) -> bool {
-    current != opening || attachments != opened_with
+    current != opening || files_changed
 }
 
 /// Whether the editor holds anything beyond what was seeded into it.
@@ -101,11 +97,6 @@ pub(crate) struct DraftGuard {
     pub(super) editor: webkit6::WebView,
     pub(super) fields: ComposerFields,
     opening: HeaderValues,
-    /// How many of the files the composer opened holding are **not** the user's own work: the ones
-    /// the core staged, which are still in the mailbox. The baseline the live count is measured
-    /// against. A share's files are not among them: the user chose those and would have to share
-    /// them again.
-    opening_files: usize,
     seed: Rc<RefCell<Option<String>>>,
 }
 
@@ -114,14 +105,12 @@ impl DraftGuard {
         editor: webkit6::WebView,
         fields: ComposerFields,
         opening: HeaderValues,
-        opening_files: usize,
         seed: Rc<RefCell<Option<String>>>,
     ) -> Self {
         Self {
             editor,
             fields,
             opening,
-            opening_files,
             seed,
         }
     }
@@ -167,8 +156,7 @@ impl DraftGuard {
         headers_edited(
             &HeaderValues::on_screen(&self.fields),
             &self.opening,
-            self.fields.files.borrow().len(),
-            self.opening_files,
+            self.fields.files.current().changed,
         )
     }
 
@@ -354,8 +342,7 @@ mod tests {
         assert!(!headers_edited(
             &reply_opened_with(),
             &reply_opened_with(),
-            0,
-            0
+            false
         ));
     }
 
@@ -380,40 +367,21 @@ mod tests {
             },
         ] {
             assert!(
-                headers_edited(&edited, &reply_opened_with(), 0, 0),
+                headers_edited(&edited, &reply_opened_with(), false),
                 "{edited:?} should count as edited"
             );
         }
     }
 
-    /// A file the user attached is work that would be lost even with every field untouched.
+    /// A change to the files is work that would be lost even with every field untouched. Whether
+    /// there was one is the core's answer: a forward's originals are not
+    /// (`docs/composer-layout.md`, rule 8).
     #[test]
-    fn an_attachment_alone_is_a_draft() {
+    fn a_change_to_the_files_alone_is_a_draft() {
         assert!(headers_edited(
             &reply_opened_with(),
             &reply_opened_with(),
-            1,
-            0
-        ));
-    }
-
-    /// A forward opens holding the original's files, and abandoning it loses nothing: they are
-    /// still in the mailbox. Measured against zero instead, every forward the user thought better
-    /// of would stop them with a prompt about work they never did.
-    #[test]
-    fn a_forward_nobody_touched_is_not_a_draft_for_carrying_the_originals_files() {
-        assert!(!headers_edited(
-            &reply_opened_with(),
-            &reply_opened_with(),
-            2,
-            2
-        ));
-        // Taking one off is a decision about what goes out, and it would be lost.
-        assert!(headers_edited(
-            &reply_opened_with(),
-            &reply_opened_with(),
-            1,
-            2
+            true
         ));
     }
 
@@ -424,12 +392,11 @@ mod tests {
             to: "bob@test.local".to_owned(),
             ..reply_opened_with()
         };
-        assert!(headers_edited(&typed, &reply_opened_with(), 0, 0));
+        assert!(headers_edited(&typed, &reply_opened_with(), false));
         assert!(!headers_edited(
             &reply_opened_with(),
             &reply_opened_with(),
-            0,
-            0
+            false
         ));
     }
 

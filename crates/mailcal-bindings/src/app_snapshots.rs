@@ -7,12 +7,13 @@
 use std::sync::Arc;
 
 use engine_api::AccountId;
-use mailcal_app::{Intent as AppIntent, ReaderId as AppReaderId};
+use mailcal_app::{CompositionId, Intent as AppIntent, ReaderId as AppReaderId};
 
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeOpening, ConnectionInfo,
     ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind,
     ReadingSnapshot, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot,
+    composer_file_list::staged_files,
 };
 
 #[uniffi::export]
@@ -245,8 +246,16 @@ impl MailcalApp {
     /// Raised when a user edits a queued send. The message has already been withdrawn from
     /// the Outbox, so this is the **only** copy of it: a host that ignores the request loses
     /// it. Dismiss it with `Intent::DismissComposeRequest` once the composer holds it.
+    ///
+    /// Its files become the composition's (`composer_files`) the first time it is read.
     pub fn compose_request(&self) -> Option<ComposeOpening> {
-        self.app.compose_request().map(Into::into)
+        let mut opening = self.app.compose_request()?;
+        let files = std::mem::take(&mut opening.attachments);
+        if let Some(composition) = CompositionId::new(opening.composition.clone()) {
+            self.composer_files
+                .open_if_absent(&composition, staged_files(files));
+        }
+        Some(opening.into())
     }
 
     /// Resets the account: clears the local cache and re-syncs from scratch, re-fetching

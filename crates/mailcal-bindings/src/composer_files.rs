@@ -103,8 +103,10 @@ impl MailcalApp {
     /// draft it may have saved out of Drafts. `from` is the composer's From dropdown; omit it to
     /// let the core derive the sending account.
     ///
-    /// The document is parsed and validated synchronously; the attachment bytes are read in Rust
-    /// on the internal runtime (never on the host's calling thread) and do not cross FFI.
+    /// The files are the composition's (`composer_files`). The document is parsed and validated
+    /// synchronously; the attachment bytes are read in Rust on the internal runtime (never on the
+    /// host's calling thread) and do not cross FFI. An accepted send owns the composition from
+    /// then on, so its file list is let go here.
     ///
     /// # Errors
     ///
@@ -117,12 +119,17 @@ impl MailcalApp {
         recipients: Recipients,
         subject: String,
         document_json: String,
-        files: Vec<ComposerFileAttachment>,
         from: Option<String>,
     ) -> Result<(), MailcalError> {
+        let composition = sent_composition(Some(composition))?;
+        let files = composition.as_ref().map_or_else(Vec::new, |composition| {
+            self.composer_files.attachments(composition)
+        });
         let prepared = prepare_with_files(&document_json, files)?;
         let from = send_account(from)?;
-        let composition = sent_composition(Some(composition))?;
+        if let Some(composition) = &composition {
+            self.composer_files.forget(composition);
+        }
         let Recipients { to, cc, bcc } = recipients;
         self.spawn_with_files(prepared, move |document, blobs| AppIntent::SubmitRichMail {
             from,

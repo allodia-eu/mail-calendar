@@ -82,6 +82,56 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
     assert!(pane.widget().first_child().is_none());
 }
 
+/// The composer is one column that scrolls as a whole: the header, the action row, the notes, the
+/// files, then the editor, and nothing in it with a vertical scroll of its own
+/// (`docs/composer-layout.md`, rules 1 and 2). A popup is drawn over the column, so one inside a
+/// popover is not in it.
+pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let pane = ComposerPane::new();
+    pane.show(
+        44,
+        &reply(ComposerHost::Pane),
+        &[("fixture".to_owned(), "sender@example.test".to_owned())],
+        None,
+        window,
+        sender,
+    );
+    let scrolls: Vec<gtk::ScrolledWindow> =
+        descendants::<gtk::ScrolledWindow>(pane.widget().upcast_ref())
+            .into_iter()
+            .filter(|scroll| scroll.ancestor(gtk::Popover::static_type()).is_none())
+            .collect();
+    assert_eq!(scrolls.len(), 1, "one scroll, around the whole composer");
+    let column = &scrolls[0];
+    assert_eq!(column.vscrollbar_policy(), gtk::PolicyType::Automatic);
+    assert_eq!(column.hscrollbar_policy(), gtk::PolicyType::Never);
+    let content = descendants::<gtk::Box>(column.upcast_ref())
+        .into_iter()
+        .next()
+        .expect("the column holds the composer");
+    let order: Vec<gtk::Widget> =
+        std::iter::successors(content.first_child(), gtk::Widget::next_sibling).collect();
+    assert_eq!(order.len(), 6, "{order:?}");
+    assert!(order[0].is::<gtk::Grid>(), "the header first");
+    assert!(
+        descendants::<gtk::Button>(&order[1])
+            .iter()
+            .any(|button| button.label().as_deref() == Some(l10n::action_attach())),
+        "then the action row"
+    );
+    assert!(
+        order[2].is::<gtk::Label>() && order[3].is::<gtk::Label>(),
+        "then the notes"
+    );
+    assert!(order[4].is::<gtk::FlowBox>(), "then the files");
+    assert!(
+        !descendants::<webkit6::WebView>(&order[5]).is_empty(),
+        "and the message last"
+    );
+    pane.teardown();
+}
+
 fn reply(host: ComposerHost) -> ComposeContext {
     ComposeContext {
         kind: ComposeKind::Reply,
@@ -98,8 +148,6 @@ fn reply(host: ComposerHost) -> ComposeContext {
         initial_from: Some("fixture".to_owned()),
         seeds_signature: true,
         composition: new_composition(),
-        files: Vec::new(),
-        opening_files: 0,
         attachments_failed: false,
         moved: None,
     }

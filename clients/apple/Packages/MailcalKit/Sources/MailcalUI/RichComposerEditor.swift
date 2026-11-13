@@ -63,6 +63,12 @@ final class RichComposerEditor: NSObject {
     var focusBodyOnLoad = false
     /// The link dialog the editor is waiting on, if any.
     var linkRequest: LinkDialogRequest?
+    /// The height the toolbar and the text need, as the growing mode last reported it; zero
+    /// until the page has said. The composer sizes the web view from it
+    /// (`docs/composer-layout.md`, rule 5).
+    var contentHeight: CGFloat = 0
+    /// Where the caret last was, for the composer's column to keep in view.
+    var caret: EditorCaret?
     /// Files dropped on the message itself, set by `ComposerDropModifier`, which owns what a dropped
     /// file becomes. The web view hands its drops here, so the handler can be set before or after
     /// the web view exists.
@@ -79,6 +85,8 @@ final class RichComposerEditor: NSObject {
     override init() {
         super.init()
         host.channel.onLink = { [weak self] in self?.linkRequest = $0 }
+        host.channel.onHeight = { [weak self] in self?.contentHeight = $0 }
+        host.channel.onCaret = { [weak self] in self?.caret = $0 }
         host.onLoad = { [weak self] in self?.seedOnLoad() }
     }
 
@@ -88,16 +96,17 @@ final class RichComposerEditor: NSObject {
             (view as? EditorWebView)?.acceptDroppedFiles = { [weak self] urls in
                 self?.acceptDroppedFiles?(urls)
             }
+            #if os(macOS)
+            (view as? EditorWebView)?.passesVerticalScroll = true
+            #endif
             #if os(iOS)
-            // The document itself must never scroll: the page is a flex column whose `.editor`
-            // scrolls inside itself, so anything that moves the *document* moves the toolbar
-            // instead, and WebKit moves it on focus, scrolling the caret into view against a visual
+            // The document itself must never scroll: the composer's column is the one scroll, and
+            // WebKit moves the document on focus, scrolling the caret into view against a visual
             // viewport the keyboard accessory bar has just shortened. The result is a formatting
             // toolbar sliced through the middle the moment the message is tapped.
             //
-            // Safe only because the host gives the web view a height that fits the toolbar plus the
-            // editor's own `min-height` (`minimumEditorHeight`); below that the page would overflow
-            // with nothing able to scroll it.
+            // Safe because the page runs in its growing mode and the composer sizes the web view
+            // to the content it reports, so there is never anything below the frame to reach.
             view.scrollView.isScrollEnabled = false
             view.scrollView.bounces = false
             view.scrollView.contentInsetAdjustmentBehavior = .never
@@ -133,6 +142,8 @@ final class RichComposerEditor: NSObject {
         // the placeholder lives on the editor element's dataset, which replacing the document does
         // not touch, but sending them first matches the other clients' open-time order.
         host.evaluate(ComposerLabels.script())
+        // Before the announce, which the page answers with its first height and caret.
+        host.evaluate("window.useGrowingComposer()")
         host.channel.announce()
         // One body seed, whichever way the composer was reached. A plain body is assigned as
         // TEXT, never markup (docs/composer-security.md, Gate 11), which matters most for an
@@ -222,17 +233,19 @@ final class RichComposerEditor: NSObject {
         }
     }
 
-    /// How many times the message has changed since the bundle loaded.
+    /// How many times the message has changed since the bundle loaded, or `nil` while the bundle
+    /// cannot be asked yet.
     ///
-    /// Sampled rather than pushed: the page has no channel back to this host, so the bundle counts
-    /// its own mutations and the host reads the count. What it is for is telling a composer still
-    /// being typed in from one that has gone quiet, which is what decides when a draft is saved
-    /// (`docs/drafts.md`). `0` while the bundle is still loading, which is also its starting
-    /// value, so nothing reads as an edit before there is one.
-    func revision() async -> Int {
+    /// Sampled rather than pushed: the bundle counts its own mutations and the host reads the
+    /// count. What it is for is telling a composer still being typed in from one that has gone
+    /// quiet, which is what decides when a draft is saved (`docs/drafts.md`). Seeding the body, the
+    /// quote and the signature moves the count before anyone types, so an unanswered read is
+    /// `nil`, never `0`: a `0` taken before the page loaded made the first real read look like an
+    /// edit, and an untouched composer saved itself.
+    func revision() async -> Int? {
         await withCheckedContinuation { continuation in
             host.evaluate("window.composerRevision()") { value, _ in
-                continuation.resume(returning: (value as? NSNumber)?.intValue ?? 0)
+                continuation.resume(returning: (value as? NSNumber)?.intValue)
             }
         }
     }

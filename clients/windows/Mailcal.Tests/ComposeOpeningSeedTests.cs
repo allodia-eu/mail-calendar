@@ -41,7 +41,6 @@ public class ComposeOpeningSeedTests
             BodyHtml: bodyHtml,
             BodyText: bodyText,
             Quote: quote,
-            Attachments: [],
             AttachmentsFailed: false,
             SeedsSignature: bodyHtml.Length == 0);
 

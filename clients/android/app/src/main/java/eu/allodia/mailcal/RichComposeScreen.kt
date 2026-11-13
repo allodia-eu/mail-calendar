@@ -41,9 +41,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import java.io.File
 import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.DraftStatus
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.Recipients
@@ -57,9 +57,12 @@ internal fun RichComposeMessageDialog(
     request: ComposeContext,
     onDismiss: () -> Unit,
     // Everything the send names, in one value: the account picked in the From dropdown, the
-    // recipients, the subject, the rendered document, the files, and the composition it was
-    // written in (`ComposerSubmission`).
+    // recipients, the subject, the rendered document, and the composition it was written in
+    // (`ComposerSubmission`). The files are the composition's, which the core sends.
     onSubmitRich: (ComposerSubmission) -> Boolean,
+    // The composition's files, as the core holds them (`docs/composer-layout.md`), or null for a
+    // composer that holds none (a test).
+    files: ComposerFileList? = null,
     // Every configured account, for the From dropdown, which opens on `request.initialFrom`.
     accounts: List<AccountRow>,
     // Ranked recipient suggestions for a partially-typed address, answered by the core from synced
@@ -119,16 +122,19 @@ internal fun RichComposeMessageDialog(
     // so the text starts just below the overlay and the two move in lockstep.
     var scrollY by remember { mutableIntStateOf(0) }
     var headerHeightPx by remember { mutableIntStateOf(0) }
-    // Seeded once, from what the core staged (a forward's originals, a stored draft's own) and a
-    // share's files. Deliberately NOT keyed on the seed: a key would let a share arriving over an
-    // OPEN composer replace the files the user had picked. A share reaching a busy composer waits
-    // (MainActivityComposer.kt), it does not overwrite.
-    var attachments by remember { mutableStateOf(request.attachments.map(::seededComposerFile)) }
+    // The core's last answer about the composition's files: what it opened holding (a forward's
+    // originals, a stored draft's own, a share's), then whatever each add or remove answered.
+    var fileTiles by remember { mutableStateOf(files?.current() ?: NO_COMPOSER_FILES) }
+    val attach = { staged: List<ComposerFileAttachment> ->
+        if (staged.isNotEmpty()) {
+            files?.add(staged)?.let { fileTiles = it }
+        }
+    }
     // Pictures dropped on the composer, waiting on the one question they raise. Held rather than
     // acted on, because the answer decides whether they become body content or attachments.
-    var droppedPictures by remember { mutableStateOf<List<PickedComposerFile>>(emptyList()) }
+    var droppedPictures by remember { mutableStateOf<List<ComposerFileAttachment>>(emptyList()) }
     val pickAttachments = rememberAttachmentPicker(
-        onStaged = { attachments = attachments + it },
+        onStaged = attach,
         onFailed = { composerError = L10n.compose_prepare_error(ctx) },
     )
     // The per-message style override of the persisted default, re-styles the quoted original in
@@ -152,7 +158,7 @@ internal fun RichComposeMessageDialog(
     // The effect's first run is the fields opening with their pre-fill, which is not a change: a
     // reopened draft's first save always writes, so counting it would save a draft another client
     // stored over with nothing typed.
-    val draftHeaders = listOf(to, cc, bcc, subject, attachments.size.toString())
+    val draftHeaders = listOf(to, cc, bcc, subject, fileTiles.tiles.joinToString(",") { it.id })
     var headersOpened by remember { mutableStateOf(false) }
     LaunchedEffect(draftHeaders) {
         if (headersOpened) draftChanges += 1 else headersOpened = true
@@ -208,7 +214,6 @@ internal fun RichComposeMessageDialog(
             recipients = Recipients(to, cc, bcc),
             subject = subject,
             documentJson = documentJson,
-            files = attachments.map { it.composerFile },
             composition = compositionId,
         )
     }
@@ -237,7 +242,7 @@ internal fun RichComposeMessageDialog(
         headersEdited = {
             composerHeadersEdited(
                 to, seededTo, cc, seededCc, bcc, seededBcc, subject, opening.subject,
-                attachments.size, request.baselineAttachments,
+                fileTiles.changed,
             )
         },
         readDocument = { answer ->
@@ -344,9 +349,9 @@ internal fun RichComposeMessageDialog(
                         .fillMaxSize()
                         .padding(padding)
                         // A dropped file is resolved natively: web code sees a `File` with no path,
-                        // so only the host can stage it for Rust and list it for removal.
+                        // so only the host can stage it for Rust and hand it to the core's list.
                         .composerDropTarget { dropped ->
-                            attachments = attachments + dropped.attach
+                            attach(dropped.attach)
                             droppedPictures = dropped.pictures
                         },
                 ) {
@@ -416,15 +421,16 @@ internal fun RichComposeMessageDialog(
                                 suggestionsFor = suggestionsFor,
                                 focusesTo = !request.opensInBody,
                             )
+                            // The notes, then the files, both under the fields and above the message
+                            // (`docs/composer-layout.md`, rule 1).
                             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                                ComposerAttachmentList(
-                                    attachments = attachments,
-                                    onRemove = { attachment ->
-                                        attachments = attachments.filterNot { it.id == attachment.id }
-                                        File(attachment.path).delete()
+                                ComposerNotices(error = composerError, draftStatus = draftStatus)
+                                ComposerFileTiles(
+                                    files = fileTiles,
+                                    onRemove = { tile ->
+                                        files?.remove(tile.id)?.let { fileTiles = it }
                                     },
                                 )
-                                ComposerNotices(error = composerError, draftStatus = draftStatus)
                             }
                         }
                     }
@@ -434,7 +440,7 @@ internal fun RichComposeMessageDialog(
                     ComposerDroppedPictureQuestion(
                         pictures = droppedPictures,
                         webView = webView,
-                        onAttach = { attachments = attachments + it },
+                        onAttach = attach,
                         onUnreadable = { composerError = L10n.compose_image_failed(ctx) },
                         onAnswered = { droppedPictures = emptyList() },
                     )

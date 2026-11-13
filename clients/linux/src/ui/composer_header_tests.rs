@@ -126,8 +126,6 @@ pub(crate) fn request(initial_cc: &str) -> ComposeContext {
         initial_from: None,
         seeds_signature: true,
         composition: new_composition(),
-        files: Vec::new(),
-        opening_files: 0,
         attachments_failed: false,
         moved: None,
     }

@@ -180,7 +180,6 @@ public sealed partial class ComposerView
                 new Recipients(ToField.Text, CcField.Text, BccField.Text),
                 SubjectBox.Text,
                 documentJson,
-                _attachments.Select(a => a.File).ToArray(),
                 (FromBox.SelectedItem as AccountItem)?.Id);
         }
         catch (Exception ex)
@@ -223,7 +222,6 @@ public sealed partial class ComposerView
                 new Recipients(ToField.Text, CcField.Text, BccField.Text),
                 SubjectBox.Text,
                 documentJson,
-                _attachments.Select(a => a.File).ToArray(),
                 (FromBox.SelectedItem as AccountItem)?.Id);
             _finished = true;
         }
@@ -264,8 +262,9 @@ public sealed partial class ComposerView
             _model?.DiscardDraft(_composition);
             _finished = true;
         }
-        // Nothing will read them now: a save still reading one is of a draft just thrown away.
-        ComposerStaging.Release(_request?.Opening.Attachments.Select(file => file.Path) ?? []);
+        // Nothing will read the files staged for it now: a save still reading one is of a draft
+        // just thrown away.
+        ComposerStaging.Release(_request?.StagingDirectory);
         _onDone?.Invoke();
     }
 

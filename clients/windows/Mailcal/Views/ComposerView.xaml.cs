@@ -31,7 +31,6 @@ namespace Allodia.Mailcal.Views;
 public sealed partial class ComposerView : UserControl
 #pragma warning restore WUI4002
 {
-    private readonly List<PickedComposerAttachment> _attachments = new();
     private MailboxModel? _model;
     private ComposeContext? _request;
     private Action? _onDone;
@@ -50,12 +49,6 @@ public sealed partial class ComposerView : UserControl
     /// opened. Tracked eagerly because it needs no round-trip into the editor.</summary>
     private bool _headersDirty;
 
-    /// <summary>How many of the files the composer opened holding are not the user's own work: a
-    /// forward's staged originals, which are still in the mailbox. The baseline the live count is
-    /// measured against; zero for a share, whose files the user chose and would have to share
-    /// again.</summary>
-    private int _baselineAttachments;
-
     /// <summary>Whether the editor bundle has parsed, so its <c>window.*</c> hooks exist. Anything
     /// the user can trigger that talks to the editor gates on this.</summary>
     private bool _editorReady;
@@ -65,6 +58,7 @@ public sealed partial class ComposerView : UserControl
     {
         this.InitializeComponent();
         _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync, HostRequested = OnHostRequested };
+        ListenForWheel();
         HistoryKeys.RedoOnShiftChord(SubjectBox);
     }
 
@@ -75,25 +69,10 @@ public sealed partial class ComposerView : UserControl
     {
         _model = model;
         _request = request;
-        // A share, and a forward, open the composer already holding files; every other route
-        // starts empty and fills this from the picker (docs/os-integration.md). Seeded here
-        // rather than in the loaded handler so the rows are there on the first render.
-        foreach (var file in request.Attachments ?? [])
-        {
-            _attachments.Add(new PickedComposerAttachment(file));
-        }
-        // The files the core staged are still in the mailbox, a forward's originals or a stored
-        // draft's own, so closing over them unchanged loses nothing; a share's the user chose and
-        // would have to share again, so those count from the start.
-        _baselineAttachments = request.Opening.Attachments.Length;
-        // `_attachments` is a plain list and the ListView is not bound to it in XAML, so the
-        // picker re-assigns ItemsSource after every change. A seeded list needs the same
-        // assignment, or the rows exist only in the list and the user sees, and can remove,
-        // nothing of what they shared.
-        if (_attachments.Count > 0)
-        {
-            AttachmentList.ItemsSource = _attachments;
-        }
+        // A forward, a stored draft and a share open the composer already holding files, and the
+        // core holds them (ComposerView.Files.cs). Drawn here rather than in the loaded handler so
+        // the tiles are there on the first render.
+        ShowFiles(model.ComposerFilesOf(request.Composition));
         // A forward whose files could not be read opens saying so. Silence here would be a
         // message the user sends believing the original had nothing attached.
         if (request.AttachmentsFailed)
@@ -201,16 +180,14 @@ public sealed partial class ComposerView : UserControl
     /// editor document is compared against the seed it opened with, so a reply that merely carries
     /// its quoted original does NOT count as dirty until something is actually written above it
     /// (and flipping the quote-style toggle, which rewrites the document, does).
-    /// <para>The attachment count is measured against what the composer opened with, which is not
-    /// the same as zero. A forward's staged originals are still in the mailbox, so abandoning one
-    /// loses nothing and must not be worth a prompt; a share's files the user chose in Explorer and
-    /// would have to share again, so those count from the start. Removing a forwarded file, like
-    /// adding any file, changes the count and does count.</para>
+    /// <para>Whether the files changed is the core's answer (docs/composer-layout.md, rule 8): a
+    /// forward's originals and a stored draft's own are not the user's writing, a file they picked,
+    /// dropped or shared is, and so is taking one off.</para>
     /// </summary>
     internal async Task<bool> IsDirtyAsync()
     {
         // A composer moved from another view was written in there, whatever it opened holding here.
-        if (_request?.Moved?.Written == true || _headersDirty || _attachments.Count != _baselineAttachments)
+        if (_request?.Moved?.Written == true || _headersDirty || _files?.Changed == true)
         {
             return true;
         }
@@ -257,9 +234,8 @@ public sealed partial class ComposerView : UserControl
             // The pills are a rendering of these strings, never a second source of truth, so what
             // is submitted is exactly what the user can see in the fields.
             var recipients = new Recipients(ToField.Text, CcField.Text, BccField.Text);
-            var files = _attachments.Select(a => a.File).ToArray();
             var from = (FromBox.SelectedItem as AccountItem)?.Id;
-            if (string.IsNullOrEmpty(documentJson) || !Submit(recipients, documentJson, files, from))
+            if (string.IsNullOrEmpty(documentJson) || !Submit(recipients, documentJson, from))
             {
                 ShowError(L10n.ComposePrepareError());
                 SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
@@ -291,9 +267,9 @@ public sealed partial class ComposerView : UserControl
     // message it answers or passes on when the composer opened, so a reply threads and a quoted
     // picture goes out as its part whichever way the composer was reached, and an accepted send
     // takes the stored draft away (docs/drafts.md). The Subject rides along because the field is
-    // editable and what it holds is what goes out.
-    private bool Submit(Recipients recipients, string documentJson, ComposerFileAttachment[] files, string? from) =>
-        _model!.SubmitComposition(_composition, recipients, SubjectBox.Text, documentJson, files, from);
+    // editable and what it holds is what goes out; the files are the composition's, in the core.
+    private bool Submit(Recipients recipients, string documentJson, string? from) =>
+        _model!.SubmitComposition(_composition, recipients, SubjectBox.Text, documentJson, from);
     private void OnToggleCcBcc(object sender, RoutedEventArgs e) => ApplyCcBcc();
 
     // Cc/Bcc follow the toggle, and the chevron points the way it would move them.
@@ -393,6 +369,10 @@ public sealed partial class ComposerView : UserControl
             // does not touch, but sending them first matches the other clients' open-time order.
             await _editor.RunAsync(ComposerLabels.Script());
             await _editor.RunAsync(MailcalBindingsMethods.ComposerHostRequestsScript());
+            // The message grows with its text and the column scrolls (docs/composer-layout.md,
+            // rule 5), switched on before any seed so the first height it reports is the seeded
+            // message's.
+            await _editor.RunAsync("window.useGrowingComposer()");
             // One body seed, whichever way the composer was reached: a fresh reply's or forward's
             // quote, a stored message's own HTML, or the text a link, a share or an assistant
             // brought. Each assigns the WHOLE body, so it goes ahead of the signature. Nothing about

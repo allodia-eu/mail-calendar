@@ -2,7 +2,7 @@
 //
 // A drop is handled NATIVELY, not by the page. The editor bundle refuses `drop`, because web code
 // only ever sees a `File` with no path: it could neither hand the bytes to Rust for a streamed send
-// nor put a removable row in the attachment list. The host resolves the drop to a real path, so
+// nor give the file a removable tile. The host resolves the drop to a real path, so
 // both work, and the page is handed a picture only when the user asks for one.
 //
 // A picture raises the question the other formats do not: it can be shown where the user is typing
@@ -51,7 +51,7 @@ public sealed partial class ComposerView
                 return;
             }
             var pictures = files.Where(IsPicture).ToList();
-            Attach(files.Where(file => !IsPicture(file)));
+            await AttachAsync(files.Where(file => !IsPicture(file)));
             if (pictures.Count > 0)
             {
                 await AskAboutPicturesAsync(pictures);
@@ -74,22 +74,6 @@ public sealed partial class ComposerView
     private static bool IsPicture(StorageFile file) =>
         file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
 
-    private void Attach(IEnumerable<StorageFile> files)
-    {
-        var added = false;
-        foreach (var file in files)
-        {
-            _attachments.Add(new PickedComposerAttachment(
-                new ComposerFileAttachment(file.Path, file.Name, MediaType(file))));
-            added = true;
-        }
-        if (added)
-        {
-            AttachmentList.ItemsSource = null;
-            AttachmentList.ItemsSource = _attachments;
-        }
-    }
-
     private async Task AskAboutPicturesAsync(IReadOnlyList<StorageFile> pictures)
     {
         // Three answers, so a ContentDialog rather than the confirm helper: Primary shows it in
@@ -106,7 +90,7 @@ public sealed partial class ComposerView
         });
         if (answer == ContentDialogResult.Secondary)
         {
-            Attach(pictures);
+            await AttachAsync(pictures);
             return;
         }
         if (answer != ContentDialogResult.Primary)
@@ -134,7 +118,7 @@ public sealed partial class ComposerView
         if (unreadable.Count > 0)
         {
             ShowError(L10n.ComposeImageFailed());
-            Attach(unreadable);
+            await AttachAsync(unreadable);
         }
     }
 }

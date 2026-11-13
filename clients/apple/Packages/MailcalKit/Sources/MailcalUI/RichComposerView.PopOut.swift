@@ -43,7 +43,6 @@ extension RichComposeView {
                     bcc: bcc,
                     subject: subject,
                     documentJson: documentJson,
-                    files: attachments.map(\.composerFile),
                     signature: movedSignature,
                     written: await isWritten()
                 )

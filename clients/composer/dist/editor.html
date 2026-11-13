@@ -118,6 +118,25 @@
       color: var(--muted);
     }
 
+    /* Growing mode (`growing.ts`, docs/composer-layout.md): the host sizes the WebView to the content,
+       so the page never scrolls and the editor has no scroll of its own. It is at least as tall as its
+       text and stretches to fill a taller frame, so the blank area under a short message is still the
+       message. A table wider than the column scrolls sideways, as it does in the scrolling layout.
+       `clip` rather than `hidden`: a hidden overflow is still a scroll container, which WebKit scrolls
+       to reveal the caret while the host's resize is on its way, and the page then measures itself
+       short and stops growing. */
+    html.growing,
+    body.growing {
+      overflow: clip;
+    }
+
+    body.growing .editor {
+      flex: 1 0 auto;
+      min-height: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
     /* Native-chrome mode (Android): the native surface owns a single scroll; the compose
        header sits in a native overlay above this WebView and scrolls away as the message
        grows, and the toolbar pins just above the keyboard. So here the *page* scrolls (not an
@@ -2216,6 +2235,110 @@
     element.remove();
   }
 
+  // src/growing.ts
+  function installGrowing(editor, toolbar, reports, measures = domMeasures(editor, toolbar)) {
+    const doc = editor.ownerDocument;
+    const win = windowOf(editor);
+    let on = false;
+    let lastHeight = -1;
+    let lastCaret = "";
+    let scheduled = false;
+    const reportHeight = (force) => {
+      const px = Math.ceil(measures.contentHeight());
+      if (!force && px === lastHeight)
+        return;
+      lastHeight = px;
+      reports.height(px);
+    };
+    const reportCaret = (force) => {
+      const caret = measures.caret();
+      if (!caret)
+        return;
+      const top = Math.max(0, Math.floor(caret.top));
+      const bottom = Math.max(top, Math.ceil(caret.bottom));
+      const key = `${top}:${bottom}`;
+      if (!force && key === lastCaret)
+        return;
+      lastCaret = key;
+      reports.caret(top, bottom);
+    };
+    const schedule = () => {
+      if (!on || scheduled)
+        return;
+      scheduled = true;
+      win.requestAnimationFrame(() => {
+        scheduled = false;
+        reportHeight(false);
+        reportCaret(false);
+      });
+    };
+    return {
+      useGrowingComposer() {
+        if (on)
+          return;
+        on = true;
+        doc.documentElement.classList.add("growing");
+        doc.body.classList.add("growing");
+        new win.MutationObserver(schedule).observe(editor, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true
+        });
+        editor.addEventListener("load", schedule, true);
+        doc.addEventListener("selectionchange", schedule);
+        win.addEventListener("resize", schedule);
+        if (win.ResizeObserver)
+          new win.ResizeObserver(schedule).observe(toolbar);
+        schedule();
+      },
+      resend() {
+        if (!on)
+          return;
+        reportHeight(true);
+        reportCaret(true);
+      }
+    };
+  }
+  function domMeasures(editor, toolbar) {
+    const doc = editor.ownerDocument;
+    const win = windowOf(editor);
+    const pageTop = () => doc.documentElement.getBoundingClientRect().top - doc.body.scrollTop;
+    const px = (value) => Number.parseFloat(value) || 0;
+    return {
+      contentHeight() {
+        const style = win.getComputedStyle(editor);
+        const box = editor.getBoundingClientRect();
+        const range = doc.createRange();
+        range.selectNodeContents(editor);
+        const text = range.getBoundingClientRect();
+        const textBottom = text.height > 0 ? text.bottom : box.top + px(style.paddingTop) + px(style.lineHeight);
+        const editorBottom = textBottom + px(style.paddingBottom) + px(style.borderBottomWidth);
+        return Math.max(editorBottom, toolbar.getBoundingClientRect().bottom) - pageTop();
+      },
+      caret() {
+        const selection = win.getSelection();
+        if (!selection || selection.rangeCount === 0 || !doc.hasFocus())
+          return null;
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.endContainer))
+          return null;
+        const end = range.cloneRange();
+        end.collapse(false);
+        let rect = end.getBoundingClientRect();
+        if (rect.height === 0) {
+          const node = end.endContainer;
+          const element = node.nodeType === 1 ? node.childNodes[end.endOffset] ?? node.childNodes[end.endOffset - 1] ?? node : node.parentElement;
+          if (!element || element.nodeType !== 1)
+            return null;
+          rect = element.getBoundingClientRect();
+        }
+        const top = pageTop();
+        return { top: rect.top - top, bottom: rect.bottom - top };
+      }
+    };
+  }
+
   // src/host.ts
   function installNativeChrome(editor, toolbar, onStopWriting = () => {}) {
     const doc = editor.ownerDocument;
@@ -2262,7 +2385,7 @@
   }
 
   // src/host_requests.ts
-  var KINDS = ["link", "history"];
+  var KINDS = ["link", "history", "height", "caret"];
   function channelOf(win) {
     const scope = win;
     const handler = scope.webkit?.messageHandlers?.composerHost;
@@ -4889,6 +5012,10 @@
     return true;
   });
   var chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
+  var growing = installGrowing(editor, toolbarRoot, {
+    height: (px) => hostRequests.tell("height", { px }),
+    caret: (top, bottom) => hostRequests.tell("caret", { top, bottom })
+  });
   installImageResize(editor);
   var revision = installRevisionCounter(editor);
   editor.addEventListener("paste", (event) => {
@@ -4994,10 +5121,12 @@
   window.composerHistorySteps = () => JSON.stringify(history.steps());
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
+  window.useGrowingComposer = () => growing.useGrowingComposer();
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => {
     hostRequests.setAnswered(kinds);
     history.watch((steps) => hostRequests.tell("history", steps));
+    growing.resend();
   };
   window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
   window.setComposerLabels = (incoming) => {

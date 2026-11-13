@@ -154,14 +154,15 @@ struct ComposerOnScreen: View {
                 quoteStylePerMessage: kind == .reply,
                 signatures: kind == .signed ? Self.signatures : nil,
                 drafts: ComposerDrafts(
-                    save: { _, _, _, _, _, _ in },
-                    leave: { _, _, _, _, _, _ in },
+                    save: { _, _, _, _, _ in },
+                    leave: { _, _, _, _, _ in },
                     discard: { _ in },
                     close: { _ in },
                     status: { _ in .idle },
                     isStored: { _ in false },
                     version: 0
                 ),
+                files: noFiles,
                 send: { _ in true },
                 cancel: {}
             )
@@ -176,6 +177,13 @@ struct ComposerOnScreen: View {
     )
 }
 
+/// File verbs over an empty list: these tests are about the composer's lifetime, not its files.
+@MainActor private let noFiles = ComposerFileVerbs(
+    read: { _ in MailboxModel.noComposerFiles },
+    add: { _, _ in MailboxModel.noComposerFiles },
+    remove: { _, _ in MailboxModel.noComposerFiles }
+)
+
 /// A parent that builds the composer afresh on every render, as the mailbox does.
 private struct RerenderingParent: View {
     let renders: RenderCount
@@ -184,7 +192,8 @@ private struct RerenderingParent: View {
         VStack {
             Text("\(renders.value)")
             RichComposeView(
-                title: "New Message", composition: "c-render", send: { _ in true }, cancel: {}
+                title: "New Message", composition: "c-render", files: noFiles,
+                send: { _ in true }, cancel: {}
             )
         }
     }

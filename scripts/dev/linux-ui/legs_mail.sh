@@ -91,25 +91,25 @@ leg_reply() {
   search_for ""
 }
 
-# Forwarding carries the original's files, shown as ordinary attachment rows (docs/sending.md ->
-# "What a forward carries"). What only a live run shows is that the staging round trip through the
-# core reaches the list the user can act on, rather than attaching the files somewhere the composer
-# never draws.
+# Forwarding carries the original's files, drawn as tiles above the message (docs/sending.md ->
+# "What a forward carries"; docs/composer-layout.md). What only a live run shows is that the
+# staging round trip through the core reaches the list the user can act on, rather than attaching
+# the files somewhere the composer never draws.
 leg_forward() {
   open_mail_message "$ATTACHMENT_SUBJECT"
   ui_press text=Forward role=button
   ui_wait id=composer-editor timeoutMs=30000
-  # The row, and the control that takes it off again. A forward that carried the file while showing
+  # The tile, and the control that takes it off again. A forward that carried the file while showing
   # nothing is the shape this leg exists to catch, and it looks identical from outside.
-  ui_within wait role=list-item text="$ATTACHMENT_FILE" enabled=true timeoutMs=30000 -- \
+  ui_within wait id=composer-file text="$ATTACHMENT_FILE" enabled=true timeoutMs=30000 -- \
     text=Remove role=button enabled=true
   capture forward-attachments
 
   # Abandoning an untouched forward asks nothing: its files are still in the mailbox. The absence
-  # of the attachment row is what says the navigation went through; a guard measuring the staged
-  # files against zero would have stopped it with a modal and left the row on screen.
+  # of the attachment tile is what says the navigation went through; a guard measuring the staged
+  # files against zero would have stopped it with a modal and left the tile on screen.
   open_mail_message "$PLAIN_SUBJECT"
-  ui_gone role=list-item text="$ATTACHMENT_FILE" timeoutMs=30000
+  ui_gone id=composer-file text="$ATTACHMENT_FILE" timeoutMs=30000
   ui_gone type=GtkWindow text="Discard draft?"
 
   # Taking one off is a decision about what goes out, so the same navigation now keeps the composer
@@ -117,9 +117,9 @@ leg_forward() {
   # the first alone passes just as well with the save switched off entirely.
   open_mail_message "$ATTACHMENT_SUBJECT"
   ui_press text=Forward role=button
-  ui_within press role=list-item text="$ATTACHMENT_FILE" enabled=true timeoutMs=30000 -- \
+  ui_within press id=composer-file text="$ATTACHMENT_FILE" enabled=true timeoutMs=30000 -- \
     text=Remove role=button
-  ui_gone role=list-item text="$ATTACHMENT_FILE"
+  ui_gone id=composer-file text="$ATTACHMENT_FILE"
   open_mail_message "$PLAIN_SUBJECT"
   ui_gone id=composer-editor timeoutMs=30000
   ui_gone type=GtkWindow text="Discard draft?" timeoutMs=5000

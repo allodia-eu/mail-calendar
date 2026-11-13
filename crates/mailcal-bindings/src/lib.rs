@@ -76,8 +76,10 @@ mod background;
 mod background_sync;
 mod boot;
 mod composer;
+mod composer_file_list;
 mod composer_files;
 mod composer_host;
+mod composer_layout;
 mod composer_open;
 mod connected_account;
 mod connection_log;
@@ -201,6 +203,7 @@ use background::BackgroundManager;
 pub use background_sync::{AccountNewMail, BackgroundSyncOutcome, NewMailPreview};
 pub use command_bar::{Command, CommandBar, CommandItem, CommandSection};
 pub use composer::{ComposerBlob, Recipients, render_composer_document_json, reply_subject};
+pub use composer_file_list::{ComposerFileTile, ComposerFiles};
 pub use composer_files::{
     ComposerFileAttachment, MAX_INLINE_IMAGE_BYTES, composer_clipboard_html,
     composer_image_data_url, composer_image_data_url_from_bytes,
@@ -210,6 +213,7 @@ pub use composer_host::{
     composer_host_requests_script, composer_host_requests_with_history_script,
     composer_link_address, composer_link_answer_script, parse_composer_host_request,
 };
+pub use composer_layout::{composer_caret_scroll, composer_editor_height};
 pub use composer_open::{
     ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, ComposerState, MovedComposer,
     MovedSignature, QuoteSource,
@@ -411,6 +415,8 @@ pub struct MailcalApp {
     redialling: retry::Redialling,
     /// What each account's page has running, and what its last change came to.
     account_work: Arc<account_work::AccountWork>,
+    /// The files attached to each open composition; see [`composer_file_list`].
+    composer_files: composer_file_list::ComposerFileLists,
     /// The device's display zone (resolved at construction), used as the `Prefer:
     /// outlook.timezone` a reconnecting Microsoft account rebinds its Graph calendar provider
     /// with: so a recurring series expands DST-correctly. Fixed for the app's lifetime; the

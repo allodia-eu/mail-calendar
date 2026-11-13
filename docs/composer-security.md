@@ -94,9 +94,11 @@ port:
 2. **No general host bridge.** Expose only explicit commands: get/set document JSON, pick file, commit
    blob handle, render/validate via Rust, and report editor state. The one channel from the editor
    to its host, `composerHost`, carries only the requests `mailcal_composer::HostRequestKind`
-   names (today `link`, the link dialog of Gate 16, and `history`, a notice of whether the body's
+   names (today `link`, the link dialog of Gate 16; `history`, a notice of whether the body's
    undo history has a step to take back and one to put back, which nothing answers and which
-   carries no content; [`undo.md`](undo.md), rule 3). The core parses every message
+   carries no content ([`undo.md`](undo.md), rule 3); and growing mode's `height` and `caret`,
+   notices of the content's height and the caret's position in whole pixels, which carry no
+   content either ([`composer-layout.md`](composer-layout.md), rules 5 and 6)). The core parses every message
    (`parse_composer_host_request`) and refuses anything outside that vocabulary, an unknown field
    included, before a client acts on it, and the host answers through the script the core builds.
    A host turns the channel on only where it answers (`setComposerHostRequests`); everywhere else

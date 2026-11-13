@@ -32,9 +32,9 @@ impl AppModel {
     /// Stores what the composer holds in the Drafts folder, replacing what this composition's
     /// previous save left there.
     ///
-    /// Always the file-carrying call, even from a composer holding none. A save replaces the
-    /// stored copy, so one that left the files out would take them off a draft the user is still
-    /// writing, and a composer can pick a file at any moment.
+    /// Always the file-carrying call, even from a composer holding none: it saves the files the
+    /// core holds for the composition. A save replaces the stored copy, so one that left the files
+    /// out would take them off a draft the user is still writing.
     ///
     /// Fire and forget: it returns as soon as the document validates, and the outcome arrives as
     /// a `Surface::DraftStatus` signal. A save with no network is queued, not lost.
@@ -42,16 +42,14 @@ impl AppModel {
         let Some(app) = &self.app else {
             return;
         };
-        let (recipients, files) = save_arguments(submission);
         // Nothing is surfaced on a refusal. Saving is never something the user waits for, and
         // never something a composer refuses to be dismissed over; a save the *server* refuses is
         // reported through the hint.
         let _ = app.save_draft_with_files(
             submission.request.composition.clone(),
-            recipients,
+            recipients(submission),
             submission.subject.clone(),
             submission.document_json.clone(),
-            files,
             submission.from.clone(),
         );
     }
@@ -66,13 +64,11 @@ impl AppModel {
         let Some(app) = &self.app else {
             return;
         };
-        let (recipients, files) = save_arguments(submission);
         let _ = app.save_draft_and_close(
             submission.request.composition.clone(),
-            recipients,
+            recipients(submission),
             submission.subject.clone(),
             submission.document_json.clone(),
-            files,
             submission.from.clone(),
         );
     }
@@ -186,28 +182,13 @@ impl AppModel {
     }
 }
 
-/// The recipients and files a save hands the core, the same for every save.
-fn save_arguments(
-    submission: &ComposerSubmission,
-) -> (
-    mailcal_bindings::Recipients,
-    Vec<mailcal_bindings::ComposerFileAttachment>,
-) {
-    let recipients = mailcal_bindings::Recipients {
+/// The recipients a save hands the core, the same for every save.
+fn recipients(submission: &ComposerSubmission) -> mailcal_bindings::Recipients {
+    mailcal_bindings::Recipients {
         to: submission.to.clone(),
         cc: submission.cc.clone(),
         bcc: submission.bcc.clone(),
-    };
-    let files = submission
-        .files
-        .iter()
-        .map(|file| mailcal_bindings::ComposerFileAttachment {
-            path: file.path.clone(),
-            file_name: file.file_name.clone(),
-            media_type: file.media_type.clone(),
-        })
-        .collect();
-    (recipients, files)
+    }
 }
 
 /// The quiet line under the editor, or `None` when there is nothing to say.

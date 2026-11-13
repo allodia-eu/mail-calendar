@@ -84,8 +84,25 @@ public sealed partial class MailboxModel
             return;
         }
         Log.Info(LogLineFor(action));
-        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, ComposerStaging.NewDirectory());
+        var directory = ComposerStaging.NewDirectory();
+        if (action == QueuedAction.Edit)
+        {
+            _editStaging = directory;
+        }
+        var intent = OutboxRows.IntentFor(action, row.Account, row.Op, directory);
         _app?.Dispatch(new Intent.Outbox(intent));
+    }
+
+    /// <summary>Where the last Edit asked the core to stage its message's files.</summary>
+    private string? _editStaging;
+
+    /// <summary>Where the queued message now opening in the composer had its files staged, so its
+    /// composer can delete them on a discard. Taken once: the next edit names its own.</summary>
+    internal string? TakeEditStaging()
+    {
+        var directory = _editStaging;
+        _editStaging = null;
+        return directory;
     }
 
     private static string LogLineFor(QueuedAction action) => action switch

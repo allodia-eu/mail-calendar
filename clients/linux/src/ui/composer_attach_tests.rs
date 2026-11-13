@@ -3,14 +3,12 @@
 //! The GTK half is called from the crate's single `gtk::init` test (see
 //! [`super::super::mailbox::tests`]); the rest is plain unit tests.
 
-use std::{cell::RefCell, path::Path, rc::Rc};
+use std::{cell::RefCell, path::Path, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
 
-use super::{
-    PictureAnswer, accept_files, install_drop_target, picked_file, render_files, sort_drop,
-};
-use crate::ui::composer_model::PickedFile;
+use super::{PictureAnswer, accept_files, install_drop_target, picked_file, sort_drop};
+use crate::ui::composer_file_tiles::{ComposerFileStore, FileTiles, tests::FakeStore};
 
 #[test]
 fn a_dropped_file_carries_the_name_and_media_type_its_mime_part_needs() {
@@ -47,7 +45,12 @@ fn only_the_pictures_in_a_drop_raise_the_question() {
     assert_eq!(sort_drop(Vec::new()), super::DroppedFiles::default());
 }
 
-/// The drop target listens in the **capture** phase, and the attachment list follows what is on it.
+fn tiles(store: &Arc<FakeStore>) -> Rc<FileTiles> {
+    FileTiles::new(Some(Arc::clone(store) as Arc<dyn ComposerFileStore>), "c")
+}
+
+/// The drop target listens in the **capture** phase, and what a drop leaves behind is in the
+/// core's list.
 ///
 /// The phase is the part that fails silently: the WebView installs a drop target of its own, so a
 /// bubble-phase controller on an ancestor never runs for a drop over the editor, which is most of
@@ -55,19 +58,18 @@ fn only_the_pictures_in_a_drop_raise_the_question() {
 pub(crate) fn the_drop_target_listens_ahead_of_the_web_view() {
     let window = adw::ApplicationWindow::builder().build();
     let content = gtk::Box::new(gtk::Orientation::Vertical, 0);
-    let list = gtk::ListBox::new();
     let error = gtk::Label::new(None);
-    let files = Rc::new(RefCell::new(Vec::<PickedFile>::new()));
+    let store = Arc::new(FakeStore::default());
+    let files = tiles(&store);
 
     let accept = accept_files(
         PictureAnswer::Ask,
         Rc::new(|_, _| {}),
-        &list,
         &files,
         &window,
         &error,
     );
-    install_drop_target(&content, accept);
+    install_drop_target(&content, Rc::clone(&accept));
 
     let controllers = content.observe_controllers();
     let drop = (0..controllers.n_items())
@@ -77,19 +79,19 @@ pub(crate) fn the_drop_target_listens_ahead_of_the_web_view() {
     assert_eq!(drop.propagation_phase(), gtk::PropagationPhase::Capture);
     assert!(drop.actions().contains(gtk::gdk::DragAction::COPY));
 
-    // What a drop leaves behind: one removable row per file, named as the recipient will see it.
-    files.borrow_mut().push(PickedFile {
-        path: "/tmp/report.pdf".to_owned(),
-        file_name: "report.pdf".to_owned(),
-        media_type: "application/pdf".to_owned(),
-    });
-    render_files(&list, &files);
-    let row = list
-        .first_child()
-        .and_downcast::<adw::ActionRow>()
-        .expect("an attached file gets a row");
-    assert_eq!(row.title(), "report.pdf");
-    assert!(!row.uses_markup(), "a file name is never parsed as markup");
+    // What a drop leaves behind: the files the core holds, named as the recipient will see them,
+    // and a tile for each.
+    assert!(accept(vec![
+        "/tmp/report.pdf".into(),
+        "/tmp/notes.txt".into()
+    ]));
+    assert_eq!(store.names(), ["report.pdf", "notes.txt"]);
+    assert_eq!(
+        files.widget().observe_children().n_items(),
+        2,
+        "one tile per file"
+    );
+    assert!(!accept(Vec::new()), "nothing to take is not taken");
 }
 
 /// A pasted picture goes **straight into the message**; a dropped one is asked about.
@@ -105,9 +107,9 @@ pub(crate) fn the_drop_target_listens_ahead_of_the_web_view() {
 /// someone answers.
 pub(crate) fn a_paste_shows_the_picture_and_a_drop_asks_about_it() {
     let window = adw::ApplicationWindow::builder().build();
-    let list = gtk::ListBox::new();
     let error = gtk::Label::new(None);
-    let files = Rc::new(RefCell::new(Vec::<PickedFile>::new()));
+    let store = Arc::new(FakeStore::default());
+    let files = tiles(&store);
     let shown = Rc::new(RefCell::new(Vec::<String>::new()));
 
     let dir = std::env::temp_dir().join("mailcal-paste-inline-test");
@@ -125,7 +127,6 @@ pub(crate) fn a_paste_shows_the_picture_and_a_drop_asks_about_it() {
     let paste = accept_files(
         PictureAnswer::ShowInMessage,
         Rc::clone(&recorder) as super::ShowPicture,
-        &list,
         &files,
         &window,
         &error,
@@ -136,13 +137,12 @@ pub(crate) fn a_paste_shows_the_picture_and_a_drop_asks_about_it() {
         [picture.to_string_lossy().into_owned()],
         "a pasted picture is in the message without anything being asked"
     );
-    assert!(files.borrow().is_empty(), "and it is not attached as well");
+    assert!(store.names().is_empty(), "and it is not attached as well");
 
     shown.borrow_mut().clear();
     let drop = accept_files(
         PictureAnswer::Ask,
         Rc::clone(&recorder) as super::ShowPicture,
-        &list,
         &files,
         &window,
         &error,

@@ -354,6 +354,7 @@ pub(crate) fn build_accounts(
         disconnected,
         redialling: Arc::default(),
         account_work: Arc::default(),
+        composer_files: crate::composer_file_list::ComposerFileLists::default(),
         device_zone: device_tz,
         platform,
         // The real account path: detection reaches the network, as it must.

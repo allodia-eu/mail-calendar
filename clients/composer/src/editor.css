@@ -94,6 +94,25 @@ body {
   color: var(--muted);
 }
 
+/* Growing mode (`growing.ts`, docs/composer-layout.md): the host sizes the WebView to the content,
+   so the page never scrolls and the editor has no scroll of its own. It is at least as tall as its
+   text and stretches to fill a taller frame, so the blank area under a short message is still the
+   message. A table wider than the column scrolls sideways, as it does in the scrolling layout.
+   `clip` rather than `hidden`: a hidden overflow is still a scroll container, which WebKit scrolls
+   to reveal the caret while the host's resize is on its way, and the page then measures itself
+   short and stops growing. */
+html.growing,
+body.growing {
+  overflow: clip;
+}
+
+body.growing .editor {
+  flex: 1 0 auto;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
 /* Native-chrome mode (Android): the native surface owns a single scroll; the compose
    header sits in a native overlay above this WebView and scrolls away as the message
    grows, and the toolbar pins just above the keyboard. So here the *page* scrolls (not an

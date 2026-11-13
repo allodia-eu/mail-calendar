@@ -131,6 +131,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::composer_draft::widget_tests::each_navigation_gets_its_own_answer();
     crate::ui::composer_attach::tests::the_drop_target_listens_ahead_of_the_web_view();
     crate::ui::composer_attach::tests::a_paste_shows_the_picture_and_a_drop_asks_about_it();
+    crate::ui::composer_file_tiles::tests::
+        a_tile_names_its_file_and_its_remove_goes_through_the_core();
+    crate::ui::composer_file_tiles::tests::a_tile_draws_its_remove_from_the_cores_state();
     crate::ui::editor_paste::tests::widget_tests::a_picture_on_the_clipboard_is_read_and_sniffed();
     crate::ui::editor_paste::tests::widget_tests::text_on_the_clipboard_is_left_to_the_page();
     crate::ui::editor_paste::tests::widget_tests::
@@ -439,6 +442,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let window = adw::ApplicationWindow::new(&application);
     crate::ui::composer_draft::widget_tests::a_reply_nobody_typed_into_is_not_a_draft(&window);
     crate::ui::composer_draft::widget_tests::only_the_panes_composer_offers_to_pop_out(&window);
+    crate::ui::composer_draft::widget_tests::the_composer_is_one_column_in_the_contracts_order(
+        &window,
+    );
 
     crate::ui::setup_widget_tests::the_setup_window_offers_each_route_its_own_surface();
     crate::ui::setup_onboarding_tests::the_first_account_screen_offers_an_allodia_account(&window);

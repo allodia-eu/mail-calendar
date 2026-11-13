@@ -10,6 +10,7 @@ import { autoformatBulletList } from "./autoformat";
 import { documentBlocks, referencedAttachmentIds } from "./document";
 import { ancestorOf, focusEditor, rangeWithin, saveSelection } from "./dom";
 import { applyMark } from "./format";
+import { installGrowing } from "./growing";
 import { installNativeChrome } from "./host";
 import { HostRequests } from "./host_requests";
 import { historyChord, installHistory } from "./history";
@@ -56,6 +57,10 @@ const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
   return true;
 });
 const chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
+const growing = installGrowing(editor, toolbarRoot, {
+  height: (px) => hostRequests.tell("height", { px }),
+  caret: (top, bottom) => hostRequests.tell("caret", { top, bottom }),
+});
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
 
@@ -184,6 +189,7 @@ declare global {
     setComposerBody: (seed: string | BodySeed) => void;
     setComposerDocument: (document: string | ComposerDocument) => void;
     useNativeComposerChrome: () => void;
+    useGrowingComposer: () => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
     setComposerScheme: (scheme: unknown) => void;
@@ -250,6 +256,7 @@ window.composerHistorySteps = () => JSON.stringify(history.steps());
 window.stepComposerHistory = (step) =>
   step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
 window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
+window.useGrowingComposer = () => growing.useGrowingComposer();
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 
 /// The requests this host answers with its own UI, and the notices it keeps (`host_requests.ts`);
@@ -257,6 +264,7 @@ window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 window.setComposerHostRequests = (kinds) => {
   hostRequests.setAnswered(kinds);
   history.watch((steps) => hostRequests.tell("history", steps));
+  growing.resend();
 };
 window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
 

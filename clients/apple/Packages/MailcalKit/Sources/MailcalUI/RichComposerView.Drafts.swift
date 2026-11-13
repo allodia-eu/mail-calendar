@@ -16,10 +16,10 @@ import SwiftUI
 /// screenshot run want.
 struct ComposerDrafts {
     /// Stores what the composer holds, superseding this composition's previous save.
-    let save: (String, Recipients, String, String, [ComposerFileAttachment], String?) -> Void
+    let save: (String, Recipients, String, String, String?) -> Void
     /// Stores what the composer holds and forgets the composition, in one call: what leaving a
     /// composer that was written in means.
-    let leave: (String, Recipients, String, String, [ComposerFileAttachment], String?) -> Void
+    let leave: (String, Recipients, String, String, String?) -> Void
     /// Removes the stored copy from the server and forgets the composition.
     let discard: (String) -> Void
     /// Forgets the composition, leaving the stored draft in Drafts: what leaving a composer
@@ -32,6 +32,23 @@ struct ComposerDrafts {
     /// The model's count of `Surface::DraftStatus` signals. The signal names no composition, so a
     /// composer watches this and then asks for its own state.
     let version: Int
+}
+
+/// Whether the message changed between two reads of the editor's revision count.
+///
+/// The baseline is the first count the page answers with, whenever that is: a read made before the
+/// page loaded answers nothing, and the seeds have moved the count by the time it does, so taking
+/// the unanswered read as `0` made an untouched composer save itself.
+struct RevisionWatch {
+    private var seen: Int?
+
+    /// Takes one read, answering whether it is a change since the last answered one.
+    mutating func saw(_ revision: Int?) -> Bool {
+        guard let revision else { return false }
+        defer { seen = revision }
+        guard let seen else { return false }
+        return revision != seen
+    }
 }
 
 /// The composer's whole draft lifetime, as one modifier both hosts apply: the idle timer that
@@ -86,14 +103,12 @@ struct ComposerDraftSavingModifier: ViewModifier {
     private func watchTheEditor() async {
         guard drafts != nil else { return }
         let sample = Duration.seconds(max(1, draftAutosaveIdleSeconds() / 3))
-        var seen = await editor.revision()
+        var watch = RevisionWatch()
+        _ = watch.saw(await editor.revision())
         while !Task.isCancelled {
             try? await Task.sleep(for: sample)
             guard !Task.isCancelled else { return }
-            let now = await editor.revision()
-            guard now != seen else { continue }
-            seen = now
-            changes &+= 1
+            if watch.saw(await editor.revision()) { changes &+= 1 }
         }
     }
 
@@ -129,7 +144,7 @@ extension RichComposeView {
 
     /// What the header fields hold now, in the shape they opened in.
     var currentHeaders: DraftHeaders {
-        DraftHeaders(to: to, cc: cc, bcc: bcc, subject: subject, attachments: attachments.count)
+        DraftHeaders(to: to, cc: cc, bcc: bcc, subject: subject, filesChanged: files.changed)
     }
 
     /// Whether anything was written in this composer: a header that differs from what it opened
@@ -152,7 +167,6 @@ extension RichComposeView {
         let written = openedWritten || currentHeaders != openingHeaders
         let recipients = Recipients(to: to, cc: cc, bcc: bcc)
         let subject = subject
-        let files = attachments.map(\.composerFile)
         let from = resolvedFrom
         Task { @MainActor in
             let bodyChanged = written ? false : await editor.bodyChangedFromSeed()
@@ -162,7 +176,7 @@ extension RichComposeView {
                     print("[Mailcal] draft save on leaving skipped: the document could not be read")
                     return drafts.close(composition)
                 }
-                drafts.leave(composition, recipients, subject, documentJson, files, from)
+                drafts.leave(composition, recipients, subject, documentJson, from)
             }
         }
     }
@@ -222,7 +236,6 @@ extension RichComposeView {
                 Recipients(to: to, cc: cc, bcc: bcc),
                 subject,
                 documentJson,
-                attachments.map(\.composerFile),
                 resolvedFrom
             )
         }
