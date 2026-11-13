@@ -13,15 +13,16 @@
 //! ```sh
 //! (cd docker/stalwart && docker compose up -d --wait)
 //! STALWART_OAUTH_HTTP_ADDR=localhost:28081 STALWART_HTTP_ADDR=127.0.0.1:28080 \
-//!   cargo test -p mailcal-bindings --test live_jmap_oauth -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_jmap_oauth:: --nocapture
 //! ```
-
-mod live_oauth;
 
 use std::time::{Duration, Instant};
 
-use live_oauth::{LOGIN as EMAIL, PASSWORD, RecordingStore, app, param, sign_in_as_the_user};
 use mailcal_bindings::{DraftStatus, Recipients};
+
+use crate::live_oauth::{
+    LOGIN as EMAIL, PASSWORD, RecordingStore, app, param, sign_in_as_the_user,
+};
 
 /// A custom-scheme redirect of the shape every client registers (`<app id>://jmap-oauth`). Nothing
 /// dereferences it: the code travels back in the callback URL this test builds.

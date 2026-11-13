@@ -159,7 +159,7 @@ Legend: ✅ implemented · 🚧 code-complete, runtime unverified · ⬜ planned
   typed password, and no `status.php` request from the manual form or an account's page to a
   server that shows no PHP.
 - **Live**, gated on `NEXTCLOUD_HTTP_ADDR`, against the engine's Nextcloud fixture:
-  `mailcal-bindings/tests/live_nextcloud_sign_in.rs` signs in through the server's own pages,
+  `mailcal-bindings/tests/live/live_nextcloud_sign_in.rs` signs in through the server's own pages,
   connects CalDAV and CardDAV with the app password, signs in again and removes the account,
   asserting each withdrawal at the server. It is not in CI: this repository's harness is
   Stalwart, and the fixture is the engine's.

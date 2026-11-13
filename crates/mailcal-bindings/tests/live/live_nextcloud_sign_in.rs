@@ -15,16 +15,15 @@
     dead_code,
     reason = "its OAuth login page helpers serve the OAuth suites"
 )]
-mod live_oauth;
-
 use std::{
     collections::BTreeMap,
     time::{Duration, Instant},
 };
 
 use base64::Engine as _;
-use live_oauth::RecordingStore;
 use mailcal_bindings::{AccountCapability, MailcalApp, NextcloudSignInPoll};
+
+use crate::live_oauth::{self, RecordingStore};
 
 fn fixture() -> Option<(String, String, String)> {
     let addr = std::env::var("NEXTCLOUD_HTTP_ADDR").ok()?;

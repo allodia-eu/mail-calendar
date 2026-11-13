@@ -17,13 +17,12 @@
 //! scripts/dev/harness.sh up
 //! MAILCAL_EXTRA_CA="$PWD/docker/stalwart/tls/harness-ca.pem" \
 //!   MAILCAL_HARNESS_OAUTH_IMAP=localhost:12995 \
-//!   cargo test -p mailcal-bindings --test live_imap_oauth -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_imap_oauth:: --nocapture
 //! ```
 
-mod live_oauth;
-
-use live_oauth::{PASSWORD, RecordingStore, app, param, sign_in_as_the_user};
 use mailcal_bindings::{ImapAuthOffer, ImapLoginRequest, NoticeKind, SetupRecommendation};
+
+use crate::live_oauth::{PASSWORD, RecordingStore, app, param, sign_in_as_the_user};
 
 /// The address whose autoconfig the front serves at `https://localhost`.
 const EMAIL: &str = "alice@localhost";

@@ -7,7 +7,7 @@
 //! T=<engine checkout>/tools/graph-oauth/.local
 //! GRAPH_PERSONAL_ACCESS_TOKEN=$(python3 -c "import json;print(json.load(open('$T/tokens.json'))['access_token'])") \
 //! GRAPH_WORK_ACCESS_TOKEN=$(python3 -c "import json;print(json.load(open('$T/tokens-m365.json'))['access_token'])") \
-//!   cargo test -p mailcal-account --test live_graph_affiliation -- --nocapture
+//!   cargo test -p mailcal-account --test live -- live_graph_affiliation:: --nocapture
 //! ```
 //! Refresh both first (`graph-oauth refresh`, and `refresh --profile m365`): an access token lasts
 //! about an hour.

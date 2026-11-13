@@ -24,7 +24,7 @@
 //! GOOGLE_CLIENT_ID=$(python3 -c "import json;print(json.load(open('$T'))['client_id'])") \
 //! GOOGLE_CLIENT_SECRET=$(python3 -c "import json;print(json.load(open('$T'))['client_secret'])") \
 //! GOOGLE_REFRESH_TOKEN=$(python3 -c "import json;print(json.load(open('$T'))['refresh_token'])") \
-//!   cargo test -p mailcal-account --test live_google -- --nocapture
+//!   cargo test -p mailcal-account --test live -- live_google:: --nocapture
 //! ```
 
 use engine_core::{

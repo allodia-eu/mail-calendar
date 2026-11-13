@@ -16,7 +16,7 @@
 //! MS_TEST_ADDRESS=<the account's own address> \
 //! MS_CLIENT_ID=$(python3 -c "import json;print(json.load(open('$T'))['client_id'])") \
 //! MS_REFRESH_TOKEN=$(python3 -c "import json;print(json.load(open('$T'))['refresh_token'])") \
-//!   cargo test -p mailcal-account --test live_graph_contacts -- --nocapture
+//!   cargo test -p mailcal-account --test live -- live_graph_contacts:: --nocapture
 //! ```
 //! `MS_SCOPES` overrides the scopes the refresh asks for; the default is what the tool's
 //! registration grants a personal account. Add `User.ReadBasic.All` for a work account, or the

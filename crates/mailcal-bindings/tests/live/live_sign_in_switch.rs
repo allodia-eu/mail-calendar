@@ -13,15 +13,14 @@
 //! STALWART_OAUTH_HTTP_ADDR=localhost:28081 \
 //!   MAILCAL_EXTRA_CA="$PWD/docker/stalwart/tls/harness-ca.pem" \
 //!   MAILCAL_HARNESS_OAUTH_IMAP=localhost:12995 \
-//!   cargo test -p mailcal-bindings --test live_sign_in_switch -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_sign_in_switch:: --nocapture
 //! ```
 
-mod live_oauth;
-
-use live_oauth::{LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 use mailcal_bindings::{
     ImapAuthOffer, ImapLoginRequest, MailcalApp, MailcalError, SetupRecommendation, SignInMethod,
 };
+
+use crate::live_oauth::{self, LOGIN, PASSWORD, RecordingStore, app, sign_in_as_the_user};
 
 const REDIRECT_URI: &str = "mailcal.test://sign-in";
 

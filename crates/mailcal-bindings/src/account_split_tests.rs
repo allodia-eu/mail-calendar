@@ -1,7 +1,7 @@
 //! Moving an account's calendar and contacts to an account of their own, over the real FFI
 //! constructor. No server here answers, so what is under test is what is refused and what a
 //! failure leaves behind; a move that connects is the live suite's
-//! (`tests/live_calendar_split.rs`).
+//! (`tests/live/live_calendar_split.rs`).
 
 use std::sync::{Arc, mpsc};
 

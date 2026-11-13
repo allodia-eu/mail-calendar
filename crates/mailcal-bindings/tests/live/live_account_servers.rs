@@ -7,17 +7,16 @@
 //! ```sh
 //! scripts/dev/harness.sh up
 //! MAILCAL_HARNESS_IMAP=localhost:12993 MAILCAL_EXTRA_CA=docker/stalwart/tls/harness-ca.pem \
-//!   cargo test -p mailcal-bindings --test live_account_servers -- --nocapture
+//!   cargo test -p mailcal-bindings --test live -- live_account_servers:: --nocapture
 //! ```
 
 // Shared with the sign-in tests, which use the rest of it.
 #[allow(dead_code)]
-mod live_oauth;
-
 use std::time::{Duration, Instant};
 
-use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{AccountChangeNotice, AccountPage, AccountPageIntent, Intent, MailcalApp};
+
+use crate::live_oauth::{RecordingStore, app};
 
 /// The page once the save on it has ended.
 fn settled(app: &MailcalApp, id: &str) -> AccountPage {

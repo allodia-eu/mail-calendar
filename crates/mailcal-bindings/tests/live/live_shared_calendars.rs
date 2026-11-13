@@ -10,23 +10,22 @@
 //! ```sh
 //! scripts/dev/harness.sh up
 //! STALWART_HTTP_ADDR=127.0.0.1:28080 \
-//!   cargo test -p mailcal-bindings --test live_shared_calendars -- --nocapture --test-threads=1
+//!   cargo test -p mailcal-bindings --test live -- live_shared_calendars:: --nocapture --test-threads=1
 //! ```
 
 // Shared with the sign-in tests, which use the rest of it.
 #[allow(dead_code)]
-mod live_oauth;
-
 use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
 
-use live_oauth::{RecordingStore, app};
 use mailcal_bindings::{
     AccountPageIntent, CalendarRow, Intent, JmapSetup, MailcalApp, SharedStoreEntry,
     SharedStoreHolds, SharedStoreSupport, SharedUse, SharedUses,
 };
+
+use crate::live_oauth::{RecordingStore, app};
 
 const SUPPORT: &str = "support@test.local";
 const DAVE: &str = "dave@test.local";
