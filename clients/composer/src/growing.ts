@@ -107,7 +107,10 @@ export function installGrowing(
 function domMeasures(editor: HTMLElement, toolbar: HTMLElement): GrowingMeasures {
   const doc = editor.ownerDocument;
   const win = windowOf(editor);
-  const pageTop = () => doc.documentElement.getBoundingClientRect().top;
+  // The page's top, as the text would sit with nothing scrolled. `overflow: clip` keeps the body
+  // from scrolling at all; its offset is added as well, so a page that did scroll still reports its
+  // whole height rather than what is left in view.
+  const pageTop = () => doc.documentElement.getBoundingClientRect().top - doc.body.scrollTop;
   const px = (value: string) => Number.parseFloat(value) || 0;
   return {
     contentHeight() {
