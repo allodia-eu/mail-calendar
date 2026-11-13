@@ -53,8 +53,9 @@ const GRAPH_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
 };
 
 /// How many days **back** the baked-in fetch window spans. Matches the app's rolling calendar
-/// horizon (`mailcal-app`'s `HORIZON_DAYS_BACK`) so a freshly connected provider already covers
-/// everything the grid can scroll to; a reconnect re-centres it.
+/// horizon (`mailcal-app`'s `HORIZON_DAYS_BACK`) so a freshly connected provider covers it. The
+/// window reaches only the first sync: the `deltaLink` it returns carries that window from then on
+/// (`docs/calendar.md` §4).
 const WINDOW_DAYS_BACK: i64 = 120;
 
 /// How many days **ahead** the baked-in fetch window spans (the app's `HORIZON_DAYS_AHEAD`).
@@ -386,8 +387,7 @@ async fn list_calendars(
 }
 
 /// The `calendarView` fetch window, centred on today: a few months back and a bit over a year
-/// ahead, matching the app's rolling calendar horizon so a freshly connected provider covers
-/// everything the grid can scroll to.
+/// ahead, matching the app's rolling calendar horizon so a freshly connected provider covers it.
 fn rolling_window() -> Result<CalendarWindow, AccountError> {
     let today = OffsetDateTime::now_utc().date();
     let start = calendar_date(today - Duration::days(WINDOW_DAYS_BACK))

@@ -53,7 +53,8 @@ const GOOGLE_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
 };
 
 /// How many days **back** the baked-in fetch window spans (the app's rolling horizon), so a
-/// freshly connected provider already covers everything the grid can scroll to.
+/// freshly connected provider covers it. The window reaches only the first sync; the sync token
+/// carries on from there (`docs/calendar.md` §4).
 const WINDOW_DAYS_BACK: i64 = 120;
 
 /// How many days **ahead** the baked-in fetch window spans (the app's rolling horizon).

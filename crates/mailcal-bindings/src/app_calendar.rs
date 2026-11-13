@@ -40,9 +40,14 @@ impl MailcalApp {
     ///
     /// A malformed `from` falls back to today rather than failing the draw: a blank screen is a
     /// worse answer to a host bug than the wrong week.
+    ///
+    /// A page the calendar has not been expanded to comes back `is_materialized: false` and starts
+    /// the widening to it in the background; `Surface::Calendar` follows once it is covered.
     pub fn calendar_range(&self, from: String, columns: u32) -> CalendarPage {
         let from = from.parse().unwrap_or_else(|_| today());
-        self.app.calendar_range(from, columns.clamp(1, 14)).into()
+        let page = self.app.calendar_range(from, columns.clamp(1, 14));
+        self.widen_calendar_if_owed();
+        page.into()
     }
 
     /// The first day of the week containing `date` (`YYYY-MM-DD`), per the user's week-start
@@ -104,6 +109,18 @@ impl MailcalApp {
         self.runtime
             .block_on(|| self.app.series_edit_warning(&event, &edit))
             .map(Into::into)
+    }
+}
+
+impl MailcalApp {
+    /// Starts the widening a page query found owed, on the runtime rather than the caller's
+    /// thread: it re-expands every stored event.
+    pub(crate) fn widen_calendar_if_owed(&self) {
+        if self.app.take_calendar_widening() {
+            let app = std::sync::Arc::clone(&self.app);
+            self.runtime
+                .spawn(async move { app.widen_calendar().await });
+        }
     }
 }
 

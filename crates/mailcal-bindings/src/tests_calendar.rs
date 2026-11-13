@@ -486,3 +486,6 @@ fn a_repeat_draft_decides_the_same_thing_on_both_sides_of_the_boundary() {
         }]
     );
 }
+
+#[path = "tests_calendar_reach.rs"]
+mod reach;

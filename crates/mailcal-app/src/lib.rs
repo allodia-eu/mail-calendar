@@ -198,10 +198,10 @@ pub struct App<P> {
     scope: Mutex<Scope>,
     mailbox_list: Surfaced<MailboxListSnapshot>,
     calendar: Surfaced<CalendarSnapshot>,
-    /// The occurrences and calendars a grid pages over. Read by `calendar_page`, which is a
-    /// direct query rather than a pushed snapshot: a pager renders three pages at once and
-    /// one slot cannot hold three.
+    /// The occurrences and calendars a grid pages over, read by a direct query (`calendar_cache`).
     calendar_cache: Mutex<calendar_cache::CalendarCache>,
+    /// Held across a calendar expansion and the rebuild that claims its window.
+    calendar_expansion: tokio::sync::Mutex<()>,
     /// What the user decided about each calendar (shown/hidden and any colour override) keyed by
     /// account AND calendar id. Persisted; applied at page-read time, so a toggle in the manager
     /// redraws the grid with no re-sync.
