@@ -7,18 +7,8 @@ rust-version.workspace = true
 publish.workspace = true
 license.workspace = true
 
-# `cdylib` is what every host actually loads (the Windows DLL, the Android .so, the macOS dylib);
-# `lib` stays for the tests and mailcal-linux.
-#
-# `staticlib` is NOT here, and that is deliberate. An iOS app bundle can't ship a loose dylib, so
-# the iOS slice links a static archive into the XCFramework, but crate-type is not per-target, so
-# listing it here built it for EVERY host. On Windows that archive is 1.9 GB in a single file, and
-# Android and Linux paid the same for something only clients/apple/Scripts/build-core.sh has ever
-# opened. It asks for it explicitly now (`cargo rustc --crate-type staticlib`), which is the one
-# place that needs it. Measured: removing it cost ~1s of build time and saved 1.9 GB per non-Apple
-# target dir: a disk fix, not a speed one.
-[lib]
-crate-type = ["cdylib", "lib"]
+# A plain library. The C ABI library every host loads is crates/mailcal-ffi, which links this one
+# under this crate's library name; its manifest says why it is a crate of its own.
 
 [features]
 # A release core built for development (the Android dev loop passes `--features dev-harness`): the

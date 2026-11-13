@@ -42,14 +42,26 @@ pub(crate) struct TestBinary {
 pub(crate) struct Build {
     /// Every test binary, in the order cargo reported them.
     pub(crate) tests: Vec<TestBinary>,
-    /// Each package's executables by name, for `CARGO_BIN_EXE_<name>`.
+    /// Each package's executables by name, for `CARGO_BIN_EXE_<name>` and for the generators.
     bins: HashMap<String, Vec<(String, PathBuf)>>,
-    /// The bindings' C ABI library, when the build linked one.
+    /// The C ABI library `mailcal-ffi` links, when the build linked it.
     pub(crate) cdylib: Option<PathBuf>,
 }
 
-/// Builds with `cargo <args> --no-run --message-format json-render-diagnostics`, in `target_dir`
-/// when one is named, and keeps what it produced under `key`.
+impl Build {
+    /// The executable `name` of `package`, when the build produced one.
+    pub(crate) fn bin(&self, package: &str, name: &str) -> Option<&Path> {
+        self.bins
+            .get(package)?
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, path)| path.as_path())
+    }
+}
+
+/// Builds with `cargo <args> --message-format json-render-diagnostics`, in `target_dir` when one is
+/// named, and keeps what it produced under `key`. `args` builds the tests without running them:
+/// `test … --no-run`, or `build --profile test … --tests`.
 pub(crate) fn build(
     ctx: &Ctx,
     key: &'static str,
@@ -60,7 +72,7 @@ pub(crate) fn build(
     let mut command = Command::new("cargo");
     command
         .args(args)
-        .args(["--no-run", "--message-format", "json-render-diagnostics"])
+        .args(["--message-format", "json-render-diagnostics"])
         .current_dir(&ctx.root);
     if let Some(dir) = target_dir {
         command.env("CARGO_TARGET_DIR", ctx.root.join(dir));
@@ -125,7 +137,7 @@ pub(crate) fn read_build(text: &str) -> Result<Build, String> {
                     .or_default()
                     .push((entry.name, entry.path));
             }
-        } else if kinds.contains(&"cdylib") && package == "mailcal-bindings" {
+        } else if kinds.contains(&"cdylib") && package == "mailcal-ffi" {
             let files = message
                 .get("filenames")
                 .and_then(Value::as_array)

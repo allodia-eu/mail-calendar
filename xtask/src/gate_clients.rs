@@ -12,16 +12,16 @@
 //!
 //! # The bindings library
 //!
-//! Gradle and the C# generator both read the bindings' C ABI library, and the gate's first test
-//! build has just linked one, so they read that: [`stage_cdylib`] copies it where Gradle looks.
-//! Building it again with `cargo build -p mailcal-bindings`, as each client's own script does, is a
-//! third variant of every crate beneath the bindings, because cargo resolves features over the
+//! Gradle and the C# generator both read the C ABI library `mailcal-ffi` links, and the gate's
+//! first test build links it, with the C# and catalog generators beside it, so the clients use
+//! those. Building it again with `cargo build -p mailcal-ffi`, as each client's own script does, is
+//! another variant of every crate beneath the bindings, because cargo resolves features over the
 //! packages a command selects and a test build selects their dev-dependencies too. The generated
 //! bindings are the same either way: the Allodia sign-in changes the bodies of its calls, never the
 //! surface.
 //!
-//! The generators themselves build in `target/tools`, so they never wait on the test builds' lock
-//! and the clients start as soon as the library is there.
+//! Gradle still runs its own generators, in `target/tools`, so it never waits on the test builds'
+//! lock.
 
 use std::path::Path;
 
@@ -45,17 +45,19 @@ pub(crate) fn all(plan: &mut Plan, root: &Path, built: JobId, featured: JobId) {
     linux(plan, featured);
 }
 
-/// Copies the bindings library the test build `key` linked to where `cargo build` would have put
-/// it, which is where Gradle reads it.
+/// Makes sure the C ABI library the test build `key` linked is where `cargo build` puts it, which
+/// is where Gradle reads it.
 pub(crate) fn stage_cdylib(ctx: &Ctx, key: &str) -> Outcome {
     let Some(source) = ctx.build(key).and_then(|b| b.cdylib) else {
-        ctx.note("the test build linked no mailcal-bindings library to generate the bindings from");
+        ctx.note("the build linked no mailcal-ffi library to generate the bindings from");
         return Outcome::Fail;
     };
-    let Some(name) = source.file_name() else {
-        return Outcome::Fail;
-    };
-    let staged = ctx.root.join("target/debug").join(name);
+    let staged = Path::new(&staged_cdylib(&ctx.root)).to_path_buf();
+    // Cargo copies a library it was asked for up to there itself, and copying a file onto itself
+    // empties it.
+    if source == staged {
+        return Outcome::Pass;
+    }
     match std::fs::copy(&source, &staged) {
         Ok(_) => {
             ctx.note(&format!(
@@ -190,34 +192,24 @@ fn windows(plan: &mut Plan, root: &Path, built: JobId) {
         &[built],
         None,
         |ctx| {
-            let tools = ctx.root.join(TOOLS_DIR);
+            let Some(default_build) = ctx.build("default") else {
+                return Outcome::Fail;
+            };
+            let (Some(bindgen), Some(l10n)) = (
+                default_build.bin("mailcal-bindgen-cs", "uniffi-bindgen-cs"),
+                default_build.bin("mailcal-l10n", "mailcal-l10n"),
+            ) else {
+                ctx.note("the build produced no C# or catalog generator to run");
+                return Outcome::Fail;
+            };
             let library = staged_cdylib(&ctx.root);
             commands(vec![
-                Cmd::new("cargo")
-                    .args([
-                        "run",
-                        "-q",
-                        "-p",
-                        "mailcal-bindgen-cs",
-                        "--",
-                        "--library",
-                        &library,
-                    ])
-                    .args(["--out-dir", "clients/windows/Generated"])
-                    .env("CARGO_TARGET_DIR", &tools),
-                Cmd::new("cargo")
-                    .args([
-                        "run",
-                        "-q",
-                        "-p",
-                        "mailcal-l10n",
-                        "--",
-                        "generate",
-                        "--target",
-                        "winui",
-                    ])
-                    .args(["--root", ".", "--out", "clients/windows/Mailcal"])
-                    .env("CARGO_TARGET_DIR", &tools),
+                Cmd::new(bindgen)
+                    .args(["--library", &library])
+                    .args(["--out-dir", "clients/windows/Generated"]),
+                Cmd::new(l10n)
+                    .args(["generate", "--target", "winui"])
+                    .args(["--root", ".", "--out", "clients/windows/Mailcal"]),
             ])(ctx)
         },
     );

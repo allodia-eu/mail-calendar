@@ -134,7 +134,7 @@ $targetArgs = $triples | ForEach-Object { '--target', $_ }
 #    (core-features.ps1, BUILDING.md). Nothing is added in a build from source.
 . (Join-Path $here 'core-features.ps1')
 $featureArgs = Get-CoreCargoFeatures -Root $root
-& cargo build -p mailcal-bindings -p mailcal-mcp-shim --release @targetArgs @featureArgs
+& cargo build -p mailcal-ffi -p mailcal-mcp-shim --release @targetArgs @featureArgs
 if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
 foreach ($triple in $triples) {
   Assert-StaticCrt (Join-Path $root "target/$triple/release/mailcal_bindings.dll")

@@ -231,24 +231,38 @@ pub(crate) fn plan(root: &Path, clients: bool) -> Plan {
     // The test builds. `cargo test --workspace` runs the default feature set, and the second build
     // is what runs a test that only exists behind a feature; without it such a test passes when its
     // author runs it by hand and is never run again.
+    //
+    // The first is `cargo test --no-run` written as the `cargo build` it is, so that it can also
+    // link what `cargo test` leaves out: the C ABI library and the generators the clients' steps
+    // run. Under the test profile and with the test targets selected, it resolves the same features
+    // as `cargo test` and shares every unit with one typed by hand.
     let test_dir = Some("target/debug");
-    let built = plan.add("tests (build)", &[], test_dir, |ctx| {
-        let args = ["test", "--workspace", "--exclude", "mailcal-linux"];
-        match gate_testrun::build(ctx, "default", &args, None) {
-            Outcome::Pass => gate_clients::stage_cdylib(ctx, "default"),
-            outcome => outcome,
-        }
-    });
+    let built = plan.add(
+        "tests, C ABI library, generators (build)",
+        &[],
+        test_dir,
+        |ctx| {
+            let args = [
+                "build",
+                "--workspace",
+                "--exclude",
+                "mailcal-linux",
+                "--profile",
+                "test",
+                "--lib",
+                "--bins",
+                "--tests",
+                "--examples",
+            ];
+            match gate_testrun::build(ctx, "default", &args, None) {
+                Outcome::Pass => gate_clients::stage_cdylib(ctx, "default"),
+                outcome => outcome,
+            }
+        },
+    );
     plan.add("tests (run)", &[built], None, |ctx| {
         gate_testrun::run(ctx, "default", |_| true, &[])
     });
-    let doctests = Cmd::new("cargo").args(["test", "--workspace", "--exclude", "mailcal-linux"]);
-    plan.add(
-        "doctests",
-        &[built],
-        test_dir,
-        commands(vec![doctests.args(["--doc"])]),
-    );
     let (label, feature_args): (&str, &[&str]) = if linux {
         (
             "tests with every feature, bindings and Linux client (build)",
@@ -259,6 +273,7 @@ pub(crate) fn plan(root: &Path, clients: bool) -> Plan {
                 "-p",
                 "mailcal-linux",
                 "--all-features",
+                "--no-run",
             ],
         )
     } else {
@@ -271,12 +286,14 @@ pub(crate) fn plan(root: &Path, clients: bool) -> Plan {
                 "mailcal-linux",
                 "--features",
                 "mailcal-bindings/allodia-license",
+                "--no-run",
             ],
         )
     };
     // With the Linux client selected the build is a variant of nearly every crate anyway, so it
     // gets a build directory of its own and runs beside the first instead of after it. Without it,
-    // it shares the first build's directory, where all it rebuilds is the bindings.
+    // it shares the first build's directory, where all it rebuilds is the bindings, and keeps the
+    // first build's bindings too, since a library with a hash keeps one build per feature set.
     let (feature_dir, feature_lock) = if linux {
         (Some(FEATURE_DIR), Some("target/features/debug"))
     } else {
@@ -292,6 +309,14 @@ pub(crate) fn plan(root: &Path, clients: bool) -> Plan {
         |ctx| gate_testrun::run(ctx, "features", |t| t.package == "mailcal-bindings", &[]),
     );
 
+    // After the feature build, which waits for the same directory and is the longer chain.
+    let doctests = Cmd::new("cargo").args(["test", "--workspace", "--exclude", "mailcal-linux"]);
+    plan.add(
+        "doctests",
+        &[built],
+        test_dir,
+        commands(vec![doctests.args(["--doc"])]),
+    );
     if clients {
         gate_clients::all(&mut plan, root, built, featured);
     } else {

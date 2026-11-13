@@ -311,7 +311,7 @@ val cargoBuildBindings = tasks.register<Exec>("cargoBuildBindings") {
     // without it, so it is an optional off-by-default dependency (BUILDING.md).
     commandLine(
         buildList {
-            addAll(listOf(cargoExecutable, "build", "--quiet", "-p", "mailcal-bindings"))
+            addAll(listOf(cargoExecutable, "build", "--quiet", "-p", "mailcal-ffi"))
             if (credentialValue("MAILCAL_ALLODIA_CLIENT_ID") != null) {
                 addAll(listOf("--features", "allodia-license"))
             }

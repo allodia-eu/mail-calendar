@@ -151,7 +151,7 @@ if ($LASTEXITCODE -ne 0) { throw "rustup target add $triple failed" }
 #    The MCP stdio relay (docs/mcp.md) rides along in the same invocation: it is a separate
 #    executable an MCP client spawns, and the csproj lays it down beside Mailcal.exe. One cargo
 #    call rather than two, so the two artifacts can never be built from different sources.
-$cargoArgs = @('build', '-p', 'mailcal-bindings', '-p', 'mailcal-mcp-shim', '--target', $triple)
+$cargoArgs = @('build', '-p', 'mailcal-ffi', '-p', 'mailcal-mcp-shim', '--target', $triple)
 if ($Configuration -eq 'Release') { $cargoArgs += '--release' }
 #    The Allodia sign-in, when this build was given the registration that turns it on -- derived
 #    from that registration rather than asked for separately, so the two halves cannot disagree
