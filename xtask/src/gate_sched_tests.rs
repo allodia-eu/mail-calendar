@@ -1,9 +1,10 @@
 use std::{
+    process::Command,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use super::{Plan, run, slug};
@@ -45,6 +46,73 @@ fn after_a_failure_the_rest_is_not_run_unless_asked_to_keep_going() {
     let (steps, _) = run(repo.root(), going, true, &PLAIN);
     assert!(matches!(outcome(&steps, "first"), Outcome::Fail));
     assert!(matches!(outcome(&steps, "second"), Outcome::Fail));
+}
+
+/// The helper below, by the name libtest filters on.
+const HELPER: &str = "gate_sched::tests::helper_process";
+
+/// Not a test: the process the next test runs as a step. Told to, it starts another of itself,
+/// which writes a count to a file every 20 ms, so the test can tell whether a process under the
+/// step's own is still alive.
+#[test]
+#[ignore = "a process the stopped-step test starts"]
+fn helper_process() {
+    let Some(beat) = std::env::var_os("MAILCAL_GATE_TEST_BEAT") else {
+        return;
+    };
+    if std::env::var_os("MAILCAL_GATE_TEST_PARENT").is_some() {
+        let _ = Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", HELPER, "--ignored"])
+            .env_remove("MAILCAL_GATE_TEST_PARENT")
+            .spawn();
+        std::thread::sleep(Duration::from_secs(60));
+        return;
+    }
+    for n in 0..3000 {
+        let _ = std::fs::write(&beat, n.to_string());
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[test]
+fn a_step_the_gate_stops_says_why_and_takes_what_it_started_with_it() {
+    let repo = Repo::new(&[]);
+    let beat = repo.root().join("beat");
+    let mut plan = Plan::default();
+    let to_beat = beat.clone();
+    plan.add("long", &[], None, move |ctx| {
+        let mut helper = Command::new(std::env::current_exe().unwrap());
+        helper
+            .args(["--exact", HELPER, "--ignored"])
+            .env("MAILCAL_GATE_TEST_BEAT", &to_beat)
+            .env("MAILCAL_GATE_TEST_PARENT", "1");
+        if ctx.run(&mut helper) {
+            Outcome::Pass
+        } else {
+            Outcome::Fail
+        }
+    });
+    let beating = beat.clone();
+    plan.add("fails", &[], None, move |_| {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while !beating.exists() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        Outcome::Fail
+    });
+    let (steps, _) = run(repo.root(), plan, false, &PLAIN);
+    assert!(matches!(outcome(&steps, "fails"), Outcome::Fail));
+    match outcome(&steps, "long") {
+        Outcome::Skip(why) => assert_eq!(why, "stopped: \"fails\" failed"),
+        other => panic!("{other:?}"),
+    }
+    let log = std::fs::read_to_string(repo.root().join("target/gate/00-long.log")).unwrap();
+    assert!(log.contains("stopped: \"fails\" failed"), "{log}");
+    assert!(beat.exists(), "the process under the step never started");
+    let count = || std::fs::read_to_string(&beat).unwrap_or_default();
+    let before = count();
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(count(), before, "the process under the step still runs");
 }
 
 #[test]

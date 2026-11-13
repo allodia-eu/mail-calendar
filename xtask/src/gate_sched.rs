@@ -17,7 +17,7 @@ use std::{
     path::{Path, PathBuf},
     process::{Child, Command, ExitStatus, Stdio},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
         mpsc,
     },
@@ -27,6 +27,7 @@ use std::{
 use crate::{
     gate::{Outcome, Palette, Step},
     gate_exec::{Timings, as_typed},
+    gate_kill::kill_tree,
     gate_testrun::Build,
 };
 
@@ -112,7 +113,10 @@ pub(crate) struct Ctx {
     pub(crate) root: PathBuf,
     /// This job's log.
     log: PathBuf,
-    cancel: Arc<AtomicBool>,
+    /// The step whose failure stopped the gate, once one has.
+    halted_by: Arc<OnceLock<String>>,
+    /// Whether the gate ended one of this job's processes, so its failure is not its own.
+    stopped: AtomicBool,
     colour: bool,
     builds: Arc<Mutex<HashMap<&'static str, Build>>>,
 }
@@ -170,11 +174,17 @@ impl Ctx {
         self.finish(spawned)
     }
 
-    /// Whether `child` has exited, killing it first when the gate has given up.
+    /// Whether the gate has given up, so a job starts nothing more.
+    pub(crate) fn stopping(&self) -> bool {
+        self.halted_by.get().is_some()
+    }
+
+    /// Whether `child` has exited, ending it and everything under it first when the gate has
+    /// given up.
     pub(crate) fn poll(&self, child: &mut Child) -> Option<Result<ExitStatus, ()>> {
-        if self.cancel.load(Ordering::Relaxed) {
-            let _ = child.kill();
-            let _ = child.wait();
+        if self.stopping() {
+            kill_tree(child);
+            self.stopped.store(true, Ordering::Relaxed);
             return Some(Err(()));
         }
         match child.try_wait() {
@@ -201,7 +211,10 @@ impl Ctx {
                     return status.success();
                 }
                 Some(Err(())) => {
-                    self.note("stopped: an earlier step failed");
+                    match self.halted_by.get() {
+                        Some(by) => self.note(&format!("stopped: \"{by}\" failed")),
+                        None => self.note("could not wait for it to finish"),
+                    }
                     return false;
                 }
                 None => std::thread::sleep(Duration::from_millis(50)),
@@ -263,7 +276,7 @@ pub(crate) fn run(
     let logs = root.join("target/gate");
     let _ = std::fs::remove_dir_all(&logs);
     let _ = std::fs::create_dir_all(&logs);
-    let cancel = Arc::new(AtomicBool::new(false));
+    let halted_by: Arc<OnceLock<String>> = Arc::default();
     let builds = Arc::new(Mutex::new(HashMap::new()));
     let colour = !palette.bold.is_empty();
     let labels: Vec<String> = plan.jobs.iter().map(|j| j.label.clone()).collect();
@@ -271,9 +284,10 @@ pub(crate) fn run(
     let mut state: Vec<State> = labels.iter().map(|_| State::Waiting).collect();
     let mut held: HashMap<&'static str, JobId> = HashMap::new();
     let mut timings = Timings::new();
-    let (tx, rx) = mpsc::channel::<(JobId, Outcome)>();
+    let (tx, rx) = mpsc::channel::<(JobId, Outcome, bool)>();
     let started = Instant::now();
-    let mut halted = false;
+    // The job whose failure stopped the rest, unless the gate keeps going.
+    let mut halted: Option<JobId> = None;
     let mut last_beat = Instant::now();
 
     loop {
@@ -283,10 +297,10 @@ pub(crate) fn run(
                 State::Done(outcome) => !matches!(outcome, Outcome::Pass),
                 _ => false,
             });
-            if halted {
+            if let Some(by) = halted {
                 pending[id] = None;
-                state[id] =
-                    State::Done(Outcome::Skip("not run: an earlier step failed".to_owned()));
+                let why = format!("not run: \"{}\" failed", labels[by]);
+                state[id] = State::Done(Outcome::Skip(why));
                 continue;
             }
             if let Some(&dep) = blocked_by {
@@ -312,7 +326,8 @@ pub(crate) fn run(
             let ctx = Ctx {
                 root: root.to_path_buf(),
                 log: logs.join(format!("{id:02}-{}.log", slug(&job.label))),
-                cancel: Arc::clone(&cancel),
+                halted_by: Arc::clone(&halted_by),
+                stopped: AtomicBool::new(false),
                 colour,
                 builds: Arc::clone(&builds),
             };
@@ -320,7 +335,7 @@ pub(crate) fn run(
             let work = job.work;
             std::thread::spawn(move || {
                 let outcome = work(&ctx);
-                let _ = tx.send((id, outcome));
+                let _ = tx.send((id, outcome, ctx.stopped.load(Ordering::Relaxed)));
             });
         }
 
@@ -331,17 +346,23 @@ pub(crate) fn run(
             break;
         }
         match rx.recv_timeout(Duration::from_millis(500)) {
-            Ok((id, outcome)) => {
+            Ok((id, outcome, stopped)) => {
                 held.retain(|_, holder| *holder != id);
+                let outcome = match (outcome, halted) {
+                    (Outcome::Fail, Some(by)) if stopped => {
+                        Outcome::Skip(format!("stopped: \"{}\" failed", labels[by]))
+                    }
+                    (outcome, _) => outcome,
+                };
                 if let State::Running(since) = state[id] {
                     timings.insert(labels[id].clone(), since.elapsed());
                 }
                 let failed = matches!(outcome, Outcome::Fail | Outcome::Need(_));
                 report(&labels[id], &outcome, &timings, &logs, id, palette);
                 state[id] = State::Done(outcome);
-                if failed && !keep_going && !halted {
-                    halted = true;
-                    cancel.store(true, Ordering::Relaxed);
+                if failed && !keep_going && halted.is_none() {
+                    halted = Some(id);
+                    let _ = halted_by.set(labels[id].clone());
                 }
             }
             Err(_) if last_beat.elapsed() >= HEARTBEAT => {
