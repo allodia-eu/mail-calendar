@@ -360,9 +360,10 @@ the FAT-to-NTFS volume converter, and it is worse: `command -v` finds it and `co
 Windows and fails on the first real call, several steps later, in whatever it was meant to produce.
 
 **Run the script, never a list assembled from memory**: a half-run gate drops a step, and it is
-never a random one. `cargo xtask gate --list` prints the order, `--keep-going` runs everything
-and summarises. The order is cheapest-first rather than CI's, so the step most likely to fail on
-your change fails first.
+never a random one. `cargo xtask gate --list` prints the steps and what each waits for,
+`--keep-going` runs everything and summarises. Steps run side by side as soon as what they wait
+for has passed, so the quick checks answer first; each step's whole output is in `target/gate/`,
+and the console shows the log of the one that failed.
 
 Nothing in it needs a device, simulator, emulator or Docker: the suites that do stay out
 (`clients/windows/Mailcal.UiTests`, `clients/apple/Scripts/test-ui.sh`, `scripts/dev/test-linux-ui.sh`,

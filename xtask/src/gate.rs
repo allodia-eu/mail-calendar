@@ -1,10 +1,10 @@
-//! The local gate, as one command, in fail-fast order.
+//! The local gate, as one command.
 //!
 //! ```text
 //! cargo xtask gate                 # the workspace gate
 //! cargo xtask gate --clients       # ...plus every client this host can actually build
 //! cargo xtask gate --keep-going    # run everything and summarise, instead of stopping
-//! cargo xtask gate --list          # print the steps and exit
+//! cargo xtask gate --list          # print the steps, what each waits for, and exit
 //! ```
 //!
 //! This is the executable form of AGENTS.md → "Building & verifying". That prose is still the
@@ -12,14 +12,20 @@
 //! before the first push of a branch. The pipeline costs real money and macOS runners bill at 10x,
 //! so a pull request is where you *confirm* a green build, not where you discover one.
 //!
-//! # Why the order is what it is
+//! # How it runs
 //!
-//! Cheapest first, and the doc build early. The order is not the pipeline's; it is chosen so the
-//! step most likely to fail on the change just made fails *first*. That matters most for the doc
-//! gate: `cargo test` and `cargo clippy` never invoke rustdoc, so a broken doc link survives both,
-//! and this workspace denies rustdoc warnings, so a link to a private item is a hard error while
-//! the bracketed form is the idiomatic thing to type. Run last, that error lands minutes after the
-//! sentence that caused it. A warm `cargo doc --no-deps` over this workspace is under six seconds.
+//! Every step starts as soon as what it waits for has passed and the cargo build directory it
+//! holds is free ([`crate::gate_sched`]), so the run takes as long as its longest chain of
+//! dependent steps rather than all of them added together. The first failure stops the rest,
+//! running ones included, unless `--keep-going` is given. A step's output goes to its own log under
+//! `target/gate/`, and the console shows a line as each starts and ends, the whole log of one that
+//! failed, and a summary.
+//!
+//! The quick checks are therefore the first to answer, and the doc build runs beside clippy
+//! rather than after the tests. That matters most for the doc gate: `cargo test` and
+//! `cargo clippy` never invoke rustdoc, so a broken doc link survives both, and this workspace
+//! denies rustdoc warnings, so a link to a private item is a hard error while the bracketed form is
+//! the idiomatic thing to type.
 //!
 //! # What it deliberately does not do
 //!
@@ -37,7 +43,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{compiler_cache, gate_exec::Timings, gate_steps};
+use crate::{compiler_cache, gate_exec::Timings, gate_sched, gate_steps};
 
 /// What became of one step.
 #[derive(Debug)]
@@ -100,7 +106,7 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
     let keep_going = args.iter().any(|a| a == "--keep-going");
     let clients = args.iter().any(|a| a == "--clients");
     if args.iter().any(|a| a == "--list") {
-        gate_steps::print_list(clients);
+        gate_steps::print_list(root, clients);
         return ExitCode::SUCCESS;
     }
     for arg in args {
@@ -112,7 +118,8 @@ pub(crate) fn run(root: &Path, args: &[String]) -> ExitCode {
 
     let palette = Palette::detect();
     let started = Instant::now();
-    let (results, timings) = gate_steps::all(root, clients, keep_going, &palette);
+    let plan = gate_steps::plan(root, clients);
+    let (results, timings) = gate_sched::run(root, plan, keep_going, &palette);
     let failed = results
         .iter()
         .any(|(_, outcome)| matches!(outcome, Outcome::Fail | Outcome::Need(_)));

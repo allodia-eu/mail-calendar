@@ -1,18 +1,43 @@
-//! The gate's steps, in the order it runs them.
+//! The gate's steps, and what each waits for.
 //!
-//! How a step is actually run is in [`crate::gate_exec`]; the host-appropriate client suites are in
-//! [`crate::gate_clients`]; the runner around the list is in [`crate::gate`].
+//! How a job is scheduled is in [`crate::gate_sched`]; how a test build is read and run is in
+//! [`crate::gate_testrun`]; the host-appropriate client suites are in [`crate::gate_clients`].
 //!
 //! Every contract check in this list runs in this process. What is still a subprocess is work that
 //! was always somebody else's program: cargo, rustup, bun, gradle, dotnet, and the checkers that
 //! are still written in Python.
+//!
+//! # Build directories
+//!
+//! Cargo locks a build directory for as long as it builds there, so the steps are laid out across
+//! several, and they run side by side:
+//!
+//! - `target/check/debug`: the docs, then clippy. It is the directory kache's cargo shim gives
+//!   `check` and `clippy` too, so a hand-typed `cargo clippy` and the gate's share their work.
+//! - `target/debug`: the default test build, then the doctests; elsewhere than Linux, the feature
+//!   build after them.
+//! - `target/features/debug`: on Linux with the clients, the feature build, which selects the Linux
+//!   client (below).
+//! - `target/check/release`: the Linux client's release check, where there is one.
+//!
+//! # Feature sets
+//!
+//! Cargo resolves features over the packages a command selects, so `-p mailcal-bindings` and
+//! `--workspace` build two variants of every crate beneath the bindings. The second test build
+//! therefore selects what the first does and names its feature as `<package>/<feature>`, so it
+//! rebuilds the bindings alone. The Linux client is the exception: selecting it changes the
+//! features of `tokio`, `time` and a dozen more, so any build that includes it is a variant of
+//! everything, and it is built once, together with the bindings' feature run.
 
 use std::path::Path;
 
 use crate::{
-    gate::{Palette, Step},
-    gate_clients, gate_exec,
-    gate_exec::{Runner, Timings},
+    TASKS,
+    gate::Outcome,
+    gate_clients,
+    gate_exec::{Cmd, commands, ensure_rustfmt, nightly_channel, runnable},
+    gate_sched::Plan,
+    gate_testrun,
 };
 
 /// The three checkers that stay Python, and why each does.
@@ -78,179 +103,240 @@ const LATE_CHECKS: &[&str] = &[
     "check-surface-publish",
 ];
 
-/// Every step, in order, run as the list is built, and how long each took. Without `keep_going`,
-/// the steps after the first failure are not run.
-pub(crate) fn all(
-    root: &Path,
-    clients: bool,
-    keep_going: bool,
-    palette: &Palette,
-) -> (Vec<Step>, Timings) {
-    let run = Runner::new(root, palette, keep_going);
-    let mut out: Vec<Step> = Vec::new();
+/// The build directory of the docs and clippy, shared with kache's cargo shim.
+pub(crate) const CHECK_DIR: &str = "target/check";
 
-    // 1. Formatting, on the pinned nightly: stable rustfmt cannot read this workspace's options and
-    //    silently ignores them, so a floating `+nightly` goes green here and red in the pipeline.
-    match gate_exec::nightly_channel(root) {
-        Err(why) => out.push(run.needs("format (nightly rustfmt)", &why)),
+/// The build directory of the test build that selects the Linux client.
+const FEATURE_DIR: &str = "target/features";
+
+/// Whether the Linux client is built here: only on Linux, and only when the clients were asked for.
+pub(crate) fn linux_client(clients: bool) -> bool {
+    clients && std::env::consts::OS == "linux"
+}
+
+/// Every step, in the order the summary lists them.
+pub(crate) fn plan(root: &Path, clients: bool) -> Plan {
+    let mut plan = Plan::default();
+    let linux = linux_client(clients);
+    let check_dir = root.join(CHECK_DIR);
+
+    // Formatting, on the pinned nightly: stable rustfmt cannot read this workspace's options and
+    // silently ignores them, so a floating `+nightly` goes green here and red in the pipeline.
+    // `rustup run`, not `cargo +<pin>`: the `+` is read by whichever `cargo` answers, and one
+    // started inside `cargo xtask` is the toolchain's own binary, which looks for rustup under
+    // `CARGO_HOME` and fails when rustup lives elsewhere.
+    match nightly_channel(root) {
+        Err(why) => {
+            plan.verdict("format (nightly rustfmt)", Outcome::Need(why));
+        }
         Ok(pin) => {
-            run.ensure_rustfmt(&pin);
-            // `rustup run`, not `cargo +<pin>`: the `+` is read by whichever `cargo` answers, and
-            // one started inside `cargo xtask` is the toolchain's own binary, which looks for
-            // rustup under `CARGO_HOME` and fails when rustup lives elsewhere.
-            out.push(run.external(
-                "format (nightly rustfmt)",
-                "rustup",
-                &["run", &pin, "cargo", "fmt", "--all", "--check"],
-            ));
+            plan.add("format (nightly rustfmt)", &[], None, move |ctx| {
+                ensure_rustfmt(ctx, &pin);
+                let colour = if ctx.colour() { "always" } else { "never" };
+                let fmt = Cmd::new("rustup")
+                    .args(["run", &pin, "cargo", "fmt", "--all", "--check", "--"])
+                    .args(["--color", colour]);
+                commands(vec![fmt])(ctx)
+            });
         }
     }
 
-    // 2. The 500-line rule. Instant, and it catches the change most likely to have just been made.
-    //    It sees untracked files only if you staged them, so inspect a new file yourself before
-    //    calling a branch green.
-    out.push(run.named("check-file-length"));
-
-    // 3. Docs. Third, not last, as the runner's header explains. Its own unit graph means it never
-    //    rides on the tests.
-    out.push(run.external(
-        "docs (rustdoc, warnings denied)",
-        "cargo",
-        &[
-            "doc",
-            "--workspace",
-            "--exclude",
-            "mailcal-linux",
-            "--no-deps",
-        ],
-    ));
-
-    // 4. The contract checks. All of them are searches and file reads, and together they cost less
-    //    than a second.
-    for name in EARLY_CHECKS {
-        out.push(run.named(name));
+    // The contract checks, one after another in this process, cheapest first. The 500-line rule
+    // leads: it catches the change most likely to have just been made. It sees untracked files only
+    // if you staged them, so inspect a new file yourself before calling a branch green.
+    for name in std::iter::once(&"check-file-length")
+        .chain(EARLY_CHECKS)
+        .chain(LATE_CHECKS)
+    {
+        let task = TASKS
+            .iter()
+            .find(|t| t.name == *name)
+            .expect("a registered check");
+        plan.add(
+            task.label,
+            &[],
+            Some("in-process"),
+            move |ctx| match (task.run)(&ctx.root) {
+                Ok(true) => Outcome::Pass,
+                Ok(false) => Outcome::Fail,
+                Err(why) => {
+                    eprintln!("!! {}: {why}", task.label);
+                    Outcome::Fail
+                }
+            },
+        );
     }
 
     // Licensing, stated once in REUSE.toml and checked per file. It fires on vendoring: a file with
     // its own SPDX header whose licence text is not in LICENSES/, and a text left there after what
-    // needed it is gone. Here as well as in the pipeline because that arrives in a branch, and a
-    // check only the runners get is a check nobody who builds gets.
-    //
-    // `pipx install reuse` alone is not enough on a host without libmagic: it installs, and then
-    // every invocation dies with NoEncodingModuleError. The extra is what makes it portable.
-    out.push(run.optional(
-        "reuse (every file licensed)",
-        "reuse",
-        "pipx install 'reuse[charset-normalizer]'",
-        &["lint", "--lines"],
-    ));
-
+    // needed it is gone. `pipx install reuse` alone is not enough on a host without libmagic: it
+    // installs, and then every invocation dies with NoEncodingModuleError.
+    let reuse = "reuse (every file licensed)";
+    if runnable("reuse") {
+        let lint = Cmd::new("reuse").args(["lint", "--lines"]);
+        plan.add(reuse, &[], None, commands(vec![lint]));
+    } else {
+        let how = "reuse, which is not installed: pipx install 'reuse[charset-normalizer]'";
+        plan.verdict(reuse, Outcome::Need(how.to_owned()));
+    }
     for (label, script) in PYTHON_CHECKS {
-        out.push(run.external(label, "python3", &[script]));
+        plan.add(
+            *label,
+            &[],
+            None,
+            commands(vec![Cmd::new("python3").args([script])]),
+        );
     }
-
-    for name in LATE_CHECKS {
-        out.push(run.named(name));
-    }
-
     // The script suites, discovered so a new helper's tests are picked up by existing.
-    out.push(run.sequence(
-        "script tests (dev + ci helpers)",
-        root,
-        &[
-            (
-                "python3",
-                &[
-                    "-m",
-                    "unittest",
-                    "discover",
-                    "-s",
-                    "scripts/dev/tests",
-                    "-q",
-                ],
-            ),
-            (
-                "python3",
-                &["-m", "unittest", "discover", "-s", "scripts/ci/tests", "-q"],
-            ),
-        ],
-    ));
-    out.push(run.composer());
+    for (label, dir) in [
+        ("script tests (dev helpers)", "scripts/dev/tests"),
+        ("script tests (ci helpers)", "scripts/ci/tests"),
+    ] {
+        let suite = Cmd::new("python3").args(["-m", "unittest", "discover", "-s", dir, "-q"]);
+        plan.add(label, &[], None, commands(vec![suite]));
+    }
+    composer(&mut plan);
 
-    // The expensive pair, last, because everything above can fail in seconds instead.
-    out.push(run.external(
+    // Docs, then clippy, in their own build directory. The docs come first: `cargo test` and
+    // `cargo clippy` never invoke rustdoc, and rustdoc warnings are denied here, so a link to a
+    // private item survives both and is a hard error only here.
+    let excluded: &[&str] = if linux {
+        &[]
+    } else {
+        &["--exclude", "mailcal-linux"]
+    };
+    let docs = Cmd::new("cargo")
+        .args(["doc", "--workspace", "--no-deps"])
+        .args(excluded)
+        .env("CARGO_TARGET_DIR", &check_dir);
+    let lint_dir = Some("target/check/debug");
+    plan.add(
+        "docs (rustdoc, warnings denied)",
+        &[],
+        lint_dir,
+        commands(vec![docs]),
+    );
+    let clippy = Cmd::new("cargo")
+        .args(["clippy", "--workspace", "--all-targets", "--all-features"])
+        .args(excluded)
+        .args(["--", "-D", "warnings"])
+        .env("CARGO_TARGET_DIR", &check_dir);
+    plan.add(
         "clippy (pedantic, warnings denied)",
-        "cargo",
-        &[
-            "clippy",
-            "--workspace",
-            "--exclude",
-            "mailcal-linux",
-            "--all-targets",
-            "--all-features",
-            "--",
-            "-D",
-            "warnings",
-        ],
-    ));
-    out.push(run.external(
-        "tests (workspace)",
-        "cargo",
-        &["test", "--workspace", "--exclude", "mailcal-linux"],
-    ));
-    // `--all-features` above type-checks this build, but clippy produces nothing runnable and
-    // `cargo test --workspace` runs the default feature set, so without this a test that only
-    // exists behind the feature passes when its author runs it by hand and is never run again.
-    out.push(run.external(
-        "tests (allodia sign-in compiled in)",
-        "cargo",
-        &[
-            "test",
-            "-p",
-            "mailcal-bindings",
-            "--features",
-            "allodia-license",
-        ],
-    ));
+        &[],
+        lint_dir,
+        commands(vec![clippy]),
+    );
+
+    // The test builds. `cargo test --workspace` runs the default feature set, and the second build
+    // is what runs a test that only exists behind a feature; without it such a test passes when its
+    // author runs it by hand and is never run again.
+    let test_dir = Some("target/debug");
+    let built = plan.add("tests (build)", &[], test_dir, |ctx| {
+        let args = ["test", "--workspace", "--exclude", "mailcal-linux"];
+        match gate_testrun::build(ctx, "default", &args, None) {
+            Outcome::Pass => gate_clients::stage_cdylib(ctx, "default"),
+            outcome => outcome,
+        }
+    });
+    plan.add("tests (run)", &[built], None, |ctx| {
+        gate_testrun::run(ctx, "default", |_| true, &[])
+    });
+    let doctests = Cmd::new("cargo").args(["test", "--workspace", "--exclude", "mailcal-linux"]);
+    plan.add(
+        "doctests",
+        &[built],
+        test_dir,
+        commands(vec![doctests.args(["--doc"])]),
+    );
+    let (label, feature_args): (&str, &[&str]) = if linux {
+        (
+            "tests with every feature, bindings and Linux client (build)",
+            &[
+                "test",
+                "-p",
+                "mailcal-bindings",
+                "-p",
+                "mailcal-linux",
+                "--all-features",
+            ],
+        )
+    } else {
+        (
+            "tests with the Allodia sign-in compiled in (build)",
+            &[
+                "test",
+                "--workspace",
+                "--exclude",
+                "mailcal-linux",
+                "--features",
+                "mailcal-bindings/allodia-license",
+            ],
+        )
+    };
+    // With the Linux client selected the build is a variant of nearly every crate anyway, so it
+    // gets a build directory of its own and runs beside the first instead of after it. Without it,
+    // it shares the first build's directory, where all it rebuilds is the bindings.
+    let (feature_dir, feature_lock) = if linux {
+        (Some(FEATURE_DIR), Some("target/features/debug"))
+    } else {
+        (None, test_dir)
+    };
+    let featured = plan.add(label, &[], feature_lock, move |ctx| {
+        gate_testrun::build(ctx, "features", feature_args, feature_dir)
+    });
+    plan.add(
+        "tests with every feature, bindings (run)",
+        &[featured],
+        None,
+        |ctx| gate_testrun::run(ctx, "features", |t| t.package == "mailcal-bindings", &[]),
+    );
 
     if clients {
-        out.extend(gate_clients::all(&run));
+        gate_clients::all(&mut plan, root, built, featured);
     } else {
-        out.push(run.skip(
-            "clients",
-            "not requested: pass --clients to build Apple / Android / Windows too",
-        ));
+        let why = "not requested: pass --clients to build Apple / Android / Windows too";
+        plan.verdict("clients", Outcome::Skip(why.to_owned()));
     }
-
-    (out, run.into_timings())
+    plan
 }
 
-/// Prints the step list without running anything.
-pub(crate) fn print_list(clients: bool) {
-    println!("1  format          rustup run <rust-nightly.toml> cargo fmt --all --check");
-    println!("2  file length     cargo xtask check-file-length");
-    println!("3  docs            cargo doc --workspace --exclude mailcal-linux --no-deps");
-    for name in EARLY_CHECKS {
-        println!("   {name:<24} in-process");
+/// The shared editor's unit suite, and the check that the committed bundle is what its sources
+/// produce.
+///
+/// That second half is the one that matters: `editor.html` is a build output we commit, every
+/// host loads that single file, and this is the only thing standing between a source edit and a
+/// client shipping the previous bundle.
+fn composer(plan: &mut Plan) {
+    let label = "composer editor (typecheck + bun test + bundle freshness)";
+    if !runnable("bun") {
+        let how = "bun, which is not installed: https://bun.sh, see clients/composer/package.json";
+        plan.verdict(label, Outcome::Need(how.to_owned()));
+        return;
     }
-    println!("   reuse                    reuse lint: required; the gate fails without it");
-    for (_, script) in PYTHON_CHECKS {
-        println!("   {script}");
+    let bun = |args: &[&str]| Cmd::new("bun").args(args).dir("clients/composer");
+    let steps = vec![
+        bun(&["install", "--frozen-lockfile", "--silent"]),
+        bun(&["run", "typecheck"]),
+        bun(&["test"]),
+        bun(&["run", "check"]),
+    ];
+    plan.add(label, &[], None, commands(steps));
+}
+
+/// Prints the steps without running anything.
+pub(crate) fn print_list(root: &Path, clients: bool) {
+    for (label, after, lock) in plan(root, clients).describe() {
+        let after = if after.is_empty() {
+            String::new()
+        } else {
+            format!("  [after: {}]", after.join("; "))
+        };
+        let lock = lock.map_or_else(String::new, |lock| format!("  [holds {lock}]"));
+        println!("   {label}{after}{lock}");
     }
-    for name in LATE_CHECKS {
-        println!("   {name:<24} in-process");
-    }
-    println!("   script tests             unittest discover (scripts/dev/tests, scripts/ci/tests)");
-    println!("   composer                 typecheck + bun test + bun run check: requires bun");
-    println!("   clippy                   cargo clippy --workspace --all-targets --all-features");
-    println!(
-        "   tests                    cargo test --workspace, then -p mailcal-bindings --features \
-         allodia-license"
-    );
-    if clients {
-        println!("   clients                  Apple / Android / Windows / Linux, host permitting");
-    } else {
-        println!("   --clients adds           Apple / Android / Windows / Linux, host permitting");
+    if !clients {
+        println!("   --clients adds Apple / Android / Windows / Linux, host permitting");
     }
 }
 

@@ -1,22 +1,18 @@
-//! How the gate runs one step, and how it decides whether a tool is there to run.
+//! How a gate step runs a command, and how the gate decides whether a tool is there to run.
 //!
 //! Split from [`crate::gate_steps`], which holds the list itself, so neither file outgrows the line
 //! ceiling this repository enforces on itself: the same rule the first check in the list applies to
 //! everything else.
 
 use std::{
-    cell::{Cell, RefCell},
     collections::HashMap,
-    ffi::OsStr,
+    ffi::{OsStr, OsString},
     path::{Path, PathBuf},
     process::{Command, Stdio},
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use crate::{
-    TASKS,
-    gate::{Outcome, Palette, Step},
-};
+use crate::{gate::Outcome, gate_sched::Ctx};
 
 /// What `cargo run` adds to the environment of the program it starts, besides `CARGO_PKG_*`.
 ///
@@ -37,7 +33,7 @@ const SET_BY_CARGO_RUN: &[&str] = &[
 
 /// `command` with what `cargo run` added to the gate's environment taken back out, so it builds
 /// exactly what the same command typed into a shell builds.
-fn as_typed(command: &mut Command) -> &mut Command {
+pub(crate) fn as_typed(command: &mut Command) -> &mut Command {
     for (name, _) in std::env::vars_os() {
         let text = name.to_string_lossy();
         if SET_BY_CARGO_RUN.contains(&text.as_ref()) || text.starts_with("CARGO_PKG_") {
@@ -50,285 +46,118 @@ fn as_typed(command: &mut Command) -> &mut Command {
 /// How long each step that ran took, by its label.
 pub(crate) type Timings = HashMap<String, Duration>;
 
-/// Runs the gate's steps against one checkout.
-#[derive(Debug)]
-pub(crate) struct Runner<'a> {
-    /// The repository root every step runs from.
-    pub(crate) root: &'a Path,
-    /// How to colour a heading and a verdict.
-    palette: &'a Palette,
-    /// When the step being run was announced.
-    started: Cell<Option<Instant>>,
-    /// How long each finished step took.
-    timings: RefCell<Timings>,
-    /// Whether to run every step whatever fails, rather than stop at the first failure.
-    keep_going: bool,
-    /// Whether a step has failed.
-    failed: Cell<bool>,
+/// One command a step runs: a program, its arguments, where it runs and what it adds to the
+/// environment.
+#[derive(Debug, Clone)]
+pub(crate) struct Cmd {
+    program: OsString,
+    args: Vec<OsString>,
+    dir: Option<PathBuf>,
+    env: Vec<(String, OsString)>,
 }
 
-impl<'a> Runner<'a> {
-    /// A runner for `root`, which stops at the first failure unless told to `keep_going`.
-    pub(crate) fn new(root: &'a Path, palette: &'a Palette, keep_going: bool) -> Self {
+impl Cmd {
+    /// `program`, run from the repository root.
+    pub(crate) fn new(program: impl AsRef<OsStr>) -> Self {
         Self {
-            root,
-            palette,
-            started: Cell::new(None),
-            timings: RefCell::new(Timings::new()),
-            keep_going,
-            failed: Cell::new(false),
+            program: program.as_ref().to_owned(),
+            args: Vec::new(),
+            dir: None,
+            env: Vec::new(),
         }
     }
 
-    /// Whether the next step is not to run, because an earlier one failed. Each step is run as
-    /// the list is built, so this is where stopping at the first failure happens.
-    fn halted(&self) -> bool {
-        self.failed.get() && !self.keep_going
+    /// Adds arguments.
+    pub(crate) fn args<S: AsRef<OsStr>>(mut self, args: impl IntoIterator<Item = S>) -> Self {
+        self.args
+            .extend(args.into_iter().map(|a| a.as_ref().to_owned()));
+        self
     }
 
-    /// The verdict a step that was not run gets.
-    fn not_run(label: &str) -> Step {
-        (
-            label.to_owned(),
-            Outcome::Skip("not run: an earlier step failed".to_owned()),
-        )
+    /// Runs from `dir`, relative to the repository root unless absolute.
+    pub(crate) fn dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.dir = Some(dir.into());
+        self
     }
 
-    /// Records a step's verdict, remembering a failure.
-    fn verdict(&self, label: &str, outcome: Outcome) -> Step {
-        if matches!(outcome, Outcome::Fail | Outcome::Need(_)) {
-            self.failed.set(true);
-        }
-        (label.to_owned(), outcome)
+    /// Sets one environment variable.
+    pub(crate) fn env(mut self, name: &str, value: impl AsRef<OsStr>) -> Self {
+        self.env.push((name.to_owned(), value.as_ref().to_owned()));
+        self
     }
 
-    /// How long each step took, once the list has run.
-    pub(crate) fn into_timings(self) -> Timings {
-        self.timings.into_inner()
-    }
-
-    /// Records how long `label` has taken since it was announced. A step of several commands is
-    /// recorded after each, so the last one leaves its whole length.
-    fn timed(&self, label: &str) {
-        if let Some(started) = self.started.get() {
-            self.timings
-                .borrow_mut()
-                .insert(label.to_owned(), started.elapsed());
-        }
-    }
-
-    /// Announces a step.
-    fn heading(&self, label: &str) {
-        self.started.set(Some(Instant::now()));
-        println!("{}==> {label}{}", self.palette.bold, self.palette.reset);
-    }
-
-    /// A step that needs something this host does not have, which is a failure.
-    pub(crate) fn needs(&self, label: &str, why: &str) -> Step {
-        self.verdict(label, Outcome::Need(why.to_owned()))
-    }
-
-    /// Reports a step that could not run.
-    fn refused(&self, label: &str, what: &str) -> Step {
-        eprintln!(
-            "{}!! {label} needs {what}{}",
-            self.palette.red, self.palette.reset
+    fn command(&self, ctx: &Ctx) -> Command {
+        let mut command = Command::new(&self.program);
+        command.args(&self.args).current_dir(
+            self.dir
+                .as_ref()
+                .map_or_else(|| ctx.root.clone(), |d| ctx.root.join(d)),
         );
-        self.verdict(label, Outcome::Need(what.to_owned()))
-    }
-
-    /// Runs one in-process check by name.
-    pub(crate) fn named(&self, name: &str) -> Step {
-        let Some(task) = TASKS.iter().find(|t| t.name == name) else {
-            return self.verdict(name, Outcome::Need(format!("no such task: {name}")));
-        };
-        if self.halted() {
-            return Self::not_run(task.label);
+        if ctx.colour() && self.program == "cargo" {
+            command.env("CARGO_TERM_COLOR", "always");
         }
-        self.heading(task.label);
-        let outcome = match (task.run)(self.root) {
-            Ok(true) => Outcome::Pass,
-            Ok(false) => Outcome::Fail,
-            Err(why) => {
-                eprintln!(
-                    "{}!! {}: {why}{}",
-                    self.palette.red, task.label, self.palette.reset
-                );
-                Outcome::Fail
-            }
-        };
-        self.timed(task.label);
-        self.verdict(task.label, outcome)
-    }
-
-    /// Runs one external command from the repository root.
-    pub(crate) fn external(&self, label: &str, program: &str, args: &[&str]) -> Step {
-        self.external_in(self.root, label, program, args)
-    }
-
-    /// Runs one external command from `dir`.
-    pub(crate) fn external_in(
-        &self,
-        dir: &Path,
-        label: &str,
-        program: impl AsRef<OsStr>,
-        args: &[&str],
-    ) -> Step {
-        if self.halted() {
-            return Self::not_run(label);
+        for (name, value) in &self.env {
+            command.env(name, value);
         }
-        self.heading(label);
-        self.finish(label, Command::new(program).args(args).current_dir(dir))
+        command
     }
+}
 
-    /// Runs a prepared command, as it would run typed into a shell, and records the verdict.
-    fn finish(&self, label: &str, command: &mut Command) -> Step {
-        let ok = match as_typed(command).status() {
-            Ok(status) => status.success(),
-            Err(e) => {
-                eprintln!(
-                    "{}!! {label} could not start: {e}{}",
-                    self.palette.red, self.palette.reset
-                );
-                false
-            }
-        };
-        if !ok {
-            eprintln!(
-                "{}!! {label} failed{}",
-                self.palette.red, self.palette.reset
-            );
-        }
-        self.timed(label);
-        self.verdict(label, if ok { Outcome::Pass } else { Outcome::Fail })
-    }
-
-    /// Runs a command whose tool may not be installed, which is a failure rather than a skip.
-    ///
-    /// The distinction is the whole point. A skip says "this host cannot answer that question", and
-    /// a reader is entitled to treat the rest of the run as complete. A missing `reuse` or `bun`
-    /// says something else: a check the pipeline does run has quietly stopped running for whoever
-    /// builds. Both tools are cross-platform and cheap, and each is the only thing watching what it
-    /// watches.
-    pub(crate) fn optional(&self, label: &str, tool: &str, how: &str, args: &[&str]) -> Step {
-        if !runnable(tool) {
-            return self.refused(label, &format!("{tool}, which is not installed: {how}"));
-        }
-        self.external(label, tool, args)
-    }
-
-    /// Runs several commands in `dir` as one step, stopping at the first failure.
-    pub(crate) fn sequence(&self, label: &str, dir: &Path, steps: &[(&str, &[&str])]) -> Step {
-        if self.halted() {
-            return Self::not_run(label);
-        }
-        self.heading(label);
-        for (program, args) in steps {
-            let step = self.finish(label, Command::new(program).args(*args).current_dir(dir));
-            if matches!(step.1, Outcome::Fail) {
-                return step;
+/// A step that runs `commands` in order, stopping at the first that fails.
+pub(crate) fn commands(commands: Vec<Cmd>) -> impl FnOnce(&Ctx) -> Outcome + Send + 'static {
+    move |ctx| {
+        for cmd in &commands {
+            if !ctx.run(&mut cmd.command(ctx)) {
+                return Outcome::Fail;
             }
         }
-        (label.to_owned(), Outcome::Pass)
+        Outcome::Pass
     }
+}
 
-    /// A step this host cannot answer, said out loud.
-    pub(crate) fn skip(&self, label: &str, why: &str) -> Step {
-        println!(
-            "{}== skipping {label}: {why}{}",
-            self.palette.yellow, self.palette.reset
-        );
-        (label.to_owned(), Outcome::Skip(why.to_owned()))
-    }
-
-    /// The shared editor's unit suite, and the check that the committed bundle is what its sources
-    /// produce.
-    ///
-    /// That second half is the one that matters: `editor.html` is a build output we commit, every
-    /// host loads that single file, and this is the only thing standing between a source edit and a
-    /// client shipping the previous bundle.
-    pub(crate) fn composer(&self) -> Step {
-        let label = "composer editor (typecheck + bun test + bundle freshness)";
-        if !runnable("bun") {
-            return self.refused(
-                label,
-                "bun, which is not installed: https://bun.sh, see clients/composer/package.json",
-            );
-        }
-        self.sequence(
-            label,
-            &self.root.join("clients/composer"),
-            &[
-                ("bun", &["install", "--frozen-lockfile", "--silent"]),
-                ("bun", &["run", "typecheck"]),
-                ("bun", &["test"]),
-                ("bun", &["run", "check"]),
-            ],
-        )
-    }
-
-    /// The Android suite. JDK 17 is pinned in the module, so this matches the pipeline's locale
-    /// data.
-    ///
-    /// **Both APKs.** The module carries a `play` flavour and a `foss` one, and `:app:test` builds
-    /// and runs each, so the build that carries no Google library is exercised here rather than
-    /// first at an F-Droid submission.
-    pub(crate) fn gradle(&self) -> Step {
-        self.external_in(
-            &self.root.join("clients/android"),
-            "android (:app:test)",
-            gradle_wrapper(self.root),
-            &[":app:test"],
-        )
-    }
-
-    /// Installs the pinned toolchain's rustfmt when it is missing.
-    ///
-    /// `cargo +<pin>` auto-installs a missing toolchain with its default components, without
-    /// rustfmt, and then fails with "'cargo-fmt' is not installed", which reads like a bad pin
-    /// rather than a missing component.
-    ///
-    /// Probed with `rustup toolchain list`, which is the only one of these that stays local:
-    /// `rustup component list --toolchain <pin>` installs the toolchain in order to answer.
-    pub(crate) fn ensure_rustfmt(&self, pin: &str) {
-        let known = Command::new("rustup")
-            .args(["toolchain", "list"])
-            .current_dir(self.root)
+/// Installs the pinned toolchain's rustfmt when it is missing.
+///
+/// `cargo +<pin>` auto-installs a missing toolchain with its default components, without
+/// rustfmt, and then fails with "'cargo-fmt' is not installed", which reads like a bad pin
+/// rather than a missing component.
+///
+/// Probed with `rustup toolchain list`, which is the only one of these that stays local:
+/// `rustup component list --toolchain <pin>` installs the toolchain in order to answer.
+pub(crate) fn ensure_rustfmt(ctx: &Ctx, pin: &str) {
+    let known = Command::new("rustup")
+        .args(["toolchain", "list"])
+        .current_dir(&ctx.root)
+        .output()
+        .is_ok_and(|out| {
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .any(|l| l.starts_with(&format!("{pin}-")))
+        });
+    if known
+        && Command::new("rustup")
+            .args(["component", "list", "--toolchain", pin, "--installed"])
+            .current_dir(&ctx.root)
             .output()
             .is_ok_and(|out| {
                 String::from_utf8_lossy(&out.stdout)
                     .lines()
-                    .any(|l| l.starts_with(&format!("{pin}-")))
-            });
-        if known
-            && Command::new("rustup")
-                .args(["component", "list", "--toolchain", pin, "--installed"])
-                .current_dir(self.root)
-                .output()
-                .is_ok_and(|out| {
-                    String::from_utf8_lossy(&out.stdout)
-                        .lines()
-                        .any(|l| l.starts_with("rustfmt"))
-                })
-        {
-            return;
-        }
-        self.heading(&format!(
-            "installing rustfmt for {pin} (the pin in rust-nightly.toml)"
-        ));
-        let _ = Command::new("rustup")
-            .args([
-                "toolchain",
-                "install",
-                pin,
-                "--component",
-                "rustfmt",
-                "--profile",
-                "minimal",
-            ])
-            .current_dir(self.root)
-            .status();
+                    .any(|l| l.starts_with("rustfmt"))
+            })
+    {
+        return;
     }
+    ctx.note(&format!(
+        "installing rustfmt for {pin} (the pin in rust-nightly.toml)"
+    ));
+    let _ = ctx.run(Command::new("rustup").current_dir(&ctx.root).args([
+        "toolchain",
+        "install",
+        pin,
+        "--component",
+        "rustfmt",
+        "--profile",
+        "minimal",
+    ]));
 }
 
 /// The Gradle wrapper this host would actually start.
@@ -439,7 +268,7 @@ pub(crate) fn nightly_channel(root: &Path) -> Result<String, String> {
 ///
 /// A probe that stops at "is there something called this on the path" passes on Windows and fails
 /// on the first real call, several steps later, in whatever the tool was supposed to produce.
-fn runnable(tool: &str) -> bool {
+pub(crate) fn runnable(tool: &str) -> bool {
     Command::new(tool)
         .arg("--version")
         .stdout(Stdio::null())
