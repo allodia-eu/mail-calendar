@@ -232,7 +232,8 @@ fn the_page_reads_only_its_own_accounts_sign_in_with_what_it_asks_for() {
 #[test]
 fn the_control_that_started_it_runs_until_the_browser_has_had_time_to_come_up() {
     let sign_ins = BrowserSignIns::default();
-    sign_ins.set_opening(Duration::from_millis(50));
+    // Long enough that no machine reaches it before the test ends it below.
+    sign_ins.set_opening(Duration::from_secs(3600));
     let working = |sign_ins: &BrowserSignIns| sign_ins.of("a").is_some_and(|out| out.working);
     let attempt = begun(&sign_ins, "a");
     assert!(working(&sign_ins), "while its server starts it");
@@ -250,7 +251,7 @@ fn the_control_that_started_it_runs_until_the_browser_has_had_time_to_come_up() 
     sign_ins.answered(attempt, Some(UnreachedUses::KeepOnPassword));
     assert!(working(&sign_ins), "while the browser comes up");
     assert_eq!(sign_ins.working_account().as_deref(), Some("a"));
-    std::thread::sleep(Duration::from_millis(60));
+    sign_ins.set_opening(Duration::ZERO);
     assert!(
         !working(&sign_ins),
         "once it has, a fresh press starts it again"

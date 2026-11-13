@@ -18,6 +18,11 @@ use crate::{
 
 const REDIRECT: &str = "mailcal.test://imap-oauth";
 
+/// A browser that is still coming up when the test looks, which then ends it with
+/// `set_opening(Duration::ZERO)`. A short real opening races the clock: on a loaded machine it can
+/// pass before the test has looked.
+const HELD_OPEN: Duration = Duration::from_secs(3600);
+
 /// An IMAP account signed in through its provider, at a server and an issuer that do not
 /// answer: signing it in again needs no discovery.
 fn signed_in_account() -> (String, String) {
@@ -145,9 +150,7 @@ fn failed(refusal: AccountChangeRefusal) -> Option<AccountChangeNotice> {
 #[test]
 fn the_browser_returns_where_the_grant_was_registered_and_the_page_says_it_waits() {
     let (app, id) = booted("browser-sign-in-waits");
-    app.account_work
-        .browser
-        .set_opening(Duration::from_millis(200));
+    app.account_work.browser.set_opening(HELD_OPEN);
     sign_in(&app, &id);
     let out = in_browser(&app);
     assert_eq!(out.account, id);
@@ -171,6 +174,7 @@ fn the_browser_returns_where_the_grant_was_registered_and_the_page_says_it_waits
         section().control.running,
         "the route runs while the browser comes up"
     );
+    app.account_work.browser.set_opening(Duration::ZERO);
     let deadline = Instant::now() + Duration::from_secs(5);
     while section().control.running {
         assert!(Instant::now() < deadline, "the route never stopped running");
@@ -315,7 +319,8 @@ fn a_sign_in_with_nowhere_to_return_is_not_started() {
 #[test]
 fn a_browser_left_without_returning_ends_the_sign_in_on_its_cap() {
     let (app, id) = booted("browser-sign-in-cap");
-    app.account_work.browser.set_cap(Duration::from_millis(50));
+    // Long enough for the test to see the browser stage before the cap ends it.
+    app.account_work.browser.set_cap(Duration::from_secs(1));
     sign_in(&app, &id);
     in_browser(&app);
     over(&app);
@@ -337,12 +342,11 @@ fn the_notice_it_answers_runs_while_it_is_out_and_says_when_it_did_not_work() {
     assert_eq!(notice(&app).action, Some(NoticeAction::SignInAgain));
     assert!(!notice(&app).running);
 
-    app.account_work
-        .browser
-        .set_opening(Duration::from_millis(200));
+    app.account_work.browser.set_opening(HELD_OPEN);
     sign_in(&app, &id);
     let out = in_browser(&app);
     assert!(notice(&app).running, "while the browser comes up");
+    app.account_work.browser.set_opening(Duration::ZERO);
     let deadline = Instant::now() + Duration::from_secs(5);
     while notice(&app).running {
         assert!(
