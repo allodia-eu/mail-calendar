@@ -72,6 +72,18 @@ that same file.
   view that is only a picture takes `.allowsHitTesting(false)`. For one that must stay
   interactive, press what lies beside it with a real pointer, off the label
   ([`InvitationAnswerTests`](../clients/apple/UITests/InvitationAnswerTests.swift) does).
+- **A SwiftUI `.frame(maxHeight: .infinity)` fills, but it does not cap.** With no `minHeight`, the
+  frame answers with its content's height whenever that is taller than what it was offered, and
+  the answer travels up through `HSplitView` to the window's root, which SwiftUI centres when it
+  overflows. So one pane holding something taller than the window (an invitation card, a composer
+  with many files) moved the *whole* Mac window's content: the command bar slid under the title
+  bar and the sidebar's pinned rows dropped off the bottom, beside panes that did nothing. A
+  standalone `NSHostingView` with a tall pane does not reproduce it, which is what makes a quick
+  probe look reassuring. Every pane takes
+  [`macPaneHeight()`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/Mailcal.PaneBounds.swift),
+  a frame with both bounds, which holds it to the height it is offered; a window root bounds itself
+  the same way. Prove it in the app at the window's minimum size with a tall invitation open: the
+  frame of New Mail and of Settings must not move.
 - **A WinUI button with no label stands at its glyph's height, not its row's**, because the default
   button style *centres* its content rather than stretching it. So the one icon-only control in a
   row of labelled ones comes up short and vertically centred: 54px against 64px on a 200% display.

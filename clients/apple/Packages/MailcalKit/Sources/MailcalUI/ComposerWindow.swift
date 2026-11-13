@@ -42,7 +42,7 @@ public struct ComposerWindow: View {
                 Color.clear.onAppear { dismiss() }
             }
         }
-        .frame(minWidth: 620, minHeight: 460)
+        .macWindowFrame(minWidth: 620, minHeight: 460)
         // As in ReadingWindow.swift: a window of its own applies the app's appearance itself.
         .preferredColorScheme(AppearanceMode.colorScheme(model.appearance))
         .onDisappear { drafts.close(window.id) }

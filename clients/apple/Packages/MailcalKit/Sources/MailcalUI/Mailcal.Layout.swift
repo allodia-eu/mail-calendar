@@ -51,7 +51,12 @@ extension ContentView {
             }
             HSplitView {
                 sidebarList(showsCalendarAndContacts: true)
-                    .frame(minWidth: 220, idealWidth: 240, maxWidth: 320)
+                    .frame(
+                        minWidth: MacShellWidths.sidebar.lowerBound,
+                        idealWidth: 240,
+                        maxWidth: MacShellWidths.sidebar.upperBound
+                    )
+                    .macPaneHeight()
                     .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacSidebarV3")))
                     // The bar's New Mail slot is as wide as this, so its actions begin over the list.
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { sidebarWidth = $0 }
@@ -59,7 +64,7 @@ extension ContentView {
                 ZStack { destinationPanes }
             }
         }
-        .frame(minWidth: 1_080, minHeight: 520)
+        .macWindowFrame(minWidth: MacShellWidths.windowMinimum, minHeight: 520)
     }
 
     /// Everything to the right of the sidebar. Each destination owns its own split and its own
@@ -72,18 +77,21 @@ extension ContentView {
             // One pane, the grid takes the whole width beside the sidebar, so there is no
             // divider here to remember.
             calendarDetail
-                .frame(minWidth: 620)
+                .frame(minWidth: MacShellWidths.calendar)
+                .macPaneHeight()
         case .contacts:
             // List | detail, like mail, a list of people is something you pick one of, where
             // the calendar is one wide grid with nothing to select beside it.
             HSplitView {
                 contactsList
-                    .frame(minWidth: 300, idealWidth: 360, maxWidth: 480)
+                    .frame(minWidth: MacShellWidths.contactsList, idealWidth: 360, maxWidth: 480)
+                    .macPaneHeight()
                     .background(
                         SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacContactsV3"))
                     )
                 contactsDetailPane
-                    .frame(minWidth: 420, idealWidth: 620)
+                    .frame(minWidth: MacShellWidths.contactsDetail, idealWidth: 620)
+                    .macPaneHeight()
             }
         case .mail:
             mailPanes
@@ -94,7 +102,8 @@ extension ContentView {
     private var mailPanes: some View {
         HSplitView {
             messageList
-                .frame(minWidth: 420, idealWidth: 540, maxWidth: 720)
+                .frame(minWidth: MacShellWidths.messageList, idealWidth: 540, maxWidth: 720)
+                .macPaneHeight()
                 .background(SplitViewAutosave(name: AppPrefs.autosaveName("AllodiaMailMacMailV3")))
             // The second column is the reading pane, or, while a draft is open, the composer in
             // its place. Writing a message no longer blacks out the mailbox behind a sheet: the
@@ -102,7 +111,8 @@ extension ContentView {
             // which keeps its draft in Drafts (openGuardingDraft). Swapping the two keeps this
             // split at two panes, so opening a draft doesn't disturb the divider either.
             detailColumn
-                .frame(minWidth: 420, idealWidth: 760)
+                .frame(minWidth: MacShellWidths.reading, idealWidth: 760)
+                .macPaneHeight()
         }
     }
 
