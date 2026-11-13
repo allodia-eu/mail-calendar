@@ -1200,7 +1200,7 @@ churn, not accumulation, which is why deleting "old" directories reclaims nothin
 the 20 GiB is in `target/`, which no version of cargo garbage-collects.
 
 Nothing here reclaims it for you: dropping it costs a rebuild, and only you know when the disk is
-worth more than that. What it costs, measured on an M-series Mac, `cargo build -p mailcal-bindings`
+worth more than that. What it costs, measured on an M-series Mac, `cargo build -p mailcal-ffi`
 after a one-line edit in `mailcal-app`:
 
 | | rebuild |
@@ -1224,7 +1224,7 @@ and dropping it is the three-minute rebuild the first subsection above is about.
 Linking dominates the inner loop on Windows. `link.exe` is the default; LLVM's `lld-link.exe` is
 markedly faster and ships with Visual Studio's optional *C++ Clang tools for Windows* component.
 Measured on a Surface Pro X (SQ1, arm64): one line changed in `mailcal-app`, then
-`cargo build -p mailcal-bindings`:
+`cargo build -p mailcal-ffi`:
 
 | linker | whole loop | `mailcal-bindings` unit |
 |---|---|---|
@@ -1288,7 +1288,7 @@ kache doctor --probe        # compiles a throwaway crate and proves a local hit
 `cargo xtask gate` prints a note when cargo is not using it. Nothing depends on it: a build without
 it is the same build, only slower.
 
-A cold `cargo build -p mailcal-bindings` into an empty build directory, on Windows arm64:
+A cold `cargo build -p mailcal-ffi` into an empty build directory, on Windows arm64:
 
 | | |
 |---|---|
@@ -1314,7 +1314,7 @@ Three things decide whether a worktree hits:
 - **The same cargo configuration.** A worktree under `.claude/worktrees/` also reads the main
   checkout's `.cargo/config.toml`, so an array there is passed twice and no hash matches;
   [`.cargo/config.toml`](../.cargo/config.toml) keeps every value a string for that reason.
-- **What kache can cache at all.** On Windows it does not cache a link: the `mailcal-bindings`
+- **What kache can cache at all.** On Windows it does not cache a link: the `mailcal-ffi`
   cdylib (about a minute, most of the 102 s), test binaries and executables are built in every
   worktree. MSVC's `cl.exe` passes through too, so `ring`'s C is compiled every time. macOS and
   Linux cache executables and build scripts as well.

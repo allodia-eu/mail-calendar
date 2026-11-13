@@ -2343,6 +2343,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mailcal-ffi"
+version = "0.17.0"
+dependencies = [
+ "mailcal-bindings",
+]
+
+[[package]]
 name = "mailcal-l10n"
 version = "0.17.0"
 dependencies = [

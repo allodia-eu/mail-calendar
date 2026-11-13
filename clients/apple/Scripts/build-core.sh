@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the shared Rust core for every Apple slice and packages it for MailcalKit:
-#   1. cargo-build mailcal-bindings for iOS device, iOS simulator, and Apple-silicon macOS
+#   1. cargo-build mailcal-ffi (the core, linked) for iOS device, iOS simulator, and Apple-silicon macOS
 #   2. regenerate the UniFFI Swift bindings + localised L10n into Sources/MailcalBindings
 #   3. assemble Mailcal.xcframework (static slices + the C-module headers) into artifacts/
 #   4. build the `mailcal-mcp` stdio relay for macOS into artifacts/ (docs/mcp.md)
@@ -78,12 +78,12 @@ BINDGEN_SLICE="${TARGETS[${#TARGETS[@]} - 1]}"
 # Both crate types are needed here and nowhere else: step [3/3] links `libmailcal_bindings.a` into
 # every xcframework slice (an iOS app bundle can't ship a loose dylib), and step [2/3] reads a
 # slice's `.dylib` to generate the Swift bindings. Cargo has no per-target crate-type, so the
-# manifest lists only what every host needs (`cdylib`, `lib`) and the Apple-only `staticlib` is
-# asked for right here, see crates/mailcal-bindings/Cargo.toml. Leaving it in the manifest cost
-# Windows, Android and Linux 1.9 GB of archive apiece that nothing on those platforms opens.
+# manifest lists only what every host needs (`cdylib`) and the Apple-only `staticlib` is asked for
+# right here, see crates/mailcal-ffi/Cargo.toml. Leaving it in the manifest cost Windows, Android
+# and Linux 1.9 GB of archive apiece that nothing on those platforms opens.
 #
-# `--lib` names the target the crate types apply to. The package has an example beside the library,
-# and `cargo rustc` refuses to apply `--crate-type` when the selection is ambiguous.
+# `--lib` names the target the crate types apply to: `cargo rustc` refuses to apply `--crate-type`
+# when the selection is ambiguous.
 BINDINGS_CRATE_TYPES=(--lib --crate-type staticlib --crate-type cdylib)
 
 # The Allodia sign-in, when this build was given the registration that turns it on -- derived from
@@ -98,7 +98,7 @@ if [[ -n "$CORE_FEATURE_LIST" ]]; then
   CORE_FEATURES=(--features "$CORE_FEATURE_LIST")
 fi
 
-echo "==> [1/3] Cross-compiling mailcal-bindings ($PROFILE) for ${#TARGETS[@]} Apple slices${CORE_FEATURE_LIST:+ (+$CORE_FEATURE_LIST)}"
+echo "==> [1/3] Cross-compiling mailcal-ffi ($PROFILE) for ${#TARGETS[@]} Apple slices${CORE_FEATURE_LIST:+ (+$CORE_FEATURE_LIST)}"
 for t in "${TARGETS[@]}"; do
   echo "    - $t"
   case "$t" in
@@ -106,14 +106,14 @@ for t in "${TARGETS[@]}"; do
       (
         unset MACOSX_DEPLOYMENT_TARGET
         export IPHONEOS_DEPLOYMENT_TARGET="$IOS_DEPLOYMENT_TARGET"
-        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-bindings "${BINDINGS_CRATE_TYPES[@]}" --target "$t" "${CARGO_PROFILE_ARGS[@]}" "${CORE_FEATURES[@]}"
+        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-ffi "${BINDINGS_CRATE_TYPES[@]}" --target "$t" "${CARGO_PROFILE_ARGS[@]}" "${CORE_FEATURES[@]}"
       )
       ;;
     aarch64-apple-darwin)
       (
         unset IPHONEOS_DEPLOYMENT_TARGET
         export MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET"
-        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-bindings "${BINDINGS_CRATE_TYPES[@]}" --target "$t" "${CARGO_PROFILE_ARGS[@]}" "${CORE_FEATURES[@]}"
+        cargo rustc --manifest-path "$ROOT/Cargo.toml" -p mailcal-ffi "${BINDINGS_CRATE_TYPES[@]}" --target "$t" "${CARGO_PROFILE_ARGS[@]}" "${CORE_FEATURES[@]}"
       )
       ;;
   esac

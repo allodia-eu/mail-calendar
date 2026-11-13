@@ -1,0 +1,43 @@
+[package]
+name = "mailcal-ffi"
+description = "The C ABI library every native client loads: mailcal-bindings, linked as one cdylib."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+# The library keeps the bindings' name, so every file a client loads is called what it always was:
+# `libmailcal_bindings.so` on Android, `libmailcal_bindings.dylib` and `.a` on Apple,
+# `mailcal_bindings.dll` on Windows, and the generated bindings name the same library.
+#
+# A crate of its own, rather than a crate type of mailcal-bindings, because cargo gives a `cdylib`
+# of a path package no hash. Every feature set the bindings were built with then wrote the same
+# file, so switching between two rebuilt it each time, and a compiler cache, which keys a unit on
+# that hash, could neither reuse it nor compile it incrementally. As a plain library with a hash,
+# the bindings build once per feature set and keep each build; this crate only links them.
+#
+# `staticlib` is NOT here. An iOS app bundle can't ship a loose dylib, so the iOS slice links a
+# static archive into the XCFramework, but crate-type is not per-target, so listing it here built it
+# for EVERY host. On Windows that archive is 1.9 GB in a single file. It is asked for explicitly
+# (`cargo rustc --crate-type staticlib`) in clients/apple/Scripts/build-core.sh, the one place that
+# needs it.
+[lib]
+name = "mailcal_bindings"
+crate-type = ["cdylib"]
+# The documentation and the tests are mailcal-bindings's. Under the same name, docs here would
+# overwrite those, and there is nothing of this crate's own to test.
+doc = false
+test = false
+doctest = false
+
+# The bindings' own features, so a client asks this crate for what it used to ask the bindings for.
+[features]
+dev-harness = ["mailcal-bindings/dev-harness"]
+allodia-license = ["mailcal-bindings/allodia-license"]
+
+[dependencies]
+mailcal-bindings = { path = "../mailcal-bindings" }
+
+[lints]
+workspace = true

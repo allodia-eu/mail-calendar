@@ -58,7 +58,7 @@ and which the open tree must build without ([`docs/pledge.md`](docs/pledge.md), 
 an optional, off-by-default dependency, and an Allodia build asks for it:
 
 ```sh
-cargo build -p mailcal-bindings --features allodia-license
+cargo build -p mailcal-ffi --features allodia-license
 ```
 
 Either half missing is the same supported outcome and not a failure: no Allodia sign-in, and a

@@ -45,6 +45,7 @@ default-members = [
   "crates/mailcal-mcp",
   "crates/mailcal-mcp-shim",
   "crates/mailcal-bindings",
+  "crates/mailcal-ffi",
 ]
 
 # `version` mirrors the top-level `/VERSION` single source of truth (docs/versioning.md). Cargo
