@@ -138,7 +138,8 @@ describe("a draft Thunderbird stored", () => {
     expect(signature).toEqual({
       Signature: {
         body_html: expect.stringContaining("<b>This is my bold signature, pretty cool"),
-        body_plain: expect.stringMatching(/^--\nKind regards, Alice This is my bold signature/),
+        // One line as the HTML draws it, whatever the source's own line breaks and indentation.
+        body_plain: "--\nKind regards, Alice This is my bold signature, pretty cool right?",
       },
     });
   });
@@ -158,7 +159,7 @@ describe("a draft Thunderbird stored", () => {
       {
         Signature: {
           body_html: expect.stringContaining("<b>This is my bold signature, pretty cool right?</b>"),
-          body_plain: expect.stringMatching(/^--\nKind regards,/),
+          body_plain: "--\nKind regards, Alice This is my bold signature, pretty cool right?",
         },
       },
     ]);
