@@ -17,7 +17,9 @@
 //! Every step starts as soon as what it waits for has passed and the cargo build directory it
 //! holds is free ([`crate::gate_sched`]), so the run takes as long as its longest chain of
 //! dependent steps rather than all of them added together. The first failure stops the rest,
-//! running ones included, unless `--keep-going` is given. A step's output goes to its own log under
+//! running ones included, unless `--keep-going` is given: a running step's processes are ended
+//! with everything they started, and the summary names the failure that stopped it, so the one
+//! red line is the step that failed. A step's output goes to its own log under
 //! `target/gate/`, and the console shows a line as each starts and ends, the whole log of one that
 //! failed, and a summary.
 //!

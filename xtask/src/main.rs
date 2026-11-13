@@ -43,6 +43,7 @@ mod gate;
 mod gate_clients;
 mod gate_exec;
 mod gate_json;
+mod gate_kill;
 mod gate_sched;
 mod gate_steps;
 mod gate_testrun;

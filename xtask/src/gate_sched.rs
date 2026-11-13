@@ -27,6 +27,7 @@ use std::{
 use crate::{
     gate::{Outcome, Palette, Step},
     gate_exec::{Timings, as_typed},
+    gate_kill::kill_tree,
     gate_testrun::Build,
 };
 
@@ -113,6 +114,8 @@ pub(crate) struct Ctx {
     /// This job's log.
     log: PathBuf,
     cancel: Arc<AtomicBool>,
+    /// Whether the gate ended one of this job's processes, so its failure is not its own.
+    stopped: AtomicBool,
     colour: bool,
     builds: Arc<Mutex<HashMap<&'static str, Build>>>,
 }
@@ -170,11 +173,17 @@ impl Ctx {
         self.finish(spawned)
     }
 
-    /// Whether `child` has exited, killing it first when the gate has given up.
+    /// Whether the gate has given up, so a job starts nothing more.
+    pub(crate) fn stopping(&self) -> bool {
+        self.cancel.load(Ordering::Relaxed)
+    }
+
+    /// Whether `child` has exited, ending it and everything under it first when the gate has
+    /// given up.
     pub(crate) fn poll(&self, child: &mut Child) -> Option<Result<ExitStatus, ()>> {
-        if self.cancel.load(Ordering::Relaxed) {
-            let _ = child.kill();
-            let _ = child.wait();
+        if self.stopping() {
+            kill_tree(child);
+            self.stopped.store(true, Ordering::Relaxed);
             return Some(Err(()));
         }
         match child.try_wait() {
@@ -271,9 +280,10 @@ pub(crate) fn run(
     let mut state: Vec<State> = labels.iter().map(|_| State::Waiting).collect();
     let mut held: HashMap<&'static str, JobId> = HashMap::new();
     let mut timings = Timings::new();
-    let (tx, rx) = mpsc::channel::<(JobId, Outcome)>();
+    let (tx, rx) = mpsc::channel::<(JobId, Outcome, bool)>();
     let started = Instant::now();
-    let mut halted = false;
+    // The job whose failure stopped the rest, unless the gate keeps going.
+    let mut halted: Option<JobId> = None;
     let mut last_beat = Instant::now();
 
     loop {
@@ -283,10 +293,10 @@ pub(crate) fn run(
                 State::Done(outcome) => !matches!(outcome, Outcome::Pass),
                 _ => false,
             });
-            if halted {
+            if let Some(by) = halted {
                 pending[id] = None;
-                state[id] =
-                    State::Done(Outcome::Skip("not run: an earlier step failed".to_owned()));
+                let why = format!("not run: \"{}\" failed", labels[by]);
+                state[id] = State::Done(Outcome::Skip(why));
                 continue;
             }
             if let Some(&dep) = blocked_by {
@@ -313,6 +323,7 @@ pub(crate) fn run(
                 root: root.to_path_buf(),
                 log: logs.join(format!("{id:02}-{}.log", slug(&job.label))),
                 cancel: Arc::clone(&cancel),
+                stopped: AtomicBool::new(false),
                 colour,
                 builds: Arc::clone(&builds),
             };
@@ -320,7 +331,7 @@ pub(crate) fn run(
             let work = job.work;
             std::thread::spawn(move || {
                 let outcome = work(&ctx);
-                let _ = tx.send((id, outcome));
+                let _ = tx.send((id, outcome, ctx.stopped.load(Ordering::Relaxed)));
             });
         }
 
@@ -331,16 +342,22 @@ pub(crate) fn run(
             break;
         }
         match rx.recv_timeout(Duration::from_millis(500)) {
-            Ok((id, outcome)) => {
+            Ok((id, outcome, stopped)) => {
                 held.retain(|_, holder| *holder != id);
+                let outcome = match (outcome, halted) {
+                    (Outcome::Fail, Some(by)) if stopped => {
+                        Outcome::Skip(format!("stopped: \"{}\" failed", labels[by]))
+                    }
+                    (outcome, _) => outcome,
+                };
                 if let State::Running(since) = state[id] {
                     timings.insert(labels[id].clone(), since.elapsed());
                 }
                 let failed = matches!(outcome, Outcome::Fail | Outcome::Need(_));
                 report(&labels[id], &outcome, &timings, &logs, id, palette);
                 state[id] = State::Done(outcome);
-                if failed && !keep_going && !halted {
-                    halted = true;
+                if failed && !keep_going && halted.is_none() {
+                    halted = Some(id);
                     cancel.store(true, Ordering::Relaxed);
                 }
             }

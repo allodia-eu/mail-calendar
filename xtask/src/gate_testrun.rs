@@ -197,7 +197,7 @@ pub(crate) fn run(
     let mut passed = 0usize;
     let mut next = queue.into_iter();
     loop {
-        while running.len() < slots {
+        while running.len() < slots && !ctx.stopping() {
             let Some(test) = next.next() else { break };
             let log = dir.join(format!("{}-{}.log", test.package, test.name));
             let mut command = command_for(test, &build, &tmp, wrap);
