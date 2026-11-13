@@ -124,7 +124,11 @@ connect; the account's page offers the same step later. Both are changes on the 
 the step is over once the core draws none. **While Connect or Skip runs, a spinner turns beside
 the button pressed** and the controls hold still. A connect can take half a minute, because the mailbox's calendar and contacts
 move to the new account and the mailbox is dialled again, and a form that only greys its controls
-for that long reads as one that hangs. The account page's form does the same.
+for that long reads as one that hangs. The account page's form does the same. Its fields are a
+sign-in like setup's own: the password field is marked as a password, so a platform that offers
+to keep a typed password in its password manager (iOS's Passwords) may offer it here as it does
+there. The offer is the person's to take or decline; the app itself keeps
+the password only in the platform keystore, with the account.
 
 ## After the connect: linking another account
 
