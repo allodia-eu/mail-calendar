@@ -10,9 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use fakes::{FakeProvider, account, app};
 
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The emails of the configured accounts, in switcher order.
 async fn switcher(app: &crate::App<FakeProvider>) -> Vec<String> {

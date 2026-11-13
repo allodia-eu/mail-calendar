@@ -12,11 +12,7 @@ use engine_core::mail::{Keyword, SystemKeyword};
 use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, message, msg, open_folder};
 
-use crate::{Intent, ReaderId, SearchScope};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{Intent, ReaderId, SearchScope, tests_fakes as fakes};
 
 /// Every read the agent surface can perform, run against one fixture.
 async fn run_every_read(app: &crate::App<FakeProvider>, account_id: &AccountId) {

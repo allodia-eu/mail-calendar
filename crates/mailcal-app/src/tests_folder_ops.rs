@@ -13,11 +13,8 @@ use mailcal_viewmodel::{FolderAction, FolderProblem, FolderRow};
 use crate::{
     FolderIntent, Intent,
     reference::{FolderRef, RowRef},
+    tests_fakes as fakes,
 };
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
 
 const ACCOUNT: &str = "acct-1";
 

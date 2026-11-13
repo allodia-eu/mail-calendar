@@ -13,10 +13,7 @@ use fakes::{
 use mailcal_viewmodel::ViewMode;
 
 use super::{Intent, Surface};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn archive_moves_the_message_to_the_archive_folder() {

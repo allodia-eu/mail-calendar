@@ -17,11 +17,9 @@ use engine_provider::MailEdit;
 use fakes::{EditGate, FakeProvider, account, app, message, msg};
 use mailcal_viewmodel::{MailboxListSnapshot, SnapshotRow};
 
-use crate::{App, BulkAction, Intent, MailActionError, RowRef, SendActionError};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{
+    App, BulkAction, Intent, MailActionError, RowRef, SendActionError, tests_fakes as fakes,
+};
 
 #[tokio::test]
 async fn an_action_on_an_unconfigured_account_says_so() {

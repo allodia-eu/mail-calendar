@@ -8,10 +8,7 @@ use fakes::{FakeProvider, account, app, app_with_prefs};
 use mailcal_viewmodel::{DefaultMailAppOutcome, DefaultMailAppSupport};
 
 use super::Surface;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A preferences file of this test's own, so one test's stored answer cannot decide another's.
 fn prefs(name: &str) -> std::path::PathBuf {

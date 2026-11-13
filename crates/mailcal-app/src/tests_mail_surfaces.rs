@@ -5,9 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use fakes::{CalendarFake, calendar_account, calendar_app};
 
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn an_account_without_mail_is_in_no_mail_surface() {

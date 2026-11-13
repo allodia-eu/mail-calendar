@@ -20,10 +20,7 @@ use fakes::{FakeProvider, account, app, unthreaded};
 use mailcal_viewmodel::{MailboxListSnapshot, SnapshotRow};
 
 use super::Intent;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A reply that arrives in a **later** sync than the message it answers must join that
 /// conversation, leaving the mailbox one threaded row: not a fresh one-message thread beside it.

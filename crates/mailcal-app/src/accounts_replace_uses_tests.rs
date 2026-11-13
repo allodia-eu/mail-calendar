@@ -6,11 +6,7 @@ use std::sync::{Arc, Mutex};
 use engine_api::AccountId;
 use fakes::{CalendarFake, calendar_account, calendar_app};
 
-use crate::{Unanswered, UsesReplaced};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{Unanswered, UsesReplaced, tests_fakes as fakes};
 
 #[tokio::test]
 async fn new_uses_keep_the_mailbox_the_account_already_has() {

@@ -15,11 +15,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 use fakes::{CalendarFake, calendar_account, calendar_app, calendar_app_on, event_from_today};
 use mailcal_viewmodel::calendar::days::date_at;
 
-use crate::Surface;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{Surface, tests_fakes as fakes};
 
 /// Today's date, in UTC: the anchor the fixtures are built around.
 fn today() -> engine_api::CalendarDate {

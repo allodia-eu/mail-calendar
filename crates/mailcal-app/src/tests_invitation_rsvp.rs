@@ -13,10 +13,7 @@ use engine_provider::RsvpResponse;
 use fakes::{ALIAS, InvitationFake, MESSAGE_KEY, invitation_app};
 
 use super::{CalendarWriteStatus, Intent, InvitationResponse, MessageRef, ReaderId};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The message the invitation arrived in, named the way a client names it.
 fn invite() -> MessageRef {

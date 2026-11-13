@@ -11,12 +11,10 @@ use fakes::{FakeProvider, account, app, flat_subjects};
 
 use super::{Intent, Surface};
 use crate::Account;
-
 // The shared fixtures are also included by `tests.rs`; each test file compiles them into its
-// own module tree, which is intentional (they share no state); silence the duplicate-load lint.
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+// own module tree, which is intentional (they share no state); silence the duplicate-load
+// lint.
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn offline_refresh_renders_cache_without_syncing() {

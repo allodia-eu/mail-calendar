@@ -9,10 +9,7 @@ use fakes::{FakeProvider, account, app, app_with_prefs};
 use mailcal_viewmodel::SignatureSlotKind;
 
 use super::Surface;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A fresh, empty app-data directory for one test, and the preferences path inside it (the
 /// signature library is its sibling, derived by `App::new`).

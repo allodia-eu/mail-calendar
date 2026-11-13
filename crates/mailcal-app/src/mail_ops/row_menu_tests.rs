@@ -12,11 +12,7 @@ use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, msg, thread_ref, threaded};
 use mailcal_viewmodel::{MessageKind, RowAction, RowMenu, ViewMode};
 
-use crate::{App, BulkAction, Intent, MessageRef, RowRef};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "../tests_fakes.rs"]
-mod fakes;
+use crate::{App, BulkAction, Intent, MessageRef, RowRef, tests_fakes as fakes};
 
 /// One message on thread `t`, in `mailbox`, at minute `minute`, of `kind`; `marks` holds `u`
 /// for unread and `f` for flagged, and anything without `u` is read.
