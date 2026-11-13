@@ -72,6 +72,10 @@ final class RichComposerEditor: NSObject {
     /// been seeded, the "nothing written yet" baseline `bodyChangedFromSeed()` compares against.
     /// `nil` until the editor is ready, at which point nothing can have been typed into it.
     private var seedDocument: String?
+    /// The editor's change count as the seeds left it, the baseline the autosave compares every
+    /// sample against (`EditorRevisionWatch`). `nil` until every seed is in; `-1` when the count
+    /// could not be read then.
+    private(set) var seedRevision: Int?
 
     /// The editor's request channel.
     var hostChannel: ComposerHostChannel { host.channel }
@@ -186,10 +190,10 @@ final class RichComposerEditor: NSObject {
         host.evaluate("window.setComposerSignature(\(argument))")
     }
 
-    // Snapshot the document as the "nothing written yet" baseline, then, for a reply/forward:
-    // put the caret in the body. Focusing after the snapshot, never before: moving the caret must
-    // not be mistaken for the user having typed, or a reply would open already dirty and prompt to
-    // discard on close.
+    // Snapshot the document and the change count as the "nothing written yet" baselines, then, for
+    // a reply/forward: put the caret in the body. Focusing after both, never before: moving the
+    // caret must not be mistaken for the user having typed, or a reply would open already dirty,
+    // prompt to discard on close and be saved by the idle timer.
     private func captureSeed() {
         documentJSON { [weak self] result in
             if case let .success(document) = result {
@@ -198,8 +202,11 @@ final class RichComposerEditor: NSObject {
                     self?.storedQuoteStyle = ComposeOpeningSeed.quoteStyle(ofDocument: document)
                 }
             }
-            if self?.focusBodyOnLoad == true {
-                self?.focusBody()
+            self?.host.evaluate("window.composerRevision()") { value, _ in
+                self?.seedRevision = (value as? NSNumber)?.intValue ?? -1
+                if self?.focusBodyOnLoad == true {
+                    self?.focusBody()
+                }
             }
         }
     }
@@ -227,12 +234,11 @@ final class RichComposerEditor: NSObject {
     /// Sampled rather than pushed: the page has no channel back to this host, so the bundle counts
     /// its own mutations and the host reads the count. What it is for is telling a composer still
     /// being typed in from one that has gone quiet, which is what decides when a draft is saved
-    /// (`docs/drafts.md`). `0` while the bundle is still loading, which is also its starting
-    /// value, so nothing reads as an edit before there is one.
+    /// (`docs/drafts.md`). `-1` when it cannot be read, which `EditorRevisionWatch` ignores.
     func revision() async -> Int {
         await withCheckedContinuation { continuation in
             host.evaluate("window.composerRevision()") { value, _ in
-                continuation.resume(returning: (value as? NSNumber)?.intValue ?? 0)
+                continuation.resume(returning: (value as? NSNumber)?.intValue ?? -1)
             }
         }
     }

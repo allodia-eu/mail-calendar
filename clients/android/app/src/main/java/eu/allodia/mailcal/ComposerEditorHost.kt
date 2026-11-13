@@ -163,9 +163,10 @@ internal fun WebView.configureComposerWebView(
     dark: () -> Boolean,
     onScroll: (Int) -> Unit,
     // The document as it stood once the seeds were in, the "nothing written yet" baseline the
-    // discard prompt compares against (the macOS/Windows rule). Null if the editor
-    // never answered, which reads as "no draft to lose".
-    onSeeded: (String?) -> Unit = {},
+    // discard prompt compares against (the macOS/Windows rule), null if the editor never answered,
+    // which reads as "no draft to lose"; and the change count the seeds left, the autosave's
+    // baseline ([EditorRevisionWatch]), -1 if it could not be read.
+    onSeeded: (document: String?, revision: Int) -> Unit = { _, _ -> },
 ) {
     // The shared hardening (EditorWebView.kt), the same gates the Settings signature editor gets.
     applyEditorSecuritySettings()
@@ -186,12 +187,17 @@ internal fun WebView.configureComposerWebView(
                 view?.evaluateJavascript(script, null)
             }
             view?.announceComposerHost()
-            // Snapshot the seeded document as the discard prompt's baseline. Queued AFTER the
-            // seeds (the WebView runs these in order) so a reply that merely carries its quoted
-            // original and a signature does not open already "dirty", and BEFORE the focus call,
-            // for the same reason: moving the caret is not the user having written something.
+            // Snapshot the seeded document and the change count as the baselines. Queued AFTER the
+            // seeds (the WebView runs these in order, and answers them in order) so a reply that
+            // merely carries its quoted original and a signature does not open already "dirty"
+            // or save itself, and BEFORE the focus call, for the same reason: moving the caret is
+            // not the user having written something.
+            var seededDocument: String? = null
             view?.evaluateJavascript("composerDocument()") { encoded ->
-                onSeeded(decodeJsString(encoded))
+                seededDocument = decodeJsString(encoded)
+            }
+            view?.evaluateJavascript("window.composerRevision()") { encoded ->
+                onSeeded(seededDocument, encoded?.toIntOrNull() ?: -1)
             }
             if (focusBody) {
                 view?.focusEditorAndShowKeyboard()
@@ -221,7 +227,7 @@ internal fun ComposerEditorView(
     topInsetDp: () -> Float,
     signature: () -> String?,
     onScroll: (Int) -> Unit,
-    onSeeded: (String?) -> Unit,
+    onSeeded: (document: String?, revision: Int) -> Unit,
     onReady: (WebView) -> Unit,
 ) {
     val dark = LocalAppDark.current

@@ -86,14 +86,14 @@ struct ComposerDraftSavingModifier: ViewModifier {
     private func watchTheEditor() async {
         guard drafts != nil else { return }
         let sample = Duration.seconds(max(1, draftAutosaveIdleSeconds() / 3))
-        var seen = await editor.revision()
+        var watch = EditorRevisionWatch()
         while !Task.isCancelled {
             try? await Task.sleep(for: sample)
             guard !Task.isCancelled else { return }
             let now = await editor.revision()
-            guard now != seen else { continue }
-            seen = now
-            changes &+= 1
+            if watch.changed(now: now, seeded: editor.seedRevision) {
+                changes &+= 1
+            }
         }
     }
 
@@ -107,6 +107,27 @@ struct ComposerDraftSavingModifier: ViewModifier {
         try? await Task.sleep(for: .seconds(draftAutosaveIdleSeconds()))
         guard !Task.isCancelled else { return }
         save()
+    }
+}
+
+/// What the autosave makes of the editor's change count.
+///
+/// The baseline is the count the seeds left (`RichComposerEditor.seedRevision`), never a sample:
+/// one read before the seeds are in counts the quote and the signature as an edit, so a composer
+/// nobody touched would be saved, and one read on a later sample takes in whatever was typed
+/// first, so a short reply written straight after opening would not be (`docs/drafts.md`).
+struct EditorRevisionWatch {
+    private var seen: Int?
+
+    /// Takes in one sample, `now`, and answers whether the message changed since the last one.
+    /// `seeded` is the count the seeds left: `nil` while they are still going in, when no sample
+    /// counts, and `-1` when it could not be read, when the first readable sample is the baseline.
+    /// A sample of `-1` could not be read and changes nothing.
+    mutating func changed(now: Int, seeded: Int?) -> Bool {
+        guard let seeded, now >= 0 else { return false }
+        let previous = seen ?? (seeded >= 0 ? seeded : now)
+        seen = now
+        return now != previous
     }
 }
 

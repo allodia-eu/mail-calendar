@@ -41,6 +41,7 @@ mod composer_pop_out;
 mod composer_prefill;
 mod composer_quote;
 mod composer_quote_style;
+mod composer_revision;
 mod composer_scheme;
 mod composer_share;
 mod composer_signature;
