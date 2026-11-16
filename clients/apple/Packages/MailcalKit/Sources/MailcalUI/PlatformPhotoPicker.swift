@@ -1,0 +1,86 @@
+// Choosing pictures and films from the photo library on iPhone and iPad.
+//
+// The document picker that attaches a file does not reach the photo library: it lists Files'
+// locations, and a photograph is in none of them. So Attach and a signature's Add image offer the
+// library beside it, as the system's own picker, which runs in a process of its own and hands over
+// only what was chosen. No library permission is asked for, and none is needed.
+
+#if os(iOS)
+import Foundation
+import MailcalShareBox
+import PhotosUI
+import UIKit
+
+/// The system photo picker, answering with copies of what was chosen. Retains itself while it is on
+/// screen, as `PlatformFilePicker` does.
+@MainActor
+final class PlatformPhotoPicker: NSObject, PHPickerViewControllerDelegate {
+    private static var active: PlatformPhotoPicker?
+    private let onPick: (PhotoPick) -> Void
+    private init(onPick: @escaping (PhotoPick) -> Void) { self.onPick = onPick }
+
+    /// Presents the picker. `limit` is how many may be chosen, 0 for any number.
+    static func present(
+        filter: PHPickerFilter, limit: Int, onPick: @escaping (PhotoPick) -> Void
+    ) {
+        guard let host = topPresentedViewController() else { return }
+        let picker = PlatformPhotoPicker(onPick: onPick)
+        active = picker
+        let controller = PHPickerViewController(configuration: configuration(filter: filter, limit: limit))
+        controller.delegate = picker
+        host.present(controller, animated: true)
+    }
+
+    /// The picker's configuration, separate so a test can read it.
+    ///
+    /// **Compatible**, not current: a photograph the camera took as HEIC is handed over as a JPEG,
+    /// as Apple's own Mail attaches it. A recipient on another platform may have nothing that opens
+    /// HEIC, and the composer's tile previews only what every client decodes.
+    static func configuration(filter: PHPickerFilter, limit: Int) -> PHPickerConfiguration {
+        var configuration = PHPickerConfiguration()
+        configuration.filter = filter
+        configuration.selectionLimit = limit
+        configuration.selection = .ordered
+        configuration.preferredAssetRepresentationMode = .compatible
+        return configuration
+    }
+
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        // Unlike the document picker, this one stays up until it is told to go.
+        picker.dismiss(animated: true)
+        let providers = results.map(\.itemProvider)
+        let onPick = onPick
+        Self.active = nil
+        guard !providers.isEmpty else { return }
+        Task { @MainActor in
+            onPick(await PhotoPick.copy(providers))
+        }
+    }
+}
+
+/// What came back from the photo picker: the copies made, and the names of what could not be
+/// copied, so a picture that is not on this device and could not be downloaded is named rather than
+/// silently left out.
+struct PhotoPick {
+    var files: [URL] = []
+    var failed: [String] = []
+
+    /// Copies each chosen item into a directory of its own under the app's temporary directory,
+    /// where the document picker leaves its copies too: the core reads the file again at Send.
+    @MainActor
+    static func copy(_ providers: [NSItemProvider]) async -> PhotoPick {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("picked-photos", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        var pick = PhotoPick()
+        for provider in providers {
+            if let url = await ProvidedFile.copy(provider, into: directory) {
+                pick.files.append(url)
+            } else {
+                pick.failed.append(provider.suggestedName ?? "")
+            }
+        }
+        return pick
+    }
+}
+#endif

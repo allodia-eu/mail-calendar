@@ -61,9 +61,15 @@ final class ComposerUndoTests: XCTestCase {
     private func openComposer() -> (XCUIApplication, XCUIElement) {
         let app = ShowcaseApp.launch()
         ShowcaseApp.showMailbox(app)
+        ShowcaseApp.attachHardwareKeyboard(app)
         ShowcaseApp.tap(app.buttons["New Mail"])
         let web = app.webViews.firstMatch
-        XCTAssertTrue(web.waitForExistence(timeout: ShowcaseApp.timeout), "the composer drew no editor")
+        // The message's own text view, not the web view: the view exists before its page has
+        // loaded, and a tap on a page with no editor in it focuses nothing.
+        XCTAssertTrue(
+            web.textViews.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout),
+            "the composer drew no editor"
+        )
         return (app, web)
     }
 

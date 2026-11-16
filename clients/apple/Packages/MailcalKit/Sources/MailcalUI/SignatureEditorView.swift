@@ -12,6 +12,9 @@ import MailcalBindings
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
+#if os(iOS)
+import PhotosUI
+#endif
 
 /// The cap on an embedded signature image, in bytes. A signature rides in **every** message the
 /// account sends, so a 5 MB logo is 5 MB per mail, and base64 adds a third on top. 512 KB is
@@ -194,13 +197,9 @@ struct SignatureEditorView: View {
                 .frame(minHeight: 200)
                 .border(.quaternary)
             HStack {
-                Button {
-                    chooseImage()
-                } label: {
-                    Label(L10n.settings_signatures_insert_image(), systemImage: "photo")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+                insertImageControl
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 Spacer()
             }
             if let imageError {
@@ -231,6 +230,34 @@ struct SignatureEditorView: View {
             guard let result else { return }
             save(name.trimmingCharacters(in: .whitespacesAndNewlines), result.html, result.plain)
         }
+    }
+
+    /// Add image. On iPhone and iPad a menu, because a logo is as likely to be in the photo
+    /// library as in Files, and the document picker cannot reach the library.
+    @ViewBuilder private var insertImageControl: some View {
+        #if os(macOS)
+        Button {
+            chooseImage()
+        } label: {
+            Label(L10n.settings_signatures_insert_image(), systemImage: "photo")
+        }
+        #else
+        Menu {
+            Button(L10n.action_attach_photo_library(), systemImage: "photo.on.rectangle") {
+                imageError = nil
+                PlatformPhotoPicker.present(filter: .images, limit: 1) { pick in
+                    if let url = pick.files.first {
+                        insert(url)
+                    } else if !pick.failed.isEmpty {
+                        imageError = L10n.settings_signatures_image_failed()
+                    }
+                }
+            }
+            Button(L10n.action_attach_from_files(), systemImage: "folder") { chooseImage() }
+        } label: {
+            Label(L10n.settings_signatures_insert_image(), systemImage: "photo")
+        }
+        #endif
     }
 
     private func chooseImage() {
