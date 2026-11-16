@@ -3,8 +3,11 @@
 //!
 //! The core holds the list. A tile is drawn from what it answers and nothing is kept here: the
 //! picker, a drop and a paste add through [`FileTiles::add`], a tile's Remove takes its file off,
-//! and each redraws from the list the call answered with. Every save and the send read the same
-//! list in the core, so the file on screen and the file that goes out cannot differ.
+//! and each redraws from the list the core holds. Every save and the send read the same list in
+//! the core, so the file on screen and the file that goes out cannot differ.
+//!
+//! An add reads each file's size and first bytes, which on a network mount can take seconds, so
+//! it runs on a worker (`docs/waiting.md`); a remove and a read only take the core's lock.
 
 use std::{
     rc::{Rc, Weak},
@@ -12,6 +15,7 @@ use std::{
 };
 
 use adw::prelude::*;
+use gtk::{gio, glib};
 use mailcal_bindings::{
     ComposerFileAttachment, ComposerFileTile, ComposerFiles, MailcalApp, MailcalError,
 };
@@ -26,8 +30,9 @@ const TILE_WIDTH: i32 = 220;
 const MOST_COLUMNS: u32 = 6;
 
 /// The core's three calls on a composition's files. A trait so the tiles and the routes into them
-/// can be built in a test with no core behind them.
-pub(crate) trait ComposerFileStore {
+/// can be built in a test with no core behind them; `Send` and `Sync`, because an add runs on a
+/// worker.
+pub(crate) trait ComposerFileStore: Send + Sync {
     fn files(&self, composition: String) -> Result<ComposerFiles, MailcalError>;
     fn add(
         &self,
@@ -99,7 +104,9 @@ impl FileTiles {
         &self.block
     }
 
-    /// Attaches `files` after what the composition holds, and redraws.
+    /// Attaches `files` after what the composition holds, on a worker, and redraws once they
+    /// are in. The redraw reads the list as it stands then rather than the add's own answer: two
+    /// adds can finish in either order, and the later answer drawn last is the whole list.
     pub(crate) fn add(self: &Rc<Self>, files: Vec<ComposerFileAttachment>) {
         if files.is_empty() {
             return;
@@ -107,9 +114,16 @@ impl FileTiles {
         let Some(store) = &self.store else {
             return;
         };
-        if let Ok(answer) = store.add(self.composition.clone(), files) {
-            self.draw(&answer);
-        }
+        let store = Arc::clone(store);
+        let composition = self.composition.clone();
+        // Weak: a composer closed while the files are read has nothing to redraw.
+        let tiles: Weak<Self> = Rc::downgrade(self);
+        glib::MainContext::default().spawn_local(async move {
+            let added = gio::spawn_blocking(move || store.add(composition, files).is_ok()).await;
+            if let (Ok(true), Some(tiles)) = (added, tiles.upgrade()) {
+                tiles.draw(&tiles.current());
+            }
+        });
     }
 
     fn remove(self: &Rc<Self>, file: String) {

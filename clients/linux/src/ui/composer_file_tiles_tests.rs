@@ -133,6 +133,19 @@ pub(crate) fn file(name: &str) -> ComposerFileAttachment {
     }
 }
 
+/// Runs the main loop until `tiles` shows `count` tiles: an add reads its files on a worker and
+/// redraws once they are in.
+pub(crate) fn drawn(tiles: &FileTiles, count: usize) {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while tiles_on_screen(tiles).len() != count {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "{count} tiles never drawn"
+        );
+        gtk::glib::MainContext::default().iteration(false);
+    }
+}
+
 fn tiles_on_screen(tiles: &FileTiles) -> Vec<gtk::Box> {
     descendants::<gtk::Box>(tiles.widget().upcast_ref())
         .into_iter()
@@ -171,6 +184,7 @@ pub(crate) fn a_tile_names_its_file_and_its_remove_goes_through_the_core() {
         file_name: "quarterly report for the board.pdf".to_owned(),
         media_type: "application/pdf".to_owned(),
     }]);
+    drawn(&tiles, 2);
     let drawn = tiles_on_screen(&tiles);
     assert_eq!(drawn.len(), 2);
     assert!(tiles.current().changed);
@@ -226,6 +240,7 @@ pub(crate) fn a_tile_draws_its_remove_from_the_cores_state() {
     let tiles = FileTiles::new(Some(Arc::clone(&store) as Arc<dyn ComposerFileStore>), "c");
     assert!(!tiles.widget().is_visible(), "no files, no row");
     tiles.add(vec![file("plan.pdf")]);
+    drawn(&tiles, 1);
     assert!(tiles.widget().is_visible());
     let remove = descendants::<gtk::Button>(tiles.widget().upcast_ref())
         .into_iter()
@@ -269,6 +284,7 @@ pub(crate) fn a_tile_shows_its_picture_or_the_glyph_under_a_summary() {
         attach(&photo, "image/png"),
         attach(&notes, "text/plain"),
     ]);
+    drawn(&tiles, 2);
 
     let total = std::fs::metadata(&photo).expect("saved").len() + 1000;
     let summary = descendants::<gtk::Label>(tiles.widget().upcast_ref())

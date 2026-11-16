@@ -207,3 +207,14 @@ fn a_request_read_again_seeds_only_a_list_that_is_not_there_yet() {
         "the staged file is what it opened with"
     );
 }
+
+#[test]
+fn a_remove_for_a_composition_that_has_gone_starts_no_list() {
+    // A Remove pressed as the message was sent or discarded reaches a composition the core has
+    // forgotten; it must not start one again, empty, for the rest of the process.
+    let lists = ComposerFileLists::default();
+    let c = composition("gone");
+    let answer = lists.remove(&c, "file-0");
+    assert!(answer.tiles.is_empty());
+    assert!(!lists.lock().contains_key(&c));
+}

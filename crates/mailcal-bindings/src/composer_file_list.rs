@@ -80,20 +80,47 @@ struct FileList {
     next: u64,
 }
 
-impl FileList {
-    fn add(&mut self, files: Vec<ComposerFileAttachment>) {
-        for file in files {
+/// A file as it is read for the list, before it has an id. Read before the lock is taken: its
+/// size and first bytes come off a disk that may be a slow network mount, and every composer's
+/// list waits on that lock.
+#[derive(Debug)]
+struct ReadFile {
+    path: String,
+    file_name: String,
+    media_type: String,
+    size: Option<u64>,
+    picture: bool,
+}
+
+fn read_files(files: Vec<ComposerFileAttachment>) -> Vec<ReadFile> {
+    files
+        .into_iter()
+        .map(|file| {
             let file_name = safe_file_name(&file.file_name, &file.path);
             let media_type = safe_media_type(&file.media_type, &file_name);
             let size = std::fs::metadata(&file.path).ok().map(|meta| meta.len());
             let picture = is_raster_picture(Path::new(&file.path));
-            self.files.push(HeldFile {
-                id: FileId(self.next),
+            ReadFile {
                 path: file.path,
                 file_name,
                 media_type,
                 size,
                 picture,
+            }
+        })
+        .collect()
+}
+
+impl FileList {
+    fn add(&mut self, files: Vec<ReadFile>) {
+        for file in files {
+            self.files.push(HeldFile {
+                id: FileId(self.next),
+                path: file.path,
+                file_name: file.file_name,
+                media_type: file.media_type,
+                size: file.size,
+                picture: file.picture,
             });
             self.next += 1;
         }
@@ -133,7 +160,7 @@ impl ComposerFileLists {
     /// Starts `composition`'s list holding `files`, which is what it counts as unchanged.
     pub(crate) fn open(&self, composition: &CompositionId, files: Vec<ComposerFileAttachment>) {
         let mut list = FileList::default();
-        list.add(files);
+        list.add(read_files(files));
         list.opened_with = list.files.iter().map(|file| file.id.0).collect();
         self.lock().insert(composition.clone(), list);
     }
@@ -156,16 +183,21 @@ impl ComposerFileLists {
         composition: &CompositionId,
         files: Vec<ComposerFileAttachment>,
     ) -> ComposerFiles {
+        let files = read_files(files);
         let mut lists = self.lock();
         let list = lists.entry(composition.clone()).or_default();
         list.add(files);
         list.snapshot()
     }
 
-    /// Takes the file off the list. An id the list does not hold changes nothing.
+    /// Takes the file off the list. An id the list does not hold changes nothing, and a
+    /// composition that has gone (a Remove pressed as it was sent or discarded) is not started
+    /// again with an empty list.
     pub(crate) fn remove(&self, composition: &CompositionId, file: &str) -> ComposerFiles {
         let mut lists = self.lock();
-        let list = lists.entry(composition.clone()).or_default();
+        let Some(list) = lists.get_mut(composition) else {
+            return FileList::default().snapshot();
+        };
         if let Some(id) = FileId::parse(file) {
             list.files.retain(|held| held.id != id);
         }

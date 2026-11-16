@@ -8,7 +8,10 @@ use std::{cell::RefCell, path::Path, rc::Rc, sync::Arc};
 use adw::prelude::*;
 
 use super::{PictureAnswer, accept_files, install_drop_target, picked_file, sort_drop};
-use crate::ui::composer_file_tiles::{ComposerFileStore, FileTiles, tests::FakeStore};
+use crate::ui::composer_file_tiles::{
+    ComposerFileStore, FileTiles,
+    tests::{FakeStore, drawn},
+};
 
 #[test]
 fn a_dropped_file_carries_the_name_and_media_type_its_mime_part_needs() {
@@ -85,12 +88,8 @@ pub(crate) fn the_drop_target_listens_ahead_of_the_web_view() {
         "/tmp/report.pdf".into(),
         "/tmp/notes.txt".into()
     ]));
+    drawn(&files, 2);
     assert_eq!(store.names(), ["report.pdf", "notes.txt"]);
-    assert_eq!(
-        files.widget().observe_children().n_items(),
-        2,
-        "one tile per file"
-    );
     assert!(!accept(Vec::new()), "nothing to take is not taken");
 }
 
