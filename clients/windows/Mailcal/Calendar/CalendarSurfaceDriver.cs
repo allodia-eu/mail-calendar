@@ -119,9 +119,17 @@ internal sealed class CalendarSurfaceDriver(CalendarSurfaceState state)
     /// week), so a chevron never skips a day the user could not see. It steps from wherever the strip
     /// is, and does not re-align: click <c>&gt;</c> on a Wednesday-to-Tuesday view and you get the next
     /// Wednesday to Tuesday. Anything else would move the grid by an amount the user did not ask for.
+    /// <para>
+    /// "Where the strip is" means where it is going: a press during an earlier step's slide adds to
+    /// that step's landing, so ten quick presses go ten weeks and rest on a day. A press during a
+    /// coast steps from the day the coast is nearest, which is where it would have rested.
+    /// </para>
     /// </remarks>
-    internal void SlideDays(int days, SurfaceMetrics m) =>
-        SnapTo(state.WeekPosition(m) + ((float)days / CalendarUnits.DaysInWeek), m);
+    internal void SlideDays(int days, SurfaceMetrics m)
+    {
+        var from = _current is StripSnap snap ? snap.TargetWeeks : state.NearestDay(m);
+        SnapTo(from + ((float)days / CalendarUnits.DaysInWeek), m);
+    }
 
     /// <summary>Springs the strip to <paramref name="targetWeeks"/>, the one landing this file has.</summary>
     private void SnapTo(float targetWeeks, SurfaceMetrics m)
@@ -177,6 +185,9 @@ internal sealed class CalendarSurfaceDriver(CalendarSurfaceState state)
     {
         private float _displacement = displacement;
         private float _velocity;
+
+        /// <summary>Where this slide lands, in weeks.</summary>
+        internal float TargetWeeks => targetWeeks;
 
         internal override bool Step(
             float dt,
