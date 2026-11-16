@@ -69,6 +69,21 @@ final class RichComposerEditor: NSObject {
     var contentHeight: CGFloat = 0
     /// Where the caret last was, for the composer's column to keep in view.
     var caret: EditorCaret?
+    /// The height of the header drawn over the top of the page on a touch screen, which the page
+    /// keeps clear above the message.
+    @ObservationIgnored private var topInset: CGFloat = 0
+
+    /// Keeps `height` clear at the top of the page for the header over it. Sent again on load, so
+    /// it may be set before the page is there.
+    func setTopInset(_ height: CGFloat) {
+        guard abs(height - topInset) >= 0.5 else { return }
+        topInset = height
+        host.evaluate(Self.topInsetScript(height))
+    }
+
+    private static func topInsetScript(_ height: CGFloat) -> String {
+        "window.setComposerTopInset(\(Double(height)))"
+    }
     /// Files dropped on the message itself, set by `ComposerDropModifier`, which owns what a dropped
     /// file becomes. The web view hands its drops here, so the handler can be set before or after
     /// the web view exists.
@@ -100,20 +115,11 @@ final class RichComposerEditor: NSObject {
             (view as? EditorWebView)?.passesVerticalScroll = true
             #endif
             #if os(iOS)
-            // The document itself must never scroll: the composer's column is the one scroll, and
-            // WebKit moves the document on focus, scrolling the caret into view against a visual
-            // viewport the keyboard accessory bar has just shortened. The result is a formatting
-            // toolbar sliced through the middle the moment the message is tapped.
-            //
-            // Safe because the page runs in its growing mode and the composer sizes the web view
-            // to the content it reports, so there is never anything below the frame to reach.
-            view.scrollView.isScrollEnabled = false
-            view.scrollView.bounces = false
+            // The page is the composer's one scroll on a touch screen, with the header drawn inside
+            // it (`TouchComposerChrome`); the frame already ends at the keyboard, so WebKit is
+            // given no insets of its own to add.
             view.scrollView.contentInsetAdjustmentBehavior = .never
-            // `isScrollEnabled` stops a *finger*, not WebKit: revealing the caret sets
-            // `contentOffset` directly, and that is what moves the toolbar. Pinning the offset is
-            // the part that actually holds.
-            view.scrollView.delegate = self
+            view.scrollView.keyboardDismissMode = .interactive
             #endif
         }
     }
@@ -142,8 +148,15 @@ final class RichComposerEditor: NSObject {
         // the placeholder lives on the editor element's dataset, which replacing the document does
         // not touch, but sending them first matches the other clients' open-time order.
         host.evaluate(ComposerLabels.script())
+        #if os(iOS)
+        // A touch screen's layout: the page scrolls, the header sits in the room the top inset
+        // keeps, and the toolbar rides on the keyboard (`docs/composer-layout.md`, rule 7).
+        host.evaluate("window.useNativeComposerChrome()")
+        if topInset > 0 { host.evaluate(Self.topInsetScript(topInset)) }
+        #else
         // Before the announce, which the page answers with its first height and caret.
         host.evaluate("window.useGrowingComposer()")
+        #endif
         host.channel.announce()
         // One body seed, whichever way the composer was reached. A plain body is assigned as
         // TEXT, never markup (docs/composer-security.md, Gate 11), which matters most for an
@@ -308,18 +321,3 @@ final class RichComposerEditor: NSObject {
         return "window.setPlainText(\(EditorHost.jsString(text)))"
     }
 }
-
-#if os(iOS)
-extension RichComposerEditor: UIScrollViewDelegate {
-    /// Keeps the editor document at its origin.
-    ///
-    /// The page is a flex column that scrolls **inside** `.editor`; the document around it is
-    /// furniture and must not move, or the formatting toolbar slides off the top of the web view
-    /// the moment the message is tapped.
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        if scrollView.contentOffset != .zero {
-            scrollView.contentOffset = .zero
-        }
-    }
-}
-#endif

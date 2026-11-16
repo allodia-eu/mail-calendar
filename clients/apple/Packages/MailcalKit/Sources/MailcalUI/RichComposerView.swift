@@ -7,7 +7,7 @@ import MailcalBindings
 import SwiftUI
 import WebKit
 
-private struct RichComposerWebView: PlatformViewRepresentable {
+struct RichComposerWebView: PlatformViewRepresentable {
     let editor: RichComposerEditor
 
     #if os(macOS)
@@ -30,10 +30,10 @@ private struct RichComposerWebView: PlatformViewRepresentable {
 }
 
 /// The column's padding, around everything in it.
-private let columnPadding: CGFloat = 16
+let columnPadding: CGFloat = 16
 
 /// The gap between the column's sections.
-private let columnSpacing: CGFloat = 12
+let columnSpacing: CGFloat = 12
 
 /// What the rich composer is for: its heading and its signature slot. Every mode exposes editable
 /// To/Cc/Bcc/Subject fields, opened with what the core answered (`ComposeOpening`), so the user
@@ -122,11 +122,11 @@ struct RichComposeView: View {
     private let focusesTo: Bool
     /// The height of everything above the editor in the column, so the editor can take what is
     /// left of the visible part.
-    @State private var aboveEditorHeight: CGFloat = 0
+    @State var aboveEditorHeight: CGFloat = 0
     /// The column's scroll offset and the height of its visible part.
-    @State private var visible = ScrollWindow(offset: 0, height: 0)
+    @State var visible = ScrollWindow(offset: 0, height: 0)
     /// Where the column is scrolled to, which following the caret moves.
-    @State private var scrollPosition = ScrollPosition(edge: .top)
+    @State var scrollPosition = ScrollPosition(edge: .top)
 
     init(
         title: String,
@@ -285,7 +285,14 @@ struct RichComposeView: View {
         // iOS/iPadOS: a full-height sheet with the title + Close/Send in the navigation bar. Close
         // is leaving, so it keeps the draft; Discard is in the action bar (`docs/drafts.md`).
         NavigationStack {
-            composerColumn { EmptyView() }
+            TouchComposerChrome(editor: editor) {
+                VStack(alignment: .leading, spacing: columnSpacing) {
+                    composerHeader
+                    composerNotes
+                    fileTiles
+                }
+                .padding(columnPadding)
+            }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             // The standard Close symbol rather than the word, and Send as the bar's one prominent
@@ -329,65 +336,9 @@ struct RichComposeView: View {
         )
     }
 
-    /// The composer as one column that scrolls as a whole (`docs/composer-layout.md`): `top` and the
-    /// header, the notes, the files, then the message, which grows with its text. Nothing inside it
-    /// scrolls on its own, so every file and every line is reached the same way.
-    ///
-    /// The editor is as tall as `composerEditorHeight` says: its content, or the room the visible
-    /// part leaves under everything above it, whichever is more. It never takes `maxHeight:
-    /// .infinity`, which inside a `ScrollView` is an unbounded web view.
-    private func composerColumn<Top: View>(@ViewBuilder top: () -> Top) -> some View {
-        let top = top()
-        let editorTop = columnPadding + aboveEditorHeight + columnSpacing
-        let room = visible.height - editorTop - columnPadding
-        return ScrollView {
-            VStack(alignment: .leading, spacing: columnSpacing) {
-                VStack(alignment: .leading, spacing: columnSpacing) {
-                    top
-                    composerHeader
-                    composerNotes
-                    fileTiles
-                }
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                    aboveEditorHeight = $0
-                }
-                RichComposerWebView(editor: editor)
-                    .frame(height: composerEditorHeight(contentPx: editor.contentHeight, roomPx: room))
-                    .border(.quaternary)
-            }
-            .padding(columnPadding)
-        }
-        .scrollPosition($scrollPosition)
-        .onScrollGeometryChange(for: ScrollWindow.self) { geometry in
-            ScrollWindow(
-                offset: geometry.contentOffset.y + geometry.contentInsets.top,
-                height: geometry.containerSize.height - geometry.contentInsets.top
-                    - geometry.contentInsets.bottom
-            )
-        } action: { _, window in
-            visible = window
-        }
-        .onChange(of: editor.caret) { _, caret in
-            guard let caret,
-                  let target = composerCaretScroll(
-                      offsetPx: visible.offset,
-                      visiblePx: visible.height,
-                      caretTopPx: editorTop + caret.top,
-                      caretBottomPx: editorTop + caret.bottom
-                  )
-            else { return }
-            scrollPosition.scrollTo(y: target)
-        }
-        #if !os(macOS)
-        // Flicking the message down puts the keyboard away, which is the gesture people already
-        // use to get back to the header without reaching for Done.
-        .scrollDismissesKeyboard(.interactively)
-        #endif
-    }
-
     /// The From/recipient/subject fields, the action bar and the optional quote-style picker:
     /// everything above the editor.
-    @ViewBuilder private var composerHeader: some View {
+    @ViewBuilder var composerHeader: some View {
         // Every control in the composer is bound to its state (`$from`), never to a `Binding` built
         // from closures over `self`. Bound that way, the From pop-up button (macOS, two accounts or
         // more) keeps a closed composer in SwiftUI's graph, and with it the editor, its web view and
@@ -397,6 +348,7 @@ struct RichComposeView: View {
             // personal address is the mistake this setting exists to prevent. Keyed on the
             // *resolved* account, so it doesn't fire when the binding settles on the same one.
             .onChange(of: resolvedFrom) { _, _ in fromAccountChanged() }
+        fieldRule
         // To carries the Cc/Bcc reveal: a chevron that points up while they are open. So the header
         // a message usually needs is From, To, Subject, as Gmail and Thunderbird draw it, and as
         // the Android composer does.
@@ -415,14 +367,18 @@ struct RichComposeView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(L10n.compose_show_cc_bcc())
         }
+        fieldRule
         if showsCcBcc {
             RecipientField(label: L10n.compose_cc(), text: $cc, suggestionsFor: suggestionsFor)
+            fieldRule
             RecipientField(label: L10n.compose_bcc(), text: $bcc, suggestionsFor: suggestionsFor)
+            fieldRule
         }
         // Editable whatever the composer is for. A reply and a forward open with the core's
         // derived `Re:`/`Fwd:` already in it, and renaming a thread here is what the user means by
         // editing it: the field's value is what gets sent.
         TextField(L10n.compose_subject(), text: $subject)
+        fieldRule
         actionBar
         if showsStylePicker {
             Picker(L10n.quote_style_label(), selection: $quoteStyle) {
@@ -442,7 +398,7 @@ struct RichComposeView: View {
 
     /// The prepare-failure note and the draft hint, under the action row: never under the message,
     /// which grows as it is written (`docs/composer-layout.md`, rule 1).
-    @ViewBuilder private var composerNotes: some View {
+    @ViewBuilder var composerNotes: some View {
         if let composerError {
             Text(composerError)
                 .font(.caption)
@@ -477,10 +433,4 @@ struct RichComposeView: View {
             }
         }
     }
-}
-
-/// The column's scroll offset and the height of its visible part, keyboard and bars excluded.
-private struct ScrollWindow: Equatable {
-    let offset: CGFloat
-    let height: CGFloat
 }

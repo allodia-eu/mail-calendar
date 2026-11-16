@@ -44,6 +44,35 @@ final class EditorWebView: HistoryWebView {
             addInteraction(interaction)
             installed = interaction
         }
+        removeFormBar()
+    }
+
+    /// Takes WebKit's form bar (previous, next and Done) off the keyboard.
+    ///
+    /// The editor is one field with nothing to step between, and the bar floats over the bottom of
+    /// the message, hiding the line being typed. WebKit offers no switch for it: the bar is the
+    /// input accessory of its private content view, so that one view is given a subclass that
+    /// answers none. The subclass is made once per WebKit class and shared.
+    private func removeFormBar() {
+        guard let content = scrollView.subviews.first(where: {
+            NSStringFromClass(type(of: $0)).hasPrefix("WKContent")
+        }) else { return }
+        let base: AnyClass = type(of: content)
+        let name = "\(NSStringFromClass(base))_MailcalNoFormBar"
+        if NSStringFromClass(base) == name { return }
+        let subclass: AnyClass? = NSClassFromString(name) ?? {
+            guard let made = objc_allocateClassPair(base, name, 0) else { return nil }
+            let none: @convention(block) (AnyObject) -> UIView? = { _ in nil }
+            class_addMethod(
+                made,
+                #selector(getter: UIResponder.inputAccessoryView),
+                imp_implementationWithBlock(none),
+                "@@:"
+            )
+            objc_registerClassPair(made)
+            return made
+        }()
+        if let subclass { object_setClass(content, subclass) }
     }
 
     /// ⚠️ **iOS WebKit never hands the page another app's HTML as it was written.** It rebuilds it
