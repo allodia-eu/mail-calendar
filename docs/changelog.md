@@ -279,6 +279,7 @@ proves that `/VERSION` does, and that no note claims a version above it.
 
 | Version | Date | What shipped |
 |---|---|---|
+| [0.18.0](changelog/released/0.18.0.md) | 2026-11-16 | A composer's files show a picture of themselves and their total size · The composer lists its files above the message and scrolls as one page · The formatting toolbar stays in view while writing a long message · …29 more |
 | [0.17.0](changelog/released/0.17.0.md) | 2026-11-09 | The calendar grid scrolls and zooms smoothly, and events are drawn as Apple's Calendar draws them · Calendar events are tinted in their calendar's colour on Android and Linux · Calendar events are tinted in their calendar's colour on Windows · …25 more |
 | [0.16.0](changelog/released/0.16.0.md) | 2026-11-06 | Add a Teams or Talk meeting through a connected account · Add a video meeting to an event · Video meetings on Android and Linux · …23 more |
 | [0.15.0](changelog/released/0.15.0.md) | 2026-11-02 | A conversation's menu, its flag and a draft opening anywhere on Android · Shared mailboxes on Android · A conversation's menu on macOS, iPhone and iPad · …24 more |
