@@ -66,6 +66,11 @@ impl<P: Provider> App<P> {
                 self.refresh_account_calendar(acct, account, sync, horizon, &zone)
             }))
             .await;
+        // A Microsoft or Google calendar is fetched inside a window, and the rolling horizon moves
+        // past the one its first sync opened over as the account ages. The engine reopens it when
+        // the horizon has moved (once a day at most) and asks nothing otherwise; one it could not
+        // reach is fetched by the next refresh.
+        self.reach_calendar().await;
         let synced = sync_start.elapsed();
         let rebuild_start = Instant::now();
         // Expanded after every sync rather than beside each, under the lock a widening takes, so a

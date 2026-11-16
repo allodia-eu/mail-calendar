@@ -25,7 +25,7 @@ use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
     sync::{SyncScope, SyncState, SyncUpdate},
-    time::TimeZoneId,
+    time::{Horizon, TimeZoneId},
 };
 use engine_provider::{
     CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
@@ -53,8 +53,9 @@ const GRAPH_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
 };
 
 /// How many days **back** the baked-in fetch window spans. Matches the app's rolling calendar
-/// horizon (`mailcal-app`'s `HORIZON_DAYS_BACK`) so a freshly connected provider covers it. The
-/// window reaches only the first sync: the `deltaLink` it returns carries that window from then on
+/// horizon (`mailcal-app`'s `HORIZON_DAYS_BACK`). The engine names the window every event fetch
+/// opens over (the horizon at the first sync, the range a page reaches for after it), so this one
+/// serves only a caller that drives `sync_events` itself; the adapter takes one regardless
 /// (`docs/calendar.md` §4).
 const WINDOW_DAYS_BACK: i64 = 120;
 
@@ -110,6 +111,9 @@ impl RefreshingGraphCalendarProvider {
                 // not be told this account needs client-side iMIP, which would have it send a
                 // second, duplicate answer.
                 .with_calendar_scheduling()
+                // The engine names the window a snapshot opens over, and reads this before the
+                // first token fetch too: told the fetch is whole, it would never fetch a range.
+                .with_windowed_events()
                 // Graph lists no shared store and answers for an address, whichever store this
                 // provider is bound to.
                 .with_shared_accounts(SharedAccounts::ByAddress),
@@ -228,6 +232,34 @@ impl Provider for RefreshingGraphCalendarProvider {
         let mut reconnected = false;
         loop {
             match provider.sync_events(account, calendar, cursor).await {
+                Ok(value) => return Ok(value),
+                Err(err) if !reconnected && should_reconnect(&err) => {
+                    self.invalidate_delegate();
+                    provider = self.delegate().await?;
+                    reconnected = true;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    /// Forwarded by hand like every verb here: left to the trait's default it would drop the
+    /// window the engine names and fetch with the one this wrapper was built with, so a range
+    /// the engine reaches for would never be fetched.
+    async fn sync_events_within(
+        &self,
+        account: &AccountId,
+        calendar: &CalendarId,
+        cursor: Option<&SyncState>,
+        window: Horizon,
+    ) -> ProviderResult<ScopeSync<Event>> {
+        let mut provider = self.delegate().await?;
+        let mut reconnected = false;
+        loop {
+            match provider
+                .sync_events_within(account, calendar, cursor, window)
+                .await
+            {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
                     self.invalidate_delegate();

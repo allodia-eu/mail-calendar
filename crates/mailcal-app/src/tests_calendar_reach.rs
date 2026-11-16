@@ -6,6 +6,7 @@
 use std::sync::{Arc, Mutex};
 
 use mailcal_viewmodel::calendar::days::{date_at, day_number};
+use tokio::sync::Notify;
 
 use super::{
     fakes::{CalendarFake, calendar_account, calendar_app, event_from_today, evt},
@@ -154,4 +155,99 @@ async fn widening_an_unsynced_store_still_says_loading() {
         !page.is_materialized,
         "a calendar nobody could read is unknown, not empty, however far it is widened"
     );
+}
+
+/// A Microsoft or Google calendar is fetched inside a window, so expanding a page past the first
+/// sync's window alone would draw it empty: the one-off event there was never fetched. Widening has
+/// the engine fetch it first, once.
+#[tokio::test]
+async fn a_page_past_a_windowed_calendars_first_window_fetches_its_events() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = CalendarFake::windowed(vec![
+        event_from_today("now", 0, 9, 60),
+        event_from_today("future", 500, 9, 60),
+    ]);
+    let fetch = provider.windowed_fetch();
+    let app = calendar_app(vec![calendar_account("acct", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+    assert_eq!(
+        fetch.windows.lock().unwrap().len(),
+        1,
+        "the first sync opens over the rolling horizon, and the refresh asks nothing more"
+    );
+
+    let _ = app.calendar_range(week_at(&app, 500), 7);
+    assert!(app.take_calendar_widening());
+    app.widen_calendar().await;
+
+    let page = app.calendar_range(week_at(&app, 500), 7);
+    assert!(page.is_materialized);
+    assert_eq!(
+        page.grid
+            .timed
+            .iter()
+            .map(|block| block.event.as_str())
+            .collect::<Vec<_>>(),
+        ["future"],
+        "the event past the first window was fetched and drawn"
+    );
+    assert_eq!(
+        fetch.windows.lock().unwrap().len(),
+        2,
+        "one fetch reached it"
+    );
+
+    // Paging on inside the step, and the next refresh, ask the server for nothing more.
+    let _ = app.calendar_range(week_at(&app, 507), 7);
+    assert!(!app.take_calendar_widening());
+    app.refresh_calendar().await;
+    let windows = fetch.windows.lock().unwrap().clone();
+    assert_eq!(
+        windows.len(),
+        3,
+        "the refresh's delta, and no second reopen"
+    );
+    assert_eq!(
+        windows[2], windows[1],
+        "the delta keeps the reopened window"
+    );
+}
+
+/// A widening while a refresh holds the calendar waits for it inside the engine and then widens,
+/// rather than giving up and leaving the page to ask again.
+#[tokio::test]
+async fn a_widening_waits_for_a_refresh_holding_the_calendar() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let provider = CalendarFake::windowed(vec![
+        event_from_today("now", 0, 9, 60),
+        event_from_today("future", 500, 9, 60),
+    ]);
+    let fetch = provider.windowed_fetch();
+    let app = calendar_app(vec![calendar_account("acct", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+    let _ = app.calendar_range(week_at(&app, 500), 7);
+    assert!(app.take_calendar_widening());
+
+    let (entered, release) = (Arc::new(Notify::new()), Arc::new(Notify::new()));
+    fetch.park_next(Arc::clone(&entered), Arc::clone(&release));
+    tokio::join!(app.refresh_calendar(), async {
+        entered.notified().await;
+        let widening = app.widen_calendar();
+        tokio::pin!(widening);
+        tokio::select! {
+            () = &mut widening => panic!("widened a calendar a refresh holds"),
+            () = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+        }
+        release.notify_one();
+        widening.await;
+    });
+
+    let page = app.calendar_range(week_at(&app, 500), 7);
+    assert!(page.is_materialized);
+    assert_eq!(
+        page.grid.timed.len(),
+        1,
+        "the event past the first window is drawn"
+    );
+    assert!(!app.take_calendar_widening(), "and nothing is owed again");
 }

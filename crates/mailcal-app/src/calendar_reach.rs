@@ -1,32 +1,28 @@
 //! How far the calendar has been looked at, and widening it to a page a client asks for.
 //!
 //! Every launch expands the rolling horizon. A page outside it is unknown rather than empty
-//! (`docs/calendar.md` §4), and the page query cannot expand anything because it never touches the
+//! (`docs/calendar.md` §4), and the page query cannot widen anything because it never touches the
 //! store. So the query records the days it could not answer, and [`App::widen_calendar`] runs off
-//! the caller's thread: it expands every account's stored events over a window reaching those days
-//! and rebuilds the cache over it, which signals `Surface::Calendar` for the client to pull again.
+//! the caller's thread: it has the engine fetch those days into the store where a calendar's first
+//! sync never fetched them (Microsoft and Google fetch inside a window), expands every account's
+//! events over a window reaching them, and rebuilds the cache over it, which signals
+//! `Surface::Calendar` for the client to pull again.
 //!
 //! The window grows only towards the pages a user asks for, [`WIDEN_STEP_DAYS`] at a time, and
 //! lasts the session: the next launch expands the rolling horizon alone. It is one window because
-//! the engine expands one, so a page two years back expands the two years in between.
+//! the engine expands one, so a page two years back expands the two years in between, and on a
+//! windowed calendar fetches them.
 
-use std::time::Duration;
-
-use engine_api::{ApiError, CalendarDate, Horizon, Provider, UnexpandableEvent};
+use engine_api::{CalendarDate, Horizon, Provider, UnexpandableEvent};
 use mailcal_viewmodel::calendar::days::day_number;
 
 use super::{CalendarCache, covers, midnight_at, rolling_horizon};
 use crate::{App, calendar_unexpandable::unexpandable_line};
 
 /// How far past the page asked for a widening reaches, so paging a week at a time widens once a
-/// quarter rather than once a page: every widening re-expands every stored event.
+/// quarter rather than once a page: every widening re-expands every stored event, and on a
+/// windowed calendar fetches the whole window again.
 const WIDEN_STEP_DAYS: i64 = 91;
-
-/// How many times a widening tries while another pass holds a calendar.
-const WIDEN_ATTEMPTS: u32 = 5;
-
-/// The wait before a widening's second try, doubled before each one after it.
-const WIDEN_FIRST_WAIT: Duration = Duration::from_millis(250);
 
 /// What expanding every account over the calendar window came to.
 #[derive(Default)]
@@ -49,32 +45,62 @@ impl<P: Provider> App<P> {
         std::mem::take(&mut cache.widening_owed)
     }
 
-    /// Expands every account's stored events over a window reaching every page asked for this
-    /// session, and rebuilds the cache over it. No network.
+    /// Has the engine hold every event of every page asked for this session, expands every
+    /// account's events over a window reaching them, and rebuilds the cache over it.
     ///
-    /// A calendar another pass holds is tried again a few times. One held for longer is widened
-    /// by that pass, which expands the same window when it finishes, and a widening that gives up
-    /// is owed again, so the next page asked for starts another.
+    /// The engine waits for a calendar another pass holds, so this runs once. A calendar it could
+    /// not fetch or expand (a server that did not answer, a store that refused) leaves the
+    /// widening owed, so the next page asked for tries again.
     pub async fn widen_calendar(&self) {
-        let mut wait = WIDEN_FIRST_WAIT;
-        for attempt in 1..=WIDEN_ATTEMPTS {
-            let expansion = self.expand_calendar().await;
-            if expansion.changed {
-                self.rebuild_calendar().await;
-            }
-            if let Some(line) = unexpandable_line(&expansion.refused) {
-                log::warn!("widen_calendar: {line}");
-            }
-            if expansion.complete {
-                return;
-            }
-            if attempt < WIDEN_ATTEMPTS {
-                tokio::time::sleep(wait).await;
-                wait *= 2;
+        let fetched = self.reach_calendar().await;
+        let expansion = self.expand_calendar().await;
+        if expansion.changed {
+            self.rebuild_calendar().await;
+        }
+        if let Some(line) = unexpandable_line(&expansion.refused) {
+            log::warn!("widen_calendar: {line}");
+        }
+        if !(fetched && expansion.complete) {
+            log::info!("widen_calendar: a calendar was not widened, so the widening is owed again");
+            self.owe_calendar_widening();
+        }
+    }
+
+    /// Has the engine hold every event inside [`Self::calendar_window`], account by account: a
+    /// calendar fetched whole, or already fetched over the window, costs no request. Returns
+    /// whether every calendar of every account now holds it.
+    pub(crate) async fn reach_calendar(&self) -> bool {
+        let Some(window) = self.calendar_window() else {
+            return true;
+        };
+        let accounts = self.account_handles().await;
+        let reaching = accounts.iter().enumerate().filter_map(|(acct, account)| {
+            let provider = account.calendar_provider.as_ref()?;
+            Some(async move {
+                (
+                    acct,
+                    self.engine
+                        .reach_calendar(provider, &account.id, window)
+                        .await,
+                )
+            })
+        });
+        let mut complete = true;
+        for (acct, result) in futures::future::join_all(reaching).await {
+            match result {
+                Ok(reach) => {
+                    for (index, (_, error)) in reach.failures().enumerate() {
+                        complete = false;
+                        log::warn!("calendar[a{acct}]: calendar[{index}] was not fetched: {error}");
+                    }
+                }
+                Err(error) => {
+                    complete = false;
+                    log::warn!("calendar[a{acct}]: fetching the window failed: {error}");
+                }
             }
         }
-        log::info!("widen_calendar: a calendar stayed busy, so the widening is owed again");
-        self.owe_calendar_widening();
+        complete
     }
 
     /// Marks a widening owed, for the next page query to hand to its caller.
@@ -122,10 +148,6 @@ impl<P: Provider> App<P> {
         for (acct, result) in results.into_iter().enumerate() {
             match result {
                 Ok(expanded) => expansion.refused.extend(expanded.unexpandable),
-                Err(ApiError::Busy) => {
-                    expansion.complete = false;
-                    log::debug!("calendar[a{acct}]: busy, another pass holds a calendar");
-                }
                 Err(error) => {
                     expansion.complete = false;
                     log::warn!("calendar[a{acct}]: expansion failed: {error}");

@@ -42,6 +42,8 @@ mod calendar;
 mod calendar_builders;
 #[path = "tests_fakes/calendar_variants.rs"]
 mod calendar_variants;
+#[path = "tests_fakes/calendar_windowed.rs"]
+mod calendar_windowed;
 
 #[path = "tests_fakes/connectors.rs"]
 mod connectors;
