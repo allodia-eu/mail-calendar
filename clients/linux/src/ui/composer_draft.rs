@@ -264,7 +264,10 @@ impl AppModel {
                     .as_ref()
                     .is_some_and(|open| &open.composition == composition)
                 {
-                    self.save_draft_and_close(submission);
+                    // One on its way into a window is the window's to save and close.
+                    if !self.is_moving(composition) {
+                        self.save_draft_and_close(submission);
+                    }
                     self.composer = None;
                     self.composer_error = None;
                 }

@@ -200,6 +200,7 @@ impl AppModel {
             composer_error: None,
             draft_status: composer_drafts::DraftStatuses::new(),
             pending_navigation: None,
+            moving_composer: None,
             pending_mailto: None,
             pending_share: None,
             notification_wait: None,

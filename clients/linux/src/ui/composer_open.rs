@@ -155,6 +155,12 @@ impl AppModel {
             moved_from,
             opening,
         } = opened;
+        if let Some(composition) = moved_from.as_deref() {
+            let reopened = self.app.is_some() && opening.is_ok();
+            if !self.settle_moved(composition, reopened) && reopened {
+                return;
+            }
+        }
         let (Some(app), Ok(opening)) = (self.app.clone(), opening) else {
             self.notice = Some(
                 if draft {

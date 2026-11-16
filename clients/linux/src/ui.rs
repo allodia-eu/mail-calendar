@@ -263,6 +263,9 @@ pub(crate) struct AppModel {
     draft_status: DraftStatuses,
     /// The message or external draft waiting for the open composer to be left.
     pending_navigation: Option<PendingNavigation>,
+    /// The pane's composer on its way into a window of its own, as it was read when it was popped
+    /// out, until the core's answer is in (`composer_pop_out`).
+    moving_composer: Option<composer_model::ComposerSubmission>,
     /// A mail link received before an account exists. Account setup completing opens it.
     pending_mailto: Option<mailcal_bindings::MailtoPrefill>,
     /// A share received before an account exists, held on the same terms as a mail link.

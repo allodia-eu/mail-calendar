@@ -105,7 +105,9 @@ impl AppModel {
     /// it. A composer whose message was submitted is taken off screen by the submit instead,
     /// which leaves the composition to the send.
     pub(super) fn clear_pane_composer(&mut self) {
-        if let Some(request) = self.composer.take() {
+        if let Some(request) = self.composer.take()
+            && !self.is_moving(&request.composition)
+        {
             self.close_composition(&request.composition);
         }
         self.composer_error = None;
