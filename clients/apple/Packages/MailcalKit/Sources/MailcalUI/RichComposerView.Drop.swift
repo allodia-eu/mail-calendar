@@ -41,7 +41,8 @@ enum DroppedFileName {
 /// the iPad's page sheet apply the same modifier, so the two cannot come to behave
 /// differently.
 struct ComposerDropModifier: ViewModifier {
-    @Binding var attachments: [PickedAttachment]
+    /// Hands files to the core's list for this composition (`RichComposeView.attachFiles`).
+    let attach: ([URL]) -> Void
     /// Pictures waiting on the question below; non-empty only between a drop and its answer.
     @Binding var droppedPictures: [URL]
     /// The composer's shared error line, which this writes the picture-specific message into.
@@ -56,11 +57,11 @@ struct ComposerDropModifier: ViewModifier {
             // those itself and hands them straight back here, so a file dropped on the message and
             // one dropped on the chrome go through the same code on every Apple host.
             //
-            // The handler takes the two bindings and never `self`: `self` holds the editor and the
-            // editor holds the handler, so capturing it would keep every closed composer's editor,
-            // and with it the web view and its WebContent process, alive.
+            // The handler takes the binding and the attach closure and never `self`: `self` holds
+            // the editor and the editor holds the handler, so capturing it would keep every closed
+            // composer's editor, and with it the web view and its WebContent process, alive.
             .onAppear {
-                let sort = Self.sort(attachments: $attachments, droppedPictures: $droppedPictures)
+                let sort = Self.sort(attach: attach, droppedPictures: $droppedPictures)
                 editor.acceptDroppedFiles = { _ = sort($0) }
             }
             .confirmationDialog(
@@ -70,7 +71,7 @@ struct ComposerDropModifier: ViewModifier {
             ) {
                 Button(L10n.compose_image_drop_inline()) { showInMessage() }
                 Button(L10n.compose_image_drop_attach()) {
-                    attachments.append(contentsOf: droppedPictures.map { PickedAttachment(url: $0) })
+                    attach(droppedPictures)
                     droppedPictures = []
                 }
                 Button(L10n.action_cancel(), role: .cancel) { droppedPictures = [] }
@@ -80,13 +81,13 @@ struct ComposerDropModifier: ViewModifier {
     }
 
     private func accept(_ urls: [URL]) -> Bool {
-        Self.sort(attachments: $attachments, droppedPictures: $droppedPictures)(urls)
+        Self.sort(attach: attach, droppedPictures: $droppedPictures)(urls)
     }
 
     /// Sorts one drop: everything that is not a picture attaches straight away, and the pictures
     /// go to the question below. Answers whether the drop carried anything at all.
     private static func sort(
-        attachments: Binding<[PickedAttachment]>,
+        attach: @escaping ([URL]) -> Void,
         droppedPictures: Binding<[URL]>
     ) -> ([URL]) -> Bool {
         { urls in
@@ -94,9 +95,8 @@ struct ComposerDropModifier: ViewModifier {
             guard !files.isEmpty else {
                 return false
             }
-            attachments.wrappedValue.append(
-                contentsOf: files.filter { !isPicture($0) }.map { PickedAttachment(url: $0) }
-            )
+            let documents = files.filter { !isPicture($0) }
+            if !documents.isEmpty { attach(documents) }
             droppedPictures.wrappedValue = files.filter(isPicture)
             return true
         }
@@ -139,7 +139,7 @@ struct ComposerDropModifier: ViewModifier {
         }
         if !unreadable.isEmpty {
             composerError = L10n.compose_image_failed()
-            attachments.append(contentsOf: unreadable.map { PickedAttachment(url: $0) })
+            attach(unreadable)
         }
     }
 }

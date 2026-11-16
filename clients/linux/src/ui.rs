@@ -31,9 +31,12 @@ mod composer_discard;
 mod composer_draft;
 mod composer_drafts;
 mod composer_fields;
+mod composer_file_preview;
+mod composer_file_tiles;
 mod composer_header;
 mod composer_host;
 mod composer_labels;
+mod composer_layout;
 mod composer_model;
 mod composer_notice;
 mod composer_open;
@@ -261,6 +264,9 @@ pub(crate) struct AppModel {
     draft_status: DraftStatuses,
     /// The message or external draft waiting for the open composer to be left.
     pending_navigation: Option<PendingNavigation>,
+    /// The pane's composer on its way into a window of its own, as it was read when it was popped
+    /// out, until the core's answer is in (`composer_pop_out`).
+    moving_composer: Option<composer_model::ComposerSubmission>,
     /// A mail link received before an account exists. Account setup completing opens it.
     pending_mailto: Option<mailcal_bindings::MailtoPrefill>,
     /// A share received before an account exists, held on the same terms as a mail link.

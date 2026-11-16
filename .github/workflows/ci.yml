@@ -683,10 +683,13 @@ jobs:
       # its own: `test-kit.sh --ios` compiles MailcalUI a second time, with this run's simulator
       # still booted, and that step alone took 3 to 7 minutes for a suite that runs in two seconds.
       #
-      # **Five classes of seventeen, and that is the ten-minute budget rather than a judgement
+      # **Nine classes of twenty-nine, and that is the ten-minute budget rather than a judgement
       # about the rest.**
       # A UI test costs what no other gate here costs: a simulator to boot and then the app's own
-      # launch per test. The six that run are the six that hold something written down: the
+      # launch per test. The nine that run are the nine that hold something written down: the
+      # phone composer's header taking its own taps and leaving the rest to the message, and
+      # drawn on the app's own background in a dark app (docs/composer-layout.md, rules 2 and 5),
+      # which nothing below the UI can see, the
       # action row's order and the header that scrolls out from under it
       # (docs/reading-actions.md), the calendar pinch (docs/calendar.md), which is also the
       # regression test for a gesture that reached the iOS grid not at all, Settings as the one
@@ -702,7 +705,8 @@ jobs:
           clients/apple/Scripts/test-ui.sh --no-core --with-kit \
             --only ReadingActionRowTests --only ReadingHeaderScrollTests \
             --only CalendarPinchTests --only SettingsAddAccountTests \
-            --only ServerChangeTests --only NoticeTests --only QuestionNoticeTests
+            --only ServerChangeTests --only NoticeTests --only QuestionNoticeTests \
+            --only ComposerHeaderTapTests --only ComposerAppearanceTests
 
       # A pull request compiles everything the step above runs (the app, the UI suite and
       # MailcalKit's suite, all for the simulator) and boots nothing (rule 5 at the top of this

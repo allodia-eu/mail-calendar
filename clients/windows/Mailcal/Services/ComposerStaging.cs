@@ -3,7 +3,6 @@
 //
 // Its own file, WinUI-free, so `Mailcal.Tests` can link it.
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
@@ -33,27 +32,28 @@ internal static class ComposerStaging
     /// The core makes it only when there is a file to write.</summary>
     internal static string NewDirectory() => Path.Combine(Root, Guid.NewGuid().ToString("N"));
 
-    /// <summary>Deletes the directories <paramref name="staged"/> were written to: what a
-    /// discarded composer opened holding.</summary>
-    internal static void Release(IEnumerable<string> staged)
+    /// <summary>Deletes <paramref name="directory"/>, the one a discarded composer's files were
+    /// staged in. Anything that is not a composer directory under <see cref="Root"/> is left
+    /// alone.</summary>
+    internal static void Release(string? directory)
     {
-        foreach (var directory in DirectoriesOf(Root, staged))
+        if (ComposerDirectoryOf(Root, directory) is { } staged)
         {
-            TryDelete(directory);
+            TryDelete(staged);
         }
     }
 
-    /// <summary>The composer directories under <paramref name="root"/> that hold
-    /// <paramref name="staged"/>; a path anywhere else, such as a share's copy, names none.</summary>
-    internal static IReadOnlyList<string> DirectoriesOf(string root, IEnumerable<string> staged)
+    /// <summary><paramref name="directory"/> as a composer directory under
+    /// <paramref name="root"/>, or <c>null</c> when it is not one.</summary>
+    internal static string? ComposerDirectoryOf(string root, string? directory)
     {
+        if (string.IsNullOrEmpty(directory))
+        {
+            return null;
+        }
         var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
-        return staged
-            .Select(path => Path.GetDirectoryName(Path.GetFullPath(path)))
-            .OfType<string>()
-            .Where(directory => IsComposerDirectory(full, directory))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var candidate = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        return IsComposerDirectory(full, candidate) ? candidate : null;
     }
 
     /// <summary>Deletes every composer directory made before <paramref name="beforeUtc"/>, in

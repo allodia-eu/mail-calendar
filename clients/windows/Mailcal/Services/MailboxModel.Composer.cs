@@ -42,15 +42,15 @@ public sealed partial class MailboxModel
     /// Validate and queue what a composer holds, on the composition it opened on. The one send
     /// every composer makes: the core already knows what the message replies to or passes on, so a
     /// reply threads however the composer was reached, and an accepted send takes its stored draft
-    /// out of Drafts. <paramref name="from"/> is the composer's From dropdown; <c>null</c> lets the
-    /// core derive it. The body is never logged; only the error category is.
+    /// out of Drafts. The files are the composition's own (<see cref="ComposerFilesOf"/>).
+    /// <paramref name="from"/> is the composer's From dropdown; <c>null</c> lets the core derive
+    /// it. The body is never logged; only the error category is.
     /// </summary>
     internal bool SubmitComposition(
         string composition,
         Recipients recipients,
         string subject,
         string documentJson,
-        ComposerFileAttachment[] files,
         string? from)
     {
         if (_app is null || BlockedByHarnessGate(recipients))
@@ -59,7 +59,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SubmitComposition(composition, recipients, subject, documentJson, files, from);
+            _app.SubmitComposition(composition, recipients, subject, documentJson, from);
             return true;
         }
         catch (Exception ex)
@@ -68,6 +68,40 @@ public sealed partial class MailboxModel
             return false;
         }
     }
+    /// <summary>The files <paramref name="composition"/>'s composer shows, as the core holds them
+    /// (docs/composer-layout.md, rule 3), or <c>null</c> when it cannot say.</summary>
+    internal ComposerFiles? ComposerFilesOf(string composition) =>
+        Files("read", app => app.ComposerFiles(composition));
+
+    /// <summary>Attaches <paramref name="files"/> to <paramref name="composition"/>, after what it
+    /// already holds, and answers with the list as it now stands.</summary>
+    /// <remarks>The core reads each file's size, so call it off the UI thread: a picked file may
+    /// sit on a network share.</remarks>
+    internal ComposerFiles? AddComposerFiles(string composition, IReadOnlyList<ComposerFileAttachment> files) =>
+        Files("add", app => app.AddComposerFiles(composition, files.ToArray()));
+
+    /// <summary>Takes the file a tile names off <paramref name="composition"/>, and answers with
+    /// the list as it now stands.</summary>
+    internal ComposerFiles? RemoveComposerFile(string composition, string file) =>
+        Files("remove", app => app.RemoveComposerFile(composition, file));
+
+    private ComposerFiles? Files(string verb, Func<MailcalApp, ComposerFiles> call)
+    {
+        if (_app is null)
+        {
+            return null;
+        }
+        try
+        {
+            return call(_app);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"composer: could not {verb} the composer's files ({ex.GetType().Name})");
+            return null;
+        }
+    }
+
     // Refuses a send that would leave the local harness, in a DEBUG build connected to one. See
     // HarnessRecipientGate for why this is a gate rather than a rule: every reply to a fixture
     // opens with an external address already in To.

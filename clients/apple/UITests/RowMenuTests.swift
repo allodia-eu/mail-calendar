@@ -23,7 +23,7 @@ final class RowMenuTests: XCTestCase {
         row.press(forDuration: 1.2)
 
         for label in ["Reply", "Reply all", "Forward", "Mark as read", "Flag", "Mark as Spam",
-                      "Archive", "Move to Trash"] {
+                      "Archive", "Delete"] {
             XCTAssertTrue(
                 app.buttons[label].waitForExistence(timeout: 5),
                 "the conversation's menu has no '\(label)'"

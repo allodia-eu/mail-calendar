@@ -354,6 +354,7 @@ pub(crate) fn build_accounts(
         disconnected,
         redialling: Arc::default(),
         account_work: Arc::default(),
+        composer_files: crate::composer_file_list::ComposerFileLists::default(),
         device_zone: device_tz,
         platform,
         // The real account path: detection reaches the network, as it must.
@@ -365,6 +366,7 @@ pub(crate) fn build_accounts(
     // has consented, but it must happen before the first event, or a consented install's very
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
+    mailcal.read_mail_rows_ahead();
     #[cfg(feature = "allodia-license")]
     mailcal.refresh_allodia_entitlement();
     // A refresh that widens a grant opens a use the dial before it was planned without; dial it

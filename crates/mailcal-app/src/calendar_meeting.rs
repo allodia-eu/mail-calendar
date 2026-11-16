@@ -14,8 +14,8 @@ impl<P: Provider> App<P> {
     /// Whether `account` may organise a meeting: its calendar can be written, and its server
     /// sends the invitations a meeting write implies (`Capabilities::calendar_scheduling`: an
     /// RFC 6638 auto-scheduling CalDAV server, JMAP, Graph, Google).
-    pub(crate) fn account_can_invite(account: &Account<P>) -> bool {
-        Self::account_can_write(account)
+    pub(crate) fn account_can_invite(&self, account: &Account<P>) -> bool {
+        self.account_can_write(account)
             && account.calendar_provider.as_ref().is_some_and(|provider| {
                 provider
                     .connection_info()
@@ -43,7 +43,7 @@ impl<P: Provider> App<P> {
             return None;
         }
         let handle = self.account_handle(account).await?;
-        if !Self::account_can_invite(&handle) {
+        if !self.account_can_invite(&handle) {
             log::warn!("create_calendar_event: this calendar's server does not send invitations");
             return None;
         }
@@ -71,7 +71,7 @@ impl<P: Provider> App<P> {
         let Some(handle) = self.account_handle(account).await else {
             return false;
         };
-        if !Self::account_can_invite(&handle) {
+        if !self.account_can_invite(&handle) {
             return false;
         }
         let addresses = self.account_address_set(account).await;

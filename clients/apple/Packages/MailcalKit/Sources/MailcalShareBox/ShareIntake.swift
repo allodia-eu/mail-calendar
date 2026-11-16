@@ -1,4 +1,4 @@
-// Turning what the share sheet handed the extension into a drop the app can open
+// Turning what the share sheet handed the Share Extension into a drop the app can open
 // (docs/os-integration.md).
 //
 // The staging is the whole reason this exists. An `NSItemProvider` is a loan for the length of the
@@ -10,19 +10,22 @@
 // Nothing here decides what a share means. The names and media types are passed on exactly as the
 // sharing app gave them, because sanitising is `mailcal_composer::share`'s job, and doing it twice
 // is how two answers appear for one file.
+//
+// In this package rather than in the extension's own target so the test bundle can hand it the
+// item providers a share sheet would.
 
 import Foundation
-import MailcalShareBox
 import UniformTypeIdentifiers
 
 /// Reads a share request. On the main actor throughout, because `NSExtensionItem` and
 /// `NSItemProvider` are not `Sendable` and may not leave the thread the request arrived on; the
-/// copying itself is handed off (see `stage`), so nothing long-running happens here.
+/// copying itself is handed off, so nothing long-running happens here.
 @MainActor
-enum ShareIntake {
+public enum ShareIntake {
 
-    /// Reads one share request and leaves it in `box`, or answers `nil` when it carried nothing.
-    static func read(items: [NSExtensionItem], into box: ShareBox) async -> ShareDrop? {
+    /// Reads one share request and leaves its files in `box`, or answers `nil` when it carried
+    /// nothing.
+    public static func read(items: [NSExtensionItem], into box: ShareBox) async -> ShareDrop? {
         var drop = ShareDrop()
         // Swept now, while a share is the only thing touching this directory. A sweep at launch
         // instead would race the cold-start share that is staging during it.
@@ -80,10 +83,10 @@ enum ShareIntake {
         }
         if provider.hasItemConformingToTypeIdentifier(UTType.item.identifier) {
             // A photograph, a document from another app's storage, anything the provider will only
-            // materialise on request. That copy happens inside the load, see `copyFileRepresentation`.
-            let copied = await copyFileRepresentation(provider, into: staging)
-            return .file(
-                record(provider, path: copied?.path ?? "", name: copied?.lastPathComponent))
+            // materialise on request.
+            let copied: URL? =
+                if let staging { await ProvidedFile.copy(provider, into: staging) } else { nil }
+            return .file(record(provider, path: copied?.path ?? "", name: copied?.lastPathComponent))
         }
         return .nothing
     }
@@ -102,7 +105,7 @@ enum ShareIntake {
         guard let source, let staging else {
             return record(provider, path: "", name: source?.lastPathComponent)
         }
-        let destination = await Task.detached { copy(source, into: staging) }.value
+        let destination = await Task.detached { ProvidedFile.copy(source, into: staging) }.value
         return record(provider, path: destination?.path ?? "", name: source.lastPathComponent)
     }
 
@@ -158,82 +161,5 @@ enum ShareIntake {
                 }
             }
         }
-    }
-
-    /// Asks the provider to materialise the file, and copies it **before the handler returns**.
-    ///
-    /// The URL a file representation hands over lives only for the length of that handler: the
-    /// system deletes it as soon as it returns, so copying afterwards finds nothing there.
-    ///
-    /// Asked for by the provider's **own most specific type** rather than by `public.item`. Both
-    /// resolve, since everything conforms to `public.item`, but the specific one is what makes a
-    /// photograph arrive as the photograph rather than as whatever generic form the provider keeps
-    /// for it.
-    private static func copyFileRepresentation(
-        _ provider: NSItemProvider, into staging: URL?
-    ) async -> URL? {
-        guard let staging else { return nil }
-        let type = provider.registeredTypeIdentifiers.first ?? UTType.item.identifier
-        return await withCheckedContinuation { continuation in
-            _ = provider.loadFileRepresentation(forTypeIdentifier: type) { url, _ in
-                continuation.resume(returning: url.flatMap { copy($0, into: staging) })
-            }
-        }
-    }
-
-    // MARK: - The copy itself
-
-    /// Copies one file into `staging` under a name this filesystem accepts, or answers `nil` when
-    /// it could not be read.
-    ///
-    /// `nonisolated`, and it has to be: this runs both from a detached task and from inside the
-    /// provider's own completion handler, neither of which is the main actor.
-    ///
-    /// The name here is the staging directory's own, not the attachment's: the name a recipient
-    /// reads comes back from the core, already normalised.
-    nonisolated private static func copy(_ source: URL, into staging: URL) -> URL? {
-        let scoped = source.startAccessingSecurityScopedResource()
-        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
-        // A folder is shareable from Finder, and it copies perfectly well: what it leaves behind
-        // is a path the composer lists as an attachment and cannot read at Send. Refused here, so
-        // it comes back as a named refusal instead; Linux's `readable_file` draws the same line.
-        guard (try? source.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
-        else { return nil }
-        let destination = unique(stagedName(source.lastPathComponent), in: staging)
-        do {
-            try FileManager.default.copyItem(at: source, to: destination)
-            return destination
-        } catch {
-            // A provider that withdrew the loan, a file that vanished, a sender that lied about
-            // what it was offering. One unreadable item must not cost the user the rest of the
-            // share, and the caller records it as pathless so the app can still say so.
-            return nil
-        }
-    }
-
-    /// A name safe to create on this device's filesystem.
-    nonisolated private static func stagedName(_ value: String) -> String {
-        let forbidden = CharacterSet(charactersIn: "/\\:*?\"<>|").union(.controlCharacters)
-        let cleaned = value.components(separatedBy: forbidden).joined(separator: "_")
-            .trimmingCharacters(in: CharacterSet(charactersIn: ". _"))
-            .prefix(80)
-        return cleaned.isEmpty ? "shared" : String(cleaned)
-    }
-
-    /// The first free name, so sharing two files called `scan.pdf` stages two files.
-    ///
-    /// The number goes before the extension, not after it: the extension is what decides which
-    /// application opens the file, and `scan.pdf-2` opens in none.
-    nonisolated private static func unique(_ name: String, in directory: URL) -> URL {
-        let candidate = directory.appendingPathComponent(name)
-        guard FileManager.default.fileExists(atPath: candidate.path) else { return candidate }
-        let stem = candidate.deletingPathExtension().lastPathComponent
-        let suffix = candidate.pathExtension
-        for attempt in 2...99 {
-            var next = directory.appendingPathComponent("\(stem)-\(attempt)")
-            if !suffix.isEmpty { next.appendPathExtension(suffix) }
-            if !FileManager.default.fileExists(atPath: next.path) { return next }
-        }
-        return directory.appendingPathComponent("\(UUID().uuidString)-\(name)")
     }
 }

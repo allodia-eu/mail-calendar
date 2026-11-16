@@ -4,7 +4,6 @@ package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.ComposeKind
 import uniffi.mailcal_bindings.ComposeOpening
-import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.QuoteSource
 
 internal fun testOpening(
@@ -18,7 +17,6 @@ internal fun testOpening(
     bodyHtml: String = "",
     bodyText: String = "",
     quote: QuoteSource? = null,
-    attachments: List<ComposerFileAttachment> = emptyList(),
     attachmentsFailed: Boolean = false,
     seedsSignature: Boolean = bodyHtml.isEmpty(),
 ) = ComposeOpening(
@@ -32,7 +30,6 @@ internal fun testOpening(
     bodyHtml = bodyHtml,
     bodyText = bodyText,
     quote = quote,
-    attachments = attachments,
     attachmentsFailed = attachmentsFailed,
     seedsSignature = seedsSignature,
 )

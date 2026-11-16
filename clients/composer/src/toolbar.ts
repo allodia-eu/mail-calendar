@@ -5,6 +5,7 @@ import { applyColor, applyFontFamily, applyFontSize, applyMark, type ColorKind }
 import { buildLinkMenu } from "./link_menu";
 import { indentSelection } from "./lists";
 import { type Labels } from "./labels";
+import { installOverflow } from "./toolbar_overflow";
 import { indentLines, insertRule, setAlign, setHeading } from "./paragraphs";
 import {
   cellAtCaret,
@@ -47,6 +48,8 @@ export interface Toolbar {
   openLink(): void;
   /// Closes whichever panel is open.
   closePopovers(): void;
+  /// Lays the row out again, for a host that has just switched the page's layout.
+  fit(): void;
 }
 
 /// `openLinkInHost` hands the link editor to the host's own dialog, answering false when the host
@@ -152,7 +155,8 @@ export function installToolbar(
   const popovers: Popover[] = [];
   const closeAll = (except?: Popover) => {
     for (const popover of popovers) {
-      if (popover === except) continue;
+      // A control behind More opens its own panel inside More's, which stays open around it.
+      if (popover === except || (except && popover.panel.contains(except.button))) continue;
       popover.panel.hidden = true;
       popover.button.setAttribute("aria-expanded", "false");
     }
@@ -243,6 +247,17 @@ export function installToolbar(
   };
   link.button.addEventListener("click", () => (link.panel.hidden ? openLink() : toggle(link)));
 
+  // The controls a desktop row has no room for, behind More at its end. Laid out again when the row
+  // changes width, and when a picker's new value changes its own.
+  register("more-formatting", "more-formatting-menu", () => {});
+  const overflow = installOverflow(root, byId("more-formatting").parentElement!, byId("more-formatting-menu"));
+  const fit = () => {
+    if (overflow.fit()) closeAll();
+  };
+  const win = windowOf(editor);
+  if (win.ResizeObserver) new win.ResizeObserver(fit).observe(root);
+  for (const select of [fontSize, fontFamily, blockStyle]) select.addEventListener("change", fit);
+
   // Clicking away or pressing Escape closes an open popover; without this the palette would stay
   // over the message the user just went back to writing.
   doc.addEventListener("mousedown", (event) => {
@@ -255,6 +270,7 @@ export function installToolbar(
   return {
     openLink,
     closePopovers: () => closeAll(),
+    fit,
     applyLabels(current: Labels) {
       editor.dataset.placeholder = current.placeholder;
       editor.setAttribute("aria-label", current.placeholder);
@@ -275,6 +291,8 @@ export function installToolbar(
       title("#link", current.link);
       title("#align", current.align);
       title("#rule", current.horizontalRule);
+      title("#more-formatting", current.moreFormatting);
+      byId("more-formatting").setAttribute("aria-label", current.moreFormatting);
       for (const [select, text] of [
         [fontSize, current.fontSize],
         [fontFamily, current.fontFamily],
@@ -288,6 +306,8 @@ export function installToolbar(
         if (text) option.textContent = text;
       }
       closeAll();
+      // Another language's words are another width.
+      overflow.fit();
     },
   };
 }

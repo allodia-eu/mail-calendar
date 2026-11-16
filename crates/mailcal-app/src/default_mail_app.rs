@@ -39,7 +39,7 @@ impl<P: Provider> App<P> {
     ///
     /// A host asks once, after the account list has loaded. It never has to remember the
     /// answer itself; that is what [`App::record_default_mail_app_offer`] is for.
-    pub async fn should_offer_default_mail_app(
+    pub fn should_offer_default_mail_app(
         &self,
         support: DefaultMailAppSupport,
         is_default: Option<bool>,
@@ -47,7 +47,7 @@ impl<P: Provider> App<P> {
         if support == DefaultMailAppSupport::Unsupported || is_default == Some(true) {
             return false;
         }
-        if self.account_ids().await.is_empty() {
+        if self.account_ids().is_empty() {
             return false;
         }
         // No store, no offer: an in-memory core cannot record an answer, so it would ask again on

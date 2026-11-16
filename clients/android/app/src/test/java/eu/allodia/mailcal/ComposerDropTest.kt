@@ -11,10 +11,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcal_bindings.ComposerFileAttachment
 
 class ComposerDropTest {
-    private fun staged(name: String, mediaType: String) = PickedComposerFile(
-        id = name,
+    private fun staged(name: String, mediaType: String) = ComposerFileAttachment(
         path = "/cache/$name",
         fileName = name,
         mediaType = mediaType,

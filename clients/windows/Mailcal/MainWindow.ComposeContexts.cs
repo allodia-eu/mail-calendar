@@ -31,11 +31,13 @@ public sealed partial class MainWindow
     /// a composer shown before its files arrived could be sent, or a draft saved, without them.
     /// One open at a time: a second Reply pressed while the first fetches would otherwise open over
     /// it, and whichever answer arrived last would hold the pane.
+    /// <para>A share's files are added to the core's list here, after it opened and before the
+    /// composer is drawn, so they count as the user's own (docs/composer-layout.md, rule 8).</para>
     /// </remarks>
     private async Task<ComposeContext?> OpenComposerAsync(
         ComposeOrigin origin,
         ComposePrefill? prefill = null,
-        IReadOnlyList<ComposerFileAttachment>? extraAttachments = null,
+        IReadOnlyList<ComposerFileAttachment>? sharedFiles = null,
         string? initialError = null)
     {
         if (_composerOpening)
@@ -44,11 +46,19 @@ public sealed partial class MainWindow
         }
         _composerOpening = true;
         ComposeOpening? opening;
+        var directory = ComposerStaging.NewDirectory();
         try
         {
             var composition = Guid.NewGuid().ToString("N");
-            var directory = ComposerStaging.NewDirectory();
-            opening = await Task.Run(() => Model.OpenComposer(composition, origin, prefill, directory));
+            opening = await Task.Run(() =>
+            {
+                var opened = Model.OpenComposer(composition, origin, prefill, directory);
+                if (opened is not null && sharedFiles is { Count: > 0 })
+                {
+                    Model.AddComposerFiles(opened.Composition, sharedFiles);
+                }
+                return opened;
+            });
         }
         finally
         {
@@ -61,7 +71,7 @@ public sealed partial class MainWindow
                 origin is ComposeOrigin.Draft ? L10n.ComposeDraftOpenFailed() : L10n.ComposeOpenFailed());
             return null;
         }
-        return ContextFor(opening, extraAttachments, initialError);
+        return ContextFor(opening, directory, initialError);
     }
 
     /// <summary>The composer's context for what the core opened it with.</summary>
@@ -72,7 +82,7 @@ public sealed partial class MainWindow
     /// </remarks>
     internal ComposeContext ContextFor(
         ComposeOpening opening,
-        IReadOnlyList<ComposerFileAttachment>? extraAttachments = null,
+        string? stagingDirectory,
         string? initialError = null)
     {
         var quotes = Model.QuoteSettings;
@@ -89,7 +99,7 @@ public sealed partial class MainWindow
             QuoteStylePerMessage: quotes.PerMessage,
             Quote: ComposeOpeningSeed.QuoteSeed(opening, words, ComposerQuote.Token(quotes.Style), opening.BodyText),
             QuoteAttribution: ComposeOpeningSeed.AttributionCompletion(opening, words),
-            ExtraAttachments: extraAttachments,
+            StagingDirectory: stagingDirectory,
             InitialError: initialError);
     }
 

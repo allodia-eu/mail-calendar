@@ -102,7 +102,7 @@ impl<P: Provider> App<P> {
         let changed = {
             let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
             let before = cache.calendars.clone();
-            Self::apply_accounts(&mut cache.calendars, &accounts);
+            self.apply_accounts(&mut cache.calendars, &accounts);
             cache.calendars != before
         };
         drop(accounts);
@@ -115,6 +115,7 @@ impl<P: Provider> App<P> {
     /// written, organise a meeting and carry a video meeting, and the accounts that make video
     /// meetings for it. A calendar whose account is gone is dropped.
     pub(crate) fn apply_accounts(
+        &self,
         calendars: &mut Vec<CachedCalendar>,
         accounts: &[Arc<Account<P>>],
     ) {
@@ -123,9 +124,9 @@ impl<P: Provider> App<P> {
             let Some(account) = accounts.iter().find(|a| a.id.as_str() == calendar.account) else {
                 return false;
             };
-            calendar.can_write = Self::account_can_write(account) && calendar.may_write;
-            calendar.can_invite = Self::account_can_invite(account);
-            calendar.writes_meetings = Self::account_writes_meetings(account) && calendar.may_write;
+            calendar.can_write = self.account_can_write(account) && calendar.may_write;
+            calendar.can_invite = self.account_can_invite(account);
+            calendar.writes_meetings = self.account_writes_meetings(account) && calendar.may_write;
             calendar.account_meetings.clone_from(&meetings);
             true
         });
@@ -133,8 +134,8 @@ impl<P: Provider> App<P> {
 
     /// Whether `account` can put a video meeting on an event: its calendar is written, and its
     /// provider writes meetings.
-    pub(crate) fn account_writes_meetings(account: &Account<P>) -> bool {
-        Self::account_can_write(account)
+    pub(crate) fn account_writes_meetings(&self, account: &Account<P>) -> bool {
+        self.account_can_write(account)
             && account
                 .calendar_provider
                 .as_ref()
@@ -374,7 +375,7 @@ impl<P: Provider> App<P> {
         let writes = self
             .account_handle(account)
             .await
-            .is_some_and(|account| Self::account_writes_meetings(&account));
+            .is_some_and(|account| self.account_writes_meetings(&account));
         if writes && calendar.access.may_write {
             Ok(())
         } else {

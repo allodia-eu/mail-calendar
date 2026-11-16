@@ -56,6 +56,18 @@ enum ShowcaseApp {
         )
     }
 
+    /// Tells the simulator a hardware keyboard is attached, from the mailbox, before a test that
+    /// sends chords.
+    ///
+    /// ⚠️ The first chord of a run is not delivered: it only attaches the keyboard. Which test sends
+    /// that chord depends on which classes run and in what order, so a chord test that does not
+    /// spend it first fails when run alone and passes in the full suite. ⌘A on the mailbox outside
+    /// Select is the chord to spend, because delivered it does nothing
+    /// (`MessageSelectionTests.testCommandAInSelectModePicksEveryRow`).
+    static func attachHardwareKeyboard(_ app: XCUIApplication) {
+        app.typeKey("a", modifierFlags: .command)
+    }
+
     /// Opens the first message in the mailbox, from wherever the app started.
     ///
     /// ⚠️ By tapping the row, **not** through the `MAILCAL_OPEN_FIRST` launch hook. The hook fires

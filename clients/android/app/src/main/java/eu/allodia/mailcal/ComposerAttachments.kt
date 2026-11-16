@@ -1,6 +1,7 @@
 // Attachment staging for the rich composer: copying a user-picked `content://` document into the
 // app cache so Rust can read its bytes off the main thread, plus the filename/media-type probing
-// that feeds the outgoing MIME part. Split out of RichComposeScreen.kt to keep each file small.
+// that feeds the outgoing MIME part. What is attached is the core's list, drawn by
+// ComposerFileTiles.kt.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -9,17 +10,8 @@ import android.os.Looper
 import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import android.net.Uri
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
@@ -28,22 +20,12 @@ import java.util.UUID
 import kotlin.concurrent.thread
 import uniffi.mailcal_bindings.ComposerFileAttachment
 
-internal data class PickedComposerFile(
-    val id: String,
-    val path: String,
-    val fileName: String,
-    val mediaType: String,
-) {
-    val composerFile: ComposerFileAttachment
-        get() = ComposerFileAttachment(path, fileName, mediaType)
-}
-
 // The Attach action's picker. Each chosen document is copied (content resolver → app cache) off
 // the main thread, because a large selection would otherwise block the UI, and the result is
 // applied back on it. `onFailed` covers a selection that staged nothing at all.
 @Composable
 internal fun rememberAttachmentPicker(
-    onStaged: (List<PickedComposerFile>) -> Unit,
+    onStaged: (List<ComposerFileAttachment>) -> Unit,
     onFailed: () -> Unit,
 ): ManagedActivityResultLauncher<Array<String>, List<Uri>> {
     val ctx = LocalContext.current
@@ -59,22 +41,8 @@ internal fun rememberAttachmentPicker(
     }
 }
 
-// One attachment the composer opens holding (a share's, a forward's, a stored draft's), as the
-// composer's list holds it.
-//
-// The name and media type come straight from the core and are not touched: it has already taken
-// the final path component, dropped what could break a header or disguise an extension, and
-// answered the media type. Only the row id is minted here, because the list needs one to remove
-// a row by.
-internal fun seededComposerFile(file: ComposerFileAttachment): PickedComposerFile =
-    PickedComposerFile(
-        id = UUID.randomUUID().toString(),
-        path = file.path,
-        fileName = file.fileName,
-        mediaType = file.mediaType,
-    )
-
-internal fun stageComposerFile(ctx: Context, uri: Uri): PickedComposerFile? {
+// One picked or dropped document, copied where Rust can read it, as the core takes it.
+internal fun stageComposerFile(ctx: Context, uri: Uri): ComposerFileAttachment? {
     val name = displayName(ctx, uri)
     val type = mediaType(ctx, uri, name)
     val dir = File(ctx.cacheDir, "composer-attachments").apply { mkdirs() }
@@ -83,12 +51,7 @@ internal fun stageComposerFile(ctx: Context, uri: Uri): PickedComposerFile? {
         ctx.contentResolver.openInputStream(uri)?.use { input ->
             file.outputStream().use { output -> input.copyTo(output) }
         } ?: return null
-        PickedComposerFile(
-            id = UUID.randomUUID().toString(),
-            path = file.absolutePath,
-            fileName = name,
-            mediaType = type,
-        )
+        ComposerFileAttachment(path = file.absolutePath, fileName = name, mediaType = type)
     } catch (_: Exception) {
         file.delete()
         null
@@ -121,36 +84,4 @@ private fun safeFileName(value: String): String {
         }
     }.joinToString("").trim('.', ' ', '_')
     return cleaned.ifEmpty { "attachment" }
-}
-
-// The staged files, shown above the editor once any are attached. The Attach action itself is the
-// paperclip in the app bar, so this is just the list; empty means nothing is drawn.
-@Composable
-internal fun ComposerAttachmentList(
-    attachments: List<PickedComposerFile>,
-    onRemove: (PickedComposerFile) -> Unit,
-) {
-    if (attachments.isEmpty()) {
-        return
-    }
-    val ctx = LocalContext.current
-    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Text(
-            text = L10n.attachments_title(ctx),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        attachments.forEach { attachment ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = attachment.fileName,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                TextButton(onClick = { onRemove(attachment) }) {
-                    Text(L10n.action_remove(ctx))
-                }
-            }
-        }
-    }
 }

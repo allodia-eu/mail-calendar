@@ -53,6 +53,9 @@ impl AppModel {
             }
         };
         if let Some(composition) = composition {
+            // A pop-out still out for it is withdrawn: the window it would open is closed unseen.
+            self.moving_composer
+                .take_if(|moving| moving.request.composition == composition);
             self.draft_status.remove(&composition);
             self.discard_stored_draft(&composition);
         }

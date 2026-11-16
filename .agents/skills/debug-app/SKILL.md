@@ -257,6 +257,13 @@ folded away under the title, comes back only that way), a held tap, a keystroke 
 stay with `macos-ax.swift` and idb below, as does asking the accessibility API from outside, the
 judge of what VoiceOver gets. A physical device has no agent: it cannot reach a socket on the Mac.
 
+⚠️ **On macOS, the agent's `screenshot` is not what the screen shows.** The app draws its own views
+into the PNG, and that drawing leaves out vibrancy: the text of a sidebar `List`, the Settings
+sheet's included, and of the title bar's items (New Mail) comes out dark grey on a dark window,
+which reads as text stuck in the light scheme. Judge a colour or a contrast from
+`scripts/dev/screenshot.sh macos` (or `screencapture -x -R x,y,w,h` over the window), which
+captures the screen.
+
 **On macOS, for what the agent cannot do, drive by label, never by pixel.** `find` resolves a label
 to coordinates that pipe straight into `tap`, so a flow survives a layout change:
 
@@ -344,6 +351,16 @@ scripts/dev/control.sh iphone hardware-keyboard off
 
 Check for the keyboard rather than assuming it: a dump with it up lists its keys
 (`ui-dump | grep -c "AXButton.* return$"` is non-zero).
+
+⚠️ **`idb ui text` can leave Shift held.** After text containing `@` or `:`, later text arrives
+shifted (`alice@TEST>LOCAL`), and neither a Shift or Caps Lock key event nor toggling the hardware
+keyboard clears it. Rebooting the simulator does, and turns the hardware keyboard off again, so
+the on-screen one then covers a form until `control.sh iphone hardware-keyboard on`. Read a typed
+field back before pressing anything that sends it.
+
+⚠️ **After an XCUITest run, idb sees an empty app**: `ui-dump` prints only `AXApplication [0,0]`,
+and neither relaunching the app nor restarting the companion helps. Reboot the simulator, or drive
+it through the test agent (`control.sh iphone agent dump`), which asks the app from inside.
 
 **Re-read the frame after every change: iOS layout moves under you.** A centred screen re-centres
 when a disclosure expands, so coordinates from an earlier `describe-all` land on the wrong element

@@ -27,30 +27,35 @@ struct AccountPageView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            header
-            // What the core says is wrong with this account, at the top of its page, each with
-            // its remedy (docs/notices.md rule 6).
-            ForEach(model.notices(about: entry.id), id: \.id) { notice in
-                GroupBox {
-                    NoticeEntry(model: model, notice: notice)
+            // The notices come and go as a change below runs, so a page scrolled past them keeps
+            // its place when they do.
+            VStack(alignment: .leading, spacing: 20) {
+                header
+                // What the core says is wrong with this account, at the top of its page, each with
+                // its remedy (docs/notices.md rule 6).
+                ForEach(model.notices(about: entry.id), id: \.id) { notice in
+                    GroupBox {
+                        NoticeEntry(model: model, notice: notice)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(6)
+                    }
+                }
+                // What setup opened this page to say: a use the provider's sign-in withheld.
+                if let notice = model.accountPageNotice, notice.account == entry.id {
+                    GroupBox {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Label(notice.title, systemImage: "exclamationmark.triangle.fill")
+                                .font(.headline)
+                            Text(notice.detail)
+                                .font(.callout)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(6)
-                }
-            }
-            // What setup opened this page to say: a use the provider's sign-in withheld.
-            if let notice = model.accountPageNotice, notice.account == entry.id {
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Label(notice.title, systemImage: "exclamationmark.triangle.fill")
-                            .font(.headline)
-                        Text(notice.detail)
-                            .font(.callout)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(6)
                 }
             }
+            .keepsPlaceAbove()
             // Whether this one travels: first, because it decides whether anything below it is
             // anybody else's business (docs/settings.md).
             if let sharing = page.sharing {
