@@ -35,7 +35,7 @@ import uniffi.mailcal_bindings.MailcalApp
 private const val TAG = "Mailcal"
 
 /** A composer holding no files, before the core has been asked or where there is none. */
-internal val NO_COMPOSER_FILES = ComposerFiles(tiles = emptyList(), changed = false)
+internal val NO_COMPOSER_FILES = ComposerFiles(tiles = emptyList(), changed = false, totalSize = 0uL)
 
 /**
  * The core's calls on one composition's files. Each answers with the list as it now stands, or
@@ -68,39 +68,55 @@ private fun asked(call: () -> ComposerFiles): ComposerFiles? = try {
     null
 }
 
-/** The narrowest a tile is drawn; the row holds as many equal columns of it as fit. */
-private val TILE_WIDTH = 160.dp
-private val TILE_GAP = 8.dp
+/**
+ * The narrowest a tile is drawn; the row holds as many equal columns of it as fit. A phone holds
+ * one, which leaves the name the room to tell twenty files apart.
+ */
+private val TILE_WIDTH = 220.dp
+private val TILE_GAP = 6.dp
 
 /**
- * The tiles, in rows of equal-width columns that wrap and grow downward without a cap. Nothing is
- * drawn for a composer holding no files.
+ * The count and total size, then the tiles, in rows of equal-width columns that wrap and grow
+ * downward without a cap. Nothing is drawn for a composer holding no files.
  */
 @Composable
 internal fun ComposerFileTiles(files: ComposerFiles, onRemove: (ComposerFileTile) -> Unit) {
     if (files.tiles.isEmpty()) {
         return
     }
+    val ctx = LocalContext.current
     // The space goes above, as the notes' does, so whichever comes first under the fields stands
     // clear of Subject's divider. The editor keeps its own above the message.
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-        val columns = ((maxWidth + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).toInt().coerceAtLeast(1)
-        val width = (maxWidth - TILE_GAP * (columns - 1)) / columns
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().testTag("composer-files"),
-            horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
-            verticalArrangement = Arrangement.spacedBy(TILE_GAP),
-        ) {
-            files.tiles.forEach { tile ->
-                FileTile(tile, Modifier.width(width)) { onRemove(tile) }
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Text(
+            text = L10n.compose_files_summary(
+                ctx,
+                files.tiles.size,
+                Formatter.formatShortFileSize(ctx, files.totalSize.toLong()),
+            ),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp).testTag("composer-files-summary"),
+        )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val columns = ((maxWidth + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).toInt().coerceAtLeast(1)
+            val width = (maxWidth - TILE_GAP * (columns - 1)) / columns
+            FlowRow(
+                modifier = Modifier.fillMaxWidth().testTag("composer-files"),
+                horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+                verticalArrangement = Arrangement.spacedBy(TILE_GAP),
+            ) {
+                files.tiles.forEach { tile ->
+                    FileTile(tile, Modifier.width(width)) { onRemove(tile) }
+                }
             }
         }
     }
 }
 
 /**
- * One file: its name, truncated in the middle so the extension stays, its size in the device's
- * own units, and a Remove drawn from the core's state for it.
+ * One file on one line: its picture shrunk or the attachment glyph, its name cut in the middle so
+ * both ends stay, its size in the device's own units, and a Remove drawn from the core's state.
  */
 @Composable
 private fun FileTile(tile: ComposerFileTile, modifier: Modifier, onRemove: () -> Unit) {
@@ -111,27 +127,30 @@ private fun FileTile(tile: ComposerFileTile, modifier: Modifier, onRemove: () ->
         color = MaterialTheme.colorScheme.surfaceVariant,
     ) {
         Row(
-            modifier = Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp),
+            modifier = Modifier.padding(start = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            ComposerFilePreview(tile.preview)
+            Text(
+                text = tile.fileName,
+                maxLines = 1,
+                overflow = TextOverflow.MiddleEllipsis,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f).padding(start = 10.dp),
+            )
+            // A file that could not be read has no size to give, and the send says so if it still
+            // cannot be read then.
+            tile.size?.let { bytes ->
                 Text(
-                    text = tile.fileName,
+                    text = Formatter.formatShortFileSize(ctx, bytes.toLong()),
                     maxLines = 1,
-                    overflow = TextOverflow.MiddleEllipsis,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
                 )
-                // A file that could not be read has no size to give, and the send says so if it
-                // still cannot be read then.
-                tile.size?.let { bytes ->
-                    Text(
-                        text = Formatter.formatShortFileSize(ctx, bytes.toLong()),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
             }
-            ControlTextButton(
+            ControlIconButton(
+                icon = R.drawable.ic_close,
                 label = L10n.action_remove(ctx),
                 control = tile.remove,
                 tag = "composer-file-remove",

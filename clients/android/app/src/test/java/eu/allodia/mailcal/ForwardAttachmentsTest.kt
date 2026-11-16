@@ -14,11 +14,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -62,7 +65,11 @@ internal class FakeComposerFileList(opened: List<ComposerFileTile>) : ComposerFi
         return answer()
     }
 
-    private fun answer() = ComposerFiles(tiles, tiles.map { it.id } != openedWith)
+    private fun answer() = ComposerFiles(
+        tiles,
+        tiles.map { it.id } != openedWith,
+        tiles.sumOf { it.size ?: 0uL },
+    )
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -97,13 +104,42 @@ class ForwardAttachmentsTest {
         rule.onNodeWithText("terms.docx").assertIsDisplayed()
     }
 
+    // One line above the tiles says how many there are and what they add up to, in the device's
+    // units, from the core's total: a file that could not be read adds nothing.
+    @Test
+    fun `a line above the tiles counts the files and adds up their sizes`() {
+        tiles(originals())
+
+        val size = Formatter.formatShortFileSize(ctx(), 2048)
+        rule.onNodeWithTag("composer-files-summary")
+            .assertTextEquals(L10n.compose_files_summary(ctx(), 2, size))
+    }
+
+    @Test
+    fun `one file is counted in the singular`() {
+        tiles(FakeComposerFileList(listOf(ComposerFileTile("file-0", "plan.pdf", 10u, FREE))))
+
+        val summary = L10n.compose_files_summary(ctx(), 1, Formatter.formatShortFileSize(ctx(), 10))
+        rule.onNodeWithTag("composer-files-summary").assertTextEquals(summary)
+        assertTrue("the singular names one file, at $summary", summary.startsWith("1 file "))
+    }
+
+    // A file the core does not name a picture is drawn as a file, never as an empty square.
+    @Test
+    fun `a file with no picture shows the attachment glyph`() {
+        tiles(originals())
+
+        rule.onAllNodesWithTag("composer-file-glyph").assertCountEquals(2)
+        rule.onAllNodesWithTag("composer-file-picture").assertCountEquals(0)
+    }
+
     @Test
     fun `a file the user would rather not pass on is taken off through the core`() {
         val list = originals()
         tiles(list)
 
         // One Remove per tile, in the core's order, so the first belongs to the first file.
-        rule.onAllNodesWithText(L10n.action_remove(ctx()))[0].performClick()
+        rule.onAllNodesWithContentDescription(L10n.action_remove(ctx()))[0].performClick()
         rule.waitForIdle()
 
         assertEquals(listOf("terms.docx"), list.tiles.map { it.fileName })
@@ -135,7 +171,7 @@ class ForwardAttachmentsTest {
     @Test
     fun `taking a file off a forward makes it a draft`() {
         val left = forwardComposer()
-        rule.onAllNodesWithText(L10n.action_remove(ctx()))[0].performClick()
+        rule.onAllNodesWithContentDescription(L10n.action_remove(ctx()))[0].performClick()
         rule.waitForIdle()
         rule.onNodeWithText("invoice.pdf").assertDoesNotExist()
 

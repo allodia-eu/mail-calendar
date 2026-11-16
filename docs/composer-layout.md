@@ -62,8 +62,8 @@ its own, and every file and every line can be reached the same way at any window
 | macOS | a `ScrollView` (`RichComposerView.swift`); `WKWebView` keeps every wheel event over it, so `EditorWebView` hands the vertical part to the column | a `LazyVGrid` of tiles | `composer_editor_height`, from the `height` notice | scrolled to by `composer_caret_scroll`, kept until reached | kept in view by `setComposerVisibleTop` |
 | iOS/iPadOS | a `ScrollView`, inside the keyboard's safe area | a `LazyVGrid` of tiles | as macOS | as macOS | at the message's top, scrolling with it |
 | Windows | a `ScrollViewer` (`ComposerView.xaml`), with Send and Discard under it and a rule over them while it runs on; the WebView2 marks every wheel event over it handled, so `ComposerView.Layout.cs` takes the handled event and scrolls the column | an `ItemsRepeater` in a `UniformGridLayout`; the name cut by `MiddleTrimmedText` | as macOS | as macOS | as macOS |
-| Linux | a `GtkScrolledWindow` (`ui/composer_layout.rs`); WebKitGTK passes a wheel event the page does not use on to it | a `GtkFlowBox` of tiles | as macOS | as macOS | as macOS |
-| Android | the editor's own page, with the header drawn over it (`ComposerHeaderScroll.kt`) | tiles in the header | the page's own, which is the one scroll | the WebView's own | above the keyboard (`useNativeComposerChrome`) |
+| Linux | a `GtkScrolledWindow` (`ui/composer_layout.rs`); WebKitGTK passes a wheel event the page does not use on to it | a `GtkFlowBox` of tiles; the picture decoded by gdk-pixbuf on a worker thread (`ui/composer_file_preview.rs`) | as macOS | as macOS | as macOS |
+| Android | the editor's own page, with the header drawn over it (`ComposerHeaderScroll.kt`) | tiles in the header, one column on a phone; the picture decoded by `ImageDecoder` off the main thread (`ComposerFilePreview.kt`) | the page's own, which is the one scroll | the WebView's own | above the keyboard (`useNativeComposerChrome`) |
 
 ## Enforcement
 
