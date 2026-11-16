@@ -43,7 +43,9 @@ export function plainText(element: Element): string {
   const out: string[] = [];
   let blanks = 0;
   for (const line of lines) {
-    const text = line.pre ? line.text : line.text.replace(/[\t\r ]+/g, " ").trim();
+    // A newline in markup is a space like any other: the indentation of the HTML around a line
+    // must not reach its text.
+    const text = line.pre ? line.text : line.text.replace(/[\t\n\f\r ]+/g, " ").trim();
     // Blank lines between blocks are layout, and two say as much as ten; a preformatted body's own
     // blank lines are the sender's, and stay.
     blanks = text === "" && !line.pre ? blanks + 1 : 0;
