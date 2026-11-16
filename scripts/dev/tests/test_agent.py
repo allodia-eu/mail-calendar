@@ -228,5 +228,18 @@ class LineMode(unittest.TestCase):
         self.assertEqual(self.server.connections, 2)
 
 
+class Output(unittest.TestCase):
+    def test_a_glyph_the_console_code_page_lacks_is_still_printed(self) -> None:
+        # A Windows console is cp1252, and a WinUI icon is a private-use character it has no byte for.
+        line = "[4] Text # '\ue715'\n"
+        raw = io.BytesIO()
+        console = io.TextIOWrapper(raw, encoding="cp1252", newline="\n")
+        with mock.patch.object(sys, "stdout", console):
+            agent.speak_utf8()
+            sys.stdout.write(line)
+            sys.stdout.flush()
+        self.assertEqual(raw.getvalue().decode("utf-8"), line)
+
+
 if __name__ == "__main__":
     unittest.main()
