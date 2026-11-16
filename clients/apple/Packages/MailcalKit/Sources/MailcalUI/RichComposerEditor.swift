@@ -63,12 +63,25 @@ final class RichComposerEditor: NSObject {
     var focusBodyOnLoad = false
     /// The link dialog the editor is waiting on, if any.
     var linkRequest: LinkDialogRequest?
-    /// The height the toolbar and the text need, as the growing mode last reported it; zero
-    /// until the page has said. The composer sizes the web view from it
-    /// (`docs/composer-layout.md`, rule 5).
-    var contentHeight: CGFloat = 0
     /// Where the caret last was, for the composer's column to keep in view.
     var caret: EditorCaret?
+    /// How far the message is scrolled inside its box, as the framed mode last reported it.
+    @ObservationIgnored var messageOffset: CGFloat = 0
+    /// The scroll offset of the column holding the editor and the furthest it scrolls, as the
+    /// column last reported them.
+    @ObservationIgnored var columnOffset: CGFloat = 0
+    @ObservationIgnored var columnEnd: CGFloat = 0
+
+    /// Whether a vertical step over the editor goes to the column rather than to the message
+    /// (`docs/composer-layout.md`, rule 2): the core's answer, from where both last were.
+    func columnTakesScroll(towardsEnd: Bool) -> Bool {
+        composerScroller(
+            columnOffsetPx: columnOffset,
+            columnEndPx: columnEnd,
+            messageOffsetPx: messageOffset,
+            towardsEnd: towardsEnd
+        ) == .column
+    }
     /// The height of the header drawn over the top of the page on a touch screen, which the page
     /// keeps clear above the message.
     @ObservationIgnored private var topInset: CGFloat = 0
@@ -85,34 +98,6 @@ final class RichComposerEditor: NSObject {
         "window.setComposerTopInset(\(Double(height)))"
     }
 
-    /// Where the column's visible part starts in the page's coordinates, the last value told to the
-    /// page, whether a call telling it is out, and whether the page can take one yet. The column
-    /// reports every frame of a scroll, and only the latest value is worth sending.
-    @ObservationIgnored private var visibleTop: Double = 0
-    @ObservationIgnored private var visibleTopSent: Double = .nan
-    @ObservationIgnored private var visibleTopSending = false
-    @ObservationIgnored private var growing = false
-
-    /// Tells the page where the column shows it from, so it keeps its toolbar there
-    /// (`docs/composer-layout.md`, rule 7). Sent again on load, so it may be set before the page is
-    /// there.
-    func setVisibleTop(_ px: CGFloat) {
-        // Zero or less is the same answer to the page: its top is in view.
-        visibleTop = max(0, Double(px).rounded())
-        sendVisibleTop()
-    }
-
-    private func sendVisibleTop() {
-        guard growing, !visibleTopSending, visibleTop != visibleTopSent else { return }
-        visibleTopSending = true
-        visibleTopSent = visibleTop
-        host.evaluate("window.setComposerVisibleTop(\(visibleTop))") { [weak self] _, _ in
-            guard let self else { return }
-            visibleTopSending = false
-            // The column may have moved on while the call was out.
-            sendVisibleTop()
-        }
-    }
     /// Files dropped on the message itself, set by `ComposerDropModifier`, which owns what a dropped
     /// file becomes. The web view hands its drops here, so the handler can be set before or after
     /// the web view exists.
@@ -129,8 +114,8 @@ final class RichComposerEditor: NSObject {
     override init() {
         super.init()
         host.channel.onLink = { [weak self] in self?.linkRequest = $0 }
-        host.channel.onHeight = { [weak self] in self?.contentHeight = $0 }
         host.channel.onCaret = { [weak self] in self?.caret = $0 }
+        host.channel.onScroll = { [weak self] in self?.messageOffset = $0 }
         host.onLoad = { [weak self] in self?.seedOnLoad() }
     }
 
@@ -141,7 +126,17 @@ final class RichComposerEditor: NSObject {
                 self?.acceptDroppedFiles?(urls)
             }
             #if os(macOS)
-            (view as? EditorWebView)?.passesVerticalScroll = true
+            (view as? EditorWebView)?.columnTakesScroll = { [weak self] towardsEnd in
+                self?.columnTakesScroll(towardsEnd: towardsEnd) ?? false
+            }
+            // The framed page has no background, so the toolbar sits on the column's own colour
+            // (`docs/composer-layout.md`, rule 7); a web view that painted white under it would put
+            // the strip back. There is no public switch on macOS: key-value coding reaches
+            // WebKit's own `_setDrawsBackground:`, asked for first so a WebKit without it is left
+            // as it is rather than taken down.
+            if view.responds(to: NSSelectorFromString("_setDrawsBackground:")) {
+                view.setValue(false, forKey: "drawsBackground")
+            }
             #endif
             #if os(iOS)
             // The page is the composer's one scroll on a touch screen, with the header drawn inside
@@ -183,11 +178,9 @@ final class RichComposerEditor: NSObject {
         host.evaluate("window.useNativeComposerChrome()")
         if topInset > 0 { host.evaluate(Self.topInsetScript(topInset)) }
         #else
-        // Before the announce, which the page answers with its first height and caret.
-        host.evaluate("window.useGrowingComposer()")
-        growing = true
-        visibleTopSent = .nan
-        sendVisibleTop()
+        // A desktop column's layout: the header scrolls away, then the message in its own box under
+        // the toolbar. Before the announce, which the page answers with its caret and its scroll.
+        host.evaluate("window.useFramedComposer()")
         #endif
         host.channel.announce()
         // One body seed, whichever way the composer was reached. A plain body is assigned as

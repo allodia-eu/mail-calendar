@@ -19,7 +19,7 @@ struct LinkDialogRequest: Identifiable, Equatable {
     let removable: Bool
 }
 
-/// The caret's top and bottom edges in the editor's page, as the growing mode reports them.
+/// The caret's top and bottom edges in the editor's page, as the framed mode reports them.
 struct EditorCaret: Equatable {
     let top: CGFloat
     let bottom: CGFloat
@@ -32,12 +32,12 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
     /// Called with the body's undo state each time it changes: whether there is a step to take
     /// back, and one to put back (`EditorUndoManager`).
     var onHistory: (_ undo: Bool, _ redo: Bool) -> Void = { _, _ in }
-    /// Called in the editor's growing mode with the height its content needs, in points
-    /// (`docs/composer-layout.md`, rule 5).
-    var onHeight: (CGFloat) -> Void = { _ in }
-    /// Called in the editor's growing mode with where its caret is, in points from the top of the
+    /// Called in the editor's framed mode with where its caret is, in points from the top of the
     /// page (`docs/composer-layout.md`, rule 6).
     var onCaret: (EditorCaret) -> Void = { _ in }
+    /// Called in the editor's framed mode with how far the message is scrolled inside its box, in
+    /// points (`docs/composer-layout.md`, rule 2).
+    var onScroll: (CGFloat) -> Void = { _ in }
     /// Weak: the web view's content controller holds this channel, and the web view's owner holds
     /// the web view.
     private weak var webView: WKWebView?
@@ -69,10 +69,10 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
             onLink(LinkDialogRequest(id: id, text: text, address: address, removable: removable))
         case let .history(undo, redo):
             onHistory(undo, redo)
-        case let .height(px):
-            onHeight(CGFloat(px))
         case let .caret(top, bottom):
             onCaret(EditorCaret(top: CGFloat(top), bottom: CGFloat(bottom)))
+        case let .scroll(px):
+            onScroll(CGFloat(px))
         }
     }
 

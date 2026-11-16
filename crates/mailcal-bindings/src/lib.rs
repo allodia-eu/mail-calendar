@@ -213,7 +213,7 @@ pub use composer_host::{
     composer_host_requests_script, composer_host_requests_with_history_script,
     composer_link_address, composer_link_answer_script, parse_composer_host_request,
 };
-pub use composer_layout::{composer_caret_scroll, composer_editor_height};
+pub use composer_layout::{ComposerScroller, composer_caret_scroll, composer_scroller};
 pub use composer_open::{
     ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, ComposerState, MovedComposer,
     MovedSignature, QuoteSource,

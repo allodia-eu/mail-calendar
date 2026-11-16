@@ -29,9 +29,8 @@ struct RichComposerWebView: PlatformViewRepresentable {
     }
 }
 
-/// The column's padding, around everything in it. At least 16 under the editor, so the editor's own
-/// padding (14) and border with it are more than the core's caret margin (24) and the last line
-/// can be brought fully into view (`docs/composer-layout.md`, rule 6).
+/// The column's padding: above and beside everything in it, and under nothing, since the message's
+/// box ends where the column's visible part does.
 let columnPadding: CGFloat = 16
 
 /// The gap between the column's sections.
@@ -129,8 +128,6 @@ struct RichComposeView: View {
     @State var visible = ScrollWindow(offset: 0, height: 0, content: 0)
     /// Where the column is scrolled to, which following the caret moves.
     @State var scrollPosition = ScrollPosition(edge: .top)
-    /// The caret the page last reported that the column has not yet brought into view.
-    @State var unreachedCaret: EditorCaret?
 
     init(
         title: String,

@@ -1,6 +1,6 @@
 use crate::{
-    CaretSpan, ContentHeight, HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer,
-    LinkRequest, LinkUrl, answer_script, link_address, parse_host_request,
+    CaretSpan, HistorySteps, HostAnswer, HostRequest, HostRequestKind, LinkAnswer, LinkRequest,
+    LinkUrl, MessageScroll, answer_script, link_address, parse_host_request,
 };
 
 fn link(text: &str, address: &str, removable: bool) -> HostRequest {
@@ -39,13 +39,13 @@ fn reads_a_history_notice() {
 }
 
 #[test]
-fn reads_a_height_notice() {
-    let message = r#"{"id":0,"request":{"height":{"px":412}}}"#;
+fn reads_a_scroll_notice() {
+    let message = r#"{"id":0,"request":{"scroll":{"px":412}}}"#;
     assert_eq!(
         parse_host_request(message),
         Some(HostRequest {
             id: 0,
-            kind: HostRequestKind::Height(ContentHeight { px: 412 }),
+            kind: HostRequestKind::Scroll(MessageScroll { px: 412 }),
         })
     );
 }
@@ -86,9 +86,10 @@ fn refuses_anything_outside_the_vocabulary() {
         r#"{"id":0,"request":{"history":{"undo":true}}}"#,
         r#"{"id":0,"request":{"history":{"undo":true,"redo":false,"steps":3}}}"#,
         r#"{"id":0,"request":{"history":{"undo":"yes","redo":false}}}"#,
-        r#"{"id":0,"request":{"height":{"px":-1}}}"#,
-        r#"{"id":0,"request":{"height":{"px":12.5}}}"#,
-        r#"{"id":0,"request":{"height":{}}}"#,
+        r#"{"id":0,"request":{"scroll":{"px":-1}}}"#,
+        r#"{"id":0,"request":{"scroll":{"px":12.5}}}"#,
+        r#"{"id":0,"request":{"scroll":{}}}"#,
+        r#"{"id":0,"request":{"height":{"px":412}}}"#,
         r#"{"id":0,"request":{"caret":{"top":1}}}"#,
         r#"{"id":0,"request":{"caret":{"top":1,"bottom":2,"left":0}}}"#,
     ] {

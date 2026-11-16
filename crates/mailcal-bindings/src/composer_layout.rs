@@ -1,21 +1,54 @@
-//! The composer's two layout rules, decided once for every client (`docs/composer-layout.md`):
-//! how tall the editor is, and how far the column scrolls to keep the caret in view.
+//! The composer's two layout rules, decided once for every desktop client
+//! (`docs/composer-layout.md`): which of its two scrolls a gesture moves, and how far the column
+//! scrolls to keep the caret in view.
 //!
 //! Every length is in the host's own layout unit (points on Apple, device-independent pixels on
-//! Windows, logical pixels on GTK and Android), which is what a CSS pixel in the editor's page is
-//! on each of them.
+//! Windows, logical pixels on GTK), which is what a CSS pixel in the editor's page is on each of
+//! them.
 
 /// The room kept between the caret and the edge of the column's visible part, so the line being
 /// typed is not flush against the window's edge.
 const CARET_MARGIN: f64 = 24.0;
 
-/// The editor's height: what its content needs, or the room the column has left under the header
-/// and the files, whichever is more (`docs/composer-layout.md`, rule 5). A length that is not a
-/// finite, non-negative number counts as nothing.
+/// Within this of its end, the column counts as at its end: an offset is a rounded length.
+const END_SLACK: f64 = 0.5;
+
+/// The scroll a step of a gesture moves (`docs/composer-layout.md`, rule 2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum ComposerScroller {
+    /// The column, which carries the header away and brings it back.
+    Column,
+    /// The message, inside its own box under the toolbar.
+    Message,
+}
+
+/// Which scroll a step of a gesture moves: the header goes first and comes back last.
+///
+/// `column_offset_px` is the column's scroll offset and `column_end_px` the furthest it scrolls,
+/// which is where the message's box fills its visible part; `message_offset_px` is how far the
+/// message is scrolled inside its box, from the page's `scroll` notice; `towards_end` is a step
+/// down the message. Down, the column moves until the header has gone, then the message. Up, the
+/// message moves until it is back at its top, then the column. A length that is not a finite
+/// number counts as nothing.
 #[must_use]
 #[uniffi::export]
-pub fn composer_editor_height(content_px: f64, room_px: f64) -> f64 {
-    length(content_px).max(length(room_px))
+pub fn composer_scroller(
+    column_offset_px: f64,
+    column_end_px: f64,
+    message_offset_px: f64,
+    towards_end: bool,
+) -> ComposerScroller {
+    if towards_end {
+        if length(column_offset_px) + END_SLACK < length(column_end_px) {
+            ComposerScroller::Column
+        } else {
+            ComposerScroller::Message
+        }
+    } else if length(message_offset_px) > 0.0 {
+        ComposerScroller::Message
+    } else {
+        ComposerScroller::Column
+    }
 }
 
 /// Where to scroll the column so the caret is in view, or `None` when it already is
@@ -26,7 +59,9 @@ pub fn composer_editor_height(content_px: f64, room_px: f64) -> f64 {
 /// which is the page's coordinates plus where the editor starts in the column. The answer moves
 /// the column as little as it can: a caret above the visible part is brought to its top, one below
 /// it to its bottom, each with a margin to spare. A caret taller than the visible part is
-/// brought to the top, where its first line is.
+/// brought to the top, where its first line is. A target past the column's end is the column's
+/// own to clamp: the message's box then fills the visible part, and the page keeps its caret in
+/// view inside it.
 #[must_use]
 #[uniffi::export]
 pub fn composer_caret_scroll(
@@ -61,19 +96,54 @@ fn length(value: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{composer_caret_scroll, composer_editor_height};
+    use super::{ComposerScroller, composer_caret_scroll, composer_scroller};
 
     #[test]
-    fn a_short_message_fills_the_room_left_and_a_long_one_takes_what_it_needs() {
-        assert!((composer_editor_height(120.0, 300.0) - 300.0).abs() < f64::EPSILON);
-        assert!((composer_editor_height(900.0, 300.0) - 900.0).abs() < f64::EPSILON);
+    fn down_the_header_goes_first_then_the_message() {
+        assert_eq!(
+            composer_scroller(0.0, 240.0, 0.0, true),
+            ComposerScroller::Column
+        );
+        assert_eq!(
+            composer_scroller(239.0, 240.0, 0.0, true),
+            ComposerScroller::Column
+        );
+        assert_eq!(
+            composer_scroller(239.8, 240.0, 0.0, true),
+            ComposerScroller::Message
+        );
+        assert_eq!(
+            composer_scroller(240.0, 240.0, 500.0, true),
+            ComposerScroller::Message
+        );
     }
 
     #[test]
-    fn no_room_at_all_still_gives_the_editor_its_content() {
-        // A header and a file list taller than the window leave nothing over.
-        assert!((composer_editor_height(240.0, -80.0) - 240.0).abs() < f64::EPSILON);
-        assert!((composer_editor_height(f64::NAN, f64::INFINITY)).abs() < f64::EPSILON);
+    fn up_the_message_goes_back_to_its_top_before_the_header_returns() {
+        assert_eq!(
+            composer_scroller(240.0, 240.0, 300.0, false),
+            ComposerScroller::Message
+        );
+        assert_eq!(
+            composer_scroller(240.0, 240.0, 0.0, false),
+            ComposerScroller::Column
+        );
+        assert_eq!(
+            composer_scroller(100.0, 240.0, 0.0, false),
+            ComposerScroller::Column
+        );
+    }
+
+    #[test]
+    fn a_column_with_nothing_to_carry_away_hands_every_step_to_the_message() {
+        assert_eq!(
+            composer_scroller(0.0, 0.0, 0.0, true),
+            ComposerScroller::Message
+        );
+        assert_eq!(
+            composer_scroller(f64::NAN, f64::NAN, f64::NAN, true),
+            ComposerScroller::Message
+        );
     }
 
     #[test]

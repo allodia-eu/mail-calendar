@@ -35,18 +35,18 @@ pub enum HostRequestKind {
     Link(LinkRequest),
     /// The body's undo history changed. A notice rather than a request: nothing answers it.
     History(HistorySteps),
-    /// The height the editor's content needs, in its growing mode (`docs/composer-layout.md`,
-    /// rule 5). A notice.
-    Height(ContentHeight),
-    /// Where the caret is, in its growing mode (`docs/composer-layout.md`, rule 6). A notice.
+    /// Where the caret is, in its framed mode (`docs/composer-layout.md`, rule 6). A notice.
     Caret(CaretSpan),
+    /// How far the message is scrolled inside its box, in its framed mode
+    /// (`docs/composer-layout.md`, rule 2). A notice.
+    Scroll(MessageScroll),
 }
 
-/// The height the editor's toolbar and text need together, in whole CSS pixels.
+/// How far the message is scrolled inside its box, in whole CSS pixels; zero at its top.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ContentHeight {
-    /// The height.
+pub struct MessageScroll {
+    /// The distance from the message's top.
     pub px: u32,
 }
 

@@ -47,14 +47,7 @@ pub enum ComposerHostRequest {
         /// A step can be redone.
         redo: bool,
     },
-    /// The height the editor's content needs, in CSS pixels, sent in its growing mode whenever it
-    /// changes. A notice: the host sizes the editor to `composer_editor_height` of it
-    /// (`docs/composer-layout.md`, rule 5).
-    Height {
-        /// The height.
-        px: u32,
-    },
-    /// Where the caret is, in CSS pixels from the top of the editor's page, sent in its growing
+    /// Where the caret is, in CSS pixels from the top of the editor's page, sent in its framed
     /// mode as it moves. A notice: the host keeps it in view with `composer_caret_scroll`
     /// (`docs/composer-layout.md`, rule 6).
     Caret {
@@ -62,6 +55,13 @@ pub enum ComposerHostRequest {
         top: u32,
         /// The caret's bottom edge.
         bottom: u32,
+    },
+    /// How far the message is scrolled inside its box, in CSS pixels, sent in its framed mode as
+    /// it scrolls. A notice: the host asks `composer_scroller` with it which of its two scrolls a
+    /// gesture moves (`docs/composer-layout.md`, rule 2).
+    Scroll {
+        /// The distance from the message's top.
+        px: u32,
     },
 }
 
@@ -82,11 +82,11 @@ pub fn parse_composer_host_request(message: String) -> Option<ComposerHostReques
             undo: steps.undo,
             redo: steps.redo,
         },
-        HostRequestKind::Height(height) => ComposerHostRequest::Height { px: height.px },
         HostRequestKind::Caret(caret) => ComposerHostRequest::Caret {
             top: caret.top,
             bottom: caret.bottom,
         },
+        HostRequestKind::Scroll(scroll) => ComposerHostRequest::Scroll { px: scroll.px },
     })
 }
 
@@ -136,13 +136,13 @@ pub fn composer_link_answer_script(id: u64, answer: ComposerLinkAnswer) -> Strin
 /// than drawing its own. Run it once the page has loaded; without it the editor draws everything
 /// itself.
 ///
-/// It also asks for the growing mode's [`ComposerHostRequest::Height`] and
-/// [`ComposerHostRequest::Caret`], which the editor sends only once `useGrowingComposer()` has
-/// switched that mode on.
+/// It also asks for the framed mode's [`ComposerHostRequest::Caret`] and
+/// [`ComposerHostRequest::Scroll`], which the editor sends only once `useFramedComposer()` has
+/// switched that mode on. A notice left out of this list is one the editor never sends.
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"height\",\"caret\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"caret\",\"scroll\"]);".to_owned()
 }
 
 /// The same, for a host that also keeps the body's undo state, because its platform asks whether
@@ -152,15 +152,34 @@ pub fn composer_host_requests_script() -> String {
 #[must_use]
 #[uniffi::export]
 pub fn composer_host_requests_with_history_script() -> String {
-    "window.setComposerHostRequests([\"link\",\"history\",\"height\",\"caret\"]);".to_owned()
+    "window.setComposerHostRequests([\"link\",\"history\",\"caret\",\"scroll\"]);".to_owned()
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        ComposerHostRequest, ComposerLinkAnswer, composer_link_address,
+        ComposerHostRequest, ComposerLinkAnswer, composer_host_requests_script,
+        composer_host_requests_with_history_script, composer_link_address,
         composer_link_answer_script, parse_composer_host_request,
     };
+
+    #[test]
+    fn every_host_asks_for_each_notice_the_framed_mode_sends() {
+        // The editor sends a notice only to a host that named it, so one parsed here but missing
+        // from these lists is a notice no client ever receives.
+        for script in [
+            composer_host_requests_script(),
+            composer_host_requests_with_history_script(),
+        ] {
+            for kind in ["link", "caret", "scroll"] {
+                assert!(
+                    script.contains(&format!("\"{kind}\"")),
+                    "{script} leaves out {kind}"
+                );
+            }
+        }
+        assert!(composer_host_requests_with_history_script().contains("\"history\""));
+    }
 
     #[test]
     fn a_link_request_reaches_the_client_as_its_fields() {
@@ -191,11 +210,11 @@ mod tests {
     }
 
     #[test]
-    fn the_growing_modes_notices_reach_the_client_as_their_fields() {
-        let height = r#"{"id":0,"request":{"height":{"px":640}}}"#;
+    fn the_framed_modes_notices_reach_the_client_as_their_fields() {
+        let scroll = r#"{"id":0,"request":{"scroll":{"px":640}}}"#;
         assert_eq!(
-            parse_composer_host_request(height.to_owned()),
-            Some(ComposerHostRequest::Height { px: 640 })
+            parse_composer_host_request(scroll.to_owned()),
+            Some(ComposerHostRequest::Scroll { px: 640 })
         );
         let caret = r#"{"id":0,"request":{"caret":{"top":12,"bottom":30}}}"#;
         assert_eq!(
