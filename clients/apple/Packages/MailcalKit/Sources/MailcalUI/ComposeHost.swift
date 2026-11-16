@@ -88,7 +88,7 @@ struct ComposeHost: View {
             drafts: drafts,
             files: ComposerFileVerbs(
                 read: { model.composerFiles($0) },
-                add: { model.addComposerFiles($0, $1) },
+                add: { await model.addComposerFiles($0, $1) },
                 remove: { model.removeComposerFile($0, $1) }
             ),
             moved: opening.moved,

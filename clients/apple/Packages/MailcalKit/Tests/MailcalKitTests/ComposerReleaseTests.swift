@@ -180,7 +180,7 @@ struct ComposerOnScreen: View {
 /// File verbs over an empty list: these tests are about the composer's lifetime, not its files.
 @MainActor private let noFiles = ComposerFileVerbs(
     read: { _ in MailboxModel.noComposerFiles },
-    add: { _, _ in MailboxModel.noComposerFiles },
+    add: { @MainActor _, _ in MailboxModel.noComposerFiles },
     remove: { _, _ in MailboxModel.noComposerFiles }
 )
 

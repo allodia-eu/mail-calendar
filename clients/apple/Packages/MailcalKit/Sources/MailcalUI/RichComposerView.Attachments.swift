@@ -33,7 +33,8 @@ enum PickedFile {
 /// can stand in for it.
 struct ComposerFileVerbs {
     let read: (String) -> ComposerFiles
-    let add: (String, [ComposerFileAttachment]) -> ComposerFiles
+    /// Asynchronous: the core reads each file it is given, which is not a wait for the main thread.
+    let add: (String, [ComposerFileAttachment]) async -> ComposerFiles
     let remove: (String, String) -> ComposerFiles
 }
 
@@ -109,7 +110,10 @@ extension RichComposeView {
         let verbs = fileVerbs
         let composition = composition
         return { urls in
-            files.wrappedValue = verbs.add(composition, urls.map(PickedFile.describe))
+            let picked = urls.map(PickedFile.describe)
+            Task { @MainActor in
+                files.wrappedValue = await verbs.add(composition, picked)
+            }
         }
     }
 

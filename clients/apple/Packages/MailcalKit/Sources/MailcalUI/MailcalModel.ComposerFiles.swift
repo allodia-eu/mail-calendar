@@ -13,10 +13,15 @@ extension MailboxModel {
     }
 
     /// Attaches files picked, dropped or shared, after what the composition already holds.
-    func addComposerFiles(_ composition: String, _ files: [ComposerFileAttachment]) -> ComposerFiles {
-        guard !files.isEmpty else { return composerFiles(composition) }
-        return (try? app?.addComposerFiles(composition: composition, files: files))
-            ?? composerFiles(composition)
+    ///
+    /// Off the main thread: the core reads each file's size and first bytes, and a file on a
+    /// network volume or in iCloud can take as long as the network does (`docs/waiting.md`).
+    func addComposerFiles(_ composition: String, _ files: [ComposerFileAttachment]) async -> ComposerFiles {
+        guard !files.isEmpty, let app else { return composerFiles(composition) }
+        let added = await Task.detached(priority: .userInitiated) {
+            try? app.addComposerFiles(composition: composition, files: files)
+        }.value
+        return added ?? composerFiles(composition)
     }
 
     /// Takes one file, by its tile's id, off the composition.
