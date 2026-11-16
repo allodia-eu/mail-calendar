@@ -100,6 +100,9 @@ fn decode(path: &str, side: i32) -> Option<Pixels> {
     let (_, width, height) = Pixbuf::file_info(path)?;
     let (width, height) = cover(width, height, side)?;
     let pixbuf = Pixbuf::from_file_at_scale(path, width, height, false).ok()?;
+    // A phone's photo is stored as the sensor saw it and turned upright by its EXIF orientation;
+    // without it a portrait photo shows on its side.
+    let pixbuf = pixbuf.apply_embedded_orientation().unwrap_or(pixbuf);
     Some(Pixels {
         width: pixbuf.width(),
         height: pixbuf.height(),
