@@ -106,6 +106,18 @@ body.growing {
   overflow: clip;
 }
 
+/* The toolbar kept in view (`growing.ts`): drawn over the text the column has scrolled under it,
+   above the image grips (z-index 1) and below its own popovers (3), with a shadow while it is
+   away from its place so it reads as lying over the message. */
+body.growing .toolbar {
+  position: relative;
+  z-index: 2;
+}
+
+body.growing .toolbar.pinned {
+  box-shadow: 0 2px 4px light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.32));
+}
+
 body.growing .editor {
   flex: 1 0 auto;
   min-height: 0;

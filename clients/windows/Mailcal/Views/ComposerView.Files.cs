@@ -88,7 +88,8 @@ public sealed partial class ComposerView
         FileTiles.ItemsSource = files.Tiles
             .Select(tile => new ComposerFileTileView(tile, () => RemoveFile(tile.Id)))
             .ToList();
-        FileTiles.Visibility = files.Tiles.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        FilesSummary.Text = L10n.ComposeFilesSummary(files.Tiles.Length, ByteSize.Format(files.TotalSize));
+        FilesBlock.Visibility = files.Tiles.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string MediaType(StorageFile file) =>

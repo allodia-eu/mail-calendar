@@ -117,6 +117,7 @@ impl FileTiles {
             .unwrap_or(ComposerFiles {
                 tiles: Vec::new(),
                 changed: false,
+                total_size: 0,
             })
     }
 

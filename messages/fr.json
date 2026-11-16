@@ -124,6 +124,8 @@
 	"action_load_images": "Charger les images",
 	"action_retry": "Réessayer",
 	"action_attach": "Joindre des fichiers",
+	"compose_files_summary": "{count} fichiers · {size}",
+	"compose_files_summary_one": "{count} fichier · {size}",
 	"action_copy_link": "Copier le lien",
 	"action_paste": "Coller",
 	"action_remove": "Retirer",

@@ -1,5 +1,5 @@
-// The composer is one column that scrolls as a whole, and the message grows with its text
-// (docs/composer-layout.md, rules 2, 5 and 6). The core decides the editor's height and where the
+// The composer is one column that scrolls as a whole, the message grows with its text, and its
+// toolbar stays in view (docs/composer-layout.md, rules 2, 5, 6 and 7). The core decides the editor's height and where the
 // column scrolls; Mailcal.Tests cannot link the ScrollViewer or the WebView2, so nothing else sees
 // whether the page's notices reach them.
 //
@@ -36,12 +36,18 @@ public sealed class ComposerColumnTests(ShowcaseApp showcase)
 
     private static Element? Title(App app) => app.Agent.Find(Filter.ById("ComposerTitle"));
 
-    /// <summary>Puts the caret in the message and types <see cref="Lines"/> lines into it.</summary>
-    private static void WriteALongMessage(App app)
+    /// <summary>Puts the caret in the message and types <see cref="Lines"/> lines into it; at the
+    /// very end of it when <paramref name="atTheEnd"/>, past the signature a new message opens
+    /// with.</summary>
+    private static void WriteALongMessage(App app, bool atTheEnd = false)
     {
         var editor = app.Steady(Editor(app));
         Input.Click(editor);
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(300));
+        if (atTheEnd)
+        {
+            Input.Chord(Input.End, Input.Control);
+        }
         for (var line = 0; line < Lines; line++)
         {
             Input.Type($"line {line}");
@@ -62,6 +68,33 @@ public sealed class ComposerColumnTests(ShowcaseApp showcase)
             $"the editor is {after.Height}px tall after {Lines} lines, as it was before ({before.Height}px): the page's height notice never reached it, so the message scrolls inside itself");
         Assert.True(Title(app) is not { Rendered: true },
             "the heading is still on screen after the message ran past the bottom: the column did not follow the caret, so the line being typed is out of sight");
+    });
+
+    [OfflineFact]
+    public void TheLineBeingTypedIsWhollyInViewWithRoomUnderIt() => Case(nameof(TheLineBeingTypedIsWhollyInViewWithRoomUnderIt), app =>
+    {
+        WriteALongMessage(app, atTheEnd: true);
+        // The caret is on the message's last line, so following it takes the column to its end,
+        // where the column's bottom padding shows under the editor. The agent gives the editor the
+        // rectangle of its visible part: an editor that runs on under the column's edge ends there.
+        // A line typed past the end arrives before the column has grown to hold it, which is the
+        // case a scroll that is not kept and asked again stops short on.
+        var column = app.Agent.Find(Filter.ById("ComposerScroll")) ?? throw new InvalidOperationException("the composer draws no column");
+        var editor = app.Steady(Editor(app));
+        var under = column.Y + column.Height - (editor.Y + editor.Height);
+        Assert.True(under >= 8,
+            $"the editor runs to {under}px from the column's bottom edge after the last line was typed: the column stopped short of its end, so the line being typed is cut by the edge");
+    });
+
+    [OfflineFact]
+    public void TheToolbarStaysInViewInALongMessage() => Case(nameof(TheToolbarStaysInViewInALongMessage), app =>
+    {
+        WriteALongMessage(app);
+        Assert.True(Title(app) is not { Rendered: true }, "the long message left the heading on screen, so this case cannot see the toolbar kept in view");
+        // The toolbar is inside the page, where the agent cannot reach: the column carries the
+        // page's own answer to where it drew it (ComposerView.Layout.cs).
+        Assert.True(app.Agent.Wait(Filter.ById("ComposerScroll") with { Signal = "toolbar kept in view" }, App.Patience) is not null,
+            "the formatting toolbar scrolled away with the top of the message: the page was not told where the column shows it from, or drew the toolbar in its place");
     });
 
     [OfflineFact]

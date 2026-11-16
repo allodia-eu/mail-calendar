@@ -27,8 +27,11 @@
 
         <ScrollViewer x:Name="ComposerScroll" VerticalScrollBarVisibility="Auto"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
-                      SizeChanged="OnColumnSizeChanged">
-            <StackPanel x:Name="Column" Spacing="10">
+                      SizeChanged="OnColumnSizeChanged" ViewChanged="OnColumnViewChanged">
+            <!-- The bottom padding is the room the core's caret margin needs under the last line:
+                 with the editor's own padding and border it is more than the margin, so a caret on
+                 the last line can always be brought fully into view (ComposerView.Layout.cs). -->
+            <StackPanel x:Name="Column" Spacing="10" Padding="0,0,0,16" SizeChanged="OnColumnContentSizeChanged">
                 <!-- Everything above the message. Its height is what the editor's room is measured
                      after, so a change to it (Cc shown, a file added, a note) resizes the editor. -->
                 <StackPanel x:Name="AboveEditor" Spacing="10" SizeChanged="OnAboveEditorSizeChanged">
@@ -157,18 +160,25 @@
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                Style="{StaticResource CaptionTextBlockStyle}" />
 
-                    <!-- The files, as the core holds them: a tile each, in rows of equal-width columns
-                         that wrap, with no cap of their own (ComposerView.Files.cs). An ItemsRepeater
-                         is in UI Automation's raw view unless told otherwise, where a screen reader
-                         skips the group the tiles belong to. -->
-                    <ItemsRepeater x:Name="FileTiles" Visibility="Collapsed"
-                                   AutomationProperties.AutomationId="ComposerFiles"
-                                   AutomationProperties.AccessibilityView="Content">
-                        <ItemsRepeater.Layout>
-                            <UniformGridLayout MinItemWidth="200" MinColumnSpacing="8" MinRowSpacing="8"
-                                               ItemsStretch="Fill" />
-                        </ItemsRepeater.Layout>
-                    </ItemsRepeater>
+                    <!-- The files, as the core holds them: how many and how large together, then a
+                         tile each, in rows of equal-width columns that wrap, with no cap of their own
+                         (ComposerView.Files.cs). An ItemsRepeater is in UI Automation's raw view
+                         unless told otherwise, where a screen reader skips the group the tiles
+                         belong to. -->
+                    <StackPanel x:Name="FilesBlock" Spacing="6" Visibility="Collapsed">
+                        <TextBlock x:Name="FilesSummary"
+                                   AutomationProperties.AutomationId="ComposerFilesSummary"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                   Style="{StaticResource CaptionTextBlockStyle}" />
+                        <ItemsRepeater x:Name="FileTiles"
+                                       AutomationProperties.AutomationId="ComposerFiles"
+                                       AutomationProperties.AccessibilityView="Content">
+                            <ItemsRepeater.Layout>
+                                <UniformGridLayout MinItemWidth="220" MinColumnSpacing="6" MinRowSpacing="6"
+                                                   ItemsStretch="Fill" />
+                            </ItemsRepeater.Layout>
+                        </ItemsRepeater>
+                    </StackPanel>
                 </StackPanel>
 
                 <!-- The message: the editor's own toolbar, then its text. Its height is set from what
@@ -182,6 +192,11 @@
         <!-- Send / Discard. A pane has no chrome, so the composer owns its own action row. There is
              no Cancel: leaving the composer any other way keeps the draft, so the one button that
              leads out is the one that throws it away (docs/drafts.md). -->
+        <!-- A rule from edge to edge over the action row, drawn while the column runs on under it
+             (ComposerView.Layout.cs). Out into the grid's padding, and up to the column's edge. -->
+        <Border x:Name="FooterRule" Grid.Row="1" Visibility="Collapsed" Height="1"
+                VerticalAlignment="Top" Margin="-16,-10,-16,0"
+                Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
         <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
             <!-- Named like its sibling so a test can press it without knowing the app's language:
                  a harness run is in whatever the developer prefers, not a pinned locale. -->

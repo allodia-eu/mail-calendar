@@ -124,6 +124,50 @@ fn a_readable_file_shows_its_size_and_an_unreadable_one_none() {
     std::fs::remove_file(&path).expect("remove");
     assert_eq!(files.tiles[0].size, Some(41));
     assert_eq!(files.tiles[1].size, None);
+    // The summary adds up what could be read; a file it could not read adds nothing.
+    assert_eq!(files.total_size, 41);
+}
+
+#[test]
+fn a_picture_by_its_bytes_offers_a_preview_and_anything_else_none() {
+    let dir = std::env::temp_dir().join(format!("mailcal-composer-preview-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("dir");
+    let picture = dir.join("shot.png");
+    std::fs::write(&picture, b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR").expect("write");
+    // Named like a picture, but the bytes are an SVG, which is script-capable: no preview.
+    let liar = dir.join("logo.png");
+    std::fs::write(&liar, b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>").expect("write");
+    let paths = [&picture, &liar].map(|path| path.to_str().expect("utf-8").to_owned());
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    let files = lists.add(
+        &c,
+        vec![
+            file(&paths[0], "shot.png"),
+            file(&paths[1], "logo.png"),
+            file("/no/such/photo.jpg", "photo.jpg"),
+        ],
+    );
+    std::fs::remove_dir_all(&dir).ok();
+    assert_eq!(files.tiles[0].preview.as_deref(), Some(paths[0].as_str()));
+    assert_eq!(files.tiles[1].preview, None);
+    assert_eq!(files.tiles[2].preview, None);
+}
+
+#[test]
+fn the_total_follows_a_file_taken_off() {
+    let path =
+        std::env::temp_dir().join(format!("mailcal-composer-total-{}.txt", std::process::id()));
+    std::fs::write(&path, [0u8; 100]).expect("write");
+    let text = path.to_str().expect("utf-8");
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    let files = lists.add(&c, vec![file(text, "a.txt"), file(text, "b.txt")]);
+    assert_eq!(files.total_size, 200);
+    let after = lists.remove(&c, &files.tiles[0].id);
+    std::fs::remove_file(&path).expect("remove");
+    assert_eq!(after.total_size, 100);
+    assert_eq!(lists.read(&composition("none")).total_size, 0);
 }
 
 #[test]

@@ -373,6 +373,9 @@ public sealed partial class ComposerView : UserControl
             // rule 5), switched on before any seed so the first height it reports is the seeded
             // message's.
             await _editor.RunAsync("window.useGrowingComposer()");
+            // A composer moved here keeps where its column was scrolled to; the page keeps its
+            // toolbar there from the start.
+            TellVisibleTop();
             // One body seed, whichever way the composer was reached: a fresh reply's or forward's
             // quote, a stored message's own HTML, or the text a link, a share or an assistant
             // brought. Each assigns the WHOLE body, so it goes ahead of the signature. Nothing about

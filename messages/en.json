@@ -124,6 +124,8 @@
 	"action_load_images": "Load images",
 	"action_retry": "Retry",
 	"action_attach": "Attach files",
+	"compose_files_summary": "{count} files · {size}",
+	"compose_files_summary_one": "{count} file · {size}",
 	"action_copy_link": "Copy link",
 	"action_paste": "Paste",
 	"action_remove": "Remove",

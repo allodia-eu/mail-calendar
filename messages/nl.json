@@ -124,6 +124,8 @@
 	"action_load_images": "Afbeeldingen laden",
 	"action_retry": "Opnieuw",
 	"action_attach": "Bestanden toevoegen",
+	"compose_files_summary": "{count} bestanden · {size}",
+	"compose_files_summary_one": "{count} bestand · {size}",
 	"action_copy_link": "Link kopiëren",
 	"action_paste": "Plakken",
 	"action_remove": "Verwijderen",

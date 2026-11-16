@@ -7,9 +7,9 @@
 //! The list starts at `open_composer`, which seeds it with what the composer opens holding, and
 //! ends with the composition: a discard, a close, a save-and-close or an accepted send.
 
-use std::{collections::HashMap, sync::Mutex};
+use std::{collections::HashMap, path::Path, sync::Mutex};
 
-use mailcal_app::{CompositionId, StagedAttachment};
+use mailcal_app::{CompositionId, StagedAttachment, is_raster_picture};
 use mailcal_composer::{safe_file_name, safe_media_type};
 
 use crate::{
@@ -25,6 +25,10 @@ pub struct ComposerFiles {
     /// Whether the list differs from what the composer opened holding: the files' half of "was
     /// anything written".
     pub changed: bool,
+    /// The sizes of every file that could be read, in bytes, added up: what the summary above the
+    /// tiles states beside the count. The client words it.
+    #[uniffi(default = 0)]
+    pub total_size: u64,
 }
 
 /// One attached file, as its tile shows it.
@@ -38,6 +42,11 @@ pub struct ComposerFileTile {
     pub size: Option<u64>,
     /// The tile's Remove control.
     pub remove: ControlState,
+    /// The file's own path when its bytes are a picture every client decodes (PNG, JPEG, GIF or
+    /// WebP, the avatars' sniff), so the tile may show it shrunk; `None` for anything else, which
+    /// the tile draws as a file. Never decoded at full size for this.
+    #[uniffi(default = None)]
+    pub preview: Option<String>,
 }
 
 /// A file's id within its composition.
@@ -61,6 +70,7 @@ struct HeldFile {
     file_name: String,
     media_type: String,
     size: Option<u64>,
+    picture: bool,
 }
 
 #[derive(Debug, Default)]
@@ -76,12 +86,14 @@ impl FileList {
             let file_name = safe_file_name(&file.file_name, &file.path);
             let media_type = safe_media_type(&file.media_type, &file_name);
             let size = std::fs::metadata(&file.path).ok().map(|meta| meta.len());
+            let picture = is_raster_picture(Path::new(&file.path));
             self.files.push(HeldFile {
                 id: FileId(self.next),
                 path: file.path,
                 file_name,
                 media_type,
                 size,
+                picture,
             });
             self.next += 1;
         }
@@ -100,6 +112,7 @@ impl FileList {
                         enabled: true,
                         running: false,
                     },
+                    preview: file.picture.then(|| file.path.clone()),
                 })
                 .collect(),
             changed: !self
@@ -107,6 +120,7 @@ impl FileList {
                 .iter()
                 .map(|file| file.id.0)
                 .eq(self.opened_with.iter().copied()),
+            total_size: self.files.iter().filter_map(|file| file.size).sum(),
         }
     }
 }

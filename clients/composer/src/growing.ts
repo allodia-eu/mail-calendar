@@ -7,6 +7,12 @@
 // taller of the two, and the editor stretches to fill it, so the blank area under the last line
 // still puts the caret in the message. A host that never calls `useGrowingComposer` keeps the
 // layout where the editor box scrolls itself.
+//
+// The toolbar stays in view (rule 7): the host says where its visible part starts, in the page's
+// own coordinates, as the column scrolls, and the toolbar is drawn there, over the text, until the
+// message runs out under it. So the line just under a pinned toolbar is covered, and the caret is
+// reported with the toolbar's height above it: what the host keeps in view is the caret and the
+// toolbar that may sit over the line above it.
 
 import { windowOf } from "./dom";
 
@@ -22,12 +28,18 @@ export interface GrowingMeasures {
   contentHeight(): number;
   /// The caret's top and bottom, or `null` when the selection is not in the message.
   caret(): { top: number; bottom: number } | null;
+  /// The toolbar's own height, where the layout put it, whatever it is drawn over.
+  toolbarHeight(): number;
 }
 
 export interface Growing {
   useGrowingComposer(): void;
   /// Sends both reports again, for a host that has just announced it takes them.
   resend(): void;
+  /// Where the host's visible part starts, in CSS pixels from the top of the page: zero or less
+  /// while the page's top is in view. The toolbar is drawn there; the answer is how far below its
+  /// own place, zero while it is in its place.
+  setVisibleTop(px: number): number;
 }
 
 export function installGrowing(
@@ -42,6 +54,7 @@ export function installGrowing(
   let lastHeight = -1;
   let lastCaret = "";
   let scheduled = false;
+  let visibleTop = 0;
 
   const reportHeight = (force: boolean) => {
     const px = Math.ceil(measures.contentHeight());
@@ -50,10 +63,21 @@ export function installGrowing(
     reports.height(px);
   };
 
+  // The toolbar is drawn where the visible part starts, never above its own place and never so far
+  // down that it leaves the message: past the end of the text it stops and scrolls away with it.
+  const pin = (): number => {
+    if (!on) return 0;
+    const room = Math.max(0, lastHeight - measures.toolbarHeight());
+    const offset = Math.min(Math.max(0, visibleTop), room);
+    toolbar.style.transform = offset > 0 ? `translateY(${offset}px)` : "";
+    toolbar.classList.toggle("pinned", offset > 0);
+    return offset;
+  };
+
   const reportCaret = (force: boolean) => {
     const caret = measures.caret();
     if (!caret) return;
-    const top = Math.max(0, Math.floor(caret.top));
+    const top = Math.max(0, Math.floor(caret.top - measures.toolbarHeight()));
     const bottom = Math.max(top, Math.ceil(caret.bottom));
     const key = `${top}:${bottom}`;
     if (!force && key === lastCaret) return;
@@ -69,6 +93,7 @@ export function installGrowing(
       scheduled = false;
       reportHeight(false);
       reportCaret(false);
+      pin();
     });
   };
 
@@ -98,6 +123,10 @@ export function installGrowing(
       reportHeight(true);
       reportCaret(true);
     },
+    setVisibleTop(px: number) {
+      if (Number.isFinite(px)) visibleTop = px;
+      return pin();
+    },
   };
 }
 
@@ -123,8 +152,11 @@ function domMeasures(editor: HTMLElement, toolbar: HTMLElement): GrowingMeasures
       const textBottom =
         text.height > 0 ? text.bottom : box.top + px(style.paddingTop) + px(style.lineHeight);
       const editorBottom = textBottom + px(style.paddingBottom) + px(style.borderBottomWidth);
-      return Math.max(editorBottom, toolbar.getBoundingClientRect().bottom) - pageTop();
+      // The toolbar's layout box, not its drawn one: pinned, it is drawn further down the page,
+      // and measuring that would grow the page with every pixel it moved.
+      return Math.max(editorBottom - pageTop(), toolbar.offsetTop + toolbar.offsetHeight);
     },
+    toolbarHeight: () => toolbar.offsetHeight,
     caret() {
       const selection = win.getSelection();
       if (!selection || selection.rangeCount === 0 || !doc.hasFocus()) return null;

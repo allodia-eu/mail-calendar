@@ -124,6 +124,8 @@
 	"action_load_images": "Carregar as imagens",
 	"action_retry": "Tentar de novo",
 	"action_attach": "Anexar ficheiros",
+	"compose_files_summary": "{count} ficheiros · {size}",
+	"compose_files_summary_one": "{count} ficheiro · {size}",
 	"action_copy_link": "Copiar ligação",
 	"action_paste": "Colar",
 	"action_remove": "Remover",

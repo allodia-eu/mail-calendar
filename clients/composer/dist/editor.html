@@ -130,6 +130,18 @@
       overflow: clip;
     }
 
+    /* The toolbar kept in view (`growing.ts`): drawn over the text the column has scrolled under it,
+       above the image grips (z-index 1) and below its own popovers (3), with a shadow while it is
+       away from its place so it reads as lying over the message. */
+    body.growing .toolbar {
+      position: relative;
+      z-index: 2;
+    }
+
+    body.growing .toolbar.pinned {
+      box-shadow: 0 2px 4px light-dark(rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.32));
+    }
+
     body.growing .editor {
       flex: 1 0 auto;
       min-height: 0;
@@ -2243,6 +2255,7 @@
     let lastHeight = -1;
     let lastCaret = "";
     let scheduled = false;
+    let visibleTop = 0;
     const reportHeight = (force) => {
       const px = Math.ceil(measures.contentHeight());
       if (!force && px === lastHeight)
@@ -2250,11 +2263,20 @@
       lastHeight = px;
       reports.height(px);
     };
+    const pin = () => {
+      if (!on)
+        return 0;
+      const room = Math.max(0, lastHeight - measures.toolbarHeight());
+      const offset = Math.min(Math.max(0, visibleTop), room);
+      toolbar.style.transform = offset > 0 ? `translateY(${offset}px)` : "";
+      toolbar.classList.toggle("pinned", offset > 0);
+      return offset;
+    };
     const reportCaret = (force) => {
       const caret = measures.caret();
       if (!caret)
         return;
-      const top = Math.max(0, Math.floor(caret.top));
+      const top = Math.max(0, Math.floor(caret.top - measures.toolbarHeight()));
       const bottom = Math.max(top, Math.ceil(caret.bottom));
       const key = `${top}:${bottom}`;
       if (!force && key === lastCaret)
@@ -2270,6 +2292,7 @@
         scheduled = false;
         reportHeight(false);
         reportCaret(false);
+        pin();
       });
     };
     return {
@@ -2297,6 +2320,11 @@
           return;
         reportHeight(true);
         reportCaret(true);
+      },
+      setVisibleTop(px) {
+        if (Number.isFinite(px))
+          visibleTop = px;
+        return pin();
       }
     };
   }
@@ -2314,8 +2342,9 @@
         const text = range.getBoundingClientRect();
         const textBottom = text.height > 0 ? text.bottom : box.top + px(style.paddingTop) + px(style.lineHeight);
         const editorBottom = textBottom + px(style.paddingBottom) + px(style.borderBottomWidth);
-        return Math.max(editorBottom, toolbar.getBoundingClientRect().bottom) - pageTop();
+        return Math.max(editorBottom - pageTop(), toolbar.offsetTop + toolbar.offsetHeight);
       },
+      toolbarHeight: () => toolbar.offsetHeight,
       caret() {
         const selection = win.getSelection();
         if (!selection || selection.rangeCount === 0 || !doc.hasFocus())
@@ -5122,6 +5151,7 @@
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
   window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
   window.useGrowingComposer = () => growing.useGrowingComposer();
+  window.setComposerVisibleTop = (cssPx) => growing.setVisibleTop(Number(cssPx));
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => {
     hostRequests.setAnswered(kinds);

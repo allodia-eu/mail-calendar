@@ -38,6 +38,7 @@ impl Held {
         ComposerFiles {
             tiles: self.files.clone(),
             changed: self.ids() != self.opened_with,
+            total_size: self.files.iter().filter_map(|tile| tile.size).sum(),
         }
     }
 }
@@ -97,6 +98,7 @@ impl ComposerFileStore for FakeStore {
                 file_name: file.file_name,
                 size,
                 remove,
+                preview: None,
             });
         }
         Ok(held.answer())

@@ -18,16 +18,24 @@ function mount() {
     <main id="editor" contenteditable="true"><p>One line</p></main>`;
   const editor = document.getElementById("editor") as HTMLElement;
   const toolbar = document.querySelector(".toolbar") as HTMLElement;
-  const measured = { height: 120, caret: { top: 40, bottom: 58 } as { top: number; bottom: number } | null };
+  const measured = {
+    height: 120,
+    caret: { top: 40, bottom: 58 } as { top: number; bottom: number } | null,
+    toolbar: 0,
+  };
   const heights: number[] = [];
   const carets: [number, number][] = [];
   const growing = installGrowing(
     editor,
     toolbar,
     { height: (px) => heights.push(px), caret: (top, bottom) => carets.push([top, bottom]) },
-    { contentHeight: () => measured.height, caret: () => measured.caret },
+    {
+      contentHeight: () => measured.height,
+      caret: () => measured.caret,
+      toolbarHeight: () => measured.toolbar,
+    },
   );
-  return { document, editor, growing, measured, heights, carets };
+  return { document, editor, toolbar, growing, measured, heights, carets };
 }
 
 describe("growing mode", () => {
@@ -89,5 +97,62 @@ describe("growing mode", () => {
     expect(carets).toHaveLength(1);
     const [top, bottom] = carets[0] ?? [0, -1];
     expect(bottom).toBeGreaterThanOrEqual(top);
+  });
+});
+
+describe("the toolbar kept in view", () => {
+  test("is drawn where the host's visible part starts, and not above its place", async () => {
+    const { toolbar, growing, measured } = mount();
+    measured.height = 900;
+    measured.toolbar = 40;
+    growing.useGrowingComposer();
+    await settled();
+    expect(growing.setVisibleTop(250)).toBe(250);
+    expect(toolbar.style.transform).toBe("translateY(250px)");
+    expect(toolbar.classList.contains("pinned")).toBe(true);
+    expect(growing.setVisibleTop(-30)).toBe(0);
+    expect(toolbar.style.transform).toBe("");
+    expect(toolbar.classList.contains("pinned")).toBe(false);
+  });
+
+  test("stops at the end of the message rather than leaving it", async () => {
+    const { toolbar, growing, measured } = mount();
+    measured.height = 300;
+    measured.toolbar = 40;
+    growing.useGrowingComposer();
+    await settled();
+    expect(growing.setVisibleTop(1000)).toBe(260);
+    expect(toolbar.style.transform).toBe("translateY(260px)");
+  });
+
+  test("waits for growing mode, then uses what the host last said, and ignores a value that is no length", async () => {
+    const { toolbar, growing, measured } = mount();
+    measured.height = 900;
+    measured.toolbar = 40;
+    growing.setVisibleTop(200);
+    expect(toolbar.style.transform).toBe("");
+    growing.useGrowingComposer();
+    await settled();
+    expect(toolbar.style.transform).toBe("translateY(200px)");
+    growing.setVisibleTop(Number.NaN);
+    expect(toolbar.style.transform).toBe("translateY(200px)");
+  });
+
+  test("reports the caret with the toolbar's height above it, which it may cover", async () => {
+    const { growing, measured, carets } = mount();
+    measured.toolbar = 30;
+    measured.caret = { top: 400, bottom: 418 };
+    growing.useGrowingComposer();
+    await settled();
+    expect(carets).toEqual([[370, 418]]);
+  });
+
+  test("never reports a caret above the page's top for the first line", async () => {
+    const { growing, measured, carets } = mount();
+    measured.toolbar = 40;
+    measured.caret = { top: 20, bottom: 38 };
+    growing.useGrowingComposer();
+    await settled();
+    expect(carets).toEqual([[0, 38]]);
   });
 });
