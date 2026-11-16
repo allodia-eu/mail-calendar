@@ -90,7 +90,7 @@ impl<P: Provider> App<P> {
         let wanted = self.windowed_event_keys();
         let mut events = Vec::new();
         for account in self.account_handles().await {
-            let can_write = Self::account_can_write(&account);
+            let can_write = self.account_can_write(&account);
             let read_only =
                 read_only_calendars(&self.engine.calendars(&account.id).await.unwrap_or_default());
             let account_id = account.id.as_str().to_owned();
@@ -243,7 +243,7 @@ impl<P: Provider> App<P> {
         // Clone the account handle, then write with the read guard released.
         let mut status = None;
         if let Some(acct) = self.account_handle(&account).await
-            && let Some(provider) = acct.calendar_provider.as_ref()
+            && let Some(provider) = self.connected_calendar(&acct)
         {
             self.set_calendar_write_status(CalendarWriteStatus::Saving);
             let write = self
@@ -337,7 +337,7 @@ impl<P: Provider> App<P> {
                 event.account.as_str()
             ));
         };
-        let Some(provider) = acct.calendar_provider.as_ref() else {
+        let Some(provider) = self.connected_calendar(&acct) else {
             self.set_calendar_write_status(CalendarWriteStatus::NotSaved);
             return Err("the calendar is not connected".to_owned());
         };
@@ -405,11 +405,11 @@ impl<P: Provider> App<P> {
             .next()
     }
 
-    /// Whether `account`'s calendar provider advertises writes: the same predicate that
-    /// stamps `can_write` onto every row the account contributes. Shared with the
-    /// event-detail read ([`crate::calendar_detail`]).
-    pub(crate) fn account_can_write(account: &Account<P>) -> bool {
-        account.calendar_provider.as_ref().is_some_and(|provider| {
+    /// Whether `account`'s calendar is connected ([`Self::connected_calendar`]) and its provider
+    /// advertises writes: the same predicate that stamps `can_write` onto every row the account
+    /// contributes. Shared with the event-detail read ([`crate::calendar_detail`]).
+    pub(crate) fn account_can_write(&self, account: &Account<P>) -> bool {
+        self.connected_calendar(account).is_some_and(|provider| {
             provider
                 .connection_info()
                 .capabilities
@@ -428,7 +428,7 @@ impl<P: Provider> App<P> {
             .read()
             .await
             .iter()
-            .filter(|account| Self::account_can_write(account))
+            .filter(|account| self.account_can_write(account))
             .map(|account| account.id.clone())
             .collect();
         let mut taking = Vec::new();

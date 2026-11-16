@@ -224,7 +224,7 @@ impl<P: Provider> App<P> {
             // its week is answered and the account's page in Settings says why.
             every_account_connected &= account.dialled
                 && self.use_problems(&account.id).calendar != Some(crate::UseProblem::Unreachable);
-            let can_write = Self::account_can_write(&account);
+            let can_write = self.account_can_write(&account);
             let mut listed = self.engine.calendars(&account.id).await.unwrap_or_default();
             // The server's default first, so the first writable row `mark_default` falls back to
             // is the calendar `calendar_for_new_events` picks.
@@ -362,7 +362,7 @@ impl<P: Provider> App<P> {
         // account can connect or go while the store is read above, and its calendars follow that
         // at once (`refresh_calendar_accounts`), so a list read before the store would undo it.
         let live = self.accounts.read().await;
-        Self::apply_accounts(&mut calendars, &live);
+        self.apply_accounts(&mut calendars, &live);
         let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
         // Did anything actually change? In the steady state, no: a refresh syncs calendars the
         // provider reports no changes to, and rebuilds a cache identical to the one it replaces.

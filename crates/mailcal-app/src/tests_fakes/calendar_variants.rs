@@ -46,9 +46,14 @@ impl CalendarFake {
     /// the app still expects a calendar from it; it simply never gets one.
     pub(crate) fn unreachable() -> Self {
         Self {
-            unreachable: true,
+            unreachable: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true)),
             ..Self::with_events(Vec::new())
         }
+    }
+
+    /// The switch that makes every read fail, as a server that stopped answering does.
+    pub(crate) fn outage(&self) -> std::sync::Arc<std::sync::atomic::AtomicBool> {
+        std::sync::Arc::clone(&self.unreachable)
     }
 
     /// A writable account whose **post-write reconcile fails**: the create/edit/delete lands,

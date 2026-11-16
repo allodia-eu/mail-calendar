@@ -85,7 +85,7 @@ impl<P: Provider> App<P> {
         let calendar_open = self
             .account_handle(answer.calendar)
             .await
-            .is_some_and(|acct| acct.calendar_provider.is_some());
+            .is_some_and(|acct| self.connected_calendar(&acct).is_some());
         let stored = match answer.stored.clone() {
             _ if !calendar_open => {
                 log::info!("respond_to_invitation: the calendar is not connected; replying only");
@@ -126,10 +126,9 @@ impl<P: Provider> App<P> {
             .account_handle(answer.calendar)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
-        let provider = acct
-            .calendar_provider
-            .as_ref()
-            .ok_or_else(|| "the account has no calendar provider".to_owned())?;
+        let provider = self
+            .connected_calendar(&acct)
+            .ok_or_else(|| "the calendar is not connected".to_owned())?;
         let rsvp = EventRsvp::to(stored, answer.attendee, answer.response.engine());
         let write = self
             .engine
@@ -192,8 +191,10 @@ impl<P: Provider> App<P> {
             .account_handle(account)
             .await
             .ok_or_else(|| "the account is not configured".to_owned())?;
-        let Some(provider) = acct.calendar_provider.as_ref() else {
-            log::info!("respond_to_invitation: no calendar on this account; replying only");
+        let Some(provider) = self.connected_calendar(&acct) else {
+            log::info!(
+                "respond_to_invitation: no calendar connected on this account; replying only"
+            );
             return Ok(None);
         };
         let event = &scheduling.message.event;
