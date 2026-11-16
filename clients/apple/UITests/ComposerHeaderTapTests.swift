@@ -25,11 +25,15 @@ final class ComposerHeaderTapTests: XCTestCase {
         )
         dismissMenu(app)
 
-        // The file picker is drawn by another process, so nothing of it is in this app's tree: what
-        // shows it opened is that it covers the composer. A tap the message took instead leaves the
-        // paperclip where it was, with the keyboard up under it.
+        // The paperclip opens its menu of sources. The file picker behind Files is drawn by another
+        // process, so nothing of it is in this app's tree: what shows it opened is that it covers
+        // the composer. A tap the message took instead leaves the paperclip where it was, with the
+        // keyboard up under it.
         let attach = app.buttons["Attach files"]
         ShowcaseApp.tap(attach)
+        let files = app.buttons["Files"]
+        XCTAssertTrue(files.waitForExistence(timeout: 5), "the paperclip did not open its menu")
+        ShowcaseApp.tap(files)
         let covered = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "isHittable == false"), object: attach
         )
@@ -39,10 +43,16 @@ final class ComposerHeaderTapTests: XCTestCase {
         )
     }
 
+    /// Tapped once the message's editor is there: the web view exists before its page has loaded,
+    /// and a tap on a page with no editor in it focuses nothing, which leaves the caret in To.
     func testATapBelowTheHeaderWritesInTheMessage() {
         let app = openComposer()
         let subject = app.textFields["Subject"]
         XCTAssertTrue(subject.waitForExistence(timeout: 5), "the composer has no Subject")
+        let editor = app.webViews.firstMatch.textViews.firstMatch
+        XCTAssertTrue(
+            editor.waitForExistence(timeout: ShowcaseApp.timeout), "the message has no editor"
+        )
 
         // Below the action bar, in the part of the page the header leaves to the message.
         let bar = app.buttons["Attach files"].frame
@@ -59,6 +69,10 @@ final class ComposerHeaderTapTests: XCTestCase {
             "a tap below the header did not put the caret in the message"
         )
         XCTAssertEqual(subject.value as? String, "Subject", "the tap reached the header instead")
+        XCTAssertFalse(
+            (app.textFields["To"].value as? String ?? "").contains("below"),
+            "the tap left the caret in To"
+        )
     }
 
     private func openComposer() -> XCUIApplication {
