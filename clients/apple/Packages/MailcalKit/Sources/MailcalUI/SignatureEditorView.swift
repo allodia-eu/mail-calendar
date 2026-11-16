@@ -242,23 +242,24 @@ struct SignatureEditorView: View {
             Label(L10n.settings_signatures_insert_image(), systemImage: "photo")
         }
         #else
-        Menu {
-            Button(L10n.action_attach_photo_library(), systemImage: "photo.on.rectangle") {
-                imageError = nil
-                PlatformPhotoPicker.present(filter: .images, limit: 1) { pick in
-                    if let url = pick.files.first {
-                        insert(url)
-                    } else if !pick.failed.isEmpty {
-                        imageError = L10n.settings_signatures_image_failed()
-                    }
-                }
-            }
-            Button(L10n.action_attach_from_files(), systemImage: "folder") { chooseImage() }
-        } label: {
+        PhotosOrFilesMenu(photos: choosePhoto, files: chooseImage) {
             Label(L10n.settings_signatures_insert_image(), systemImage: "photo")
         }
         #endif
     }
+
+    #if os(iOS)
+    private func choosePhoto() {
+        imageError = nil
+        PlatformPhotoPicker.present(filter: .images, limit: 1) { pick in
+            if let url = pick.files.first {
+                insert(url)
+            } else if !pick.failed.isEmpty {
+                imageError = L10n.settings_signatures_image_failed()
+            }
+        }
+    }
+    #endif
 
     private func chooseImage() {
         imageError = nil

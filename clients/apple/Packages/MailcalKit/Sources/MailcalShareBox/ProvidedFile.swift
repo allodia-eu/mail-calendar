@@ -13,16 +13,15 @@ public enum ProvidedFile {
 
     /// The type to ask a provider for its file by, from its registered types, most specific first.
     ///
-    /// The first that is a file's bytes: a picture, a film, a document. The Photos app registers
-    /// types beside the photograph that are no file (its own thumbnails among them), and asking for
-    /// one of those loads nothing, or a thumbnail in place of the photograph. A Live Photo bundle
-    /// is a directory, which a message cannot carry, so its still picture is asked for instead.
-    /// `nil` when nothing registered is a file at all.
+    /// The first that is a file's bytes: a picture, a film, a document. A type that is not, such as
+    /// a Live Photo bundle, which is a directory a message cannot carry, is passed over for one
+    /// that is. Failing that, the first type this device does not know at all: an app's private
+    /// type is still a file, and the sharing app can still deliver it. `nil` when there is neither.
     public static func fileType(_ identifiers: [String]) -> String? {
         identifiers.first { identifier in
             guard let type = UTType(identifier) else { return false }
             return type.conforms(to: .data) && !type.conforms(to: .directory)
-        }
+        } ?? identifiers.first { UTType($0) == nil }
     }
 
     /// The name a copied file is staged under: the provider's own name when it gave one, with the
@@ -31,14 +30,19 @@ public enum ProvidedFile {
     /// A provider's suggested name carries no extension for a photograph ("IMG_0042"), and the
     /// file it delivers is named after the provider's internals rather than the picture, so
     /// neither is the name alone. The extension is the delivered file's, because a photograph
-    /// asked for in its compatible form arrives as a JPEG whatever it was taken as.
+    /// asked for in its compatible form arrives as a JPEG whatever it was taken as. A suggested
+    /// name that ends in another type's extension (`IMG_0042.HEIC`) has it replaced; anything else
+    /// after its last dot (`Report v1.2`) is part of the name.
     public static func name(suggested: String?, delivered: URL) -> String {
         let suffix = delivered.pathExtension
         guard let suggested, !suggested.isEmpty else { return delivered.lastPathComponent }
-        guard !suffix.isEmpty,
-            (suggested as NSString).pathExtension.lowercased() != suffix.lowercased()
+        guard let deliveredType = UTType(filenameExtension: suffix), !suffix.isEmpty
         else { return suggested }
-        return "\(suggested).\(suffix)"
+        let own = (suggested as NSString).pathExtension
+        guard let ownType = UTType(filenameExtension: own), !own.isEmpty, !ownType.isDynamic
+        else { return "\(suggested).\(suffix)" }
+        if ownType == deliveredType { return suggested }
+        return "\((suggested as NSString).deletingPathExtension).\(suffix)"
     }
 
     /// Asks `provider` for its file and copies it into `directory` **before the handler returns**,
@@ -87,13 +91,22 @@ public enum ProvidedFile {
         }
     }
 
-    /// A name safe to create on this device's filesystem.
+    /// A name safe to create on this device's filesystem, at most 80 characters.
+    ///
+    /// Shortened through its stem, so the extension survives: through the photo picker this is the
+    /// name the attachment is sent under, and the extension is what decides which application opens
+    /// it.
     static func stagedName(_ value: String) -> String {
+        let limit = 80
         let forbidden = CharacterSet(charactersIn: "/\\:*?\"<>|").union(.controlCharacters)
         let cleaned = value.components(separatedBy: forbidden).joined(separator: "_")
             .trimmingCharacters(in: CharacterSet(charactersIn: ". _"))
-            .prefix(80)
-        return cleaned.isEmpty ? "shared" : String(cleaned)
+        guard !cleaned.isEmpty else { return "shared" }
+        guard cleaned.count > limit else { return cleaned }
+        let suffix = (cleaned as NSString).pathExtension
+        guard !suffix.isEmpty, suffix.count < limit / 2 else { return String(cleaned.prefix(limit)) }
+        let stem = (cleaned as NSString).deletingPathExtension.prefix(limit - suffix.count - 1)
+        return "\(stem).\(suffix)"
     }
 
     /// The first free name, so two files called `scan.pdf` stage as two files.
