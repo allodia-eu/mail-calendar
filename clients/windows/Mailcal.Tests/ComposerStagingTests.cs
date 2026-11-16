@@ -34,21 +34,26 @@ public sealed class ComposerStagingTests : IDisposable
     public void ADiscardedComposerNamesTheDirectoryItsFilesWereStagedIn()
     {
         var directory = Composer();
-        var staged = new[] { Path.Combine(directory, "0-report.csv"), Path.Combine(directory, "1-plan.pdf") };
 
-        Assert.Equal([directory], ComposerStaging.DirectoriesOf(_root, staged));
-        Assert.Equal([directory], ComposerStaging.DirectoriesOf(_root + Path.DirectorySeparatorChar, staged));
+        Assert.Equal(directory, ComposerStaging.ComposerDirectoryOf(_root, directory));
+        Assert.Equal(directory, ComposerStaging.ComposerDirectoryOf(_root + Path.DirectorySeparatorChar, directory));
+        Assert.Equal(directory, ComposerStaging.ComposerDirectoryOf(_root, directory + Path.DirectorySeparatorChar));
     }
 
     [Fact]
-    public void AFileStagedAnywhereElseNamesNothingToDelete()
+    public void ADirectoryAnywhereElseNamesNothingToDelete()
     {
-        // A share's copy sits beside the root under its own retention, and a composer can hold it.
-        var share = Path.Combine(Path.GetDirectoryName(_root)!, "shared-attachments", "1-photo.jpg");
-        var notAComposer = Path.Combine(Composer("keep"), "0-report.csv");
-        var nested = Path.Combine(Composer(), "inner", "0-report.csv");
+        // A share's copies sit beside the root under their own retention.
+        var share = Path.Combine(Path.GetDirectoryName(_root)!, "shared-attachments");
+        var notAComposer = Composer("keep");
+        var nested = Path.Combine(Composer(), "inner");
 
-        Assert.Empty(ComposerStaging.DirectoriesOf(_root, [share, notAComposer, nested]));
+        Assert.Null(ComposerStaging.ComposerDirectoryOf(_root, share));
+        Assert.Null(ComposerStaging.ComposerDirectoryOf(_root, notAComposer));
+        Assert.Null(ComposerStaging.ComposerDirectoryOf(_root, nested));
+        Assert.Null(ComposerStaging.ComposerDirectoryOf(_root, _root));
+        Assert.Null(ComposerStaging.ComposerDirectoryOf(_root, null));
+        Assert.Null(ComposerStaging.ComposerDirectoryOf(_root, string.Empty));
     }
 
     [Fact]

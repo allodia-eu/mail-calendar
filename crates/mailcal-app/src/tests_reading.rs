@@ -16,11 +16,7 @@ use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, flat_subjects, message, msg};
 
 use super::{Intent, ReaderId, Surface};
-use crate::Account;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{Account, tests_fakes as fakes};
 
 #[tokio::test]
 async fn opening_an_unread_message_marks_it_read_on_the_server() {

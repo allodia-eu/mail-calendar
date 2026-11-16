@@ -9,7 +9,7 @@ use std::{
     collections::BTreeMap,
     sync::{
         Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
 };
 
@@ -68,7 +68,8 @@ impl CalendarWrites for MailOnly {}
 pub(crate) struct FakeContacts {
     book: AddressBookId,
     cards: Mutex<Vec<ContactCard>>,
-    fails: bool,
+    /// Shared, so a test can take the server away and give it back while the app owns this.
+    fails: Arc<AtomicBool>,
     writable: bool,
     /// What every create and patch fails with, when set.
     write_error: Option<fn() -> ProviderError>,
@@ -108,7 +109,7 @@ impl FakeContacts {
         Self {
             book: AddressBookId::try_from(book).unwrap(),
             cards: Mutex::new(cards),
-            fails: false,
+            fails: Arc::default(),
             writable: false,
             write_error: None,
             writes: WriteLog::default(),
@@ -120,7 +121,7 @@ impl FakeContacts {
         Self {
             book: AddressBookId::try_from(book).unwrap(),
             cards: Mutex::new(Vec::new()),
-            fails: true,
+            fails: Arc::new(AtomicBool::new(true)),
             writable: false,
             write_error: None,
             writes: WriteLog::default(),
@@ -142,6 +143,11 @@ impl FakeContacts {
             write_error: Some(error),
             ..self
         }
+    }
+
+    /// The switch that makes every sync fail, as a server that stopped answering does.
+    pub(crate) fn outage(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.fails)
     }
 
     /// The count of card syncs this adapter answers.
@@ -251,7 +257,7 @@ impl ContactsProvider for FakeContacts {
         _account: &AccountId,
         _cursor: Option<&SyncState>,
     ) -> ProviderResult<ContactSourceSync<AddressBook>> {
-        if self.fails {
+        if self.fails.load(Ordering::Relaxed) {
             return Err(ProviderError::retryable("address book listing unavailable"));
         }
         Ok(ContactSourceSync::Available {
@@ -276,7 +282,7 @@ impl ContactsProvider for FakeContacts {
         _cursor: Option<&SyncState>,
     ) -> ProviderResult<ContactSourceSync<ContactCard>> {
         self.syncs.fetch_add(1, Ordering::Relaxed);
-        if self.fails {
+        if self.fails.load(Ordering::Relaxed) {
             return Err(ProviderError::retryable("card sync unavailable"));
         }
         let cards = self.cards.lock().unwrap().clone();

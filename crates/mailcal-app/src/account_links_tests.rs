@@ -7,13 +7,10 @@ use std::{
 };
 
 use engine_api::AccountId;
+use fakes::{InvitationFake, linked_invitation_app};
 use mailcal_account::AccountLinks;
 
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
-
-use fakes::{InvitationFake, linked_invitation_app};
+use crate::tests_fakes as fakes;
 
 fn id(text: &str) -> AccountId {
     AccountId::try_from(text).unwrap()

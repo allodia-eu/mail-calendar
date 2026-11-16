@@ -23,19 +23,10 @@ internal class NoticesState {
     /** What the last change raised, for assistive technology; empty when it raised nothing. */
     var announcement by mutableStateOf("")
 
-    /**
-     * The notice whose Allodia sign-in this client runs, until it ends. An account's sign-in from a
-     * notice is the core's, which draws that notice running itself.
-     */
-    var allodiaRemedy by mutableStateOf<String?>(null)
-
     val announcements = NoticeAnnouncements()
 
     /** The accounts whose sign-in the server stopped accepting. */
     val expired: Set<String> get() = NoticeRules.expired(notices)
-
-    /** Whether the Allodia account's sign-in was refused. */
-    val allodiaSignInEnded: Boolean get() = NoticeRules.allodiaSignInEnded(notices)
 }
 
 /** Pulls the notices in force; a pull that changed nothing redraws nothing. */
@@ -52,9 +43,8 @@ internal fun MainActivity.pullNotices() {
     }
 }
 
-/** What the notice views run, and the notice whose Allodia sign-in is under way. */
+/** What the notice views run. */
 internal fun MainActivity.noticeHandlers() = NoticeHandlers(
-    running = notices.allodiaRemedy?.takeIf { signingInAllodia },
     onRun = { notice, action -> runNotice(notice, action) },
     onDismiss = { dismissNotice(it) },
 )
@@ -81,13 +71,10 @@ internal fun MainActivity.runNotice(notice: Notice, action: NoticeAction) {
     }
     val account = notice.account
     when (action) {
-        // The core runs it, draws this notice running while it is out, and marks it failed when
-        // it fails (MainActivityBrowserSignIn.kt).
+        // The core runs either, draws this notice running while it is out, and marks it failed
+        // when it fails (MainActivityBrowserSignIn.kt).
         NoticeAction.SIGN_IN_AGAIN -> account?.let { signInInBrowser(it, emptyList()) }
-        NoticeAction.SIGN_IN_TO_ALLODIA -> if (!signingInAllodia) {
-            notices.allodiaRemedy = notice.id
-            signInToAllodia()
-        }
+        NoticeAction.SIGN_IN_TO_ALLODIA -> changeAllodia(allodiaSignIn())
         NoticeAction.OPEN_ACCOUNT_SETTINGS -> if (account != null) {
             openAccountPage(account)
         } else {
@@ -104,18 +91,5 @@ internal fun MainActivity.runNotice(notice: Notice, action: NoticeAction) {
         NoticeAction.USE_DEVICE_TIME_ZONE,
         NoticeAction.KEEP_TIME_ZONE,
         -> Unit
-    }
-}
-
-/**
- * The Allodia sign-in a notice started ended; [failed] when it ended refused (rule 10). A browser
- * the person closed is not a failure. One nobody started from a notice is not a notice's to report.
- */
-internal fun MainActivity.allodiaRemedyEnded(failed: Boolean) {
-    val noticeId = notices.allodiaRemedy ?: return
-    notices.allodiaRemedy = null
-    if (failed) {
-        logUiInfo("notices: a notice's remedy did not complete")
-        app?.dispatch(Intent.Notices(NoticeIntent.RemedyFailed(noticeId)))
     }
 }

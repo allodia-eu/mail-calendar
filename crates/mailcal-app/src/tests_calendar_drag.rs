@@ -19,10 +19,7 @@ use fakes::{CalendarFake, calendar_account, calendar_app, evt};
 use mailcal_account::{EventDrag, EventEdge};
 
 use super::{EventIntent, Intent};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// Amsterdam at a wall clock: the form `stored_event`'s `DTSTART;TZID=Europe/Amsterdam` has, and
 /// the form a patch must come back in.

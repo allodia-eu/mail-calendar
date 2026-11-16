@@ -12,7 +12,7 @@ use mailcal_viewmodel::{
     avatar::{self},
 };
 
-use crate::{App, ReaderId, html, reading_trace::OpenTrace, reference::MessageRef};
+use crate::{App, ReaderId, reading_trace::OpenTrace, reference::MessageRef};
 
 /// How long a cold reading-open waits for the opened message's account to finish dialing its
 /// mail provider before giving up, polled in small steps. A cold open (e.g. tapped from a
@@ -247,20 +247,21 @@ impl<P: Provider> App<P> {
             body.plain().map_or(0, str::len)
         ));
         // `html` is the engine's raw (unsanitised) HTML; sanitise before it leaves the core
-        // (`html::sanitize`), flagging remote images so the host can gate them; `plain` is
+        // (`engine_html::sanitize`), flagging remote images so the host can gate them; `plain` is
         // the text view. When the body references inline `cid:` images, resolve them to
         // self-contained `data:` URIs so they render under the existing CSP; inline images
         // are part of the message (local), not remote content, so this is not gated.
         let (html, has_remote_images) = match body.html() {
             Some(raw) => {
-                let sanitized = html::sanitize(raw);
-                let html = if sanitized.has_cid_references {
-                    self.resolve_inline_images(&message, &original, sanitized.html)
+                let sanitized = engine_html::sanitize(raw);
+                let has_remote_images = sanitized.has_remote_images();
+                let html = if sanitized.has_cid_references() {
+                    self.resolve_inline_images(&message, &original, sanitized.into_html())
                         .await
                 } else {
-                    sanitized.html
+                    sanitized.into_html()
                 };
-                (Some(html), sanitized.has_remote_images)
+                (Some(html), has_remote_images)
             }
             None => (None, false),
         };
@@ -312,9 +313,9 @@ impl<P: Provider> App<P> {
     /// URIs, fetching the message's inline parts from its account's provider
     /// ([`engine_api::Engine::message_inline_parts`], which reuses the raw blob the body
     /// fetch already cached). **Best-effort**: any failure: no account/provider, or a
-    /// fetch/store error, returns the sanitised HTML unchanged, leaving the references as
-    /// inert broken images rather than failing the open. Called only when the body actually
-    /// references `cid:`, so a message with no inline images never reaches the parts fetch.
+    /// fetch/store error, returns the sanitised HTML unchanged, leaving the references
+    /// unresolved rather than failing the open. Called only when the body actually references
+    /// `cid:`, so a message with no inline images never reaches the parts fetch.
     async fn resolve_inline_images(
         &self,
         message: &MessageRef,
@@ -332,7 +333,7 @@ impl<P: Provider> App<P> {
             .message_inline_parts(provider, &message.account, original)
             .await
         {
-            Ok(parts) => html::inline_cid_images(&sanitized, &parts),
+            Ok(parts) => engine_html::inline_cid_images(&sanitized, &parts),
             Err(_) => sanitized,
         }
     }

@@ -1,5 +1,6 @@
 //! The calendars and address books the calendar and contacts screens say did not connect
-//! (`docs/accounts.md` rule 16), read from what each account's latest dial recorded.
+//! (`docs/accounts.md` rule 16), read from what each account's latest dial, or the refreshes since,
+//! recorded.
 
 use std::collections::BTreeMap;
 

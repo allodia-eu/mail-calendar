@@ -67,6 +67,7 @@ enum ComposerLabels {
             "linkAddress": L10n.editor_link_address(),
             "linkApply": L10n.editor_link_apply(),
             "linkRemove": L10n.editor_link_remove(),
+            "moreFormatting": L10n.editor_more_formatting(),
         ]
     }
 

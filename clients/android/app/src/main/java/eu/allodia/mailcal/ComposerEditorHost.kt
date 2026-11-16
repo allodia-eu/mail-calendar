@@ -5,11 +5,13 @@
 // between RichComposerView and RichComposerEditor.
 package eu.allodia.mailcal
 
+import android.content.Context
 import android.view.inputmethod.InputMethodManager
 import android.webkit.WebView
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.viewinterop.AndroidView
@@ -89,6 +91,7 @@ internal fun composerLabelsJson(ctx: android.content.Context): String = JSONObje
     put("linkAddress", L10n.editor_link_address(ctx))
     put("linkApply", L10n.editor_link_apply(ctx))
     put("linkRemove", L10n.editor_link_remove(ctx))
+    put("moreFormatting", L10n.editor_more_formatting(ctx))
 }.toString()
 
 // The exact JS the host injects once the editor bundle has parsed and its `window.*` hooks exist,
@@ -201,6 +204,14 @@ internal fun WebView.configureComposerWebView(
 }
 
 /**
+ * Makes the composer's editor. A JVM test supplies one whose page has a height, which a WebView
+ * without a renderer never has.
+ */
+internal val LocalComposerEditorFactory = staticCompositionLocalOf<(Context) -> ComposerWebView> {
+    ::ComposerWebView
+}
+
+/**
  * The editor itself: the hardened WebView, loading only the bundled asset, filling its parent and
  * owning the one scroll (its toolbar pins above the keyboard via `position: fixed`). It reports
  * its scroll offset so the address-field overlay above can track it.
@@ -222,10 +233,11 @@ internal fun ComposerEditorView(
     signature: () -> String?,
     onScroll: (Int) -> Unit,
     onSeeded: (String?) -> Unit,
-    onReady: (WebView) -> Unit,
+    onReady: (ComposerWebView) -> Unit,
 ) {
     val dark = LocalAppDark.current
     val currentDark = rememberUpdatedState(dark)
+    val makeEditor = LocalComposerEditorFactory.current
     AndroidView(
         modifier = Modifier
             .fillMaxSize()
@@ -235,7 +247,7 @@ internal fun ComposerEditorView(
             // never reaches the editor.
             .graphicsLayer { clip = true },
         factory = { context ->
-            WebView(context).apply {
+            makeEditor(context).apply {
                 installComposerHost(linkHost)
                 configureComposerWebView(
                     quote = quote,

@@ -73,17 +73,49 @@ put_calendar() { # file  uid  [collection]
     --data-binary @- "${3:-$CAL_COLLECTION}/$2.ics"
 }
 
+# PUTs a calendar object as `user:password`. Anything but 2xx is a real failure: a share that
+# quietly failed to seed would read, later, as the app failing to see it.
+put_calendar_as() { # user:password  file  uid  collection
+  _status=$(sed 's/$/\r/' "$2" | curl -sk -o /dev/null -w '%{http_code}' --user "$1" \
+    -X PUT -H 'Content-Type: text/calendar; charset=utf-8' \
+    --data-binary @- "$4/$3.ics")
+  case "$_status" in
+    200 | 201 | 204) : ;;
+    *)
+      log "PUT $4/$3.ics failed: HTTP $_status"
+      exit 1
+      ;;
+  esac
+}
+
+# One JMAP call as `user:password`, against that user's own session.
+jmap_as() { # user:password  method-call
+  curl -s --user "$1" -H 'Content-Type: application/json' -X POST "$HTTP/jmap/" \
+    -d "{\"using\":[\"urn:ietf:params:jmap:core\",\"urn:ietf:params:jmap:calendars\"],\"methodCalls\":[$2]}"
+}
+
+# The user's own account id for calendars, read off the session's `primaryAccounts`.
+calendar_account_id() { # user:password
+  curl -s --user "$1" "$HTTP/jmap/session" \
+    | grep -oE '"primaryAccounts":\{[^}]*\}' \
+    | grep -oE '"urn:ietf:params:jmap:calendars":"[^"]+"' | cut -d'"' -f4
+}
+
 # Creates a calendar collection with a display name. 201 = created; 405 = it already exists (a
 # re-seed). Anything else is a real failure.
 make_calendar() { # collection  display name
-  _status=$(curl -s -o /dev/null -w '%{http_code}' --user "$ALICE:$ALICE_PW" \
+  make_calendar_as "$ALICE:$ALICE_PW" "$@"
+}
+
+make_calendar_as() { # user:password  collection  display name
+  _status=$(curl -s -o /dev/null -w '%{http_code}' --user "$1" \
     -X MKCALENDAR -H 'Content-Type: application/xml; charset=utf-8' \
-    --data-binary "<?xml version=\"1.0\" encoding=\"utf-8\"?><C:mkcalendar xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:set><D:prop><D:displayname>$2</D:displayname></D:prop></D:set></C:mkcalendar>" \
-    "$1/")
+    --data-binary "<?xml version=\"1.0\" encoding=\"utf-8\"?><C:mkcalendar xmlns:D=\"DAV:\" xmlns:C=\"urn:ietf:params:xml:ns:caldav\"><D:set><D:prop><D:displayname>$3</D:displayname></D:prop></D:set></C:mkcalendar>" \
+    "$2/")
   case "$_status" in
     201 | 405) : ;;
     *)
-      log "MKCALENDAR $1/ failed: HTTP $_status"
+      log "MKCALENDAR $2/ failed: HTTP $_status"
       exit 1
       ;;
   esac
@@ -313,6 +345,34 @@ log "creating the second calendar, Work, and putting its fixtures"
 make_calendar "$WORK_COLLECTION" Work
 put_calendar "$CAL_DIR/work/planning.ics" work-2101 "$WORK_COLLECTION"
 put_calendar "$CAL_DIR/work/offsite.ics" work-2102 "$WORK_COLLECTION"
+
+# Calendars in stores that are not alice's (docs/shared-mailboxes.md): the support group's own
+# calendar, which she may write as a member, and one dave shares with her read-only. Pinned to
+# July 2026 like the fixtures above. The share is JMAP's (`shareWith`), made as dave, since only an
+# owner can share, and keyed by alice's principal id, which on Stalwart is her account id.
+log "putting the support group's calendar fixture (written as alice, a member)"
+put_calendar_as "$ALICE:$ALICE_PW" "$CAL_DIR/shared/support-rota.ics" support-2301 \
+  "$HTTP/dav/cal/support@test.local/default"
+log "creating dave's shared calendar and sharing it with alice, read-only"
+DAVE="dave@test.local:${HARNESS_DAVE_PW:-harness-dave-pw}"
+DAVE_SHARED_COLLECTION="$HTTP/dav/cal/dave@test.local/shared"
+make_calendar_as "$DAVE" "$DAVE_SHARED_COLLECTION" "Dave Shared"
+put_calendar_as "$DAVE" "$CAL_DIR/shared/dave-shared.ics" dave-shared-2201 "$DAVE_SHARED_COLLECTION"
+ALICE_ID=$(calendar_account_id "$ALICE:$ALICE_PW")
+DAVE_ID=$(calendar_account_id "$DAVE")
+DAVE_SHARED_ID=$(jmap_as "$DAVE" \
+  "[\"Calendar/get\",{\"accountId\":\"$DAVE_ID\",\"properties\":[\"name\",\"id\"]},\"c0\"]" \
+  | grep -oE '"name":"Dave Shared","id":"[^"]+"' | cut -d'"' -f8)
+[ -n "$ALICE_ID" ] && [ -n "$DAVE_ID" ] && [ -n "$DAVE_SHARED_ID" ] || {
+  log "could not resolve the ids for dave's share (alice=$ALICE_ID dave=$DAVE_ID calendar=$DAVE_SHARED_ID)"
+  exit 1
+}
+_resp=$(jmap_as "$DAVE" \
+  "[\"Calendar/set\",{\"accountId\":\"$DAVE_ID\",\"update\":{\"$DAVE_SHARED_ID\":{\"shareWith\":{\"$ALICE_ID\":{\"mayReadFreeBusy\":true,\"mayReadItems\":true}}}}},\"c0\"]")
+printf '%s' "$_resp" | grep -q '"updated"' || {
+  log "sharing dave's calendar failed: $_resp"
+  exit 1
+}
 
 # The six default-calendar fixtures above are pinned to absolute dates in early 2026 because they
 # encode ENGINE semantics that must not drift (floating time, a zoneless all-day, a DST boundary, a

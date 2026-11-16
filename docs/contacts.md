@@ -133,7 +133,7 @@ would look perfectly right. So:
 | Affordance | Shown when | Because |
 |---|---|---|
 | Create | `contact_targets()` is non-empty | A destination is a **writable** address book. A directory, a suggested-contacts source and a shared book the account may only read are places contacts come *from*; offering one produces a save that fails on the server after the user has typed everything in. |
-| Edit | `editable_cards` is non-empty | Same rule, per person, decided by the adapter **bound now**: a card cached from an address book that no longer connects still says its server lets it be edited, and offering that edit produces a save nothing can carry. |
+| Edit | `editable_cards` is non-empty | Same rule, per person, decided by the adapter **connected now**: a card cached from an address book that no longer connects still says its server lets it be edited, and offering that edit produces a save nothing can carry. |
 
 A person with **no** editable card says so ("This contact can't be edited here"), in as many words,
 rather than leaving it to be inferred from an absence or, worse, from a disabled pencil the user
@@ -188,13 +188,15 @@ that did not happen is the outcome it costs most to lose.
 
 ### An address book that is not connected says so
 
-An address book the account is used for can fail while the account connects
-([`accounts.md`](accounts.md) rule 16). Its cards stay listed, and the contacts screen says what
+An address book the account is used for can fail while the account connects, or stop answering
+after it connected, which two refreshes in a row that reach nothing say and the next refresh that
+reaches it takes away ([`accounts.md`](accounts.md) rule 16). Its cards stay listed, and the contacts screen says what
 they are: one notice per account ([`notices.md`](notices.md)), `ContactsOutage`, "The address book for {address} isn't connected." with the
 reason the account's page gives and "You're seeing what was last synced" beneath it, and the same
 action a calendar's has ([`calendar.md`](calendar.md) §4). Its
-cards offer no edit and its books are not offered for a new contact (above), so nothing on screen
-promises a save that cannot be made. Offline, an unreachable address book is left to the offline
+cards offer no edit and its books are not offered for a new contact (above), because the core
+writes only through a connected adapter (`App::connected_contacts`: bound, and its use without a
+problem), so nothing on screen promises a save that cannot be made. Offline, an unreachable address book is left to the offline
 notice; an account whose sign-in expired has its own.
 
 Neither write is durable offline yet: a failed save stays failed rather than queueing, which is the
@@ -347,6 +349,7 @@ change updates in every catalog locale.
 | Edit one **source card** of a person, chosen when there are several | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Both write affordances hidden where no write could land | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An address book that is not connected says so, and its cards offer no edit | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| An address book that stops answering after it connected says so after two refreshes, and clears on the next that reaches it | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A save that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Delete a contact | — | — | — | — | — | — |
 | Composer recipient autosuggest (contacts **+** sent-mail history) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

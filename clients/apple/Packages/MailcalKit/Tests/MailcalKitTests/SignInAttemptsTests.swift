@@ -8,37 +8,15 @@ import Testing
 @testable import MailcalUI
 
 struct SignInAttemptsTests {
-    @Test func theWayBackIsDrawnOnlyOnceTheAttemptInFlightOutlastsTheThreshold() {
-        var attempts = SignInAttempts()
-        let first = attempts.begin()
-        #expect(attempts.signingIn)
-        #expect(!attempts.escapable)
-
-        attempts.outlasted(first)
-        #expect(attempts.escapable)
-
-        // A newer attempt starts its own clock; the older one's never arms it.
-        let second = attempts.begin()
-        #expect(!attempts.escapable)
-        attempts.outlasted(first)
-        #expect(!attempts.escapable)
-        attempts.outlasted(second)
-        #expect(attempts.escapable)
-    }
-
     @Test func anEscapedAttemptIsRetiredAndItsLateAnswerDropped() {
         var attempts = SignInAttempts()
         let attempt = attempts.begin()
-        attempts.outlasted(attempt)
         attempts.escape()
         #expect(!attempts.signingIn)
-        #expect(!attempts.escapable)
 
         // The browser or the core answering afterwards changes nothing on screen.
         let ended = attempts.finish(attempt)
         #expect(!ended)
-        attempts.outlasted(attempt)
-        #expect(!attempts.escapable)
     }
 
     @Test func aFreshPressSupersedesTheAttemptStillOut() {
@@ -59,11 +37,9 @@ struct SignInAttemptsTests {
     @Test func anAttemptThatAnswersEndsTheBusyState() {
         var attempts = SignInAttempts()
         let attempt = attempts.begin()
-        attempts.outlasted(attempt)
         let ended = attempts.finish(attempt)
         #expect(ended)
         #expect(!attempts.signingIn)
-        #expect(!attempts.escapable)
     }
 }
 

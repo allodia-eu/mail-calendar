@@ -1,8 +1,8 @@
 // The Accounts category: every account, mail or not, from the core's one snapshot, each opening a
 // page of its own (docs/accounts.md rule 11, docs/settings.md category 9). The page's sections are
 // partials of their own: what the account is used for and linked to (AccountUses), the accounts
-// taking a use from it (AccountLinkedFrom), the mailboxes shared with it (AccountShared), how it
-// signs in (AccountSignIn), its servers and its removal (AccountServers), and its mail settings
+// taking a use from it (AccountLinkedFrom), the mailboxes and calendars shared with it
+// (AccountSharedStores), how it signs in (AccountSignIn), its servers and its removal (AccountServers), and its mail settings
 // (AccountMail). What a change on it came to is worded in AccountChangeNotices.
 //
 // State lives in the core. A use, a link and a removal are dispatched and the page says they run

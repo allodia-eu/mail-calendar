@@ -26,11 +26,8 @@ import uniffi.mailcal_bindings.RecipientMatch
 
 private const val TAG = "Mailcal"
 
-/** A composer on screen: what the core opened it with, and the files a share added to it. */
-internal data class OpenComposer(
-    val opening: ComposeOpening,
-    val extraAttachments: List<ComposerFileAttachment> = emptyList(),
-)
+/** A composer on screen: what the core opened it with. Its files are the composition's. */
+internal data class OpenComposer(val opening: ComposeOpening)
 
 /** The composer the activity is showing, or opening. */
 internal class ComposerUiState {
@@ -53,7 +50,8 @@ internal val MainActivity.composerBusy: Boolean get() = composer.busy || withdra
 
 /**
  * Opens a composer on `origin`, with `prefill` laid over what it opens with and a share's files
- * added to the ones the core staged.
+ * added to the composition's once it is open, so they count as the user's own
+ * (`docs/composer-layout.md`, rule 8).
  *
  * The core is asked off the main thread: a reply may fetch the message it quotes, a forward stages
  * its files and a draft is read from the server. Nothing opens on a failure, which `onFailed`
@@ -76,7 +74,12 @@ internal fun MainActivity.openComposer(
     thread(name = "mailcal-open-composer") {
         val opening = try {
             directory.mkdirs()
-            instance.openComposer(composition, origin, directory.absolutePath, laidOver)
+            instance.openComposer(composition, origin, directory.absolutePath, laidOver).also {
+                // Before the composer is on screen, so its tiles are drawn holding them.
+                if (extraAttachments.isNotEmpty()) {
+                    instance.addComposerFiles(composition, extraAttachments)
+                }
+            }
         } catch (e: Exception) {
             // Any exception, not only the core's own: one that escaped would leave `pending`
             // set, and with it every later composer, link and share waiting forever.
@@ -88,7 +91,7 @@ internal fun MainActivity.openComposer(
             if (opening == null) {
                 onFailed()
             } else {
-                composer.open = OpenComposer(opening, extraAttachments)
+                composer.open = OpenComposer(opening)
             }
         }
     }
@@ -150,7 +153,7 @@ internal fun MainActivity.ComposerPane(instance: MailcalApp) {
     val ctx = LocalContext.current
     composer.open?.let { open ->
         key(open.opening.composition) {
-            ComposerFor(instance, open.opening, open.extraAttachments) { composer.open = null }
+            ComposerFor(instance, open.opening) { composer.open = null }
         }
     }
     withdrawnMessage?.let { opening ->
@@ -179,7 +182,6 @@ internal fun MainActivity.ComposerPane(instance: MailcalApp) {
 private fun MainActivity.ComposerFor(
     instance: MailcalApp,
     opening: ComposeOpening,
-    extraAttachments: List<ComposerFileAttachment> = emptyList(),
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -192,11 +194,11 @@ private fun MainActivity.ComposerFor(
             initialFrom = sendAccountFor(opening.account, defaultSendAccount, accounts),
             quoteSettings = quoteSettings,
             dateText = { localDateTime(it, zone, use24Hour) },
-            extraAttachments = extraAttachments,
         )
     }
     RichComposeMessageDialog(
         request = request,
+        files = remember(opening.composition) { composerFileList(instance, opening.composition) },
         accounts = accounts,
         suggestionsFor = recipientSuggestionsFor(instance),
         signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),

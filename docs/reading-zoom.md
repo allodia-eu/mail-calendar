@@ -12,7 +12,7 @@ disagree about it show the reader two different newsletters from the same bytes.
 ## The rules
 
 1. **A message lays out against the pane's own width.** The shared document
-   (`render_document`, `crates/mailcal-app/src/html/mod.rs`) declares
+   (`render_document`, in the engine's `engine-html`) declares
    `<meta name="viewport" content="width=device-width">`, and `device-width` is the **web view's**
    CSS width, not the display's. So a message's `@media (max-width: 480px)` rules see the reading
    pane the reader actually has: a phone, a narrow iPad column and a desktop window dragged narrow
@@ -33,7 +33,7 @@ disagree about it show the reader two different newsletters from the same bytes.
    adapts.
 
    **The reflow is in the shared document**, `reflow_css` beside `render_document`
-   (`crates/mailcal-app/src/html/reflow.rs`), so it is one implementation and every client has it.
+   (in the engine's `engine-html`), so it is one implementation and every client has it.
    A client adds nothing to it and cannot opt out of it.
 
    **The approach is the mail clients' own**, the "munger" that came from AOSP Email through K-9

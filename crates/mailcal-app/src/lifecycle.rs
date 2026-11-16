@@ -15,7 +15,7 @@ use std::{
 
 use engine_api::{Engine, Provider};
 use mailcal_viewmodel::ContactsSnapshot;
-use tokio::sync::{RwLock, watch};
+use tokio::sync::watch;
 
 use crate::{
     Account, App, AppObserver, CalendarWriteStatus, ContactWriteStatus, MailboxConnector, PAGE,
@@ -80,7 +80,9 @@ impl<P: Provider> App<P> {
         let view_mode = load_view_mode(prefs_path.as_ref());
         Self {
             engine,
-            accounts: RwLock::new(accounts.into_iter().map(Arc::new).collect()),
+            accounts: crate::accounts::AccountList::new(
+                accounts.into_iter().map(Arc::new).collect(),
+            ),
             scope: Mutex::new(Scope::default()),
             mailbox_list: Surfaced::new(Surface::MailboxList, Arc::clone(&observer)),
             calendar: Surfaced::new(Surface::Calendar, Arc::clone(&observer)),

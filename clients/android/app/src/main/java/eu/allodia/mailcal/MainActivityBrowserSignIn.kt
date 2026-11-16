@@ -1,8 +1,8 @@
 // A browser sign-in the core runs (BrowserSignInDriver.kt): an existing account's, from its page
-// or a notice, or a separate server's, from its form (MainActivitySeparateServer.kt). This host
-// names where the browser returns, opens it once for each attempt the core names, and hands back
-// the redirect. A Custom Tab tells nobody it was closed, so the form's Cancel and the core's cap
-// on the wait end one the person left.
+// or a notice, a separate server's, from its form (MainActivitySeparateServer.kt), or the Allodia
+// account's (MainActivityAllodia.kt). This host names where the browser returns, opens it once for
+// each attempt the core names, and hands back the redirect. A Custom Tab tells nobody it was
+// closed, so the card's Cancel and the core's cap on the wait end one the person left.
 package eu.allodia.mailcal
 
 import android.net.Uri

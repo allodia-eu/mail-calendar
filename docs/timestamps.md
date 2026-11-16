@@ -27,7 +27,10 @@ client's job; the core's contribution is the unambiguous UTC instant.
 ⚠️ **The absolute date is formatted where it is drawn, never carried as text.** Every client keeps
 the engine value on `OpenedMessage.date` and writes it out at each display site (the header, a
 printout, a quote's attribution) in the zone and on the clock in force then, so changing either
-redraws a message already open. A quote formats the core's own `quote.date` at the seam. Formatting
+redraws a message already open. A quote formats the core's own `quote.date` at the seam, which is
+the instant the original's `Date:` header names, and its delivery only when it has none: the line
+says when the sender wrote it, as Thunderbird's and Outlook's do, so a message delivered late (an
+import, a migration) is not quoted as written the day it arrived. Formatting
 an already-formatted value is not a no-op: every `localDateTime` finds no `Z` and no `T` in
 `2026-08-31 07:01` and falls back to the first ten characters, dropping the time.
 

@@ -27,7 +27,7 @@ internal static class AccountUseText
     {
         AccountUseBlock.LastUse => L10n.SettingsAccountUseLast(),
         AccountUseBlock.NeedsContacts => L10n.SettingsAccountColleaguesNeedsContacts(),
-        AccountUseBlock.NeedsMail => L10n.SettingsAccountSharedNeedsMail(),
+        AccountUseBlock.NeedsMailOrCalendar => L10n.SettingsAccountSharedNeedsMail(),
         AccountUseBlock.NotOffered => L10n.SettingsAccountUseNotOffered(),
         _ => L10n.SettingsAccountUseNeedsEndpoint(),
     };

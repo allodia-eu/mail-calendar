@@ -82,4 +82,13 @@ extension RichComposeView {
         .buttonStyle(.borderless)
         #endif
     }
+
+    /// The hairline between two of the header's fields on a touch screen, where the fields have no
+    /// frame of their own and the header runs the width of the screen, as Mail's does. A desktop's
+    /// fields carry their own frames, so it draws nothing there.
+    @ViewBuilder var fieldRule: some View {
+        #if os(iOS)
+        Divider()
+        #endif
+    }
 }

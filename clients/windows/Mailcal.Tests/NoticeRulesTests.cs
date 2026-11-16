@@ -140,17 +140,6 @@ public class NoticeRulesTests
     }
 
     [Fact]
-    public void A_sign_in_is_a_failed_remedy_only_when_it_was_answered_and_refused()
-    {
-        Assert.False(NoticeRules.RemedyFailed(signedIn: true, error: null, unanswered: false), "it worked");
-        // A browser the person closed reports nothing (rule 10), whether the app hears of it as a
-        // cancel or only when its wait for the browser runs out.
-        Assert.False(NoticeRules.RemedyFailed(signedIn: false, error: null, unanswered: false), "cancelled");
-        Assert.False(NoticeRules.RemedyFailed(signedIn: false, error: "timed out", unanswered: true), "never answered");
-        Assert.True(NoticeRules.RemedyFailed(signedIn: false, error: "refused", unanswered: false), "refused");
-    }
-
-    [Fact]
     public void A_retry_is_the_cores_to_run_and_to_judge()
     {
         var notice = Make("unreachable", nameof(NoticeScreens.Mail), account: "a");
@@ -231,16 +220,6 @@ public class NoticeRulesTests
     {
         Assert.True(NoticeRules.Offers(Make("retry", nameof(NoticeScreens.Mail))));
         Assert.False(NoticeRules.Offers(Make("none", nameof(NoticeScreens.Mail), action: false)));
-    }
-
-    [Fact]
-    public void The_allodia_card_follows_its_notice()
-    {
-        var offline = Make("offline", nameof(NoticeScreens.Everywhere), kind: new NoticeKind.Offline());
-        var ended = Make("allodia", nameof(NoticeScreens.Everywhere), kind: new NoticeKind.AllodiaSignInEnded("anna@example.org"));
-
-        Assert.True(NoticeRules.AllodiaSignInEnded([offline, ended]));
-        Assert.False(NoticeRules.AllodiaSignInEnded([offline]));
     }
 
     [Fact]

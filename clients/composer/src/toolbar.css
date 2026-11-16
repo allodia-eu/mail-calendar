@@ -116,3 +116,39 @@ select:focus-visible {
   /* A colour close to the bar's own needs an edge, or it looks like an empty control. */
   box-shadow: inset 0 0 0 1px var(--swatch-edge);
 }
+
+/* --- One row on a desktop, with the rest behind More (`toolbar_overflow.ts`) ---
+   The controls keep their own widths, so a row too narrow for them overflows rather than squeezing
+   them, which is what tells the overflow to move the last ones behind More. A touch screen's row
+   scrolls sideways instead (`editor.css`), and More is never drawn there. */
+body:not(.native-chrome) .toolbar:not(.toolbar-overflow) {
+  flex-wrap: nowrap;
+}
+
+body:not(.native-chrome) .toolbar > * {
+  flex-shrink: 0;
+}
+
+.toolbar-more[hidden],
+body.native-chrome .toolbar-more {
+  display: none;
+}
+
+/* The More panel: the same controls on a panel of their own, wrapping when there are many. */
+.toolbar.toolbar-overflow {
+  flex-wrap: wrap;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--popover-border);
+  border-radius: 8px;
+  background: var(--popover);
+}
+
+.toolbar.toolbar-overflow[hidden] {
+  display: none;
+}
+
+.toolbar-overflow > .sep:first-child {
+  display: none;
+}

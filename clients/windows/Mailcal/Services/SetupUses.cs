@@ -27,7 +27,7 @@ internal sealed record UseOffer(IReadOnlyList<SetupChoice> Choices, string Calda
 /// when detection found none.</summary>
 internal readonly record struct PickedUse(bool On, string Typed);
 
-/// <summary>The choices beside the three uses: shared mailboxes within mail, colleagues within
+/// <summary>The choices beside the three uses: shared mailboxes and calendars beside mail or the calendar, colleagues within
 /// contacts, and video meetings, which a Microsoft work account's card and a Google account's
 /// offer within no use; null for one the card did not offer.</summary>
 internal readonly record struct Subchoices(bool? SharedMailboxes, bool? Colleagues, bool? Meetings = null);
@@ -51,8 +51,8 @@ internal static class SetupUses
     /// the one typed in its place. Contacts store an address book found apart from the calendar,
     /// or the one typed. Contacts found only through the calendar's server keep that server even
     /// with the calendar off, because that is where they are looked for, and the stored uses keep
-    /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes only
-    /// beside mail. Meetings count whatever else is on: they are made for an event on any
+    /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes and
+    /// calendars beside mail or the calendar. Meetings count whatever else is on: they are made for an event on any
     /// calendar (docs/accounts.md rule 19).
     /// </summary>
     internal static ChosenUses Chosen(
@@ -74,10 +74,10 @@ internal static class SetupUses
             if (mail == true)
             {
                 chosen.Add(AccountCapability.Mail);
-                if (subs.SharedMailboxes == true)
-                {
-                    chosen.Add(AccountCapability.SharedMailboxes);
-                }
+            }
+            if ((mail == true || calendarOn) && subs.SharedMailboxes == true)
+            {
+                chosen.Add(AccountCapability.SharedMailboxes);
             }
             if (calendarOn)
             {

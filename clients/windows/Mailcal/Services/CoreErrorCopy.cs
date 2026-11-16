@@ -28,4 +28,13 @@ internal static class CoreErrorCopy
 
     /// <summary><see cref="CoreError.SaidAsConnect"/> in the catalog's words.</summary>
     internal static string SaidAsConnect(Exception error) => CoreError.SaidAsConnect(error, Words());
+
+    /// <summary>The words an Allodia sign-in or sign-out that did not work is said in, the same on
+    /// Settings → Allodia account and the first-run card.</summary>
+    internal static AllodiaFailureWords AllodiaWords() => new(
+        L10n.SigninStale(),
+        L10n.SettingsAllodiaBrowserFailed(),
+        L10n.SettingsAllodiaTimeout(),
+        L10n.SettingsAllodiaFailed,
+        AccountUseText.Refused);
 }

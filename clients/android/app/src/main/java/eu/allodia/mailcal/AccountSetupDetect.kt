@@ -177,12 +177,9 @@ internal fun AccountSetupFlow(
             allodia?.let { state ->
                 OnboardingAllodiaCard(
                     offered = state.offered,
-                    signingIn = state.signingIn,
-                    signedIn = state.signedIn,
+                    card = state.card,
                     offers = state.offers,
-                    checking = state.checking,
-                    onCreate = state.onCreate,
-                    onSignIn = state.onSignIn,
+                    onChange = state.onChange,
                     // The record's own route, not one re-derived from the address: that round
                     // trip is exactly what syncing an account list exists to save, and for a
                     // domain publishing no autoconfig it would find less.
@@ -192,8 +189,6 @@ internal fun AccountSetupFlow(
                         onRoute(offer.email, setup)
                         phase = route(setup, offer.email, signInOffered = false)
                     },
-                    escapable = state.escapable,
-                    onCancelSignIn = state.onCancelSignIn,
                     firstRun = state.firstRun,
                 )
             }

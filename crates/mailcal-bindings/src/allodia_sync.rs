@@ -12,7 +12,7 @@
 
 use mailcal_account::{MissReason as AccountMiss, SetupRecommendation as Route};
 
-use crate::{autodetect::SetupRecommendation, setup::ConnectionSecurity};
+use crate::setup::ConnectionSecurity;
 
 /// Where an offer's settings came from, for the provenance line the setup card carries.
 const OFFER_SOURCE: &str = "your other devices";
@@ -128,7 +128,7 @@ pub struct AllodiaSyncReport {
     pub sent: u32,
 }
 
-/// The route an offer takes, as the same recommendation detection produces.
+/// The route an offer opens, as the account layer describes one: what detection would produce.
 ///
 /// An offer already carries what detection goes looking for, which provider, which hosts, which
 /// ports, which security; because a device that set the account up wrote it down. Re-deriving that
@@ -146,15 +146,9 @@ pub struct AllodiaSyncReport {
 /// It is a **route**, not a connection. The password is still asked for on this device, because no
 /// password ever travels; a route that turns out to be wrong fails the way any wrong route does,
 /// and the manual form is still behind it.
-#[uniffi::export]
-#[must_use]
-pub fn setup_from_offer(offer: AllodiaAccountOffer) -> SetupRecommendation {
-    crate::autodetect::convert(offer_route(offer))
-}
-
-/// The route an offer opens, as the account layer describes one: what [`setup_from_offer`]
-/// converts, and what [`offered_setup`](crate::offered_setup) reads the found card's choices
-/// from, so the two cannot come to different routes.
+///
+/// [`offered_setup`](crate::offered_setup) reads the found card's choices from it, so every
+/// screen that takes an offer comes to the same route.
 pub(crate) fn offer_route(offer: AllodiaAccountOffer) -> Route {
     match offer.kind {
         AllodiaAccountKind::Google => Route::Google { email: offer.email },

@@ -62,7 +62,7 @@ ALLODIA_FEATURE="$(core_cargo_features)"
 if [ -n "$ALLODIA_FEATURE" ]; then
   CORE_FEATURES="$CORE_FEATURES,$ALLODIA_FEATURE"
 fi
-(cd "$ROOT" && cargo ndk -t "$ABI" -o "$HERE/app/src/main/jniLibs" build -p mailcal-bindings --release --features "$CORE_FEATURES")
+(cd "$ROOT" && cargo ndk -t "$ABI" -o "$HERE/app/src/main/jniLibs" build -p mailcal-ffi --release --features "$CORE_FEATURES")
 # Another ABI's library is from an earlier build, of whatever revision that was: packaged, it adds
 # its size to every install, and it would satisfy the APK's own check (checkCoreLibrary) for a
 # device it cannot run on.

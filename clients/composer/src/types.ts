@@ -38,7 +38,7 @@ export interface TextRun {
   font?: string;
   color?: HexColor;
   highlight?: HexColor;
-  /// The run's link target, one of `mailcal_composer::LINK_SCHEMES`.
+  /// The run's link target, one of `engine_html::link::LINK_SCHEMES`.
   link?: string;
 }
 

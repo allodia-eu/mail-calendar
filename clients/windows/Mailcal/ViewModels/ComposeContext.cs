@@ -7,8 +7,6 @@
 // The Windows twin of the Apple client's `ComposeContext`, deliberately the same shape, an optional
 // context, not a presented modal.
 
-using System.Collections.Generic;
-using System.Linq;
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -30,7 +28,9 @@ namespace Allodia.Mailcal.ViewModels;
 /// <c>null</c>.</param>
 /// <param name="QuoteAttribution">The <c>completeComposerQuoteAttribution</c> argument for a
 /// reopened message whose original is known, or <c>null</c>.</param>
-/// <param name="ExtraAttachments">Files the host adds to what the core staged: a share's.</param>
+/// <param name="StagingDirectory">Where the core staged the files this composer opened holding, a
+/// forward's originals or a draft's own, so a discard can delete them at once; <c>null</c> when it
+/// is not known here, and the next launch sweeps them.</param>
 /// <param name="InitialError">A line the composer opens showing, for something the route could not
 /// bring: files a share could not hand over.</param>
 // Internal, not public: it carries generated records, and every record the C# bindgen emits is
@@ -43,7 +43,7 @@ internal sealed record ComposeContext(
     bool QuoteStylePerMessage,
     string? Quote,
     string? QuoteAttribution,
-    IReadOnlyList<ComposerFileAttachment>? ExtraAttachments = null,
+    string? StagingDirectory = null,
     string? InitialError = null)
 {
     /// <summary>Whether this is a new message, reply, reply-all, or forward.</summary>
@@ -79,10 +79,6 @@ internal sealed record ComposeContext(
     /// <summary>Whether the composer offers the signature picker and swaps the signature on a From
     /// change: one that seeds the account's, and a moved one whose predecessor did.</summary>
     public bool ManagesSignature => SeedsSignature || Moved?.Signature is not (null or MovedSignature.Untouched);
-
-    /// <summary>Every file the composer opens holding: what the core staged, and a share's.</summary>
-    public IReadOnlyList<ComposerFileAttachment> Attachments =>
-        Opening.Attachments.Concat(ExtraAttachments ?? []).ToList();
 
     /// <summary>Whether a forward's originals could not be staged, so the composer says so.</summary>
     public bool AttachmentsFailed => Opening.AttachmentsFailed;

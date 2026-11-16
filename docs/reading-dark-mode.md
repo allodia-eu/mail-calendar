@@ -39,11 +39,12 @@ left it.
    (`reading_show_light_background`, `reading_show_dark_background`), and so does its tooltip
    where the platform's row shows one.
 
-4. **The transform is the core's, and moves colours and nothing else.** A dark render
-   (`render_message_html(…, MessageScheme::Dark)`, built in
-   [`html/scheme.rs`](../crates/mailcal-app/src/html/scheme.rs)) moves each colour the message sets
-   in its `<style>` sheets, its `style` attributes, `bgcolor` and `<font color>`, keeping its hue
-   and changing only its perceived lightness (OKLab), by what the colour paints:
+4. **The transform is shared, and moves colours and nothing else.** A dark render
+   (`render_message_html(…, MessageScheme::Dark)`, built in the engine's `engine-html`:
+   [`html.md`](https://github.com/allodia-eu/email-calendar-sync-engine/blob/main/docs/agent-guidance/html.md),
+   "Reading in a dark theme") moves each colour the message sets in its `<style>` sheets, its
+   `style` attributes, `bgcolor` and `<font color>`, keeping its hue and changing only its
+   perceived lightness (OKLab), by what the colour paints:
 
    | Role | Properties | Moves to |
    |---|---|---|

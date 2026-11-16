@@ -54,7 +54,11 @@ its `sender_name` and its `mail` settings too (fetch depth, message size, push o
 interval, the watched folders), each a control of its own, a switch to push drawn with the
 folders it will watch: a change to one is stored before it ends, and what follows from it (telling
 the provider the name, reconciling the mail to a new depth or size) runs on afterwards as sync work
-the page does not wait on. For an account whose servers
+the page does not wait on. Reading a page, or the accounts list, waits on nothing: what the mail
+half draws from the store and the live account list is kept by the core, read in the background
+at launch and again whenever either is read, and on a change's own thread as it starts and before
+it ends,
+and the page is signalled when what was read moved it. For an account whose servers
 can be edited the page carries its `servers`: the form, drawn from the edit being saved while a
 save runs, from the edit the last save refused (its password included, so one field is corrected
 rather than all retyped), and otherwise from what is stored; and Save, held too while
@@ -99,6 +103,26 @@ one asked for while another runs running once more after it, and a pass that end
 sign-in it ran for has gone says nothing. It is `None` until a pass has answered, and says `nothing_found` once one answered with nothing, on which Settings draws no card and the first-run card says there are no accounts. The card draws `checking` while one runs, and each
 question's Keep is the same change on its account's page, running and held as one; what did not
 take is said on the control and the question, as `failed`.
+The Allodia account's sign-in and sign-out are the core's as well (`MailcalApp::allodia_card`,
+read again on `Surface::Allodia`). The sign-in is the one browser sign-in the core holds, started
+as `AllodiaIntent::SignIn` from Settings, the first-run card, a notice or another card, and opened
+and handed back by the same driver as an account's; the card draws it from `browser` with its
+Cancel. Sign-out is `AllodiaIntent::SignOut`, run off the UI thread, its button running meanwhile
+and the service's own sign-out page named once in `end_session`. Whether someone is signed in or
+their sign-in has ended is the card's `state`, what a sign-in or sign-out came to its `failure`,
+and the first-run card's progress, its way back included, its `onboarding`.
+The Allodia account's subscription is the core's too (`MailcalApp::allodia_subscription_card`,
+read again on `Surface::Allodia`), kept for the account signed in and forgotten with it. The page
+that draws it sends `AllodiaIntent::RefreshSubscription` when it opens, and a desktop again when
+its window comes back from the checkout browser; a phone again when the app returns to the front.
+A read asked for while one runs runs once more after it, since the one out may predate what
+prompted the ask. Each write (`StartCheckout`, `CancelSubscription`,
+`Resubscribe`, `SwitchInterval`) is an `AllodiaIntent` the core refuses unless the card offers it,
+and its control runs, every other held, from the press until the read that follows it lands; what
+it came to is the card's `outcome`, kept through every read while the page is on screen and
+forgotten when the page sends `LeaveSubscription` on leaving, and a payment page it handed back
+its `checkout_page`, opened once per id. Buying from a phone's own store stays the client's, since no Rust can call StoreKit
+or Play.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -133,6 +157,8 @@ record, not a state the client keeps.
 | A separate server's form, on the page and as setup's step: drawn from `account_page`, Connect and Skip sent as page changes, its browser sign-in run by the core (`SignInSeparateServer`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's browser sign-in, from its page, a use or a notice: run by the core (`browser_sign_in`), the browser opened once per attempt and its return handed back | ✅ | ✅ | ✅ | ✅ | ✅ |
 | An account's sharing and the other devices' card: drawn from `account_page` and `allodia_devices`, a change sent as a page change, the pass run by the core | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Allodia account's sign-in and sign-out: drawn from `allodia_card`, run by the core as `AllodiaIntent`s, the sign-in as its one browser sign-in | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -197,13 +223,24 @@ record, not a state the client keeps.
   drives it through the app: no card or control while nobody is signed in, a pass when the
   bookkeeping arrives, Keep pausing the account through `dispatch`, and no control for an account
   the other devices cannot hold.
+- [`allodia_subscription_facts_tests.rs`](../crates/mailcal-bindings/src/allodia_subscription_facts_tests.rs)
+  pins what the subscription section shows: who is billing and which store pages are offered, a
+  status nobody can name granting nothing, renewal and grace, no write the service did not permit,
+  and a running write holding every control;
+  [`allodia_subscription_card_tests.rs`](../crates/mailcal-bindings/src/allodia_subscription_card_tests.rs)
+  pins one read at a time, a write held until the read after it, an older read landing late
+  dropped, and nothing landing for an account that has left.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
 - [`app_account_page_tests.rs`](../crates/mailcal-bindings/src/app_account_page_tests.rs) drives a
   change through `dispatch`: it runs and the page comes back free, one the core refuses leaves a
   notice, and a mail setting and a name asked for while it runs are both on the page once they
-  end.
+  end; and the page, its opening and the accounts list are read while a change to the account
+  list is held up, without waiting on it.
+  [`account_page_mail_rows_tests.rs`](../crates/mailcal-bindings/src/account_page_mail_rows_tests.rs)
+  pins the mail half's kept row: a read moves the page only when it found something else, an
+  older read never replaces a newer one, and one read is out at a time.
 - Each client's controls are tested where its toolkit runs: Linux's in the GTK widget test
   ([`controls.rs`](../clients/linux/src/ui/controls.rs), the name's row in
   [`sender_name_tests.rs`](../clients/linux/src/ui/settings/sender_name_tests.rs), and a redraw

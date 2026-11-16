@@ -86,6 +86,9 @@ impl AppModel {
                 self.settings.signalled();
                 self.refresh_onboarding_card();
             }
+            // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
+            // the stored sign-in.
+            Surface::Allodia => self.allodia_signalled(),
             // A composition's save moved. The signal names none, so every open composer reads
             // its own state back (`docs/drafts.md`).
             Surface::DraftStatus => self.pull_draft_status(),

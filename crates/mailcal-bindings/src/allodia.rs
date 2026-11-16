@@ -29,6 +29,13 @@
 
 use serde::{Deserialize, Serialize};
 
+#[path = "allodia_card.rs"]
+mod card;
+pub(crate) use card::AllodiaWork;
+pub use card::{
+    AllodiaCard, AllodiaCardState, AllodiaEndSession, AllodiaFailure, AllodiaOnboarding,
+};
+
 /// The reserved id the Allodia grant is stored under.
 ///
 /// A host keys its secure store on whatever id the core hands it and asks no questions, so this has
@@ -59,15 +66,14 @@ pub struct AllodiaAccount {
     pub name: Option<String>,
 }
 
-/// What starting a sign-in returns: the page to open, and an opaque handle to hand back.
-#[derive(uniffi::Record, Debug, Clone)]
-pub struct AllodiaSignInStart {
-    /// The authorization URL to open in the platform auth session / default browser.
-    pub authorization_url: String,
-    /// An opaque handle (the CSRF `state`, the PKCE verifier and what discovery found) to pass to
-    /// `complete_allodia_sign_in`. Transient; hold it in memory only, never on disk: it carries
-    /// the verifier that protects the code exchange.
-    pub pending: String,
+/// What starting a sign-in returns: the page to open, and an opaque handle to complete it with.
+#[derive(Debug, Clone)]
+pub(crate) struct AllodiaSignInStart {
+    /// The authorization URL to open in the browser.
+    pub(crate) authorization_url: String,
+    /// The CSRF `state`, the PKCE verifier and what discovery found. Held in memory only, never
+    /// on disk: it carries the verifier that protects the code exchange.
+    pub(crate) pending: String,
 }
 
 /// Whether this build can offer Allodia sign-in at all.

@@ -22,7 +22,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.OutboxIntent
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QueuedState
@@ -303,26 +302,13 @@ class OutboxTest {
     /**
      * Every field the core hands back reaches the composer, through the same factory every other
      * composer is built by. The composition is the one the core saved the draft under, so the
-     * composer saves over it rather than beside it, and every staged file is held and counts as
-     * the baseline, because the first save replaces the draft and a file left out is taken off it.
+     * composer saves over it rather than beside it, and draws the files the core holds for it.
      * From is the account the message was **queued on**: on a device with two accounts, the
      * selected mailbox's would send it as an identity the recipient has never seen it from. And
      * no fresh signature is seeded over the one the body already carries.
      */
     @Test
     fun `a withdrawn message opens holding everything it was queued with`() {
-        val files = listOf(
-            ComposerFileAttachment(
-                path = "/cache/composer-staging/x/agenda.pdf",
-                fileName = "agenda.pdf",
-                mediaType = "application/pdf",
-            ),
-            ComposerFileAttachment(
-                path = "/cache/composer-staging/x/map.png",
-                fileName = "map.png",
-                mediaType = "image/png",
-            ),
-        )
         val opening = testOpening(
             account = "home",
             composition = "draft-7",
@@ -332,7 +318,6 @@ class OutboxTest {
             subject = "Lunch",
             bodyHtml = "<p><strong>One</strong> o'clock?</p>",
             bodyText = "One o'clock?",
-            attachments = files,
             seedsSignature = false,
         )
         val accounts = listOf(account("work"), account("home"))
@@ -348,8 +333,6 @@ class OutboxTest {
         assertEquals("home", request.initialFrom)
         assertEquals("<p><strong>One</strong> o'clock?</p>", request.storedHtml)
         assertEquals("One o'clock?", request.initialBody)
-        assertEquals(files, request.attachments)
-        assertEquals(2, request.baselineAttachments)
         assertEquals(null, request.quote)
         assertEquals(RichComposeMode.New, request.mode)
         val library = ComposerSignatures(library = emptyList(), forAccount = { _, _ -> null }, byId = { null })

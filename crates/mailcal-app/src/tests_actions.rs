@@ -14,11 +14,10 @@ use fakes::{
 };
 
 use super::{Intent, ReaderId, Surface};
-use crate::helpers::{forward_subject, reply_subject};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{
+    helpers::{forward_subject, reply_subject},
+    tests_fakes as fakes,
+};
 
 #[tokio::test]
 async fn a_message_action_routes_by_owning_account_on_a_key_collision() {

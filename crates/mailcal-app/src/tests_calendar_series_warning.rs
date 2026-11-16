@@ -14,10 +14,7 @@ use fakes::{CalendarFake, calendar_account, calendar_app, evt};
 use mailcal_account::{EventEdit, SeriesEditWarning};
 
 use super::Intent;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A weekly standup with one occurrence the user has singled out.
 fn series_with_an_override() -> engine_api::Event {

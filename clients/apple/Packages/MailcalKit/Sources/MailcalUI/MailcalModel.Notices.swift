@@ -49,13 +49,9 @@ extension MailboxModel {
         case .retry:
             // The core refreshes, and says on the notice if the dial it starts does not get through.
             app?.dispatch(intent: .notices(intent: .retry(id: notice.id)))
-        case .signInToAllodia:
-            switch await signInToAllodia() {
-            case .signedIn, .cancelled: break
-            case .failed: remedyFailed(notice)
-            }
         // The core draws the notice running while the sign-in is out, and marks its remedy
         // failed if it fails, whichever surface started it.
+        case .signInToAllodia: signInToAllodia()
         case .signInAgain:
             if let account = notice.account { signInThroughBrowser(account) }
         // A question's answers (rule 8), each an intent this client already sends.
@@ -66,10 +62,5 @@ extension MailboxModel {
         case .useDeviceTimeZone: acceptTimeZoneChange()
         case .keepTimeZone: dismissTimeZoneChange()
         }
-    }
-
-    /// Tells the core `notice`'s remedy did not complete, so it says so beside the notice.
-    private func remedyFailed(_ notice: Notice) {
-        app?.dispatch(intent: .notices(intent: .remedyFailed(id: notice.id)))
     }
 }

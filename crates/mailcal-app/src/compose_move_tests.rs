@@ -9,7 +9,7 @@ use mailcal_composer::{Block, ComposerDocument, Paragraph};
 use super::mail_fake::{ThreadProvider, app_and_logs, original_message};
 use crate::{
     ComposeKind, ComposeOrigin, ComposerState, CompositionId, DraftStatus, DraftsIntent, Intent,
-    MessageRef, MovedComposer, MovedSignature, protocol::StagedAttachment,
+    MessageRef, MovedComposer, MovedSignature,
 };
 
 const DOCUMENT: &str = r#"{"blocks":[{"Paragraph":{"content":[{"Text":{"text":"Half a reply","bold":false,"italic":false,"underline":false}}]}}],"attachments":[]}"#;
@@ -53,11 +53,6 @@ fn state() -> ComposerState {
         bcc: "me@local.test".to_owned(),
         subject: "Re: Quarterly report (revised)".to_owned(),
         document: DOCUMENT.to_owned(),
-        attachments: vec![StagedAttachment {
-            path: "/tmp/composer/figures.pdf".to_owned(),
-            file_name: "figures.pdf".to_owned(),
-            media_type: "application/pdf".to_owned(),
-        }],
         signature: MovedSignature::Chosen("sig-work".to_owned()),
         written: true,
     }
@@ -155,7 +150,10 @@ async fn a_moved_composer_opens_holding_what_it_was_given() {
     assert_eq!(opening.cc, given.cc);
     assert_eq!(opening.bcc, given.bcc);
     assert_eq!(opening.subject, given.subject);
-    assert_eq!(opening.attachments, given.attachments);
+    assert!(
+        opening.attachments.is_empty(),
+        "the files stay with the composition"
+    );
     assert!(opening.body_html.is_empty() && opening.body_text.is_empty());
     assert_eq!(
         opening.quote, None,

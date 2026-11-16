@@ -63,6 +63,64 @@ final class RichComposerEditor: NSObject {
     var focusBodyOnLoad = false
     /// The link dialog the editor is waiting on, if any.
     var linkRequest: LinkDialogRequest?
+    /// Where the caret last was, for the composer's column to keep in view.
+    @ObservationIgnored var caret: EditorCaret?
+    /// How many caret reports have arrived. The column follows each one, including one at the same
+    /// place as the last: the page resends it on every edit, because the column may have moved since.
+    var caretReports = 0
+    /// How far the message is scrolled inside its box, as the framed mode last reported it.
+    @ObservationIgnored var messageOffset: CGFloat = 0
+    /// The scroll offset of the column holding the editor and the furthest it scrolls, as the
+    /// column last reported them.
+    @ObservationIgnored var columnOffset: CGFloat = 0
+    @ObservationIgnored var columnEnd: CGFloat = 0
+
+    /// Whether a vertical step over the editor goes to the column rather than to the message
+    /// (`docs/composer-layout.md`, rule 2): the core's answer, from where both last were.
+    func columnTakesScroll(towardsEnd: Bool) -> Bool {
+        composerScroller(
+            columnOffsetPx: columnOffset,
+            columnEndPx: columnEnd,
+            messageOffsetPx: messageOffset,
+            towardsEnd: towardsEnd
+        ) == .column
+    }
+    /// The height of the header drawn over the top of the page on a touch screen, which the page
+    /// keeps clear above the message.
+    @ObservationIgnored private var topInset: CGFloat = 0
+
+    /// Keeps `height` clear at the top of the page for the header over it. Sent again on load, so
+    /// it may be set before the page is there.
+    func setTopInset(_ height: CGFloat) {
+        guard abs(height - topInset) >= 0.5 else { return }
+        topInset = height
+        host.evaluate(Self.topInsetScript(height))
+    }
+
+    private static func topInsetScript(_ height: CGFloat) -> String {
+        "window.setComposerTopInset(\(Double(height)))"
+    }
+
+    #if os(iOS)
+    /// Keeps the page out of sight until the host has switched on its touch layout.
+    ///
+    /// Until then the page draws the layout a desktop uses, its toolbar at the top running off the
+    /// screen and its message under the native header, for as long as the bundle takes to load.
+    /// Run before the document is parsed, so its first frame is already hidden; the header stays in
+    /// view and takes its taps meanwhile.
+    private static let hiddenUntilTouchLayout = WKUserScript(
+        source: """
+        (function () {
+          var style = document.createElement("style");
+          style.textContent = "html:not(.native-chrome) body { visibility: hidden; }";
+          document.documentElement.appendChild(style);
+        })();
+        """,
+        injectionTime: .atDocumentStart,
+        forMainFrameOnly: true
+    )
+    #endif
+
     /// Files dropped on the message itself, set by `ComposerDropModifier`, which owns what a dropped
     /// file becomes. The web view hands its drops here, so the handler can be set before or after
     /// the web view exists.
@@ -79,6 +137,11 @@ final class RichComposerEditor: NSObject {
     override init() {
         super.init()
         host.channel.onLink = { [weak self] in self?.linkRequest = $0 }
+        host.channel.onCaret = { [weak self] in
+            self?.caret = $0
+            self?.caretReports &+= 1
+        }
+        host.channel.onScroll = { [weak self] in self?.messageOffset = $0 }
         host.onLoad = { [weak self] in self?.seedOnLoad() }
     }
 
@@ -88,23 +151,26 @@ final class RichComposerEditor: NSObject {
             (view as? EditorWebView)?.acceptDroppedFiles = { [weak self] urls in
                 self?.acceptDroppedFiles?(urls)
             }
+            #if os(macOS)
+            (view as? EditorWebView)?.columnTakesScroll = { [weak self] towardsEnd in
+                self?.columnTakesScroll(towardsEnd: towardsEnd) ?? false
+            }
+            // The framed page has no background, so the toolbar sits on the column's own colour
+            // (`docs/composer-layout.md`, rule 7); a web view that painted white under it would put
+            // the strip back. There is no public switch on macOS: key-value coding reaches
+            // WebKit's own `_setDrawsBackground:`, asked for first so a WebKit without it is left
+            // as it is rather than taken down.
+            if view.responds(to: NSSelectorFromString("_setDrawsBackground:")) {
+                view.setValue(false, forKey: "drawsBackground")
+            }
+            #endif
             #if os(iOS)
-            // The document itself must never scroll: the page is a flex column whose `.editor`
-            // scrolls inside itself, so anything that moves the *document* moves the toolbar
-            // instead, and WebKit moves it on focus, scrolling the caret into view against a visual
-            // viewport the keyboard accessory bar has just shortened. The result is a formatting
-            // toolbar sliced through the middle the moment the message is tapped.
-            //
-            // Safe only because the host gives the web view a height that fits the toolbar plus the
-            // editor's own `min-height` (`minimumEditorHeight`); below that the page would overflow
-            // with nothing able to scroll it.
-            view.scrollView.isScrollEnabled = false
-            view.scrollView.bounces = false
+            // The page is the composer's one scroll on a touch screen, with the header drawn inside
+            // it (`TouchComposerChrome`); the frame already ends at the keyboard, so WebKit is
+            // given no insets of its own to add.
             view.scrollView.contentInsetAdjustmentBehavior = .never
-            // `isScrollEnabled` stops a *finger*, not WebKit: revealing the caret sets
-            // `contentOffset` directly, and that is what moves the toolbar. Pinning the offset is
-            // the part that actually holds.
-            view.scrollView.delegate = self
+            view.scrollView.keyboardDismissMode = .interactive
+            view.configuration.userContentController.addUserScript(Self.hiddenUntilTouchLayout)
             #endif
         }
     }
@@ -133,6 +199,18 @@ final class RichComposerEditor: NSObject {
         // the placeholder lives on the editor element's dataset, which replacing the document does
         // not touch, but sending them first matches the other clients' open-time order.
         host.evaluate(ComposerLabels.script())
+        #if os(iOS)
+        // A touch screen's layout: the page scrolls, the header sits in the room the top inset
+        // keeps, and the toolbar rides on the keyboard (`docs/composer-layout.md`, rule 7).
+        // The inset first: the page shows itself once the layout is on (`hiddenUntilTouchLayout`),
+        // and its first frame should already leave the header its room.
+        if topInset > 0 { host.evaluate(Self.topInsetScript(topInset)) }
+        host.evaluate("window.useNativeComposerChrome()")
+        #else
+        // A desktop column's layout: the header scrolls away, then the message in its own box under
+        // the toolbar. Before the announce, which the page answers with its caret and its scroll.
+        host.evaluate("window.useFramedComposer()")
+        #endif
         host.channel.announce()
         // One body seed, whichever way the composer was reached. A plain body is assigned as
         // TEXT, never markup (docs/composer-security.md, Gate 11), which matters most for an
@@ -222,17 +300,19 @@ final class RichComposerEditor: NSObject {
         }
     }
 
-    /// How many times the message has changed since the bundle loaded.
+    /// How many times the message has changed since the bundle loaded, or `nil` while the bundle
+    /// cannot be asked yet.
     ///
-    /// Sampled rather than pushed: the page has no channel back to this host, so the bundle counts
-    /// its own mutations and the host reads the count. What it is for is telling a composer still
-    /// being typed in from one that has gone quiet, which is what decides when a draft is saved
-    /// (`docs/drafts.md`). `0` while the bundle is still loading, which is also its starting
-    /// value, so nothing reads as an edit before there is one.
-    func revision() async -> Int {
+    /// Sampled rather than pushed: the bundle counts its own mutations and the host reads the
+    /// count. What it is for is telling a composer still being typed in from one that has gone
+    /// quiet, which is what decides when a draft is saved (`docs/drafts.md`). Seeding the body, the
+    /// quote and the signature moves the count before anyone types, so an unanswered read is
+    /// `nil`, never `0`: a `0` would make the first answered read look like an edit, and an
+    /// untouched composer would save itself.
+    func revision() async -> Int? {
         await withCheckedContinuation { continuation in
             host.evaluate("window.composerRevision()") { value, _ in
-                continuation.resume(returning: (value as? NSNumber)?.intValue ?? 0)
+                continuation.resume(returning: (value as? NSNumber)?.intValue)
             }
         }
     }
@@ -295,18 +375,3 @@ final class RichComposerEditor: NSObject {
         return "window.setPlainText(\(EditorHost.jsString(text)))"
     }
 }
-
-#if os(iOS)
-extension RichComposerEditor: UIScrollViewDelegate {
-    /// Keeps the editor document at its origin.
-    ///
-    /// The page is a flex column that scrolls **inside** `.editor`; the document around it is
-    /// furniture and must not move, or the formatting toolbar slides off the top of the web view
-    /// the moment the message is tapped.
-    func scrollViewDidScroll(_ scrollView: UIScrollView) {
-        if scrollView.contentOffset != .zero {
-            scrollView.contentOffset = .zero
-        }
-    }
-}
-#endif

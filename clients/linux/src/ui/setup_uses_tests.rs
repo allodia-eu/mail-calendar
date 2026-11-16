@@ -213,6 +213,37 @@ fn a_manual_sign_in_asks_only_for_what_the_typed_address_is_offered() {
 }
 
 #[test]
+fn shared_stores_count_beside_a_calendar_alone() {
+    let provider = UseOffer {
+        choices: [
+            AccountCapability::Mail,
+            AccountCapability::SharedMailboxes,
+            AccountCapability::Calendar,
+        ]
+        .into_iter()
+        .map(|capability| SetupChoice {
+            capability,
+            on: true,
+            server_found: true,
+        })
+        .collect(),
+        ..UseOffer::default()
+    };
+    let shared = Subchoices {
+        shared_mailboxes: Some(true),
+        colleagues: None,
+        meetings: None,
+    };
+    assert_eq!(
+        chosen(&provider, Some(false), ON, None, shared).uses,
+        Some(vec![
+            AccountCapability::SharedMailboxes,
+            AccountCapability::Calendar
+        ])
+    );
+}
+
+#[test]
 fn shared_mailboxes_count_only_beside_mail() {
     let provider = UseOffer {
         choices: [

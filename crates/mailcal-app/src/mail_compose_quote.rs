@@ -14,20 +14,20 @@ use engine_api::{ContentIdHeader, DraftAttachment, InlinePart};
 use mailcal_composer::{Block, ComposerDocument};
 
 /// Re-sanitises every quoted original's HTML to the inert, safe subset
-/// (`crate::html::sanitize_inert`) in place. Called on the rich-draft path right before render: the
+/// (`engine_html::sanitize_inert`) in place. Called on the rich-draft path right before render: the
 /// quote body is HTML a host's WebView editor handed back, so it is re-hardened here rather than
 /// trusted: the same sanitiser the reading view runs on inbound mail, applied now to outbound
 /// quoted content.
 pub(super) fn sanitize_quote_bodies(document: &mut ComposerDocument) {
     for block in &mut document.blocks {
         if let Block::Quote(quote) = block {
-            quote.body_html = crate::html::sanitize_inert(&quote.body_html);
+            quote.body_html = engine_html::sanitize_inert(&quote.body_html);
         }
     }
 }
 
 /// Rewrites each quoted original's inline `data:` images back to `cid:` references to their
-/// original parts (`crate::html::restore_cid_images`), returning one inline [`DraftAttachment`]
+/// original parts (`engine_html::restore_cid_images`), returning one inline [`DraftAttachment`]
 /// per distinct part so the sent message carries them as `multipart/related` `cid:` parts with
 /// their **original** `Content-ID`s. A no-op when `inline_parts` is empty (a new message, or a
 /// reply/forward whose original had no inline images).
@@ -47,7 +47,7 @@ pub(super) fn reattach_quote_cids(
     for block in &mut document.blocks {
         if let Block::Quote(quote) = block {
             let (restored, matched) =
-                crate::html::restore_cid_images(&quote.body_html, &attachable);
+                engine_html::restore_cid_images(&quote.body_html, &attachable);
             quote.body_html = restored;
             for part in matched {
                 // One part may be referenced by more than one quote block; attach it once.

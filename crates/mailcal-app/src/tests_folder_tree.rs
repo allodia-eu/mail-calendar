@@ -14,10 +14,7 @@ use fakes::{FakeProvider, account, app, app_with_prefs, message};
 use mailcal_viewmodel::FolderRow;
 
 use super::{Intent, reference::FolderRef};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The rows a pane would actually draw, as `(key, depth)`.
 fn drawn(rows: &[FolderRow]) -> Vec<(&str, u32)> {

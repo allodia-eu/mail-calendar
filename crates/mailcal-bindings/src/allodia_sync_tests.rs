@@ -1,9 +1,14 @@
-//! What [`super::setup_from_offer`] promises, which is the whole value of syncing an account list.
+//! What [`super::offer_route`] promises, which is the whole value of syncing an account list.
 //!
 //! An offer that routes to the manual form has cost the person exactly what account sync was for:
 //! they set the account up on one device, and the next one asks them to type its servers in.
 
-use super::{AllodiaAccountKind, AllodiaAccountOffer, setup_from_offer};
+use super::{AllodiaAccountKind, AllodiaAccountOffer, offer_route};
+
+/// The route an offer opens, as a client's setup form takes it.
+fn setup_from_offer(offer: AllodiaAccountOffer) -> SetupRecommendation {
+    crate::autodetect::convert(offer_route(offer))
+}
 use crate::{
     autodetect::{MissReason, SetupRecommendation},
     setup::ConnectionSecurity,

@@ -84,9 +84,9 @@ public sealed partial class AccountSetupView
                         }
                     }
                     break;
-                case AccountCapability.SharedMailboxes:
-                    _sharedMailboxesUse = Subchoice(
-                        L10n.SetupDetectSharedMailboxesEnable(), choice.On, "SetupUseSharedMailboxes", _mailUse);
+                // Drawn beneath the calendar, which opens them as mail does, when one is offered.
+                case AccountCapability.SharedMailboxes when offer.For(AccountCapability.Calendar) is null:
+                    _sharedMailboxesUse = SharedUse(choice);
                     break;
                 case AccountCapability.Calendar:
                     UsesPanel.Children.Add(Section(L10n.SetupDetectSectionCalendar()));
@@ -98,6 +98,10 @@ public sealed partial class AccountSetupView
                     if (offer.For(AccountCapability.Meetings) is { } meetings)
                     {
                         _meetingsUse = MeetingsUse(meetings);
+                    }
+                    if (offer.For(AccountCapability.SharedMailboxes) is { } shared)
+                    {
+                        _sharedMailboxesUse = SharedUse(shared);
                     }
                     break;
                 case AccountCapability.Contacts:
@@ -213,7 +217,7 @@ public sealed partial class AccountSetupView
     /// <summary>
     /// A choice within a use, indented beneath it, and offered only while that use is on, as on the
     /// account's page: colleagues come from the organisation's directory beside the person's own
-    /// contacts, and a shared mailbox is opened beside the account's own mail.
+    /// contacts.
     /// </summary>
     private CheckBox Subchoice(string label, bool on, string automationId, CheckBox? within)
     {
@@ -230,6 +234,32 @@ public sealed partial class AccountSetupView
                 box.IsEnabled = false;
             };
         }
+        return box;
+    }
+
+    /// <summary>Shared mailboxes and calendars, indented beneath mail and the calendar and offered
+    /// while either is on: each opens that much of a store shared with the account.</summary>
+    private CheckBox SharedUse(SetupChoice choice)
+    {
+        var box = UseBox(L10n.SetupDetectSharedMailboxesEnable(), choice.On, "SetupUseSharedMailboxes");
+        box.Margin = new Thickness(28, 0, 0, 0);
+        UsesPanel.Children.Add(box);
+        var within = new[] { _mailUse, _calendarUse }.OfType<CheckBox>().ToArray();
+        void Follow()
+        {
+            var open = within.Any(use => use.IsChecked == true);
+            if (!open)
+            {
+                box.IsChecked = false;
+            }
+            box.IsEnabled = open;
+        }
+        foreach (var use in within)
+        {
+            use.Checked += (_, _) => Follow();
+            use.Unchecked += (_, _) => Follow();
+        }
+        Follow();
         return box;
     }
 

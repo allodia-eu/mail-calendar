@@ -99,8 +99,8 @@ public class AllodiaSubscriptionFormatTests
     [Fact]
     public void AnAmountWithNoCurrencyBesideItIsStillAnAmount()
     {
-        // ⚠️ `AllodiaIntervalChange` carries minor units alone, so the card prices it from the
-        // subscription's own currency; when there is not one, the number alone beats nothing.
+        // A switch's outcome names its currency; when one arrives empty, the number alone beats
+        // nothing.
         Assert.Equal("49.99", AllodiaSubscriptionFormat.MinorUnits(4999, null, English));
         Assert.Equal("49,99", AllodiaSubscriptionFormat.MinorUnits(4999, "  ", Dutch));
     }

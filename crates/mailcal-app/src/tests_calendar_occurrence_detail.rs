@@ -15,10 +15,7 @@ use std::sync::{Arc, Mutex};
 use fakes::{CalendarFake, calendar_account, calendar_app, evt};
 
 use super::Intent;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The standup: 09:00 weekly from today (30 minutes long), with the occurrence a week out
 /// moved to 14:00.

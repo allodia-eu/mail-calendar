@@ -17,6 +17,7 @@ package eu.allodia.mailcal
 import android.app.Activity
 import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaPlan
+import uniffi.mailcal_bindings.AllodiaPrices
 import uniffi.mailcal_bindings.AllodiaStorePurchase
 
 // How one trip through a purchase ended.
@@ -25,10 +26,10 @@ internal sealed interface AllodiaPurchaseOutcome {
     // the account service has attached it.
     data class Bought(val purchases: List<AllodiaStorePurchase>) : AllodiaPurchaseOutcome
 
-    // The person is now in a browser on Allodia's checkout, and **nothing here is waiting for
-    // them**. They may pay, close the tab, or never come back, and this app is told none of it.
-    // What resolves it is reading the subscription again, which is what any screen drawing this
-    // already does when it is next shown.
+    // Allodia's checkout was asked for: the core opens its payment page in the browser, and
+    // **nothing here is waiting for the person**. They may pay, close the tab, or never come back,
+    // and this app is told none of it. What resolves it is the core reading the subscription again,
+    // which the section asks for when the app returns to the front.
     data object SentToCheckout : AllodiaPurchaseOutcome
 
     // The sheet was dismissed. Not a failure, and nothing is said about it.
@@ -40,8 +41,10 @@ internal sealed interface AllodiaPurchaseOutcome {
 }
 
 internal interface AllodiaBillingProvider {
-    // What this shop will sell, with the price already formatted for the reader.
-    suspend fun offers(): List<AllodiaOffer>
+    // What this shop will sell, with the price already formatted for the reader. [checkout] is
+    // Allodia's own list, present only while the core sells its checkout: the shop that is that
+    // checkout prices from it, a store asks itself.
+    suspend fun offers(checkout: AllodiaPrices?): List<AllodiaOffer>
 
     // Start a purchase. What comes back is never a granted subscription.
     suspend fun buy(activity: Activity, plan: AllodiaPlan): AllodiaPurchaseOutcome

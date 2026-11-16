@@ -68,7 +68,7 @@ internal fun switchNote(ctx: Context, switch: AccountUseSwitch): String? {
 internal fun blockSaid(ctx: Context, block: AccountUseBlock): String = when (block) {
     AccountUseBlock.LAST_USE -> L10n.settings_account_use_last(ctx)
     AccountUseBlock.NEEDS_CONTACTS -> L10n.settings_account_colleagues_needs_contacts(ctx)
-    AccountUseBlock.NEEDS_MAIL -> L10n.settings_account_shared_needs_mail(ctx)
+    AccountUseBlock.NEEDS_MAIL_OR_CALENDAR -> L10n.settings_account_shared_needs_mail(ctx)
     AccountUseBlock.NOT_OFFERED -> L10n.settings_account_use_not_offered(ctx)
     AccountUseBlock.NEEDS_SERVER -> L10n.settings_account_use_needs_endpoint(ctx)
 }
@@ -92,7 +92,7 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
         L10n.settings_account_servers_failed(ctx),
         refusalSaid(ctx, notice.refusal),
     )
-    is AccountChangeNotice.SharedMailboxFailed -> AccountNotice(
+    is AccountChangeNotice.SharedStoreFailed -> AccountNotice(
         NoticeKind.FAILURE,
         L10n.settings_account_change_failed_title(ctx),
         refusalSaid(ctx, notice.refusal),
@@ -129,7 +129,7 @@ internal fun changeNotice(ctx: Context, notice: AccountChangeNotice): AccountNot
         L10n.setup_withheld_detail(ctx, notice.uses.joinToString(", ") { useName(ctx, it) }),
     )
     // Not a failure of the app: the address is the person's to check.
-    is AccountChangeNotice.SharedMailboxNotFound ->
+    is AccountChangeNotice.SharedStoreNotFound ->
         AccountNotice(NoticeKind.WARNING, "", L10n.settings_account_shared_not_found(ctx))
 }
 

@@ -66,6 +66,22 @@ pub fn image_data_url_from_bytes(bytes: &[u8]) -> Option<String> {
     ))
 }
 
+/// Whether the file at `path` is a picture a client may decode for a thumbnail: a raster image by
+/// its bytes, no larger than the cap above. Reads only the first bytes, so it is cheap enough to
+/// ask of every file a composer is handed.
+pub fn is_raster_picture(path: &Path) -> bool {
+    use std::io::Read;
+    let Ok(meta) = std::fs::metadata(path) else {
+        return false;
+    };
+    if !meta.is_file() || meta.len() > MAX_INLINE_IMAGE_BYTES {
+        return false;
+    }
+    let mut head = [0u8; 16];
+    let read = std::fs::File::open(path).and_then(|mut file| file.read(&mut head));
+    read.is_ok_and(|read| raster_media_type(&head[..read]).is_some())
+}
+
 /// The media type `head` identifies by magic number, or `None` for anything else.
 ///
 /// The list is the one every client decodes natively, and is deliberately closed: a format nothing
@@ -88,7 +104,8 @@ pub(crate) fn raster_media_type(head: &[u8]) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use super::{
-        MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes, raster_media_type,
+        MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes, is_raster_picture,
+        raster_media_type,
     };
 
     /// A 1×1 transparent PNG.
@@ -131,6 +148,10 @@ mod tests {
         assert!(url.starts_with("data:image/png;base64,"), "{url}");
         assert!(image_data_url(&liar).is_none());
         assert!(image_data_url(&dir.join("absent.png")).is_none());
+        assert!(is_raster_picture(&picture));
+        assert!(!is_raster_picture(&liar));
+        assert!(!is_raster_picture(&dir.join("absent.png")));
+        assert!(!is_raster_picture(&dir));
 
         std::fs::remove_dir_all(&dir).ok();
     }

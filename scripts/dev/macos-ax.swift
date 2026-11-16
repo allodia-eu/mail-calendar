@@ -306,11 +306,12 @@ func type(_ text: String) {
 }
 
 /// Key codes name physical keys at their ANSI positions. The five letters are the editing
-/// shortcuts' (Select All, Copy, Paste, Cut, Undo), which sit in the same place on QWERTY and QWERTZ.
+/// shortcuts' (Select All, Copy, Paste, Cut, Undo), which sit in the same place on QWERTY and QWERTZ,
+/// and the comma is Settings' (`cmd+comma`).
 let keyCodes: [String: CGKeyCode] = [
     "return": 36, "enter": 36, "tab": 48, "space": 49, "delete": 51, "escape": 53, "esc": 53,
     "left": 123, "right": 124, "down": 125, "up": 126,
-    "a": 0, "c": 8, "v": 9, "x": 7, "z": 6,
+    "a": 0, "c": 8, "v": 9, "x": 7, "z": 6, "comma": 43,
 ]
 
 let modifiers: [String: (flag: CGEventFlags, code: CGKeyCode)] = [

@@ -27,14 +27,17 @@ interface Vocabulary {
 
 export type HostRequestKind = keyof Vocabulary;
 
-/// What the editor tells a host that asked, with no answer. `mailcal_composer::HistorySteps`.
+/// What the editor tells a host that asked, with no answer: `mailcal_composer::HistorySteps`, and
+/// framed mode's `CaretSpan` and `MessageScroll` (`framed.ts`).
 interface Notices {
   history: Steps;
+  caret: { top: number; bottom: number };
+  scroll: { px: number; end: number };
 }
 
 export type HostNoticeKind = keyof Notices;
 
-const KINDS: readonly (HostRequestKind | HostNoticeKind)[] = ["link", "history"];
+const KINDS: readonly (HostRequestKind | HostNoticeKind)[] = ["link", "history", "caret", "scroll"];
 
 type Post = (message: string) => void;
 

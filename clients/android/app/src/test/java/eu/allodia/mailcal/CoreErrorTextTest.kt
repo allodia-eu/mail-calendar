@@ -56,7 +56,6 @@ class CoreErrorTextTest {
         val said = L10n.signin_stale(ctx)
         assertEquals(said, coreErrorSaid(stale, ctx))
         assertEquals(said, signInFailedSaid(stale, ctx, L10n.setup_imap_signin_failed(ctx)))
-        assertEquals(said, allodiaFailureSaid(stale, ctx))
         assertEquals("the browser returned from another sign-in", coreErrorText(stale))
     }
 
@@ -66,7 +65,6 @@ class CoreErrorTextTest {
         val failed = MailcalException.Connect("token exchange failed")
         val fallback = L10n.setup_jmap_signin_failed(ctx)
         assertEquals(fallback, signInFailedSaid(failed, ctx, fallback))
-        assertEquals(L10n.settings_allodia_failed(ctx, "token exchange failed"), allodiaFailureSaid(failed, ctx))
     }
 
     @Test

@@ -1,7 +1,7 @@
 // What a person does in the browser during a Nextcloud sign-in against the engine's fixture: open
 // the login page, sign in, grant access. A suite cannot drive the default browser, and its launch
 // keeps the app from opening one (MAILCAL_NO_EXTERNAL_OPEN), so this does the requests that page
-// makes, as the core's live suite does (crates/mailcal-bindings/tests/live_nextcloud_sign_in.rs,
+// makes, as the core's live suite does (crates/mailcal-bindings/tests/live/live_nextcloud_sign_in.rs,
 // grant_in_the_browser). The page to
 // open is read from the fixture's own database: the app logs no URL (docs/logging.md).
 

@@ -133,7 +133,7 @@ strip of its other messages.
   holds the three conversations the table was written against (the newest received, sent, or a
   draft); `mailcal-app`'s [`row_menu_tests.rs`](../crates/mailcal-app/src/mail_ops/row_menu_tests.rs)
   asserts what the batch reaches; and
-  [`live_row_menu.rs`](../crates/mailcal-bindings/tests/live_row_menu.rs) asks the harness's own
+  [`live_row_menu.rs`](../crates/mailcal-bindings/tests/live/live_row_menu.rs) asks the harness's own
   three conversations over JMAP and IMAP, so a fixture that stops threading fails there.
 - A new action is a `RowAction` variant, a row in the table above with its reach, and an item on
   every client, or it is none of them. A variant nothing draws is a surface that drifts.

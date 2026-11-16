@@ -11,10 +11,7 @@ use engine_provider::PatchTarget;
 use fakes::{CalendarFake, calendar_account, calendar_app, evt};
 
 use super::{CalendarWriteStatus, EventIntent, Intent, Surface};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[path = "tests_calendar_write_outcome.rs"]
 mod write_outcome;

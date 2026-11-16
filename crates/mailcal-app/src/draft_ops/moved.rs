@@ -8,12 +8,12 @@
 //! belongs to, the parts its quote's pictures came from. So the new view opens on the same
 //! composition, and its first save supersedes what the old view saved rather than storing a second
 //! copy. What the core does not hold is what only the host held, and that is what
-//! [`ComposerState`] carries across.
+//! [`ComposerState`] carries across. The files are the composition's, so they stay where they are.
 
 use engine_api::{AccountId, Provider};
 use mailcal_composer::ComposerDocument;
 
-use crate::{App, ComposeOpening, CompositionId, protocol::StagedAttachment};
+use crate::{App, ComposeOpening, CompositionId};
 
 /// Everything a composer holds that its composition does not, at the moment it moves.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,9 +30,6 @@ pub struct ComposerState {
     pub subject: String,
     /// The editor's document, as its `composerDocument()` wrote it.
     pub document: String,
-    /// The files the composer holds, where they are now. They stay there: the files were already
-    /// the host's, and the directory a forward's were staged in is the host's to clean up.
-    pub attachments: Vec<StagedAttachment>,
     /// What the composer was doing with the signature.
     pub signature: MovedSignature,
     /// Whether anything was written in it, by the host's own reckoning against what it opened
@@ -93,7 +90,6 @@ impl<P: Provider> App<P> {
             bcc,
             subject,
             document,
-            attachments,
             signature,
             written,
         } = state;
@@ -118,7 +114,9 @@ impl<P: Provider> App<P> {
             body_html: String::new(),
             body_text: String::new(),
             quote: None,
-            attachments,
+            // The files stay with the composition, which the move keeps
+            // (`docs/composer-layout.md`, rule 3).
+            attachments: Vec::new(),
             attachments_failed: false,
             seeds_signature: false,
             moved: Some(MovedComposer {

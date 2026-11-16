@@ -166,7 +166,8 @@ noted beside it, and the two without one are this app's own drawings.
 | The draft's actions (Save as draft, Discard), on iPhone and iPad | `ellipsis` | — | — | — |
 | The chosen signature | — | `ic_check` | — | — |
 | Show / hide Cc and Bcc | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | `E70D` ChevronDown / `E70E` ChevronUp | `pan-down-symbolic` / `pan-up-symbolic` |
-| Remove an attachment | `xmark.circle` | — | — | `user-trash-symbolic` |
+| Remove an attachment | `xmark.circle` | — | `E711` Cancel | `user-trash-symbolic` |
+| An attached file with no picture to show | `doc` | `ic_attachment` | `E723` Attach | `mail-attachment-symbolic` |
 | Remove a recipient | `xmark.circle.fill` | `ic_close` | `E711` Cancel | `window-close-symbolic` |
 | Pop the composer out into a window | `arrow.up.forward.app` | — | `E8A7` OpenInNewWindow | `mailcal-external-link-symbolic` (`external-link`) |
 

@@ -134,7 +134,7 @@ enum AccountSettingsLabels {
         switch block {
         case .lastUse: L10n.settings_account_use_last()
         case .needsContacts: L10n.settings_account_colleagues_needs_contacts()
-        case .needsMail: L10n.settings_account_shared_needs_mail()
+        case .needsMailOrCalendar: L10n.settings_account_shared_needs_mail()
         case .notOffered: L10n.settings_account_use_not_offered()
         case .needsServer: L10n.settings_account_use_needs_endpoint()
         }
@@ -153,11 +153,11 @@ enum AccountSettingsLabels {
         case let .serversFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_servers_failed(), detail: refused(refusal))
-        case let .sharedMailboxFailed(refusal), let .passwordFailed(refusal),
+        case let .sharedStoreFailed(refusal), let .passwordFailed(refusal),
              let .stopLinkingFailed(refusal):
             AccountPageAlert(
                 title: L10n.settings_account_change_failed_title(), detail: refused(refusal))
-        case .sharedMailboxNotFound:
+        case .sharedStoreNotFound:
             AccountPageAlert(title: L10n.settings_account_shared_not_found(), detail: "")
         case let .signInFailed(switching, refusal):
             AccountPageAlert(
@@ -217,14 +217,32 @@ enum AccountSettingsLabels {
         return "\(message) \(L10n.settings_account_stop_linking_left_without())"
     }
 
-    /// The line under an account's shared mailboxes.
-    static func sharedNote(_ note: SharedMailboxesNote) -> String {
+    /// The line under an account's shared stores.
+    static func sharedNote(_ note: SharedStoresNote) -> String {
         switch note {
         case .noneShared: L10n.settings_account_shared_none()
         case .byAddress: L10n.settings_account_shared_by_address()
-        case .notConnected: L10n.settings_account_shared_not_connected()
         case .unreachable: L10n.settings_account_shared_unreachable()
+        case .notConnected: L10n.settings_account_shared_not_connected()
         }
+    }
+
+    /// What a shared store holds, in words.
+    static func sharedHolds(_ holds: SharedStoreHolds) -> String {
+        switch holds {
+        case .mail: L10n.settings_account_shared_holds_mail()
+        case .calendar: L10n.settings_account_shared_holds_calendar()
+        case .mailAndCalendar: L10n.settings_account_shared_holds_both()
+        }
+    }
+
+    /// What a store's switch says beneath its title: that the server no longer lists it, or its
+    /// label beside what it holds.
+    static func sharedStoreNote(_ store: AccountSharedStore) -> String {
+        if store.withdrawn { return L10n.settings_account_shared_withdrawn() }
+        let holds = sharedHolds(store.holds)
+        guard let label = store.label else { return holds }
+        return "\(label) · \(holds)"
     }
 
     /// Why a change did not take, in the person's language where the core names the reason, as

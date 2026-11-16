@@ -19,10 +19,7 @@ use mailcal_account::{
 };
 
 use super::{CalendarWriteStatus, EventIntent, Intent};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// A rule repeating every `interval` weeks, for ever.
 fn every_weeks(interval: u32) -> SimpleRecurrence {

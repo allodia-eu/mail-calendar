@@ -10,10 +10,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 use fakes::{FakeProvider, account, app, message, msg};
 
 use super::{Intent, ReaderId};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn an_account_with_no_choice_of_its_own_uses_the_devices_default() {

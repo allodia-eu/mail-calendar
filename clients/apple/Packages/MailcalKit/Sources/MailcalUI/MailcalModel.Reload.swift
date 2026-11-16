@@ -43,9 +43,17 @@ extension MailboxModel {
             return
         }
         // A pass over the other devices starting or ending moves only the Accounts card and the
-        // first-run card, which both read `allodiaDevices`; the rest of Settings stays as it is.
+        // first-run card, which both read `allodiaDevices`, and the first-run card's progress,
+        // which is the Allodia card's; the rest of Settings stays as it is.
         if case .otherDevices = surface {
             refreshAllodiaDevices()
+            refreshAllodiaCard()
+            return
+        }
+        // The Allodia account's sign-in or sign-out moved, or the service refused the stored
+        // sign-in: Settings → Allodia account and the first-run card, and nothing else.
+        if case .allodia = surface {
+            refreshAllodiaCard()
             return
         }
         // A change on an account's page started, waited or ended, or a server answered what the

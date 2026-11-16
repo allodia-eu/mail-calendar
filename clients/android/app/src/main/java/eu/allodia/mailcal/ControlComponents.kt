@@ -21,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -185,6 +186,32 @@ internal fun ControlTextButton(
     TextButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
         Running(control, tag)
         Text(label)
+    }
+}
+
+/**
+ * An icon button, for an action beside a row where a label would take the row's room. [label] is
+ * what assistive technology announces; the spinner takes the icon's place while its work runs.
+ */
+@Composable
+internal fun ControlIconButton(
+    icon: Int,
+    label: String,
+    control: ControlState,
+    tag: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    IconButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
+        if (control.running) {
+            CircularProgressIndicator(modifier = Modifier.size(18.dp).testTag("$tag-running"))
+        } else {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = label,
+                modifier = Modifier.size(20.dp),
+            )
+        }
     }
 }
 

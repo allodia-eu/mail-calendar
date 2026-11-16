@@ -22,8 +22,8 @@ pub enum AccountUseBlock {
     LastUse,
     /// Colleagues, while contacts are off.
     NeedsContacts,
-    /// Shared mailboxes, while mail is off.
-    NeedsMail,
+    /// Shared mailboxes and calendars, while mail and calendar are both off.
+    NeedsMailOrCalendar,
     /// The server offers none.
     NotOffered,
     /// The account has no server for it yet: its address goes in the servers below.
@@ -37,7 +37,9 @@ impl AccountUseBlock {
         match self {
             Self::LastUse => "an account is used for at least one of mail, calendar and contacts",
             Self::NeedsContacts => "colleagues are only read beside contacts",
-            Self::NeedsMail => "shared mailboxes are only opened beside mail",
+            Self::NeedsMailOrCalendar => {
+                "shared mailboxes and calendars are only opened beside mail or calendar"
+            }
             Self::NotOffered => "this account does not offer that",
             Self::NeedsServer => "this account has no server for that",
         }
@@ -145,37 +147,50 @@ pub struct AccountWatchedFolder {
     pub control: ControlState,
 }
 
-/// The mailboxes an account's sign-in opens besides its own (`docs/shared-mailboxes.md`), as its
-/// server last answered and as the account is used.
+/// The mailboxes and calendars an account's sign-in opens besides its own
+/// (`docs/shared-mailboxes.md`), as its server last answered and as the account is used.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
-pub struct AccountSharedMailboxes {
-    /// A switch per mailbox: the chosen ones first, then the rest the server listed.
-    pub mailboxes: Vec<AccountSharedMailbox>,
+pub struct AccountSharedStores {
+    /// A switch per store: the chosen ones first, then the rest the server listed.
+    pub stores: Vec<AccountSharedStore>,
     /// The line under the switches, when one is said.
-    pub note: Option<SharedMailboxesNote>,
+    pub note: Option<SharedStoresNote>,
     /// For a server that lists none and opens one at an address the person types: the field.
     pub address: Option<AccountSharedAddress>,
 }
 
-/// One mailbox's switch. Switching one off deletes what the device holds of it, so a client asks
-/// first (rule 7).
+/// One store's switch: one account with what it holds. Switching one off deletes what the device
+/// holds of it, so a client asks first (rule 7).
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
-pub struct AccountSharedMailbox {
+pub struct AccountSharedStore {
     /// The server's handle, sent back to switch it.
     pub handle: String,
     /// Its address, or the server's label where it has none.
     pub title: String,
     /// The server's label beside the address, when it says something else.
     pub label: Option<String>,
+    /// What it holds that the account opens, said beside the label (rule 10).
+    pub holds: SharedStoreHolds,
     /// Chosen, and no longer listed by the server: said in place of the label (rule 8).
     pub withdrawn: bool,
     pub on: bool,
     pub control: ControlState,
 }
 
-/// The line under an account's shared mailboxes.
+/// What a shared store holds that its account opens: what switching it on opens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
-pub enum SharedMailboxesNote {
+pub enum SharedStoreHolds {
+    /// Mail alone: a mailbox.
+    Mail,
+    /// Calendars alone, such as a colleague's.
+    Calendar,
+    /// Both, such as a group's mailbox and its calendar.
+    MailAndCalendar,
+}
+
+/// The line under an account's shared stores.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum SharedStoresNote {
     /// The server lists them, and lists none.
     NoneShared,
     /// The server lists none and opens one at an address the person types.
@@ -186,7 +201,7 @@ pub enum SharedMailboxesNote {
     Unreachable,
 }
 
-/// The address field on a server that opens a shared mailbox at an address the person types.
+/// The address field on a server that opens a shared store at an address the person types.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct AccountSharedAddress {
     /// What the field is drawn with: the address being added while an add runs, the one the
@@ -293,8 +308,8 @@ pub enum AccountChangeNotice {
     /// The edited servers were not kept: they did not connect, refused the login, or are another
     /// account's. The account is as it was.
     ServersFailed { refusal: AccountChangeRefusal },
-    /// Switching a shared mailbox, or adding one, did not take.
-    SharedMailboxFailed { refusal: AccountChangeRefusal },
+    /// Switching a shared store, or adding one, did not take.
+    SharedStoreFailed { refusal: AccountChangeRefusal },
     /// The password typed into the Sign-in section was not kept: the server refused it, or could
     /// not be reached. The account signs in as it did.
     PasswordFailed { refusal: AccountChangeRefusal },
@@ -308,8 +323,8 @@ pub enum AccountChangeNotice {
     /// person left them unticked on its consent page, or an administrator does not allow them.
     SignedInWithheld { uses: Vec<AccountCapability> },
     /// Nothing the account's sign-in opens answers to `address`. The server will not say
-    /// whether no such mailbox exists or it was not shared with the account, so neither does this.
-    SharedMailboxNotFound { address: String },
+    /// whether no such store exists or it was not shared with the account, so neither does this.
+    SharedStoreNotFound { address: String },
     /// Stopping the links between this account and another did not take.
     StopLinkingFailed { refusal: AccountChangeRefusal },
     /// `uses` sign in separately from the mail, so they moved to an account of their own, linked
@@ -338,7 +353,7 @@ pub enum AccountChangeRefusal {
     Blocked { block: AccountUseBlock },
     /// The provider has not granted the use.
     Withheld,
-    /// The shared mailbox is no longer one the account's sign-in opens.
+    /// The shared store is no longer one the account's sign-in opens.
     NoLongerShared,
     /// The browser could not be opened.
     BrowserNotOpened,
@@ -424,9 +439,9 @@ pub struct AccountPage {
     /// For an account whose servers can be edited: a standards account that signs in with a
     /// password.
     pub servers: Option<AccountServers>,
-    /// Once its server has answered, for an account whose sign-in can open a shared mailbox or
+    /// Once its server has answered, for an account whose sign-in can open a shared store or
     /// that still has one chosen.
-    pub shared: Option<AccountSharedMailboxes>,
+    pub shared: Option<AccountSharedStores>,
     /// How it signs in, and the ways in it offers; `None` for a calendar and contacts account
     /// that is not at a Nextcloud server.
     #[uniffi(default = None)]

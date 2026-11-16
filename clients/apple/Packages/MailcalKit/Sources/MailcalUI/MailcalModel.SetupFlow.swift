@@ -74,8 +74,9 @@ extension MailboxModel {
         savingSetupUses = false
         refreshAccountsSnapshot()
         let separateServer = separateServerAsk(step.account)
+        let drawn = setupFlow
         if !setupFlow.usesDone(separateServer: separateServer, stepFor: setupLinkStep) {
-            finishSetup()
+            finishSetup(drawn: drawn)
         }
         separateServers[.setup] = setupFlow.separateServer
     }
@@ -86,8 +87,9 @@ extension MailboxModel {
         guard setupFlow.separateServer != nil else { return }
         separateServers[.setup] = nil
         refreshAccountsSnapshot()
+        let drawn = setupFlow
         if !setupFlow.separateServerDone(stepFor: setupLinkStep) {
-            finishSetup()
+            finishSetup(drawn: drawn)
         }
     }
 
@@ -174,7 +176,11 @@ extension MailboxModel {
     }
 
     /// Closes setup and asks each added account's name, one after another.
-    func finishSetup() {
+    ///
+    /// `drawn` is the flow the step that ended setup was drawn from, when that step cleared itself
+    /// on the way here; the closing sheet keeps drawing it (`setupFlowShown`).
+    func finishSetup(drawn: SetupFlow? = nil) {
+        if addingAccount { setupFlowLeaving = drawn ?? setupFlow }
         leaveSetupNextcloud()
         senderNamesWaiting += setupFlow.finish()
         setupBeside.reset()
@@ -185,6 +191,13 @@ extension MailboxModel {
         setupStartDetected = nil
         if !askingSenderName { askNextSenderName() }
     }
+
+    /// What setup's screen draws: the flow, or while setup's sheet goes away, the step it ended
+    /// on. Ending setup clears the flow at once, and a sheet keeps its content on screen for the
+    /// frames its dismissal takes, so drawn from the flow it would fall through to the address
+    /// screen for those frames. Kept until setup is next shown rather than until the sheet's
+    /// `onDismiss`, which macOS runs as the dismissal starts.
+    var setupFlowShown: SetupFlow { setupFlowLeaving ?? setupFlow }
 
     /// The name step was answered or skipped: the next account waiting is asked.
     func senderNameAnswered() {

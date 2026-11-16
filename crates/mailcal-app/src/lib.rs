@@ -25,7 +25,7 @@ use engine_api::Engine;
 use mailcal_viewmodel::{
     CalendarSnapshot, ContactsSnapshot, MailboxListSnapshot, ReadingSnapshot, ViewMode,
 };
-use tokio::sync::{RwLock, watch};
+use tokio::sync::watch;
 
 pub mod account_links;
 mod accounts;
@@ -56,7 +56,6 @@ mod folder_pane_snapshot;
 mod form_factor;
 mod helpers;
 mod hidden_rows;
-mod html;
 mod outbox_ops;
 // The meeting-invitation card: the RSVP gate and the text/conflict rules (pure), and the
 // assembly that reads the account's diary (impure). Split so the contract has tests that can fail.
@@ -83,7 +82,6 @@ mod invitations_tests;
 // calendar server will accept as a stored resource.
 mod itip;
 mod lifecycle;
-mod linkify;
 mod live_mailbox;
 mod mail_compose;
 mod mail_compose_quote;
@@ -130,13 +128,15 @@ mod view_snapshots;
 mod window;
 mod zones;
 
-pub use accounts::{Account, SharedMailboxLookup, SharedMailboxOffer, Unanswered, UsesReplaced};
+pub use accounts::{Account, SharedStoreLookup, SharedStoreOffer, Unanswered, UsesReplaced};
 use background_sync::NotifyMarksState;
 pub use background_sync::{AccountNewMail, BackgroundNewMail, NewMailPreview};
 pub use calendar_cache::{CalendarPage, MonthPage};
 use calendar_prefs::CalendarPrefsState;
 pub use compose_request::{ComposeKind, ComposeOpening, QuoteSource};
-pub use composer_image::{MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes};
+pub use composer_image::{
+    MAX_INLINE_IMAGE_BYTES, image_data_url, image_data_url_from_bytes, is_raster_picture,
+};
 pub use connector::MailboxConnector;
 pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
@@ -144,10 +144,8 @@ use display_settings::DisplaySettingsState;
 use draft_ops::DraftState;
 pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE, moved::*};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
-pub use html::{Canvas, MessageScheme, print, render_document, should_open_external_link};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
-pub use linkify::{FoundLink, TextSegment, find_links, segments as link_segments};
 pub use mail_ops::result::{MailActionError, SendActionError};
 pub use mailcal_account::EventDetail;
 use mcp_settings::McpSettingsState;
@@ -195,7 +193,7 @@ pub struct App<P> {
     /// read it. The `Arc` lets a reader clone one account's handle out under the guard and
     /// then **drop the guard before any network `.await`**: so a long provider round-trip
     /// never holds the (write-preferring) lock and stalls a concurrent `add_account`.
-    accounts: RwLock<Vec<Arc<Account<P>>>>,
+    accounts: accounts::AccountList<P>,
     /// What the mailbox list is showing: the unified inbox, one account, or one folder of one
     /// account. One value, so a folder key never travels without the account it belongs to
     /// (`docs/folder-pane.md`, rule 14).
@@ -450,6 +448,8 @@ mod tests_contacts;
 mod tests_default_mail_app;
 #[cfg(test)]
 mod tests_depth;
+#[cfg(test)]
+mod tests_fakes;
 #[cfg(test)]
 mod tests_folder_coverage;
 #[cfg(test)]

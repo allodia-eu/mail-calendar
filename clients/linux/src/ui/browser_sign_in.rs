@@ -75,7 +75,7 @@ impl AppModel {
 
     /// Where the browser returns to this process; empty, which the core refuses as a browser
     /// that did not open, when no loopback could be bound.
-    fn loopback_redirect(&mut self) -> String {
+    pub(super) fn loopback_redirect(&mut self) -> String {
         match self.host_tasks.oauth_loopback() {
             Ok(loopback) => loopback.redirect_uri(),
             Err(error) => {

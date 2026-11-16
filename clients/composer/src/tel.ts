@@ -1,4 +1,4 @@
-// `mailcal_composer::tel`: which `tel:` URIs this product sends, keeps and opens. RFC 3966's
+// The engine's `engine_html::link` tel rule: which `tel:` URIs this product sends, keeps and opens. RFC 3966's
 // grammar, less `*` and `#`, which are service codes in practice and are refused written out and
 // percent-encoded, anywhere in the URI.
 

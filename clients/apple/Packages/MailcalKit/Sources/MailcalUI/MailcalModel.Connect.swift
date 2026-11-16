@@ -99,6 +99,7 @@ extension MailboxModel {
         app.setMcpEndpoint(endpoint: McpEndpoint.path(dataDirName: dataDirName))
         mcpSettings = app.mcpSettings()
         refreshAccountsSnapshot()
+        refreshAllodiaCard()
         // The swipe actions are read while rendering every row, so mirror them now rather
         // than crossing the FFI per row; the composer's From dropdown wants the stored
         // default send account before the first `Surface::Settings` signal arrives.

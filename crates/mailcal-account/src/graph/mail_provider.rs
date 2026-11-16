@@ -14,7 +14,7 @@ use engine_core::{
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
     MailboxEditReceipt, MailboxWrites, MessageReport, Provider, ProviderResult, ReportReceipt,
-    ScopeSync, SenderIdentity, SharedMailbox, SubmissionReceipt,
+    ScopeSync, SenderIdentity, SharedAccount, SubmissionReceipt,
 };
 
 use super::{RefreshingGraphProvider, should_reconnect};
@@ -228,8 +228,8 @@ impl Provider for RefreshingGraphProvider {
     }
 
     /// Forwarded, because this wrapper advertises `ByAddress`: the only discovery Graph offers.
-    async fn resolve_shared_mailbox(&self, address: &str) -> ProviderResult<SharedMailbox> {
-        self.delegate().await?.resolve_shared_mailbox(address).await
+    async fn resolve_shared_account(&self, address: &str) -> ProviderResult<SharedAccount> {
+        self.delegate().await?.resolve_shared_account(address).await
     }
 
     async fn report_message(

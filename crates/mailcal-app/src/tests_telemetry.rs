@@ -23,10 +23,7 @@ use super::{
     Account, App, AppObserver, Batch, DeviceClass, DeviceInfo, Intent, NOTICE_VERSION, Platform,
     Surface, Telemetry, TelemetrySink, TimeZoneInit,
 };
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 // The payload/no-content half of these tests. A CHILD module, not a sibling, so it can see the
 // fixtures above without widening `FakeProvider` beyond this test tree.

@@ -11,7 +11,6 @@ import org.json.JSONObject
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposeKind
 import uniffi.mailcal_bindings.ComposeOpening
-import uniffi.mailcal_bindings.ComposerFileAttachment
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 
@@ -38,8 +37,6 @@ internal data class ComposeContext(
     val quote: String? = null,
     /** The `completeComposerQuoteAttribution` argument for a reopened quote, or null. */
     val quoteAttribution: String? = null,
-    /** Files the host adds to what the core staged: a share's. */
-    val extraAttachments: List<ComposerFileAttachment> = emptyList(),
 ) {
     val mode: RichComposeMode get() = ComposeOpeningSeed.modeOf(opening.kind)
 
@@ -56,16 +53,6 @@ internal data class ComposeContext(
         } else {
             ComposeOpeningSeed.plainBody(opening, quote)
         }
-
-    /** Every file the composer opens holding: what the core staged, and a share's. */
-    val attachments: List<ComposerFileAttachment> get() = opening.attachments + extraAttachments
-
-    /**
-     * The file count the written-work check measures against. The core's files are still in the
-     * mailbox, a forward's originals or a stored draft's own, so closing over them loses nothing;
-     * a share's the user chose and would have to share again, so those count from the start.
-     */
-    val baselineAttachments: Int get() = opening.attachments.size
 
     val showsStylePicker: Boolean
         get() = ComposerQuote.showsStylePicker(opening.quote != null, quoteStylePerMessage)
@@ -85,7 +72,6 @@ internal fun composeContext(
     initialFrom: String?,
     quoteSettings: QuoteSettings,
     dateText: (String) -> String,
-    extraAttachments: List<ComposerFileAttachment> = emptyList(),
 ): ComposeContext {
     val words = opening.quote?.let {
         ComposerQuote.words(ctx, it, dateText(it.date), opening.kind == ComposeKind.FORWARD)
@@ -97,7 +83,6 @@ internal fun composeContext(
         quoteStylePerMessage = quoteSettings.perMessage,
         quote = ComposeOpeningSeed.quoteSeed(opening, words, quoteSettings.style, opening.bodyText),
         quoteAttribution = ComposeOpeningSeed.attributionCompletion(opening, words),
-        extraAttachments = extraAttachments,
     )
 }
 

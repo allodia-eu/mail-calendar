@@ -38,8 +38,8 @@ pub enum ComposeKind {
 pub struct QuoteSource {
     /// The sender, as the reading header names them.
     pub from: String,
-    /// When it arrived, as an RFC 3339 instant in UTC (the form a mail row's date takes); empty
-    /// when unknown.
+    /// When it was sent, from its `Date:` header, else when it arrived, as an RFC 3339 instant in
+    /// UTC (the form a mail row's date takes); empty when unknown.
     pub date: String,
     /// The `To` recipients, as the reading header lists them.
     pub to: String,

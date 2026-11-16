@@ -6,11 +6,7 @@ use fakes::{CalendarFake, calendar_account, calendar_app, calendar_app_on, event
 use mailcal_account::WeekStart;
 use mailcal_viewmodel::calendar::days::{date_at, day_number, weekday};
 
-use crate::{App, Intent, Surface};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{App, Intent, Surface, tests_fakes as fakes};
 
 #[path = "tests_calendar_colors.rs"]
 mod colors;

@@ -24,29 +24,11 @@ pub(crate) enum NoticeInput {
     Dismiss(String),
 }
 
-/// A sign-in this client runs for a notice, so the flow's end is matched to the notice that
-/// started it. An account's own sign-in is the core's, which draws its notice running and says
-/// when it failed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum Remedy {
-    Allodia,
-}
-
 /// Every notice in force, in the core's order, and what is drawn from it.
 #[derive(Debug, Default)]
 pub(super) struct NoticesState {
     pub(super) notices: Vec<Notice>,
     pub(super) marks: HashMap<String, AccountMark>,
-    /// The notice whose sign-in is running, and the flow running it: its button shows a spinner
-    /// until the flow ends (`docs/waiting.md` rule 1).
-    running: Option<(Remedy, String)>,
-}
-
-impl NoticesState {
-    /// The id of the notice whose action is running, if one is.
-    pub(super) fn running(&self) -> Option<&str> {
-        self.running.as_ref().map(|(_, id)| id.as_str())
-    }
 }
 
 impl AppModel {
@@ -61,19 +43,13 @@ impl AppModel {
             return;
         }
         log::info!("notices: {} in force", notices.len());
-        let allodia_moved = notice_rules::allodia_sign_in_ended(&notices)
-            != notice_rules::allodia_sign_in_ended(&self.notices.notices);
         self.notices.marks = notice_rules::marks(&notices);
         self.notices.notices = notices;
         // An account's page in Settings carries the account's notices at its top.
         self.settings.signalled();
-        // The Allodia card says whether its sign-in ended, on a page the signal above leaves be.
-        if allodia_moved {
-            self.refresh_settings_in_place();
-        }
     }
 
-    pub(super) fn notice_input(&mut self, input: NoticeInput, sender: relm4::Sender<AppInput>) {
+    pub(super) fn notice_input(&mut self, input: NoticeInput, sender: &relm4::Sender<AppInput>) {
         let id = match &input {
             NoticeInput::Run(id) | NoticeInput::Second(id) | NoticeInput::Dismiss(id) => id,
         };
@@ -90,12 +66,12 @@ impl AppModel {
         match input {
             NoticeInput::Run(_) => {
                 if let Some(action) = notice.action {
-                    self.run_notice(notice, action, sender);
+                    self.run_notice(&notice, action, sender);
                 }
             }
             NoticeInput::Second(_) => {
                 if let Some(action) = notice.second_action {
-                    self.run_notice(notice, action, sender);
+                    self.run_notice(&notice, action, sender);
                 }
             }
             NoticeInput::Dismiss(id) if notice.dismissible => {
@@ -112,11 +88,11 @@ impl AppModel {
     /// already has (rules 7 and 8).
     fn run_notice(
         &mut self,
-        notice: Notice,
+        notice: &Notice,
         action: NoticeAction,
-        sender: relm4::Sender<AppInput>,
+        sender: &relm4::Sender<AppInput>,
     ) {
-        if let Some(intent) = notice_rules::core_remedy(&notice, action) {
+        if let Some(intent) = notice_rules::core_remedy(notice, action) {
             self.dispatch(Intent::Notices { intent });
             return;
         }
@@ -125,7 +101,7 @@ impl AppModel {
         if notice.running {
             return;
         }
-        if let Some(intent) = notice_rules::answer(&notice, action) {
+        if let Some(intent) = notice_rules::answer(notice, action) {
             // The action only: a reply's subject holds the meeting's title, which is message
             // content (`docs/logging.md`).
             log::info!("notices: a question was answered with {action:?}");
@@ -136,13 +112,7 @@ impl AppModel {
             (NoticeAction::SignInAgain, Some(account)) => {
                 self.sign_in_in_browser(account, Vec::new());
             }
-            // A hop already outstanding answers for it.
-            (NoticeAction::SignInToAllodia, _) if !self.settings.allodia_signing_in => {
-                self.notices.running = Some((Remedy::Allodia, notice.id));
-                if !self.resolve_allodia_sign_in_ended(sender) {
-                    self.notice_remedy_ended(Remedy::Allodia, true);
-                }
-            }
+            (NoticeAction::SignInToAllodia, _) => self.start_allodia(false),
             (NoticeAction::OpenAccountSettings, Some(account)) => {
                 self.settings.open_account(account);
             }
@@ -150,28 +120,9 @@ impl AppModel {
                 self.settings.open(Some(settings::Category::Accounts));
             }
             (NoticeAction::Review, Some(account)) => {
-                self.review_server_change(account, &sender);
+                self.review_server_change(account, sender);
             }
             _ => {}
-        }
-    }
-
-    /// A sign-in `remedy` ran for a notice has ended. One that was refused is said on the notice
-    /// (rule 10); a browser the person closed or left is not a failure, and its flow ends it as a
-    /// cancelled one.
-    pub(super) fn notice_remedy_ended(&mut self, remedy: Remedy, failed: bool) {
-        let Some((running, id)) = self.notices.running.take() else {
-            return;
-        };
-        if running != remedy {
-            self.notices.running = Some((running, id));
-            return;
-        }
-        if failed {
-            log::warn!("notices: the sign-in a notice started did not complete");
-            self.dispatch(Intent::Notices {
-                intent: NoticeIntent::RemedyFailed { id },
-            });
         }
     }
 }

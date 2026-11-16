@@ -1,0 +1,13 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//PIM Sync Engine//Stalwart Harness//EN
+CALSCALE:GREGORIAN
+BEGIN:VEVENT
+UID:support-2301@test.local
+DTSTAMP:20260101T000000Z
+DTSTART:20260721T080000Z
+DTEND:20260721T160000Z
+SUMMARY:Support rota
+DESCRIPTION:In the support group's own calendar, which Alice may write as a member. In none of hers.
+END:VEVENT
+END:VCALENDAR

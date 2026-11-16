@@ -10,18 +10,6 @@ namespace Allodia.Mailcal.Services;
 public sealed partial class MailboxModel
 {
     /// <summary>
-    /// What the core knows about this device's Allodia sign-in, the typed answer a screen draws
-    /// from.
-    /// </summary>
-    /// <remarks>
-    /// Read through rather than cached: it is a local field on the core, it changes underneath
-    /// whenever a call learns something, and a copy here would be one more thing to keep in step.
-    /// <see cref="AllodiaGrantHealth.Ok"/> when there is no app yet, which draws nothing.
-    /// </remarks>
-    internal AllodiaGrantHealth AllodiaGrantHealth =>
-        _app?.AllodiaGrantHealth() ?? AllodiaGrantHealth.Ok;
-
-    /// <summary>
     /// What the person's other devices have to say about this device's accounts; null until a pass
     /// has answered, and while nobody is signed in. Read again on every Settings signal: the core
     /// raises one when a pass starts and when it ends.

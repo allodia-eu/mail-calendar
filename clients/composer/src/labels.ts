@@ -57,6 +57,7 @@ export interface Labels {
   linkAddress: string;
   linkApply: string;
   linkRemove: string;
+  moreFormatting: string;
 }
 
 export const DEFAULT_LABELS: Labels = {
@@ -107,6 +108,7 @@ export const DEFAULT_LABELS: Labels = {
   linkAddress: "Address",
   linkApply: "Apply",
   linkRemove: "Remove link",
+  moreFormatting: "More formatting",
 };
 
 /// Merges a host's (possibly partial, possibly JSON-encoded) label set over the defaults, dropping

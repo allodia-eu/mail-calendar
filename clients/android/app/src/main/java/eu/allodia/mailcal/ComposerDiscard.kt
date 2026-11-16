@@ -32,11 +32,9 @@ import androidx.compose.ui.platform.LocalContext
  * untouched must neither put it in Drafts nor make Discard ask. Typing something and then deleting
  * it lands back on the opening values and counts as clean, which is true: there is nothing to keep.
  *
- * `attachments` is measured against `initialAttachments`, which is **not** simply what the composer
- * opened holding. A forward's staged originals are still in the mailbox, so abandoning one loses
- * nothing and is not worth a draft; a share's files the user chose in their file manager and
- * would have to share again, so those count from the start. Removing a forwarded file, like adding
- * any file, changes the count and does count.
+ * The files are the core's answer, `ComposerFiles.changed` (`docs/composer-layout.md`, rule 8): a
+ * forward's originals and a stored draft's own are still in the mailbox, so abandoning the composer
+ * loses nothing, while a share's, a picked one and a removed one all count.
  */
 internal fun composerHeadersEdited(
     to: String,
@@ -47,13 +45,12 @@ internal fun composerHeadersEdited(
     initialBcc: String,
     subject: String,
     initialSubject: String,
-    attachments: Int,
-    initialAttachments: Int = 0,
+    filesChanged: Boolean,
 ): Boolean = to != initialTo ||
     cc != initialCc ||
     bcc != initialBcc ||
     subject != initialSubject ||
-    attachments != initialAttachments
+    filesChanged
 
 /**
  * The "Discard draft?" confirmation. Wording and button roles match the macOS confirmation dialog

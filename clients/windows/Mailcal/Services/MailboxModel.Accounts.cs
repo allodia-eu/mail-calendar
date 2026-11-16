@@ -324,6 +324,9 @@ public sealed partial class MailboxModel
                 // re-evaluate them now the answer exists; ending the launch view raises the other two.
                 Raise(nameof(AnalyticsAsked));
                 Raise(nameof(WelcomeVisibility));
+                // The Allodia card is the core's, and Surface.Allodia is raised only when it moves,
+                // so a first-run screen drawn before this point drew no card and would keep none.
+                AllodiaChanged?.Invoke();
                 EndLaunch();
                 // The retention signal, once per launch. A no-op until the user opts in.
                 _app.ReportAppOpened();

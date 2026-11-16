@@ -55,8 +55,15 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             // An account's browser sign-in moved: its browser opens once the core waits on it.
             driveBrowserSignIn()
         }
-        // A pass over the person's other devices started or ended: only their card moves.
-        CoreSurface.OTHER_DEVICES -> allodiaDevices = app.allodiaDevices()
+        // A pass over the person's other devices started or ended: their card moves, and the
+        // first-run card's progress with it.
+        CoreSurface.OTHER_DEVICES -> {
+            allodiaDevices = app.allodiaDevices()
+            allodiaSignalled(app)
+        }
+        // The Allodia account's card moved: its sign-in or sign-out, or the service refusing the
+        // stored sign-in.
+        CoreSurface.ALLODIA -> allodiaSignalled(app)
         // The reading body (a potentially large HTML string) only changes on a
         // Reading signal, pull it just then, not on every other refresh.
         CoreSurface.READING -> reading = app.readingView()

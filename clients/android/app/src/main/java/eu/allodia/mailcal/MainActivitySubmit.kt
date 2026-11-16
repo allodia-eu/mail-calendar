@@ -18,7 +18,6 @@ internal fun submitComposition(instance: MailcalApp, submission: ComposerSubmiss
         submission.recipients,
         submission.subject,
         submission.documentJson,
-        submission.files,
         submission.from,
     )
     true

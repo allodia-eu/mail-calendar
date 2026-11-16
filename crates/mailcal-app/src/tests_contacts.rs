@@ -327,6 +327,9 @@ async fn autosuggest_matches_a_synced_contact() {
 #[path = "tests_contacts_logging.rs"]
 mod logging;
 
+#[path = "tests_contacts_outage.rs"]
+mod outage;
+
 #[path = "tests_contacts_write.rs"]
 mod write;
 
