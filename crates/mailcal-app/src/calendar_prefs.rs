@@ -9,32 +9,25 @@
 //! accounts can each have a `work` calendar, and the previous in-memory set, keyed on the id
 //! alone, would have hidden both when the user hid one.
 
-use std::path::PathBuf;
-
 use engine_api::{AccountId, Provider};
-use mailcal_account::{
-    CalendarPrefs, DefaultCalendar, MeetingChoice, Preferences, load_preferences, save_preferences,
-};
+use mailcal_account::{CalendarPrefs, DefaultCalendar, MeetingChoice, Preferences};
 
-use crate::App;
+use crate::{App, preferences_file::PreferencesFile};
 
 /// The loaded per-calendar preferences and where to persist them.
 pub(crate) struct CalendarPrefsState {
     /// Boxed: the app is held by value in many futures, and this is its largest field.
     prefs: Box<Preferences>,
-    prefs_path: Option<PathBuf>,
+    file: PreferencesFile,
 }
 
 impl CalendarPrefsState {
     /// Loads the persisted decisions (none, i.e. every calendar visible in its server colour, when
     /// the file is absent or unreadable).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map_or_else(Preferences::default, load_preferences);
+    pub(crate) fn new(file: PreferencesFile) -> Self {
         Self {
-            prefs: Box::new(prefs),
-            prefs_path,
+            prefs: Box::new(file.load()),
+            file,
         }
     }
 
@@ -122,22 +115,19 @@ impl CalendarPrefsState {
         }
     }
 
-    /// Writes the current calendar decisions back, read-modify-write against what is on disk right
-    /// now, so a concurrent write to an unrelated preference is not clobbered by our in-memory
-    /// copy.
+    /// Writes the current calendar decisions back; only these fields, so an unrelated preference
+    /// written meanwhile is not clobbered by this in-memory copy.
     fn persist(&self) {
-        if let Some(path) = &self.prefs_path {
-            let mut on_disk = load_preferences(path);
-            on_disk.calendars = self.prefs.calendars.clone();
-            on_disk
-                .default_calendar
-                .clone_from(&self.prefs.default_calendar);
-            on_disk.jitsi_server.clone_from(&self.prefs.jitsi_server);
-            on_disk
-                .default_meetings
-                .clone_from(&self.prefs.default_meetings);
-            let _ = save_preferences(path, &on_disk);
-        }
+        let calendars = self.prefs.calendars.clone();
+        let default_calendar = self.prefs.default_calendar.clone();
+        let jitsi_server = self.prefs.jitsi_server.clone();
+        let default_meetings = self.prefs.default_meetings.clone();
+        self.file.edit(move |on_disk| {
+            on_disk.calendars.clone_from(&calendars);
+            on_disk.default_calendar.clone_from(&default_calendar);
+            on_disk.jitsi_server.clone_from(&jitsi_server);
+            on_disk.default_meetings.clone_from(&default_meetings);
+        });
     }
 }
 
@@ -234,7 +224,8 @@ mod tests {
     fn a_calendar_nobody_touched_is_visible_in_its_server_colour() {
         // The default matters more than it looks: `bool::default()` is `false`, so getting this
         // wrong would hide every calendar the user has never opened the manager for, all of them.
-        let prefs = CalendarPrefsState::new(None).get("acct-1", "work");
+        let prefs = CalendarPrefsState::new(crate::preferences_file::PreferencesFile::default())
+            .get("acct-1", "work");
         assert!(prefs.visible);
         assert_eq!(prefs.color, None);
     }
@@ -249,7 +240,9 @@ mod tests {
         let path = dir.join("preferences.toml");
         save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
 
-        let mut state = CalendarPrefsState::new(Some(path));
+        let mut state = CalendarPrefsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
+        );
         let mut hidden = state.get("acct-1", "work");
         hidden.visible = false;
         state.set("acct-1", "work", hidden);
@@ -271,7 +264,9 @@ mod tests {
         let path = dir.join("preferences.toml");
         save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
 
-        let mut state = CalendarPrefsState::new(Some(path.clone()));
+        let mut state = CalendarPrefsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         let mut gone = state.get("gone", "work");
         gone.visible = false;
         gone.color = Some("#3f8f55".to_owned());
@@ -287,9 +282,11 @@ mod tests {
         assert!(after.visible);
         assert_eq!(after.color, None);
         assert_eq!(
-            CalendarPrefsState::new(Some(path))
-                .get("gone", "work")
-                .color,
+            CalendarPrefsState::new(crate::preferences_file::PreferencesFile::writing_through(
+                Some(path)
+            ))
+            .get("gone", "work")
+            .color,
             None
         );
         // The other account is untouched.
@@ -303,7 +300,9 @@ mod tests {
         let path = dir.join("preferences.toml");
         save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
 
-        let mut state = CalendarPrefsState::new(Some(path.clone()));
+        let mut state = CalendarPrefsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         state.set_default_meeting("gone", Some("jitsi".to_owned()));
         state.set_default_meeting("home", Some("account:teams:gone".to_owned()));
         // An account whose id ends where the removed one's does is another account.
@@ -312,7 +311,9 @@ mod tests {
 
         state.remove_account("gone");
 
-        let reloaded = CalendarPrefsState::new(Some(path));
+        let reloaded = CalendarPrefsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
+        );
         for read in [&state, &reloaded] {
             assert_eq!(read.default_meeting("gone"), None);
             assert_eq!(read.default_meeting("home"), None);
@@ -332,13 +333,17 @@ mod tests {
         };
         save_preferences(&path, &seeded).unwrap();
 
-        let mut state = CalendarPrefsState::new(Some(path.clone()));
+        let mut state = CalendarPrefsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         let mut prefs = state.get("acct-1", "work");
         prefs.visible = false;
         prefs.color = Some("#3f8f55".to_owned());
         state.set("acct-1", "work", prefs);
 
-        let reloaded = CalendarPrefsState::new(Some(path.clone()));
+        let reloaded = CalendarPrefsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         let back = reloaded.get("acct-1", "work");
         assert!(!back.visible);
         assert_eq!(back.color.as_deref(), Some("#3f8f55"));

@@ -462,6 +462,6 @@ pub(crate) fn invitation_app_with_prefs(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }

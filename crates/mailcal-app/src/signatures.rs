@@ -14,12 +14,12 @@ use std::path::PathBuf;
 
 use engine_api::Provider;
 use mailcal_account::{
-    Preferences, SignatureId, SignatureSlot, Signatures, StoredSignature, load_preferences,
-    load_signatures, save_preferences, save_signatures,
+    Preferences, SignatureId, SignatureSlot, Signatures, StoredSignature, load_signatures,
+    save_signatures,
 };
 use mailcal_viewmodel::{AccountSignatureRow, SignatureRow, SignatureSlotKind, SignaturesSnapshot};
 
-use crate::{App, Surface};
+use crate::{App, Surface, preferences_file::PreferencesFile};
 
 /// The loaded signature library and where the two files it spans are persisted.
 pub(crate) struct SignatureState {
@@ -28,7 +28,7 @@ pub(crate) struct SignatureState {
     /// which case the library lives only for this run.
     signatures_path: Option<PathBuf>,
     /// The shared preferences file, which carries the per-account assignments.
-    prefs_path: Option<PathBuf>,
+    prefs: PreferencesFile,
     /// The per-account assignments when there is **no** preferences file to hold them; the
     /// in-memory demo and showcase boots, and tests.
     ///
@@ -43,7 +43,7 @@ pub(crate) struct SignatureState {
 
 impl SignatureState {
     /// Loads the library from `signatures_path` (empty when absent or unreadable).
-    pub(crate) fn new(signatures_path: Option<PathBuf>, prefs_path: Option<PathBuf>) -> Self {
+    pub(crate) fn new(signatures_path: Option<PathBuf>, prefs: PreferencesFile) -> Self {
         let library = signatures_path
             .as_ref()
             .map(load_signatures)
@@ -51,7 +51,7 @@ impl SignatureState {
         Self {
             library,
             signatures_path,
-            prefs_path,
+            prefs,
             memory: Preferences::default(),
         }
     }
@@ -106,11 +106,11 @@ impl SignatureState {
             return false;
         }
         self.persist_library();
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            if prefs.forget_signature(id) {
-                let _ = save_preferences(path, &prefs);
-            }
+        if self.prefs.is_stored() {
+            let id = id.clone();
+            self.prefs.edit(move |prefs| {
+                prefs.forget_signature(&id);
+            });
         } else {
             self.memory.forget_signature(id);
         }
@@ -121,23 +121,26 @@ impl SignatureState {
     /// resolves to a signature in the library. A stale pointer reads as "no signature" rather
     /// than an error: the file is hand-editable, and the composer must open either way.
     fn assigned(&self, account: &str, slot: SignatureSlot) -> Option<SignatureId> {
-        let id = match &self.prefs_path {
-            Some(path) => load_preferences(path)
+        let id = if self.prefs.is_stored() {
+            self.prefs
+                .load()
                 .account_signature(account)
                 .slot(slot)
-                .cloned()?,
-            None => self.memory.account_signature(account).slot(slot).cloned()?,
+                .cloned()?
+        } else {
+            self.memory.account_signature(account).slot(slot).cloned()?
         };
         self.library.entries.contains_key(&id).then_some(id)
     }
 
     /// Assigns (or clears) one of an account's slots, persisting through the shared preferences
-    /// file read-modify-write so sibling settings survive.
+    /// file.
     fn assign(&mut self, account: &str, slot: SignatureSlot, signature: Option<SignatureId>) {
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.set_account_signature(account, slot, signature);
-            let _ = save_preferences(path, &prefs);
+        if self.prefs.is_stored() {
+            let account = account.to_owned();
+            self.prefs.edit(move |prefs| {
+                prefs.set_account_signature(&account, slot, signature.clone());
+            });
         } else {
             self.memory.set_account_signature(account, slot, signature);
         }
@@ -145,9 +148,10 @@ impl SignatureState {
 
     /// Every account's stored assignment, for the settings snapshot.
     fn assignments(&self, account: &str) -> (Option<String>, Option<String>) {
-        let assignment = match &self.prefs_path {
-            Some(path) => load_preferences(path).account_signature(account),
-            None => self.memory.account_signature(account),
+        let assignment = if self.prefs.is_stored() {
+            self.prefs.load().account_signature(account)
+        } else {
+            self.memory.account_signature(account)
         };
         (
             assignment.new_message.map(|id| id.as_str().to_owned()),
@@ -380,12 +384,9 @@ impl<P: Provider> App<P> {
     /// Drops an account's signature assignment; called from account removal, so a re-add starts
     /// with no signature rather than a pointer the user thought removal had cleared.
     pub(crate) fn remove_account_signature(&self, account: &str) {
-        let guard = self.signatures.lock().expect("signatures mutex poisoned");
-        if let Some(path) = &guard.prefs_path {
-            let mut prefs = load_preferences(path);
-            if prefs.remove_account_signature(account) {
-                let _ = save_preferences(path, &prefs);
-            }
-        }
+        let account = account.to_owned();
+        self.prefs.edit(move |prefs| {
+            prefs.remove_account_signature(&account);
+        });
     }
 }

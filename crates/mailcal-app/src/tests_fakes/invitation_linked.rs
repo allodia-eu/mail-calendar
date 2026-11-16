@@ -145,7 +145,7 @@ fn app_over(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     if let Some(links) = links {
         app.set_links_source(Arc::new(move || links.clone()));

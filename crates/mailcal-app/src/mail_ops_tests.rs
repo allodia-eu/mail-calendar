@@ -111,7 +111,7 @@ fn submit_app() -> (Arc<App<SubmitProvider>>, Arc<Mutex<Vec<Draft>>>) {
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), submissions)
 }
@@ -128,7 +128,7 @@ fn submit_app_counting() -> (Arc<App<SubmitProvider>>, Arc<SendSignals>) {
         },
         None,
         Arc::new(CountingObserver(Arc::clone(&signals))),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), signals)
 }
@@ -144,7 +144,7 @@ fn app_over(provider: SubmitProvider) -> Arc<App<SubmitProvider>> {
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     Arc::new(app)
 }

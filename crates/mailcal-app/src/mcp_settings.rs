@@ -13,13 +13,13 @@
 //! read and act access to a mailbox, so what it can reach has to be something the user picked
 //! item by item rather than something a single switch conferred.
 
-use std::{collections::BTreeSet, path::PathBuf};
+use std::collections::BTreeSet;
 
 use engine_api::Provider;
-use mailcal_account::{Preferences, load_preferences, save_preferences};
+use mailcal_account::Preferences;
 use mailcal_viewmodel::{McpAccountRow, McpSettings};
 
-use crate::{App, Surface};
+use crate::{App, Surface, preferences_file::PreferencesFile};
 
 /// The loaded MCP settings and where to persist them.
 pub(crate) struct McpSettingsState {
@@ -27,29 +27,26 @@ pub(crate) struct McpSettingsState {
     accounts: BTreeSet<String>,
     allow_direct_send: bool,
     require_known_recipient: bool,
-    prefs_path: Option<PathBuf>,
+    file: PreferencesFile,
 }
 
 impl McpSettingsState {
     /// Loads the persisted settings (off, nothing exposed, direct send off, guard on, when the
     /// file is absent or unreadable).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map(load_preferences)
-            .unwrap_or_default();
+    pub(crate) fn new(file: PreferencesFile) -> Self {
+        let prefs = file.load();
         Self {
             enabled: prefs.mcp_enabled,
             accounts: prefs.mcp_accounts,
             allow_direct_send: prefs.mcp_allow_direct_send,
             require_known_recipient: prefs.mcp_require_known_recipient,
-            prefs_path,
+            file,
         }
     }
 
     fn set_enabled(&mut self, enabled: bool) {
         self.enabled = enabled;
-        self.persist(|prefs| prefs.mcp_enabled = enabled);
+        self.persist(move |prefs| prefs.mcp_enabled = enabled);
     }
 
     fn set_account_exposed(&mut self, account: &str, exposed: bool) {
@@ -59,17 +56,17 @@ impl McpSettingsState {
             self.accounts.remove(account);
         }
         let accounts = self.accounts.clone();
-        self.persist(|prefs| prefs.mcp_accounts = accounts);
+        self.persist(move |prefs| prefs.mcp_accounts.clone_from(&accounts));
     }
 
     fn set_allow_direct_send(&mut self, allow: bool) {
         self.allow_direct_send = allow;
-        self.persist(|prefs| prefs.mcp_allow_direct_send = allow);
+        self.persist(move |prefs| prefs.mcp_allow_direct_send = allow);
     }
 
     fn set_require_known_recipient(&mut self, require: bool) {
         self.require_known_recipient = require;
-        self.persist(|prefs| prefs.mcp_require_known_recipient = require);
+        self.persist(move |prefs| prefs.mcp_require_known_recipient = require);
     }
 
     /// Drops an account from the exposure list; called when the account is removed, so a later
@@ -78,16 +75,12 @@ impl McpSettingsState {
     fn forget_account(&mut self, account: &str) {
         if self.accounts.remove(account) {
             let accounts = self.accounts.clone();
-            self.persist(|prefs| prefs.mcp_accounts = accounts);
+            self.persist(move |prefs| prefs.mcp_accounts.clone_from(&accounts));
         }
     }
 
-    fn persist(&self, edit: impl FnOnce(&mut Preferences)) {
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            edit(&mut prefs);
-            let _ = save_preferences(path, &prefs);
-        }
+    fn persist(&self, edit: impl Fn(&mut Preferences) + Send + Sync + 'static) {
+        self.file.edit(edit);
     }
 }
 
@@ -262,7 +255,10 @@ mod tests {
     fn the_defaults_are_off_and_empty_with_the_recipient_guard_on() {
         // The feature's whole safety model, asserted rather than assumed. If any of these three
         // ever flips, turning MCP on would silently expose mail or silently allow a send.
-        let state = McpSettingsState::new(Some(seeded("mailcal-mcp-defaults-test")));
+        let state =
+            McpSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
+                Some(seeded("mailcal-mcp-defaults-test")),
+            ));
         assert!(!state.enabled, "the server is off");
         assert!(state.accounts.is_empty(), "no account is exposed");
         assert!(!state.allow_direct_send, "direct sending is off");
@@ -275,13 +271,17 @@ mod tests {
     #[test]
     fn exposure_persists_and_leaves_the_sibling_preferences_alone() {
         let path = seeded("mailcal-mcp-exposure-test");
-        let mut state = McpSettingsState::new(Some(path.clone()));
+        let mut state = McpSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         state.set_enabled(true);
         state.set_account_exposed("work", true);
         state.set_account_exposed("private", true);
         state.set_account_exposed("private", false);
 
-        let reloaded = McpSettingsState::new(Some(path.clone()));
+        let reloaded = McpSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         assert!(reloaded.enabled);
         assert_eq!(
             reloaded
@@ -304,12 +304,16 @@ mod tests {
         // A user who switches the feature off for an afternoon should not have to re-tick every
         // mailbox afterwards; the list is inert while nothing is listening.
         let path = seeded("mailcal-mcp-off-test");
-        let mut state = McpSettingsState::new(Some(path.clone()));
+        let mut state = McpSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         state.set_enabled(true);
         state.set_account_exposed("work", true);
         state.set_enabled(false);
 
-        let reloaded = McpSettingsState::new(Some(path));
+        let reloaded = McpSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
+        );
         assert!(!reloaded.enabled);
         assert!(reloaded.accounts.contains("work"));
     }
@@ -319,10 +323,18 @@ mod tests {
         // Otherwise a later account re-added under the same id would inherit an exposure the
         // user granted to a different mailbox.
         let path = seeded("mailcal-mcp-forget-test");
-        let mut state = McpSettingsState::new(Some(path.clone()));
+        let mut state = McpSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         state.set_account_exposed("work", true);
         state.forget_account("work");
 
-        assert!(McpSettingsState::new(Some(path)).accounts.is_empty());
+        assert!(
+            McpSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
+                Some(path)
+            ))
+            .accounts
+            .is_empty()
+        );
     }
 }

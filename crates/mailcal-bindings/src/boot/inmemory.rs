@@ -59,7 +59,7 @@ pub(crate) fn build_demo(
         std::sync::Arc::new(DebouncedObserver::new(ObserverBridge { foreign: observer })),
         // No device, no sink, no preferences file: the demo cannot phone home even if a consent
         // decision were somehow recorded in it.
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     let runtime = runtime();
     let app = Arc::new(app);
@@ -200,7 +200,7 @@ pub(crate) fn build_showcase(
         None,
         std::sync::Arc::new(DebouncedObserver::new(ObserverBridge { foreign: observer })),
         // Screenshot mode: no device, no sink, no preferences file; it cannot phone home.
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     let runtime = runtime();
     let app = Arc::new(app);
@@ -402,7 +402,7 @@ pub(crate) fn build_showcase_first_run(
         None,
         std::sync::Arc::new(DebouncedObserver::new(ObserverBridge { foreign: observer })),
         // Screenshot mode: no device, no sink, no preferences file; it cannot phone home.
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     // Nothing to prime and nothing to seed: both are per account, and this boot has none.
     finish_showcase(Arc::new(app), runtime(), device_tz, [])

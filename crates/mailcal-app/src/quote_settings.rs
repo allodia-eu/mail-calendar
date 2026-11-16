@@ -1,37 +1,30 @@
 //! The reply/forward quoting settings: the persisted app-level default style, and whether the
 //! composer offers a per-message override of it. Like the display-zone and per-account sync
 //! settings ([`crate::timezone`], [`crate::sync_settings`]), they live in the shared preferences
-//! file; this small state holds the loaded values and writes them back read-modify-write so the
-//! sibling preferences are preserved. A second `impl App` block keeps `lib.rs` under the
-//! 500-line limit.
-
-use std::path::PathBuf;
+//! file; this small state holds the loaded values.
 
 use engine_api::Provider;
-use mailcal_account::{QuoteStyle, load_preferences, save_preferences};
+use mailcal_account::QuoteStyle;
 use mailcal_viewmodel::{QuoteSettings, QuoteStyleKind};
 
-use crate::{App, Surface};
+use crate::{App, Surface, preferences_file::PreferencesFile};
 
 /// The loaded quoting settings and where to persist them.
 pub(crate) struct QuoteSettingsState {
     style: QuoteStyle,
     per_message: bool,
-    prefs_path: Option<PathBuf>,
+    prefs: PreferencesFile,
 }
 
 impl QuoteSettingsState {
     /// Loads the persisted settings from the preferences file (an indented quote, with the
     /// per-message picker off, when absent or unreadable).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map(load_preferences)
-            .unwrap_or_default();
+    pub(crate) fn new(prefs: PreferencesFile) -> Self {
+        let stored = prefs.load();
         Self {
-            style: prefs.quote_style,
-            per_message: prefs.quote_style_per_message,
-            prefs_path,
+            style: stored.quote_style,
+            per_message: stored.quote_style_per_message,
+            prefs,
         }
     }
 
@@ -42,25 +35,17 @@ impl QuoteSettingsState {
         }
     }
 
-    /// Stores `style` and persists it. Read-modify-write so the sibling display-zone /
-    /// sync-depth / per-account preferences in the same file are preserved.
+    /// Stores `style` and persists it.
     fn set_style(&mut self, style: QuoteStyle) {
         self.style = style;
-        self.persist(|prefs| prefs.quote_style = style);
+        self.prefs.edit(move |prefs| prefs.quote_style = style);
     }
 
     /// Stores whether the composer offers a per-message override, and persists it.
     fn set_per_message(&mut self, per_message: bool) {
         self.per_message = per_message;
-        self.persist(|prefs| prefs.quote_style_per_message = per_message);
-    }
-
-    fn persist(&self, edit: impl FnOnce(&mut mailcal_account::Preferences)) {
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            edit(&mut prefs);
-            let _ = save_preferences(path, &prefs);
-        }
+        self.prefs
+            .edit(move |prefs| prefs.quote_style_per_message = per_message);
     }
 }
 
@@ -145,13 +130,19 @@ mod tests {
         let path = seeded("mailcal-quote-style-test");
 
         // The default loads (an indented quote), then a set persists the other style.
-        let mut state = QuoteSettingsState::new(Some(path.clone()));
+        let mut state = QuoteSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         assert_eq!(state.get().style, QuoteStyleKind::Indented);
         state.set_style(QuoteStyle::LineAndHeader);
 
         // A fresh state reads back the persisted choice, and the sibling prefs survived.
         assert_eq!(
-            QuoteSettingsState::new(Some(path.clone())).get().style,
+            QuoteSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
+                Some(path.clone())
+            ))
+            .get()
+            .style,
             QuoteStyleKind::LineAndHeader
         );
         let on_disk = load_preferences(&path);
@@ -168,18 +159,24 @@ mod tests {
         let path = seeded("mailcal-quote-per-message-test");
 
         // Off by default: the composer shows no picker until the user opts in.
-        let mut state = QuoteSettingsState::new(Some(path.clone()));
+        let mut state = QuoteSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         assert!(!state.get().per_message);
 
         // Turning it on persists, and leaves the chosen style alone.
         state.set_style(QuoteStyle::LineAndHeader);
         state.set_per_message(true);
-        let reloaded = QuoteSettingsState::new(Some(path.clone()));
+        let reloaded = QuoteSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         assert!(reloaded.get().per_message);
         assert_eq!(reloaded.get().style, QuoteStyleKind::LineAndHeader);
 
         // And turning it back off leaves the style alone too: the two are independent.
-        let mut state = QuoteSettingsState::new(Some(path.clone()));
+        let mut state = QuoteSettingsState::new(
+            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
+        );
         state.set_per_message(false);
         let on_disk = load_preferences(&path);
         assert!(!on_disk.quote_style_per_message);

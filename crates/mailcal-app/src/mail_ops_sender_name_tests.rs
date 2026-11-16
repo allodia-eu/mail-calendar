@@ -45,7 +45,7 @@ fn app_with_prefs(
         },
         None,
         Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), outbox)
 }
@@ -255,7 +255,7 @@ fn app_using_identity(
         },
         None,
         Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     ))
 }
 

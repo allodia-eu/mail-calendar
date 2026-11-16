@@ -2,18 +2,15 @@
 //!
 //! Unlike the other settings, the runtime grouping lives in `App::view_mode` (read on every
 //! snapshot rebuild), so this module doesn't own a state struct; it only maps that runtime
-//! [`ViewMode`] to/from the persisted [`mailcal_account::MessageGrouping`] and does the
-//! read-modify-write that keeps the sibling preferences intact. Formerly the grouping was a
-//! runtime-only toggle; persisting it (default Threaded) is what lets the choice survive a
-//! restart and be edited in the Settings screen. A separate module keeps `lib.rs` from growing.
-
-use std::path::PathBuf;
+//! [`ViewMode`] to/from the persisted [`mailcal_account::MessageGrouping`] and hands the
+//! change to the preferences file. Persisting it (default Threaded) is what lets the choice
+//! survive a restart and be edited in the Settings screen.
 
 use engine_api::Provider;
-use mailcal_account::{MessageGrouping, load_preferences, save_preferences};
+use mailcal_account::MessageGrouping;
 use mailcal_viewmodel::ViewMode;
 
-use crate::App;
+use crate::{App, preferences_file::PreferencesFile};
 
 /// Maps the persisted grouping to the runtime view mode.
 fn to_mode(grouping: MessageGrouping) -> ViewMode {
@@ -33,12 +30,8 @@ fn to_grouping(mode: ViewMode) -> MessageGrouping {
 
 /// Loads the persisted grouping as a [`ViewMode`], defaulting to Threaded (the product default)
 /// when there is no preferences file (the demo/tests) or the field is absent/unreadable.
-pub(crate) fn load_view_mode(prefs_path: Option<&PathBuf>) -> ViewMode {
-    to_mode(
-        prefs_path
-            .map(|path| load_preferences(path).message_grouping)
-            .unwrap_or_default(),
-    )
+pub(crate) fn load_view_mode(prefs: &PreferencesFile) -> ViewMode {
+    to_mode(prefs.load().message_grouping)
 }
 
 impl<P: Provider> App<P> {
@@ -49,15 +42,12 @@ impl<P: Provider> App<P> {
         *self.view_mode.lock().expect("view-mode mutex poisoned")
     }
 
-    /// Persists `mode` as the grouping preference, read-modify-write so the sibling display-zone /
-    /// sync / quote-style preferences in the same file are preserved. Best effort; a no-op
-    /// without a preferences path (the demo/tests).
+    /// Persists `mode` as the grouping preference; a no-op without a preferences file (the
+    /// demo/tests).
     pub(crate) fn persist_view_mode(&self, mode: ViewMode) {
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.message_grouping = to_grouping(mode);
-            let _ = save_preferences(path, &prefs);
-        }
+        let grouping = to_grouping(mode);
+        self.prefs
+            .edit(move |prefs| prefs.message_grouping = grouping);
     }
 }
 

@@ -23,7 +23,6 @@
 //! stays under the 500-line limit.
 
 use engine_api::Provider;
-use mailcal_account::{load_preferences, save_preferences};
 use mailcal_viewmodel::{DefaultMailAppOutcome, DefaultMailAppSupport};
 
 use crate::{App, Surface};
@@ -54,7 +53,7 @@ impl<P: Provider> App<P> {
         // No store, no offer: an in-memory core cannot record an answer, so it would ask again on
         // every launch. It is also what a screenshot run is, and a dialog is not what the store
         // set is meant to photograph.
-        if self.prefs_path.is_none() {
+        if !self.prefs.is_stored() {
             return false;
         }
         self.offer_state().is_none()
@@ -70,11 +69,8 @@ impl<P: Provider> App<P> {
     #[allow(clippy::unused_async)]
     pub async fn record_default_mail_app_offer(&self, outcome: DefaultMailAppOutcome) {
         let accepted = outcome == DefaultMailAppOutcome::Accepted;
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.default_mail_app_offer = Some(accepted);
-            let _ = save_preferences(path, &prefs);
-        }
+        self.prefs
+            .edit(move |prefs| prefs.default_mail_app_offer = Some(accepted));
         log::info!("default mail app offer answered: accepted={accepted}");
         self.observer.surface_changed(Surface::Settings);
     }
@@ -94,8 +90,6 @@ impl<P: Provider> App<P> {
     /// [`should_offer_default_mail_app`](Self::should_offer_default_mail_app) refuses on that
     /// case before it gets here.
     fn offer_state(&self) -> Option<bool> {
-        self.prefs_path
-            .as_ref()
-            .and_then(|path| load_preferences(path).default_mail_app_offer)
+        self.prefs.load().default_mail_app_offer
     }
 }

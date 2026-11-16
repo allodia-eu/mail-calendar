@@ -340,7 +340,7 @@ mod tests {
             },
             None,
             std::sync::Arc::new(Silent),
-            crate::Telemetry::off(None),
+            crate::Telemetry::off(),
         )
     }
 

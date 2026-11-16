@@ -315,6 +315,7 @@ async fn remembering_the_answer_stops_the_next_meeting_asking() {
     })
     .await;
 
+    app.settle_preferences();
     assert_eq!(
         mailcal_account::load_preferences(&prefs).reply_fallback("acct-a"),
         mailcal_account::ReplyFallback::Never,

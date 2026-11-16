@@ -8,13 +8,10 @@
 //! adopted zone is validated against the engine ([`is_supported_zone`]) so an
 //! unresolvable zone is never stored.
 
-use std::path::PathBuf;
-
 use engine_api::{Provider, TimeZoneId, is_supported_zone};
-use mailcal_account::{load_preferences, save_preferences};
 use mailcal_viewmodel::TimeZoneSnapshot;
 
-use crate::{App, Surface};
+use crate::{App, Surface, preferences_file::PreferencesFile};
 
 /// Parses an IANA id into a [`TimeZoneId`] the bundled tzdb can resolve, or `None`.
 pub(crate) fn supported_zone(id: &str) -> Option<TimeZoneId> {
@@ -25,17 +22,17 @@ pub(crate) fn supported_zone(id: &str) -> Option<TimeZoneId> {
 pub(crate) struct TimeZoneState {
     active: TimeZoneId,
     pending_device: Option<TimeZoneId>,
-    prefs_path: Option<PathBuf>,
+    file: PreferencesFile,
 }
 
 impl TimeZoneState {
     /// Builds the initial state from the host-reported `device` zone and the persisted
-    /// preference at `prefs_path` (if any): on first boot (no stored zone) it adopts and
+    /// preference in `file` (if any): on first boot (no stored zone) it adopts and
     /// **persists** the device zone; if a stored zone exists and the device differs, it
     /// starts with the stored zone and a pending change for the host to prompt on. An
     /// unsupported device zone falls back to UTC; an unsupported/absent stored zone is
     /// treated as first boot.
-    pub(crate) fn new(device: TimeZoneId, prefs_path: Option<PathBuf>) -> Self {
+    pub(crate) fn new(device: TimeZoneId, file: PreferencesFile) -> Self {
         let device_supported = is_supported_zone(&device);
         let device = if device_supported {
             device
@@ -47,15 +44,15 @@ impl TimeZoneState {
         // first boot: doing so would overwrite the user's stored zone with the device
         // zone, silently losing their choice. So adoption is gated on the file's
         // absence, not merely on a failed read.
-        let file_present = prefs_path.as_ref().is_some_and(|path| path.exists());
-        let stored = prefs_path
-            .as_ref()
-            .and_then(|path| load_preferences(path).display_timezone)
+        let file_present = file.exists();
+        let stored = file
+            .load()
+            .display_timezone
             .and_then(|id| supported_zone(&id));
         let mut state = Self {
             active: stored.clone().unwrap_or_else(|| device.clone()),
             pending_device: None,
-            prefs_path,
+            file,
         };
         match stored {
             // First boot (no prefs file): adopt the device zone and persist it.
@@ -142,16 +139,11 @@ impl TimeZoneState {
         true
     }
 
-    /// Persists the active zone to the prefs file (best effort; ignored if no path).
-    ///
-    /// Read-modify-write: the zone shares one file with account sync settings and other
-    /// preferences, so this updates only the zone and preserves its siblings.
+    /// Persists the active zone to the prefs file (ignored without one).
     fn persist(&self) {
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.display_timezone = Some(self.active.as_str().to_owned());
-            let _ = save_preferences(path, &prefs);
-        }
+        let zone = self.active.as_str().to_owned();
+        self.file
+            .edit(move |prefs| prefs.display_timezone = Some(zone.clone()));
     }
 }
 

@@ -148,6 +148,7 @@ async fn the_signature_library_is_not_written_into_the_preferences_file() {
     )
     .await;
 
+    app.settle_preferences();
     let prefs = std::fs::read_to_string(&path).expect("preferences written");
     assert!(!prefs.contains("a-very-recognisable-body"), "{prefs}");
     let library = std::fs::read_to_string(path.parent().unwrap().join("signatures.toml"))

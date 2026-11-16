@@ -245,7 +245,7 @@ pub(crate) fn build_accounts(
     let device_class = mailcal_app::DeviceClass::from(device_info.device_class);
     let telemetry = {
         let _guard = runtime.enter();
-        analytics::build_telemetry(prefs_path.clone(), device_info)
+        analytics::build_telemetry(device_info)
     };
     let app = App::new(
         engine,

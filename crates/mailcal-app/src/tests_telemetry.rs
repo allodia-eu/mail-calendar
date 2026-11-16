@@ -99,11 +99,7 @@ fn app_with_analytics(
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::new(
-            Some(prefs_path),
-            device(),
-            Box::new(SinkHandle(Arc::clone(&sink))),
-        ),
+        Telemetry::new(device(), Box::new(SinkHandle(Arc::clone(&sink)))),
     );
     (app, sink)
 }
@@ -204,6 +200,7 @@ async fn opting_in_mints_an_id_and_starts_sending() {
     let consent = app.analytics_consent();
     assert!(consent.asked && consent.enabled);
 
+    app.settle_preferences();
     let stored = load_preferences(&path);
     let id = stored
         .analytics_install_id
@@ -236,6 +233,7 @@ async fn withdrawing_stops_the_stream_clears_the_id_and_erases_the_backend() {
     let (app, sink) = app_with_analytics(one_account(), path.clone());
 
     app.set_analytics_consent(true);
+    app.settle_preferences();
     let id = load_preferences(&path).analytics_install_id.unwrap();
     let sent_before = sink.batches.lock().unwrap().len();
     assert!(sent_before > 0);
@@ -247,6 +245,7 @@ async fn withdrawing_stops_the_stream_clears_the_id_and_erases_the_backend() {
         &[id],
         "the backend is asked to erase the id that was in force"
     );
+    app.settle_preferences();
     assert_eq!(
         load_preferences(&path).analytics_install_id,
         None,
@@ -326,6 +325,7 @@ async fn consent_and_its_id_survive_a_relaunch() {
     let path = scratch("relaunch");
     let (first, _) = app_with_analytics(one_account(), path.clone());
     first.set_analytics_consent(true);
+    first.settle_preferences();
     let id = load_preferences(&path).analytics_install_id.unwrap();
     drop(first);
 
@@ -360,6 +360,7 @@ async fn writing_consent_preserves_sibling_preferences() {
 
     let (app, _) = app_with_analytics(one_account(), path.clone());
     app.set_analytics_consent(true);
+    app.settle_preferences();
 
     let stored = load_preferences(&path);
     assert_eq!(stored.display_timezone.as_deref(), Some("Europe/Amsterdam"));

@@ -27,6 +27,7 @@ use crate::{
     draft_ops::DraftState,
     folder_pane, load_view_mode,
     mcp_settings::McpSettingsState,
+    preferences_file::PreferencesFile,
     quote_settings::QuoteSettingsState,
     scope::Scope,
     send_settings::SendSettingsState,
@@ -62,10 +63,13 @@ impl<P: Provider> App<P> {
         observer: Arc<dyn AppObserver>,
         telemetry: Telemetry,
     ) -> Self {
-        // The display-zone, sync, quote-style, send-account, swipe-action, and message-grouping
-        // settings share one preferences file, so clone the path before `TimeZoneState` consumes
-        // it.
-        let prefs_path = timezone.prefs_path.clone();
+        // Every setting shares one preferences file and the one writer behind it.
+        let prefs_path = timezone.prefs_path;
+        let prefs = PreferencesFile::at(prefs_path.clone(), {
+            let observer = Arc::clone(&observer);
+            move || observer.surface_changed(Surface::Notices)
+        });
+        telemetry.bind(prefs.clone());
         // The signature library is a sibling file of the preferences, derived rather than passed
         // in: it is the same app data directory, and every caller (host, demo, showcase, tests)
         // would otherwise have to learn a second path to say the same thing. No preferences path
@@ -77,7 +81,7 @@ impl<P: Provider> App<P> {
             .map(mailcal_account::signatures_path);
         // The message-list grouping is a persisted app preference (default Threaded); seed the
         // runtime mode from it so the choice survives a restart.
-        let view_mode = load_view_mode(prefs_path.as_ref());
+        let view_mode = load_view_mode(&prefs);
         Self {
             engine,
             accounts: RwLock::new(accounts.into_iter().map(Arc::new).collect()),
@@ -85,9 +89,9 @@ impl<P: Provider> App<P> {
             mailbox_list: Surfaced::new(Surface::MailboxList, Arc::clone(&observer)),
             calendar: Surfaced::new(Surface::Calendar, Arc::clone(&observer)),
             calendar_cache: Mutex::new(calendar_cache::CalendarCache::default()),
-            calendar_prefs: Mutex::new(CalendarPrefsState::new(prefs_path.clone())),
-            folder_pane: Mutex::new(folder_pane::FolderPaneState::new(prefs_path.clone())),
-            sender_names: Mutex::new(sender_names::SenderNameState::new(prefs_path.clone())),
+            calendar_prefs: Mutex::new(CalendarPrefsState::new(prefs.clone())),
+            folder_pane: Mutex::new(folder_pane::FolderPaneState::new(prefs.clone())),
+            sender_names: Mutex::new(sender_names::SenderNameState::new(prefs.clone())),
             contacts: Mutex::new(ContactsSnapshot::default()),
             contacts_query: Mutex::new(String::new()),
             contacts_generation: AtomicU64::new(0),
@@ -97,24 +101,19 @@ impl<P: Provider> App<P> {
             unfiled_copy: Mutex::new(None),
             compose_request: Mutex::new(None),
             view_mode: Mutex::new(view_mode),
-            prefs_path: prefs_path.clone(),
+
             visible_limit: Mutex::new(PAGE),
             search: Mutex::new(crate::snapshot_search::SearchState::default()),
-            timezone: Mutex::new(TimeZoneState::new(
-                timezone.device_zone,
-                timezone.prefs_path,
-            )),
-            quote_settings: Mutex::new(QuoteSettingsState::new(prefs_path.clone())),
-            display_settings: Mutex::new(DisplaySettingsState::new(prefs_path.clone())),
-            send_settings: Mutex::new(SendSettingsState::new(prefs_path.clone())),
-            swipe_settings: Mutex::new(SwipeSettingsState::new(prefs_path.clone())),
-            signatures: Mutex::new(SignatureState::new(
-                signatures_path.clone(),
-                prefs_path.clone(),
-            )),
-            mcp_settings: Mutex::new(McpSettingsState::new(prefs_path.clone())),
-            sync_settings: Mutex::new(SyncSettingsState::new(prefs_path.clone())),
-            notify_marks: Mutex::new(NotifyMarksState::new(prefs_path)),
+            timezone: Mutex::new(TimeZoneState::new(timezone.device_zone, prefs.clone())),
+            quote_settings: Mutex::new(QuoteSettingsState::new(prefs.clone())),
+            display_settings: Mutex::new(DisplaySettingsState::new(prefs.clone())),
+            send_settings: Mutex::new(SendSettingsState::new(prefs.clone())),
+            swipe_settings: Mutex::new(SwipeSettingsState::new(prefs.clone())),
+            signatures: Mutex::new(SignatureState::new(signatures_path.clone(), prefs.clone())),
+            mcp_settings: Mutex::new(McpSettingsState::new(prefs.clone())),
+            sync_settings: Mutex::new(SyncSettingsState::new(prefs.clone())),
+            notify_marks: Mutex::new(NotifyMarksState::new(prefs.clone())),
+            prefs,
             telemetry,
             send_status: Surfaced::new(Surface::Sending, Arc::clone(&observer)),
             calendar_write_status: Mutex::new(CalendarWriteStatus::default()),

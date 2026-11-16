@@ -358,3 +358,35 @@ fn corrupt_file_falls_back_to_defaults() {
     assert_eq!(load_preferences(&path), Preferences::default());
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// Settings offers the same horizons on every platform, and the one a pinch left the grid at
+/// among them, so the choice on screen is the horizon the grid shows.
+#[test]
+fn the_horizon_choices_are_the_stops_and_the_current_horizon() {
+    assert_eq!(visible_hours_choices(12), [6, 8, 12, 16, 24]);
+    assert_eq!(visible_hours_choices(10), [6, 8, 10, 12, 16, 24]);
+    assert_eq!(visible_hours_choices(1), [4, 6, 8, 12, 16, 24]);
+    assert_eq!(visible_hours_choices(200), [6, 8, 12, 16, 24]);
+}
+
+/// ⚠️ A save replaces the file whole, so a read never meets one cut short, which would read as
+/// the defaults; nothing is left beside it.
+#[test]
+fn a_save_replaces_the_file_whole() {
+    let dir = std::env::temp_dir().join("mailcal-prefs-save-whole");
+    let _ = fs::remove_dir_all(&dir);
+    let path = dir.join("preferences.toml");
+    let prefs = Preferences {
+        week_start: WeekStart::Sunday,
+        ..Preferences::default()
+    };
+    save_preferences(&path, &prefs).unwrap();
+    save_preferences(&path, &prefs).unwrap();
+    assert_eq!(load_preferences(&path).week_start, WeekStart::Sunday);
+    let names: Vec<_> = fs::read_dir(&dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(names, ["preferences.toml"]);
+    let _ = fs::remove_dir_all(&dir);
+}

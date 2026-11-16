@@ -14,7 +14,6 @@ use engine_api::{
     AccountId, CalendarDate, Event, Horizon, InboundScheduling, Message, OccurrenceRow, Provider,
     ProviderKey, TimeZoneId, UtcDateTime, day_bounds_utc, resolve_instant_in, to_local,
 };
-use mailcal_account::load_preferences;
 use mailcal_viewmodel::{
     InvitationCard, InvitationKind, ResponseStatus,
     calendar::grid::{self, Occurrence, TimeGrid},
@@ -146,13 +145,10 @@ impl<P: Provider> App<P> {
     /// The list's only reader is [`Self::account_address_set`]: a set that outlived its account
     /// would silently answer "yes, that invitation is yours" for a re-added id.
     pub(crate) fn remove_account_aliases(&self, account: &str) {
-        let Some(path) = &self.prefs_path else {
-            return;
-        };
-        let mut prefs = load_preferences(path);
-        if prefs.remove_account_aliases(account) {
-            let _ = mailcal_account::save_preferences(path, &prefs);
-        }
+        let account = account.to_owned();
+        self.prefs.edit(move |prefs| {
+            prefs.remove_account_aliases(&account);
+        });
     }
 
     /// Forgets `account`'s standing answer to the "shall we email the organiser ourselves?"
@@ -164,13 +160,10 @@ impl<P: Provider> App<P> {
     /// app quietly mails an organiser on behalf of an account the user had removed and set up
     /// again, having never been asked on this one.
     pub(crate) fn remove_reply_fallback(&self, account: &str) {
-        let Some(path) = &self.prefs_path else {
-            return;
-        };
-        let mut prefs = load_preferences(path);
-        if prefs.remove_reply_fallback(account) {
-            let _ = mailcal_account::save_preferences(path, &prefs);
-        }
+        let account = account.to_owned();
+        self.prefs.edit(move |prefs| {
+            prefs.remove_reply_fallback(&account);
+        });
     }
 
     /// Counts what the meeting clashes with, and builds the one-day preview grid.
