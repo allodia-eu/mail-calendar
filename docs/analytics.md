@@ -340,5 +340,7 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you change ana
 4. A new platform ships the consent screen, the Settings toggle, and the payload preview **before**
    it ships to users; any shortfall goes under "Known gaps" with a follow-up, never left silent.
 5. **A new data *category* re-opens the store declarations** ("The store privacy declarations"
-   above): Apple's App Privacy, Play's Data Safety, Partner Center. Update them in the same change
+   above): Apple's App Privacy, Play's Data Safety, Partner Center, and the collected data types in
+   the Apple app's privacy manifest (`clients/apple/App/PrivacyInfo.xcprivacy`, which ships in the
+   build and so moves in the change itself). Update them in the same change
    and land the edit **before** the build that widens the payload, not after.
