@@ -1,11 +1,10 @@
 //! UniFFI Kotlin/Swift bindings over `mailcal-app`.
 //!
-//! The thin FFI surface the native macOS/Android clients consume: a [`MailcalApp`]
-//! object exposing the unidirectional loop; `dispatch` an [`Intent`] (fire-and-forget,
-//! scheduled on an internal runtime so native never awaits Rust), and the app notifies
-//! a foreign [`Observer`] when a [`Surface`] changes, which the host pulls a snapshot
-//! for ([`MailcalApp::mailbox_list`]). FFI types mirror the pure `mailcal-app` types so
-//! the app stays binding-free.
+//! The FFI surface every native client consumes: a [`MailcalApp`] object exposing the
+//! unidirectional loop. A host dispatches an [`Intent`] (fire-and-forget, scheduled on an
+//! internal runtime so native never awaits Rust), and the app notifies a foreign [`Observer`]
+//! when a [`Surface`] changes, and the host pulls that surface's snapshot. FFI types mirror the
+//! pure `mailcal-app` types so the app stays binding-free.
 
 // A test drives a runtime of its own from the test harness's thread, not from a host's, so the
 // `clippy.toml` rule that keeps FFI calls off the caller's stack does not apply to it.
