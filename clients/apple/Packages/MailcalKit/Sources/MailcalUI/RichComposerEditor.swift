@@ -64,7 +64,10 @@ final class RichComposerEditor: NSObject {
     /// The link dialog the editor is waiting on, if any.
     var linkRequest: LinkDialogRequest?
     /// Where the caret last was, for the composer's column to keep in view.
-    var caret: EditorCaret?
+    @ObservationIgnored var caret: EditorCaret?
+    /// How many caret reports have arrived. The column follows each one, including one at the same
+    /// place as the last: the page resends it on every edit, because the column may have moved since.
+    var caretReports = 0
     /// How far the message is scrolled inside its box, as the framed mode last reported it.
     @ObservationIgnored var messageOffset: CGFloat = 0
     /// The scroll offset of the column holding the editor and the furthest it scrolls, as the
@@ -114,7 +117,10 @@ final class RichComposerEditor: NSObject {
     override init() {
         super.init()
         host.channel.onLink = { [weak self] in self?.linkRequest = $0 }
-        host.channel.onCaret = { [weak self] in self?.caret = $0 }
+        host.channel.onCaret = { [weak self] in
+            self?.caret = $0
+            self?.caretReports &+= 1
+        }
         host.channel.onScroll = { [weak self] in self?.messageOffset = $0 }
         host.onLoad = { [weak self] in self?.seedOnLoad() }
     }

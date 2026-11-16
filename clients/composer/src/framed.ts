@@ -76,15 +76,22 @@ export function installFramed(
 
   // A burst of mutations, a paste or a picture loading, is measured once, after layout. The caret
   // is reported when it or the text moves, never when the message is merely scrolled: a host that
-  // followed it then would pull the column back to a caret the reader scrolled away from.
-  const scheduleCaret = () => {
+  // followed it then would pull the column back to a caret the reader scrolled away from. A change
+  // to the text reports it even on the same line, because the host's column may have moved since
+  // the last report and left that line under its edge.
+  let textChanged = false;
+  const scheduleCaret = (edited: boolean) => {
     // A change to the text moves where it ends, too.
     scheduleScroll();
-    if (!on || caretScheduled) return;
+    if (!on) return;
+    textChanged ||= edited;
+    if (caretScheduled) return;
     caretScheduled = true;
     win.requestAnimationFrame(() => {
       caretScheduled = false;
-      reportCaret(false);
+      const force = textChanged;
+      textChanged = false;
+      reportCaret(force);
     });
   };
 
@@ -103,13 +110,13 @@ export function installFramed(
       on = true;
       doc.documentElement.classList.add("framed");
       doc.body.classList.add("framed");
-      new win.MutationObserver(scheduleCaret).observe(editor, {
+      new win.MutationObserver(() => scheduleCaret(true)).observe(editor, {
         childList: true,
         subtree: true,
         characterData: true,
         attributes: true,
       });
-      doc.addEventListener("selectionchange", scheduleCaret);
+      doc.addEventListener("selectionchange", () => scheduleCaret(false));
       editor.addEventListener("scroll", scheduleScroll);
       // A narrower page wraps the text onto more lines, which no mutation reports.
       if ("ResizeObserver" in win) new win.ResizeObserver(scheduleScroll).observe(editor);

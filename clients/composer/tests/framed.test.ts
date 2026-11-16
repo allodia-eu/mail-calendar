@@ -37,13 +37,15 @@ function mount() {
     { caret: () => measured.caret, scrollTop: () => measured.scroll, end: () => measured.end },
   );
   const scrolled = () => editor.dispatchEvent(new window.Event("scroll") as never);
+  /// The caret or the selection moved, with the text as it was.
+  const selected = () => document.dispatchEvent(new window.Event("selectionchange") as never);
   /// A wheel step over the message: whether the page kept it from scrolling the message.
   const wheel = (deltaY: number) => {
     const event = new window.WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true });
     editor.dispatchEvent(event as never);
     return event.defaultPrevented;
   };
-  return { document, editor, framed, measured, carets, scrolls, ends, scrolled, wheel };
+  return { document, editor, framed, measured, carets, scrolls, ends, scrolled, selected, wheel };
 }
 
 describe("framed mode", () => {
@@ -65,7 +67,9 @@ describe("framed mode", () => {
     expect(scrolls).toEqual([0]);
   });
 
-  test("reports the caret when the text changes, and only when it moved", async () => {
+  test("reports the caret on every change to the text, even on the same line", async () => {
+    // A host may have scrolled its column since the last report, putting that line under its edge;
+    // a word typed there has to bring it back, so a change is never deduplicated away.
     const { editor, framed, measured, carets } = mount();
     framed.useFramedComposer();
     editor.innerHTML = "<p>One line</p><p>And another</p>";
@@ -75,7 +79,20 @@ describe("framed mode", () => {
     measured.caret = { top: 60.4, bottom: 78.2 };
     editor.innerHTML = "<p>One line</p><p>And another</p><p>Third</p>";
     await settled();
-    expect(carets).toEqual([[40, 58], [60, 79]]);
+    expect(carets).toEqual([[40, 58], [40, 58], [60, 79]]);
+  });
+
+  test("reports a caret moved by the selection only when it moved", async () => {
+    const { framed, measured, carets, selected } = mount();
+    framed.useFramedComposer();
+    selected();
+    await settled();
+    selected();
+    await settled();
+    measured.caret = { top: 60, bottom: 78 };
+    selected();
+    await settled();
+    expect(carets).toEqual([[40, 58], [60, 78]]);
   });
 
   test("reports the message's scroll as it moves, and not the caret", async () => {

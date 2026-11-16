@@ -52,10 +52,10 @@ extension RichComposeView {
             editor.columnOffset = window.offset
             editor.columnEnd = max(0, window.content - window.height)
         }
-        .onChange(of: editor.caret) { _, caret in
+        .onChange(of: editor.caretReports) {
             // A target past the column's end stops there: the message's box then fills the visible
             // part, and the page keeps its caret in view inside it.
-            guard let caret,
+            guard let caret = editor.caret,
                   let target = composerCaretScroll(
                       offsetPx: visible.offset,
                       visiblePx: visible.height,

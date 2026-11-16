@@ -7,8 +7,8 @@ Bump: minor
 > editor with a scroll of its own on Apple and Windows, above it with no limit on Linux, in the
 > header on Android. The core now holds each composition's files and every save and send reads them
 > from there; each client draws them as tiles with their size above the message, and the composer
-> is one column that scrolls as a whole, the editor growing with its text
-> (`docs/composer-layout.md`).
+> scrolls as one gesture: on a desktop the header goes first and the message then scrolls in its
+> own box, on a touch screen the header is inside the page's scroll (`docs/composer-layout.md`).
 
 **English**
 
