@@ -4,6 +4,7 @@
 // hands them to the WebView, so the header and the message move as one page.
 package eu.allodia.mailcal
 
+import android.content.Context
 import android.webkit.WebView
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.rememberScrollableState
@@ -44,12 +45,31 @@ internal class HeaderScrollForwarder(private val scrollBy: (Int) -> Int) {
     }
 }
 
-/** Moves [webView] by `dy` pixels and answers how far it went, after the page clamped it. */
-private fun scrollWebView(webView: WebView?, dy: Int): Int {
-    val view = webView ?: return 0
-    val before = view.scrollY
-    view.scrollBy(0, dy)
-    return view.scrollY - before
+/**
+ * The composer's editor, which knows how far its page scrolls.
+ *
+ * A `scrollBy` or `scrollTo` on a WebView sets the view's offset without holding it to the page:
+ * the page stops at its end, while the view's `scrollY`, which the header overlay follows, carries
+ * on past it. The header then leaves the message behind and a blank band opens between them. So
+ * every scroll this app starts goes through [scrollPageBy], which keeps the offset on the page.
+ */
+internal open class ComposerWebView(context: Context) : WebView(context) {
+    /** The furthest the page scrolls, in pixels: its height less the part on screen. */
+    open val maxScrollY: Int
+        get() = (computeVerticalScrollRange() - computeVerticalScrollExtent()).coerceAtLeast(0)
+
+    /**
+     * Moves the page by [dy] pixels and answers how far it went. An offset already past the end, as
+     * a page that has just grown shorter can leave, is brought back first, so the answer always has
+     * the sign of [dy] and the header lands back on the message.
+     */
+    fun scrollPageBy(dy: Int): Int {
+        val max = maxScrollY
+        val before = scrollY.coerceIn(0, max)
+        val after = (before + dy).coerceIn(0, max)
+        if (after != scrollY) scrollTo(scrollX, after)
+        return after - before
+    }
 }
 
 /**
@@ -64,11 +84,11 @@ private fun scrollWebView(webView: WebView?, dy: Int): Int {
 @Composable
 internal fun ComposerHeaderFrame(
     scrollY: () -> Int,
-    webView: () -> WebView?,
+    webView: () -> ComposerWebView?,
     content: @Composable () -> Unit,
 ) {
     val target by rememberUpdatedState(webView)
-    val forwarder = remember { HeaderScrollForwarder { dy -> scrollWebView(target(), dy) } }
+    val forwarder = remember { HeaderScrollForwarder { dy -> target()?.scrollPageBy(dy) ?: 0 } }
     val state = rememberScrollableState(forwarder::dispatch)
     Box(
         modifier = Modifier
@@ -81,7 +101,11 @@ internal fun ComposerHeaderFrame(
                     constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity),
                 )
                 val offset = scrollY().coerceIn(0, placeable.height)
-                layout(placeable.width, placeable.height - offset) {
+                // Never taller than the room it is given. A header with many files outgrows the
+                // space above the keyboard, and a layout that reports more than its constraints
+                // allow is centred in them, which would draw it half its overflow above the page.
+                val visible = (placeable.height - offset).coerceAtMost(constraints.maxHeight)
+                layout(placeable.width, visible) {
                     placeable.place(0, -offset)
                 }
             },

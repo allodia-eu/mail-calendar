@@ -8,7 +8,6 @@
 // button routes to onDismissRequest, full-screen chrome without restructuring navigation.
 package eu.allodia.mailcal
 
-import android.webkit.WebView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -113,7 +112,7 @@ internal fun RichComposeMessageDialog(
     var composerError by remember {
         mutableStateOf(L10n.compose_forward_attachments_failed(ctx).takeIf { opening.attachmentsFailed })
     }
-    var webView by remember { mutableStateOf<WebView?>(null) }
+    var webView by remember { mutableStateOf<ComposerWebView?>(null) }
     val linkHost = rememberComposerLinkHost()
     // The single-scroll model: the WebView owns the one scroll (so its native caret-following and
     // drag-to-scroll just work), and the address-field header is a native overlay drawn on top of
