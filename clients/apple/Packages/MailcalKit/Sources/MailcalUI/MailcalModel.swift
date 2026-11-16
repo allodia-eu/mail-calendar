@@ -122,7 +122,7 @@ final class MailboxModel {
     /// `Surface::Settings`. A placeholder until `didOpen` reads the core's.
     var displaySettings = DisplaySettings(
         weekStart: .monday, timeFormat: .twentyFourHour, appearance: .system,
-        darkMessageBackground: true, visibleHours: 12, visibleHoursChoices: [], layout: .week
+        darkMessageBackground: true, visibleHours: 12, visibleHoursChoices: Data(), layout: .week
     )
     /// The appearance the app is **painted** in. Settled here, at model construction, rather than
     /// read off `displaySettings`: the core is an engine open and a network dial away, so waiting
