@@ -20,13 +20,13 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let view = editor.mount()
-        context.coordinator.install(in: view.scrollView, header: hostedHeader)
+        context.coordinator.install(in: view.scrollView, header: hostedHeader(context.coordinator))
         followScheme(context)
         return view
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
-        context.coordinator.update(hostedHeader)
+        context.coordinator.update(hostedHeader(context.coordinator))
         followScheme(context)
     }
 
@@ -35,9 +35,10 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
     }
 
     /// The header as the scroll view hosts it: at the top of the frame it is given, its height
-    /// reported to the page, and the recipient suggestions drawn over it, because a suggestion
-    /// list reaches its layer through SwiftUI preferences, which do not leave a hosting controller.
-    private var hostedHeader: AnyView {
+    /// reported to the page and to `host`, and the recipient suggestions drawn over it, because a
+    /// suggestion list reaches its layer through SwiftUI preferences, which do not leave a hosting
+    /// controller.
+    private func hostedHeader(_ host: HeaderHost) -> AnyView {
         let editor = editor
         return AnyView(
             header()
@@ -45,9 +46,15 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
                 // the page's, and a field offered that much would stretch to fill it.
                 .fixedSize(horizontal: false, vertical: true)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    host.headerHeight = $0
                     editor.setTopInset($0)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .overlayPreferenceValue(RecipientSuggestionOverlayKey.self) { open in
+                    Color.clear.onChange(of: open != nil, initial: true) { _, suggesting in
+                        host.suggesting = suggesting
+                    }
+                }
                 .recipientSuggestionLayer()
         )
     }
@@ -60,6 +67,11 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
         private let container = PassThroughView()
         private var hosting: UIHostingController<AnyView>?
         private var observations: [NSKeyValueObservation] = []
+        /// The header's height, inside which it takes every touch.
+        var headerHeight: CGFloat = 0
+        /// Whether a recipient field's suggestion list is open, while which the whole layer takes
+        /// touches, as the layer does wherever a composer draws it.
+        var suggesting = false
 
         func install(in scrollView: UIScrollView, header: AnyView) {
             let hosting = UIHostingController(rootView: header)
@@ -75,7 +87,10 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
                 hosting.view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
                 hosting.view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
             ])
-            container.passesThrough = hosting.view
+            container.takesTouch = { [weak self] point in
+                guard let self else { return false }
+                return suggesting || point.y < headerHeight
+            }
             // A hosting controller outside the view-controller tree draws its SwiftUI views and
             // none of the UIKit ones they wrap, which every text field is; so it is made a child of
             // the controller the web view ends up under, as soon as there is one.
@@ -118,9 +133,14 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
         }
     }
 
-    /// A view a touch passes through wherever the header draws nothing, to the message underneath.
+    /// A view that takes a touch only where `takesTouch` says the header is, and passes every other
+    /// one to the message underneath.
+    ///
+    /// Decided by place, not by what UIKit finds there: SwiftUI draws a plain button inside the
+    /// hosting view rather than as a view of its own, so a tap on the paperclip and a tap on empty
+    /// space reach the same view, and only a text field is a view a hit test can see.
     final class PassThroughView: UIView {
-        weak var passesThrough: UIView?
+        var takesTouch: (CGPoint) -> Bool = { _ in false }
         var onWindow: ((UIView) -> Void)?
 
         override func didMoveToWindow() {
@@ -129,8 +149,9 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
         }
 
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            guard takesTouch(point) else { return nil }
             let hit = super.hitTest(point, with: event)
-            return hit === self || hit === passesThrough ? nil : hit
+            return hit === self ? nil : hit
         }
     }
 }
