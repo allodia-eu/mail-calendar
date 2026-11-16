@@ -12,7 +12,16 @@ use mailcal_bindings::{
 };
 
 use super::{ComposerFileStore, FileTiles};
-use crate::ui::{controls::tests::spins, icons, setup_widget_tests::descendants};
+use crate::{
+    l10n,
+    ui::{
+        composer_file_preview::{PICTURE_NAME, SQUARE, cover},
+        composer_layout::visible_top,
+        controls::tests::spins,
+        icons,
+        setup_widget_tests::descendants,
+    },
+};
 
 /// A stand-in for the core's list, answering as a core does: each file is listed under the name
 /// it was handed with an id of its own, and `changed` is whether the list differs from the one it
@@ -93,12 +102,17 @@ impl ComposerFileStore for FakeStore {
             held.next += 1;
             let id = format!("file-{}", held.next);
             let size = std::fs::metadata(&file.path).ok().map(|meta| meta.len());
+            // The core sniffs the bytes; a picture's media type stands in for that here.
+            let preview = file
+                .media_type
+                .starts_with("image/")
+                .then(|| file.path.clone());
             held.files.push(ComposerFileTile {
                 id,
                 file_name: file.file_name,
                 size,
                 remove,
-                preview: None,
+                preview,
             });
         }
         Ok(held.answer())
@@ -225,4 +239,96 @@ pub(crate) fn a_tile_draws_its_remove_from_the_cores_state() {
         tiles_on_screen(&coreless).is_empty(),
         "a composer with no core holds no files"
     );
+}
+
+/// A tile is one line: the picture the core offers, decoded at the square's size and never at its
+/// own, or the attachment glyph. Above the tiles one line counts them and adds up their sizes.
+pub(crate) fn a_tile_shows_its_picture_or_the_glyph_under_a_summary() {
+    use gtk::gdk_pixbuf::{Colorspace, Pixbuf};
+
+    let dir = std::env::temp_dir().join("mailcal-file-preview-test");
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let photo = dir.join("photo.png");
+    let pixels = Pixbuf::new(Colorspace::Rgb, false, 8, 300, 200).expect("a picture");
+    pixels.fill(0x3366_99ff);
+    pixels.savev(&photo, "png", &[]).expect("saved");
+    let notes = dir.join("notes.txt");
+    std::fs::write(&notes, vec![b'a'; 1000]).expect("write");
+    let attach = |path: &std::path::Path, media_type: &str| ComposerFileAttachment {
+        path: path.to_string_lossy().into_owned(),
+        file_name: path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        media_type: media_type.to_owned(),
+    };
+
+    let store = Arc::new(FakeStore::default());
+    let tiles = FileTiles::new(Some(Arc::clone(&store) as Arc<dyn ComposerFileStore>), "c");
+    tiles.add(vec![
+        attach(&photo, "image/png"),
+        attach(&notes, "text/plain"),
+    ]);
+
+    let total = std::fs::metadata(&photo).expect("saved").len() + 1000;
+    let summary = descendants::<gtk::Label>(tiles.widget().upcast_ref())
+        .into_iter()
+        .find(|label| label.widget_name() == "composer-files-summary")
+        .expect("a line above the tiles");
+    assert_eq!(
+        summary.text(),
+        l10n::compose_files_summary(2, &gtk::glib::format_size(total))
+    );
+    assert!(summary.text().starts_with('2'), "the count comes first");
+
+    let drawn = tiles_on_screen(&tiles);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let picture = loop {
+        gtk::glib::MainContext::default().iteration(false);
+        if let Some(picture) = descendants::<gtk::Picture>(drawn[0].upcast_ref())
+            .into_iter()
+            .find(|picture| picture.widget_name() == PICTURE_NAME)
+        {
+            break picture;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the picture is never shown"
+        );
+    };
+    let paintable = picture.paintable().expect("decoded");
+    // At the square's size in device pixels, its shorter side covering the square.
+    let side = SQUARE * drawn[0].scale_factor().max(1);
+    assert_eq!(
+        paintable.intrinsic_height(),
+        side,
+        "decoded at the tile's size"
+    );
+    assert_eq!(paintable.intrinsic_width(), side * 3 / 2);
+
+    let glyphs = descendants::<gtk::Image>(drawn[1].upcast_ref());
+    assert!(
+        glyphs
+            .iter()
+            .any(|glyph| glyph.icon_name().as_deref() == Some(icons::ATTACHMENT)),
+        "a file with no picture shows the attachment glyph"
+    );
+    assert_eq!(descendants::<gtk::Picture>(drawn[1].upcast_ref()).len(), 0);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn a_picture_is_decoded_so_its_shorter_side_covers_the_square() {
+    assert_eq!(cover(3000, 2000, 56), Some((84, 56)));
+    assert_eq!(cover(1000, 4000, 56), Some((56, 224)));
+    assert_eq!(cover(40, 30, 56), Some((40, 30)), "never larger than it is");
+    assert_eq!(cover(0, 30, 56), None);
+}
+
+#[test]
+fn the_page_is_told_where_it_is_seen_from_and_zero_while_its_top_shows() {
+    assert!(visible_top(0.0, 240.0).abs() < f64::EPSILON);
+    assert!(visible_top(240.0, 240.0).abs() < f64::EPSILON);
+    assert!((visible_top(500.4, 240.0) - 260.0).abs() < f64::EPSILON);
 }

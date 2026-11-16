@@ -13,8 +13,9 @@ use std::{
 };
 
 use adw::prelude::*;
-use gtk::{glib, graphene};
+use gtk::{gio, glib, graphene};
 use mailcal_bindings::{composer_caret_scroll, composer_editor_height};
+use webkit6::prelude::WebViewExt;
 
 /// What the editor's page reported last, in CSS pixels, which on GTK are logical pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -35,8 +36,13 @@ pub(crate) struct ComposerColumn {
     caret: Cell<Option<Caret>>,
     /// Whether a resize of the editor is already waiting for the main loop.
     sizing: Cell<bool>,
-    /// The handler on the adjustment, disconnected as the column goes.
-    watch: RefCell<Option<glib::SignalHandlerId>>,
+    /// Whether the page has parsed and been switched to its growing mode, so its hooks exist.
+    ready: Cell<bool>,
+    /// The visible top the page was last told, and whether that call is still out.
+    told: Cell<Option<f64>>,
+    telling: Cell<bool>,
+    /// The handlers on the adjustment, disconnected as the column goes.
+    watches: RefCell<Vec<glib::SignalHandlerId>>,
 }
 
 impl ComposerColumn {
@@ -57,20 +63,72 @@ impl ComposerColumn {
             content_px: Cell::new(0.0),
             caret: Cell::new(None),
             sizing: Cell::new(false),
-            watch: RefCell::new(None),
+            ready: Cell::new(false),
+            told: Cell::new(None),
+            telling: Cell::new(false),
+            watches: RefCell::new(Vec::new()),
         });
         // The adjustment changes after every allocation that moves the column: the window
         // resized, a row added above the message, the editor grown. Weak, because the scroller
         // this handler hangs off is the column's own.
-        let weak = Rc::downgrade(&column);
-        let watch = column.scroller.vadjustment().connect_changed(move |_| {
-            if let Some(column) = weak.upgrade() {
+        let adjustment = column.scroller.vadjustment();
+        let resized = Rc::downgrade(&column);
+        let changed = adjustment.connect_changed(move |_| {
+            if let Some(column) = resized.upgrade() {
                 column.queue_sizing();
                 column.follow_caret();
+                column.tell_visible_top();
             }
         });
-        column.watch.replace(Some(watch));
+        let moved = Rc::downgrade(&column);
+        let on_scroll = adjustment.connect_value_changed(move |_| {
+            if let Some(column) = moved.upgrade() {
+                column.tell_visible_top();
+            }
+        });
+        column.watches.replace(vec![changed, on_scroll]);
         column
+    }
+
+    /// The page has parsed and runs in its growing mode, so it can be told where it is seen from.
+    pub(crate) fn page_ready(self: &Rc<Self>) {
+        self.ready.set(true);
+        self.told.set(None);
+        self.tell_visible_top();
+    }
+
+    /// Tells the page where the column's visible part starts in its own coordinates, so it keeps
+    /// its toolbar there (`docs/composer-layout.md`, rule 7). One call at a time, carrying the
+    /// latest value when it goes; the adjustment changes whenever the column scrolls or anything
+    /// above the editor changes height.
+    fn tell_visible_top(self: &Rc<Self>) {
+        if !self.ready.get() || self.telling.get() {
+            return;
+        }
+        let Some(top) = self.editor_top() else {
+            return;
+        };
+        // Zero or less is the same answer to the page: its top is in view.
+        let visible = visible_top(self.scroller.vadjustment().value(), top);
+        if self.told.get() == Some(visible) {
+            return;
+        }
+        self.told.set(Some(visible));
+        self.telling.set(true);
+        let weak: Weak<Self> = Rc::downgrade(self);
+        self.editor.evaluate_javascript(
+            &format!("window.setComposerVisibleTop({visible})"),
+            None,
+            None,
+            None::<&gio::Cancellable>,
+            move |_| {
+                if let Some(column) = weak.upgrade() {
+                    column.telling.set(false);
+                    // The column may have moved on while the call was out.
+                    column.tell_visible_top();
+                }
+            },
+        );
     }
 
     pub(crate) fn widget(&self) -> &gtk::ScrolledWindow {
@@ -165,8 +223,15 @@ impl ComposerColumn {
 
 impl Drop for ComposerColumn {
     fn drop(&mut self) {
-        if let Some(watch) = self.watch.take() {
-            self.scroller.vadjustment().disconnect(watch);
+        let adjustment = self.scroller.vadjustment();
+        for watch in self.watches.take() {
+            adjustment.disconnect(watch);
         }
     }
+}
+
+/// Where the column's visible part starts in the page's coordinates, in whole pixels: its scroll
+/// offset less where the page starts in it, and zero while the page's top is in view.
+pub(crate) fn visible_top(offset: f64, page_top: f64) -> f64 {
+    (offset - page_top).max(0.0).round()
 }

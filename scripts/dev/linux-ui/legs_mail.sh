@@ -103,6 +103,8 @@ leg_forward() {
   # nothing is the shape this leg exists to catch, and it looks identical from outside.
   ui_within wait id=composer-file text="$ATTACHMENT_FILE" enabled=true timeoutMs=30000 -- \
     text=Remove role=button enabled=true
+  # Above the tiles, one line counts them and adds up their sizes, in the singular for one.
+  ui_wait id=composer-files-summary textLike="1 file ·" timeoutMs=30000
   capture forward-attachments
 
   # Abandoning an untouched forward asks nothing: its files are still in the mailbox. The absence

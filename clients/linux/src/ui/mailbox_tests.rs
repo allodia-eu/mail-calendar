@@ -134,6 +134,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::composer_file_tiles::tests::
         a_tile_names_its_file_and_its_remove_goes_through_the_core();
     crate::ui::composer_file_tiles::tests::a_tile_draws_its_remove_from_the_cores_state();
+    crate::ui::composer_file_tiles::tests::a_tile_shows_its_picture_or_the_glyph_under_a_summary();
     crate::ui::editor_paste::tests::widget_tests::a_picture_on_the_clipboard_is_read_and_sniffed();
     crate::ui::editor_paste::tests::widget_tests::text_on_the_clipboard_is_left_to_the_page();
     crate::ui::editor_paste::tests::widget_tests::

@@ -31,6 +31,7 @@ mod composer_discard;
 mod composer_draft;
 mod composer_drafts;
 mod composer_fields;
+mod composer_file_preview;
 mod composer_file_tiles;
 mod composer_header;
 mod composer_host;

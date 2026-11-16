@@ -124,7 +124,10 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
         order[2].is::<gtk::Label>() && order[3].is::<gtk::Label>(),
         "then the notes"
     );
-    assert!(order[4].is::<gtk::FlowBox>(), "then the files");
+    assert!(
+        !descendants::<gtk::FlowBox>(&order[4]).is_empty(),
+        "then the files, under the line that counts them"
+    );
     assert!(
         !descendants::<webkit6::WebView>(&order[5]).is_empty(),
         "and the message last"

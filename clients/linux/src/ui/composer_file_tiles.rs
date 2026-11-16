@@ -16,7 +16,7 @@ use mailcal_bindings::{
     ComposerFileAttachment, ComposerFileTile, ComposerFiles, MailcalApp, MailcalError,
 };
 
-use super::{controls, icons};
+use super::{composer_file_preview, controls, icons};
 use crate::l10n;
 
 /// The tile's width, which is also its shortest: a name narrower than this is middle-truncated.
@@ -55,10 +55,12 @@ impl ComposerFileStore for MailcalApp {
     }
 }
 
-/// One composer's file tiles.
+/// One composer's file tiles, under the line that counts them.
 pub(crate) struct FileTiles {
     store: Option<Arc<dyn ComposerFileStore>>,
     composition: String,
+    block: gtk::Box,
+    summary: gtk::Label,
     flow: gtk::FlowBox,
 }
 
@@ -74,17 +76,27 @@ impl FileTiles {
         flow.set_min_children_per_line(1);
         flow.set_max_children_per_line(MOST_COLUMNS);
         flow.set_valign(gtk::Align::Start);
+        let summary = gtk::Label::new(None);
+        summary.set_widget_name("composer-files-summary");
+        summary.set_xalign(0.0);
+        summary.add_css_class("caption");
+        summary.add_css_class("dim-label");
+        let block = gtk::Box::new(gtk::Orientation::Vertical, 6);
+        block.append(&summary);
+        block.append(&flow);
         let tiles = Rc::new(Self {
             store,
             composition: composition.to_owned(),
+            block,
+            summary,
             flow,
         });
         tiles.draw(&tiles.current());
         tiles
     }
 
-    pub(crate) fn widget(&self) -> &gtk::FlowBox {
-        &self.flow
+    pub(crate) fn widget(&self) -> &gtk::Box {
+        &self.block
     }
 
     /// Attaches `files` after what the composition holds, and redraws.
@@ -126,8 +138,9 @@ impl FileTiles {
         for tile in &files.tiles {
             self.flow.append(&self.tile(tile));
         }
-        // An empty flow box still takes its row's spacing in the column.
-        self.flow.set_visible(!files.tiles.is_empty());
+        self.summary.set_text(&summary_words(files));
+        // An empty block still takes its row's spacing in the column.
+        self.block.set_visible(!files.tiles.is_empty());
     }
 
     fn tile(self: &Rc<Self>, tile: &ComposerFileTile) -> gtk::FlowBoxChild {
@@ -136,31 +149,28 @@ impl FileTiles {
         name.set_xalign(0.0);
         name.set_hexpand(true);
         name.set_width_chars(1);
-        let words = gtk::Box::new(gtk::Orientation::Vertical, 2);
-        words.set_valign(gtk::Align::Center);
-        words.append(&name);
         // A file that could not be read has no size to give, and the send says so if it still
         // cannot be read then.
         let size = tile.size.map(size_words);
-        if let Some(size) = &size {
-            let label = gtk::Label::new(Some(size));
-            label.set_xalign(0.0);
-            label.add_css_class("caption");
-            label.add_css_class("dim-label");
-            words.append(&label);
-        }
 
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
         row.set_widget_name("composer-file");
         row.add_css_class("card");
         row.set_size_request(TILE_WIDTH, -1);
-        let inner = gtk::Box::new(gtk::Orientation::Horizontal, 6);
-        inner.set_margin_top(6);
-        inner.set_margin_bottom(6);
-        inner.set_margin_start(12);
-        inner.set_margin_end(6);
+        let inner = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        inner.set_margin_top(4);
+        inner.set_margin_bottom(4);
+        inner.set_margin_start(6);
+        inner.set_margin_end(4);
         inner.set_hexpand(true);
-        inner.append(&words);
+        inner.append(&composer_file_preview::square(tile.preview.as_deref()));
+        inner.append(&name);
+        if let Some(size) = &size {
+            let label = gtk::Label::new(Some(size));
+            label.add_css_class("caption");
+            label.add_css_class("dim-label");
+            inner.append(&label);
+        }
         let owner: Weak<Self> = Rc::downgrade(self);
         let id = tile.id.clone();
         let remove = controls::icon_button(icons::REMOVE, l10n::action_remove(), tile.remove, {
@@ -190,6 +200,12 @@ impl FileTiles {
 /// A file's size in the user's own units and decimal mark, as GLib words it for every GNOME app.
 fn size_words(bytes: u64) -> String {
     gtk::glib::format_size(bytes).to_string()
+}
+
+/// How many files there are and what they come to together (`compose_files_summary`).
+fn summary_words(files: &ComposerFiles) -> String {
+    let count = i64::try_from(files.tiles.len()).unwrap_or(i64::MAX);
+    l10n::compose_files_summary(count, &size_words(files.total_size))
 }
 
 #[cfg(test)]
