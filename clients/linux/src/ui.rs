@@ -104,6 +104,7 @@ mod oauth_actions;
 mod oauth_loopback;
 mod operations;
 mod outbox;
+mod preference;
 mod reader;
 mod reading;
 mod reading_windows;

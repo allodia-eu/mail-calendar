@@ -39,7 +39,10 @@ pub(super) fn page(ctx: &PageContext) -> gtk::Box {
             }
             let store = app.clone();
             let section = default_meeting_group(&app.meeting_defaults(), move |account, choice| {
-                store.set_default_meeting(account, choice);
+                crate::ui::preference::set(
+                    &store,
+                    mailcal_bindings::PreferenceIntent::SetDefaultMeeting { account, choice },
+                );
             });
             defaults.set_visible(section.is_some());
             if let Some(section) = section {
