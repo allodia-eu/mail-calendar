@@ -14,9 +14,16 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import uniffi.mailcal_bindings.AccountChangeRefusal
+import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaAccountKind
 import uniffi.mailcal_bindings.AllodiaAccountOffer
+import uniffi.mailcal_bindings.AllodiaCard
+import uniffi.mailcal_bindings.AllodiaCardState
 import uniffi.mailcal_bindings.AllodiaDevices
+import uniffi.mailcal_bindings.AllodiaFailure
+import uniffi.mailcal_bindings.AllodiaIntent
+import uniffi.mailcal_bindings.AllodiaOnboarding
 import uniffi.mailcal_bindings.AllodiaSyncFailure
 
 private const val RECOMMENDED = "Recommended"
@@ -31,37 +38,32 @@ private const val NONE_TITLE = "No mail accounts yet"
 class OnboardingAllodiaCardTest {
     @get:Rule val compose = createComposeRule()
 
-    private var creates = 0
-    private var signIns = 0
-    private var cancels = 0
+    private val sent = mutableListOf<AllodiaIntent>()
     private val setUp = mutableListOf<String>()
 
     private fun card(
         offered: Boolean = true,
-        signingIn: Boolean = false,
-        signedIn: Boolean = false,
-        checking: Boolean = false,
+        card: AllodiaCard = ALLODIA_SIGNED_OUT,
         offers: List<AllodiaAccountOffer>? = emptyList(),
-        escapable: Boolean = false,
         firstRun: Boolean = true,
     ) {
         compose.setContent {
             OnboardingAllodiaCard(
                 offered = offered,
-                signingIn = signingIn,
-                signedIn = signedIn,
+                card = card,
                 offers = offers,
-                checking = checking,
-                onCreate = { creates += 1 },
-                onSignIn = { signIns += 1 },
+                onChange = { sent += it },
                 onSetUp = { setUp += it.email },
-                escapable = escapable,
-                onCancelSignIn = { cancels += 1 },
                 firstRun = firstRun,
             )
         }
         compose.waitForIdle()
     }
+
+    private val signedIn = ALLODIA_SIGNED_OUT.copy(
+        state = AllodiaCardState.SignedIn(AllodiaAccount(id = null, email = "alice@allodia.eu", name = null)),
+        onboarding = AllodiaOnboarding.SignedIn,
+    )
 
     private fun offer(email: String) = AllodiaAccountOffer(
         id = "abc",
@@ -103,8 +105,7 @@ class OnboardingAllodiaCardTest {
         card()
         compose.onNodeWithText(CREATE).performClick()
         compose.onNodeWithText(HAVE_ONE).performClick()
-        assertEquals(1, creates)
-        assertEquals(1, signIns)
+        assertEquals(listOf(allodiaSignIn(create = true), allodiaSignIn()), sent)
     }
 
     /**
@@ -113,7 +114,7 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun a_sign_in_in_flight_offers_nothing_to_press_twice() {
-        card(signingIn = true)
+        card(card = allodiaSigningIn())
         compose.onNodeWithText(CREATE).assertDoesNotExist()
         compose.onNodeWithText(HAVE_ONE).assertDoesNotExist()
         compose.onNodeWithText(DIVIDER).assertIsDisplayed()
@@ -127,12 +128,12 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun a_browser_hop_that_does_not_come_back_can_be_escaped() {
-        card(signingIn = true, escapable = true)
+        card(card = allodiaSigningIn(attempt = 4uL, escape = true))
         compose.onNodeWithText(CANCEL).assertIsDisplayed()
 
         compose.onNodeWithText(CANCEL).performClick()
 
-        assertEquals(1, cancels)
+        assertEquals(listOf<AllodiaIntent>(AllodiaIntent.CancelSignIn(4uL)), sent)
     }
 
     /**
@@ -141,8 +142,16 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun an_ordinary_hop_draws_no_way_back_it_has_not_earned() {
-        card(signingIn = true)
+        card(card = allodiaSigningIn(escape = false))
         compose.onNodeWithText(CANCEL).assertDoesNotExist()
+    }
+
+    /** A sign-in that did not work is said under the offer it returns to, in the Settings card's words. */
+    @Test
+    fun a_sign_in_that_did_not_work_says_so_under_the_offer() {
+        card(card = ALLODIA_SIGNED_OUT.copy(failure = AllodiaFailure.SignIn(AccountChangeRefusal.NotFinished)))
+        compose.onNodeWithText(HAVE_ONE).assertIsDisplayed()
+        compose.onNodeWithText("Sign-in timed out. Please try again.").assertIsDisplayed()
     }
 
     /**
@@ -151,7 +160,8 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun the_pass_after_a_sign_in_offers_no_way_back() {
-        card(signedIn = true, checking = true, escapable = true)
+        card(card = signedIn.copy(onboarding = AllodiaOnboarding.Checking))
+        compose.onNodeWithText("Checking your other devices…").assertIsDisplayed()
         compose.onNodeWithText(CANCEL).assertDoesNotExist()
     }
 
@@ -161,7 +171,7 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun an_account_from_another_device_replaces_the_card_with_a_shortcut() {
-        card(signedIn = true, offers = listOf(offer("someone@gmail.com")))
+        card(card = signedIn, offers = listOf(offer("someone@gmail.com")))
         compose.onNodeWithText(TITLE).assertDoesNotExist()
         compose.onNodeWithText("someone@gmail.com").assertIsDisplayed()
 
@@ -177,7 +187,7 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun signing_in_on_a_first_device_says_what_was_found() {
-        card(signedIn = true)
+        card(card = signedIn)
         compose.onNodeWithText(TITLE).assertDoesNotExist()
         compose.onNodeWithText(HAVE_ONE).assertDoesNotExist()
         compose.onNodeWithText(NONE_TITLE).assertIsDisplayed()
@@ -187,7 +197,7 @@ class OnboardingAllodiaCardTest {
     /** And an account that did come over is not "no mail accounts yet". */
     @Test
     fun an_offer_is_not_reported_as_an_empty_account() {
-        card(signedIn = true, offers = listOf(offer("someone@gmail.com")))
+        card(card = signedIn, offers = listOf(offer("someone@gmail.com")))
         compose.onNodeWithText(NONE_TITLE).assertDoesNotExist()
     }
 
@@ -199,7 +209,7 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun a_later_add_offers_what_is_left_without_pitching_the_card_again() {
-        card(signedIn = true, offers = listOf(offer("carol@example.test")), firstRun = false)
+        card(card = signedIn, offers = listOf(offer("carol@example.test")), firstRun = false)
         compose.onNodeWithText("carol@example.test").assertIsDisplayed()
         compose.onNodeWithText(DIVIDER).assertIsDisplayed()
         compose.onNodeWithText(TITLE).assertDoesNotExist()
@@ -213,7 +223,7 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun a_later_add_with_an_empty_answer_is_the_direct_route_alone() {
-        card(signedIn = true, offers = emptyList(), firstRun = false)
+        card(card = signedIn, offers = emptyList(), firstRun = false)
         compose.onNodeWithText(DIVIDER).assertDoesNotExist()
         compose.onNodeWithText(NONE_TITLE).assertDoesNotExist()
     }
@@ -221,7 +231,7 @@ class OnboardingAllodiaCardTest {
     /** And the same when no pass has answered, `setContent` runs once, so this is its own case. */
     @Test
     fun a_later_add_with_no_answer_yet_is_the_direct_route_alone() {
-        card(signedIn = true, offers = null, firstRun = false)
+        card(card = signedIn, offers = null, firstRun = false)
         compose.onNodeWithText(DIVIDER).assertDoesNotExist()
         compose.onNodeWithText(NONE_TITLE).assertDoesNotExist()
     }
@@ -233,7 +243,7 @@ class OnboardingAllodiaCardTest {
      */
     @Test
     fun a_pass_that_has_not_answered_is_not_an_empty_account() {
-        card(signedIn = true, offers = null)
+        card(card = signedIn, offers = null)
         compose.onNodeWithText(NONE_TITLE).assertDoesNotExist()
         compose.onNodeWithText(DIVIDER).assertIsDisplayed()
     }

@@ -25,7 +25,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import uniffi.mailcal_bindings.AccountFolderRow
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AnalyticsConsent
@@ -283,9 +282,6 @@ class MainActivity : AppCompatActivity() {
     // The equivalent handle for an in-flight IMAP sign-in. Separate again, so no two flows can
     // clobber each other. Not persisted, it carries the PKCE verifier.
     internal var pendingImapLogin: String? = null
-    // The equivalent handle for an in-flight Allodia account sign-in. Separate again. Not
-    // persisted, it carries the PKCE verifier.
-    internal var pendingAllodiaSignIn: String? = null
     // A notification deep-link (accountId + messageKey) waiting to be opened once the Rust app
     // has finished connecting. Set from the launch intent (cold start) or onNewIntent (resumed);
     // drained and cleared in connect() once `app` is ready.
@@ -308,34 +304,29 @@ class MainActivity : AppCompatActivity() {
     // The same, for an in-flight IMAP sign-in, set while discovery and registration run and the
     // browser is open.
     internal var signingInImap by mutableStateOf(false)
-    // The same, for an in-flight Allodia account sign-in, set while the metadata read and the
-    // browser hop run, and again from the redirect until the grant is stored.
-    internal var signingInAllodia by mutableStateOf(false)
-    // Whether that hop has outlasted the first-run card's threshold, so the card owes the person a
-    // way back (docs/onboarding.md). Only that card reads it: the settings card is reached from an
-    // app somebody is already using, and dismissing the tab is its way out.
-    internal var allodiaSignInSlow by mutableStateOf(false)
-    // Which hop is the current one. A stale escape timer, or a browser open posted from a metadata
-    // read that finished after the person gave up, must not land on the attempt that replaced it.
-    internal var allodiaAttempt = 0L
-    // Who is signed in to an Allodia account, or null. Seeded at connect from what boot restored
-    // and re-read after every sign-in or sign-out; it is a local read that never asks the service.
-    internal var allodiaAccount by mutableStateOf<AllodiaAccount?>(null)
-    // What the Allodia card says about the last sign-in or sign-out that failed (allodiaFailureSaid),
-    // or null. Cleared when a new attempt starts.
-    internal var allodiaFailure by mutableStateOf<String?>(null)
+    // The Allodia account's card as the core keeps it (`allodiaCard`), read again on every ALLODIA
+    // signal: who is signed in, the sign-in out and what the last one came to
+    // (MainActivityAllodia.kt).
+    internal var allodiaCard by mutableStateOf(ALLODIA_SIGNED_OUT)
+    // The last sign-out page opened, so each is opened once.
+    internal var allodiaEndSessionOpened = 0uL
     // What the person's other devices have to say about this device's accounts, as the core keeps
     // it (`allodia_devices`), read again on every Settings signal. Null until a pass has answered.
     internal var allodiaDevices by mutableStateOf<AllodiaDevices?>(null)
-    // This build's shop, and the scope its purchases and reads run in. Both flows leave the app,
-    // for Play's sheet or for a browser, so neither may belong to a screen that was recomposed
-    // while somebody was away (MainActivityAllodiaPurchases.kt).
+    // This build's shop, and the scope its purchases run in. Play's sheet leaves the app, so
+    // neither may belong to a screen that was recomposed while somebody was away
+    // (MainActivityAllodiaPurchases.kt).
     internal var allodiaPurchases: AllodiaPurchases? = null
     internal val allodiaPurchaseScope = allodiaPurchaseScope()
-    // What the subscription card draws: the service's answer, what the shop will sell, and which
-    // period has a sheet up. Checking until the card is first opened; the read is a network round
-    // trip, and a category nobody opened is not worth one.
-    internal var allodiaSubscription by mutableStateOf(AllodiaSubscriptionUi())
+    // The subscription section as the core keeps it (`allodiaSubscriptionCard`), read again on
+    // every ALLODIA signal, and the last payment page it named that was opened.
+    internal var allodiaSubscription by mutableStateOf(ALLODIA_SUBSCRIPTION_HIDDEN)
+    internal var allodiaCheckoutOpened = 0uL
+    // What buying from this build's shop keeps beside it: the offers, a Play sheet up, and what
+    // the last pass found.
+    internal var allodiaStore by mutableStateOf(AllodiaStoreUi())
+    // Whether the section is on screen, so a return to the app reads it again.
+    internal var allodiaSubscriptionOnScreen = false
     // The address an offer from another device put into the setup flow, so it opens with the
     // typing done. Empty for every other way in.
     internal var setupStartEmail by mutableStateOf("")
@@ -416,6 +407,9 @@ class MainActivity : AppCompatActivity() {
         // Custom Tabs; JMAP's own-task tab is handled inside, not cleared) resets its spinner if
         // the redirect never came back. MainActivityAccounts.kt, beside the flows it cleans up.
         cancelAbandonedSignIns()
+        // Back from the checkout browser, a store's page or anywhere else: the subscription on
+        // screen may have moved meanwhile.
+        if (allodiaSubscriptionOnScreen) refreshAllodiaSubscription()
         // Runtime registration (not the manifest): catch OS zone changes while we're visible.
         registerReceiver(timeZoneChangeReceiver, IntentFilter(AndroidIntent.ACTION_TIMEZONE_CHANGED))
         // A zone change while we were paused dropped its broadcast, so re-report the current

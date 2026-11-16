@@ -24,7 +24,6 @@ use tokio::sync::Notify;
 
 use super::message;
 
-#[allow(clippy::duplicate_mod)]
 #[path = "provider_builders.rs"]
 mod builders;
 pub(crate) use builders::SourceFailure;

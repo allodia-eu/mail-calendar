@@ -43,7 +43,7 @@ class ComposerExitsTest {
             readDocument = { answer -> answer(document) },
             seedDocument = { seed },
             contentOf = { json ->
-                ComposerSubmission(null, Recipients("", "", ""), "", json, emptyList(), "c-1")
+                ComposerSubmission(null, Recipients("", "", ""), "", json, "c-1")
             },
             ask = { asked = true },
             left = { left = true },

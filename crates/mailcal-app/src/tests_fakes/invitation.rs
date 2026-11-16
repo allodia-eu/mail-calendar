@@ -37,10 +37,8 @@ use crate::{Account, App, Surface, Telemetry, TimeZoneInit};
 
 // The meeting these fixtures are all about, kept next door: see that file's header for why the
 // bytes and the provider are separate concerns.
-#[allow(clippy::duplicate_mod)]
 #[path = "invitation_linked.rs"]
 mod linked;
-#[allow(clippy::duplicate_mod)]
 #[path = "invitation_meeting.rs"]
 mod meeting;
 #[path = "invitation_routes.rs"]

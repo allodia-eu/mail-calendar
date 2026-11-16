@@ -109,12 +109,12 @@ fn a_change_starting_keeps_what_the_server_said_of_its_shared_mailboxes() {
     let work = AccountWork::default();
     let asked = crate::account_page::shared::Asked {
         uses: mailcal_account::Capabilities::default(),
-        live: true,
+        live: mailcal_account::SharedUses::of(mailcal_account::SharedUse::Mail),
     };
     let ticket = work.shared.ask("a", &asked, false).expect("never asked");
     work.shared
-        .answered("a", ticket, Ok(mailcal_app::SharedMailboxOffer::ByAddress));
-    let _ = work.start(AccountPageIntent::SetSharedMailbox {
+        .answered("a", ticket, Ok(mailcal_app::SharedStoreOffer::ByAddress));
+    let _ = work.start(AccountPageIntent::SetSharedStore {
         account: "a".to_owned(),
         handle: "Shared Folders/support".to_owned(),
         on: true,

@@ -15,10 +15,7 @@ use fakes::{EVENT_KEY, InvitationFake, MESSAGE_KEY, invitation_app};
 use mailcal_viewmodel::ResponseStatus;
 
 use super::{Intent, MessageRef, ReaderId};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 fn invite() -> MessageRef {
     MessageRef {

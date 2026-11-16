@@ -13,10 +13,7 @@ use engine_provider::MailEdit;
 use fakes::{FakeProvider, account, app, message, msg, thread_ref, threaded};
 
 use super::{BulkAction, Intent, MessageRef, RowRef};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 /// The keys a batch of `MoveTo` edits moved, asserting they all went to `destination`.
 fn moved_to(edits: &[MailEdit], destination: &str) -> Vec<String> {

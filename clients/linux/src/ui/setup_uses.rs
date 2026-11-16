@@ -8,6 +8,11 @@ use mailcal_bindings::{AccountCapability, SetupChoice};
 use super::setup_widgets::{caption, entry, section};
 use crate::l10n;
 
+#[path = "setup_uses_chosen.rs"]
+mod chosen;
+pub(crate) use chosen::ChosenUses;
+use chosen::{Picked, Subchoices, chosen};
+
 /// The choices the core offered, in its order, and the endpoints it found. Empty URLs are ones
 /// detection did not find.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -26,93 +31,6 @@ impl UseOffer {
             &self.caldav_url
         }
     }
-}
-
-/// What the person chose, as the account is set up with it.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) struct ChosenUses {
-    /// `None` when the card offered no choice, so the servers given decide.
-    pub(super) uses: Option<Vec<AccountCapability>>,
-    pub(super) caldav_url: String,
-    pub(super) carddav_url: String,
-}
-
-/// One use's state on screen: whether it is on, and the URL typed for it when detection found
-/// none.
-#[derive(Clone, Copy, Debug)]
-struct Picked<'a> {
-    on: bool,
-    typed: &'a str,
-}
-
-/// The account a card's choices describe.
-///
-/// A calendar stores the endpoint detection found, or the one typed in its place. Contacts store
-/// an address book found apart from the calendar, or the one typed. Contacts found only through
-/// the calendar's server keep that server even with the calendar off, because that is where they
-/// are looked for, and the stored uses keep the calendar closed. Colleagues count only beside
-/// contacts, and shared mailboxes only beside mail. Video meetings count whatever else is on.
-fn chosen(
-    offer: &UseOffer,
-    mail: Option<bool>,
-    calendar: Option<Picked<'_>>,
-    contacts: Option<Picked<'_>>,
-    subs: Subchoices,
-) -> ChosenUses {
-    let Subchoices {
-        shared_mailboxes,
-        colleagues,
-        meetings,
-    } = subs;
-    let calendar_on = calendar.is_some_and(|picked| picked.on);
-    let contacts_on = contacts.is_some_and(|picked| picked.on);
-    let found_or_typed = |found: &str, picked: Option<Picked<'_>>| {
-        if found.is_empty() {
-            picked.map_or_else(String::new, |picked| picked.typed.trim().to_owned())
-        } else {
-            found.to_owned()
-        }
-    };
-    let carddav_url =
-        if contacts_on && (!offer.carddav_url.is_empty() || offer.caldav_url.is_empty()) {
-            found_or_typed(&offer.carddav_url, contacts)
-        } else {
-            String::new()
-        };
-    let through_calendar = contacts_on && carddav_url.is_empty() && !offer.caldav_url.is_empty();
-    let caldav_url = if calendar_on || through_calendar {
-        found_or_typed(&offer.caldav_url, calendar)
-    } else {
-        String::new()
-    };
-    let uses = (!offer.choices.is_empty()).then(|| {
-        [
-            (mail == Some(true)).then_some(AccountCapability::Mail),
-            (mail == Some(true) && shared_mailboxes == Some(true))
-                .then_some(AccountCapability::SharedMailboxes),
-            calendar_on.then_some(AccountCapability::Calendar),
-            contacts_on.then_some(AccountCapability::Contacts),
-            (contacts_on && colleagues == Some(true)).then_some(AccountCapability::Colleagues),
-            (meetings == Some(true)).then_some(AccountCapability::Meetings),
-        ]
-        .into_iter()
-        .flatten()
-        .collect()
-    });
-    ChosenUses {
-        uses,
-        caldav_url,
-        carddav_url,
-    }
-}
-
-/// The choices beside a use: shared mailboxes within mail, colleagues within contacts, Teams
-/// meetings in the calendar's section; `None` for one the card did not offer.
-#[derive(Clone, Copy, Debug, Default)]
-struct Subchoices {
-    shared_mailboxes: Option<bool>,
-    colleagues: Option<bool>,
-    meetings: Option<bool>,
 }
 
 /// A calendar or contacts choice on screen: the toggle, and beneath it the server detection
@@ -184,6 +102,8 @@ pub(super) fn append(
         .choices
         .iter()
         .find(|choice| choice.capability == AccountCapability::Meetings);
+    // Drawn once mail and calendar both are, since either opens them.
+    let mut shared = None;
     for choice in &offer.choices {
         match choice.capability {
             AccountCapability::Mail => {
@@ -197,14 +117,7 @@ pub(super) fn append(
                 }
                 toggles.mail = Some(enabled);
             }
-            AccountCapability::SharedMailboxes => {
-                toggles.shared_mailboxes = Some(subchoice(
-                    content,
-                    choice,
-                    l10n::setup_detect_shared_mailboxes_enable(),
-                    toggles.mail.as_ref(),
-                ));
-            }
+            AccountCapability::SharedMailboxes => shared = Some(choice),
             AccountCapability::Calendar => {
                 content.append(&section(l10n::setup_detect_section_calendar()));
                 toggles.calendar = Some(dav_toggle(
@@ -219,6 +132,9 @@ pub(super) fn append(
                 // this one; they are drawn beneath what the calendar itself shows.
                 if toggles.meetings.is_none() {
                     toggles.meetings = meetings.map(|choice| meetings_toggle(content, choice));
+                }
+                if let Some(choice) = shared.take() {
+                    toggles.shared_mailboxes = Some(shared_toggle(content, choice, &toggles));
                 }
             }
             AccountCapability::Contacts => {
@@ -252,8 +168,53 @@ pub(super) fn append(
             }
         }
     }
+    // A card without a calendar draws them beneath mail's section.
+    if let Some(choice) = shared {
+        toggles.shared_mailboxes = Some(shared_toggle(content, choice, &toggles));
+    }
     keep_one_on(&toggles);
     toggles
+}
+
+/// Shared mailboxes and calendars, offered while mail or the calendar is on: either opens that
+/// much of a store shared with the account.
+fn shared_toggle(
+    content: &gtk::Box,
+    choice: &SetupChoice,
+    toggles: &UseToggles,
+) -> gtk::CheckButton {
+    let enabled = subchoice(
+        content,
+        choice,
+        l10n::setup_detect_shared_mailboxes_enable(),
+        None,
+    );
+    let within: Vec<gtk::CheckButton> = [
+        toggles.mail.clone(),
+        toggles
+            .calendar
+            .as_ref()
+            .map(|calendar| calendar.enabled.clone()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    let follow = {
+        let (enabled, within) = (enabled.clone(), within.clone());
+        move || {
+            let open = within.iter().any(gtk::CheckButton::is_active);
+            if !open {
+                enabled.set_active(false);
+            }
+            enabled.set_sensitive(open);
+        }
+    };
+    follow();
+    for toggle in &within {
+        let follow = follow.clone();
+        toggle.connect_toggled(move |_| follow());
+    }
+    enabled
 }
 
 fn dav_toggle(
@@ -306,8 +267,8 @@ fn follow(toggle: &gtk::CheckButton, widget: &impl IsA<gtk::Widget>) {
     toggle.connect_toggled(move |toggle| widget.set_visible(toggle.is_active()));
 }
 
-/// A choice within a use, indented beneath it: colleagues within contacts, shared mailboxes
-/// within mail.
+/// A choice within a use, indented beneath it: colleagues within contacts, shared mailboxes and
+/// calendars beneath mail and calendar.
 fn subchoice(
     content: &gtk::Box,
     choice: &SetupChoice,
@@ -325,8 +286,7 @@ fn subchoice(
 }
 
 /// A choice within a use is offered only while that use is on, as on the account's page in
-/// Settings: colleagues come from the organisation's directory beside the person's own contacts,
-/// and a shared mailbox is opened beside the account's own mail.
+/// Settings: colleagues come from the organisation's directory beside the person's own contacts.
 fn beneath(within: &gtk::CheckButton, sub: &gtk::CheckButton) {
     sub.set_sensitive(within.is_active());
     let sub = sub.clone();

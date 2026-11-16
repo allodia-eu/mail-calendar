@@ -1,18 +1,16 @@
-// What the subscription card has to draw, and the reading of a core answer that decides it.
+// The words the subscription section puts around the core's card (`allodiaSubscriptionCard`), and
+// what buying from Play keeps on the device.
 //
 // The rules are `purchasing.md`, the contract that ships beside the Allodia Licence, and the core
-// holds every one of them. What is here is the few things a screen can be in, plus the sentences
-// that follow from one answer. Its Apple twin is MailcalModel.AllodiaSubscription.swift: keep the
-// states and the wording in step.
+// holds every one of them: who is billing, whether it renews, which writes exist and what each came
+// to. What is here is naming, formatting and the half of buying no Rust can do.
 //
 // ⚠️ **None of this gates a capability.** `allodiaEntitlement` does, locally and without a network
 // call. This is what the screen *says*, so a service that cannot be reached costs somebody a
 // sentence, never access they have paid for.
-//
-// Everything here is a plain function over plain data, so the sentence a person reads about being
-// charged twice is decided in a JVM test rather than by composing a screen.
 package eu.allodia.mailcal
 
+import android.content.Context
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -22,72 +20,43 @@ import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
 import uniffi.mailcal_bindings.AllodiaBiller
+import uniffi.mailcal_bindings.AllodiaCheckoutOffer
 import uniffi.mailcal_bindings.AllodiaOffer
-import uniffi.mailcal_bindings.AllodiaOwnStatus
-import uniffi.mailcal_bindings.AllodiaPurchaseException
+import uniffi.mailcal_bindings.AllodiaPlan
 import uniffi.mailcal_bindings.AllodiaStore
-import uniffi.mailcal_bindings.AllodiaStoreStatus
-import uniffi.mailcal_bindings.AllodiaStoreSubscription
-import uniffi.mailcal_bindings.AllodiaSubscription
-import uniffi.mailcal_bindings.AllodiaSubscriptionRefusal
+import uniffi.mailcal_bindings.AllodiaSubscriptionCard
+import uniffi.mailcal_bindings.AllodiaSubscriptionOutcome
+import uniffi.mailcal_bindings.AllodiaSubscriptionState
+import uniffi.mailcal_bindings.AllodiaWriteFailure
+import uniffi.mailcal_bindings.ControlState
 
-// What the subscription section has to draw.
-internal sealed interface AllodiaSubscriptionState {
-    // The read is in flight. Distinct from [Unavailable]: nothing has been learned yet, and a
-    // spinner and a failure are different things to put in front of somebody.
-    data object Checking : AllodiaSubscriptionState
+/** What the section draws before the core has said anything: no section. */
+internal val ALLODIA_SUBSCRIPTION_HIDDEN =
+    AllodiaSubscriptionCard(state = AllodiaSubscriptionState.Hidden, outcome = null, checkoutPage = null)
 
-    // The read did not come back, or this deployment has no billing configured.
-    data object Unavailable : AllodiaSubscriptionState
-
-    // The read could not be made at all, because this device's sign-in predates the permission it
-    // needs. An offer rather than an error: they are signed in, one thing is asleep, and the
-    // ordinary sign-in asks for the full current scope set. Kept apart from [Unavailable] because
-    // the remedies differ: waiting fixes an outage and never fixes this.
-    data object NeedsReauth : AllodiaSubscriptionState
-
-    // The service refused this device's grant. Never drawn by the subscription card: the account
-    // card draws "your sign-in has ended" in place of the signed-in state, and waiting never brings
-    // a refused grant back, so the outage sentence would be a false promise.
-    data object SignedOut : AllodiaSubscriptionState
-
-    // The service answered.
-    data class Loaded(val view: AllodiaSubscriptionView) : AllodiaSubscriptionState
-}
-
-// What a subscription read that did not answer leaves the card in, decided by the core's typed
-// error and never by its text. Only a read that could not be made at all is an outage.
-internal fun allodiaSubscriptionReadFailed(error: Throwable): AllodiaSubscriptionState =
-    when (error) {
-        is AllodiaPurchaseException.NeedsReauth -> AllodiaSubscriptionState.NeedsReauth
-        is AllodiaPurchaseException.SignedOut -> AllodiaSubscriptionState.SignedOut
-        else -> AllodiaSubscriptionState.Unavailable
-    }
-
-// The answer, with the parts a screen needs alongside it.
-internal data class AllodiaSubscriptionView(
-    val subscription: AllodiaSubscription,
-    // What this build's shop will sell, in the core's order. Empty while something is already
-    // being charged: the service refuses a second subscription for one plan, so offering one would
-    // be drawing a button whose only outcome is a refusal.
-    val offers: List<AllodiaOffer>,
-    // Whether some purchase has been waiting long enough to be worth saying so. Money was taken
-    // and nothing has been granted, and a card that draws nothing here leaves the person with no
-    // way to find that out.
-    val anythingStuck: Boolean,
-    // Whether the pass just dropped a purchase because a **different** Allodia account already owns
-    // it, which is what signing in to a second account on a phone that has bought something looks
-    // like. Nothing was granted here and nothing will be, so the person is told rather than left to
-    // wonder why a subscription they paid for is not on this account.
+/**
+ * What buying through this build's shop keeps on the device, beside the core's card.
+ *
+ * [offers] is what the shop will sell, in the core's order. [accountId] is the Allodia account a
+ * store purchase would be tagged with, absent on a device that signed in before the id was
+ * recorded. [buying] is the period whose Play sheet is up. [note] is the last thing worth saying
+ * about a store purchase. [anythingStuck] says a purchase has waited long enough to be worth saying
+ * so: money was taken and nothing granted. [claimedElsewhere] says the last pass found a purchase a
+ * **different** Allodia account owns, which nothing here will ever grant.
+ */
+internal data class AllodiaStoreUi(
+    val offers: List<AllodiaOffer> = emptyList(),
+    val accountId: String? = null,
+    val buying: AllodiaPlan? = null,
+    val note: String? = null,
+    val anythingStuck: Boolean = false,
     val claimedElsewhere: Boolean = false,
 )
 
 // What a biller is called on screen.
 //
 // **Allodia, never the payment processor behind it.** Naming a processor somebody has never heard
-// of, inside a message about being charged twice, is how a correct warning reads as a scam. The
-// bare company name is right here, where the sentence is about who is taking the money rather than
-// about the app.
+// of, inside a message about being charged twice, is how a correct warning reads as a scam.
 internal fun allodiaBillerName(biller: AllodiaBiller): String =
     when (biller) {
         is AllodiaBiller.Allodia -> "Allodia"
@@ -98,127 +67,47 @@ internal fun allodiaBillerName(biller: AllodiaBiller): String =
         is AllodiaBiller.Unknown -> biller.label
     }
 
-// Everyone charging for this account right now, in a stable order: Allodia's own billing first,
-// then each store in the order the service listed them.
-//
-// ⚠️ **"Right now" is the whole of it, and reading every store the service listed was a bug.** The
-// list keeps a subscription after it ends, so an account that bought at one store and later at
-// another carries both, and naming the first named the dead one: a device billed by Google Play
-// was told it was billed by Apple, whose sandbox subscription had run out hours earlier.
-//
-// Whether a store still has something to manage is a different question, answered by
-// [allodiaStoreCanBeManaged], and the two part company on the states that matter most.
-internal fun allodiaBillers(subscription: AllodiaSubscription): List<AllodiaBiller> =
-    buildList {
-        if (subscription.own != null && subscription.own?.status != AllodiaOwnStatus.PendingFirstPayment) {
-            add(AllodiaBiller.Allodia)
-        }
-        // Distinct for the same reason the manage buttons are: two subscriptions at one store is
-        // an ordinary shape, and naming that store twice would say somebody is charged twice by it.
-        subscription.stores
-            .filter { allodiaStoreIsBilling(it.status) }
-            .distinctBy { it.source }
-            .forEach { store ->
-            add(
-                when (store.source) {
-                    AllodiaStore.APPLE -> AllodiaBiller.Apple
-                    AllodiaStore.GOOGLE -> AllodiaBiller.Google
-                    // The service never reports its own billing as a store, so this arm is
-                    // unreachable rather than meaningful. Saying "Allodia" is still the right
-                    // answer if it ever is reached.
-                    AllodiaStore.ALLODIA -> AllodiaBiller.Allodia
-                }
-            )
-        }
+/** What a store is called on its page's button. */
+internal fun allodiaStoreName(store: AllodiaStore): String =
+    when (store) {
+        AllodiaStore.APPLE -> "Apple"
+        AllodiaStore.GOOGLE -> "Google Play"
+        AllodiaStore.ALLODIA -> "Allodia"
     }
-
-// Whether a store subscription is one somebody is still on: renewing, being retried, or cancelled
-// and running out the period already paid for.
-//
-// The rest grant nothing, and `AllodiaStoreStatus` is deliberately read arm by arm rather than by
-// exclusion: a status this build does not know is **never read as permission**, which is the rule
-// the core states about the same enum.
-internal fun allodiaStoreIsBilling(status: AllodiaStoreStatus): Boolean =
-    when (status) {
-        AllodiaStoreStatus.Active, AllodiaStoreStatus.Grace, AllodiaStoreStatus.Cancelled -> true
-        AllodiaStoreStatus.OnHold,
-        AllodiaStoreStatus.Paused,
-        AllodiaStoreStatus.Expired,
-        AllodiaStoreStatus.Revoked -> false
-        else -> false
-    }
-
-// The stores worth offering a way into, one entry per store rather than per subscription.
-//
-// ⚠️ **An account can carry more than one subscription at the same store**, and it does the moment
-// somebody resubscribes: the lapsed one is still inside the period it was paid for, so both are
-// manageable and both were drawn, as two identical buttons opening the same page. A store's
-// subscription page is the store's, not the subscription's, so one button is the whole of what
-// there is to offer.
-internal fun allodiaManageableStores(
-    subscription: AllodiaSubscription
-): List<AllodiaStoreSubscription> =
-    subscription.stores
-        .filter { allodiaStoreCanBeManaged(it.status) }
-        .distinctBy { it.source }
-
-// Whether the store still has something for this person to do about this subscription.
-//
-// ⚠️ **Not the same question as who is billing them, and the two answers differ on exactly the
-// states somebody needs most.** On hold and paused grant nothing, so neither may claim the "billed
-// by" line, and both are fixed only at the store: a card that failed is replaced there and a pause
-// is lifted there. Dropping their button strands the person it matters to.
-//
-// Expired and revoked are the other way about. Nothing is left to manage, and offering the route
-// anyway walks somebody into the store's own resubscribe button while another source is already
-// charging them, which is the duplicate billing this contract warns about rather than causes.
-internal fun allodiaStoreCanBeManaged(status: AllodiaStoreStatus): Boolean =
-    when (status) {
-        AllodiaStoreStatus.Active,
-        AllodiaStoreStatus.Grace,
-        AllodiaStoreStatus.Cancelled,
-        AllodiaStoreStatus.OnHold,
-        AllodiaStoreStatus.Paused -> true
-        AllodiaStoreStatus.Expired, AllodiaStoreStatus.Revoked -> false
-        // A status this build does not know names no action it could offer.
-        else -> false
-    }
-
-// Whether anything will charge again, which decides between "renews on" and "runs until".
-//
-// A store subscription says so itself; Allodia's own says so by still having a next payment.
-// Deliberately not a reading of `entitled`, which answers a different question.
-internal fun allodiaWillRenew(subscription: AllodiaSubscription): Boolean {
-    if (subscription.stores.any { it.autoRenewing }) return true
-    val own = subscription.own ?: return false
-    return own.status == AllodiaOwnStatus.Active && !own.nextPaymentDate.isNullOrEmpty()
-}
-
-// Whether a charge has failed and is being retried. **Access continues**, so this is never drawn
-// as a lapse.
-internal fun allodiaInGrace(subscription: AllodiaSubscription): Boolean =
-    subscription.stores.any { it.status == AllodiaStoreStatus.Grace } ||
-        subscription.own?.status == AllodiaOwnStatus.PastDue
 
 // The offers this device may actually go through with, of the ones the shop returned.
 //
 // ⚠️ **A device that cannot name its account does not buy from a store.** The id a purchase is
 // tagged with is the only way to attribute one whose report never arrives, it cannot be added
 // afterwards, and a grant stored before the id was recorded has none. Allodia's own checkout needs
-// no tag: it creates the subscription against the account the person signs in to on the page, so
-// the `foss` build keeps its offers either way.
+// no tag: it creates the subscription against the account the person signs in to on the page.
 internal fun allodiaBuyableOffers(offers: List<AllodiaOffer>, accountId: String?): List<AllodiaOffer> =
     if (accountId != null) offers else offers.filter { it.store == AllodiaStore.ALLODIA }
 
-// Whether the card owes somebody the "sign in again" prompt: a store had something to sell and
+// Whether the section owes somebody the "sign in again" prompt: a store had something to sell and
 // this device cannot be the one to buy it.
 internal fun allodiaNeedsReauthToBuy(offers: List<AllodiaOffer>, accountId: String?): Boolean =
     accountId == null && offers.any { it.store != AllodiaStore.ALLODIA }
 
+/**
+ * The control an offer's button is drawn with. Allodia's checkout is the core's write, so its state
+ * is the card's, and an offer the card no longer sells has none; a store's purchase is this
+ * device's, held while any Play sheet is up.
+ */
+internal fun allodiaOfferControl(
+    offer: AllodiaOffer,
+    checkout: AllodiaCheckoutOffer?,
+    buying: AllodiaPlan?,
+): ControlState? =
+    if (offer.store == AllodiaStore.ALLODIA) {
+        checkout?.let { if (offer.plan == AllodiaPlan.YEARLY) it.yearly else it.monthly }
+    } else {
+        ControlState(enabled = buying == null, running = buying == offer.plan)
+    }
+
 // An ISO 8601 date from the account service as a plain calendar date.
 //
-// Day precision on purpose: a renewal is a date somebody's bank statement will agree with, and an
-// hour and minute in this sentence would invite a comparison with a clock that means nothing here.
+// Day precision on purpose: a renewal is a date somebody's bank statement will agree with.
 //
 // ⚠️ The account service is not the sync engine and does not send the engine's `Z`-suffixed
 // instants: an offset like `+02:00`, and a plain day for a period that ends on one, both arrive.
@@ -234,8 +123,7 @@ internal fun allodiaDate(raw: String, locale: Locale): String? {
 //
 // ⚠️ **Only for what Allodia bills directly.** A store's price is the store's own formatted string,
 // drawn and never recomputed; this is the other route, where the service sends 199 and EUR because
-// the core carries no locale data at all. Both stores require the first and neither forbids the
-// second, because the second is not theirs.
+// the core carries no locale data at all.
 //
 // A currency this JVM cannot name formats as a plain number rather than throwing: an amount with no
 // symbol is still the right amount, and a screen that crashed over a code would say nothing at all.
@@ -252,39 +140,32 @@ private fun allodiaDay(raw: String): LocalDate? =
         .recoverCatching { LocalDate.parse(raw.take(10)) }
         .getOrNull()
 
-// Why a write did not happen, as the sentence to put in front of the person.
-//
-// ⚠️ **A code, never a message from anywhere else.** UniFFI builds an exception's message out of
-// the variant's own fields, so a refusal arrives carrying the literal text `reason=NOT_SWITCHABLE`
-// and every other failure carries an empty string: rendering either puts a generated field name,
-// or a sentence with nothing after its colon, in front of somebody being told about their money.
-// `purchasing.md` asks for the code anyway, because "you have already cancelled" and "that cannot
-// change while a charge is being retried" are different things to say and only the code tells them
-// apart. Its Windows twin is AllodiaSubscriptionFacts.cs; keep the wording in step.
-internal enum class AllodiaWriteFailure {
-    // Nothing more can be said: an outage, a refused token, a reason this build has never heard
-    // of. The sentence says only that nothing changed.
-    UNEXPLAINED,
-    ALREADY_CANCELLED,
-    ALREADY_ACTIVE,
-    ALREADY_ON_INTERVAL,
-    NOT_SWITCHABLE,
-    NOT_FOUND,
-}
+/** What the last write came to, as the sentence under the section. */
+internal fun allodiaOutcomeText(ctx: Context, outcome: AllodiaSubscriptionOutcome, locale: Locale): String =
+    when (outcome) {
+        // ⚠️ The date is the whole reassurance; one this build cannot read is still drawn, since a
+        // sentence with no date at all is not true.
+        is AllodiaSubscriptionOutcome.Cancelled ->
+            L10n.settings_subscription_cancelled(ctx, allodiaDate(outcome.endDate, locale) ?: outcome.endDate)
+        AllodiaSubscriptionOutcome.Restarted -> L10n.settings_subscription_resubscribed(ctx)
+        // The service's own figures, never today's list price.
+        is AllodiaSubscriptionOutcome.Switched ->
+            L10n.settings_subscription_switched(
+                ctx,
+                outcome.nextPaymentDate?.let { allodiaDate(it, locale) }.orEmpty(),
+                allodiaMinorUnits(outcome.amountInCents, outcome.currency, locale),
+            )
+        is AllodiaSubscriptionOutcome.Failed -> allodiaWriteFailureText(ctx, outcome.failure)
+    }
 
-// The sentence [error] earns.
-//
-// Everything that is not a refusal is [AllodiaWriteFailure.UNEXPLAINED], including a service that
-// could not be reached: nothing was learned, so there is nothing to explain, and the one thing
-// worth saying is that nothing changed.
-internal fun allodiaWriteFailure(error: Throwable): AllodiaWriteFailure =
-    when ((error as? AllodiaPurchaseException.Refused)?.reason) {
-        AllodiaSubscriptionRefusal.ALREADY_CANCELLED -> AllodiaWriteFailure.ALREADY_CANCELLED
-        AllodiaSubscriptionRefusal.ALREADY_ACTIVE -> AllodiaWriteFailure.ALREADY_ACTIVE
-        AllodiaSubscriptionRefusal.ALREADY_ON_INTERVAL -> AllodiaWriteFailure.ALREADY_ON_INTERVAL
-        AllodiaSubscriptionRefusal.NOT_SWITCHABLE -> AllodiaWriteFailure.NOT_SWITCHABLE
-        AllodiaSubscriptionRefusal.NOT_FOUND -> AllodiaWriteFailure.NOT_FOUND
-        // Unavailable (no billing on this deployment), a reason a later service invented, and
-        // everything that was not a refusal at all.
-        else -> AllodiaWriteFailure.UNEXPLAINED
+// Why a write did not happen. "You have already cancelled" and "that cannot change while a charge
+// is being retried" are different things to say, and only the code tells them apart.
+internal fun allodiaWriteFailureText(ctx: Context, failure: AllodiaWriteFailure): String =
+    when (failure) {
+        AllodiaWriteFailure.ALREADY_CANCELLED -> L10n.settings_subscription_refused_already_cancelled(ctx)
+        AllodiaWriteFailure.ALREADY_ACTIVE -> L10n.settings_subscription_refused_already_active(ctx)
+        AllodiaWriteFailure.ALREADY_ON_INTERVAL -> L10n.settings_subscription_refused_already_on_interval(ctx)
+        AllodiaWriteFailure.NOT_SWITCHABLE -> L10n.settings_subscription_refused_not_switchable(ctx)
+        AllodiaWriteFailure.NOT_FOUND -> L10n.settings_subscription_refused_not_found(ctx)
+        AllodiaWriteFailure.UNEXPLAINED -> L10n.settings_subscription_write_failed(ctx)
     }

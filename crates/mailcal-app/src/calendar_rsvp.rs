@@ -24,11 +24,11 @@ use crate::{
 };
 
 impl<P: Provider> App<P> {
-    /// Whether `account`'s calendar is connected now: a calendar adapter is bound to it.
+    /// Whether `account`'s calendar is connected now ([`Self::connected_calendar`]).
     async fn calendar_connected(&self, account: &AccountId) -> bool {
         self.account_handle(account)
             .await
-            .is_some_and(|handle| handle.calendar_provider.is_some())
+            .is_some_and(|handle| self.connected_calendar(&handle).is_some())
     }
 
     /// This account's answer to `stored`, when it may give one from the calendar: it is invited,
@@ -105,9 +105,8 @@ impl<P: Provider> App<P> {
         // What the grid shows of a calendar that is not connected is what was last synced; an
         // answer given from it would tell the organiser one thing and leave the calendar saying
         // another.
-        let provider = acct
-            .calendar_provider
-            .as_ref()
+        let provider = self
+            .connected_calendar(&acct)
             .ok_or_else(|| "the calendar is not connected".to_owned())?;
 
         match self

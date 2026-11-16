@@ -188,6 +188,7 @@ internal static class Input
     internal const ushort Tab = 0x09;
     internal const ushort Shift = 0x10;
     internal const ushort Control = 0x11;
+    internal const ushort End = 0x23;
 
     /// <summary>Turns the wheel over a screen point, in notches: positive is away from the user, or with
     /// <paramref name="horizontal"/> to the right.</summary>

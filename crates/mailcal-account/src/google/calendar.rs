@@ -27,6 +27,7 @@ use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
     sync::{SyncScope, SyncState, SyncUpdate},
+    time::Horizon,
 };
 use engine_provider::{
     CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
@@ -52,9 +53,10 @@ const GOOGLE_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
     clobbers_own_fields: true,
 };
 
-/// How many days **back** the baked-in fetch window spans (the app's rolling horizon), so a
-/// freshly connected provider covers it. The window reaches only the first sync; the sync token
-/// carries on from there (`docs/calendar.md` §4).
+/// How many days **back** the baked-in fetch window spans (the app's rolling horizon). The engine
+/// names the window every event fetch opens over (the horizon at the first sync, the range a page
+/// reaches for after it), so this one serves only a caller that drives `sync_events` itself
+/// (`docs/calendar.md` §4).
 const WINDOW_DAYS_BACK: i64 = 120;
 
 /// How many days **ahead** the baked-in fetch window spans (the app's rolling horizon).
@@ -97,7 +99,10 @@ impl RefreshingGoogleCalendarProvider {
                 // itself. As on Graph this is only the pre-delegate fallback, and it matters
                 // for the same reason: a host told otherwise would send its own iMIP reply
                 // beside the one the server already sent.
-                .with_calendar_scheduling(),
+                .with_calendar_scheduling()
+                // The engine names the window a snapshot opens over, and reads this before the
+                // first token fetch too: told the fetch is whole, it would never fetch a range.
+                .with_windowed_events(),
             window,
             tls,
             cached: Mutex::new(None),
@@ -204,6 +209,34 @@ impl Provider for RefreshingGoogleCalendarProvider {
         let mut reconnected = false;
         loop {
             match provider.sync_events(account, calendar, cursor).await {
+                Ok(value) => return Ok(value),
+                Err(err) if !reconnected && should_reconnect(&err) => {
+                    self.invalidate_delegate();
+                    provider = self.delegate().await?;
+                    reconnected = true;
+                }
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    /// Forwarded by hand like every verb here: left to the trait's default it would drop the
+    /// window the engine names and fetch with the one this wrapper was built with, so a range
+    /// the engine reaches for would never be fetched.
+    async fn sync_events_within(
+        &self,
+        account: &AccountId,
+        calendar: &CalendarId,
+        cursor: Option<&SyncState>,
+        window: Horizon,
+    ) -> ProviderResult<ScopeSync<Event>> {
+        let mut provider = self.delegate().await?;
+        let mut reconnected = false;
+        loop {
+            match provider
+                .sync_events_within(account, calendar, cursor, window)
+                .await
+            {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
                     self.invalidate_delegate();

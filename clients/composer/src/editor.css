@@ -94,6 +94,42 @@ body {
   color: var(--muted);
 }
 
+/* Framed mode (`framed.ts`, docs/composer-layout.md): the host makes the page as tall as its
+   column's visible part, so the page itself never scrolls; the message scrolls in its own box under
+   the toolbar, which therefore stays where it is drawn. `clip` rather than `hidden` on the page: a
+   hidden overflow is still a scroll container, which WebKit would scroll to reveal a caret.
+
+   It is drawn as part of the host's column rather than as a box inside it: the page has no
+   background of its own (the host's web view draws none either), so the toolbar sits on the
+   column's colour with no strip or rule, and the message's text lines up with the fields above. */
+html.framed,
+body.framed {
+  overflow: clip;
+  background: transparent;
+}
+
+body.framed .toolbar {
+  flex: none;
+  padding-left: 0;
+  padding-right: 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+body.framed .editor {
+  min-height: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* In a dark app the message is still the light page it will be sent as, so it is a light sheet on
+   the dark column and keeps its own margin rather than running its text to its edge. */
+:root[data-scheme="dark"] body.framed .editor {
+  padding-left: 14px;
+  padding-right: 14px;
+  border-radius: 6px;
+}
+
 /* Native-chrome mode (Android): the native surface owns a single scroll; the compose
    header sits in a native overlay above this WebView and scrolls away as the message
    grows, and the toolbar pins just above the keyboard. So here the *page* scrolls (not an
@@ -105,10 +141,11 @@ body.native-chrome {
   height: auto;
 }
 
-/* Keep the caret clear of the fixed toolbar: reserve the toolbar's height at the bottom when
-   the browser scrolls the caret into view, so a newly typed line lands above it, not behind. */
+/* Keep the caret clear of the fixed toolbar: reserve the toolbar's height and 12px more at the
+   bottom when the browser scrolls the caret into view, so a newly typed line lands above it with
+   room to spare, not behind it or flush against it. */
 html.native-chrome {
-  scroll-padding-bottom: var(--composer-bottom-inset, 56px);
+  scroll-padding-bottom: calc(var(--composer-bottom-inset, 56px) + 12px);
 }
 
 body.native-chrome {
@@ -186,7 +223,20 @@ body.native-chrome .editor {
   min-height: var(--composer-fill-height, 0px);
   /* 16px sides to line up with the native header fields' inset, and 12px between the header's last
      line and the message's first, so the message does not read as part of the Subject field. */
-  padding: calc(var(--composer-top-inset, 14px) + 12px) 16px var(--composer-bottom-inset, 56px);
+  padding: calc(var(--composer-top-inset, 14px) + 12px) 16px
+    calc(var(--composer-bottom-inset, 56px) + 12px);
+  /* The native header is drawn in the top inset, in the app's own colours, so that strip shows the
+     host's background through the page rather than the message's light one: in a dark app the
+     header's light text on the white page could not be read. The message's page starts under it. */
+  background: linear-gradient(
+    transparent 0 var(--composer-top-inset, 0px),
+    var(--page) var(--composer-top-inset, 0px)
+  );
+}
+
+html.native-chrome,
+body.native-chrome {
+  background: transparent;
 }
 
 p {

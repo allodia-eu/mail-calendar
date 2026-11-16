@@ -7,9 +7,10 @@
 // single-instanced by default, so without this the callback would land in a second process that
 // knows nothing about the sign-in in flight. We rendezvous every launch on a single-instance key,
 // redirect any secondary activation into the already-running instance, and hand the redirect URI to
-// the waiting OAuth flow: an existing account's sign-in, which the core holds, when it waits at that
-// redirect, and otherwise ProtocolAuthCallback, which matches it to the setup flow that armed it by
-// the redirect's host. A normal launch falls straight through to Application.Start.
+// the waiting OAuth flow: an existing account's or the Allodia account's sign-in, which the core
+// holds, when it waits at that redirect, and otherwise ProtocolAuthCallback, which matches it to
+// the setup flow that armed it by the redirect's host. A normal launch falls straight through to
+// Application.Start.
 //
 // The single-instancing + redirect boilerplate mirrors the Microsoft AppLifecycle sample; the
 // OAuth delivery and the unpackaged-dev protocol registration are ours.
@@ -236,8 +237,9 @@ public static class Program
         }
         window.DispatcherQueue.TryEnqueue(() =>
         {
-            // A sign-in the core runs (an existing account's, or its separate server's) has its
-            // redirect go there first; any other is the setup flow's waiting on it.
+            // A sign-in the core runs (an existing account's, its separate server's, or the
+            // Allodia account's) has its redirect go there first; any other is the setup flow's
+            // waiting on it.
             if (!window.Model.TakeSignInRedirect(uri))
             {
                 ProtocolAuthCallback.Deliver(uri);

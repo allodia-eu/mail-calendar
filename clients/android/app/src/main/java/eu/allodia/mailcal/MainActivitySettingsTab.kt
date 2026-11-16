@@ -108,33 +108,18 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             },
                             analyticsPayloadPreview = { instance.analyticsPayloadPreview() },
                             // Accounts, the Allodia account, then per-account fetch depth + sync
-                            // behaviour. The Allodia state is the activity's: a sign-in leaves for
-                            // the browser and returns through onNewIntent, so nothing this screen
-                            // held would still be there.
-                            allodia = AllodiaSettings(
-                                available = allodiaSignInOffered(),
-                                account = allodiaAccount,
-                                signingIn = signingInAllodia,
-                                failure = allodiaFailure,
-                                signInEnded = notices.allodiaSignInEnded,
-                            ),
-                            onAllodiaSignIn = { signInToAllodia() },
-                            onAllodiaCreate = { registerAllodiaAccount() },
+                            // behaviour. The Allodia card is the core's (MainActivityAllodia.kt).
+                            allodia = AllodiaSettings(available = allodiaSignInOffered(), card = allodiaCard),
+                            onAllodia = { changeAllodia(it) },
                             onAllodiaManage = { manageAllodiaAccount() },
-                            onAllodiaSignOut = { signOutOfAllodia() },
-                            // The subscription on that account: what is being charged, by whom,
-                            // and the way to start one (MainActivityAllodiaPurchases.kt).
-                            allodiaSubscription = allodiaSubscription,
-                            onAllodiaRefreshSubscription = { refreshAllodiaSubscription() },
-                            onAllodiaBuy = { buyAllodiaSubscription(it) },
-                            onAllodiaManageStore = { manageAllodiaStoreSubscription(it) },
-                            onAllodiaSubscriptionClosed = { forgetAllodiaPurchaseInFlight() },
-                            // The three writes against Allodia's own subscription. Each blocks
-                            // on the network and re-reads afterwards
-                            // (MainActivityAllodiaWrites.kt).
-                            onAllodiaCancel = { cancelAllodiaSubscription() },
-                            onAllodiaResubscribe = { resubscribeToAllodia() },
-                            onAllodiaSwitch = { switchAllodiaInterval(it) },
+                            // The subscription on that account, as the core keeps it, and what
+                            // buying from this build's shop keeps beside it
+                            // (MainActivityAllodiaPurchases.kt).
+                            allodiaSubscription = AllodiaSubscriptionUi(
+                                card = allodiaSubscription,
+                                store = allodiaStore,
+                                actions = allodiaSubscriptionActions { changeAllodia(allodiaSignIn()) },
+                            ),
                             // Accounts, what the person's other devices have to say, drawn above
                             // their own accounts because an offer becomes one of them.
                             allodiaDevices = allodiaDevices,

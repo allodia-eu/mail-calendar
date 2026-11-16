@@ -113,17 +113,40 @@ fn the_last_use_cannot_go_and_a_use_with_no_server_says_so() {
 }
 
 #[test]
-fn colleagues_wait_for_contacts_and_shared_mailboxes_for_mail() {
+fn colleagues_wait_for_contacts_and_shared_stores_for_mail_or_calendar() {
     let registry = microsoft(EVERY_SCOPE, r#"["mail", "calendar"]"#);
     assert_eq!(
         toggle(&registry, MICROSOFT_ID, Capability::Colleagues, true),
         Toggle::Refused(AccountUseBlock::NeedsContacts)
     );
+    let registry = microsoft(EVERY_SCOPE, r#"["contacts"]"#);
+    assert_eq!(
+        toggle(&registry, MICROSOFT_ID, Capability::SharedMailboxes, true),
+        Toggle::Refused(AccountUseBlock::NeedsMailOrCalendar)
+    );
+    // A calendar alone opens the stores' calendars, once the provider grants them.
     let registry = microsoft(EVERY_SCOPE, r#"["calendar", "contacts"]"#);
     assert_eq!(
         toggle(&registry, MICROSOFT_ID, Capability::SharedMailboxes, true),
-        Toggle::Refused(AccountUseBlock::NeedsMail)
+        Toggle::AsksProvider
     );
+}
+
+#[test]
+fn shared_stores_go_with_the_last_of_mail_and_calendar() {
+    let registry = microsoft(EVERY_SCOPE, r#"["mail", "calendar", "shared_mailboxes"]"#);
+    let Toggle::Applies { next } = toggle(&registry, MICROSOFT_ID, Capability::Mail, false) else {
+        panic!("mail can go while calendar stays");
+    };
+    assert!(
+        next.contains(Capability::SharedMailboxes),
+        "the calendar still opens them"
+    );
+    let registry = microsoft(EVERY_SCOPE, r#"["mail", "shared_mailboxes", "contacts"]"#);
+    let Toggle::Applies { next } = toggle(&registry, MICROSOFT_ID, Capability::Mail, false) else {
+        panic!("mail can go while contacts stay");
+    };
+    assert!(!next.contains(Capability::SharedMailboxes));
 }
 
 #[test]

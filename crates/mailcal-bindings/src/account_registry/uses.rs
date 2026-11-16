@@ -66,7 +66,7 @@ pub(crate) fn toggle(
     }
     let next: Capabilities = chosen
         .iter()
-        .filter(|&kept| on || (kept != capability && !depends_on(kept, capability)))
+        .filter(|&kept| on || (kept != capability && !depends_on(kept, capability, &chosen)))
         .chain(on.then_some(capability))
         .collect();
     // An account used for none of these is not one: it is removed, never emptied.
@@ -79,8 +79,12 @@ pub(crate) fn toggle(
     if on && capability == Capability::Colleagues && !next.contains(Capability::Contacts) {
         return Toggle::Refused(AccountUseBlock::NeedsContacts);
     }
-    if on && capability == Capability::SharedMailboxes && !next.contains(Capability::Mail) {
-        return Toggle::Refused(AccountUseBlock::NeedsMail);
+    if on
+        && capability == Capability::SharedMailboxes
+        && !next.contains(Capability::Mail)
+        && !next.contains(Capability::Calendar)
+    {
+        return Toggle::Refused(AccountUseBlock::NeedsMailOrCalendar);
     }
     if on {
         match opens(entry, &next, capability) {
@@ -174,21 +178,25 @@ impl AccountRegistry {
     /// The provider-less account the app lists for `id` until its next dial lands, or `None` if it
     /// is not registered.
     pub(crate) fn placeholder(&self, id: &engine_api::AccountId) -> Option<BoxedAccount> {
-        self.entries
+        let own = self
+            .entries
             .lock()
             .expect("account registry mutex poisoned")
             .get(id.as_str())
-            .map(|entry| crate::boot::placeholder(id.clone(), entry))
+            .map(|entry| crate::boot::placeholder(id.clone(), entry));
+        own.or_else(|| self.shared_placeholder(id.clone()))
     }
 }
 
-/// Whether `sub` is a choice within `capability`, which goes with it.
-fn depends_on(sub: Capability, capability: Capability) -> bool {
-    matches!(
-        (sub, capability),
-        (Capability::Colleagues, Capability::Contacts)
-            | (Capability::SharedMailboxes, Capability::Mail)
-    )
+/// Whether `sub` is a choice within `capability` that goes with it, of the uses `chosen`: shared
+/// mailboxes and calendars go only with the last of mail and calendar.
+fn depends_on(sub: Capability, capability: Capability, chosen: &Capabilities) -> bool {
+    match (sub, capability) {
+        (Capability::Colleagues, Capability::Contacts) => true,
+        (Capability::SharedMailboxes, Capability::Mail) => !chosen.contains(Capability::Calendar),
+        (Capability::SharedMailboxes, Capability::Calendar) => !chosen.contains(Capability::Mail),
+        _ => false,
+    }
 }
 
 /// Whether switching `capability` on, making the choice `next`, can open it.

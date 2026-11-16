@@ -49,7 +49,9 @@ flowchart TD
 
 Linux is itself Rust, so it depends on `mailcal-bindings` as an ordinary crate
 ([`../clients/linux/Cargo.toml`](../clients/linux/Cargo.toml)) and no FFI bindings are generated for
-it; the three others reach the same surface through UniFFI.
+it; the three others reach the same surface through UniFFI. What they load is one C ABI library,
+built by [`crates/mailcal-ffi`](../crates/mailcal-ffi/Cargo.toml): it links `mailcal-bindings` under
+that crate's own library name, so every file a client ships is still called `mailcal_bindings`.
 
 All four clients also share one non-Rust asset: the rich-composer editor page
 ([`../clients/composer/dist/editor.html`](../clients/composer/dist/editor.html)), bundled into each app and

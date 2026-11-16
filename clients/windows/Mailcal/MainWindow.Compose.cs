@@ -110,8 +110,8 @@ public sealed partial class MainWindow
     internal async void ComposeWithdrawnMessage(ComposeOpening opening)
     {
         // The recipients, the subject and the body are the user's own mail; none is logged.
-        Log.Info($"outbox: a queued message is going back into the composer with {opening.Attachments.Length} files");
-        var context = ContextFor(opening);
+        Log.Info("outbox: a queued message is going back into the composer");
+        var context = ContextFor(opening, Model.TakeEditStaging());
         await LeaveComposerAsync();
         // The composer lives in the mail surface's detail column, and Edit is reachable from the
         // Outbox while the calendar or Contacts is up, where it would open unseen.
@@ -210,7 +210,9 @@ public sealed partial class MainWindow
         {
             return false;
         }
-        OpenComposerWindow(ContextFor(opening));
+        // A move keeps the composition's files where they were staged, so the window's composer
+        // releases the same directory on a discard.
+        OpenComposerWindow(ContextFor(opening, context.StagingDirectory));
         if (ReferenceEquals(_composer, composer))
         {
             ClosedByComposer();

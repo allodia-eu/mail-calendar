@@ -118,6 +118,42 @@
       color: var(--muted);
     }
 
+    /* Framed mode (`framed.ts`, docs/composer-layout.md): the host makes the page as tall as its
+       column's visible part, so the page itself never scrolls; the message scrolls in its own box under
+       the toolbar, which therefore stays where it is drawn. `clip` rather than `hidden` on the page: a
+       hidden overflow is still a scroll container, which WebKit would scroll to reveal a caret.
+
+       It is drawn as part of the host's column rather than as a box inside it: the page has no
+       background of its own (the host's web view draws none either), so the toolbar sits on the
+       column's colour with no strip or rule, and the message's text lines up with the fields above. */
+    html.framed,
+    body.framed {
+      overflow: clip;
+      background: transparent;
+    }
+
+    body.framed .toolbar {
+      flex: none;
+      padding-left: 0;
+      padding-right: 0;
+      border-bottom: none;
+      background: transparent;
+    }
+
+    body.framed .editor {
+      min-height: 0;
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    /* In a dark app the message is still the light page it will be sent as, so it is a light sheet on
+       the dark column and keeps its own margin rather than running its text to its edge. */
+    :root[data-scheme="dark"] body.framed .editor {
+      padding-left: 14px;
+      padding-right: 14px;
+      border-radius: 6px;
+    }
+
     /* Native-chrome mode (Android): the native surface owns a single scroll; the compose
        header sits in a native overlay above this WebView and scrolls away as the message
        grows, and the toolbar pins just above the keyboard. So here the *page* scrolls (not an
@@ -129,10 +165,11 @@
       height: auto;
     }
 
-    /* Keep the caret clear of the fixed toolbar: reserve the toolbar's height at the bottom when
-       the browser scrolls the caret into view, so a newly typed line lands above it, not behind. */
+    /* Keep the caret clear of the fixed toolbar: reserve the toolbar's height and 12px more at the
+       bottom when the browser scrolls the caret into view, so a newly typed line lands above it with
+       room to spare, not behind it or flush against it. */
     html.native-chrome {
-      scroll-padding-bottom: var(--composer-bottom-inset, 56px);
+      scroll-padding-bottom: calc(var(--composer-bottom-inset, 56px) + 12px);
     }
 
     body.native-chrome {
@@ -210,7 +247,20 @@
       min-height: var(--composer-fill-height, 0px);
       /* 16px sides to line up with the native header fields' inset, and 12px between the header's last
          line and the message's first, so the message does not read as part of the Subject field. */
-      padding: calc(var(--composer-top-inset, 14px) + 12px) 16px var(--composer-bottom-inset, 56px);
+      padding: calc(var(--composer-top-inset, 14px) + 12px) 16px
+        calc(var(--composer-bottom-inset, 56px) + 12px);
+      /* The native header is drawn in the top inset, in the app's own colours, so that strip shows the
+         host's background through the page rather than the message's light one: in a dark app the
+         header's light text on the white page could not be read. The message's page starts under it. */
+      background: linear-gradient(
+        transparent 0 var(--composer-top-inset, 0px),
+        var(--page) var(--composer-top-inset, 0px)
+      );
+    }
+
+    html.native-chrome,
+    body.native-chrome {
+      background: transparent;
     }
 
     p {
@@ -494,6 +544,42 @@
       box-shadow: inset 0 0 0 1px var(--swatch-edge);
     }
 
+    /* --- One row on a desktop, with the rest behind More (`toolbar_overflow.ts`) ---
+       The controls keep their own widths, so a row too narrow for them overflows rather than squeezing
+       them, which is what tells the overflow to move the last ones behind More. A touch screen's row
+       scrolls sideways instead (`editor.css`), and More is never drawn there. */
+    body:not(.native-chrome) .toolbar:not(.toolbar-overflow) {
+      flex-wrap: nowrap;
+    }
+
+    body:not(.native-chrome) .toolbar > * {
+      flex-shrink: 0;
+    }
+
+    .toolbar-more[hidden],
+    body.native-chrome .toolbar-more {
+      display: none;
+    }
+
+    /* The More panel: the same controls on a panel of their own, wrapping when there are many. */
+    .toolbar.toolbar-overflow {
+      flex-wrap: wrap;
+      width: max-content;
+      max-width: min(360px, calc(100vw - 16px));
+      padding: 6px;
+      border: 1px solid var(--popover-border);
+      border-radius: 8px;
+      background: var(--popover);
+    }
+
+    .toolbar.toolbar-overflow[hidden] {
+      display: none;
+    }
+
+    .toolbar-overflow > .sep:first-child {
+      display: none;
+    }
+
     /* --- Popovers (colour palette, table menu) --- */
 
     .menu {
@@ -768,6 +854,14 @@
     <button type="button" id="rule" title="Horizontal line">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 8h13"/></svg>
     </button>
+
+    <!-- The controls a desktop row has no room for (`toolbar_overflow.ts`). -->
+    <div class="menu toolbar-more" hidden>
+      <button type="button" id="more-formatting" title="More formatting" aria-label="More formatting" aria-haspopup="true" aria-expanded="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r="1.1"/><circle cx="8" cy="8" r="1.1"/><circle cx="13" cy="8" r="1.1"/></svg>
+      </button>
+      <div class="popover toolbar toolbar-overflow" id="more-formatting-menu" role="toolbar" hidden></div>
+    </div>
   </div>
   <main id="editor" class="editor" contenteditable="true" data-placeholder="Write your message" aria-label="Write your message"></main>
   <script>
@@ -1624,7 +1718,7 @@
     const out = [];
     let blanks = 0;
     for (const line of lines) {
-      const text = line.pre ? line.text : line.text.replace(/[\t\r ]+/g, " ").trim();
+      const text = line.pre ? line.text : line.text.replace(/[\t\n\f\r ]+/g, " ").trim();
       blanks = text === "" && !line.pre ? blanks + 1 : 0;
       if (blanks <= 1)
         out.push(text);
@@ -2216,6 +2310,148 @@
     element.remove();
   }
 
+  // src/framed.ts
+  function installFramed(editor, reports, measures = domMeasures(editor)) {
+    const doc = editor.ownerDocument;
+    const win = windowOf(editor);
+    let on = false;
+    let lastCaret = "";
+    let lastScroll = "";
+    let wheelDownHeld = false;
+    let caretScheduled = false;
+    let scrollScheduled = false;
+    const reportCaret = (force) => {
+      const caret = measures.caret();
+      if (!caret)
+        return;
+      const top = Math.max(0, Math.floor(caret.top));
+      const bottom = Math.max(top, Math.ceil(caret.bottom));
+      const key = `${top}:${bottom}`;
+      if (!force && key === lastCaret)
+        return;
+      lastCaret = key;
+      reports.caret(top, bottom);
+    };
+    const reportScroll = (force) => {
+      const px = Math.max(0, Math.round(measures.scrollTop()));
+      const end = Math.max(0, Math.ceil(measures.end()));
+      const key = `${px}:${end}`;
+      if (!force && key === lastScroll)
+        return;
+      lastScroll = key;
+      reports.scroll(px, end);
+    };
+    let textChanged = false;
+    const scheduleCaret = (edited) => {
+      scheduleScroll();
+      if (!on)
+        return;
+      textChanged ||= edited;
+      if (caretScheduled)
+        return;
+      caretScheduled = true;
+      win.requestAnimationFrame(() => {
+        caretScheduled = false;
+        const force = textChanged;
+        textChanged = false;
+        reportCaret(force);
+      });
+    };
+    const scheduleScroll = () => {
+      if (!on || scrollScheduled)
+        return;
+      scrollScheduled = true;
+      win.requestAnimationFrame(() => {
+        scrollScheduled = false;
+        reportScroll(false);
+      });
+    };
+    return {
+      useFramedComposer() {
+        if (on)
+          return;
+        on = true;
+        doc.documentElement.classList.add("framed");
+        doc.body.classList.add("framed");
+        new win.MutationObserver(() => scheduleCaret(true)).observe(editor, {
+          childList: true,
+          subtree: true,
+          characterData: true,
+          attributes: true
+        });
+        doc.addEventListener("selectionchange", () => scheduleCaret(false));
+        editor.addEventListener("scroll", scheduleScroll);
+        if ("ResizeObserver" in win)
+          new win.ResizeObserver(scheduleScroll).observe(editor);
+        doc.addEventListener("wheel", (event) => {
+          if (wheelDownHeld && event.deltaY > 0)
+            event.preventDefault();
+        }, { passive: false });
+        scheduleScroll();
+      },
+      holdWheelDown(hold) {
+        wheelDownHeld = hold;
+      },
+      resend() {
+        if (!on)
+          return;
+        reportCaret(true);
+        reportScroll(true);
+      }
+    };
+  }
+  function domMeasures(editor) {
+    const doc = editor.ownerDocument;
+    const win = windowOf(editor);
+    return {
+      scrollTop: () => editor.scrollTop,
+      end() {
+        const last = editor.lastElementChild;
+        const rect = (last ?? editor).getBoundingClientRect();
+        return last ? rect.bottom : rect.top;
+      },
+      caret() {
+        const selection = win.getSelection();
+        if (!selection || selection.rangeCount === 0 || !doc.hasFocus())
+          return null;
+        const range = selection.getRangeAt(0);
+        if (!editor.contains(range.endContainer))
+          return null;
+        const end = range.cloneRange();
+        end.collapse(false);
+        const box = editor.getBoundingClientRect();
+        const rect = end.getBoundingClientRect();
+        if (rect.height > 0)
+          return shownIn({ top: rect.top, bottom: rect.bottom }, box);
+        const node = end.endContainer;
+        const after = node.nodeType === 1 ? node.childNodes[end.endOffset] : undefined;
+        const before = node.nodeType === 1 ? node.childNodes[end.endOffset - 1] : undefined;
+        const element = node.nodeType === 1 ? after ?? before ?? node : node.parentElement;
+        if (!element || element.nodeType !== 1)
+          return null;
+        const block = element;
+        const line = lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
+        return shownIn(line, box);
+      }
+    };
+  }
+  function shownIn(caret, box) {
+    return caret.bottom <= box.top || caret.top >= box.bottom ? null : caret;
+  }
+  function lineIn(rect, style, last) {
+    const px = (value) => {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const line = px(style.lineHeight) || px(style.fontSize) * 1.2;
+    if (last) {
+      const bottom = rect.bottom - px(style.paddingBottom);
+      return { top: Math.max(rect.top, bottom - line), bottom };
+    }
+    const top = rect.top + px(style.paddingTop);
+    return { top, bottom: Math.min(rect.bottom, top + line) };
+  }
+
   // src/host.ts
   function installNativeChrome(editor, toolbar, onStopWriting = () => {}) {
     const doc = editor.ownerDocument;
@@ -2262,7 +2498,7 @@
   }
 
   // src/host_requests.ts
-  var KINDS = ["link", "history"];
+  var KINDS = ["link", "history", "caret", "scroll"];
   function channelOf(win) {
     const scope = win;
     const handler = scope.webkit?.messageHandlers?.composerHost;
@@ -2778,7 +3014,8 @@
     linkText: "Text to display",
     linkAddress: "Address",
     linkApply: "Apply",
-    linkRemove: "Remove link"
+    linkRemove: "Remove link",
+    moreFormatting: "More formatting"
   };
   function mergeLabels(current, incoming) {
     const source = typeof incoming === "string" ? safeParse(incoming) : incoming ?? {};
@@ -4485,6 +4722,34 @@
     return true;
   }
 
+  // src/toolbar_overflow.ts
+  function installOverflow(root, more, panel, measures = { overflows: () => root.scrollWidth > root.clientWidth + 0.5 }) {
+    const doc = documentOf(root);
+    const controls = Array.from(root.children).filter((child) => child !== more);
+    let behind = 0;
+    const isSeparator = (node) => node?.classList.contains("sep") ?? false;
+    return {
+      fit() {
+        const before = behind;
+        for (const control of controls)
+          root.insertBefore(control, more);
+        more.hidden = true;
+        behind = 0;
+        if (!doc.body.classList.contains("native-chrome") && measures.overflows()) {
+          more.hidden = false;
+          const row = controls.slice();
+          while (row.length > 0 && measures.overflows()) {
+            panel.insertBefore(row.pop(), panel.firstChild);
+            while (isSeparator(row[row.length - 1]))
+              panel.insertBefore(row.pop(), panel.firstChild);
+          }
+          behind = controls.length - row.length;
+        }
+        return behind !== before;
+      }
+    };
+  }
+
   // src/paragraphs.ts
   var LINE_TAGS2 = new Set(["P", "DIV", "H1", "H2", "H3", "H4", "H5", "H6"]);
   var OUTSIDE_LINES = "li, td, th, .allodia-quote, .allodia-signature";
@@ -4664,7 +4929,7 @@
     const popovers = [];
     const closeAll = (except) => {
       for (const popover of popovers) {
-        if (popover === except)
+        if (popover === except || except && popover.panel.contains(except.button))
           continue;
         popover.panel.hidden = true;
         popover.button.setAttribute("aria-expanded", "false");
@@ -4741,6 +5006,17 @@
         toggle(link);
     };
     link.button.addEventListener("click", () => link.panel.hidden ? openLink() : toggle(link));
+    register("more-formatting", "more-formatting-menu", () => {});
+    const overflow = installOverflow(root, byId("more-formatting").parentElement, byId("more-formatting-menu"));
+    const fit = () => {
+      if (overflow.fit())
+        closeAll();
+    };
+    const win = windowOf(editor);
+    if (win.ResizeObserver)
+      new win.ResizeObserver(fit).observe(root);
+    for (const select of [fontSize, fontFamily, blockStyle])
+      select.addEventListener("change", fit);
     doc.addEventListener("mousedown", (event) => {
       if (!event.target?.closest?.(".menu"))
         closeAll();
@@ -4752,6 +5028,7 @@
     return {
       openLink,
       closePopovers: () => closeAll(),
+      fit,
       applyLabels(current) {
         editor.dataset.placeholder = current.placeholder;
         editor.setAttribute("aria-label", current.placeholder);
@@ -4773,6 +5050,8 @@
         title("#link", current.link);
         title("#align", current.align);
         title("#rule", current.horizontalRule);
+        title("#more-formatting", current.moreFormatting);
+        byId("more-formatting").setAttribute("aria-label", current.moreFormatting);
         for (const [select, text] of [
           [fontSize, current.fontSize],
           [fontFamily, current.fontFamily],
@@ -4787,6 +5066,7 @@
             option.textContent = text;
         }
         closeAll();
+        overflow.fit();
       }
     };
   }
@@ -4889,6 +5169,10 @@
     return true;
   });
   var chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
+  var framed = installFramed(editor, {
+    caret: (top, bottom) => hostRequests.tell("caret", { top, bottom }),
+    scroll: (px, end) => hostRequests.tell("scroll", { px, end })
+  });
   installImageResize(editor);
   var revision = installRevisionCounter(editor);
   editor.addEventListener("paste", (event) => {
@@ -4993,11 +5277,17 @@
   window.setComposerDocument = (document2) => history.restart(() => setComposerDocument(editor, attachments, parsed(document2) ?? {}));
   window.composerHistorySteps = () => JSON.stringify(history.steps());
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
-  window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
+  window.useNativeComposerChrome = () => {
+    chrome.useNativeComposerChrome();
+    toolbar.fit();
+  };
+  window.useFramedComposer = () => framed.useFramedComposer();
+  window.holdComposerWheelDown = (hold) => framed.holdWheelDown(hold === true);
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => {
     hostRequests.setAnswered(kinds);
     history.watch((steps) => hostRequests.tell("history", steps));
+    framed.resend();
   };
   window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
   window.setComposerLabels = (incoming) => {

@@ -161,7 +161,8 @@ afternoon.** Three states, and the whole reason they are named:
 | `NeedsReauth` | Alive, but issued before a scope this build needs | sign in again | an offer |
 | `SignedOut` | Refused outright: revoked here, or removed elsewhere | sign in again | a statement |
 
-Read `allodia_grant_health()`, and **never an error's text**. A client that renders a failure's own
+The core records it, and a client draws what the core decides from it: the Allodia card's `state`
+(`allodia_card`), the notice, and each failure's own enum, **never an error's text**. A client that renders a failure's own
 words is a client that ships whatever the OAuth layer happened to say:
 `oauth endpoint error: invalid_scope — unable to issue scope mailcal:accounts:read` reached a
 person that way. There is no `Unreachable` state, deliberately: it is the absence of one. A pass
@@ -279,9 +280,10 @@ service said.
 names the address in "your sign-in as … has ended", offers **Sign in again** and **Sign out**, and
 draws no Manage account and no subscription section: the page would ask for a sign-in, and the read
 cannot succeed. Waiting never brings a refused grant back, so the outage sentence is never drawn
-for it. The card is drawn while the notice below is in force, so the two cannot disagree; a
-subscription read that answers `AllodiaPurchaseError::SignedOut` raises it, and the screen redraws
-on the `Surface::Notices` signal. The stored grant is kept until the person acts, so the card can
+for it. The card's `state` is `Ended` exactly while the notice below is in force, both read from
+the one recorded refusal, so the two cannot disagree; a subscription read that answers
+`AllodiaPurchaseError::SignedOut` records it, and the card redraws on the `Surface::Allodia`
+signal. The stored grant is kept until the person acts, so the card can
 still say whose sign-in ended.
 
 **A refused sign-in is also a notice** ([`docs/notices.md`](../docs/notices.md)), on every screen,
@@ -327,7 +329,11 @@ action that can fail.
 
 **Signing out erases first and asks the server second.** The local grant is gone before the network
 is touched, so a sign-out cannot fail halfway and leave someone signed in; the RP-initiated logout
-URL (`end_session_endpoint`, when advertised) is handed back for the client to open afterwards.
+URL (`end_session_endpoint`, when advertised) is named on the card afterwards
+(`AllodiaCard::end_session`), for the client to open once. The core runs both the sign-in and the
+sign-out, off the UI thread ([`docs/waiting.md`](../docs/waiting.md)): the sign-in is the one
+browser sign-in it holds, so a fresh press of any sign-in supersedes it, and a client opens the
+browser and hands back its return as it does for an account.
 
 What that URL is for, precisely, because the obvious assumption is wrong: it ends the **browser**
 session, so the next sign-in on that device asks who you are instead of completing silently against

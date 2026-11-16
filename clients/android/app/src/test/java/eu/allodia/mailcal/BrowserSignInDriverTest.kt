@@ -1,5 +1,5 @@
-// What this host still decides about a browser sign-in the core runs, an existing account's or a
-// separate server's: where it returns, which tab opens it, that the tab opens once for each
+// What this host still decides about a browser sign-in the core runs, an existing account's, a
+// separate server's or the Allodia account's: where it returns, which tab opens it, that the tab opens once for each
 // attempt, and whether an arriving redirect is the core's or a setup flow's.
 package eu.allodia.mailcal
 
@@ -9,6 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.mailcal_bindings.AccountPageIntent
+import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.BrowserSignIn
 import uniffi.mailcal_bindings.BrowserSignInStage
 import uniffi.mailcal_bindings.ControlState
@@ -102,6 +103,24 @@ class BrowserSignInDriverTest {
             AccountPageIntent.SignInBrowserEnded("acct", 8uL, SignInBrowserEnd.Redirected(url)),
             BrowserSignInRules.redirected(waiting(8uL, sent), url, scheme, host),
         )
+    }
+
+    @Test
+    fun the_allodia_sign_in_opens_in_a_tab_of_its_own_and_its_redirect_is_the_cores() {
+        // What `allodiaSignIn` sends, and the account the core names for it.
+        val sent = AllodiaOAuthConfig.REDIRECT_URI
+        val opening = BrowserSignInDriver().toOpen(waiting(9uL, sent).copy(account = "allodia-account"), schemes)
+        assertEquals(SignInBrowser.JMAP, opening?.browser)
+        assertEquals(sent, (allodiaSignIn() as AllodiaIntent.SignIn).redirectUri)
+
+        val url = "$sent?code=abc&state=xyz"
+        assertEquals(
+            AccountPageIntent.SignInBrowserEnded("allodia-account", 9uL, SignInBrowserEnd.Redirected(url)),
+            BrowserSignInRules.redirected(waiting(9uL, sent).copy(account = "allodia-account"), url, app, "account-oauth"),
+        )
+        // The Allodia sign-in waiting takes no setup flow's redirect.
+        assertNull(BrowserSignInRules.redirected(waiting(9uL, sent), "$app://jmap-oauth?code=a", app, "jmap-oauth"))
+        assertNull(BrowserSignInRules.superseded(waiting(9uL, sent), JmapOAuthConfig.REDIRECT_URI))
     }
 
     @Test

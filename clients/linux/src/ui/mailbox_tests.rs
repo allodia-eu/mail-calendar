@@ -131,6 +131,10 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::composer_draft::widget_tests::each_navigation_gets_its_own_answer();
     crate::ui::composer_attach::tests::the_drop_target_listens_ahead_of_the_web_view();
     crate::ui::composer_attach::tests::a_paste_shows_the_picture_and_a_drop_asks_about_it();
+    crate::ui::composer_file_tiles::tests::
+        a_tile_names_its_file_and_its_remove_goes_through_the_core();
+    crate::ui::composer_file_tiles::tests::a_tile_draws_its_remove_from_the_cores_state();
+    crate::ui::composer_file_tiles::tests::a_tile_shows_its_picture_or_the_glyph_under_a_summary();
     crate::ui::editor_paste::tests::widget_tests::a_picture_on_the_clipboard_is_read_and_sniffed();
     crate::ui::editor_paste::tests::widget_tests::text_on_the_clipboard_is_left_to_the_page();
     crate::ui::editor_paste::tests::widget_tests::
@@ -222,6 +226,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::allodia::tests::a_refused_sign_in_says_it_ended_and_offers_both_ways();
     crate::ui::settings::allodia::tests::neither_the_address_nor_the_failure_is_parsed_as_markup();
     crate::ui::settings::allodia::tests::every_card_row_is_reachable_from_the_keyboard();
+    crate::ui::settings::allodia::tests::the_card_draws_what_the_core_says();
+    crate::ui::settings::allodia::tests::a_failure_is_said_in_the_cards_words();
     crate::ui::settings::subscription::tests::a_paid_account_names_its_biller_and_says_when();
     crate::ui::settings::subscription::tests::
         a_stores_subscription_is_offered_its_page_and_no_write();
@@ -232,6 +238,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::settings::subscription::tests::a_write_in_flight_stops_a_second_one();
     crate::ui::settings::subscription::tests::the_buy_buttons_name_their_period_and_their_price();
     crate::ui::settings::subscription::tests::an_account_that_cannot_buy_is_offered_nothing();
+    crate::ui::settings::subscription::tests::a_store_page_is_offered_on_the_free_half();
     crate::ui::settings::subscription::tests::
         a_grant_that_predates_the_read_offers_the_one_thing_that_fixes_it();
     crate::ui::settings::subscription::tests::every_subscription_row_is_reachable_from_the_keyboard(
@@ -437,6 +444,12 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let window = adw::ApplicationWindow::new(&application);
     crate::ui::composer_draft::widget_tests::a_reply_nobody_typed_into_is_not_a_draft(&window);
     crate::ui::composer_draft::widget_tests::only_the_panes_composer_offers_to_pop_out(&window);
+    crate::ui::composer_draft::widget_tests::only_a_composer_window_draws_the_window_controls(
+        &window,
+    );
+    crate::ui::composer_draft::widget_tests::the_composer_is_one_column_in_the_contracts_order(
+        &window,
+    );
 
     crate::ui::setup_widget_tests::the_setup_window_offers_each_route_its_own_surface();
     crate::ui::setup_onboarding_tests::the_first_account_screen_offers_an_allodia_account(&window);

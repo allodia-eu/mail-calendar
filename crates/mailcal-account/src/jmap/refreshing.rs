@@ -19,7 +19,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use engine_core::ids::{AddressBookId, SharedMailboxId};
+use engine_core::ids::{AddressBookId, SharedAccountId};
 use engine_provider::{Capabilities, Provider, ProviderError, ProviderResult};
 use engine_tls::TlsClientConfig;
 use provider_jmap::{Credentials, JmapConfig, JmapProvider};
@@ -46,7 +46,7 @@ pub(crate) struct RefreshingJmapProvider {
     /// dropped it would turn contacts read-only an hour into the session.
     contact_book: Option<AddressBookId>,
     /// The shared mailbox every rebuilt delegate is bound to, `None` for the account's own.
-    shared: Option<SharedMailboxId>,
+    shared: Option<SharedAccountId>,
     /// The built delegate, cached by the access token it was built with. Rebuilt only when a
     /// refresh produced a new token; never per request, which would re-run session discovery
     /// and open a fresh TLS connection every single call.
@@ -93,7 +93,7 @@ impl RefreshingJmapProvider {
 
     /// Binds every rebuilt delegate to the mailbox `shared` names; the initial delegate is
     /// already bound to it.
-    pub(crate) fn with_shared_mailbox(mut self, shared: Option<SharedMailboxId>) -> Self {
+    pub(crate) fn with_shared_mailbox(mut self, shared: Option<SharedAccountId>) -> Self {
         self.shared = shared;
         self
     }

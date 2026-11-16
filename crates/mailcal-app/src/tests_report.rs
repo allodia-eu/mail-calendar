@@ -10,11 +10,7 @@ use std::sync::{Arc, Mutex, atomic::Ordering};
 use engine_api::{Provider, ReportVerdict};
 use fakes::{FakeProvider, account, app, message, msg};
 
-use crate::MailActionError;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{MailActionError, tests_fakes as fakes};
 
 /// What the provider recorded: the reports it received, and the edits it received. The two
 /// together are the assertion: a report that also moved the message would file it twice.

@@ -1,6 +1,6 @@
 //! Switching an account's sign-in, over the real FFI constructor. The servers here do not answer,
 //! so what is under test is what a switch refuses and what a failure leaves behind; a switch
-//! that connects is the live suite's (`tests/live_sign_in_switch.rs`).
+//! that connects is the live suite's (`tests/live/live_sign_in_switch.rs`).
 
 use std::sync::{Arc, mpsc};
 

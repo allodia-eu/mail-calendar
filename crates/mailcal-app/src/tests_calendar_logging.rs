@@ -10,10 +10,7 @@ use std::sync::{Arc, Mutex};
 use fakes::{CalendarFake, calendar_account, calendar_app};
 
 use super::Intent;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 fn lines() -> Vec<String> {
     crate::tests_log_capture::lines_from(&["mailcal_app::calendar_refresh"])

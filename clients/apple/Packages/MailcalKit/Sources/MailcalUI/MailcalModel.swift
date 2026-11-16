@@ -217,6 +217,9 @@ final class MailboxModel {
     /// What follows a connect: the link step, and the accounts added on the way
     /// (MailcalModel.SetupFlow.swift).
     var setupFlow = SetupFlow()
+    /// The flow as setup's sheet last drew it, kept while that sheet goes away and dropped when
+    /// setup's screen is next shown: see `setupFlowShown`.
+    var setupFlowLeaving: SetupFlow?
     /// The link step's picks are being stored; each stored link signals the core, which must not
     /// redraw the step under the person meanwhile.
     var savingSetupLinks = false
@@ -229,10 +232,10 @@ final class MailboxModel {
     /// What a sign-in's grant withheld, said once setup and its name prompts are done.
     @ObservationIgnored var withheldWaiting: AccountPageNotice?
     /// `true` when no account is configured yet, the host shows the full-screen setup form.
-    var needsSetup = false
+    var needsSetup = false { didSet { if needsSetup { setupFlowLeaving = nil } } }
     /// `true` while the user is adding another account (the setup form as a sheet over the
     /// running app).
-    var addingAccount = false
+    var addingAccount = false { didSet { if addingAccount { setupFlowLeaving = nil } } }
     /// The address an account offered by one of the person's other devices is for, so the setup
     /// sheet opens with the typing done. Empty for every other way in.
     var setupStartEmail = ""
@@ -323,11 +326,11 @@ final class MailboxModel {
     /// until the core answers, so the screen is never shown on a guess.
     var analyticsConsent: AnalyticsConsent?
     var app: MailcalApp?
-    /// Holds an in-app browser tab open on one of the account service's own pages.
-    ///
-    /// The session's presentation context provider is a **weak** reference, so without this the
-    /// provider is released the moment the call returns and the browser has nowhere to present.
-    @ObservationIgnored var allodiaBrowser: AllodiaSignIn?
+    /// The Allodia account's card, read on `Surface::Allodia` (MailcalModel.Allodia.swift).
+    var allodia = AllodiaCardHeld()
+    /// Holds an in-app browser tab open on one of the account service's own pages: its session's
+    /// presentation context provider is a **weak** reference.
+    @ObservationIgnored var allodiaPage: AllodiaPage?
     /// The App Store side of a subscription: the redemption pass, and the listener the store's
     /// out-of-band transactions arrive on. Nil until `connect()` has an app to attach them to, and
     /// in a build carrying no Allodia registration it stays nil.

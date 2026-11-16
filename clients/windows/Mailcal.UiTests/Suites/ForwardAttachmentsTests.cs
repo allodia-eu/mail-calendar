@@ -1,10 +1,9 @@
 // Forwarding a message opens the composer holding the files the original carries, as ordinary
 // attachments that can be taken off again (docs/sending.md, "What a forward carries").
 //
-// WHY HERE. Every rule below lives in ComposerView.xaml.cs, which links WinUI. The attachment list
-// is not bound in XAML, so its rows exist only once its ItemsSource is assigned again, and a seed
-// that filled the files and skipped that would leave a composer the user can neither see the files
-// in nor remove one from, while the message still went out carrying them.
+// WHY HERE. The core holds a composer's files and says whether they changed, but the tiles are
+// ComposerView's, which links WinUI: a composer that never drew the core's list would leave a file
+// the user can neither see nor remove, while the message still went out carrying it.
 //
 // WHY THE HARNESS. Staging decodes the original's parts out of the raw source the engine fetched,
 // the round trip the showcase engine does not make. 04-attachment.eml carries one text/csv part
@@ -57,24 +56,33 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
         }
     }
 
-    /// <summary>The rows in the composer's own list: the reading pane's chip for the same file is
-    /// still in the tree behind it.</summary>
-    private static IReadOnlyList<Element> Attachments(App app)
+    /// <summary>The tiles in the composer's own file grid: the reading pane's chip for the same
+    /// file is still in the tree behind it. The grid is not drawn while it holds nothing.</summary>
+    private static IReadOnlyList<Element> Attachments(App app) =>
+        app.Agent.Find(Filter.ById("ComposerFiles")) is { } grid
+            ? app.Agent.FindAll(new Filter { Id = "ComposerFileTile", Type = "ListItem", Under = grid })
+            : [];
+
+    /// <summary>The tiles once the grid has drawn them: it makes them on the layout pass after the
+    /// composer appears, so a read as Send appears can come too early.</summary>
+    private static IReadOnlyList<Element> DrawnAttachments(App app)
     {
-        var list = app.Agent.Find(Filter.ById("AttachmentList")) ?? throw new InvalidOperationException("the composer draws no AttachmentList");
-        return app.Agent.FindAll(new Filter { Type = "ListItem", Under = list });
+        App.Eventually(() => Attachments(app).Count > 0, TimeSpan.FromSeconds(5));
+        return Attachments(app);
     }
 
     private static Element TheStagedFile(App app)
     {
-        var rows = Attachments(app);
-        return rows.Count == 1
-            ? rows[0]
-            : throw new InvalidOperationException($"the forward composer holds {rows.Count} attachment row(s), not the one file the original carries");
+        var tiles = DrawnAttachments(app);
+        return tiles.Count == 1
+            ? tiles[0]
+            : throw new InvalidOperationException($"the forward composer holds {tiles.Count} file tile(s), not the one file the original carries");
     }
 
-    private static Element Remove(App app) =>
-        app.Agent.Find(Filter.ById("RemoveAttachmentButton", "Button")) ?? throw new InvalidOperationException("the composer offers no Remove button");
+    /// <summary>The Remove control on <paramref name="tile"/> itself.</summary>
+    private static Element Remove(App app, Element tile) =>
+        app.Agent.Find(new Filter { Id = "ComposerFileRemove", Type = "Button", Under = tile })
+            ?? throw new InvalidOperationException("the file's tile offers no Remove");
 
     /// <summary>Presses Discard and returns whether it asked first.</summary>
     private static bool DiscardAsks(App app)
@@ -88,24 +96,22 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
     public void AForwardOpensHoldingTheOriginalsFileUnderTheNameItsSenderGaveIt() => Case(nameof(AForwardOpensHoldingTheOriginalsFileUnderTheNameItsSenderGaveIt), app =>
     {
         OpenForward(app);
-        var rows = Attachments(app);
-        Assert.True(rows.Count == 1,
-            $"the forward composer shows {rows.Count} attachment row(s) for a message carrying one file: an empty list claims the original had nothing attached");
-        Assert.True(rows[0].Name == FileName,
-            $"the row reads '{rows[0].Name}': it carries the name the sender put on the part, not the path the core staged the bytes to");
+        var tiles = DrawnAttachments(app);
+        Assert.True(tiles.Count == 1,
+            $"the forward composer shows {tiles.Count} file tile(s) for a message carrying one file: an empty grid claims the original had nothing attached");
+        Assert.True(tiles[0].Name == FileName,
+            $"the tile reads '{tiles[0].Name}': it carries the name the sender put on the part, not the path the core staged the bytes to");
     });
 
     [HarnessFact]
     public void TheFileIsRemovableLikeAnythingElseTheUserAttached() => Case(nameof(TheFileIsRemovableLikeAnythingElseTheUserAttached), app =>
     {
         OpenForward(app);
-        Assert.False(Remove(app).Enabled, "Remove is live before any row is selected, so pressing it says nothing about which file it meant");
-        app.Agent.Select(TheStagedFile(app));
-        Assert.True(App.Eventually(() => app.Agent.Read(Remove(app)).Element.Enabled, TimeSpan.FromSeconds(3)),
-            "selecting the staged file did not enable Remove, so a forward imposes its files rather than proposing them");
-        app.Agent.Invoke(Remove(app));
+        var remove = Remove(app, TheStagedFile(app));
+        Assert.True(remove.Enabled, "the forwarded file's Remove is held, so a forward imposes its files rather than proposing them");
+        app.Agent.Invoke(remove);
         Assert.True(App.Eventually(() => Attachments(app).Count == 0, TimeSpan.FromSeconds(3)),
-            "the row survived Remove: a staged file that cannot be taken off goes out whether or not the sender meant to pass it on");
+            "the tile survived Remove: a staged file that cannot be taken off goes out whether or not the sender meant to pass it on");
     });
 
     [HarnessFact]
@@ -113,9 +119,9 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
     {
         OpenForward(app);
         // Discard asks only when something would be lost (docs/drafts.md, "Leaving a composer"); the
-        // forward saved nothing, so the question turns on the attachment baseline alone.
+        // forward saved nothing, so the question turns on whether its files changed alone.
         Assert.False(DiscardAsks(app),
-            "a forward nobody typed into was treated as written in: the composer measures the attachment count against zero rather than against what it opened with");
+            "a forward nobody typed into was treated as written in: the files it opened holding counted as the user's own");
         Assert.True(app.Agent.WaitGone(Filter.ById("SendButton"), TimeSpan.FromSeconds(10)), "the composer stayed up after Discard");
     });
 
@@ -123,11 +129,10 @@ public sealed class ForwardAttachmentsTests(HarnessApp harness)
     public void TakingOneOffIsADecisionAboutWhatGoesOutAndDiscardAsks() => Case(nameof(TakingOneOffIsADecisionAboutWhatGoesOutAndDiscardAsks), app =>
     {
         OpenForward(app);
-        app.Agent.Select(TheStagedFile(app));
-        app.Agent.Invoke(Remove(app));
+        app.Agent.Invoke(Remove(app, TheStagedFile(app)));
         App.Eventually(() => Attachments(app).Count == 0, TimeSpan.FromSeconds(3));
         Assert.True(DiscardAsks(app),
-            "removing a forwarded file and pressing Discard threw that decision away unasked: the count changed, which is what the question is there to notice");
+            "removing a forwarded file and pressing Discard threw that decision away unasked: the files changed, which is what the question is there to notice");
     });
 
     [HarnessFact]

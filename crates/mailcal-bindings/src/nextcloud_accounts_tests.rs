@@ -1,6 +1,6 @@
 //! What a Nextcloud sign-in's completions refuse, and how an account a Nextcloud sign-in made
 //! reads in Settings and leaves. A completion that connects is the live suite's
-//! (`tests/live_nextcloud_sign_in.rs`).
+//! (`tests/live/live_nextcloud_sign_in.rs`).
 
 use crate::{
     AccountCapability, MailcalError, SignInMethod,

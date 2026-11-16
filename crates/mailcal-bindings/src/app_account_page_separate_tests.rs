@@ -1,7 +1,7 @@
 //! The separate server's section through `dispatch`: offered under the use that needs it, a
 //! Connect that does not reach the server said on the form with the login it was tried with, and
 //! Skip switching the use off. No server here answers, so a move that connects is the live
-//! suite's (`tests/live_calendar_split.rs`).
+//! suite's (`tests/live/live_calendar_split.rs`).
 
 use std::{
     sync::{Arc, mpsc},

@@ -11,6 +11,15 @@
     <UserControl.Resources>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibility" />
 
+        <!-- The ground under a bar that floats over the rows. InfoBar's informational tint is nearly
+             transparent, made for a bar in a row of its own; over the list the rows read through it.
+             The bar's own tint still draws on top, so each severity keeps its colour. -->
+        <Style x:Key="FloatingBarGround" TargetType="Border">
+            <Setter Property="Background" Value="{ThemeResource SolidBackgroundFillColorTertiaryBrush}" />
+            <Setter Property="CornerRadius" Value="{ThemeResource ControlCornerRadius}" />
+            <Setter Property="Margin" Value="16,8" />
+        </Style>
+
         <!-- A single message: the row menu the core decides (docs/row-actions.md), and a
              configurable swipe action per edge.
 
@@ -415,29 +424,31 @@
 
         <!-- Transient send hint: "Sending…" while in flight, then a brief Sent/Failed
              confirmation. Floats at the top of the list; the core auto-clears it. -->
-        <InfoBar Grid.Row="2" VerticalAlignment="Top" Margin="16,8"
-                 IsOpen="{x:Bind Model.SendStatusVisible, Mode=OneWay}"
-                 IsClosable="False"
-                 Severity="{x:Bind Model.SendStatusSeverity, Mode=OneWay}"
-                 Message="{x:Bind Model.SendStatusText, Mode=OneWay}">
-            <InfoBar.Content>
-                <ProgressRing IsActive="True" Width="18" Height="18"
-                              HorizontalAlignment="Left" Margin="0,0,0,12"
-                              Visibility="{x:Bind Model.SendStatusBusyVisibility, Mode=OneWay}" />
-            </InfoBar.Content>
-        </InfoBar>
+        <Border Grid.Row="2" VerticalAlignment="Top" Style="{StaticResource FloatingBarGround}">
+            <InfoBar IsOpen="{x:Bind Model.SendStatusVisible, Mode=OneWay}"
+                     IsClosable="False"
+                     Severity="{x:Bind Model.SendStatusSeverity, Mode=OneWay}"
+                     Message="{x:Bind Model.SendStatusText, Mode=OneWay}">
+                <InfoBar.Content>
+                    <ProgressRing IsActive="True" Width="18" Height="18"
+                                  HorizontalAlignment="Left" Margin="0,0,0,12"
+                                  Visibility="{x:Bind Model.SendStatusBusyVisibility, Mode=OneWay}" />
+                </InfoBar.Content>
+            </InfoBar>
+        </Border>
 
         <!-- The swipe confirmation with its Undo, over the bottom of the list. Windows has no toast
              host, so this is an InfoBar pinned to the bottom of the list, the twin of the Apple
              client's capsule toast and Android's Snackbar.
              Pressing Undo closes the window early: for a Delete/Archive nothing was ever
              dispatched, so the row simply returns (MailListView.Swipe.cs). -->
-        <InfoBar Grid.Row="2" x:Name="UndoBar" VerticalAlignment="Bottom" Margin="16,8"
-                 IsOpen="False" IsClosable="False" Severity="Informational">
-            <InfoBar.ActionButton>
-                <Button Content="{x:Bind l10n:L10n.ActionUndo(), Mode=OneTime}" Click="OnUndoSwipe" />
-            </InfoBar.ActionButton>
-        </InfoBar>
+        <Border Grid.Row="2" VerticalAlignment="Bottom" Style="{StaticResource FloatingBarGround}">
+            <InfoBar x:Name="UndoBar" IsOpen="False" IsClosable="False" Severity="Informational">
+                <InfoBar.ActionButton>
+                    <Button Content="{x:Bind l10n:L10n.ActionUndo(), Mode=OneTime}" Click="OnUndoSwipe" />
+                </InfoBar.ActionButton>
+            </InfoBar>
+        </Border>
 
         <!-- Footer: the status line alone. New Mail moved to the window's top row and Sync to the
              actions bar above the list, which is where a user reaches for them (docs/list-selection.md,

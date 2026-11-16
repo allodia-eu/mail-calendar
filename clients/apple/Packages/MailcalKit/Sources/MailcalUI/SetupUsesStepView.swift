@@ -10,7 +10,7 @@ struct SetupUsesStepView: View {
 
     var body: some View {
         SetupScaffold {
-            if let step = model.setupFlow.uses {
+            if let step = model.setupFlowShown.uses {
                 Text(L10n.setup_signed_in_uses_title()).font(.title2).bold()
                     .fixedSize(horizontal: false, vertical: true)
                 Text(L10n.setup_signed_in_uses_note())
@@ -19,7 +19,7 @@ struct SetupUsesStepView: View {
                 // Every use the session offers has its server, so no field is ever flagged.
                 SetupUsesSection(
                     choices: Binding(
-                        get: { model.setupFlow.uses?.choices ?? step.choices },
+                        get: { model.setupFlowShown.uses?.choices ?? step.choices },
                         set: { model.setupFlow.choose($0) }),
                     flagged: .constant(.none)
                 ) { EmptyView() }

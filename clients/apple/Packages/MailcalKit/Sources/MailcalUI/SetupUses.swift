@@ -106,13 +106,13 @@ struct UseChoices: Equatable {
 
     /// Whether the person may flip `capability` now. The last use switched on cannot be switched
     /// off, since an account used for nothing is not one; colleagues come from the organisation's
-    /// directory beside the person's own contacts, so they wait for contacts, and a shared mailbox
-    /// is opened beside the account's own mail, so it waits for mail. Meetings are never the last
+    /// directory beside the person's own contacts, so they wait for contacts, and shared mailboxes
+    /// and calendars are opened beside mail or the calendar, so they wait for either. Meetings are never the last
     /// use, so they flip either way.
     func canFlip(_ capability: AccountCapability) -> Bool {
         if capability == .meetings { return true }
         if capability == .colleagues { return isOn(.contacts) }
-        if capability == .sharedMailboxes { return isOn(.mail) }
+        if capability == .sharedMailboxes { return isOn(.mail) || isOn(.calendar) }
         guard isOn(capability) else { return true }
         return [AccountCapability.mail, .calendar, .contacts].filter(isOn).count > 1
     }
@@ -122,8 +122,10 @@ struct UseChoices: Equatable {
         switch capability {
         case .mail:
             mail = on
-            if !on, sharedMailboxes != nil { sharedMailboxes = false }
-        case .calendar: calendar?.on = on
+            if !on, !isOn(.calendar), sharedMailboxes != nil { sharedMailboxes = false }
+        case .calendar:
+            calendar?.on = on
+            if !on, !isOn(.mail), sharedMailboxes != nil { sharedMailboxes = false }
         case .contacts:
             contacts?.on = on
             if !on, colleagues != nil { colleagues = false }
@@ -163,8 +165,8 @@ enum SetupUses {
     /// the one typed in its place. Contacts store an address book found apart from the calendar,
     /// or the one typed. Contacts found only through the calendar's server keep that server even
     /// with the calendar off, because that is where they are looked for, and the stored uses keep
-    /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes only beside
-    /// mail. Meetings count whatever else is on.
+    /// the calendar closed. Colleagues count only beside contacts, and shared mailboxes and calendars
+    /// beside mail or the calendar. Meetings count whatever else is on.
     static func chosen(
         _ offer: UseOffer, mail: Bool?, calendar: PickedUse?, contacts: PickedUse?,
         colleagues: Bool?, sharedMailboxes: Bool? = nil, meetings: Bool? = nil
@@ -181,9 +183,9 @@ enum SetupUses {
         var uses: [AccountCapability]?
         if !offer.choices.isEmpty {
             var chosen: [AccountCapability] = []
-            if mail == true {
-                chosen.append(.mail)
-                if sharedMailboxes == true { chosen.append(.sharedMailboxes) }
+            if mail == true { chosen.append(.mail) }
+            if mail == true || calendarOn, sharedMailboxes == true {
+                chosen.append(.sharedMailboxes)
             }
             if calendarOn { chosen.append(.calendar) }
             if contactsOn {

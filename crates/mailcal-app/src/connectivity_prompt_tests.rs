@@ -15,12 +15,10 @@ use super::{Intent, Surface};
 use crate::connectivity::{
     is_graph_permission_denied, is_signin_expired, is_throttled, throttled_for,
 };
-
 // The shared fixtures are also included by `tests.rs`; each test file compiles them into its
-// own module tree, which is intentional (they share no state); silence the duplicate-load lint.
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+// own module tree, which is intentional (they share no state); silence the duplicate-load
+// lint.
+use crate::tests_fakes as fakes;
 
 /// Mirrors how the outbox's `ApiError` nests a provider failure (`Sync(Provider(..))`), so the
 /// classifier's `source()` walk is exercised: not just a bare provider error at depth 0.

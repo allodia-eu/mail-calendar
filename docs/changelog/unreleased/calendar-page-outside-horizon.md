@@ -4,7 +4,9 @@ Platforms: all
 Bump: patch
 
 > The calendar expanded a fixed window around today, and a page outside it said "Loading this
-> period…" for good. Asking for such a page now widens the window to it for the session.
+> period…" for good. Asking for such a page now widens the window to it for the session, and on a
+> Google or Microsoft account first fetches the events there, which that account's first sync never
+> asked its server for. The user-facing line is unchanged: the page loads, now with every event.
 
 **English**
 

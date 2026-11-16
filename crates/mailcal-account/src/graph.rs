@@ -15,14 +15,14 @@ use std::sync::{Arc, Mutex};
 
 use engine_core::{
     error::FailureClass,
-    ids::{AccountId, MailboxId, SharedMailboxId},
+    ids::{AccountId, MailboxId, SharedAccountId},
     mail::Mailbox,
     sync::SyncUpdate,
     time::CalendarDate,
 };
 use engine_provider::{
     Capabilities, IdentityControls, Provider, ProviderError, ProviderResult, ReportControls,
-    ReportEvidence, ReportVerdicts, SharedMailboxes,
+    ReportEvidence, ReportVerdicts, SharedAccounts,
 };
 use engine_tls::TlsClientConfig;
 use provider_graph::{GraphClient, GraphProvider, MailboxPrincipal};
@@ -107,7 +107,7 @@ impl RefreshingGraphProvider {
                 .with_sender_identities(IdentityControls::ReadOnly)
                 // Forwarded by this wrapper's `Provider`: a fact about the sign-in, whichever
                 // mailbox this provider is bound to.
-                .with_shared_mailboxes(SharedMailboxes::ByAddress),
+                .with_shared_accounts(SharedAccounts::ByAddress),
             since,
             tls,
             cached: Mutex::new(None),
@@ -196,7 +196,7 @@ pub async fn connect_graph_mail_providers(
     account_id: &AccountId,
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let tls = tls_with(&[])?;
     let principal = principal(shared)?;
@@ -231,7 +231,7 @@ pub fn connect_graph_folder(
     tokens: Arc<GraphTokenSource>,
     mailbox_key: &str,
     since: Option<Date>,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let folder =
         MailboxId::try_from(mailbox_key).map_err(|err| AccountError::Mailbox(err.to_string()))?;
@@ -246,7 +246,7 @@ pub fn connect_graph_folder(
 }
 
 /// The signed-in person's own mailbox, or the shared one `shared` names.
-fn principal(shared: Option<&SharedMailboxId>) -> Result<MailboxPrincipal, AccountError> {
+fn principal(shared: Option<&SharedAccountId>) -> Result<MailboxPrincipal, AccountError> {
     shared.map_or(Ok(MailboxPrincipal::Me), |handle| {
         MailboxPrincipal::shared(handle).map_err(|err| AccountError::Graph(err.to_string()))
     })

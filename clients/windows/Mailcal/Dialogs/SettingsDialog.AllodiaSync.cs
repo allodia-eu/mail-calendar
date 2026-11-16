@@ -18,10 +18,6 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    // Whether the last sign-in from a reauth offer found the browser returning from another
-    // sign-in, which the offer says beneath its button.
-    private bool _allodiaAgainStale;
-
     /// <summary>A pass started or ended. Only the Accounts list draws the card, so an account's page
     /// and every other category are left alone; the list is drawn again when its fingerprint,
     /// the card's included, moved.</summary>
@@ -103,29 +99,15 @@ public sealed partial class SettingsDialog
     {
         switch (failure)
         {
+            // An offer, not an error: the person is signed in, and one feature is asleep.
             case AllodiaSyncFailure.NeedsReauth:
-            {
-                // An offer, not an error: the person is signed in, and one feature is asleep.
-                var panel = new StackPanel { Spacing = 6 };
-                panel.Children.Add(Heading(L10n.SettingsAllodiaReauth()));
-                panel.Children.Add(Description(L10n.SettingsAllodiaReauthHint()));
-                var again = new Button { Content = L10n.SettingsAllodiaReauthAction() };
-                again.Click += async (_, _) => await SignInToAllodiaAgainAsync();
-                panel.Children.Add(again);
-                AddAllodiaAgainStale(panel);
-                return panel;
-            }
+                return AllodiaSignInAgain(
+                    L10n.SettingsAllodiaReauth(), L10n.SettingsAllodiaReauthHint(), L10n.SettingsAllodiaReauthAction());
             case AllodiaSyncFailure.SignedOut:
-            {
-                var panel = new StackPanel { Spacing = 6 };
-                panel.Children.Add(Heading(L10n.SettingsAllodiaSignedOutElsewhere()));
-                panel.Children.Add(Description(L10n.SettingsAllodiaSignedOutElsewhereHint()));
-                var again = new Button { Content = L10n.SettingsAllodiaSignIn() };
-                again.Click += async (_, _) => await SignInToAllodiaAgainAsync();
-                panel.Children.Add(again);
-                AddAllodiaAgainStale(panel);
-                return panel;
-            }
+                return AllodiaSignInAgain(
+                    L10n.SettingsAllodiaSignedOutElsewhere(),
+                    L10n.SettingsAllodiaSignedOutElsewhereHint(),
+                    L10n.SettingsAllodiaSignIn());
             default:
             {
                 var line = Description(L10n.SettingsAllodiaSyncUnavailable());
@@ -138,7 +120,8 @@ public sealed partial class SettingsDialog
     }
 
     /// <summary>
-    /// Runs the ordinary sign-in again, which is the whole of the remedy for both states.
+    /// The ordinary sign-in offered again, which is the whole of the remedy for both states, with
+    /// what the last sign-in came to beneath it.
     /// </summary>
     /// <remarks>
     /// No separate flow: the sign-in asks for the full current scope set every time, so re-running
@@ -146,23 +129,32 @@ public sealed partial class SettingsDialog
     /// The core runs a pass once it takes, so the account list is there before the person looks
     /// for it.
     /// </remarks>
-    private async Task SignInToAllodiaAgainAsync()
+    private StackPanel AllodiaSignInAgain(string heading, string hint, string action)
     {
-        var failure = await _model.SignInToAllodiaAsync();
-        Apply(() => _allodiaAgainStale = failure?.Stale == true);
+        var panel = new StackPanel { Spacing = 6 };
+        panel.Children.Add(Heading(heading));
+        panel.Children.Add(Description(hint));
+        if (_model.AllodiaCard() is { } card)
+        {
+            panel.Children.Add(ControlComponents.Button(
+                action, card.SignIn, "AllodiaDevicesSignIn", () => _model.SignInToAllodia()));
+            if (AllodiaCardRules.SignInSaid(card.Failure, CoreErrorCopy.AllodiaWords()) is { } said)
+            {
+                panel.Children.Add(CriticalLine(said));
+            }
+        }
+        return panel;
     }
 
-    // The one sign-in failure a reauth offer says: its remedy is the button above it.
-    private void AddAllodiaAgainStale(StackPanel panel)
+    /// <summary>The Allodia card moved while the Accounts list offers its sign-in again: the
+    /// offer's button and what it says beneath are the card's, so the list is drawn again.</summary>
+    private void OnAllodiaChangedOnAccounts()
     {
-        if (!_allodiaAgainStale)
+        if (!_rebuilding && _accountPage is null && CurrentCategory() == "accounts"
+            && _model.AllodiaDevices()?.Failure is AllodiaSyncFailure.NeedsReauth or AllodiaSyncFailure.SignedOut)
         {
-            return;
+            ShowCategory("accounts");
         }
-        var line = Description(L10n.SigninStale());
-        line.Opacity = 1;
-        line.Foreground = (Microsoft.UI.Xaml.Media.Brush)_brushes.Of(ThemePalette.Critical);
-        panel.Children.Add(line);
     }
 
     /// <summary>

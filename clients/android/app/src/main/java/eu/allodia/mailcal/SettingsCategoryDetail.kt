@@ -19,8 +19,8 @@ import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
-import uniffi.mailcal_bindings.AllodiaPlan
-import uniffi.mailcal_bindings.AllodiaStoreSubscription
+import uniffi.mailcal_bindings.AllodiaIntent
+import uniffi.mailcal_bindings.AllodiaSubscriptionState
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
@@ -82,20 +82,11 @@ internal fun CategoryDetail(
     onSetAnalytics: (Boolean) -> Unit,
     analyticsPayloadPreview: () -> String,
     allodia: AllodiaSettings,
-    onAllodiaSignIn: () -> Unit,
-    onAllodiaCreate: () -> Unit,
+    onAllodia: (AllodiaIntent) -> Unit,
     onAllodiaManage: () -> Unit,
-    onAllodiaSignOut: () -> Unit,
-    // The subscription, drawn under the account card and only while somebody is signed in. Its
-    // state is the activity's for the same reason: buying leaves for Play's sheet or a browser.
+    // The subscription, drawn under the account card while the core draws a section. Held by the
+    // activity: buying leaves for Play's sheet or a browser.
     allodiaSubscription: AllodiaSubscriptionUi,
-    onAllodiaRefreshSubscription: () -> Unit,
-    onAllodiaBuy: (AllodiaPlan) -> Unit,
-    onAllodiaManageStore: (AllodiaStoreSubscription) -> Unit,
-    onAllodiaSubscriptionClosed: () -> Unit,
-    onAllodiaCancel: () -> Unit,
-    onAllodiaResubscribe: () -> Unit,
-    onAllodiaSwitch: (AllodiaPlan) -> Unit,
     allodiaDevices: AllodiaDevices?,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
     onRequestReset: () -> Unit,
@@ -264,33 +255,18 @@ internal fun CategoryDetail(
         // and its token cannot touch mail. The category is only reachable in a build that carries
         // the registration, so this draws unconditionally.
         SettingsCategory.ALLODIA -> {
-            AllodiaAccountCard(
-                allodia,
-                onAllodiaSignIn,
-                onAllodiaCreate,
-                onAllodiaManage,
-                onAllodiaSignOut,
-            )
+            AllodiaAccountCard(allodia, onAllodia, onAllodiaManage)
             // The subscription belongs to the account above it, so it is drawn under that card
-            // and only once there is one to draw it for. A sign-in that has ended has none, and the
-            // read can say so a moment before the snapshot the card above reads does.
-            if (allodia.account != null &&
-                !allodia.sessionEnded &&
-                allodiaSubscription.state != AllodiaSubscriptionState.SignedOut
+            // and only while the core draws a section for it. A sign-in out takes it away until it
+            // ends.
+            if (allodiaSubscription.card.state != AllodiaSubscriptionState.Hidden &&
+                allodia.card.browser == null
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
-                AllodiaSubscriptionCard(
-                    ui = allodiaSubscription,
-                    onRefresh = onAllodiaRefreshSubscription,
-                    onBuy = onAllodiaBuy,
-                    onManageStore = onAllodiaManageStore,
-                    // The same sign-in as the card above, not a special one: there is nothing to
-                    // migrate, only a claim this device never asked for and now does.
-                    onSignInAgain = onAllodiaSignIn,
-                    onClosed = onAllodiaSubscriptionClosed,
-                    onCancel = onAllodiaCancel,
-                    onResubscribe = onAllodiaResubscribe,
-                    onSwitch = onAllodiaSwitch,
+                AllodiaSubscriptionSection(
+                    allodiaSubscription.card,
+                    allodiaSubscription.store,
+                    allodiaSubscription.actions,
                 )
             }
         }
@@ -300,7 +276,7 @@ internal fun CategoryDetail(
         SettingsCategory.ACCOUNTS -> AccountsSettings(
             ui = accountsUi,
             allodiaSyncCard = {
-                AllodiaSyncCard(allodiaDevices, onAllodiaSetUp, accountsUi.onChange, onAllodiaSignIn)
+                AllodiaSyncCard(allodiaDevices, onAllodiaSetUp, accountsUi.onChange) { onAllodia(allodiaSignIn()) }
             },
         ) { entry, page -> AccountPage(entry, page, accountsUi) }
 

@@ -22,6 +22,7 @@ pub(crate) async fn connect_jmap_calendars(
     config: &JmapAccountConfig,
     tokens: Option<&Arc<GraphTokenSource>>,
     providers: &[Box<dyn Provider>],
+    shared: Option<&engine_api::SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, ConnectFailure> {
     if !providers
         .first()
@@ -29,7 +30,7 @@ pub(crate) async fn connect_jmap_calendars(
     {
         return Ok(Vec::new());
     }
-    mailcal_account::connect_jmap_calendar_provider(config, tokens)
+    mailcal_account::connect_jmap_calendar_provider(config, tokens, shared)
         .await
         .map(|provider| vec![provider])
         .map_err(|err| {

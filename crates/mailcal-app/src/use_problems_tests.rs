@@ -6,11 +6,7 @@ use std::sync::{Arc, Mutex};
 use fakes::{FakeProvider, account, app};
 
 use super::{UseProblem, UseProblems};
-use crate::protocol::Surface;
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::{protocol::Surface, tests_fakes as fakes};
 
 const UNREACHABLE_CALENDAR: UseProblems = UseProblems {
     calendar: Some(UseProblem::Unreachable),

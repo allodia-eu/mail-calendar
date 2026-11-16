@@ -12,6 +12,7 @@ fn every_group(provider: &ProviderScopes) -> BTreeSet<&'static str> {
     ]
     .into_iter()
     .chain(provider.shared_mailboxes)
+    .chain(provider.shared_calendars)
     .chain(provider.meetings)
     .collect();
     for group in &groups {

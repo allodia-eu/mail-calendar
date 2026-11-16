@@ -34,14 +34,6 @@ enum NoticeRules {
         return about.first?.mark.map(text)
     }
 
-    /// Whether the account service refused the Allodia sign-in, which the Allodia card draws.
-    static func allodiaSignInEnded(_ notices: [Notice]) -> Bool {
-        notices.contains { notice in
-            if case .allodiaSignInEnded = notice.kind { return true }
-            return false
-        }
-    }
-
     /// The notices in `current` that were not in force before: the ones to announce (rule 12).
     static func raised(_ current: [Notice], since previous: [Notice]) -> [Notice] {
         let before = Set(previous.map(\.id))

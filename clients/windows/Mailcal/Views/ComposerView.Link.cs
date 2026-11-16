@@ -1,5 +1,6 @@
 // The editor's requests to the composer (docs/composer-security.md, Gate 2), parsed by the core in
-// EditorWebViewHost: the link dialog over the window, then its answer back into the message.
+// EditorWebViewHost: the link dialog over the window, then its answer back into the message; and
+// the framed mode's two notices, the caret and the message's scroll (ComposerView.Layout.cs).
 
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
@@ -10,9 +11,25 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class ComposerView
 {
-    private async void OnHostRequested(ComposerHostRequest request)
+    private void OnHostRequested(ComposerHostRequest request)
     {
-        if (request is not ComposerHostRequest.Link link || XamlRoot is null)
+        switch (request)
+        {
+            case ComposerHostRequest.Link link:
+                AnswerLink(link);
+                break;
+            case ComposerHostRequest.Caret caret:
+                OnEditorCaret(caret.Top, caret.Bottom);
+                break;
+            case ComposerHostRequest.Scroll scroll:
+                OnEditorScroll(scroll.Px, scroll.End);
+                break;
+        }
+    }
+
+    private async void AnswerLink(ComposerHostRequest.Link link)
+    {
+        if (XamlRoot is null)
         {
             return;
         }

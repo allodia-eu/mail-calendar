@@ -318,6 +318,6 @@ real GTK widgets on a private headless compositor, not only a projection of the 
 
 A real Stalwart JMAP server (`docker/stalwart/`, lifted from the engine) backs both local
 testing and CI (`.github/workflows/ci.yml`). The gated integration test
-`crates/mailcal-account/tests/live_jmap.rs` connects a JMAP account, syncs, and reads a body;
+`crates/mailcal-account/tests/live/live_jmap.rs` connects a JMAP account, syncs, and reads a body;
 it **skips** unless `STALWART_HTTP_ADDR` is set, so the offline suite stays green with no
 Docker. See [`docker/stalwart/README.md`](../docker/stalwart/README.md).

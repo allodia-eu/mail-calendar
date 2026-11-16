@@ -25,22 +25,23 @@ use std::collections::HashMap;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use engine_api::{ContentIdHeader, DraftAttachment};
+use engine_html::image_media_type;
 use mailcal_composer::{Block, ComposerDocument};
 
-use crate::{helpers::content_id_for, html::image_media_type};
+use crate::helpers::content_id_for;
 
 /// The attribute prefix an inline image is matched on. Anchoring on the whole `src="…"` value
 /// (rather than the bare `data:` substring) keeps the rewrite inside one attribute; it can never
 /// splice the middle of another attribute's value.
 const SRC_PREFIX: &str = "src=\"data:";
 
-/// Re-sanitises every signature body to the inert, safe subset (`crate::html::sanitize_inert`) in
+/// Re-sanitises every signature body to the inert, safe subset (`engine_html::sanitize_inert`) in
 /// place : the Gate-10 treatment a quoted original already gets, applied to the other block the
 /// composer emits verbatim.
 pub(super) fn sanitize_signature_bodies(document: &mut ComposerDocument) {
     for block in &mut document.blocks {
         if let Block::Signature(signature) = block {
-            signature.body_html = crate::html::sanitize_inert(&signature.body_html);
+            signature.body_html = engine_html::sanitize_inert(&signature.body_html);
         }
     }
 }
@@ -169,7 +170,7 @@ fn file_name(media: &str, seq: usize) -> String {
 
 /// Escapes the characters significant inside a double-quoted attribute value, so a minted
 /// `Content-ID` can never break out of the `src="cid:…"` it is placed in. Our own ids contain
-/// none of these; this is defence in depth, matching `html::restore_cid_images`.
+/// none of these; this is defence in depth, matching `engine_html::restore_cid_images`.
 fn escape_attr_value(value: &str, out: &mut String) {
     for ch in value.chars() {
         match ch {

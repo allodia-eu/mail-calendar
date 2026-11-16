@@ -9,6 +9,7 @@
 // sees no split at all.
 mod intent;
 mod intent_account_page;
+mod intent_allodia;
 mod intent_events;
 mod intent_folders;
 mod intent_notices;
@@ -16,6 +17,7 @@ mod intent_outbox;
 
 pub use intent::Intent;
 pub use intent_account_page::AccountPageIntent;
+pub use intent_allodia::AllodiaIntent;
 pub use intent_events::EventIntent;
 pub use intent_folders::FolderIntent;
 pub use intent_notices::NoticeIntent;

@@ -14,14 +14,15 @@ use webkit6::prelude::WebViewExt;
 use super::{
     AppInput,
     composer_attach::{
-        PictureAnswer, accept_files, connect_file_picker, install_drop_target, render_files,
-        show_in_message,
+        PictureAnswer, accept_files, connect_file_picker, install_drop_target, show_in_message,
     },
     composer_draft::{DraftGuard, HeaderValues},
     composer_drafts::Autosave,
     composer_fields::{ComposerFields, connect_save_draft, connect_send, read_document},
+    composer_file_tiles::{ComposerFileStore, FileTiles},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
     composer_labels::editor_labels,
+    composer_layout::ComposerColumn,
     composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
     composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
@@ -61,6 +62,9 @@ pub(crate) struct ComposerPane {
     /// The line the draft's last save is reported on. Its own label rather than the error line's,
     /// so a save that failed cannot erase a send that did.
     hint: RefCell<Option<gtk::Label>>,
+    /// The open draft's one scroll, which sizes the editor and follows its caret. The editor's
+    /// channel reaches it weakly, so this is what keeps it.
+    column: RefCell<Option<Rc<ComposerColumn>>>,
 }
 
 impl ComposerPane {
@@ -76,6 +80,7 @@ impl ComposerPane {
             checked_generation: Cell::new(None),
             autosave: Autosave::default(),
             hint: RefCell::new(None),
+            column: RefCell::new(None),
         }
     }
 
@@ -112,10 +117,13 @@ impl ComposerPane {
         let toolbar = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
         // In a window of its own this bar *is* the titlebar, so it keeps the desktop's controls
-        // wherever that desktop puts them; in the pane, the surface above it carries the mailbox
-        // window's own. The bar still says what the draft is; the window is named after its
-        // subject, which is what the OS window list reads (`docs/reading-window.md`).
-        header.set_show_start_title_buttons(matches!(request.host, ComposerHost::Window(_)));
+        // wherever that desktop puts them; in the pane, the header bar spanning the mailbox window
+        // carries its controls, at both ends. The bar still says what the draft is; the window is
+        // named after its subject, which is what the OS window list reads
+        // (`docs/reading-window.md`).
+        let own_window = matches!(request.host, ComposerHost::Window(_));
+        header.set_show_start_title_buttons(own_window);
+        header.set_show_end_title_buttons(own_window);
         header.set_title_widget(Some(&adw::WindowTitle::new(
             compose_title(request.kind),
             "",
@@ -137,7 +145,8 @@ impl ComposerPane {
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
         content.set_margin_top(12);
-        content.set_margin_bottom(12);
+        // Nothing under the editor: its box ends where the column's visible part does
+        // (`docs/composer-layout.md`, rule 2).
         content.set_margin_start(12);
         content.set_margin_end(12);
         let form = gtk::Grid::new();
@@ -173,15 +182,8 @@ impl ComposerPane {
         let save_draft = gtk::Button::with_label(l10n::action_save_draft());
         actions.append(&save_draft);
         content.append(&actions);
-        let file_list = gtk::ListBox::new();
-        file_list.add_css_class("boxed-list");
-        content.append(&file_list);
-        // What the core staged (a forward's originals, a stored draft's own) and a share's files
-        // on top; the picker and a drop below add to it (docs/os-integration.md).
-        let files = Rc::new(RefCell::new(request.files.clone()));
-        render_files(&file_list, &files);
-        connect_file_picker(&attach, &file_list, &files, window);
 
+        // The notes, under the action row (`docs/composer-layout.md`, rule 1).
         let error = gtk::Label::new(Some(l10n::compose_prepare_error()));
         error.add_css_class("error");
         error.set_visible(false);
@@ -193,8 +195,14 @@ impl ComposerPane {
         hint.set_visible(false);
         content.append(&hint);
 
+        // The composition's files, as the core holds them: a forward's originals, a stored
+        // draft's own, a share's; the picker, a drop and a paste add to them.
+        let store = app.map(|app| Arc::clone(app) as Arc<dyn ComposerFileStore>);
+        let files = FileTiles::new(store, &request.composition);
+        content.append(files.widget());
+        connect_file_picker(&attach, &files, window);
+
         let web = SecureWebView::new(DocumentKind::Composer, sender.clone());
-        super::composer_host::install(web.widget());
         super::composer_scheme::follow(web.widget());
         // One route into the composer for files, taken twice, so a drop and a paste differ in the
         // one place they should: a drop asks what a picture is for, a paste has already been told.
@@ -202,13 +210,11 @@ impl ComposerPane {
             accept_files(
                 answer,
                 show_in_message(web.widget()),
-                &file_list,
                 &files,
                 window,
                 &error,
             )
         };
-        install_drop_target(&content, take_files(PictureAnswer::Ask));
         // A pasted picture takes the same road as a dropped one, because this toolkit's WebView
         // hands the page no clipboard files at all (`editor_paste`). The context menu's own item
         // is one route into it; the chord is the other, and is wired below, once the box that
@@ -234,12 +240,13 @@ impl ComposerPane {
         let editor_host = gtk::Box::new(gtk::Orientation::Vertical, 0);
         editor_host.set_accessible_role(AccessibleRole::Group);
         editor_host.set_hexpand(true);
-        editor_host.set_vexpand(true);
         editor_host.append(web.widget());
         editor_paste::install(&editor_host, web.widget(), paste);
         // Captured once the seeding script returns, so the guard measures the body against what
         // the quote and signature put there rather than against empty.
         let seed = Rc::new(RefCell::new(None));
+        content.append(&editor_host);
+        let column = ComposerColumn::new(&content, &editor_host, web.widget());
         seed_editor(
             &web,
             request,
@@ -248,8 +255,9 @@ impl ComposerPane {
             quote_style,
             Rc::clone(&seed),
         );
-        content.append(&editor_host);
-        toolbar.set_content(Some(&content));
+        super::composer_host::install(web.widget(), Some(&column));
+        install_drop_target(column.widget(), take_files(PictureAnswer::Ask));
+        toolbar.set_content(Some(column.widget()));
         self.root.append(&toolbar);
 
         send_button.set_sensitive(!recipients::is_empty(&to.text()));
@@ -271,7 +279,6 @@ impl ComposerPane {
             web.widget().clone(),
             fields.clone(),
             HeaderValues::on_screen(&fields),
-            request.opening_files,
             seed,
         ));
         let input = sender.clone();
@@ -309,6 +316,7 @@ impl ComposerPane {
         self.error.replace(Some(error));
         self.send.replace(Some(send_button));
         self.signature.replace(signature);
+        self.column.replace(Some(column));
     }
 
     /// Draws what the draft's last save said, or takes the line away when there is nothing to
@@ -375,6 +383,7 @@ impl ComposerPane {
         self.fields.take();
         self.signature.take();
         self.draft.take();
+        self.column.take();
         self.checked_generation.set(None);
         while let Some(child) = self.root.first_child() {
             self.root.remove(&child);
@@ -414,6 +423,9 @@ fn seed_editor(
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
         script.push_str(&super::composer_scheme::current_script());
+        // Before the body is seeded and before the channel is announced, so the first caret and
+        // scroll it reports are already the seeded message's (`docs/composer-layout.md`).
+        script.push_str("window.useFramedComposer();");
         script.push_str(&super::composer_host::announce_script());
         if let Some(body) = &body {
             script.push_str(body);

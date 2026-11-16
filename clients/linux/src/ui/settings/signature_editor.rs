@@ -86,7 +86,7 @@ pub(super) fn open(ctx: &PageContext, editing: EditingSignature, on_saved: impl 
     content.append(&body_label);
 
     let web = SecureWebView::new(DocumentKind::Composer, ctx.sender.clone());
-    super::super::composer_host::install(web.widget());
+    super::super::composer_host::install(web.widget(), None);
     super::super::composer_scheme::follow(web.widget());
     // WebKit does not put its document on the accessibility bus here, so the host frame carries
     // the name; the same reason the composer labels the box around its editor rather than the

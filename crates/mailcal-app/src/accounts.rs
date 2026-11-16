@@ -329,20 +329,30 @@ impl<P: Provider> App<P> {
         self.observer.surface_changed(Surface::AccountPage);
     }
 
+    /// Signals [`Surface::Allodia`]: the Allodia account's card moved, which the binding layer
+    /// keeps and this layer does not see.
+    pub fn allodia_changed(&self) {
+        self.observer.surface_changed(Surface::Allodia);
+    }
+
     /// Signals [`Surface::Settings`] after a change to what an account is used for or links to,
     /// which the binding layer stores and this layer does not see.
     pub fn accounts_changed(&self) {
         self.observer.surface_changed(Surface::Settings);
     }
 
-    /// Every account's id, mail or not, in the order the host stored them.
-    pub async fn account_ids(&self) -> Vec<AccountId> {
-        self.accounts
-            .read()
-            .await
-            .iter()
-            .map(|account| account.id.clone())
-            .collect()
+    /// Every account's id, mail or not, in the order the host stored them. Never waits on the
+    /// account list's lock, so a UI thread may ask it.
+    pub fn account_ids(&self) -> Vec<AccountId> {
+        self.accounts.ids()
+    }
+
+    /// Holds the account list as a change to it would, until `until` ends: for the tests that a
+    /// screen read on a UI thread never waits on it.
+    #[doc(hidden)]
+    pub async fn hold_account_list<T>(&self, until: impl Future<Output = T>) -> T {
+        let _held = self.accounts.write().await;
+        until.await
     }
 
     /// A cheap clone of one account's handle, taken under the read guard and returned so
@@ -418,15 +428,19 @@ impl<P: Provider> App<P> {
     }
 }
 
+#[path = "account_list.rs"]
+mod list;
+pub(crate) use list::AccountList;
+
 #[path = "account_domains.rs"]
 mod domains;
 
 #[path = "calendar_users.rs"]
 mod calendar_users;
 
-#[path = "shared_mailboxes.rs"]
-mod shared_mailboxes;
-pub use shared_mailboxes::{SharedMailboxLookup, SharedMailboxOffer};
+#[path = "shared_stores.rs"]
+mod shared_stores;
+pub use shared_stores::{SharedStoreLookup, SharedStoreOffer};
 
 #[cfg(test)]
 #[path = "tests_mail_surfaces.rs"]

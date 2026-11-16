@@ -77,9 +77,10 @@ internal object SetupUses {
             null
         } else {
             buildList<AccountCapability> {
-                if (mail == true) {
-                    add(AccountCapability.MAIL)
-                    if (sharedMailboxes == true) add(AccountCapability.SHARED_MAILBOXES)
+                if (mail == true) add(AccountCapability.MAIL)
+                // Shared mailboxes and calendars: either mail or the calendar opens them.
+                if ((mail == true || calendarOn) && sharedMailboxes == true) {
+                    add(AccountCapability.SHARED_MAILBOXES)
                 }
                 if (calendarOn) add(AccountCapability.CALENDAR)
                 if (contactsOn) {

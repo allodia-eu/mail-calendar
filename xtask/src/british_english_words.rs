@@ -155,6 +155,8 @@ pub(crate) const PHRASES: &[&str] = &[
     "partner center",
     // Ubuntu's software store, which installs the snap.
     "app center",
+    // The checkbox on Microsoft's consent screen that grants for a whole tenant.
+    "consent on behalf of your organization",
 ];
 
 /// A single token, compared exactly.

@@ -10,6 +10,7 @@ import { autoformatBulletList } from "./autoformat";
 import { documentBlocks, referencedAttachmentIds } from "./document";
 import { ancestorOf, focusEditor, rangeWithin, saveSelection } from "./dom";
 import { applyMark } from "./format";
+import { installFramed } from "./framed";
 import { installNativeChrome } from "./host";
 import { HostRequests } from "./host_requests";
 import { historyChord, installHistory } from "./history";
@@ -56,6 +57,10 @@ const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
   return true;
 });
 const chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
+const framed = installFramed(editor, {
+  caret: (top, bottom) => hostRequests.tell("caret", { top, bottom }),
+  scroll: (px, end) => hostRequests.tell("scroll", { px, end }),
+});
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
 
@@ -184,6 +189,8 @@ declare global {
     setComposerBody: (seed: string | BodySeed) => void;
     setComposerDocument: (document: string | ComposerDocument) => void;
     useNativeComposerChrome: () => void;
+    useFramedComposer: () => void;
+    holdComposerWheelDown: (hold: unknown) => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
     setComposerScheme: (scheme: unknown) => void;
@@ -249,7 +256,15 @@ window.setComposerDocument = (document) =>
 window.composerHistorySteps = () => JSON.stringify(history.steps());
 window.stepComposerHistory = (step) =>
   step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
-window.useNativeComposerChrome = () => chrome.useNativeComposerChrome();
+window.useNativeComposerChrome = () => {
+  chrome.useNativeComposerChrome();
+  // A touch screen's row scrolls sideways, so every control goes back into it.
+  toolbar.fit();
+};
+window.useFramedComposer = () => framed.useFramedComposer();
+/// For a host whose web view scrolls the page by a wheel step before the host sees it: while the
+/// host's column takes a step down (`composer_scroller`), the page lets it pass unscrolled.
+window.holdComposerWheelDown = (hold) => framed.holdWheelDown(hold === true);
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 
 /// The requests this host answers with its own UI, and the notices it keeps (`host_requests.ts`);
@@ -257,6 +272,7 @@ window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 window.setComposerHostRequests = (kinds) => {
   hostRequests.setAnswered(kinds);
   history.watch((steps) => hostRequests.tell("history", steps));
+  framed.resend();
 };
 window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
 

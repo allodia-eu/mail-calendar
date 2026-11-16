@@ -10,7 +10,8 @@ use crate::MailcalError;
 pub enum AccountCapability {
     /// Reading and sending mail.
     Mail,
-    /// Mailboxes the person was given access to, beside the account's own, on Microsoft.
+    /// Mailboxes and calendars the person was given access to, beside the account's own, on
+    /// Microsoft: their mail beside mail and their calendars beside calendar.
     SharedMailboxes,
     /// The account's calendar.
     Calendar,

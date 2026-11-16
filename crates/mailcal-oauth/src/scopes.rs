@@ -37,6 +37,10 @@ pub struct ProviderScopes {
     /// Other mailboxes the person has been given access to, requested only beside mail; `None`
     /// where the provider gives a user's own sign-in no way to open one.
     pub shared_mailboxes: Option<ScopeGroup>,
+    /// Other people's calendars the person has been given access to, in a store that is not
+    /// theirs, requested only beside calendar; `None` where the provider gives a user's own
+    /// sign-in no way to open one.
+    pub shared_calendars: Option<ScopeGroup>,
     /// Video meetings made through the account; `None` where this app makes none through the
     /// provider.
     pub meetings: Option<ScopeGroup>,
@@ -75,6 +79,10 @@ pub const MICROSOFT: ProviderScopes = ProviderScopes {
         ],
         needed: "https://graph.microsoft.com/Mail.ReadWrite.Shared",
     }),
+    shared_calendars: Some(ScopeGroup {
+        requested: &["https://graph.microsoft.com/Calendars.ReadWrite.Shared"],
+        needed: "https://graph.microsoft.com/Calendars.ReadWrite.Shared",
+    }),
     meetings: Some(ScopeGroup {
         requested: &["https://graph.microsoft.com/OnlineMeetings.ReadWrite"],
         needed: "https://graph.microsoft.com/OnlineMeetings.ReadWrite",
@@ -111,6 +119,9 @@ pub const GOOGLE: ProviderScopes = ProviderScopes {
     // A Gmail account opens another mailbox only through a service account holding
     // domain-wide delegation, never through a user's own grant.
     shared_mailboxes: None,
+    // A calendar shared with a Google user arrives in their own calendar list; there is no other
+    // person's store for their own grant to open.
+    shared_calendars: None,
     // A Meet space made for an event on a calendar that is not Google's.
     meetings: Some(ScopeGroup {
         requested: &["https://www.googleapis.com/auth/meetings.space.created"],

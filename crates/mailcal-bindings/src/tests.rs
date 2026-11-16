@@ -348,11 +348,14 @@ fn demo_app_dispatches_through_the_ffi_loop_and_notifies() {
     assert!(reading.has_remote_images);
 
     // The shared renderer wraps the fragment in a strict-CSP document; remote images
-    // are blocked by default and load only once the user opts in.
-    assert!(
-        render_message_html(html.clone(), false, MessageScheme::Light).contains("img-src data:")
-    );
-    assert!(render_message_html(html, true, MessageScheme::Light).contains("http:"));
+    // are blocked by default and load only once the user opts in. A blocked one is drawn as an
+    // empty box rather than a broken image, and only while it is blocked.
+    let blocked = render_message_html(html.clone(), false, MessageScheme::Light);
+    assert!(blocked.contains("img-src data:"));
+    assert!(blocked.contains("visibility:hidden"));
+    let allowed = render_message_html(html, true, MessageScheme::Light);
+    assert!(allowed.contains("http:"));
+    assert!(!allowed.contains("visibility:hidden"));
 }
 
 /// Reachability reports take effect in the order the host made them, by the time `dispatch`

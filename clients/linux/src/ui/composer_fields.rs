@@ -5,7 +5,7 @@
 //! its button back, a save is silent, because saving is never something the user waits for
 //! (`docs/drafts.md`).
 
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use adw::prelude::*;
 use gtk::gio;
@@ -13,7 +13,8 @@ use webkit6::prelude::WebViewExt;
 
 use super::{
     AppInput,
-    composer_model::{ComposeContext, ComposerSubmission, PickedFile},
+    composer_file_tiles::FileTiles,
+    composer_model::{ComposeContext, ComposerSubmission},
     recipients::RecipientField,
 };
 use crate::l10n;
@@ -29,11 +30,13 @@ pub(crate) struct ComposerFields {
     pub(crate) cc: Rc<RecipientField>,
     pub(crate) bcc: Rc<RecipientField>,
     pub(crate) subject: gtk::Entry,
-    pub(crate) files: Rc<RefCell<Vec<PickedFile>>>,
+    /// The message's files, which the core holds: every save and the send read them there.
+    pub(crate) files: Rc<FileTiles>,
 }
 
-/// The header as one value, so one comparison covers every field rather than one per field.
-pub(crate) type HeaderFingerprint = (String, String, String, String, usize);
+/// The header as one value, so one comparison covers every field rather than one per field. The
+/// files are their ids, so taking one off and adding another is a change too.
+pub(crate) type HeaderFingerprint = (String, String, String, String, Vec<String>);
 
 impl ComposerFields {
     /// What the composer's header holds, for the autosave timer to compare against the last tick.
@@ -47,7 +50,12 @@ impl ComposerFields {
             self.cc.text(),
             self.bcc.text(),
             self.subject.text().to_string(),
-            self.files.borrow().len(),
+            self.files
+                .current()
+                .tiles
+                .into_iter()
+                .map(|tile| tile.id)
+                .collect(),
         )
     }
 
@@ -75,7 +83,6 @@ pub(crate) fn read_document(
     let cc = fields.cc.text();
     let bcc = fields.bcc.text();
     let subject = fields.subject.text().to_string();
-    let files = fields.files.borrow().clone();
     let from = fields.sender_account();
     let sender = sender.clone();
     editor.evaluate_javascript(
@@ -91,7 +98,6 @@ pub(crate) fn read_document(
                 bcc,
                 subject,
                 document_json: value.to_str().to_string(),
-                files,
                 from,
             }))),
             Err(_) => on_failure(),

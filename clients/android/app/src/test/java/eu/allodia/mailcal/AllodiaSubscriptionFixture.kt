@@ -1,80 +1,59 @@
-// One subscription answer to build the subscription tests out of, so each test states only the
+// One subscription section to build the subscription tests out of, so each test states only the
 // part it is about.
 package eu.allodia.mailcal
 
 import uniffi.mailcal_bindings.AllodiaBiller
-import uniffi.mailcal_bindings.AllodiaOwnStatus
-import uniffi.mailcal_bindings.AllodiaOwnSubscription
-import uniffi.mailcal_bindings.AllodiaPlan
+import uniffi.mailcal_bindings.AllodiaCheckoutOffer
 import uniffi.mailcal_bindings.AllodiaPrices
-import uniffi.mailcal_bindings.AllodiaStore
-import uniffi.mailcal_bindings.AllodiaStoreStatus
-import uniffi.mailcal_bindings.AllodiaStoreSubscription
-import uniffi.mailcal_bindings.AllodiaSubscription
-import uniffi.mailcal_bindings.AllodiaSubscriptionActions
+import uniffi.mailcal_bindings.AllodiaStorePage
+import uniffi.mailcal_bindings.AllodiaSubscriptionCard
+import uniffi.mailcal_bindings.AllodiaSubscriptionOutcome
+import uniffi.mailcal_bindings.AllodiaSubscriptionState
+import uniffi.mailcal_bindings.AllodiaSubscriptionView
+import uniffi.mailcal_bindings.AllodiaSwitch
+import uniffi.mailcal_bindings.ControlState
 
-internal fun subscription(
+internal fun allodiaPrices() = AllodiaPrices(monthlyInCents = 299, yearlyInCents = 2990, currency = "EUR")
+
+internal fun allodiaCheckout(
+    monthly: ControlState = FREE,
+    yearly: ControlState = FREE,
+) = AllodiaCheckoutOffer(prices = allodiaPrices(), monthly = monthly, yearly = yearly)
+
+internal fun subscriptionView(
     entitled: Boolean = false,
-    currentPeriodEnd: String? = null,
-    own: AllodiaOwnSubscription? = null,
-    stores: List<AllodiaStoreSubscription> = emptyList(),
+    billedBy: AllodiaBiller? = null,
+    periodEnd: String? = null,
+    renews: Boolean = false,
+    grace: Boolean = false,
     duplicateBilling: List<AllodiaBiller> = emptyList(),
-) = AllodiaSubscription(
+    storePages: List<AllodiaStorePage> = emptyList(),
+    paidThrough: String? = "2027-09-18T00:00:00+02:00",
+    switch: AllodiaSwitch? = null,
+    resubscribe: ControlState? = null,
+    cancel: ControlState? = null,
+    checkout: AllodiaCheckoutOffer? = null,
+    refreshing: Boolean = false,
+) = AllodiaSubscriptionView(
     entitled = entitled,
-    plan = if (entitled) "pro" else "free",
-    currentPeriodEnd = currentPeriodEnd,
-    own = own,
-    stores = stores,
+    billedBy = billedBy,
+    periodEnd = periodEnd,
+    renews = renews,
+    grace = grace,
     duplicateBilling = duplicateBilling,
-    // Permissive by default: what a client may offer is the service's answer, so a test about
-    // anything else should not have to state it, and the tests that are about it say so.
-    actions = AllodiaSubscriptionActions(
-        canCancel = true,
-        canResubscribe = true,
-        canSwitchInterval = true,
-        canStartCheckout = !entitled,
-    ),
-    prices = AllodiaPrices(monthlyInCents = 299, yearlyInCents = 2990, currency = "EUR"),
-    checkoutAvailable = true,
+    storePages = storePages,
+    paidThrough = paidThrough,
+    switch = switch,
+    resubscribe = resubscribe,
+    cancel = cancel,
+    checkout = checkout,
+    refreshing = refreshing,
 )
 
-internal fun storeSubscription(
-    source: AllodiaStore = AllodiaStore.GOOGLE,
-    status: AllodiaStoreStatus = AllodiaStoreStatus.Active,
-    autoRenewing: Boolean = true,
-    currentPeriodEnd: String? = null,
-    manageUrl: String = "https://play.google.com/store/account/subscriptions",
-) = AllodiaStoreSubscription(
-    source = source,
-    status = status,
-    interval = AllodiaPlan.YEARLY,
-    productId = "eu.allodia.mailcal.services",
-    priceInCents = null,
-    currency = null,
-    currentPeriodEnd = currentPeriodEnd,
-    autoRenewing = autoRenewing,
-    environment = "production",
-    manageUrl = manageUrl,
-)
+internal fun subscriptionCard(
+    state: AllodiaSubscriptionState,
+    outcome: AllodiaSubscriptionOutcome? = null,
+) = AllodiaSubscriptionCard(state = state, outcome = outcome, checkoutPage = null)
 
-internal fun ownSubscription(
-    status: AllodiaOwnStatus = AllodiaOwnStatus.Active,
-    nextPaymentDate: String? = "2027-09-18T00:00:00+02:00",
-    interval: AllodiaPlan = AllodiaPlan.YEARLY,
-) = AllodiaOwnSubscription(
-    status = status,
-    interval = interval,
-    amountInCents = 2990,
-    nextPaymentDate = nextPaymentDate,
-    currentPeriodEnd = "2027-09-18T00:00:00+02:00",
-    cancelledAt = null,
-)
-
-// A service that permits none of the writes, which is what it answers for somebody a store is
-// charging: they have a period and a plan, and neither is this API's to change.
-internal fun refusing() = AllodiaSubscriptionActions(
-    canCancel = false,
-    canResubscribe = false,
-    canSwitchInterval = false,
-    canStartCheckout = false,
-)
+internal fun loadedSubscription(view: AllodiaSubscriptionView, outcome: AllodiaSubscriptionOutcome? = null) =
+    subscriptionCard(AllodiaSubscriptionState.Loaded(view), outcome)

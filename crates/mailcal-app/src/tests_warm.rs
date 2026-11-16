@@ -15,10 +15,7 @@ use std::{
 use fakes::{FakeProvider, SourceFailure, account, app, flat_previews, message, msg};
 
 use super::{Intent, ReaderId};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn a_refresh_warms_every_body_so_opens_work_offline_with_no_prior_open() {

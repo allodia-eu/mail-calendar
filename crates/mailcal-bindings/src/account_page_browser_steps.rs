@@ -10,6 +10,8 @@ pub(crate) enum Target {
     /// The server holding `uses` of the mailbox, as an account of their own
     /// (`docs/accounts.md` rule 18).
     Separate { uses: Vec<AccountCapability> },
+    /// The Allodia account, at the service's sign-up page when `create`.
+    Allodia { create: bool },
 }
 
 /// The handle a started sign-in is completed with.
@@ -23,6 +25,8 @@ pub(crate) enum Pending {
     Separate(String),
     /// A Nextcloud Login Flow, polled by the core.
     Nextcloud(String),
+    /// An Allodia account's sign-in.
+    Allodia(String),
 }
 
 /// What a sign-in's server answered when it was started.
@@ -54,6 +58,10 @@ pub(crate) enum Completion {
     },
     Nextcloud {
         grant: String,
+    },
+    Allodia {
+        pending: String,
+        callback_url: String,
     },
 }
 

@@ -342,11 +342,11 @@ Both are decided in `rebuild_calendar_cache`, once, so no surface can hold a dif
 Every launch expands the **rolling horizon**: 120 days back and 400 ahead of today. A page asked for
 beyond it answers `false` at once, because the page query never touches the store (§5), and the same
 query records the days it could not answer. The bindings then run the widening off the caller's
-thread (`App::widen_calendar`): every account's stored events are expanded over a window reaching
-the page and 91 days past it, the cache is rebuilt over that window, and `Surface::Calendar` tells
-the client to pull again. The page comes back `true` with its events. "Loading this period…" is
-therefore what a client shows while that local expansion runs, and never a resting state for a
-calendar that has been read.
+thread (`App::widen_calendar`): the engine fetches the days a calendar does not hold yet
+(`Engine::reach_calendar`), every account's events are expanded over a window reaching the page and
+91 days past it, the cache is rebuilt over that window, and `Surface::Calendar` tells the client to
+pull again. The page comes back `true` with its events. "Loading this period…" is therefore what a
+client shows while that widening runs, and never a resting state for a calendar that has been read.
 
 - **The window only grows towards pages asked for, and lasts the session.** Going back two years
   expands the two years in between, because the engine expands one window; the next launch expands
@@ -356,23 +356,28 @@ calendar that has been read.
   the window as widened, and every expansion and the rebuild that claims it hold one lock, so a
   rebuild over a narrower window cannot land after a wider one and take a page back to "loading".
 - **The evidence rule above still holds.** Widening a store nobody has read claims nothing.
-- **A widening that cannot expand every account claims nothing new.** One whose calendar another
-  pass holds tries again a few times and is then owed again, so the next page asked for starts
-  another; the pass that held the calendar expands the same window when it finishes.
-- **A widened page shows what the store holds.** A CalDAV or JMAP account fetches every event, so
-  its widened page is complete. A Google or Microsoft account fetches its events over a window
-  instead: the rolling horizon as it stood at the account's first sync, applied once and then
-  carried by the provider's change feed. Outside that window, a page of that account, widened or
-  not, can lack one-off events: its store holds the repeating series and what the change feed has
-  brought since, never what was already there. The rolling horizon itself passes the window's end
-  as the account ages. Fetching a further range into a synced calendar is the engine's to offer,
-  and it does not yet.
+- **A calendar another pass holds is waited for.** The engine waits for the pass to finish and then
+  widens, so a widening runs once. One that could not fetch or expand an account (a server that did
+  not answer, a store that refused) claims nothing new and is owed again, so the next page asked for
+  starts another.
+- **A widened page is complete on every account.** A CalDAV or JMAP account fetches every event, so
+  nothing is fetched for it. A Google or Microsoft account fetches its events inside a window: the
+  rolling horizon at its first sync, recorded by the engine with the calendar's change feed. A page
+  past that window has the engine reopen the feed over the window and the page together, one fetch
+  of the whole span, after which the change feed keeps those events current. A range already inside
+  the recorded window asks the server nothing.
+- **The rolling horizon moving on is a widening too.** Every refresh asks the engine for the
+  calendar window, so a Google or Microsoft calendar whose first window the rolling horizon has
+  passed is reopened over the two; that costs a fetch at most once a day, when the horizon moves, and
+  nothing on a calendar fetched whole.
 
 ### A calendar that is not connected says so
 
 A calendar the account is used for can fail while the account connects: its server needs a sign-in
 of its own, refused the account's, or could not be reached ([`accounts.md`](accounts.md) rule 16).
-What the store holds of it stays on the grid, so the week is not emptied by a sign-in change, and
+A calendar that connected and then stops answering is the third case, said once two refreshes in a
+row have reached nothing and taken away by the next refresh that reaches it. What the store holds
+of it stays on the grid, so the week is not emptied by a sign-in change, and
 the calendar screen says what that week is:
 
 - **One notice per account** ([`notices.md`](notices.md)), `CalendarOutage`, drawn wherever the client draws the calendar's
@@ -381,8 +386,9 @@ the calendar screen says what that week is:
   **Try again** for a server that could not be reached, **Review** for one paused on a new server,
   and **Account settings** otherwise, which opens that account's page in Settings → Accounts, where
   the remedy is.
-- **Nothing on it can be changed or answered.** The core writes only through a bound adapter, so a
-  calendar that is not connected is not writable (`can_write` is `false` on its rows and events, and
+- **Nothing on it can be changed or answered.** The core writes only through a connected adapter
+  (`App::connected_calendar`: bound, and its use without a problem), so a calendar that is not
+  connected, or has stopped answering, is not writable (`can_write` is `false` on its rows and events, and
   "New event" is off when no other calendar can take one), its events offer no answer
   (`my_answer` is `None`), and a write that arrives anyway settles `NotSaved` with nothing sent.
 - **Offline, an unreachable calendar is left to the offline notice**, which already says why; a
@@ -1687,6 +1693,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | "Awaiting your response" in the spoken label ⁸ | ✅ (string) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Declined events hidden from grid / month / agenda ⁸ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A calendar that is not connected says so, and nothing on it can be changed or answered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A calendar that stops answering after it connected says so after two refreshes, and clears on the next that reaches it | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A change that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar manager: visibility + colour override (persisted) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: week start, 12/24h, horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

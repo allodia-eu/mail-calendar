@@ -6,11 +6,7 @@ use adw::prelude::*;
 use mailcal_bindings::MailcalApp;
 use widgets::{choice, dialog_box, group, group_titled, page_box};
 
-use super::{
-    AppInput,
-    allodia_subscription::{SubscriptionInput, SubscriptionState},
-    icons,
-};
+use super::{AppInput, allodia_subscription::SubscriptionInput, icons};
 use crate::{l10n, preferences::HostPreferences};
 
 pub(super) mod about;
@@ -27,6 +23,7 @@ pub(super) mod account_sync_mode;
 mod account_sync_technology;
 pub(super) mod accounts;
 pub(super) mod allodia;
+pub(super) use allodia::failure_said as allodia_failure_said;
 pub(super) mod allodia_sync;
 mod category;
 pub(super) mod dark_messages;
@@ -41,7 +38,7 @@ pub(super) mod notice;
 mod pages;
 pub(super) mod redraw;
 pub(super) mod sender_name;
-mod shared_mailboxes;
+mod shared_stores;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
@@ -75,11 +72,6 @@ pub(crate) enum Category {
 pub(super) struct RenderState<'a> {
     pub(super) generation: u64,
     pub(super) category: Category,
-    pub(super) allodia_signing_in: bool,
-    pub(super) allodia_failure: Option<&'a str>,
-    /// What the subscription section has learned, for the same reason: a read and a write each
-    /// outlive several window rebuilds.
-    pub(super) allodia_subscription: &'a SubscriptionState,
     /// The account whose page Accounts shows, and what the last change on it came to.
     pub(super) account: Option<&'a str>,
     /// The form for a sign-in of its own an account's page opened.
@@ -126,12 +118,6 @@ struct PageContext {
     sender: relm4::Sender<AppInput>,
     window: gtk::Window,
     navigation: gtk::Stack,
-    /// The Allodia sign-in's state. It lives in the model rather than in this window because the
-    /// window is rebuilt from scratch on every change; a browser hop outlasts several rebuilds.
-    allodia_signing_in: bool,
-    allodia_failure: Option<String>,
-    /// What the subscription section has learned, likewise.
-    allodia_subscription: SubscriptionState,
     /// The account whose page Accounts shows, or `None` for the list.
     account: Option<String>,
     /// The page of the account Accounts shows, read once for the redraw.
@@ -247,12 +233,18 @@ impl SettingsWindow {
             // Connected where the window is built rather than on every render: a refresh reuses
             // the window, and a handler added per refresh would fire once per redraw it has ever
             // had. The section ignores a return until it has answered once, so this costs a round
-            // trip only on the page that draws one.
+            // trip only where a section is drawn.
             let returning = sender.clone();
             window.connect_is_active_notify(move |window| {
                 if window.is_active() {
                     returning.emit(AppInput::AllodiaSubscription(SubscriptionInput::Returned));
                 }
+            });
+            // Closing the window leaves the subscription section as surely as another category.
+            let leaving = sender.clone();
+            window.connect_close_request(move |_| {
+                leaving.emit(AppInput::AllodiaSubscription(SubscriptionInput::Left));
+                gtk::glib::Propagation::Proceed
             });
             window
         };
@@ -271,9 +263,6 @@ impl SettingsWindow {
             sender,
             window: window.clone(),
             navigation: navigation.clone(),
-            allodia_signing_in: state.allodia_signing_in,
-            allodia_failure: state.allodia_failure.map(str::to_owned),
-            allodia_subscription: state.allodia_subscription.clone(),
             account: state.account.map(str::to_owned),
             page: None,
             devices: None,

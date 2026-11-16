@@ -9,6 +9,7 @@ use crate::{
     accounts::Account,
     calendar_unexpandable::unexpandable_line,
     sync_account::{reach_of, reach_of_api, reachability, signin_expired},
+    use_problems::refresh::RefreshedUse,
 };
 
 /// What one account's calendar pass did, for the refresh's summary line.
@@ -65,6 +66,11 @@ impl<P: Provider> App<P> {
                 self.refresh_account_calendar(acct, account, sync, horizon, &zone)
             }))
             .await;
+        // A Microsoft or Google calendar is fetched inside a window, and the rolling horizon moves
+        // past the one its first sync opened over as the account ages. The engine reopens it when
+        // the horizon has moved (once a day at most) and asks nothing otherwise; one it could not
+        // reach is fetched by the next refresh.
+        self.reach_calendar().await;
         let synced = sync_start.elapsed();
         let rebuild_start = Instant::now();
         // Expanded after every sync rather than beside each, under the lock a widening takes, so a
@@ -137,9 +143,9 @@ impl<P: Provider> App<P> {
                             Ok(EventScopePass::Synced(_)) => pass.synced += 1,
                             // Another pass holds the scope and brings the same changes.
                             Err(error) if error.is_busy() => pass.busy += 1,
-                            // Counted and logged, never surfaced as an error state: the
-                            // calendars that did sync are still worth showing, and a failed
-                            // write reaches the user through `CalendarWriteStatus` instead.
+                            // Counted and logged: the calendars that did sync are still worth
+                            // showing, so only a pass that reached nothing says so (below), and a
+                            // failed write reaches the user through `CalendarWriteStatus`.
                             Err(error) => {
                                 pass.failed += 1;
                                 log::warn!("calendar[a{acct}]: calendar[{index}] failed: {error}");
@@ -160,10 +166,23 @@ impl<P: Provider> App<P> {
                     );
                 }
             }
-            // An account with mail learns whether its server answers from its mail pass; one
-            // without learns it here, or it could never say it is unreachable or signed out.
-            if !account.uses_mail {
-                if let Some(reachable) = reachability(list, reaches.iter().copied()) {
+            let verdict = reachability(list, reaches.iter().copied());
+            // An account with mail learns whether its server answers from its mail pass, and a
+            // calendar that stops answering beside it is the calendar's own problem. One without
+            // mail learns it here, or it could never say it is unreachable or signed out.
+            if account.uses_mail {
+                if self.note_use_refreshed(&account.id, RefreshedUse::Calendar, verdict) {
+                    log::info!(
+                        "calendar[a{acct}]: {}",
+                        if verdict == Some(true) {
+                            "answering again"
+                        } else {
+                            "not answering; held until a refresh reaches it"
+                        }
+                    );
+                }
+            } else {
+                if let Some(reachable) = verdict {
                     self.set_account_reachable(&account.id, reachable);
                 }
                 self.apply_signin_expired(&account.id, signin_expired(list, reaches.into_iter()));

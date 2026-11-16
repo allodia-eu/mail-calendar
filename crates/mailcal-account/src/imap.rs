@@ -9,7 +9,7 @@
 use std::sync::{Arc, Mutex};
 
 use engine_core::{
-    ids::{AccountId, MailboxId, SharedMailboxId},
+    ids::{AccountId, MailboxId, SharedAccountId},
     mail::MailboxRole,
     sync::SyncUpdate,
 };
@@ -134,9 +134,9 @@ async fn connect_account(
 
 /// The store `shared` names, opened by `imap`'s login and drawing on its connections; `imap`
 /// itself when `shared` is `None`.
-fn store(imap: Arc<LiveImapAccount>, shared: Option<&SharedMailboxId>) -> Arc<LiveImapAccount> {
+fn store(imap: Arc<LiveImapAccount>, shared: Option<&SharedAccountId>) -> Arc<LiveImapAccount> {
     match shared {
-        Some(handle) => Arc::new(imap.with_shared_mailbox(handle.clone())),
+        Some(handle) => Arc::new(imap.with_shared_account(handle.clone())),
         None => imap,
     }
 }
@@ -182,7 +182,7 @@ pub async fn connect_imap_mailbox(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     mailbox: &str,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let mailbox = mailbox_id(mailbox)?;
     let imap = store(
@@ -210,7 +210,7 @@ pub async fn connect_imap_watcher(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     mailbox: &str,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Box<dyn Watch>, AccountError> {
     let mailbox = mailbox_id(mailbox)?;
     let imap = store(
@@ -261,7 +261,7 @@ pub async fn connect_mail_providers(
     account: &AccountConfig,
     tokens: ImapTokens<'_>,
     account_id: &AccountId,
-    shared: Option<&SharedMailboxId>,
+    shared: Option<&SharedAccountId>,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let imap = match shared {
         Some(_) => store(

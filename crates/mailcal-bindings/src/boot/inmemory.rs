@@ -107,6 +107,7 @@ pub(crate) fn build_demo(
         disconnected: Arc::new(Mutex::new(HashSet::new())),
         redialling: Arc::default(),
         account_work: Arc::default(),
+        composer_files: crate::composer_file_list::ComposerFileLists::default(),
         device_zone: device_tz,
         platform: None,
         // The demo fixture is what the CI verify gates assert on; it must keep behaving like a
@@ -116,6 +117,7 @@ pub(crate) fn build_demo(
     });
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
+    mailcal.read_mail_rows_ahead();
     mailcal
 }
 
@@ -349,6 +351,7 @@ fn finish_showcase(
         disconnected: Arc::new(Mutex::new(HashSet::new())),
         redialling: Arc::default(),
         account_work: Arc::default(),
+        composer_files: crate::composer_file_list::ComposerFileLists::default(),
         device_zone: device_tz,
         platform: None,
         // The one build where account detection answers from a script instead of the network;
@@ -358,6 +361,7 @@ fn finish_showcase(
     });
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
+    mailcal.read_mail_rows_ahead();
     mailcal
 }
 

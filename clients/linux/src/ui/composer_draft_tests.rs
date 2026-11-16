@@ -4,6 +4,7 @@
 //! in [`super::super::composer_discard`].
 
 use adw::prelude::*;
+use webkit6::prelude::WebViewExt;
 
 use super::super::{
     AppInput,
@@ -82,6 +83,70 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
     assert!(pane.widget().first_child().is_none());
 }
 
+/// The composer is one column: the header, the action row, the notes, the files, then the editor,
+/// and nothing in it but the message's box with a vertical scroll of its own
+/// (`docs/composer-layout.md`, rules 1 and 2). A popup is drawn over the column, so one inside a
+/// popover is not in it.
+pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let pane = ComposerPane::new();
+    pane.show(
+        44,
+        &reply(ComposerHost::Pane),
+        &[("fixture".to_owned(), "sender@example.test".to_owned())],
+        None,
+        window,
+        sender,
+    );
+    let scrolls: Vec<gtk::ScrolledWindow> =
+        descendants::<gtk::ScrolledWindow>(pane.widget().upcast_ref())
+            .into_iter()
+            .filter(|scroll| scroll.ancestor(gtk::Popover::static_type()).is_none())
+            .collect();
+    assert_eq!(scrolls.len(), 1, "one scroll, around the whole composer");
+    let column = &scrolls[0];
+    // It scrolls, but draws no bar: the message's box draws the one there is (rule 2).
+    assert_eq!(column.vscrollbar_policy(), gtk::PolicyType::External);
+    assert_eq!(column.hscrollbar_policy(), gtk::PolicyType::Never);
+    // GTK's own scroll to the focus would show the whole editor on a click in the message, which
+    // is the column at its end with the header carried away; the column follows the focus itself.
+    let viewport = column
+        .child()
+        .and_downcast::<gtk::Viewport>()
+        .expect("the column's own viewport");
+    assert!(!viewport.is_scroll_to_focus());
+    let content = descendants::<gtk::Box>(column.upcast_ref())
+        .into_iter()
+        .next()
+        .expect("the column holds the composer");
+    let order: Vec<gtk::Widget> =
+        std::iter::successors(content.first_child(), gtk::Widget::next_sibling).collect();
+    assert_eq!(order.len(), 6, "{order:?}");
+    assert!(order[0].is::<gtk::Grid>(), "the header first");
+    assert!(
+        descendants::<gtk::Button>(&order[1])
+            .iter()
+            .any(|button| button.label().as_deref() == Some(l10n::action_attach())),
+        "then the action row"
+    );
+    assert!(
+        order[2].is::<gtk::Label>() && order[3].is::<gtk::Label>(),
+        "then the notes"
+    );
+    assert!(
+        !descendants::<gtk::FlowBox>(&order[4]).is_empty(),
+        "then the files, under the line that counts them"
+    );
+    let editors = descendants::<webkit6::WebView>(&order[5]);
+    assert!(!editors.is_empty(), "and the message last");
+    assert_eq!(content.margin_bottom(), 0, "with nothing under it");
+    assert!(
+        editors[0].background_color().alpha() < f32::EPSILON,
+        "drawing no background of its own (rule 5)"
+    );
+    pane.teardown();
+}
+
 fn reply(host: ComposerHost) -> ComposeContext {
     ComposeContext {
         kind: ComposeKind::Reply,
@@ -98,8 +163,6 @@ fn reply(host: ComposerHost) -> ComposeContext {
         initial_from: Some("fixture".to_owned()),
         seeds_signature: true,
         composition: new_composition(),
-        files: Vec::new(),
-        opening_files: 0,
         attachments_failed: false,
         moved: None,
     }
@@ -129,6 +192,29 @@ pub(crate) fn only_the_panes_composer_offers_to_pop_out(window: &adw::Applicatio
         if let Some(button) = pop_out.first() {
             assert_eq!(button.icon_name().as_deref(), Some(icons::POP_OUT));
         }
+        pane.teardown();
+    }
+}
+
+/// The pane's composer draws no window controls at either end: the header bar spanning the
+/// mailbox window carries them, and a second set would stand beside them. A composer in a window
+/// of its own keeps both, because its bar is that window's titlebar.
+pub(crate) fn only_a_composer_window_draws_the_window_controls(window: &adw::ApplicationWindow) {
+    for (host, own) in [(ComposerHost::Pane, false), (ComposerHost::Window(8), true)] {
+        let (sender, _receiver) = relm4::channel::<AppInput>();
+        let pane = ComposerPane::new();
+        pane.show(
+            45,
+            &reply(host),
+            &[("fixture".to_owned(), "sender@example.test".to_owned())],
+            None,
+            window,
+            sender,
+        );
+        let bars = descendants::<adw::HeaderBar>(pane.widget().upcast_ref());
+        assert_eq!(bars.len(), 1, "{host:?}");
+        assert_eq!(bars[0].shows_start_title_buttons(), own, "{host:?}");
+        assert_eq!(bars[0].shows_end_title_buttons(), own, "{host:?}");
         pane.teardown();
     }
 }

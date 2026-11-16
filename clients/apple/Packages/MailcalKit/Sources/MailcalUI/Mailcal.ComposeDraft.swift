@@ -19,7 +19,9 @@ struct DraftHeaders: Equatable {
     let cc: String
     let bcc: String
     let subject: String
-    let attachments: Int
+    /// Whether the core's file list differs from what the composer opened holding
+    /// (`ComposerFiles.changed`).
+    let filesChanged: Bool
 }
 
 extension View {

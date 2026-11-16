@@ -36,7 +36,6 @@ const CSS: &str = "
 struct Drawn {
     notices: Vec<Notice>,
     screen: NoticeScreens,
-    running: Option<String>,
 }
 
 pub(super) struct NoticeBar {
@@ -126,16 +125,10 @@ impl NoticeBar {
         self.root.upcast_ref()
     }
 
-    pub(super) fn render(
-        &mut self,
-        notices: &[Notice],
-        primary: PrimaryView,
-        running: Option<&str>,
-    ) {
+    pub(super) fn render(&mut self, notices: &[Notice], primary: PrimaryView) {
         let drawn = Drawn {
             notices: notices.to_vec(),
             screen: notice_rules::screen_of(primary),
-            running: running.map(str::to_owned),
         };
         if self.drawn.as_ref() == Some(&drawn) {
             return;
@@ -168,7 +161,7 @@ impl NoticeBar {
         self.glyph
             .set_icon_name(Some(notice_rules::glyph(notice.severity)));
         self.banner.set_title(&sentence(&notice));
-        let running = drawn.running.as_deref() == Some(notice.id.as_str());
+        let running = notice.running;
         let asks = notice_rules::asks(&notice);
         self.banner
             .set_button_label(button_label(&notice).filter(|_| !asks).as_deref());
@@ -180,7 +173,7 @@ impl NoticeBar {
         self.issues.set_label(&label);
         self.issues
             .update_property(&[AccessibleProperty::Label(&label)]);
-        self.fill_list(notices, drawn.running.as_deref());
+        self.fill_list(notices);
         self.root.set_visible(true);
     }
 
@@ -198,7 +191,7 @@ impl NoticeBar {
     }
 
     /// Every notice in force, each with its own action and, where it can be closed, a Close.
-    fn fill_list(&self, notices: &[Notice], running: Option<&str>) {
+    fn fill_list(&self, notices: &[Notice]) {
         while let Some(child) = self.list.first_child() {
             self.list.remove(&child);
         }
@@ -207,9 +200,12 @@ impl NoticeBar {
         heading.set_xalign(0.0);
         self.list.append(&heading);
         for notice in notices {
-            let running = running == Some(notice.id.as_str());
-            self.list
-                .append(&issue_row(notice, running, &self.issues, &self.sender));
+            self.list.append(&issue_row(
+                notice,
+                notice.running,
+                &self.issues,
+                &self.sender,
+            ));
         }
     }
 

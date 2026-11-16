@@ -261,11 +261,14 @@ is "what do I switch on", asked constantly and cached for thirty days, and this 
 say on this screen", asked when somebody opens it. Gating on this one would put a network read in
 front of a feature, which is the single rule [`entitlement.md`](entitlement.md) is built on.
 
-**`actions` decides which buttons exist, and a client draws exactly that.** It is passed through
-rather than re-derived, because the rule it encodes has to account for three billers at once:
-`canStartCheckout` is false for anybody already paying through *any* source, which is what stops a
-desktop build selling a second subscription to somebody the App Store is charging. A client working
-the same thing out locally would be a fourth copy of a rule that only the service can hold.
+**`actions` decides which buttons exist, and the core decides the section from it**
+(`MailcalApp::allodia_subscription_card`): who is billing, whether it renews, a retry, every store
+page and every write, which a client draws and words without working any of it out. It is passed
+through rather than re-derived, because the rule it encodes has to account for three billers at
+once: `canStartCheckout` is false for anybody already paying through *any* source, which is what
+stops a desktop build selling a second subscription to somebody the App Store is charging. The
+core reads it, keeps it for the signed-in account and runs each write as an `AllodiaIntent`,
+reading again after it ([`../docs/waiting.md`](../docs/waiting.md)).
 
 | | Who can change it | How |
 |---|---|---|
@@ -445,8 +448,9 @@ never needed.
 
 ⚠️ **A sign-in older than the permission this read needs is an offer, not an outage**, and the
 first device this card was opened on had one. The remedies are opposites, so the read's failure
-alone may not decide the sentence: `allodia_grant_health` does, exactly as the account list's own
-failure does ([`entitlement.md`](entitlement.md)). Both screens read it.
+alone may not decide the sentence: the core's card does, drawing `NeedsReauth` for this one and no
+section at all once the service refused the sign-in, from the grant health the account card reads
+([`entitlement.md`](entitlement.md)).
 
 **Apple's screen is 🚧 rather than ✅, and the distance is not code.** Settings → Allodia account
 draws the subscription: who is charging, until when, a retry that is not a lapse, every biller when
@@ -551,24 +555,6 @@ it is why the four writes are no longer the least proven half of this page.
   colon or, on Windows, as the exception's own type name. All three clients that draw the writes now
   switch on the code, with five sentences in all seven locales and one more for a reason none of
   them can explain.
-- ⚠️ **A card reads once and nothing tells it the answer changed.** Every client asks when the
-  card appears and not again, so it goes stale the moment the subscription moves anywhere else, and
-  the checkout route makes that the ordinary case rather than an edge one: the payment finishes in a
-  **browser**, and the person comes back to a card still offering to sell them what they have just
-  bought. The same staleness follows buying on a phone, subscribing on the website, a store
-  cancelling at renewal and a charge failing, none of which this app is present for, which is why
-  the remedy is the app being looked at again rather than anything a checkout could hand back.
-  The two desktops re-read when their Settings window comes back to the front, which is what
-  returning from the payment page looks like on both, and each ignores it until the section has
-  answered once, so the round trip is spent on the page that draws one. Apple and Android start
-  their read once per screen, neither re-runs on resume, and both still owe it.
-- ⚠️ **The manage-at-the-store button is unreachable in the two states it was written for.**
-  Every card draws the paid half only when `entitled` is true, and on hold and paused both grant
-  nothing, so `entitled` is false and the button goes with the rest of that half. Those are exactly
-  the two states the rule about which stores are manageable exists to keep it for: a card that
-  failed is replaced at the store and a pause is lifted there, so the person who most needs the
-  route is the one who has none. It is the same shape on all four clients, which is why it is
-  recorded here rather than fixed on whichever one noticed.
 - ⚠️ **The four clients that format a service date do not agree on which day it is.** The service
   sends an offset-bearing instant, and a period ending at midnight `+02:00` is the previous day in
   UTC. Android restates it in UTC and Apple in the reader's own zone, so the two already differ;
@@ -598,8 +584,8 @@ it is why the four writes are no longer the least proven half of this page.
   card works that out. The same account, minutes earlier with its licence-tester period lapsed, drew
   the free state and both buy buttons instead, so both sides of the same passthrough were seen on
   one machine within the hour.
-- ⚠️ **A switch reports an amount and no currency.** `AllodiaIntervalChange` carries minor units
-  alone, so a client prices it from `prices.currency`, which is today's list currency rather than
+- ⚠️ **A switch reports an amount and no currency.** The service answers with minor units alone,
+  so the core prices the outcome from `prices.currency`, which is today's list currency rather than
   the one this subscriber was charged in. The two differ only for somebody whose billing currency
   has since changed, which the service does not currently do, so it is a latent wrong rather than a
   present one.

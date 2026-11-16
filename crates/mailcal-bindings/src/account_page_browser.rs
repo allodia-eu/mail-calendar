@@ -54,6 +54,8 @@ struct Attempt {
     stage: Stage,
     /// Grows with each stage, so a wait that outlived its cap ends only the stage it timed.
     serial: u64,
+    /// When it was pressed.
+    started: Instant,
 }
 
 #[derive(Debug, Default)]
@@ -69,6 +71,8 @@ struct Slot {
     cap: Option<Duration>,
     /// Another time than [`OPENING`], for a test.
     opening: Option<Duration>,
+    /// Another time than `ESCAPE_AFTER`, for a test.
+    escape: Option<Duration>,
 }
 
 /// What starting a sign-in came to.
@@ -137,6 +141,7 @@ impl BrowserSignIns {
             switching,
             stage,
             serial,
+            started: Instant::now(),
         });
         if completes {
             Start::Complete { attempt }
@@ -221,6 +226,10 @@ impl BrowserSignIns {
                     unreached: *unreached,
                 },
                 Pending::Separate(pending) => Completion::Separate {
+                    pending: pending.clone(),
+                    callback_url,
+                },
+                Pending::Allodia(pending) => Completion::Allodia {
                     pending: pending.clone(),
                     callback_url,
                 },
@@ -383,13 +392,17 @@ impl BrowserSignIns {
             })
     }
 
-    /// The account whose own sign-in is out while the control that started it is running.
+    /// The account whose own sign-in is out while the control that started it is running, the
+    /// Allodia account's being `ACCOUNT_ID`.
     pub(crate) fn working_account(&self) -> Option<String> {
         let slot = self.slot();
         let opening = slot.opening.unwrap_or(OPENING);
         slot.current
             .as_ref()
-            .filter(|current| current.target == Target::Account && working(current, opening))
+            .filter(|current| {
+                matches!(current.target, Target::Account | Target::Allodia { .. })
+                    && working(current, opening)
+            })
             .map(|current| current.account.clone())
     }
 

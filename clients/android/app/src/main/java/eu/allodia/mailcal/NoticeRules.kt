@@ -58,9 +58,6 @@ internal object NoticeRules {
     fun expired(notices: List<Notice>): Set<String> =
         notices.filter { it.kind == NoticeKind.SignInExpired }.mapNotNull { it.account }.toSet()
 
-    /** Whether the account service refused the Allodia sign-in, which the Allodia card draws. */
-    fun allodiaSignInEnded(notices: List<Notice>): Boolean = notices.any { it.kind is NoticeKind.AllodiaSignInEnded }
-
     /** The mark each account with a notice carries; [count] words "N issues". */
     fun marks(
         notices: List<Notice>,
@@ -92,11 +89,10 @@ internal object NoticeRules {
     fun offersSecond(notice: Notice): Boolean = notice.secondAction != null && notice.secondActionLabel != null
 
     /**
-     * Whether a notice's buttons are held: an answer or a sign-in the core is carrying out, or the
-     * Allodia sign-in this client started from it ([running] names that notice), so neither can
-     * start a second one.
+     * Whether a notice's buttons are held: an answer or a sign-in the core is carrying out, so
+     * neither can start a second one.
      */
-    fun held(notice: Notice, running: String?): Boolean = notice.running || running == notice.id
+    fun held(notice: Notice): Boolean = notice.running
 
     /**
      * What the core runs for [action], or null for a flow this client runs itself. A Retry is the

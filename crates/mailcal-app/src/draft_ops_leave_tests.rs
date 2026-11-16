@@ -148,3 +148,42 @@ async fn a_queued_save_counts_as_a_stored_copy() {
     );
     assert!(app.draft_is_stored(&composition("compose-1")));
 }
+
+/// A save naming a discarded composition stores nothing.
+///
+/// Its composer can outlive the discard by a moment (a window still closing, an idle timer that
+/// was already running), and a save then would put back the draft the user just threw away, as a
+/// new one nothing can name (`docs/drafts.md`, "Discarding").
+#[tokio::test]
+async fn a_save_after_the_discard_stores_nothing() {
+    let provider = SubmitProvider::new();
+    let puts = provider.draft_puts();
+    let app = app_over(provider);
+    let discard = |id: &str| {
+        Intent::Drafts(DraftsIntent::Discard {
+            composition: composition(id),
+        })
+    };
+
+    app.dispatch(save("compose-1", "on the server", false))
+        .await;
+    app.dispatch(discard("compose-1")).await;
+    app.dispatch(save("compose-1", "on the server", false))
+        .await;
+    app.dispatch(save("compose-1", "typed as the window closed", true))
+        .await;
+
+    // Discarded before anything was stored, too: the timer can be the first save.
+    app.dispatch(discard("compose-2")).await;
+    app.dispatch(save("compose-2", "never kept", false)).await;
+
+    assert_eq!(
+        puts.lock().unwrap().len(),
+        1,
+        "only the save before the discard"
+    );
+    for id in ["compose-1", "compose-2"] {
+        assert!(!app.draft_is_stored(&composition(id)));
+        assert_eq!(app.draft_status(&composition(id)), DraftStatus::Idle);
+    }
+}

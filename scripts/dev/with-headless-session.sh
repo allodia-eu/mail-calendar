@@ -18,7 +18,12 @@
 # ⚠️ `DISPLAY` is cleared for the command, not merely ignored. GDK prefers Wayland when
 # `WAYLAND_DISPLAY` is set, but a GTK test that asks for X11 explicitly, or any tool that reads
 # `DISPLAY` itself, would otherwise reach the developer's desktop through XWayland.
+#
+# ⚠️ The command runs without the brand values `lib.sh` exports, unless the caller set them. The
+# brand build scripts watch those names, so a cargo that sees them and one that does not each
+# rebuild everything above mailcal-l10n for the other, and the gate's other steps run without them.
 set -euo pipefail
+mapfile -t CALLER_ENV < <(compgen -e)
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
 
@@ -33,8 +38,15 @@ export LINUX_SESSION_LOG="${LINUX_SESSION_LOG:-$(mktemp)}"
 linux_session_start "${MAILCAL_HEADLESS_SIZE:-1440x900}" "${MAILCAL_HEADLESS_SCALE:-1}"
 trap linux_session_stop EXIT INT TERM
 
+declare -A caller_set=()
+unbrand=()
+for name in "${CALLER_ENV[@]}"; do caller_set[$name]=1; done
+while IFS= read -r name; do
+  [[ -v caller_set[$name] ]] || unbrand+=(-u "$name")
+done < <(brand_keys)
+
 status=0
-WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" env -u DISPLAY "$@" || status=$?
+WAYLAND_DISPLAY="$LINUX_SESSION_DISPLAY" env -u DISPLAY "${unbrand[@]}" "$@" || status=$?
 if [[ "$status" -ne 0 ]]; then
   runtime="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
   state="$(linux_session_exit_report)"

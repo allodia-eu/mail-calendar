@@ -43,7 +43,7 @@ let attachmentBarCap: CGFloat = 176
 /// How far from the pane's edges the reading view draws, one value so the header, the recipients,
 /// the action row, the attachment bar, the invitation card and a plain-text body all start on the
 /// same vertical line. The HTML body's own inset is in the shared renderer's stylesheet, where
-/// every client picks it up (`crates/mailcal-app/src/html`).
+/// every client picks it up (the engine's `engine-html`).
 ///
 /// Not `private`: ReadingView.Attachments.swift and InvitationCardView.swift inset to it too
 /// (Swift's `private` on a top-level declaration is file-scoped).
@@ -117,6 +117,8 @@ struct ReadingView: View {
     /// The attachment rows' natural height, so the bar can hug them up to `attachmentBarCap`. Not
     /// `private`, see `attachmentError`.
     @State var attachmentsHeight: CGFloat = 0
+    /// The invitation card's natural height, so its scroll view can hug it.
+    @State private var invitationHeight: CGFloat = 0
     /// Attachment ids whose Open / Save is in flight, so the tapped button shows a spinner (and
     /// ignores re-taps) while the OS launches the file or the part is decoded + written, the
     /// brief delay reads as "working" rather than a dead click. Keyed per action so Open and
@@ -180,7 +182,7 @@ struct ReadingView: View {
             recipientsHeader
             actionToolbar
             attachmentBar
-            invitationCard
+            scrollingInvitationCard
             Divider()
             content
         }
@@ -233,6 +235,18 @@ struct ReadingView: View {
                 )
             }
         )
+    }
+
+    @ViewBuilder
+    private var scrollingInvitationCard: some View {
+        if bodySnapshot?.invitation != nil {
+            ScrollView {
+                invitationCard
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { invitationHeight = $0 }
+            }
+            .frame(maxHeight: invitationHeight)
+            .scrollBounceBehavior(.basedOnSize)
+        }
     }
 
     /// The recipient headers (To / Cc / Bcc), shown once this message's snapshot arrives.

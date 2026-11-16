@@ -21,11 +21,12 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
     let mut state = SettingsState::default();
     assert_eq!(state.render_state().generation, 0, "nothing pending yet");
 
-    state.refresh(Category::Accounts);
+    state.open(Some(Category::Accounts));
+    state.refresh_in_place();
     let refreshed = state.render_state();
     assert_eq!(refreshed.redraw, Redraw::InPlace);
     assert_eq!(refreshed.category, Category::Accounts);
-    assert_eq!(refreshed.generation, 1);
+    assert_eq!(refreshed.generation, 2);
 
     // The Settings button, which names no category: it must still open, and on the category
     // the refresh left behind.
@@ -37,7 +38,7 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
         "a refresh must not outlive itself"
     );
     assert_eq!(opened.category, Category::Accounts);
-    assert_eq!(opened.generation, 2);
+    assert_eq!(opened.generation, 3);
 
     state.open(Some(Category::General));
     assert_eq!(state.render_state().category, Category::General);
@@ -45,11 +46,9 @@ fn an_open_is_never_left_holding_a_previous_refreshs_intent() {
 
 /// Answering a question on one page must not move the person to another.
 ///
-/// The regression: every Allodia redraw named `Category::Allodia`, including the ones a change
-/// on **Accounts** triggers. Moving the per-account sharing control therefore threw the person
-/// onto the Allodia page mid-gesture; which reads as the app rejecting what they just did,
-/// and hides whether it took effect. A browser hop coming back still names Allodia, because
-/// that is the page it was started from; a change made in place does not.
+/// A redraw that named a page moved the person onto it: a change to the per-account sharing
+/// control threw them onto the Allodia page mid-gesture, which reads as the app rejecting what
+/// they just did. The Allodia card's signal redraws its page only while it is the one showing.
 #[test]
 fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
     let mut state = SettingsState::default();
@@ -65,9 +64,17 @@ fn a_change_made_on_a_page_redraws_it_rather_than_leaving_it() {
     assert_eq!(redrawn.redraw, Redraw::InPlace, "a redraw, never an open");
     assert_eq!(redrawn.generation, 2, "and it does redraw");
 
-    // The contrast, which is the behaviour worth keeping: a hop coming back names its page.
-    state.refresh(Category::Allodia);
-    assert_eq!(state.render_state().category, Category::Allodia);
+    state.refresh_if_showing(Category::Allodia);
+    let left = state.render_state();
+    assert_eq!(
+        left.category,
+        Category::Accounts,
+        "the Allodia signal moves nobody"
+    );
+    assert_eq!(
+        left.generation, 2,
+        "nor redraws a page that does not draw the card"
+    );
 }
 
 /// The core's settings signal redraws Accounts, whose rows it describes, and no other page: the
@@ -213,6 +220,44 @@ fn state_only_one_page_draws_redraws_that_page_and_no_other() {
     let redrawn = state.render_state();
     assert!(redrawn.generation > opened);
     assert_eq!(redrawn.redraw, Redraw::InPlace);
+}
+
+/// Every page is built when the window opens, so a page hidden behind another category is drawn
+/// before what it shows has arrived. A change it draws, landing while it is hidden, redraws it when
+/// it is shown, or it shows the state it was built in: the subscription "checking" until the
+/// window is left and come back to.
+#[test]
+fn a_page_that_changed_while_hidden_redraws_when_it_is_shown() {
+    let mut state = SettingsState::default();
+    state.open(Some(Category::General));
+    let opened = state.render_state().generation;
+
+    state.refresh_if_showing(Category::Allodia);
+    assert_eq!(
+        state.render_state().generation,
+        opened,
+        "hidden: nothing redraws"
+    );
+
+    state.record_category(Category::Allodia);
+    let shown = state.render_state();
+    assert!(shown.generation > opened, "shown: the page is drawn again");
+    assert_eq!(shown.redraw, Redraw::InPlace, "a redraw, never an open");
+    assert_eq!(shown.category, Category::Allodia);
+
+    // Once: going back and forth after that is a switch of the stack, not a rebuild.
+    let redrawn = shown.generation;
+    state.record_category(Category::General);
+    state.record_category(Category::Allodia);
+    assert_eq!(state.render_state().generation, redrawn);
+
+    // A whole window drawn since the change built the page fresh.
+    state.record_category(Category::General);
+    state.refresh_if_showing(Category::Allodia);
+    state.open(None);
+    let reopened = state.render_state().generation;
+    state.record_category(Category::Allodia);
+    assert_eq!(state.render_state().generation, reopened);
 }
 
 /// Settings opens over a composer and stays open: it is a window of its own, so opening it does

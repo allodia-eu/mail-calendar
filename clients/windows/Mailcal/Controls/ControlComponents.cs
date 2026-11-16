@@ -58,6 +58,29 @@ internal static class ControlComponents
         return Beside(button, control, automationId);
     }
 
+    /// <summary>A button drawn as a glyph, named <paramref name="name"/> for assistive technology
+    /// and in its tooltip. <paramref name="click"/> runs only while it is enabled.</summary>
+    internal static StackPanel IconButton(
+        string glyph, string name, ControlState control, string automationId, Action click)
+    {
+        var button = new Button
+        {
+            Content = new FontIcon { Glyph = glyph, FontSize = 12 },
+            IsEnabled = control.Enabled,
+            Padding = new Thickness(8),
+            Background = new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent),
+            BorderThickness = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        AutomationProperties.SetName(button, name);
+        ToolTipService.SetToolTip(button, name);
+        AutomationProperties.SetAutomationId(button, automationId);
+        button.Click += (_, _) => click();
+        var line = Beside(button, control, automationId);
+        line.VerticalAlignment = VerticalAlignment.Center;
+        return line;
+    }
+
     /// <summary>A row that opens another page and starts no work: its title, the line beneath and
     /// a chevron, held while <paramref name="enabled"/> is false. Assistive technology reads both
     /// lines as its name.</summary>
@@ -348,13 +371,15 @@ internal sealed class ControlToggle
     }
 }
 
-/// <summary>Asks before a change that deletes something: <paramref name="action"/> does it, Cancel
-/// does not. Collapsed until <see cref="Show"/>; either answer collapses it again.</summary>
+/// <summary>Asks before a change that deletes something or moves a charge: <paramref name="action"/>
+/// does it, <paramref name="dismiss"/> (Cancel unless given) does not. Collapsed until
+/// <see cref="Show"/>; either answer collapses it again.</summary>
 internal sealed class ConfirmPanel
 {
     private readonly Button _confirm;
 
-    internal ConfirmPanel(string title, string message, string action, string automationId, Action<bool> answer)
+    internal ConfirmPanel(
+        string title, string message, string action, string automationId, Action<bool> answer, string? dismiss = null)
     {
         Element = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
         Element.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold });
@@ -362,7 +387,7 @@ internal sealed class ConfirmPanel
         AutomationProperties.SetAutomationId(text, automationId + "Message");
         Element.Children.Add(text);
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var cancel = new Button { Content = L10n.ActionCancel() };
+        var cancel = new Button { Content = dismiss ?? L10n.ActionCancel() };
         AutomationProperties.SetAutomationId(cancel, automationId + "Cancel");
         _confirm = new Button { Content = action };
         AutomationProperties.SetAutomationId(_confirm, automationId + "Confirm");

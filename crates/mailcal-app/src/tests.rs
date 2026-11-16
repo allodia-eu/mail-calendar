@@ -14,10 +14,7 @@ use fakes::{FakeProvider, account, app, flat_subjects, message};
 use mailcal_viewmodel::{MailboxListSnapshot, SnapshotRow, ViewMode};
 
 use super::{Intent, Surface};
-
-#[allow(clippy::duplicate_mod)]
-#[path = "tests_fakes.rs"]
-mod fakes;
+use crate::tests_fakes as fakes;
 
 #[tokio::test]
 async fn refresh_mail_syncs_derives_snapshots_and_notifies() {

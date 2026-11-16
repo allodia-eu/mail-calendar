@@ -94,9 +94,11 @@ port:
 2. **No general host bridge.** Expose only explicit commands: get/set document JSON, pick file, commit
    blob handle, render/validate via Rust, and report editor state. The one channel from the editor
    to its host, `composerHost`, carries only the requests `mailcal_composer::HostRequestKind`
-   names (today `link`, the link dialog of Gate 16, and `history`, a notice of whether the body's
+   names (today `link`, the link dialog of Gate 16; `history`, a notice of whether the body's
    undo history has a step to take back and one to put back, which nothing answers and which
-   carries no content; [`undo.md`](undo.md), rule 3). The core parses every message
+   carries no content ([`undo.md`](undo.md), rule 3); and framed mode's `caret` and `scroll`,
+   notices of the caret's position and how far the message is scrolled in whole pixels, which
+   carry no content either ([`composer-layout.md`](composer-layout.md), rules 2 and 6)). The core parses every message
    (`parse_composer_host_request`) and refuses anything outside that vocabulary, an unknown field
    included, before a client acts on it, and the host answers through the script the core builds.
    A host turns the channel on only where it answers (`setComposerHostRequests`); everywhere else
@@ -360,7 +362,7 @@ port:
       assume was attached.
     - **Neither the files nor the text is logged.** Names are the user's own; counts only (Gate 8).
 16. **A link in the body points only where a link in a read message may.** A run's `link` is one
-    of `mailcal_composer::LINK_SCHEMES` (`http`, `https`, `mailto`, `tel`), the list the reading
+    of `engine_html::link::LINK_SCHEMES` (`http`, `https`, `mailto`, `tel`), the list the reading
     view's sanitiser and `should_open_external_link` use, so nothing can be sent that our own
     reader would refuse to open. It is made in the shared bundle and nowhere else:
     - **The link editor** (the toolbar's Link button, or Ctrl/Cmd+K) takes the words and the
@@ -532,7 +534,7 @@ hook. Add a toolbar control and the label goes in all four clients in the same c
   ([`docs/rendering-security.md`](rendering-security.md) Layer 1), and the submit-time re-sanitiser
   (Gate 10) preserves `data:` images. On submit the shared core then turns each quoted `data:` image
   back into a `cid:` reference to a re-attached `multipart/related` part, **preserving the original
-  inbound `Content-ID`** (`html::restore_cid_images` + `reattach_quote_cids`, keyed on the engine's
+  inbound `Content-ID`** (`engine_html::restore_cid_images` + `reattach_quote_cids`, keyed on the engine's
   inbound `InlinePart`s via `Engine::message_inline_parts`). This matches what Outlook/Thunderbird
   emit and what an Outlook reader renders (its reader blocks `data:` images but renders `cid:`), and
   keeping the original ids lets long-thread spam filters reuse a part's known hash instead of

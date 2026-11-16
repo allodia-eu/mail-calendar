@@ -1,4 +1,6 @@
-//! Shared message-rendering helpers exposed over UniFFI.
+//! Shared message-rendering helpers exposed over UniFFI, over the engine's `engine_html`.
+
+use engine_html::RemoteImages;
 
 /// Which page a message is drawn on (`docs/reading-dark-mode.md`).
 ///
@@ -13,7 +15,7 @@ pub enum MessageScheme {
     Dark,
 }
 
-impl From<MessageScheme> for mailcal_app::MessageScheme {
+impl From<MessageScheme> for engine_html::MessageScheme {
     fn from(scheme: MessageScheme) -> Self {
         match scheme {
             MessageScheme::Light => Self::Light,
@@ -25,17 +27,17 @@ impl From<MessageScheme> for mailcal_app::MessageScheme {
 /// Wraps a [`crate::ReadingSnapshot::html`] body fragment in a complete, strict-CSP HTML
 /// document for a host to load into its WebView; shared in Rust so the security boundary
 /// and base styling are identical across every client. `load_remote_images` reflects the
-/// user's per-message choice: `false` (default) blocks all remote images, `true` loads
-/// them after the user accepts the "load remote images" prompt. `scheme` is the page it is
-/// drawn on; a client re-renders when it changes, as it does when the remote-images choice does.
-/// The host still renders with JavaScript disabled and navigation blocked.
+/// user's per-message choice: `false` (default) blocks all remote images and draws each one as an
+/// empty box, `true` loads them after the user accepts the "load remote images" prompt. `scheme` is
+/// the page it is drawn on; a client re-renders when it changes, as it does when the remote-images
+/// choice does. The host still renders with JavaScript disabled and navigation blocked.
 #[uniffi::export]
 pub fn render_message_html(
     html: String,
     load_remote_images: bool,
     scheme: MessageScheme,
 ) -> String {
-    mailcal_app::render_document(&html, load_remote_images, scheme.into())
+    engine_html::render_document(&html, remote_images(load_remote_images), scheme.into())
 }
 
 /// One labelled line of a printed message's header: the client's localised label and what the
@@ -65,18 +67,24 @@ pub fn render_message_print_html(
 ) -> String {
     let lines: Vec<_> = lines
         .into_iter()
-        .map(|line| mailcal_app::print::PrintHeaderLine {
-            label: line.label,
-            value: line.value,
-        })
+        .map(|line| engine_html::print::PrintHeaderLine::new(line.label, line.value))
         .collect();
-    mailcal_app::print::render_print_document(
+    engine_html::print::render_print_document(
         &subject,
         &lines,
         html.as_deref(),
         plain.as_deref(),
-        load_remote_images,
+        remote_images(load_remote_images),
     )
+}
+
+/// The reader's per-message remote-images choice, as the flag every client passes it.
+fn remote_images(load: bool) -> RemoteImages {
+    if load {
+        RemoteImages::Allowed
+    } else {
+        RemoteImages::Blocked
+    }
 }
 
 /// The canvas the reading pane's body area is drawn on, `#rrggbb`: the same page
@@ -100,10 +108,10 @@ pub struct MessageCanvas {
 /// The canvas a message is drawn on in `scheme`; see [`MessageCanvas`].
 #[uniffi::export]
 pub fn message_canvas(scheme: MessageScheme) -> MessageCanvas {
-    let canvas = mailcal_app::MessageScheme::from(scheme).canvas();
+    let canvas = engine_html::MessageScheme::from(scheme).canvas();
     MessageCanvas {
-        background: canvas.background.to_owned(),
-        foreground: canvas.foreground.to_owned(),
+        background: canvas.background().to_owned(),
+        foreground: canvas.foreground().to_owned(),
     }
 }
 
@@ -114,7 +122,7 @@ pub fn message_canvas(scheme: MessageScheme) -> MessageCanvas {
 /// `false` means ignore the click. See `docs/rendering-security.md`.
 #[uniffi::export]
 pub fn should_open_external_link(url: String) -> bool {
-    mailcal_app::should_open_external_link(&url)
+    engine_html::should_open_external_link(&url)
 }
 
 /// A run of text a client draws natively, and where it leads when it is an address.
@@ -137,11 +145,11 @@ pub struct LinkedText {
 /// link on every surface. Empty text gives no runs.
 #[uniffi::export]
 pub fn linked_text(text: String) -> Vec<LinkedText> {
-    mailcal_app::link_segments(&text)
+    engine_html::linkify::segments(&text)
         .into_iter()
         .map(|segment| LinkedText {
-            text: segment.text,
-            link: segment.link,
+            text: segment.text().to_owned(),
+            link: segment.link().map(str::to_owned),
         })
         .collect()
 }

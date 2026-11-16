@@ -76,8 +76,8 @@ class NoticeViewsTest {
 
     private fun words(text: NoticeText) = noticeWords(ctx, text)
 
-    private fun area(notices: List<Notice>, screen: NoticeScreens = NoticeScreens.MAIL, running: String? = null) {
-        val handlers = NoticeHandlers(running, onRun = { notice, _ -> run.add(notice.id) }, onDismiss = { dismissed.add(it.id) })
+    private fun area(notices: List<Notice>, screen: NoticeScreens = NoticeScreens.MAIL) {
+        val handlers = NoticeHandlers(onRun = { notice, _ -> run.add(notice.id) }, onDismiss = { dismissed.add(it.id) })
         compose.setContent { NoticeArea(notices, screen, handlers) }
         compose.waitForIdle()
     }
@@ -134,7 +134,7 @@ class NoticeViewsTest {
 
     @Test
     fun `a running remedy holds its button with a spinner`() {
-        area(listOf(mailReauth), running = "mail")
+        area(listOf(mailReauth.copy(running = true)))
 
         compose.onNodeWithTag("notice-action-mail").assertIsNotEnabled()
         compose.onNodeWithTag("notice-action-mail-running", useUnmergedTree = true).assertIsDisplayed()

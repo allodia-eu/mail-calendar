@@ -21,10 +21,8 @@ mailcal-viewmodel = { workspace = true }
 mailcal-account = { workspace = true }
 # Shared rich compose document renderer and attachment manifest.
 mailcal-composer = { workspace = true }
-# Sanitises the engine's raw (unsanitized) message HTML before a host renders it.
-ammonia = { workspace = true }
-# Tokenises the message's CSS for a dark render, which moves its colours and nothing else.
-cssparser = { workspace = true }
+# Sanitises the engine's raw (unsanitised) message HTML, and builds the document a host renders it in.
+engine-html = { workspace = true }
 # An await-safe `RwLock` guarding the set of accounts (mutated when one is added at
 # runtime, read across the sync/snapshot/action paths that hold it over `.await`), plus
 # `time` for the send-status terminal auto-clear delay (`tokio::time::sleep`).

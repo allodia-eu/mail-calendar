@@ -79,17 +79,6 @@ enum ComposeOpeningSeed {
         return opening.bodyText
     }
 
-    /// How many of the files a composer opens holding count as nothing written: the ones the core
-    /// staged (`opening`), a forward's originals or a stored draft's own, which are still in the
-    /// mailbox, so closing over them unchanged loses nothing. The files a host adds (`added`, a
-    /// share's) the user would have to share again, so they count as written from the start.
-    static func baselineAttachmentCount(
-        opening: [ComposerFileAttachment],
-        added: [ComposerFileAttachment]
-    ) -> Int {
-        opening.count
-    }
-
     /// The style of the first quote a composer's document holds, or `nil` when it holds none:
     /// what a reopened composer's style picker opens on.
     static func quoteStyle(ofDocument document: String?) -> QuoteStyleKind? {
