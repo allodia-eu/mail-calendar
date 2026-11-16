@@ -223,6 +223,18 @@ body.native-chrome .editor {
   /* 16px sides to line up with the native header fields' inset, and 12px between the header's last
      line and the message's first, so the message does not read as part of the Subject field. */
   padding: calc(var(--composer-top-inset, 14px) + 12px) 16px var(--composer-bottom-inset, 56px);
+  /* The native header is drawn in the top inset, in the app's own colours, so that strip shows the
+     host's background through the page rather than the message's light one: in a dark app the
+     header's light text on the white page could not be read. The message's page starts under it. */
+  background: linear-gradient(
+    transparent 0 var(--composer-top-inset, 0px),
+    var(--page) var(--composer-top-inset, 0px)
+  );
+}
+
+html.native-chrome,
+body.native-chrome {
+  background: transparent;
 }
 
 p {
