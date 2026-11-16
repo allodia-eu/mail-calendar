@@ -61,6 +61,7 @@ fn pull_with(
         address: &mail_address,
         questions: &Questions::default(),
         signing_in: None,
+        settings_not_saved: false,
     };
     book.snapshot(raise(&facts)).notices
 }
@@ -138,6 +139,7 @@ fn a_dead_password_sign_in_opens_settings_and_an_oauth_one_signs_in_again() {
         address: &mail_address,
         questions: &Questions::default(),
         signing_in: None,
+        settings_not_saved: false,
     };
     let notices = NoticeBook::default().snapshot(raise(&facts)).notices;
     let action = |account: &str| {
@@ -423,6 +425,7 @@ fn the_allodia_notice_runs_while_the_allodia_sign_in_does() {
             address: &mail_address,
             questions: &Questions::default(),
             signing_in,
+            settings_not_saved: false,
         };
         only(&NoticeBook::default().snapshot(raise(&facts)).notices).running
     };

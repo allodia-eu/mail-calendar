@@ -352,6 +352,11 @@ pub enum Intent {
         /// Which change.
         intent: super::FolderIntent,
     },
+    /// A change to one of the person's preferences ([`PreferenceIntent`](super::PreferenceIntent)).
+    Preferences {
+        /// Which change.
+        intent: super::PreferenceIntent,
+    },
     /// Something the person did to a notice (`docs/notices.md`).
     Notices {
         /// What they did.

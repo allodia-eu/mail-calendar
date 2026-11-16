@@ -22,7 +22,9 @@ fn dark_messages_cross_the_ffi() {
     );
     assert!(app.display_settings().dark_message_background);
     while rx.try_recv().is_ok() {}
-    app.set_dark_message_background(false);
+    app.dispatch(crate::Intent::Preferences {
+        intent: crate::PreferenceIntent::SetDarkMessageBackground { dark: false },
+    });
     assert!(!app.display_settings().dark_message_background);
     assert!(
         rx.try_iter()

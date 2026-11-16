@@ -479,6 +479,8 @@
 	"notice_sent_not_filed": "«{subject}» è arrivato ai destinatari, ma non è stato possibile salvare una copia nella cartella Inviati.",
 	"notice_reply_not_delivered": "La tua risposta a «{summary}» è stata salvata, ma il tuo server di calendario non è riuscito a inoltrarla a {organizer}.",
 	"notice_time_zone_changed": "Il tuo dispositivo si trova ora nel fuso {zone}. Vuoi aggiornare il fuso orario di visualizzazione?",
+	"notice_settings_not_saved": "Non è stato possibile salvare le tue ultime impostazioni.",
+	"notice_detail_settings_not_saved": "Restano valide finché l’app non viene chiusa. Riprova per conservarle.",
 	"notice_detail_reply_not_delivered": "Possiamo inviarla per e-mail dal tuo account. Cosa succede la prossima volta si sceglie nella pagina dell’account, in Impostazioni.",
 	"notice_mark_sent_not_filed": "Copia non in Inviati",
 	"notice_mark_reply_not_delivered": "Risposta non inoltrata",

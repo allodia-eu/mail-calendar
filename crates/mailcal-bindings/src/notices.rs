@@ -19,6 +19,9 @@ use crate::{
 #[path = "notices_questions.rs"]
 mod questions;
 
+/// The id of the notice a failed save of the settings raises: its Try again writes them.
+pub(crate) const SETTINGS_NOT_SAVED: &str = "settings_not_saved";
+
 /// What the notices are built from: everything is read, nothing is kept.
 pub(crate) struct NoticeFacts<'a> {
     /// The connectivity snapshot as a host reads it, outages and the Allodia refusal included.
@@ -33,6 +36,8 @@ pub(crate) struct NoticeFacts<'a> {
     pub(crate) address: &'a dyn Fn(&str) -> String,
     /// The questions the core is holding (rule 8).
     pub(crate) questions: &'a Questions,
+    /// A change to the settings could not be saved.
+    pub(crate) settings_not_saved: bool,
     /// The account whose browser sign-in is out, the Allodia account's being `ACCOUNT_ID`: a
     /// notice it answers is drawn running.
     pub(crate) signing_in: Option<&'a str>,
@@ -153,6 +158,18 @@ pub(crate) fn raise(facts: &NoticeFacts<'_>) -> Vec<Raised> {
             },
             Everywhere,
             Some(NoticeAction::SignInToAllodia),
+        ));
+    }
+    if facts.settings_not_saved {
+        raised.push(Raised::new(
+            facts.address,
+            SETTINGS_NOT_SAVED,
+            None,
+            NoticeKind::SettingsNotSaved,
+            // Every setting still applies; none of them survives the app closing.
+            Degraded,
+            Everywhere,
+            Some(NoticeAction::Retry),
         ));
     }
     if facts.skipped_at_launch > 0 {

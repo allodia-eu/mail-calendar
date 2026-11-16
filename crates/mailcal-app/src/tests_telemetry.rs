@@ -95,7 +95,7 @@ fn app_with_analytics(
         accounts,
         TimeZoneInit {
             device_zone: engine_api::TimeZoneId::utc(),
-            prefs_path: Some(prefs_path.clone()),
+            prefs_path: Some(prefs_path),
         },
         None,
         std::sync::Arc::new(SilentObserver),

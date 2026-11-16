@@ -235,16 +235,6 @@ impl MailcalApp {
         self.app.analytics_consent().into()
     }
 
-    /// Records the user's analytics decision. **Default off**; call this with `true` only from a
-    /// deliberate, affirmative action (a switch the user moved, a button they pressed), never
-    /// from a pre-checked box, an implied consent, or acceptance of terms.
-    ///
-    /// Opting in mints the install id. Opting out clears it and asks the backend to erase
-    /// everything held under it (GDPR Art. 17).
-    pub fn set_analytics_consent(&self, enabled: bool) {
-        self.app.set_analytics_consent(enabled);
-    }
-
     /// The **exact JSON** this install would send, pretty-printed.
     ///
     /// For the consent screen's "see exactly what we send" panel and the Settings screen. Built

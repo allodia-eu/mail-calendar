@@ -479,6 +479,8 @@
 	"notice_sent_not_filed": "«{subject}» chegou aos destinatários, mas não foi possível guardar uma cópia na sua pasta Enviados.",
 	"notice_reply_not_delivered": "A sua resposta a «{summary}» está guardada, mas o seu servidor de calendário não a conseguiu transmitir a {organizer}.",
 	"notice_time_zone_changed": "O seu dispositivo está agora em {zone}. Quer atualizar o fuso horário de apresentação?",
+	"notice_settings_not_saved": "Não foi possível guardar as suas definições mais recentes.",
+	"notice_detail_settings_not_saved": "Aplicam-se até a aplicação ser fechada. Tente novamente para as manter.",
 	"notice_detail_reply_not_delivered": "Podemos enviá-la por correio a partir da sua conta. O que acontece da próxima vez define-se na página da conta, em Definições.",
 	"notice_mark_sent_not_filed": "Sem cópia em Enviados",
 	"notice_mark_reply_not_delivered": "Resposta não transmitida",

@@ -132,7 +132,7 @@ pub(super) fn app_with_prefs(
         accounts,
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
-            prefs_path: Some(prefs_path.clone()),
+            prefs_path: Some(prefs_path),
         },
         None,
         Arc::new(RecordingObserver {

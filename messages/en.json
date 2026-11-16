@@ -479,6 +479,8 @@
 	"notice_sent_not_filed": "“{subject}” reached its recipients, but a copy couldn’t be saved in your Sent folder.",
 	"notice_reply_not_delivered": "Your answer to “{summary}” is saved, but your calendar server couldn’t pass it on to {organizer}.",
 	"notice_time_zone_changed": "Your device is now in {zone}. Update the display time zone?",
+	"notice_settings_not_saved": "Your latest settings couldn’t be saved.",
+	"notice_detail_settings_not_saved": "They apply until the app is closed. Try again to keep them.",
 	"notice_detail_reply_not_delivered": "We can email it from your account instead. What happens next time is set on the account’s page in Settings.",
 	"notice_mark_sent_not_filed": "Copy not in Sent",
 	"notice_mark_reply_not_delivered": "Reply not passed on",

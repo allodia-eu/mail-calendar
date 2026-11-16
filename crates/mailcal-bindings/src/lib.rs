@@ -67,6 +67,7 @@ mod app_display;
 mod app_folders;
 mod app_month;
 mod app_notices;
+mod app_preferences;
 mod app_sender_name;
 mod app_server_change;
 mod app_settings;
@@ -239,7 +240,7 @@ pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_in
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
-    InvitationResponse, NoticeIntent, OutboxIntent, SearchScope, SelectedRow,
+    InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope, SelectedRow,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
