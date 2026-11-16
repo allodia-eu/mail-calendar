@@ -257,6 +257,13 @@ folded away under the title, comes back only that way), a held tap, a keystroke 
 stay with `macos-ax.swift` and idb below, as does asking the accessibility API from outside, the
 judge of what VoiceOver gets. A physical device has no agent: it cannot reach a socket on the Mac.
 
+⚠️ **On macOS, the agent's `screenshot` is not what the screen shows.** The app draws its own views
+into the PNG, and that drawing leaves out vibrancy: the text of a sidebar `List`, the Settings
+sheet's included, and of the title bar's items (New Mail) comes out dark grey on a dark window,
+which reads as text stuck in the light scheme. Judge a colour or a contrast from
+`scripts/dev/screenshot.sh macos` (or `screencapture -x -R x,y,w,h` over the window), which
+captures the screen.
+
 **On macOS, for what the agent cannot do, drive by label, never by pixel.** `find` resolves a label
 to coordinates that pipe straight into `tap`, so a flow survives a layout change:
 
