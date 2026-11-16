@@ -20,7 +20,7 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
 
     func makeUIView(context: Context) -> WKWebView {
         let view = editor.mount()
-        context.coordinator.install(in: view.scrollView, header: hostedHeader(context.coordinator))
+        context.coordinator.install(in: view, header: hostedHeader(context.coordinator))
         followScheme(context)
         return view
     }
@@ -80,7 +80,7 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
         /// touches, as the layer does wherever a composer draws it.
         var suggesting = false
 
-        func install(in scrollView: UIScrollView, header: AnyView) {
+        func install(in webView: WKWebView, header: AnyView) {
             let hosting = UIHostingController(rootView: header)
             hosting.view.backgroundColor = .clear
             // The header scrolls under the navigation bar and over the keyboard with the page; a
@@ -102,8 +102,15 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
             // none of the UIKit ones they wrap, which every text field is; so it is made a child of
             // the controller the web view ends up under, as soon as there is one.
             container.onWindow = { [weak self] view in self?.adopt(near: view) }
+            let scrollView = webView.scrollView
             scrollView.addSubview(container)
             self.hosting = hosting
+            // Sized on every layout pass of the web view, which is when it first has a size, and
+            // whenever the page's height or the scroll changes.
+            (webView as? EditorWebView)?.onLayout = { [weak self, weak scrollView] in
+                guard let scrollView else { return }
+                self?.fit(to: scrollView)
+            }
             let resize: (UIScrollView) -> Void = { [weak self] scrollView in
                 MainActor.assumeIsolated { self?.fit(to: scrollView) }
             }
@@ -129,6 +136,7 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
 
         func release() {
             observations = []
+            ((container.superview?.superview) as? EditorWebView)?.onLayout = nil
             guard let hosting else { return }
             hosting.willMove(toParent: nil)
             hosting.view.removeFromSuperview()

@@ -31,6 +31,17 @@ final class EditorWebView: HistoryWebView {
     private let dropTarget = EditorDropTarget()
     private var installed: UIDropInteraction?
 
+    /// Called after each layout pass, once the view and its scroll view have their size: what the
+    /// touch composer's header is sized from (`TouchComposerChrome`). A key-value observation of
+    /// the scroll view's `bounds` does not fire for a change of its size, so a header sized from it
+    /// would stand at nothing until the page's own height changed.
+    var onLayout: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+
     /// ⚠️ WebKit adds a drop interaction of its own to the content view it creates lazily, and
     /// UIKit offers a drop to the deepest view that will take it, so ours has to displace that one
     /// or it never runs. A drop WebKit handles reaches the page, where a `File` carries no path

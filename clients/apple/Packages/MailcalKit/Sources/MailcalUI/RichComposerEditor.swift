@@ -101,6 +101,26 @@ final class RichComposerEditor: NSObject {
         "window.setComposerTopInset(\(Double(height)))"
     }
 
+    #if os(iOS)
+    /// Keeps the page out of sight until the host has switched on its touch layout.
+    ///
+    /// Until then the page draws the layout a desktop uses, its toolbar at the top running off the
+    /// screen and its message under the native header, for as long as the bundle takes to load.
+    /// Run before the document is parsed, so its first frame is already hidden; the header stays in
+    /// view and takes its taps meanwhile.
+    private static let hiddenUntilTouchLayout = WKUserScript(
+        source: """
+        (function () {
+          var style = document.createElement("style");
+          style.textContent = "html:not(.native-chrome) body { visibility: hidden; }";
+          document.documentElement.appendChild(style);
+        })();
+        """,
+        injectionTime: .atDocumentStart,
+        forMainFrameOnly: true
+    )
+    #endif
+
     /// Files dropped on the message itself, set by `ComposerDropModifier`, which owns what a dropped
     /// file becomes. The web view hands its drops here, so the handler can be set before or after
     /// the web view exists.
@@ -150,6 +170,7 @@ final class RichComposerEditor: NSObject {
             // given no insets of its own to add.
             view.scrollView.contentInsetAdjustmentBehavior = .never
             view.scrollView.keyboardDismissMode = .interactive
+            view.configuration.userContentController.addUserScript(Self.hiddenUntilTouchLayout)
             #endif
         }
     }
@@ -181,8 +202,10 @@ final class RichComposerEditor: NSObject {
         #if os(iOS)
         // A touch screen's layout: the page scrolls, the header sits in the room the top inset
         // keeps, and the toolbar rides on the keyboard (`docs/composer-layout.md`, rule 7).
-        host.evaluate("window.useNativeComposerChrome()")
+        // The inset first: the page shows itself once the layout is on (`hiddenUntilTouchLayout`),
+        // and its first frame should already leave the header its room.
         if topInset > 0 { host.evaluate(Self.topInsetScript(topInset)) }
+        host.evaluate("window.useNativeComposerChrome()")
         #else
         // A desktop column's layout: the header scrolls away, then the message in its own box under
         // the toolbar. Before the announce, which the page answers with its caret and its scroll.
