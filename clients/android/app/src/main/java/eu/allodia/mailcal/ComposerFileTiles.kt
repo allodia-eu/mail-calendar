@@ -86,8 +86,9 @@ internal fun ComposerFileTiles(files: ComposerFiles, onRemove: (ComposerFileTile
     }
     val ctx = LocalContext.current
     // The space goes above, as the notes' does, so whichever comes first under the fields stands
-    // clear of Subject's divider. The editor keeps its own above the message.
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
+    // clear of Subject's divider; and below, because the tiles end the header and the message's
+    // page starts where the header does.
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 12.dp)) {
         Text(
             text = L10n.compose_files_summary(
                 ctx,

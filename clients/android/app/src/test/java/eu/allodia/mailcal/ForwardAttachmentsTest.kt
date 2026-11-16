@@ -10,14 +10,18 @@ import android.text.format.Formatter
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebView
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -113,6 +117,22 @@ class ForwardAttachmentsTest {
         val size = Formatter.formatShortFileSize(ctx(), 2048)
         rule.onNodeWithTag("composer-files-summary")
             .assertTextEquals(L10n.compose_files_summary(ctx(), 2, size))
+    }
+
+    // The tiles end the header, and the message's page starts where the header does, so the last
+    // tile keeps its distance from the page rather than sitting on it.
+    @Test
+    fun `the last tile stands clear of the message under it`() {
+        val list = originals()
+        rule.setContent {
+            Box(Modifier.testTag("header-end")) {
+                ComposerFileTiles(checkNotNull(list.current())) {}
+            }
+        }
+
+        val end = rule.onNodeWithTag("header-end").getUnclippedBoundsInRoot().bottom
+        val last = rule.onAllNodesWithTag("composer-file")[1].getUnclippedBoundsInRoot().bottom
+        assertEquals(12f, (end - last).value, 0.5f)
     }
 
     @Test
