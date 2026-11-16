@@ -155,6 +155,13 @@ attention, human or agent alike. Write the fact, not the story around it.
   predicts it call the same function, and a client words the answer; a rule restated to predict
   it (or copied into a client) is a second implementation that will disagree.
 - **Consume the engine only through its `engine-api` facade.** Never reach into lower engine crates.
+- **A missing or incomplete engine API is fixed in the engine, always.** When the facade cannot do
+  what a change needs (a range it cannot fetch, a lease it cannot wait for, a fact it does not
+  report), the change starts with an engine PR, product-neutral and under the engine's own
+  `AGENTS.md`, and this repo moves its pin once that lands. No workaround here stands in for it:
+  not a retry loop around an error, not a parallel code path, not a limitation documented as
+  "the engine does not offer this yet". A workaround is invisible to every other host of the
+  engine and outlives the reason for it. Work that needs the engine change waits for it.
 - **Protocol knowledge belongs in the engine: check before you parse.** About to read or write
   protocol bytes here (an iCalendar property, a MIME part, a JMAP or DAV payload, an RFC status
   code)? Search the engine first. A parser here is a second implementation that *will* disagree with
