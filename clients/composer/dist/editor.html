@@ -2381,9 +2381,10 @@
           return null;
         const end = range.cloneRange();
         end.collapse(false);
+        const box = editor.getBoundingClientRect();
         const rect = end.getBoundingClientRect();
         if (rect.height > 0)
-          return { top: rect.top, bottom: rect.bottom };
+          return shownIn({ top: rect.top, bottom: rect.bottom }, box);
         const node = end.endContainer;
         const after = node.nodeType === 1 ? node.childNodes[end.endOffset] : undefined;
         const before = node.nodeType === 1 ? node.childNodes[end.endOffset - 1] : undefined;
@@ -2391,9 +2392,13 @@
         if (!element || element.nodeType !== 1)
           return null;
         const block = element;
-        return lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
+        const line = lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
+        return shownIn(line, box);
       }
     };
+  }
+  function shownIn(caret, box) {
+    return caret.bottom <= box.top || caret.top >= box.bottom ? null : caret;
   }
   function lineIn(rect, style, last) {
     const px = (value) => {

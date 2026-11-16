@@ -121,8 +121,9 @@ function domMeasures(editor: HTMLElement): FramedMeasures {
       if (!editor.contains(range.endContainer)) return null;
       const end = range.cloneRange();
       end.collapse(false);
+      const box = editor.getBoundingClientRect();
       const rect = end.getBoundingClientRect();
-      if (rect.height > 0) return { top: rect.top, bottom: rect.bottom };
+      if (rect.height > 0) return shownIn({ top: rect.top, bottom: rect.bottom }, box);
       // A caret on an empty line has no rect of its own; the block it sits in has. When the caret
       // is between two of the message's blocks, the block is the one at its offset, or the one
       // before it at the end. A block can be the whole message (an empty one is just the editor),
@@ -134,9 +135,20 @@ function domMeasures(editor: HTMLElement): FramedMeasures {
       const element = node.nodeType === 1 ? (after ?? before ?? node) : node.parentElement;
       if (!element || element.nodeType !== 1) return null;
       const block = element as Element;
-      return lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
+      const line = lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
+      return shownIn(line, box);
     },
   };
+}
+
+/// The caret, or `null` when the message's own scroll has taken it out of its box: the box clips
+/// it, so no scroll of the host's column can show it. A select-all's end far down a long message,
+/// or a caret the reader scrolled away from, would otherwise pull the column to it.
+export function shownIn(
+  caret: { top: number; bottom: number },
+  box: { top: number; bottom: number },
+): { top: number; bottom: number } | null {
+  return caret.bottom <= box.top || caret.top >= box.bottom ? null : caret;
 }
 
 /// The first line of a block, or its last when `last`: where a caret that has no rectangle of its

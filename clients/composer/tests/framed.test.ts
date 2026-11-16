@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
-import { installFramed, lineIn } from "../src/framed";
+import { installFramed, lineIn, shownIn } from "../src/framed";
 
 /// Mutation observers deliver on a microtask, and a report waits for the next animation frame.
 const settled = () => new Promise((resolve) => setTimeout(resolve, 40));
@@ -123,5 +123,20 @@ describe("a caret with no rectangle of its own", () => {
 
   test("never runs past the block", () => {
     expect(lineIn({ top: 0, bottom: 20 }, style, false)).toEqual({ top: 12, bottom: 20 });
+  });
+});
+
+describe("a caret the message's own scroll took out of its box", () => {
+  const box = { top: 36, bottom: 600 };
+
+  test("is not reported, above the box or below it", () => {
+    // Behind the toolbar, scrolled up out of the box; and a select-all's end far down the message.
+    expect(shownIn({ top: 10, bottom: 28 }, box)).toBeNull();
+    expect(shownIn({ top: 1800, bottom: 1818 }, box)).toBeNull();
+  });
+
+  test("is reported while any of its line is in the box", () => {
+    expect(shownIn({ top: 48, bottom: 66 }, box)).toEqual({ top: 48, bottom: 66 });
+    expect(shownIn({ top: 590, bottom: 608 }, box)).toEqual({ top: 590, bottom: 608 });
   });
 });
