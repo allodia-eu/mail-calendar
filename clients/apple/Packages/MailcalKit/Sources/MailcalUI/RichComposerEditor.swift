@@ -278,8 +278,8 @@ final class RichComposerEditor: NSObject {
     /// count. What it is for is telling a composer still being typed in from one that has gone
     /// quiet, which is what decides when a draft is saved (`docs/drafts.md`). Seeding the body, the
     /// quote and the signature moves the count before anyone types, so an unanswered read is
-    /// `nil`, never `0`: a `0` taken before the page loaded made the first real read look like an
-    /// edit, and an untouched composer saved itself.
+    /// `nil`, never `0`: a `0` would make the first answered read look like an edit, and an
+    /// untouched composer would save itself.
     func revision() async -> Int? {
         await withCheckedContinuation { continuation in
             host.evaluate("window.composerRevision()") { value, _ in

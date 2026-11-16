@@ -37,8 +37,8 @@ struct ComposerDrafts {
 /// Whether the message changed between two reads of the editor's revision count.
 ///
 /// The baseline is the first count the page answers with, whenever that is: a read made before the
-/// page loaded answers nothing, and the seeds have moved the count by the time it does, so taking
-/// the unanswered read as `0` made an untouched composer save itself.
+/// page loaded answers nothing, and the seeds have moved the count by the time it does, so an
+/// unanswered read taken as `0` would make an untouched composer save itself.
 struct RevisionWatch {
     private var seen: Int?
 

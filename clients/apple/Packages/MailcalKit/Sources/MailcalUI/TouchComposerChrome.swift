@@ -30,6 +30,13 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
         followScheme(context)
     }
 
+    /// The header's controller is a child of whichever controller the composer was presented in,
+    /// and its root view holds the composer and its editor, so it leaves that parent with the web
+    /// view; a parent that outlives the composer would otherwise keep both alive.
+    static func dismantleUIView(_ uiView: WKWebView, coordinator: HeaderHost) {
+        coordinator.release()
+    }
+
     private func followScheme(_ context: Context) {
         editor.host.setDark(context.environment.colorScheme == .dark)
     }
@@ -120,6 +127,15 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
             hosting?.rootView = header
         }
 
+        func release() {
+            observations = []
+            guard let hosting else { return }
+            hosting.willMove(toParent: nil)
+            hosting.view.removeFromSuperview()
+            hosting.removeFromParent()
+            self.hosting = nil
+        }
+
         private func fit(to scrollView: UIScrollView) {
             let frame = CGRect(
                 x: 0,
@@ -129,7 +145,10 @@ struct TouchComposerChrome<Header: View>: UIViewRepresentable {
             )
             if container.frame != frame { container.frame = frame }
             // Above the page WebKit draws, which it may re-add beneath its scroll view's subviews.
-            scrollView.bringSubviewToFront(container)
+            // Asked on every frame of a scroll, so only when something has gone over it.
+            if scrollView.subviews.last !== container {
+                scrollView.bringSubviewToFront(container)
+            }
         }
     }
 
