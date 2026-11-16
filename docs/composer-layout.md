@@ -53,7 +53,13 @@ own scroll.
   composer host channel ([`composer-security.md`](composer-security.md), Gate 2), each only to a
   host that announced it (`composer_host_requests_script`, which names both): `caret` with the
   caret's top and bottom in the page's coordinates, and `scroll` with how far the message is
-  scrolled inside its box. The core parses both.
+  scrolled inside its box (`px`) and where its last line ends in the page's coordinates as it is
+  scrolled now (`end`), which is past the page's height while there is more below its box. The core
+  parses both.
+- **`holdComposerWheelDown(hold)`** is for a host whose web view scrolls the page by a wheel step
+  before the host sees it: while `composer_scroller` gives a step down to the column, the page lets
+  such a step pass without scrolling the message, so the two do not both move by it. Windows calls
+  it; macOS and Linux take the step before the page does and never need it.
 
 ## Per-platform
 
@@ -61,7 +67,7 @@ own scroll.
 |---|---|---|---|---|---|
 | macOS | a `ScrollView` with no scroll bar of its own (`RichComposerView.Column.swift`); `WKWebView` takes every wheel event over it, so `EditorWebView` hands each vertical step to the column or the page by `composer_scroller` | a `LazyVGrid` of tiles, each picture decoded at the tile's size off the main thread (`ComposerFileThumbnail`) | framed, as tall as the column's visible part; the web view draws no background | the column scrolled by `composer_caret_scroll`, as far as its end | one row above the message's box, the rest behind More |
 | iOS/iPadOS | the editor's own page, with the header and the files hosted inside the `WKWebView`'s scroll view above the message (`TouchComposerChrome.swift`); the header takes a touch inside its own height and passes the rest to the message, and WebKit's form bar is taken off | as macOS, in the header | the page's own, which is the one scroll | the WebView's own | above the keyboard, scrolling sideways (`useNativeComposerChrome`) |
-| Windows | a `ScrollViewer` (`ComposerView.xaml`), with Send and Discard under it and a rule over them while the message runs on; the WebView2 marks every wheel event over it handled, so `ComposerView.Layout.cs` takes the handled event and hands it by `composer_scroller` | an `ItemsRepeater` in a `UniformGridLayout`; the name cut by `MiddleTrimmedText` | as macOS | as macOS | as macOS |
+| Windows | a `ScrollViewer` (`ComposerView.xaml`) with its own bar hidden, with Send and Discard under it and a rule over them while the message's `end` is below what is shown; the WebView2 scrolls its page by a wheel step before the column sees it and marks the event handled, so `ComposerView.Layout.cs` takes the handled event, hands it by `composer_scroller` and tells the page to hold a step down that is the column's; focus does not bring the message's box into view, which would carry the whole header away | an `ItemsRepeater` in a `UniformGridLayout`; the name cut by `MiddleTrimmedText` | as macOS | as macOS | as macOS |
 | Linux | a `GtkScrolledWindow` (`ui/composer_layout.rs`), handing each step by `composer_scroller` | a `GtkFlowBox` of tiles; the picture decoded by gdk-pixbuf on a worker thread (`ui/composer_file_preview.rs`) | as macOS | as macOS | as macOS |
 | Android | the editor's own page, with the header drawn over it (`ComposerHeaderScroll.kt`) | tiles in the header, one column on a phone; the picture decoded by `ImageDecoder` off the main thread (`ComposerFilePreview.kt`) | the page's own, which is the one scroll | the WebView's own | above the keyboard, scrolling sideways (`useNativeComposerChrome`) |
 

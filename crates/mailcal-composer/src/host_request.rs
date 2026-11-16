@@ -48,8 +48,8 @@ pub enum HostRequestKind {
 pub struct MessageScroll {
     /// The distance from the message's top; zero at its top.
     pub px: u32,
-    /// The bottom of the message's last line, in the page's coordinates as it is scrolled now: past
-    /// the page's height while there is more of the message below its box.
+    /// The bottom of the message's last line, in the page's coordinates as it is scrolled now:
+    /// past the page's height while there is more of the message below its box.
     pub end: u32,
 }
 

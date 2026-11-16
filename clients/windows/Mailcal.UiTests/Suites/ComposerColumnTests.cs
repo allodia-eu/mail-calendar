@@ -109,6 +109,9 @@ public sealed class ComposerColumnTests(ShowcaseApp showcase)
     public void DownTheHeaderGoesBeforeTheMessageScrolls() => Case(nameof(DownTheHeaderGoesBeforeTheMessageScrolls), app =>
     {
         WriteALongMessage(app);
+        // At the column's end the message's box fills its visible part, which is the most of the
+        // box the agent can show.
+        var whole = app.Steady(Editor(app)).Height;
         var (x, y) = OverTheMessage(app);
         for (var notch = 0; notch < 80 && Title(app) is not { Rendered: true }; notch++)
         {
@@ -125,7 +128,10 @@ public sealed class ComposerColumnTests(ShowcaseApp showcase)
         }
         Assert.True(App.Eventually(() => MessageScrolled(app), TimeSpan.FromSeconds(3)),
             "eighty notches down over a long message never scrolled it: the page held every step, or the column kept them");
-        Assert.True(Title(app) is not { Rendered: true },
-            "the message scrolled while the heading was still on screen: the page took a step down the column should have carried, so both moved");
+        // The heading alone is no oracle: one step carries it away. The box is wholly in view only
+        // once the column is at its end.
+        var shown = app.Steady(Editor(app)).Height;
+        Assert.True(shown >= whole - 2,
+            $"the message scrolled while {whole - shown}px of its box were still under the column's edge: the page took a step down the column should have carried, so both moved");
     });
 }

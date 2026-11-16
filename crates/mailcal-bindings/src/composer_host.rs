@@ -221,10 +221,7 @@ mod tests {
         let scroll = r#"{"id":0,"request":{"scroll":{"px":640,"end":1280}}}"#;
         assert_eq!(
             parse_composer_host_request(scroll.to_owned()),
-            Some(ComposerHostRequest::Scroll {
-                px: 640,
-                end: 1280
-            })
+            Some(ComposerHostRequest::Scroll { px: 640, end: 1280 })
         );
         let caret = r#"{"id":0,"request":{"caret":{"top":12,"bottom":30}}}"#;
         assert_eq!(
