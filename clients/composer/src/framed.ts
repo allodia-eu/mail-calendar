@@ -121,19 +121,41 @@ function domMeasures(editor: HTMLElement): FramedMeasures {
       if (!editor.contains(range.endContainer)) return null;
       const end = range.cloneRange();
       end.collapse(false);
-      let rect = end.getBoundingClientRect();
-      // A caret on an empty line has no rect of its own; the line it sits in has. When the caret
-      // is between two of the message's blocks, the line is the block at its offset.
-      if (rect.height === 0) {
-        const node = end.endContainer;
-        const element =
-          node.nodeType === 1
-            ? ((node.childNodes[end.endOffset] ?? node.childNodes[end.endOffset - 1] ?? node) as Node)
-            : node.parentElement;
-        if (!element || element.nodeType !== 1) return null;
-        rect = (element as Element).getBoundingClientRect();
-      }
-      return { top: rect.top, bottom: rect.bottom };
+      const rect = end.getBoundingClientRect();
+      if (rect.height > 0) return { top: rect.top, bottom: rect.bottom };
+      // A caret on an empty line has no rect of its own; the block it sits in has. When the caret
+      // is between two of the message's blocks, the block is the one at its offset, or the one
+      // before it at the end. A block can be the whole message (an empty one is just the editor),
+      // so only the line the caret is on counts: a caret as tall as the window is brought to the
+      // top, which carries the host's header away.
+      const node = end.endContainer;
+      const after = node.nodeType === 1 ? node.childNodes[end.endOffset] : undefined;
+      const before = node.nodeType === 1 ? node.childNodes[end.endOffset - 1] : undefined;
+      const element = node.nodeType === 1 ? (after ?? before ?? node) : node.parentElement;
+      if (!element || element.nodeType !== 1) return null;
+      const block = element as Element;
+      return lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
     },
   };
+}
+
+/// The first line of a block, or its last when `last`: where a caret that has no rectangle of its
+/// own is drawn. A line's height is its `line-height`, or the font's size and a fifth when that is
+/// `normal`; it never runs past the block's edge.
+export function lineIn(
+  rect: { top: number; bottom: number },
+  style: Pick<CSSStyleDeclaration, "paddingTop" | "paddingBottom" | "lineHeight" | "fontSize">,
+  last: boolean,
+): { top: number; bottom: number } {
+  const px = (value: string) => {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const line = px(style.lineHeight) || px(style.fontSize) * 1.2;
+  if (last) {
+    const bottom = rect.bottom - px(style.paddingBottom);
+    return { top: Math.max(rect.top, bottom - line), bottom };
+  }
+  const top = rect.top + px(style.paddingTop);
+  return { top, bottom: Math.min(rect.bottom, top + line) };
 }

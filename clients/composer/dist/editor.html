@@ -2381,17 +2381,32 @@
           return null;
         const end = range.cloneRange();
         end.collapse(false);
-        let rect = end.getBoundingClientRect();
-        if (rect.height === 0) {
-          const node = end.endContainer;
-          const element = node.nodeType === 1 ? node.childNodes[end.endOffset] ?? node.childNodes[end.endOffset - 1] ?? node : node.parentElement;
-          if (!element || element.nodeType !== 1)
-            return null;
-          rect = element.getBoundingClientRect();
-        }
-        return { top: rect.top, bottom: rect.bottom };
+        const rect = end.getBoundingClientRect();
+        if (rect.height > 0)
+          return { top: rect.top, bottom: rect.bottom };
+        const node = end.endContainer;
+        const after = node.nodeType === 1 ? node.childNodes[end.endOffset] : undefined;
+        const before = node.nodeType === 1 ? node.childNodes[end.endOffset - 1] : undefined;
+        const element = node.nodeType === 1 ? after ?? before ?? node : node.parentElement;
+        if (!element || element.nodeType !== 1)
+          return null;
+        const block = element;
+        return lineIn(block.getBoundingClientRect(), win.getComputedStyle(block), !after && !!before);
       }
     };
+  }
+  function lineIn(rect, style, last) {
+    const px = (value) => {
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const line = px(style.lineHeight) || px(style.fontSize) * 1.2;
+    if (last) {
+      const bottom = rect.bottom - px(style.paddingBottom);
+      return { top: Math.max(rect.top, bottom - line), bottom };
+    }
+    const top = rect.top + px(style.paddingTop);
+    return { top, bottom: Math.min(rect.bottom, top + line) };
   }
 
   // src/host.ts

@@ -5,7 +5,7 @@
 import { describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 
-import { installFramed } from "../src/framed";
+import { installFramed, lineIn } from "../src/framed";
 
 /// Mutation observers deliver on a microtask, and a report waits for the next animation frame.
 const settled = () => new Promise((resolve) => setTimeout(resolve, 40));
@@ -101,5 +101,27 @@ describe("framed mode", () => {
     framed.useFramedComposer();
     framed.resend();
     expect(carets).toEqual([[0, 0]]);
+  });
+});
+
+describe("a caret with no rectangle of its own", () => {
+  const style = { paddingTop: "12px", paddingBottom: "8px", lineHeight: "20px", fontSize: "14px" };
+
+  test("is the first line of an empty message, never the whole message", () => {
+    // An empty message is the editor alone, as tall as the column's visible part.
+    expect(lineIn({ top: 36, bottom: 754 }, style, false)).toEqual({ top: 48, bottom: 68 });
+  });
+
+  test("after the last block is that block's last line", () => {
+    expect(lineIn({ top: 100, bottom: 200 }, style, true)).toEqual({ top: 172, bottom: 192 });
+  });
+
+  test("a normal line height is the font's size and a fifth", () => {
+    const normal = { ...style, lineHeight: "normal" };
+    expect(lineIn({ top: 0, bottom: 500 }, normal, false)).toEqual({ top: 12, bottom: 12 + 14 * 1.2 });
+  });
+
+  test("never runs past the block", () => {
+    expect(lineIn({ top: 0, bottom: 20 }, style, false)).toEqual({ top: 12, bottom: 20 });
   });
 });
