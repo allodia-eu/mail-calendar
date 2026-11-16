@@ -37,6 +37,37 @@ import UniformTypeIdentifiers
         #expect(ProvidedFile.name(suggested: "", delivered: delivered) == "9F1C.jpeg")
     }
 
+    @Test func anotherTypesExtensionIsReplacedAndTheSameTypesIsKept() {
+        let delivered = URL(fileURLWithPath: "/tmp/provider-internal/9F1C.jpeg")
+        // Taken as HEIC, delivered in its compatible form.
+        #expect(ProvidedFile.name(suggested: "IMG_0042.HEIC", delivered: delivered) == "IMG_0042.jpeg")
+        // The same type under its other spelling is the name the sharing app gave.
+        #expect(ProvidedFile.name(suggested: "IMG_0042.JPG", delivered: delivered) == "IMG_0042.JPG")
+        // What follows a dot is not always an extension.
+        #expect(
+            ProvidedFile.name(suggested: "Report v1.2", delivered: delivered) == "Report v1.2.jpeg")
+    }
+
+    @Test func aTypeThisDeviceDoesNotKnowIsStillAskedFor() {
+        // An app's private type is still a file; one this device knows as a file comes first.
+        #expect(ProvidedFile.fileType(["com.example.private-doc"]) == "com.example.private-doc")
+        #expect(
+            ProvidedFile.fileType(["com.example.private-doc", "com.adobe.pdf"]) == "com.adobe.pdf")
+    }
+
+    @Test func aLongNameIsShortenedThroughItsStem() throws {
+        let directory = try temporaryDirectory()
+        let source = directory.appendingPathComponent("source.jpeg")
+        try Data([1]).write(to: source)
+        let long = String(repeating: "holiday ", count: 15) + "at the lake.jpeg"
+
+        let copied = try #require(
+            ProvidedFile.copy(source, into: directory.appendingPathComponent("out"), named: long))
+
+        #expect(copied.lastPathComponent.count == 80)
+        #expect(copied.pathExtension == "jpeg")
+    }
+
     @Test @MainActor func aPhotographIsCopiedBeforeTheProviderDeletesIt() async throws {
         let directory = try temporaryDirectory()
         let provider = photograph(named: "IMG_0042", bytes: Data([0xFF, 0xD8, 0xFF, 0xE0]))

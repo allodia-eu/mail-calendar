@@ -7,9 +7,28 @@
 
 #if os(iOS)
 import Foundation
+import MailcalBindings
 import MailcalShareBox
 import PhotosUI
+import SwiftUI
 import UIKit
+
+/// Where a file can come from on iPhone and iPad, as one menu: the photo library, then Files.
+/// Attach and a signature's Add image both draw it.
+struct PhotosOrFilesMenu<MenuLabel: View>: View {
+    let photos: () -> Void
+    let files: () -> Void
+    @ViewBuilder let label: () -> MenuLabel
+
+    var body: some View {
+        Menu {
+            Button(L10n.action_attach_photo_library(), systemImage: "photo.on.rectangle", action: photos)
+            Button(L10n.action_attach_from_files(), systemImage: "folder", action: files)
+        } label: {
+            label()
+        }
+    }
+}
 
 /// The system photo picker, answering with copies of what was chosen. Retains itself while it is on
 /// screen, as `PlatformFilePicker` does.
@@ -67,14 +86,31 @@ struct PhotoPick {
 
     /// Copies each chosen item into a directory of its own under the app's temporary directory,
     /// where the document picker leaves its copies too: the core reads the file again at Send.
+    ///
+    /// Staged the way a share is (`ShareBox`), so a pick sweeps the copies older than a share
+    /// would be kept: a film is hundreds of megabytes, and nothing else ever removes them.
+    ///
+    /// Every item's load starts before the first is awaited, so several films are transcoded side
+    /// by side rather than one after another; the results keep the order they were chosen in.
     @MainActor
     static func copy(_ providers: [NSItemProvider]) async -> PhotoPick {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("picked-photos", isDirectory: true)
-            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let box = ShareBox(container: FileManager.default.temporaryDirectory
+            .appendingPathComponent("picked-photos", isDirectory: true))
+        box.sweep()
         var pick = PhotoPick()
-        for provider in providers {
-            if let url = await ProvidedFile.copy(provider, into: directory) {
+        guard let directory = try? box.stagingDirectory(for: UUID().uuidString) else {
+            pick.failed = providers.map { $0.suggestedName ?? "" }
+            return pick
+        }
+        // A directory per item: two copied side by side under one name would both find it free.
+        let copies = providers.enumerated().map { index, provider in
+            Task {
+                await ProvidedFile.copy(
+                    provider, into: directory.appendingPathComponent("\(index)", isDirectory: true))
+            }
+        }
+        for (provider, copy) in zip(providers, copies) {
+            if let url = await copy.value {
                 pick.files.append(url)
             } else {
                 pick.failed.append(provider.suggestedName ?? "")

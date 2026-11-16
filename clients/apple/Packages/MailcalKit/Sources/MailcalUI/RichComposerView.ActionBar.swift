@@ -58,14 +58,7 @@ extension RichComposeView {
         HStack(spacing: 4) {
             // A menu, because a phone keeps its photographs where the document picker cannot
             // reach them (PlatformPhotoPicker.swift).
-            Menu {
-                Button(L10n.action_attach_photo_library(), systemImage: "photo.on.rectangle") {
-                    choosePhotos()
-                }
-                Button(L10n.action_attach_from_files(), systemImage: "folder") {
-                    chooseAttachments()
-                }
-            } label: {
+            PhotosOrFilesMenu(photos: choosePhotos, files: chooseAttachments) {
                 Label(L10n.action_attach(), systemImage: "paperclip").composerBarItem()
             }
             if showsSignaturePicker {
