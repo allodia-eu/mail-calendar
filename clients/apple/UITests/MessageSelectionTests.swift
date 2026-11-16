@@ -5,8 +5,8 @@
 // it, Select all and ⌘A pick every listed row, ⌘A in a focused field stays the field's, and a row
 // opened by a tap opens again by the next one.
 //
-// The bar's Archive shares its name with the Archive folder, so the bar is found by Move to Trash,
-// which no folder is called.
+// The bar's Archive shares its name with the Archive folder, so the bar is found by Delete, which
+// no folder is called.
 
 import UIKit
 import XCTest
@@ -19,7 +19,7 @@ final class MessageSelectionTests: XCTestCase {
         XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout), "no rows")
 
         ShowcaseApp.tap(app.buttons["Select"])
-        let trash = app.buttons["Move to Trash"]
+        let trash = app.buttons["Delete"]
         XCTAssertTrue(trash.waitForExistence(timeout: 5), "the bar did not come with the mode")
         XCTAssertFalse(trash.isEnabled, "the bar acts with nothing selected")
 
@@ -48,7 +48,7 @@ final class MessageSelectionTests: XCTestCase {
         ShowcaseApp.tap(app.buttons["Select"])
         app.typeKey("a", modifierFlags: .command)
 
-        XCTAssertTrue(app.buttons["Move to Trash"].isEnabled, "⌘A picked nothing")
+        XCTAssertTrue(app.buttons["Delete"].isEnabled, "⌘A picked nothing")
         XCTAssertGreaterThan(selectedRows(in: app), 1, "⌘A picked one row at most")
     }
 
@@ -58,6 +58,7 @@ final class MessageSelectionTests: XCTestCase {
     func testCommandAInTheSearchFieldStaysTheFields() {
         let app = ShowcaseApp.launch()
         ShowcaseApp.showMailbox(app)
+        ShowcaseApp.attachHardwareKeyboard(app)
         if UIDevice.current.userInterfaceIdiom == .pad {
             ShowcaseApp.tap(app.buttons["Select"])
         }
@@ -69,7 +70,7 @@ final class MessageSelectionTests: XCTestCase {
         field.typeText("x")
 
         XCTAssertEqual(field.value as? String, "x", "⌘A did not select the field's text")
-        let trash = app.buttons["Move to Trash"]
+        let trash = app.buttons["Delete"]
         XCTAssertFalse(trash.exists && trash.isEnabled, "⌘A in the search field selected mail")
     }
 
