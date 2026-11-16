@@ -79,18 +79,30 @@ public sealed partial class SettingsDialog
     }
 
     // The category `tag` is about to be drawn. Opening Allodia asks the service
-    // again; leaving it closes a confirmation it had open.
+    // again; leaving it closes a confirmation it had open and tells the core.
     private void ShowingAllodiaSubscription(string tag)
     {
         var opening = tag == "allodia" && !_allodiaShown;
-        _allodiaShown = tag == "allodia";
-        if (!_allodiaShown)
+        if (tag != "allodia")
         {
-            _pendingWrite = PendingSubscriptionWrite.None;
+            LeavingAllodiaSubscription();
         }
         else if (opening)
         {
+            _allodiaShown = true;
             _model.RefreshAllodiaSubscription();
+        }
+    }
+
+    // Another category, or the dialog closed: the core forgets what the last write came to,
+    // which the section's own state says on the next visit.
+    private void LeavingAllodiaSubscription()
+    {
+        _pendingWrite = PendingSubscriptionWrite.None;
+        if (_allodiaShown)
+        {
+            _allodiaShown = false;
+            _model.LeaveAllodiaSubscription();
         }
     }
 

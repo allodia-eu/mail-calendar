@@ -59,6 +59,8 @@ internal fun MainActivity.allodiaSubscriptionActions(onSignInAgain: () -> Unit) 
         onClosed = {
             allodiaSubscriptionOnScreen = false
             forgetAllodiaPurchaseInFlight()
+            // What the last write came to goes too: on the next visit the section's own state says it.
+            app?.dispatch(LEAVE_SUBSCRIPTION)
         },
         onOffers = { loadAllodiaOffers(it) },
         onBuy = { buyAllodiaSubscription(it) },
@@ -81,6 +83,7 @@ internal fun MainActivity.refreshAllodiaSubscription() {
 }
 
 private val REFRESH_SUBSCRIPTION = Intent.Allodia(AllodiaIntent.RefreshSubscription)
+private val LEAVE_SUBSCRIPTION = Intent.Allodia(AllodiaIntent.LeaveSubscription)
 
 // A pass ended: what it found is said, and the subscription is read again whenever it attached
 // something or the section is on screen.

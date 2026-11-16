@@ -37,6 +37,7 @@ fn nobody_signed_in_draws_nothing_and_starts_nothing() {
     let app = app();
     for intent in [
         AllodiaIntent::RefreshSubscription,
+        AllodiaIntent::LeaveSubscription,
         AllodiaIntent::StartCheckout {
             plan: AllodiaPlan::Yearly,
         },

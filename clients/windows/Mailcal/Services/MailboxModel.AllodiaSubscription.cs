@@ -25,6 +25,9 @@ public sealed partial class MailboxModel
     /// which answers for it.</summary>
     internal void RefreshAllodiaSubscription() => DispatchAllodia(new AllodiaIntent.RefreshSubscription());
 
+    /// <summary>The section left the screen: the core forgets what the last write came to.</summary>
+    internal void LeaveAllodiaSubscription() => DispatchAllodia(new AllodiaIntent.LeaveSubscription());
+
     /// <summary>Buys <paramref name="plan"/> through Allodia's own checkout; the card then names
     /// the payment page, opened on the signal that brings it.</summary>
     internal void StartAllodiaCheckout(AllodiaPlan plan) => DispatchAllodia(new AllodiaIntent.StartCheckout(plan));

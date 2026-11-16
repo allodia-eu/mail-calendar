@@ -88,6 +88,9 @@ struct AllodiaSubscriptionSettings: View {
             purchase?.cancel()
             purchase = nil
             buying = nil
+            // What the last write came to goes too: on the next visit the section's own state
+            // says it.
+            model.leaveAllodiaSubscription()
         }
     }
 

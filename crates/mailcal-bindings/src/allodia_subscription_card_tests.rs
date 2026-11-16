@@ -123,3 +123,34 @@ fn nothing_lands_for_an_account_that_has_left() {
     work.forget();
     assert_eq!(work.snapshot(other).answer, None);
 }
+
+/// What a write came to stays through every read while the section is on screen, and goes when
+/// the person leaves it: on the next visit the section's own state says it, and a sentence kept
+/// across a change made elsewhere would contradict that state.
+#[test]
+fn an_outcome_stays_on_the_page_and_goes_when_it_is_left() {
+    let work = SubscriptionWork::default();
+    let said = AllodiaSubscriptionOutcome::Restarted;
+    assert!(work.begin_write(ME, Write::Resubscribe));
+    work.wrote(ME, Some(said.clone()), None);
+    let ticket = work.begin_reread(ME);
+    work.read(ME, ticket, Answer::Unavailable);
+    work.write_ended(ME);
+    let ticket = work.begin_read(ME).expect("nothing runs");
+    work.read(ME, ticket, Answer::NeedsReauth);
+    assert_eq!(work.snapshot(ME).outcome, Some(said.clone()));
+
+    assert!(work.left(ME));
+    let held = work.snapshot(ME);
+    assert_eq!(held.outcome, None);
+    assert_eq!(held.answer, Some(Answer::NeedsReauth));
+    assert!(!work.left(ME), "nothing more to drop");
+    assert!(!work.left("someone@example.test"));
+
+    // A write still out when the page is left says what it came to on the next visit: nobody has
+    // seen it yet.
+    assert!(work.begin_write(ME, Write::Cancel));
+    assert!(!work.left(ME));
+    work.wrote(ME, Some(said.clone()), None);
+    assert_eq!(work.snapshot(ME).outcome, Some(said));
+}

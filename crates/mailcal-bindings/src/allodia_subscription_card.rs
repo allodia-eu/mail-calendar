@@ -321,6 +321,15 @@ impl SubscriptionWork {
         }
     }
 
+    /// The section left the screen: what the last write came to goes, and whether there was one.
+    /// A write still out keeps its outcome for the next visit, since nobody has seen it.
+    pub(crate) fn left(&self, account: &str) -> bool {
+        let mut inner = self.lock();
+        Self::landing(&mut inner, account)
+            .and_then(|held| held.outcome.take())
+            .is_some()
+    }
+
     /// Forgets the account's subscription, on sign-out.
     pub(crate) fn forget(&self) {
         let mut inner = self.lock();

@@ -52,6 +52,11 @@ extension MailboxModel {
         app?.dispatch(intent: .allodia(intent: .refreshSubscription))
     }
 
+    /// The section left the screen: the core forgets what the last write came to.
+    func leaveAllodiaSubscription() {
+        app?.dispatch(intent: .allodia(intent: .leaveSubscription))
+    }
+
     /// Stops the recurring charge on Allodia's own subscription, once the person confirmed.
     func cancelAllodiaSubscription() {
         app?.dispatch(intent: .allodia(intent: .cancelSubscription))

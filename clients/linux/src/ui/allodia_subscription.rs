@@ -21,6 +21,8 @@ pub(crate) enum SubscriptionInput {
     /// The Settings window came back to the front, which on this client is what returning from
     /// the checkout browser looks like.
     Returned,
+    /// The section left the screen: another category, or the window closed.
+    Left,
     Write(SubscriptionWrite),
     /// A store's own subscription page, the only thing that can change what that store bills.
     OpenStorePage(String),
@@ -63,6 +65,7 @@ impl AppModel {
                 }
                 AllodiaIntent::RefreshSubscription
             }
+            SubscriptionInput::Left => AllodiaIntent::LeaveSubscription,
             SubscriptionInput::Write(write) => write.intent(),
             // Straight to the desktop's own launcher: a page, nothing is pending and nothing
             // comes back.

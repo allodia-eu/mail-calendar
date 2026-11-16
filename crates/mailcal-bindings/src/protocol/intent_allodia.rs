@@ -23,6 +23,10 @@ pub enum AllodiaIntent {
     /// window comes back from the checkout browser. Dropped while a read or a write runs, which
     /// answers for it.
     RefreshSubscription,
+    /// The page drawing the subscription left the screen: what the last write came to is
+    /// forgotten, since on the next visit the section's own state says it, and a sentence kept
+    /// across a change made elsewhere would contradict that state. Reads nothing.
+    LeaveSubscription,
     /// Buy `plan` through Allodia's own checkout: the card names the payment page to open
     /// (`AllodiaSubscriptionCard::checkout_page`).
     StartCheckout { plan: AllodiaPlan },

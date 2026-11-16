@@ -93,6 +93,7 @@ impl MailcalApp {
             }
             AllodiaIntent::SignOut => app.sign_out(),
             AllodiaIntent::RefreshSubscription => app.refresh_subscription(),
+            AllodiaIntent::LeaveSubscription => app.leave_subscription(),
             AllodiaIntent::StartCheckout { plan } => app.write_subscription(Write::Checkout(plan)),
             AllodiaIntent::CancelSubscription => app.write_subscription(Write::Cancel),
             AllodiaIntent::Resubscribe => app.write_subscription(Write::Resubscribe),

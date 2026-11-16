@@ -240,6 +240,12 @@ impl SettingsWindow {
                     returning.emit(AppInput::AllodiaSubscription(SubscriptionInput::Returned));
                 }
             });
+            // Closing the window leaves the subscription section as surely as another category.
+            let leaving = sender.clone();
+            window.connect_close_request(move |_| {
+                leaving.emit(AppInput::AllodiaSubscription(SubscriptionInput::Left));
+                gtk::glib::Propagation::Proceed
+            });
             window
         };
         let navigation = accounts.as_ref().map_or_else(

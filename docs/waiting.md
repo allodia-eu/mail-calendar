@@ -115,8 +115,9 @@ A read asked for while one runs runs once more after it, since the one out may p
 prompted the ask. Each write (`StartCheckout`, `CancelSubscription`,
 `Resubscribe`, `SwitchInterval`) is an `AllodiaIntent` the core refuses unless the card offers it,
 and its control runs, every other held, from the press until the read that follows it lands; what
-it came to is the card's `outcome`, and a payment page it handed back its `checkout_page`, opened
-once per id. Buying from a phone's own store stays the client's, since no Rust can call StoreKit
+it came to is the card's `outcome`, kept through every read while the page is on screen and
+forgotten when the page sends `LeaveSubscription` on leaving, and a payment page it handed back
+its `checkout_page`, opened once per id. Buying from a phone's own store stays the client's, since no Rust can call StoreKit
 or Play.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.

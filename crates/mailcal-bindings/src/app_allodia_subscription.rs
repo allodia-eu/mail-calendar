@@ -77,6 +77,16 @@ impl MailcalApp {
         }
     }
 
+    /// Forgets what the last write came to, because the page drawing it left the screen.
+    pub(crate) fn leave_subscription(&self) {
+        let Some(account) = self.subscription_account() else {
+            return;
+        };
+        if self.account_work.subscription.left(&account) {
+            self.app.allodia_changed();
+        }
+    }
+
     /// Reads the subscription again after a sign-in, when it had been asked for.
     pub(crate) fn reread_subscription(self: Arc<Self>) {
         let Some(account) = self.subscription_account() else {
