@@ -35,8 +35,10 @@ enum PickedFile {
 /// can stand in for it.
 struct ComposerFileVerbs {
     let read: (String) -> ComposerFiles
+    /// Starts an addition, which runs Attach until `finish` ends it.
+    let begin: (String) -> ComposerFiles
     /// Asynchronous: the core reads each file it is given, which is not a wait for the main thread.
-    let add: (String, [ComposerFileAttachment]) async -> ComposerFiles
+    let finish: (String, [ComposerFileAttachment]) async -> ComposerFiles
     let remove: (String, String) -> ComposerFiles
 }
 
@@ -105,18 +107,30 @@ extension RichComposeView {
         .accessibilityElement(children: .contain)
     }
 
-    /// Hands files to the core and shows the list it answers with. Built from the list's binding
-    /// and the verbs, never from `self`, because the editor holds it (`ComposerDropModifier`).
-    var attachFiles: ([URL]) -> Void {
+    /// Starts adding files the person chose, so Attach runs while they are still being copied or
+    /// read, and answers with what ends it: called once, with the files that arrived, none when
+    /// nothing did (`docs/waiting.md`). Built from the list's binding and the verbs, never from
+    /// `self`, because the editor holds it (`ComposerDropModifier`).
+    var startAttaching: () -> ([URL]) -> Void {
         let files = $files
         let verbs = fileVerbs
         let composition = composition
-        return { urls in
-            let picked = urls.map(PickedFile.describe)
-            Task { @MainActor in
-                files.wrappedValue = await verbs.add(composition, picked)
+        return {
+            files.wrappedValue = verbs.begin(composition)
+            return { urls in
+                let picked = urls.map(PickedFile.describe)
+                Task { @MainActor in
+                    files.wrappedValue = await verbs.finish(composition, picked)
+                }
             }
         }
+    }
+
+    /// Hands files that are on this device already to the core and shows the list it answers
+    /// with, Attach running while the core reads them.
+    var attachFiles: ([URL]) -> Void {
+        let start = startAttaching
+        return { urls in start()(urls) }
     }
 
     func chooseAttachments() {
@@ -136,14 +150,20 @@ extension RichComposeView {
     }
 
     #if os(iOS)
-    /// Attaches pictures and films from the photo library. One that could not be copied (a
-    /// picture the device could not download, say) is named in the composer's notice line rather
-    /// than left out without a word.
+    /// Attaches pictures and films from the photo library. Attach runs from the moment the picker
+    /// closes, because each item is copied after it has, and a film is converted to its compatible
+    /// form first. One that could not be copied (a picture the device could not download, say) is
+    /// named in the composer's notice line rather than left out without a word.
     func choosePhotos() {
-        let attach = attachFiles
+        let start = startAttaching
         let error = $composerError
-        PlatformPhotoPicker.present(filter: .any(of: [.images, .videos]), limit: 0) { pick in
-            if !pick.files.isEmpty { attach(pick.files) }
+        var finish: (([URL]) -> Void)?
+        PlatformPhotoPicker.present(
+            filter: .any(of: [.images, .videos]),
+            limit: 0,
+            onCopying: { finish = start() }
+        ) { pick in
+            finish?(pick.files)
             if let notice = pick.failureNotice { error.wrappedValue = notice }
         }
     }

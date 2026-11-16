@@ -102,6 +102,50 @@ fn a_move_keeps_the_files_and_a_close_lets_them_go() {
 }
 
 #[test]
+fn attach_runs_while_files_are_on_their_way_and_a_move_does_not_inherit_it() {
+    let app = app();
+    open_new(&app, "c1");
+    let started = app
+        .begin_adding_composer_files("c1".to_owned())
+        .expect("started");
+    assert!(started.attach.running && !started.attach.enabled);
+    let finished = app
+        .finish_adding_composer_files("c1".to_owned(), vec![picked("film.mov")])
+        .expect("finished");
+    assert!(!finished.attach.running && finished.attach.enabled);
+    assert_eq!(names(&app, "c1"), ["film.mov"]);
+
+    // The composer that started an addition is the one that sees it end, so the composer a
+    // message moves to opens with Attach free; the files still land in the composition's list.
+    app.begin_adding_composer_files("c1".to_owned())
+        .expect("started");
+    let state = ComposerState {
+        from: None,
+        to: String::new(),
+        cc: String::new(),
+        bcc: String::new(),
+        subject: "Moving".to_owned(),
+        document_json: DOCUMENT.to_owned(),
+        signature: MovedSignature::FollowsAccount,
+        written: true,
+    };
+    app.open_composer(
+        "c1".to_owned(),
+        ComposeOrigin::Moved { state },
+        staging(),
+        None,
+    )
+    .expect("the composer moves");
+    let moved = app.composer_files("c1".to_owned()).expect("files");
+    assert!(moved.attach.enabled && !moved.attach.running);
+    app.finish_adding_composer_files("c1".to_owned(), vec![picked("late.pdf")])
+        .expect("finished");
+    assert_eq!(names(&app, "c1"), ["film.mov", "late.pdf"]);
+    let after = app.composer_files("c1".to_owned()).expect("files");
+    assert!(after.attach.enabled && !after.attach.running);
+}
+
+#[test]
 fn reopening_a_composition_starts_its_list_again() {
     let app = app();
     open_new(&app, "c1");

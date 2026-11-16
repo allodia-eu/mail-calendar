@@ -43,6 +43,8 @@ enum DroppedFileName {
 struct ComposerDropModifier: ViewModifier {
     /// Hands files to the core's list for this composition (`RichComposeView.attachFiles`).
     let attach: ([URL]) -> Void
+    /// Starts the composer's wait for files still being copied (`RichComposeView.startAttaching`).
+    let start: () -> ([URL]) -> Void
     /// Pictures waiting on the question below; non-empty only between a drop and its answer.
     @Binding var droppedPictures: [URL]
     /// The composer's shared error line, which this writes the picture-specific message into.
@@ -63,6 +65,13 @@ struct ComposerDropModifier: ViewModifier {
             .onAppear {
                 let sort = Self.sort(attach: attach, droppedPictures: $droppedPictures)
                 editor.acceptDroppedFiles = { _ = sort($0) }
+                // Ended with nothing: what the copies bring is attached through `sort`, which
+                // starts the core's read of it before this ends.
+                let start = start
+                editor.startDropCopies = {
+                    let finish = start()
+                    return { finish([]) }
+                }
             }
             .confirmationDialog(
                 L10n.compose_image_drop_title(),

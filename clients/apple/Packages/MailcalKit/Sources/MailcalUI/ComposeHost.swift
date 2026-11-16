@@ -114,7 +114,8 @@ struct ComposeHost: View {
             drafts: drafts,
             files: ComposerFileVerbs(
                 read: { model.composerFiles($0) },
-                add: { await model.addComposerFiles($0, $1) },
+                begin: { model.beginAddingComposerFiles($0) },
+                finish: { await model.finishAddingComposerFiles($0, $1) },
                 remove: { model.removeComposerFile($0, $1) }
             ),
             importance: ComposerImportanceVerbs(

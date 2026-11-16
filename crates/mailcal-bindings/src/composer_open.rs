@@ -269,7 +269,9 @@ impl MailcalApp {
         // A move keeps the composition, and so its files; every other opening starts its list
         // with what the composer opens holding.
         let files = std::mem::take(&mut opening.attachments);
-        if !moved {
+        if moved {
+            self.composer_files.settle_adding(&opened);
+        } else {
             self.composer_files.open(&opened, staged_files(files));
         }
         Ok(ComposeOpening::from(opening))

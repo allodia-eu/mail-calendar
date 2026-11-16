@@ -132,7 +132,8 @@
                          rather than on the button, so the row stays a row of verbs. In a pane too
                          narrow for every verb the row wraps rather than cutting the last ones off. -->
                     <ctl:FlowPanel Spacing="8">
-                        <Button Content="{x:Bind l10n:L10n.ActionAttach(), Mode=OneTime}" Click="OnAttachFiles" />
+                        <!-- Attach, drawn from the core's state by ComposerView.Files.cs. -->
+                        <StackPanel x:Name="AttachHost" Orientation="Horizontal" />
                         <DropDownButton x:Name="SignatureButton" Visibility="Collapsed"
                                         Content="{x:Bind l10n:L10n.ComposeSignatureLabel(), Mode=OneTime}">
                             <DropDownButton.Flyout>

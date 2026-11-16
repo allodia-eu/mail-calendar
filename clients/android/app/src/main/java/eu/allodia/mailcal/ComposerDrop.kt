@@ -60,9 +60,13 @@ internal fun acceptsComposerDrop(mimeTypes: Collection<String>): Boolean =
 
 // The composer's drop target. Staging copies each dropped document into the app cache off the main
 // thread, exactly as the Attach picker does, so `onDropped` always arrives with real paths Rust can
-// read.
+// read. `onStarted` is told as the copies begin, and `onDropped` once they end, however little
+// they brought.
 @Composable
-internal fun Modifier.composerDropTarget(onDropped: (DroppedComposerFiles) -> Unit): Modifier {
+internal fun Modifier.composerDropTarget(
+    onStarted: () -> Unit,
+    onDropped: (DroppedComposerFiles) -> Unit,
+): Modifier {
     val ctx = LocalContext.current
     val target = remember(ctx) {
         object : DragAndDropTarget {
@@ -76,6 +80,7 @@ internal fun Modifier.composerDropTarget(onDropped: (DroppedComposerFiles) -> Un
                 if (uris.isEmpty()) {
                     return false
                 }
+                onStarted()
                 thread(name = "mailcal-stage-dropped") {
                     val staged = uris.mapNotNull { uri -> stageComposerFile(ctx, uri) }
                     Handler(Looper.getMainLooper()).post { onDropped(sortDroppedFiles(staged)) }

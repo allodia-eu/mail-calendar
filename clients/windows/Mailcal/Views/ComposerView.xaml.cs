@@ -75,8 +75,9 @@ public sealed partial class ComposerView : UserControl
         _request = request;
         // A forward, a stored draft and a share open the composer already holding files, and the
         // core holds them (ComposerView.Files.cs). Drawn here rather than in the loaded handler so
-        // the tiles are there on the first render.
-        ShowFiles(model.ComposerFilesOf(request.Composition));
+        // the tiles are there on the first render. Attach is drawn with them, so a composer the
+        // core cannot answer for still has it.
+        ShowFiles(model.ComposerFilesOf(request.Composition) ?? NoFiles);
         ShowImportance(model.ComposerImportanceOf(request.Composition));
         // A forward whose files could not be read opens saying so. Silence here would be a
         // message the user sends believing the original had nothing attached.

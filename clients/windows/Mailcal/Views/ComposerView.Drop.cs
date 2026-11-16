@@ -40,18 +40,19 @@ public sealed partial class ComposerView
         }
         // Taken before the first await: the deferral keeps the data package alive across it.
         var deferral = e.GetDeferral();
+        // Attach runs while the drop's items are read, and ends before the pictures' question,
+        // which waits on the person rather than on the files.
+        StartAttaching();
+        var ended = false;
         try
         {
             var items = await e.DataView.GetStorageItemsAsync();
             var files = items.OfType<StorageFile>()
                 .Where(file => !string.IsNullOrEmpty(file.Path))
                 .ToList();
-            if (files.Count == 0)
-            {
-                return;
-            }
             var pictures = files.Where(IsPicture).ToList();
-            await AttachAsync(files.Where(file => !IsPicture(file)));
+            ended = true;
+            await FinishAttachingAsync(files.Where(file => !IsPicture(file)));
             if (pictures.Count > 0)
             {
                 await AskAboutPicturesAsync(pictures);
@@ -64,6 +65,10 @@ public sealed partial class ComposerView
         }
         finally
         {
+            if (!ended)
+            {
+                await FinishAttachingAsync([]);
+            }
             deferral.Complete();
         }
     }
