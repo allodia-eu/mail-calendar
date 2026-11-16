@@ -16,7 +16,7 @@ use crate::{
     l10n,
     ui::{
         composer_file_preview::{PICTURE_NAME, SQUARE, cover},
-        composer_layout::visible_top,
+        composer_layout::step,
         controls::tests::spins,
         icons,
         setup_widget_tests::descendants,
@@ -327,8 +327,10 @@ fn a_picture_is_decoded_so_its_shorter_side_covers_the_square() {
 }
 
 #[test]
-fn the_page_is_told_where_it_is_seen_from_and_zero_while_its_top_shows() {
-    assert!(visible_top(0.0, 240.0).abs() < f64::EPSILON);
-    assert!(visible_top(240.0, 240.0).abs() < f64::EPSILON);
-    assert!((visible_top(500.4, 240.0) - 260.0).abs() < f64::EPSILON);
+fn a_wheel_detent_moves_the_column_as_far_as_gtk_scrolls_a_window() {
+    // A detent is the visible height to the power of two thirds: 64 for a 512 px window.
+    assert!((step(1.0, true, 512.0) - 64.0).abs() < 1e-9);
+    assert!((step(-0.5, true, 512.0) + 32.0).abs() < 1e-9);
+    // A touchpad's step is already a distance.
+    assert!((step(12.5, false, 512.0) - 12.5).abs() < f64::EPSILON);
 }

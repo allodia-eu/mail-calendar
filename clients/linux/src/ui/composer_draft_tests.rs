@@ -4,6 +4,7 @@
 //! in [`super::super::composer_discard`].
 
 use adw::prelude::*;
+use webkit6::prelude::WebViewExt;
 
 use super::super::{
     AppInput,
@@ -82,8 +83,8 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
     assert!(pane.widget().first_child().is_none());
 }
 
-/// The composer is one column that scrolls as a whole: the header, the action row, the notes, the
-/// files, then the editor, and nothing in it with a vertical scroll of its own
+/// The composer is one column: the header, the action row, the notes, the files, then the editor,
+/// and nothing in it but the message's box with a vertical scroll of its own
 /// (`docs/composer-layout.md`, rules 1 and 2). A popup is drawn over the column, so one inside a
 /// popover is not in it.
 pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::ApplicationWindow) {
@@ -104,7 +105,8 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
             .collect();
     assert_eq!(scrolls.len(), 1, "one scroll, around the whole composer");
     let column = &scrolls[0];
-    assert_eq!(column.vscrollbar_policy(), gtk::PolicyType::Automatic);
+    // It scrolls, but draws no bar: the message's box draws the one there is (rule 2).
+    assert_eq!(column.vscrollbar_policy(), gtk::PolicyType::External);
     assert_eq!(column.hscrollbar_policy(), gtk::PolicyType::Never);
     let content = descendants::<gtk::Box>(column.upcast_ref())
         .into_iter()
@@ -128,9 +130,12 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
         !descendants::<gtk::FlowBox>(&order[4]).is_empty(),
         "then the files, under the line that counts them"
     );
+    let editors = descendants::<webkit6::WebView>(&order[5]);
+    assert!(!editors.is_empty(), "and the message last");
+    assert_eq!(content.margin_bottom(), 0, "with nothing under it");
     assert!(
-        !descendants::<webkit6::WebView>(&order[5]).is_empty(),
-        "and the message last"
+        editors[0].background_color().alpha() < f32::EPSILON,
+        "drawing no background of its own (rule 5)"
     );
     pane.teardown();
 }

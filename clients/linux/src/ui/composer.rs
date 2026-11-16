@@ -142,9 +142,8 @@ impl ComposerPane {
 
         let content = gtk::Box::new(gtk::Orientation::Vertical, 8);
         content.set_margin_top(12);
-        // At least 16 under the editor, so the core's caret margin is reachable on the last line
-        // (`docs/composer-layout.md`, rule 6).
-        content.set_margin_bottom(16);
+        // Nothing under the editor: its box ends where the column's visible part does
+        // (`docs/composer-layout.md`, rule 2).
         content.set_margin_start(12);
         content.set_margin_end(12);
         let form = gtk::Grid::new();
@@ -244,7 +243,7 @@ impl ComposerPane {
         // the quote and signature put there rather than against empty.
         let seed = Rc::new(RefCell::new(None));
         content.append(&editor_host);
-        let column = ComposerColumn::new(&content, web.widget());
+        let column = ComposerColumn::new(&content, &editor_host, web.widget());
         seed_editor(
             &web,
             request,
@@ -252,7 +251,6 @@ impl ComposerPane {
             signature.as_ref(),
             quote_style,
             Rc::clone(&seed),
-            Rc::downgrade(&column),
         );
         super::composer_host::install(web.widget(), Some(&column));
         install_drop_target(column.widget(), take_files(PictureAnswer::Ask));
@@ -408,7 +406,6 @@ fn seed_editor(
     signature: Option<&Rc<SignatureControl>>,
     quote_style: Option<QuoteStylePicker>,
     seed: Rc<RefCell<Option<String>>>,
-    column: std::rc::Weak<ComposerColumn>,
 ) {
     let labels = editor_labels();
     let body = body_seed_script(request);
@@ -423,9 +420,9 @@ fn seed_editor(
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
         script.push_str(&super::composer_scheme::current_script());
-        // Before the body is seeded and before the channel is announced, so the first height
-        // and caret it reports are already the seeded message's (`docs/composer-layout.md`).
-        script.push_str("window.useGrowingComposer();");
+        // Before the body is seeded and before the channel is announced, so the first caret and
+        // scroll it reports are already the seeded message's (`docs/composer-layout.md`).
+        script.push_str("window.useFramedComposer();");
         script.push_str(&super::composer_host::announce_script());
         if let Some(body) = &body {
             script.push_str(body);
@@ -448,11 +445,7 @@ fn seed_editor(
         let quote_style = quote_style.clone();
         let seeded_view = view.clone();
         let ready = editor_host.clone();
-        let column = column.clone();
         view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, move |_| {
-            if let Some(column) = column.upgrade() {
-                column.page_ready();
-            }
             let seed = Rc::clone(&seed);
             let ready = ready.clone();
             seeded_view.evaluate_javascript(

@@ -23,9 +23,9 @@ const RESPONSE_APPLY: &str = "apply";
 /// Registers the channel on `view`, before its page loads. The editor asks for nothing until it
 /// runs `announce_script`.
 ///
-/// `column` is the composer's, whose editor runs in its growing mode and reports its height and
-/// caret (`docs/composer-layout.md`); the signature editor has none, and its page never sends
-/// either.
+/// `column` is the composer's, whose editor runs in its framed mode and reports its caret and how
+/// far its message is scrolled (`docs/composer-layout.md`); the signature editor has none, and its
+/// page never sends either.
 pub(crate) fn install(view: &WebView, column: Option<&Rc<ComposerColumn>>) {
     let Some(manager) = view.user_content_manager() else {
         return;
@@ -58,9 +58,9 @@ pub(crate) fn install(view: &WebView, column: Option<&Rc<ComposerColumn>>) {
             // Never announced here: nothing in GTK asks whether Undo can be chosen
             // (`docs/undo.md`, rule 2).
             ComposerHostRequest::History { .. } => {}
-            ComposerHostRequest::Height { px } => {
+            ComposerHostRequest::Scroll { px, .. } => {
                 if let Some(column) = column.as_ref().and_then(Weak::upgrade) {
-                    column.content_height(px);
+                    column.message_scrolled(px);
                 }
             }
             ComposerHostRequest::Caret { top, bottom } => {
