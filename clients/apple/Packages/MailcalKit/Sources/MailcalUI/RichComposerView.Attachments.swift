@@ -37,8 +37,11 @@ struct ComposerFileVerbs {
     let remove: (String, String) -> ComposerFiles
 }
 
-/// The narrowest a tile is drawn before the grid puts fewer in a row.
-private let tileMinimumWidth: CGFloat = 180
+/// The narrowest a tile is drawn before the grid puts fewer in a row: room for the square, a
+/// name's start and end, its size and Remove on one line.
+private let tileMinimumWidth: CGFloat = 220
+/// The side of the square a tile starts with.
+private let tileThumbnailSide: CGFloat = 28
 
 extension RichComposeView {
     /// The files as tiles, in rows of equal-width columns that wrap and grow downward with no cap
@@ -46,9 +49,14 @@ extension RichComposeView {
     @ViewBuilder var fileTiles: some View {
         if !files.tiles.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.attachments_title())
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(L10n.compose_files_summary(
+                    count: files.tiles.count,
+                    size: ByteCountFormatter.string(
+                        fromByteCount: Int64(clamping: files.totalSize), countStyle: .file
+                    )
+                ))
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 LazyVGrid(
                     columns: [GridItem(.adaptive(minimum: tileMinimumWidth), spacing: 8)],
                     alignment: .leading,
@@ -62,20 +70,20 @@ extension RichComposeView {
 
     private func fileTile(_ tile: ComposerFileTile) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: "doc")
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(tile.fileName)
+            ComposerFileThumbnail(preview: tile.preview, side: tileThumbnailSide)
+            // Cut in the middle, so the part that tells one file from the next and the extension
+            // both stay; the size keeps its own width.
+            Text(tile.fileName)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .font(.caption)
+            if let size = tile.size {
+                Text(ByteCountFormatter.string(fromByteCount: Int64(clamping: size), countStyle: .file))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                if let size = tile.size {
-                    Text(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
+                    .fixedSize()
             }
-            .font(.caption)
             Spacer(minLength: 0)
             ControlButton(
                 title: L10n.action_remove(),
@@ -88,8 +96,8 @@ extension RichComposeView {
             .buttonStyle(.borderless)
             .help(L10n.action_remove())
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
         .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
         .accessibilityElement(children: .contain)
     }

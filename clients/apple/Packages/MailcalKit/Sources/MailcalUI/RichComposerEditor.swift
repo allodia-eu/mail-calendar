@@ -84,6 +84,35 @@ final class RichComposerEditor: NSObject {
     private static func topInsetScript(_ height: CGFloat) -> String {
         "window.setComposerTopInset(\(Double(height)))"
     }
+
+    /// Where the column's visible part starts in the page's coordinates, the last value told to the
+    /// page, whether a call telling it is out, and whether the page can take one yet. The column
+    /// reports every frame of a scroll, and only the latest value is worth sending.
+    @ObservationIgnored private var visibleTop: Double = 0
+    @ObservationIgnored private var visibleTopSent: Double = .nan
+    @ObservationIgnored private var visibleTopSending = false
+    @ObservationIgnored private var growing = false
+
+    /// Tells the page where the column shows it from, so it keeps its toolbar there
+    /// (`docs/composer-layout.md`, rule 7). Sent again on load, so it may be set before the page is
+    /// there.
+    func setVisibleTop(_ px: CGFloat) {
+        // Zero or less is the same answer to the page: its top is in view.
+        visibleTop = max(0, Double(px).rounded())
+        sendVisibleTop()
+    }
+
+    private func sendVisibleTop() {
+        guard growing, !visibleTopSending, visibleTop != visibleTopSent else { return }
+        visibleTopSending = true
+        visibleTopSent = visibleTop
+        host.evaluate("window.setComposerVisibleTop(\(visibleTop))") { [weak self] _, _ in
+            guard let self else { return }
+            visibleTopSending = false
+            // The column may have moved on while the call was out.
+            sendVisibleTop()
+        }
+    }
     /// Files dropped on the message itself, set by `ComposerDropModifier`, which owns what a dropped
     /// file becomes. The web view hands its drops here, so the handler can be set before or after
     /// the web view exists.
@@ -156,6 +185,9 @@ final class RichComposerEditor: NSObject {
         #else
         // Before the announce, which the page answers with its first height and caret.
         host.evaluate("window.useGrowingComposer()")
+        growing = true
+        visibleTopSent = .nan
+        sendVisibleTop()
         #endif
         host.channel.announce()
         // One body seed, whichever way the composer was reached. A plain body is assigned as
