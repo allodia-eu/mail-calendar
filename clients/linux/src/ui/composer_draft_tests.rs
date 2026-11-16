@@ -108,6 +108,13 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
     // It scrolls, but draws no bar: the message's box draws the one there is (rule 2).
     assert_eq!(column.vscrollbar_policy(), gtk::PolicyType::External);
     assert_eq!(column.hscrollbar_policy(), gtk::PolicyType::Never);
+    // GTK's own scroll to the focus would show the whole editor on a click in the message, which
+    // is the column at its end with the header carried away; the column follows the focus itself.
+    let viewport = column
+        .child()
+        .and_downcast::<gtk::Viewport>()
+        .expect("the column's own viewport");
+    assert!(!viewport.is_scroll_to_focus());
     let content = descendants::<gtk::Box>(column.upcast_ref())
         .into_iter()
         .next()

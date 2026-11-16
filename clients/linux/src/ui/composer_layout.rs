@@ -23,6 +23,7 @@ const MINIMUM_EDITOR_HEIGHT: f64 = 240.0;
 /// One composer's column.
 pub(crate) struct ComposerColumn {
     scroller: gtk::ScrolledWindow,
+    viewport: gtk::Viewport,
     editor: webkit6::WebView,
     /// How far the message is scrolled inside its box, from the page's last `scroll` notice.
     message_offset: Cell<f64>,
@@ -30,6 +31,8 @@ pub(crate) struct ComposerColumn {
     sizing: Cell<bool>,
     /// The handler on the adjustment, disconnected as the column goes.
     watches: RefCell<Vec<glib::SignalHandlerId>>,
+    /// The window whose focus the column follows while it is mapped, and the handler on it.
+    focus: RefCell<Option<(gtk::Window, glib::SignalHandlerId)>>,
 }
 
 impl ComposerColumn {
@@ -42,7 +45,13 @@ impl ComposerColumn {
         scroller.set_vscrollbar_policy(gtk::PolicyType::External);
         scroller.set_vexpand(true);
         scroller.set_hexpand(true);
-        scroller.set_child(Some(content));
+        // GTK's own scroll to the focus would bring the whole editor into view as it takes the
+        // focus, which is the column at its end with the header carried away. The column follows
+        // the focus itself, leaving the editor to its caret notice.
+        let viewport = gtk::Viewport::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        viewport.set_scroll_to_focus(false);
+        viewport.set_child(Some(content));
+        scroller.set_child(Some(&viewport));
         // The editor is exactly as tall as the visible part; it takes no share of spare room.
         editor.set_vexpand(false);
         // The framed page draws no background, and neither does the view, so the toolbar sits on
@@ -50,10 +59,12 @@ impl ComposerColumn {
         editor.set_background_color(&gdk::RGBA::new(0.0, 0.0, 0.0, 0.0));
         let column = Rc::new(Self {
             scroller,
+            viewport,
             editor: editor.clone(),
             message_offset: Cell::new(0.0),
             sizing: Cell::new(false),
             watches: RefCell::new(Vec::new()),
+            focus: RefCell::new(None),
         });
         // The adjustment changes after every allocation that moves the column, the window resized
         // among them. Weak, because the scroller this handler hangs off is the column's own.
@@ -65,7 +76,59 @@ impl ComposerColumn {
         });
         column.watches.replace(vec![changed]);
         column.hand_over_wheel(host);
+        // The window is known only once the column is in one. Weak, because the scroller these
+        // handlers hang off is the column's own.
+        let mapped = Rc::downgrade(&column);
+        column.scroller.connect_map(move |_| {
+            if let Some(column) = mapped.upgrade() {
+                column.follow_focus();
+            }
+        });
+        let unmapped = Rc::downgrade(&column);
+        column.scroller.connect_unmap(move |_| {
+            if let Some(column) = unmapped.upgrade() {
+                column.stop_following_focus();
+            }
+        });
         column
+    }
+
+    /// Scrolls a field that takes the focus into view, as GTK would, except for the editor: its
+    /// box is as tall as the visible part, so showing all of it would carry the header away on a
+    /// click in the message. Where its caret is decides that (rule 6).
+    pub(crate) fn focus_moved(&self, focus: Option<&gtk::Widget>) {
+        let Some(focus) = focus else {
+            return;
+        };
+        let in_editor =
+            focus == self.editor.upcast_ref::<gtk::Widget>() || focus.is_ancestor(&self.editor);
+        if !in_editor && focus.is_ancestor(&self.viewport) {
+            self.viewport.scroll_to(focus, None);
+        }
+    }
+
+    fn follow_focus(self: &Rc<Self>) {
+        self.stop_following_focus();
+        let Some(window) = self
+            .scroller
+            .root()
+            .and_then(|root| root.downcast::<gtk::Window>().ok())
+        else {
+            return;
+        };
+        let weak: Weak<Self> = Rc::downgrade(self);
+        let handler = window.connect_focus_widget_notify(move |window| {
+            if let Some(column) = weak.upgrade() {
+                column.focus_moved(gtk::prelude::GtkWindowExt::focus(window).as_ref());
+            }
+        });
+        self.focus.replace(Some((window, handler)));
+    }
+
+    fn stop_following_focus(&self) {
+        if let Some((window, handler)) = self.focus.take() {
+            window.disconnect(handler);
+        }
     }
 
     pub(crate) fn widget(&self) -> &gtk::ScrolledWindow {
@@ -184,6 +247,7 @@ impl Drop for ComposerColumn {
         for watch in self.watches.take() {
             adjustment.disconnect(watch);
         }
+        self.stop_following_focus();
     }
 }
 
