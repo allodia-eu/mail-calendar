@@ -58,6 +58,7 @@ struct SettingsView: View {
                         .padding(20)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .answersScrollBy()
             }
         }
         .frame(width: 720, height: 520)
