@@ -222,6 +222,44 @@ fn state_only_one_page_draws_redraws_that_page_and_no_other() {
     assert_eq!(redrawn.redraw, Redraw::InPlace);
 }
 
+/// Every page is built when the window opens, so a page hidden behind another category is drawn
+/// before what it shows has arrived. A change it draws, landing while it is hidden, redraws it when
+/// it is shown, or it shows the state it was built in: the subscription "checking" until the
+/// window is left and come back to.
+#[test]
+fn a_page_that_changed_while_hidden_redraws_when_it_is_shown() {
+    let mut state = SettingsState::default();
+    state.open(Some(Category::General));
+    let opened = state.render_state().generation;
+
+    state.refresh_if_showing(Category::Allodia);
+    assert_eq!(
+        state.render_state().generation,
+        opened,
+        "hidden: nothing redraws"
+    );
+
+    state.record_category(Category::Allodia);
+    let shown = state.render_state();
+    assert!(shown.generation > opened, "shown: the page is drawn again");
+    assert_eq!(shown.redraw, Redraw::InPlace, "a redraw, never an open");
+    assert_eq!(shown.category, Category::Allodia);
+
+    // Once: going back and forth after that is a switch of the stack, not a rebuild.
+    let redrawn = shown.generation;
+    state.record_category(Category::General);
+    state.record_category(Category::Allodia);
+    assert_eq!(state.render_state().generation, redrawn);
+
+    // A whole window drawn since the change built the page fresh.
+    state.record_category(Category::General);
+    state.refresh_if_showing(Category::Allodia);
+    state.open(None);
+    let reopened = state.render_state().generation;
+    state.record_category(Category::Allodia);
+    assert_eq!(state.render_state().generation, reopened);
+}
+
 /// Settings opens over a composer and stays open: it is a window of its own, so opening it does
 /// not leave the composer, and the composer keeps its draft by staying where it is
 /// (`docs/drafts.md`). Only a composer *arriving*, from a mail link or a share, is put in front.
