@@ -8,37 +8,44 @@ import androidx.compose.runtime.remember
 import uniffi.mailcal_bindings.AboutPlatform
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
+import uniffi.mailcal_bindings.PreferenceIntent
+import uniffi.mailcal_bindings.SwipeDirection
 import uniffi.mailcal_bindings.aboutInfo
 import uniffi.mailcal_bindings.standardPort
+
+/**
+ * Changes one preference. It takes effect in the core before this returns and raises SETTINGS,
+ * whose pull redraws every screen that shows it, so no caller keeps a copy of the value.
+ */
+internal fun MailcalApp.setPreference(intent: PreferenceIntent) = dispatch(Intent.Preferences(intent))
 
 // The unified Settings screen, swapped in over the mailbox.
 @Composable
 internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
+    // All three are pulled in the same step that sets the core, so none is null here.
+    val display = displaySettings ?: return
+    val quotes = quoteSettings ?: return
+    val swipes = swipeSettings ?: return
     SettingsScreen(
                             about = aboutInfo(AboutPlatform.ANDROID),
                             // General, time zone.
                             timeZone = timeZone,
                             onSetTimeZone = { instance.dispatch(Intent.SetTimeZone(it)) },
-                            // General + Calendar, the display preferences the core owns. Each
-                            // setter persists in the core and signals both SETTINGS and CALENDAR,
-                            // so the grid re-pulls rather than keeping the old week on screen.
-                            display = displaySettings,
-                            onSetTimeFormat = { instance.setTimeFormat(it) },
-                            // The one display setting the core signals SETTINGS alone for, it
-                            // computes nothing from the appearance, so repainting is ours.
-                            onSetAppearance = {
-                                instance.setAppearance(it)
-                                appearance = it
-                            },
-                            onSetWeekStart = { instance.setWeekStart(it) },
-                            onSetVisibleHours = { instance.setCalendarVisibleHours(it.toUByte()) },
+                            // General + Calendar, the display preferences the core owns. The
+                            // clock and the week start signal CALENDAR besides, so the grid
+                            // re-pulls rather than keeping the old week on screen.
+                            display = display,
+                            onSetTimeFormat = { instance.setPreference(PreferenceIntent.SetTimeFormat(it)) },
+                            onSetAppearance = { instance.setPreference(PreferenceIntent.SetAppearance(it)) },
+                            onSetWeekStart = { instance.setPreference(PreferenceIntent.SetWeekStart(it)) },
+                            onSetVisibleHours = { instance.setPreference(PreferenceIntent.SetCalendarVisibleHours(it.toUByte())) },
                             // Calendar, which calendar a new event is filed on, and so the colour
                             // a slot drawn on the grid wears. Read straight from the core (an
                             // in-memory cache read) rather than held in state: the signal below
                             // recomposes Settings, and the rows carry the resolved `isDefault`.
                             calendars = remember(calendarVersion) { instance.calendars() },
                             onSetDefaultCalendar = { account, calendar ->
-                                instance.setDefaultCalendar(account, calendar)
+                                instance.setPreference(PreferenceIntent.SetDefaultCalendar(account, calendar))
                             },
                             // Videoconferencing; once a server is stored, the calendar signal
                             // redraws the editor's choices.
@@ -46,43 +53,25 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetJitsiServer = { instance.setJitsiServer(it) },
                             meetingDefaults = remember(calendarVersion) { instance.meetingDefaults() },
                             onSetDefaultMeeting = { account, choice ->
-                                instance.setDefaultMeeting(account, choice)
+                                instance.setPreference(PreferenceIntent.SetDefaultMeeting(account, choice))
                             },
                             // Reading, conversation grouping.
                             mode = mode,
                             onSetMode = { instance.dispatch(Intent.SetViewMode(it)) },
                             // Reading, the message background in a dark app; the same preference
                             // as the reading screen's sun/moon button.
-                            onSetDarkMessages = { dark ->
-                                displaySettings = displaySettings.copy(darkMessageBackground = dark)
-                                instance.setDarkMessageBackground(dark)
-                            },
+                            onSetDarkMessages = { instance.setPreference(PreferenceIntent.SetDarkMessageBackground(it)) },
                             // Composing, quote style (+ the per-message opt-in), default send
                             // account, swipe actions.
-                            quoteSettings = quoteSettings,
-                            onSetQuoteStyle = { style ->
-                                instance.setQuoteStyle(style)
-                                quoteSettings = quoteSettings.copy(style = style)
-                            },
-                            onSetQuoteStylePerMessage = { perMessage ->
-                                instance.setQuoteStylePerMessage(perMessage)
-                                quoteSettings = quoteSettings.copy(perMessage = perMessage)
-                            },
+                            quoteSettings = quotes,
+                            onSetQuoteStyle = { instance.setPreference(PreferenceIntent.SetQuoteStyle(it)) },
+                            onSetQuoteStylePerMessage = { instance.setPreference(PreferenceIntent.SetQuoteStylePerMessage(it)) },
                             accounts = accounts,
                             defaultSendAccount = defaultSendAccount,
-                            onSetDefaultSendAccount = { account ->
-                                instance.setDefaultSendAccount(account)
-                                defaultSendAccount = account
-                            },
-                            swipe = swipeSettings,
-                            onSetSwipeLeft = { action ->
-                                instance.setSwipeAction(uniffi.mailcal_bindings.SwipeDirection.LEFT, action)
-                                swipeSettings = swipeSettings.copy(left = action)
-                            },
-                            onSetSwipeRight = { action ->
-                                instance.setSwipeAction(uniffi.mailcal_bindings.SwipeDirection.RIGHT, action)
-                                swipeSettings = swipeSettings.copy(right = action)
-                            },
+                            onSetDefaultSendAccount = { instance.setPreference(PreferenceIntent.SetDefaultSendAccount(it)) },
+                            swipe = swipes,
+                            onSetSwipeLeft = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.LEFT, it)) },
+                            onSetSwipeRight = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.RIGHT, it)) },
                             // Signatures, the library and the per-account slots. Every setter
                             // persists in the core and re-signals SETTINGS, which is what refreshes
                             // the snapshot above; nothing is echoed locally.
@@ -99,13 +88,8 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                                 instance.setAccountSignature(account, slot, signature)
                             },
                             // Privacy, withdraw (or belatedly give) the usage-statistics consent.
-                            // Echoed locally on write: the core raises no Settings surface for it,
-                            // so the switch would otherwise snap back until the next launch.
                             analyticsEnabled = analyticsConsent?.enabled == true,
-                            onSetAnalytics = { share ->
-                                instance.setAnalyticsConsent(share)
-                                analyticsConsent = instance.analyticsConsent()
-                            },
+                            onSetAnalytics = { instance.setPreference(PreferenceIntent.SetAnalyticsConsent(it)) },
                             analyticsPayloadPreview = { instance.analyticsPayloadPreview() },
                             // Accounts, the Allodia account, then per-account fetch depth + sync
                             // behaviour. The Allodia card is the core's (MainActivityAllodia.kt).

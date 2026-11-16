@@ -33,14 +33,20 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         // A write-status signal only moves the small header badge (spinner → check /
         // warning); the grid/agenda arrive on their own CALENDAR signal.
         CoreSurface.CALENDAR_STATUS -> calendarWriteStatus = app.calendarWriteStatus()
-        // A setting read outside an account's page moved: the composing, swipe, display and
-        // signature preferences, and the accounts every screen reads.
+        // A setting read outside an account's page moved: the composing, swipe, display, signature
+        // and usage-statistics preferences, and the accounts every screen reads.
         CoreSurface.SETTINGS -> {
             quoteSettings = app.quoteSettings()
             swipeSettings = app.swipeSettings()
             defaultSendAccount = app.defaultSendAccount()
-            displaySettings = app.displaySettings()
+            val display = app.displaySettings()
+            // The painted appearance follows a change to the stored one, and only a change: the
+            // launch read the stored one already, and a debug override holds until a pick.
+            val before = displaySettings
+            if (before != null && before.appearance != display.appearance) appearance = display.appearance
+            displaySettings = display
             signatures = app.signatures()
+            analyticsConsent = app.analyticsConsent()
             // Every account, mail or not: adding, removing, linking and signing one in again all
             // raise this signal (docs/accounts.md rule 11).
             refreshAccountsSnapshot()

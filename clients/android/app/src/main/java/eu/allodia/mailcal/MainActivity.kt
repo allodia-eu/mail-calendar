@@ -30,7 +30,6 @@ import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AnalyticsConsent
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.ComposeOpening
-import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarWriteStatus
 import uniffi.mailcal_bindings.ContactRow
 import uniffi.mailcal_bindings.DisplaySettings
@@ -42,7 +41,6 @@ import uniffi.mailcal_bindings.MailtoPrefill
 import uniffi.mailcal_bindings.Observer
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QuoteSettings
-import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.ReadingSnapshot
 import uniffi.mailcal_bindings.SearchHorizon
 import uniffi.mailcal_bindings.SharePrefill
@@ -50,11 +48,8 @@ import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SnapshotRow
 import uniffi.mailcal_bindings.Surface as CoreSurface
-import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.ThreadMessage
-import uniffi.mailcal_bindings.TimeFormat
-import uniffi.mailcal_bindings.WeekStart
 import uniffi.mailcal_bindings.SyncProgressSnapshot
 import uniffi.mailcal_bindings.TimeZoneSnapshot
 import uniffi.mailcal_bindings.ViewMode
@@ -124,18 +119,14 @@ class MainActivity : AppCompatActivity() {
 
     // The persisted reply/forward quoting settings, the default style, and whether the composer
     // offers a per-message override of it, pulled on connect and on every SETTINGS signal. The
-    // style seeds each reply/forward composer; the settings screen edits both.
-    internal var quoteSettings by mutableStateOf(
-        QuoteSettings(QuoteStyleKind.INDENTED, perMessage = false),
-    )
+    // style seeds each reply/forward composer; the settings screen edits both. Null until the core
+    // exists: the core holds the defaults, so nothing is shown on a guess.
+    internal var quoteSettings by mutableStateOf<QuoteSettings?>(null)
 
     // The persisted per-direction swipe actions and the default send account, pulled alongside the
     // quote style on every SETTINGS signal. The swipes bind the message rows' gestures; the send
-    // account seeds the composer's From dropdown in the unified inbox. Both default until the first
-    // pull (both directions Delete, the behaviour before the setting existed).
-    internal var swipeSettings by mutableStateOf(
-        SwipeSettings(SwipeActionKind.DELETE, SwipeActionKind.DELETE),
-    )
+    // account seeds the composer's From dropdown in the unified inbox.
+    internal var swipeSettings by mutableStateOf<SwipeSettings?>(null)
     internal var defaultSendAccount by mutableStateOf<String?>(null)
 
     // The signature library plus each account's two slot assignments, pulled on connect and on
@@ -205,23 +196,13 @@ class MainActivity : AppCompatActivity() {
     internal val calendarPalette: List<String> by lazy { calendarPalette() }
     // The persisted display preferences the core owns: first day of the week, the 12/24-hour clock
     // (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Pulled on
-    // every SETTINGS signal. Seeded with the core's own defaults so the very first frame agrees
-    // with it.
-    internal var displaySettings by mutableStateOf(
-        DisplaySettings(
-            WeekStart.MONDAY,
-            TimeFormat.TWENTY_FOUR_HOUR,
-            Appearance.SYSTEM,
-            true,
-            12u,
-            CalendarLayout.WEEK,
-        ),
-    )
+    // connect and on every SETTINGS signal; null until the core exists, which holds the defaults.
+    internal var displaySettings by mutableStateOf<DisplaySettings?>(null)
 
     // The appearance the app is PAINTED in. Its own state rather than a read of `displaySettings`,
     // because it is settled in onCreate, before the core exists, so the first frame is already
     // right, and because a debug launch override may deliberately differ from the stored choice.
-    // A pick in Settings sets both this and the core's copy.
+    // It follows the stored choice whenever a SETTINGS pull finds it changed (MainActivityObserver.kt).
     internal var appearance by mutableStateOf(Appearance.SYSTEM)
 
     // The Rust app, connected on a background thread (the IMAP login blocks, so it must
