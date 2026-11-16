@@ -108,6 +108,7 @@ targets:
         # not contain a bundle executable") and ITMS-90036 ("Info.plist … is missing").
         inputFiles:
           - $(SRCROOT)/Packages/MailcalKit/artifacts/mailcal-mcp
+          - $(SRCROOT)/McpHelper/PrivacyInfo.xcprivacy
         outputFiles:
           - $(MCP_RELAY_OUTPUT)
         script: |
@@ -167,6 +168,10 @@ targets:
           plutil -lint "$BUNDLE/Contents/Info.plist" >/dev/null || {
             echo "error: generated a malformed Info.plist for the relay bundle"; exit 1; }
           cp -f "$RELAY" "$BUNDLE/Contents/MacOS/$MCP_RELAY_NAME"
+          # A nested executable bundle answers for its own required-reason APIs, so the relay carries
+          # a privacy manifest of its own (clients/apple/README.md, "Privacy manifests").
+          mkdir -p "$BUNDLE/Contents/Resources"
+          cp -f "${SCRIPT_INPUT_FILE_1:-$SRCROOT/McpHelper/PrivacyInfo.xcprivacy}" "$BUNDLE/Contents/Resources/"
           # Ad-hoc sign it here so a DEBUG build runs; package.sh re-signs the whole tree with the
           # real identity for a release (and has a gate that would catch it if it did not).
           codesign --force --sign - --timestamp=none "$BUNDLE" >/dev/null 2>&1 || true
