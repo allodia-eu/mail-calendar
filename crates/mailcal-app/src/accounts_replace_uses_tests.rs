@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 
 use engine_api::AccountId;
 use fakes::{CalendarFake, calendar_account, calendar_app};
+use mailcal_account::{SharedUse, SharedUses};
 
 use crate::{Unanswered, UsesReplaced, tests_fakes as fakes};
 
@@ -17,6 +18,11 @@ async fn new_uses_keep_the_mailbox_the_account_already_has() {
     let id = account.id.clone();
     let app = calendar_app(vec![account], &surfaces);
     let mailbox = Arc::clone(&app.account_handle(&id).await.unwrap().providers);
+    let both = SharedUses::of(SharedUse::Mail).with(SharedUse::Calendar);
+    assert_eq!(
+        app.live_shared_uses(&id, both),
+        SharedUses::of(SharedUse::Mail)
+    );
 
     // What a dial of the uses alone hands back: a calendar, and no mail providers.
     let redialled = calendar_account("acct", CalendarFake::with_events(Vec::new()));
@@ -33,6 +39,11 @@ async fn new_uses_keep_the_mailbox_the_account_already_has() {
     assert!(
         live.calendar_provider.is_some(),
         "the calendar is the new one"
+    );
+    assert_eq!(
+        app.live_shared_uses(&id, both),
+        both,
+        "what a screen reads without the list's lock follows the new calendar"
     );
 }
 
