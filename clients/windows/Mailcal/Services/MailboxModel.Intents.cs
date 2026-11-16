@@ -15,6 +15,12 @@ public sealed partial class MailboxModel
     /// <summary>Sync the account's mail and refresh the snapshot.</summary>
     public void Refresh() => _app?.Dispatch(new Intent.RefreshMail());
 
+    /// <summary>Changes one preference. The core holds the new value before this returns and saves
+    /// it behind; what is drawn from it is redrawn on the Settings signal that follows, and a save
+    /// that fails is the core's notice, never a value kept here.</summary>
+    private void DispatchPreference(PreferenceIntent intent) =>
+        _app?.Dispatch(new Intent.Preferences(intent));
+
     /// <summary>Switch the list between flat and threaded.</summary>
     public void SetMode(ViewModeKind mode) =>
         _app?.Dispatch(new Intent.SetViewMode(mode == ViewModeKind.Threaded ? ViewMode.Threaded : ViewMode.Flat));

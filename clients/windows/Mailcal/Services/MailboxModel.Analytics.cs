@@ -6,6 +6,7 @@
 // default off, never pre-ticked, and withdrawal as easy as giving (GDPR Art. 7(3)).
 
 using Microsoft.UI.Xaml;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
@@ -37,11 +38,15 @@ public sealed partial class MailboxModel
     /// they pressed. Never from a pre-checked box or from accepting terms.
     /// </para>
     /// </summary>
-    public void SetAnalyticsConsent(bool enabled)
+    public void SetAnalyticsConsent(bool enabled) =>
+        DispatchPreference(new PreferenceIntent.SetAnalyticsConsent(enabled));
+
+    /// <summary>
+    /// Re-reads the decision on a Settings signal, which the core raises after it changes: that is
+    /// what tells the shell the welcome screen is done and the app proper can show.
+    /// </summary>
+    private void RaiseAnalyticsConsent()
     {
-        _app?.SetAnalyticsConsent(enabled);
-        // The core raises no Settings surface for this, so nothing else would tell the shell that
-        // the welcome screen is done and the app proper can show.
         Raise(nameof(AnalyticsAsked));
         Raise(nameof(AnalyticsEnabled));
         Raise(nameof(WelcomeVisibility));

@@ -302,9 +302,9 @@ public sealed partial class SettingsDialog : ContentDialog
             L10n.SettingsDefaultMailAppHeading(), L10n.SettingsDefaultMailAppDescription(), stack);
     }
 
-    // The light/dark picker. The core persists the choice; the window is repainted here, because
-    // the core signals Settings alone for it, it computes nothing from the appearance, so there is
-    // no snapshot for a repaint to ride in on.
+    // The light/dark picker. The core holds the choice; the window is repainted here, in what the
+    // core now holds, because the core signals Settings alone for it: it computes nothing from the
+    // appearance, so there is no snapshot for a repaint to ride in on.
     private UIElement AppearanceGroup()
     {
         var current = _model.CurrentAppearance;
@@ -320,7 +320,7 @@ public sealed partial class SettingsDialog : ContentDialog
             stack.Children.Add(Radio(label, group, current == value, () =>
             {
                 _model.SetAppearance(value);
-                App.Shell?.ApplyAppearance(value);
+                App.Shell?.ApplyAppearance(_model.CurrentAppearance);
             }));
         }
         return Group(L10n.SettingsAppearanceHeading(), L10n.SettingsAppearanceDescription(), stack);

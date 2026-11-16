@@ -53,6 +53,18 @@ public sealed partial class MailboxModel
     /// <summary>Marks the display settings stale, so the calendar re-applies them (Surface.Settings).</summary>
     internal void BumpDisplaySettings() => DisplaySettingsVersion++;
 
+    /// <summary>Redraws what is drawn from the preferences, on a Settings signal and on the first
+    /// reload a core answers: the display settings when they moved, the swipe buttons when theirs
+    /// did.</summary>
+    private void FollowPreferences(bool redrawDisplay)
+    {
+        if (redrawDisplay)
+        {
+            BumpDisplaySettings();
+        }
+        FollowSwipeActions();
+    }
+
     /// <summary>
     /// The grid's page query: <paramref name="columns"/> consecutive days from <paramref name="from"/>.
     /// </summary>
@@ -140,7 +152,7 @@ public sealed partial class MailboxModel
     internal void SetDefaultMeeting(string account, string? choice)
     {
         Log.Info("cal: set default meeting");
-        _app?.SetDefaultMeeting(account, choice);
+        DispatchPreference(new PreferenceIntent.SetDefaultMeeting(account, choice));
     }
 
     /// <summary>
@@ -154,7 +166,7 @@ public sealed partial class MailboxModel
     internal void SetWeekStart(WeekStart start)
     {
         Log.Info($"cal: set week_start={start}");
-        _app?.SetWeekStart(start);
+        DispatchPreference(new PreferenceIntent.SetWeekStart(start));
     }
 
     /// <summary>Persists the 12/24-hour clock, for mail <b>and</b> calendar alike, one app must not
@@ -162,23 +174,21 @@ public sealed partial class MailboxModel
     internal void SetTimeFormat(TimeFormat format)
     {
         Log.Info($"cal: set time_format={format}");
-        _app?.SetTimeFormat(format);
+        DispatchPreference(new PreferenceIntent.SetTimeFormat(format));
     }
 
     /// <summary>
-    /// Persists the horizon a settled pinch landed on.
+    /// Changes the horizon, from a settled pinch or from Settings.
     /// </summary>
     /// <remarks>
-    /// Persisted in the <b>core</b>, not the client, and clamped there, a pinch runs off the end of
-    /// its own gesture constantly, and a client that sent the raw value would leave one platform
-    /// showing a 1-hour day. It is also what stops the phone and the desktop opening on different
+    /// Kept in the <b>core</b>, not the client, and clamped there: a pinch runs off the end of its
+    /// own gesture constantly. It is also what stops the phone and the desktop opening on different
     /// calendars (§8).
     /// </remarks>
-    internal void SetCalendarVisibleHours(int hours)
+    internal void SetCalendarVisibleHours(byte hours)
     {
-        var clamped = (byte)Math.Clamp(hours, 4, 24);
-        Log.Info($"cal: set visible_hours={clamped}");
-        _app?.SetCalendarVisibleHours(clamped);
+        Log.Info($"cal: set visible_hours={hours}");
+        DispatchPreference(new PreferenceIntent.SetCalendarVisibleHours(hours));
     }
 
     /// <summary>Persists the calendar a new event is filed on. The core signals the calendar
@@ -186,14 +196,14 @@ public sealed partial class MailboxModel
     internal void SetDefaultCalendar(string account, string calendar)
     {
         Log.Info("cal: set default calendar");
-        _app?.SetDefaultCalendar(account, calendar);
+        DispatchPreference(new PreferenceIntent.SetDefaultCalendar(account, calendar));
     }
 
     /// <summary>Persists the shape a settled pinch (or a menu choice) landed on.</summary>
     internal void SetCalendarLayout(CalendarLayout layout)
     {
         Log.Info($"cal: set layout={layout}");
-        _app?.SetCalendarLayout(layout);
+        DispatchPreference(new PreferenceIntent.SetCalendarLayout(layout));
     }
 
     /// <summary>Per-calendar visibility, applied at page-pull time, so no sync and no network.</summary>
@@ -202,14 +212,14 @@ public sealed partial class MailboxModel
     internal void SetCalendarVisible(string account, string calendar, bool visible)
     {
         Log.Info($"cal: calendar visible={visible} id={calendar}");
-        _app?.SetCalendarVisible(account, calendar, visible);
+        DispatchPreference(new PreferenceIntent.SetCalendarVisible(account, calendar, visible));
     }
 
     /// <summary>Per-calendar colour override. <c>null</c> restores the server's own colour.</summary>
     internal void SetCalendarColor(string account, string calendar, string? hex)
     {
         Log.Info($"cal: calendar colour {(hex is null ? "reset" : "set")} id={calendar}");
-        _app?.SetCalendarColor(account, calendar, hex);
+        DispatchPreference(new PreferenceIntent.SetCalendarColor(account, calendar, hex));
     }
 
     /// <summary>The ten calendar colours the core will accept. Allodia Orange is deliberately absent,

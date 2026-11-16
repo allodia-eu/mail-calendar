@@ -237,19 +237,23 @@ internal static class Verifier
     /// </summary>
     private static bool VerifySendAndSwipeSettings(MailcalApp app)
     {
+        // A preference holds its new value before the dispatch returns, so each read below sees it.
+        static void Prefer(MailcalApp target, PreferenceIntent change) =>
+            target.Dispatch(new Intent.Preferences(change));
+
         // Unset until the user picks one, the core then falls back to the first configured account.
         var initiallyUnset = app.DefaultSendAccount() is null;
-        app.SetDefaultSendAccount("acct-1");
+        Prefer(app, new PreferenceIntent.SetDefaultSendAccount("acct-1"));
         var stored = app.DefaultSendAccount() == "acct-1";
         // Clearing restores "the first configured account" rather than dropping the send.
-        app.SetDefaultSendAccount(null);
+        Prefer(app, new PreferenceIntent.SetDefaultSendAccount(null));
         var cleared = app.DefaultSendAccount() is null;
 
         // Both directions default to Delete: the behaviour before the setting existed.
         var swipe = app.SwipeSettings();
         var defaulted = swipe.Left == SwipeActionKind.Delete && swipe.Right == SwipeActionKind.Delete;
         // The two directions are configured independently, setting one leaves the other alone.
-        app.SetSwipeAction(SwipeDirection.Left, SwipeActionKind.Archive);
+        Prefer(app, new PreferenceIntent.SetSwipeAction(SwipeDirection.Left, SwipeActionKind.Archive));
         swipe = app.SwipeSettings();
         var independent = swipe.Left == SwipeActionKind.Archive && swipe.Right == SwipeActionKind.Delete;
 
@@ -257,11 +261,11 @@ internal static class Verifier
         var quoting = app.QuoteSettings();
         var quoteDefaulted = quoting.Style == QuoteStyleKind.Indented && !quoting.PerMessage;
         // The style and the per-message opt-in are independent, setting one leaves the other alone.
-        app.SetQuoteStyle(QuoteStyleKind.LineAndHeader);
-        app.SetQuoteStylePerMessage(true);
+        Prefer(app, new PreferenceIntent.SetQuoteStyle(QuoteStyleKind.LineAndHeader));
+        Prefer(app, new PreferenceIntent.SetQuoteStylePerMessage(true));
         quoting = app.QuoteSettings();
         var quoteStored = quoting.Style == QuoteStyleKind.LineAndHeader && quoting.PerMessage;
-        app.SetQuoteStylePerMessage(false);
+        Prefer(app, new PreferenceIntent.SetQuoteStylePerMessage(false));
         quoting = app.QuoteSettings();
         var quoteIndependent = quoting.Style == QuoteStyleKind.LineAndHeader && !quoting.PerMessage;
 

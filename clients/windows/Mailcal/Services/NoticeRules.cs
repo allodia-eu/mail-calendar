@@ -65,9 +65,10 @@ internal static class NoticeRules
 
     /// <summary>
     /// What the core runs for a notice's action, or null for a flow this client runs itself. A
-    /// Retry is the core's: it refreshes the notice's screen, which dials the account again, and
-    /// marks the notice when that dial ends with the notice still standing, which only it can tell
-    /// (rules 7 and 10). So the client never reports a Retry as failed.
+    /// Retry is the core's: it runs the notice's remedy again (a dial of the account, or the
+    /// preferences save that failed) and marks the notice when that ends with the notice still
+    /// standing, which only it can tell (rules 7 and 10). So the client never reports a Retry as
+    /// failed.
     /// </summary>
     internal static NoticeIntent? CoreRemedy(Notice notice, NoticeAction action) =>
         action == NoticeAction.Retry ? new NoticeIntent.Retry(notice.Id) : null;
