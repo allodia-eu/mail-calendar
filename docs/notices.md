@@ -42,6 +42,7 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | `unfiled_copy` | `SentNotFiled { subject }` | Degraded | Mail | ✓ | `FileSentCopy`, or `LeaveSentCopy` | No |
 | `reply_prompt` | `ReplyNotDelivered { summary, organizer, response }` | Degraded | Everywhere | ✓ | `SendReply`, or `DontSendReply` | No |
 | `pending_device` | `TimeZoneChanged { zone }` | Informational | Everywhere | | `UseDeviceTimeZone`, or `KeepTimeZone` | No |
+| `preferences_not_saved` | `SettingsNotSaved` | Degraded | Everywhere | | `Retry` | No |
 
 - **`AccountsSkipped` counts stored accounts that could not be read**, which is what
   `account_connect_errors` holds in the app. Such an account has no id, so the notice is the whole
@@ -55,6 +56,9 @@ where its platform puts it. Two platforms showing the same moment show the same 
   holds, so the two never disagree; but only while the app still holds that refusal. A later refusal on the same
   account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves
   standing.
+- **A setting that could not be saved still applies**, until the app closes; so the notice is
+  Degraded. Its Retry writes every change still waiting rather than refreshing a screen, and is
+  marked failed when that write fails too. Any later change writes them as well.
 - **A failed remedy belongs to the action that failed.** When a notice comes to offer another
   action (an outage that was unreachable is now refused), it has not failed yet.
 - **The Allodia notice is Degraded**: mail, calendar and contacts all work without the account.
