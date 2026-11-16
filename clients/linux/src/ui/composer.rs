@@ -117,10 +117,13 @@ impl ComposerPane {
         let toolbar = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
         // In a window of its own this bar *is* the titlebar, so it keeps the desktop's controls
-        // wherever that desktop puts them; in the pane, the surface above it carries the mailbox
-        // window's own. The bar still says what the draft is; the window is named after its
-        // subject, which is what the OS window list reads (`docs/reading-window.md`).
-        header.set_show_start_title_buttons(matches!(request.host, ComposerHost::Window(_)));
+        // wherever that desktop puts them; in the pane, the header bar spanning the mailbox window
+        // carries its controls, at both ends. The bar still says what the draft is; the window is
+        // named after its subject, which is what the OS window list reads
+        // (`docs/reading-window.md`).
+        let own_window = matches!(request.host, ComposerHost::Window(_));
+        header.set_show_start_title_buttons(own_window);
+        header.set_show_end_title_buttons(own_window);
         header.set_title_widget(Some(&adw::WindowTitle::new(
             compose_title(request.kind),
             "",

@@ -443,6 +443,9 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     let window = adw::ApplicationWindow::new(&application);
     crate::ui::composer_draft::widget_tests::a_reply_nobody_typed_into_is_not_a_draft(&window);
     crate::ui::composer_draft::widget_tests::only_the_panes_composer_offers_to_pop_out(&window);
+    crate::ui::composer_draft::widget_tests::only_a_composer_window_draws_the_window_controls(
+        &window,
+    );
     crate::ui::composer_draft::widget_tests::the_composer_is_one_column_in_the_contracts_order(
         &window,
     );

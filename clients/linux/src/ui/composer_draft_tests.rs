@@ -195,3 +195,26 @@ pub(crate) fn only_the_panes_composer_offers_to_pop_out(window: &adw::Applicatio
         pane.teardown();
     }
 }
+
+/// The pane's composer draws no window controls at either end: the header bar spanning the
+/// mailbox window carries them, and a second set would stand beside them. A composer in a window
+/// of its own keeps both, because its bar is that window's titlebar.
+pub(crate) fn only_a_composer_window_draws_the_window_controls(window: &adw::ApplicationWindow) {
+    for (host, own) in [(ComposerHost::Pane, false), (ComposerHost::Window(8), true)] {
+        let (sender, _receiver) = relm4::channel::<AppInput>();
+        let pane = ComposerPane::new();
+        pane.show(
+            45,
+            &reply(host),
+            &[("fixture".to_owned(), "sender@example.test".to_owned())],
+            None,
+            window,
+            sender,
+        );
+        let bars = descendants::<adw::HeaderBar>(pane.widget().upcast_ref());
+        assert_eq!(bars.len(), 1, "{host:?}");
+        assert_eq!(bars[0].shows_start_title_buttons(), own, "{host:?}");
+        assert_eq!(bars[0].shows_end_title_buttons(), own, "{host:?}");
+        pane.teardown();
+    }
+}
