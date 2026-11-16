@@ -32,7 +32,7 @@ export type HostRequestKind = keyof Vocabulary;
 interface Notices {
   history: Steps;
   caret: { top: number; bottom: number };
-  scroll: { px: number };
+  scroll: { px: number; end: number };
 }
 
 export type HostNoticeKind = keyof Notices;

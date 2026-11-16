@@ -71,7 +71,7 @@ final class ComposerHostChannel: NSObject, WKScriptMessageHandler {
             onHistory(undo, redo)
         case let .caret(top, bottom):
             onCaret(EditorCaret(top: CGFloat(top), bottom: CGFloat(bottom)))
-        case let .scroll(px):
+        case let .scroll(px, _):
             onScroll(CGFloat(px))
         }
     }

@@ -1,6 +1,6 @@
 // The editor's requests to the composer (docs/composer-security.md, Gate 2), parsed by the core in
 // EditorWebViewHost: the link dialog over the window, then its answer back into the message; and
-// the growing mode's two notices, the content's height and the caret (ComposerView.Layout.cs).
+// the framed mode's two notices, the caret and the message's scroll (ComposerView.Layout.cs).
 
 using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
@@ -18,11 +18,11 @@ public sealed partial class ComposerView
             case ComposerHostRequest.Link link:
                 AnswerLink(link);
                 break;
-            case ComposerHostRequest.Height height:
-                OnEditorContentHeight(height.Px);
-                break;
             case ComposerHostRequest.Caret caret:
                 OnEditorCaret(caret.Top, caret.Bottom);
+                break;
+            case ComposerHostRequest.Scroll scroll:
+                OnEditorScroll(scroll.Px, scroll.End);
                 break;
         }
     }

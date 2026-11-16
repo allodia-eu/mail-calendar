@@ -25,15 +25,15 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <ScrollViewer x:Name="ComposerScroll" VerticalScrollBarVisibility="Auto"
+        <!-- The column carries the header away before the message scrolls (ComposerView.Layout.cs).
+             Its own scroll bar is hidden: the message's box draws the one bar, and a second beside
+             it for the header would read as two scrolls. -->
+        <ScrollViewer x:Name="ComposerScroll" VerticalScrollBarVisibility="Hidden"
                       HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
                       SizeChanged="OnColumnSizeChanged" ViewChanged="OnColumnViewChanged">
-            <!-- The bottom padding is the room the core's caret margin needs under the last line:
-                 with the editor's own padding and border it is more than the margin, so a caret on
-                 the last line can always be brought fully into view (ComposerView.Layout.cs). -->
-            <StackPanel x:Name="Column" Spacing="10" Padding="0,0,0,16" SizeChanged="OnColumnContentSizeChanged">
-                <!-- Everything above the message. Its height is what the editor's room is measured
-                     after, so a change to it (Cc shown, a file added, a note) resizes the editor. -->
+            <StackPanel x:Name="Column" Spacing="10" SizeChanged="OnColumnContentSizeChanged">
+                <!-- Everything above the message. Its height is where the message's page starts in
+                     the column, which the caret and the rule over the actions are measured from. -->
                 <StackPanel x:Name="AboveEditor" Spacing="10" SizeChanged="OnAboveEditorSizeChanged">
 
                     <!-- The heading, and at its right the pop-out, where Outlook puts it: moving the
@@ -181,19 +181,19 @@
                     </StackPanel>
                 </StackPanel>
 
-                <!-- The message: the editor's own toolbar, then its text. Its height is set from what
-                     the page reports (ComposerView.Layout.cs), never chosen here. -->
-                <Border x:Name="EditorFrame" BorderBrush="{ThemeResource ControlStrokeColorDefaultBrush}" BorderThickness="1">
-                    <controls:WebView2 x:Name="Editor" />
-                </Border>
+                <!-- The message: the editor's own toolbar, then its text, in a box as tall as the
+                     column's visible part, with nothing under it (ComposerView.Layout.cs). No frame
+                     and no background, so the toolbar sits on the pane's colour. -->
+                <controls:WebView2 x:Name="Editor" DefaultBackgroundColor="Transparent" />
             </StackPanel>
         </ScrollViewer>
 
         <!-- Send / Discard. A pane has no chrome, so the composer owns its own action row. There is
              no Cancel: leaving the composer any other way keeps the draft, so the one button that
              leads out is the one that throws it away (docs/drafts.md). -->
-        <!-- A rule from edge to edge over the action row, drawn while the column runs on under it
-             (ComposerView.Layout.cs). Out into the grid's padding, and up to the column's edge. -->
+        <!-- A rule from edge to edge over the action row, drawn while the message has more below
+             what is shown (ComposerView.Layout.cs). Out into the grid's padding, and up to the
+             column's edge. -->
         <Border x:Name="FooterRule" Grid.Row="1" Visibility="Collapsed" Height="1"
                 VerticalAlignment="Top" Margin="-16,-10,-16,0"
                 Background="{ThemeResource DividerStrokeColorDefaultBrush}" />

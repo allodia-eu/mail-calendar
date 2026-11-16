@@ -42,12 +42,15 @@ pub enum HostRequestKind {
     Scroll(MessageScroll),
 }
 
-/// How far the message is scrolled inside its box, in whole CSS pixels; zero at its top.
+/// How far the message is scrolled inside its box, and where its text ends, in whole CSS pixels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct MessageScroll {
-    /// The distance from the message's top.
+    /// The distance from the message's top; zero at its top.
     pub px: u32,
+    /// The bottom of the message's last line, in the page's coordinates as it is scrolled now: past
+    /// the page's height while there is more of the message below its box.
+    pub end: u32,
 }
 
 /// The caret's top and bottom edges, in whole CSS pixels from the top of the editor's page.

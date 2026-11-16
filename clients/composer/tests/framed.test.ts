@@ -20,16 +20,30 @@ function mount() {
   const measured = {
     caret: { top: 40, bottom: 58 } as { top: number; bottom: number } | null,
     scroll: 0,
+    end: 300,
   };
   const carets: [number, number][] = [];
   const scrolls: number[] = [];
+  const ends: number[] = [];
   const framed = installFramed(
     editor,
-    { caret: (top, bottom) => carets.push([top, bottom]), scroll: (px) => scrolls.push(px) },
-    { caret: () => measured.caret, scrollTop: () => measured.scroll },
+    {
+      caret: (top, bottom) => carets.push([top, bottom]),
+      scroll: (px, end) => {
+        scrolls.push(px);
+        ends.push(end);
+      },
+    },
+    { caret: () => measured.caret, scrollTop: () => measured.scroll, end: () => measured.end },
   );
   const scrolled = () => editor.dispatchEvent(new window.Event("scroll") as never);
-  return { document, editor, framed, measured, carets, scrolls, scrolled };
+  /// A wheel step over the message: whether the page kept it from scrolling the message.
+  const wheel = (deltaY: number) => {
+    const event = new window.WheelEvent("wheel", { deltaY, bubbles: true, cancelable: true });
+    editor.dispatchEvent(event as never);
+    return event.defaultPrevented;
+  };
+  return { document, editor, framed, measured, carets, scrolls, ends, scrolled, wheel };
 }
 
 describe("framed mode", () => {
@@ -74,6 +88,30 @@ describe("framed mode", () => {
     await settled();
     expect(scrolls).toEqual([0, 120]);
     expect(carets).toEqual([]);
+  });
+
+  test("reports where the text ends when a line is added, with no scroll", async () => {
+    const { editor, framed, measured, scrolls, ends } = mount();
+    framed.useFramedComposer();
+    await settled();
+    measured.end = 318.2;
+    editor.innerHTML = "<p>One line</p><p>And another</p>";
+    await settled();
+    editor.innerHTML = "<p>One line</p><p>And anothex</p>";
+    await settled();
+    expect(ends).toEqual([300, 319]);
+    expect(scrolls).toEqual([0, 0]);
+  });
+
+  test("holds a wheel step down only while the host asks, and never one up", () => {
+    const { framed, wheel } = mount();
+    framed.useFramedComposer();
+    expect(wheel(40)).toBe(false);
+    framed.holdWheelDown(true);
+    expect(wheel(40)).toBe(true);
+    expect(wheel(-40)).toBe(false);
+    framed.holdWheelDown(false);
+    expect(wheel(40)).toBe(false);
   });
 
   test("says nothing about a caret outside the message", async () => {

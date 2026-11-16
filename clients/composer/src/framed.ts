@@ -6,15 +6,20 @@
 //
 // The page reports two things on the host channel. Where the caret is, in the page's own
 // coordinates, so a host whose column still shows part of its header can bring a line typed under
-// the column's edge into view; and how far the message is scrolled, so a host can hand a gesture
-// back to its column once the message is at its top.
+// the column's edge into view; and how far the message is scrolled and where its text ends, so a
+// host can hand a gesture back to its column once the message is at its top, and say when there is
+// more of the message below what is shown.
+//
+// A host whose web view scrolls the page by every wheel step it is given, before the host sees the
+// step, holds the steps down while its column still has its header to carry away
+// (`holdWheelDown`), so the column and the message do not both move by one.
 
 import { windowOf } from "./dom";
 
 /// Where the reports go: the host channel's `caret` and `scroll` notices.
 export interface FramedReports {
   caret(top: number, bottom: number): void;
-  scroll(px: number): void;
+  scroll(px: number, end: number): void;
 }
 
 /// What framed mode measures, in CSS pixels from the top of the page.
@@ -23,10 +28,14 @@ export interface FramedMeasures {
   caret(): { top: number; bottom: number } | null;
   /// How far the message is scrolled inside its box.
   scrollTop(): number;
+  /// The bottom of the message's last line, as it is scrolled now.
+  end(): number;
 }
 
 export interface Framed {
   useFramedComposer(): void;
+  /// Whether a wheel step down over the page is the host column's rather than the message's.
+  holdWheelDown(hold: boolean): void;
   /// Sends both reports again, for a host that has just announced it takes them.
   resend(): void;
 }
@@ -40,7 +49,8 @@ export function installFramed(
   const win = windowOf(editor);
   let on = false;
   let lastCaret = "";
-  let lastScroll = -1;
+  let lastScroll = "";
+  let wheelDownHeld = false;
   let caretScheduled = false;
   let scrollScheduled = false;
 
@@ -57,15 +67,19 @@ export function installFramed(
 
   const reportScroll = (force: boolean) => {
     const px = Math.max(0, Math.round(measures.scrollTop()));
-    if (!force && px === lastScroll) return;
-    lastScroll = px;
-    reports.scroll(px);
+    const end = Math.max(0, Math.ceil(measures.end()));
+    const key = `${px}:${end}`;
+    if (!force && key === lastScroll) return;
+    lastScroll = key;
+    reports.scroll(px, end);
   };
 
   // A burst of mutations, a paste or a picture loading, is measured once, after layout. The caret
   // is reported when it or the text moves, never when the message is merely scrolled: a host that
   // followed it then would pull the column back to a caret the reader scrolled away from.
   const scheduleCaret = () => {
+    // A change to the text moves where it ends, too.
+    scheduleScroll();
     if (!on || caretScheduled) return;
     caretScheduled = true;
     win.requestAnimationFrame(() => {
@@ -97,7 +111,19 @@ export function installFramed(
       });
       doc.addEventListener("selectionchange", scheduleCaret);
       editor.addEventListener("scroll", scheduleScroll);
+      // A narrower page wraps the text onto more lines, which no mutation reports.
+      if ("ResizeObserver" in win) new win.ResizeObserver(scheduleScroll).observe(editor);
+      doc.addEventListener(
+        "wheel",
+        (event) => {
+          if (wheelDownHeld && event.deltaY > 0) event.preventDefault();
+        },
+        { passive: false },
+      );
       scheduleScroll();
+    },
+    holdWheelDown(hold) {
+      wheelDownHeld = hold;
     },
     resend() {
       if (!on) return;
@@ -114,6 +140,12 @@ function domMeasures(editor: HTMLElement): FramedMeasures {
   const win = windowOf(editor);
   return {
     scrollTop: () => editor.scrollTop,
+    end() {
+      // The last line's bottom, not the box's: the editor's own padding is not message.
+      const last = editor.lastElementChild;
+      const rect = (last ?? editor).getBoundingClientRect();
+      return last ? rect.bottom : rect.top;
+    },
     caret() {
       const selection = win.getSelection();
       if (!selection || selection.rangeCount === 0 || !doc.hasFocus()) return null;

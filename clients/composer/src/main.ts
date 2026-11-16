@@ -59,7 +59,7 @@ const toolbar = installToolbar(editor, toolbarRoot, () => labels, () => {
 const chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
 const framed = installFramed(editor, {
   caret: (top, bottom) => hostRequests.tell("caret", { top, bottom }),
-  scroll: (px) => hostRequests.tell("scroll", { px }),
+  scroll: (px, end) => hostRequests.tell("scroll", { px, end }),
 });
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
@@ -190,6 +190,7 @@ declare global {
     setComposerDocument: (document: string | ComposerDocument) => void;
     useNativeComposerChrome: () => void;
     useFramedComposer: () => void;
+    holdComposerWheelDown: (hold: unknown) => void;
     setComposerTopInset: (cssPx: unknown) => void;
     setComposerLabels: (labels: unknown) => void;
     setComposerScheme: (scheme: unknown) => void;
@@ -261,6 +262,9 @@ window.useNativeComposerChrome = () => {
   toolbar.fit();
 };
 window.useFramedComposer = () => framed.useFramedComposer();
+/// For a host whose web view scrolls the page by a wheel step before the host sees it: while the
+/// host's column takes a step down (`composer_scroller`), the page lets it pass unscrolled.
+window.holdComposerWheelDown = (hold) => framed.holdWheelDown(hold === true);
 window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
 
 /// The requests this host answers with its own UI, and the notices it keeps (`host_requests.ts`);

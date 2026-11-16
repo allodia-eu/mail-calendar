@@ -368,14 +368,13 @@ public sealed partial class ComposerView : UserControl
             // the placeholder lives on the editor element's dataset, which replacing the document
             // does not touch, but sending them first matches the other clients' open-time order.
             await _editor.RunAsync(ComposerLabels.Script());
+            // The message scrolls in its own box under its toolbar (docs/composer-layout.md,
+            // rule 5), switched on before the announce, which sends the page's first reports.
+            await _editor.RunAsync("window.useFramedComposer()");
             await _editor.RunAsync(MailcalBindingsMethods.ComposerHostRequestsScript());
-            // The message grows with its text and the column scrolls (docs/composer-layout.md,
-            // rule 5), switched on before any seed so the first height it reports is the seeded
-            // message's.
-            await _editor.RunAsync("window.useGrowingComposer()");
-            // A composer moved here keeps where its column was scrolled to; the page keeps its
-            // toolbar there from the start.
-            TellVisibleTop();
+            // A composer moved here keeps where its column was scrolled to.
+            _wheelDownHeld = null;
+            HoldWheelDown();
             // One body seed, whichever way the composer was reached: a fresh reply's or forward's
             // quote, a stored message's own HTML, or the text a link, a share or an assistant
             // brought. Each assigns the WHOLE body, so it goes ahead of the signature. Nothing about

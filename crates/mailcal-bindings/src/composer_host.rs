@@ -62,6 +62,10 @@ pub enum ComposerHostRequest {
     Scroll {
         /// The distance from the message's top.
         px: u32,
+        /// The bottom of the message's last line, in the page's coordinates as it is scrolled
+        /// now: past the page's height while there is more of the message below its box, which a
+        /// host whose actions sit under the column shows with a rule (rule 9).
+        end: u32,
     },
 }
 
@@ -86,7 +90,10 @@ pub fn parse_composer_host_request(message: String) -> Option<ComposerHostReques
             top: caret.top,
             bottom: caret.bottom,
         },
-        HostRequestKind::Scroll(scroll) => ComposerHostRequest::Scroll { px: scroll.px },
+        HostRequestKind::Scroll(scroll) => ComposerHostRequest::Scroll {
+            px: scroll.px,
+            end: scroll.end,
+        },
     })
 }
 
@@ -211,10 +218,13 @@ mod tests {
 
     #[test]
     fn the_framed_modes_notices_reach_the_client_as_their_fields() {
-        let scroll = r#"{"id":0,"request":{"scroll":{"px":640}}}"#;
+        let scroll = r#"{"id":0,"request":{"scroll":{"px":640,"end":1280}}}"#;
         assert_eq!(
             parse_composer_host_request(scroll.to_owned()),
-            Some(ComposerHostRequest::Scroll { px: 640 })
+            Some(ComposerHostRequest::Scroll {
+                px: 640,
+                end: 1280
+            })
         );
         let caret = r#"{"id":0,"request":{"caret":{"top":12,"bottom":30}}}"#;
         assert_eq!(

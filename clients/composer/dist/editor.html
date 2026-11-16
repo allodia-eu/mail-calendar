@@ -2302,7 +2302,8 @@
     const win = windowOf(editor);
     let on = false;
     let lastCaret = "";
-    let lastScroll = -1;
+    let lastScroll = "";
+    let wheelDownHeld = false;
     let caretScheduled = false;
     let scrollScheduled = false;
     const reportCaret = (force) => {
@@ -2319,12 +2320,15 @@
     };
     const reportScroll = (force) => {
       const px = Math.max(0, Math.round(measures.scrollTop()));
-      if (!force && px === lastScroll)
+      const end = Math.max(0, Math.ceil(measures.end()));
+      const key = `${px}:${end}`;
+      if (!force && key === lastScroll)
         return;
-      lastScroll = px;
-      reports.scroll(px);
+      lastScroll = key;
+      reports.scroll(px, end);
     };
     const scheduleCaret = () => {
+      scheduleScroll();
       if (!on || caretScheduled)
         return;
       caretScheduled = true;
@@ -2357,7 +2361,16 @@
         });
         doc.addEventListener("selectionchange", scheduleCaret);
         editor.addEventListener("scroll", scheduleScroll);
+        if ("ResizeObserver" in win)
+          new win.ResizeObserver(scheduleScroll).observe(editor);
+        doc.addEventListener("wheel", (event) => {
+          if (wheelDownHeld && event.deltaY > 0)
+            event.preventDefault();
+        }, { passive: false });
         scheduleScroll();
+      },
+      holdWheelDown(hold) {
+        wheelDownHeld = hold;
       },
       resend() {
         if (!on)
@@ -2372,6 +2385,11 @@
     const win = windowOf(editor);
     return {
       scrollTop: () => editor.scrollTop,
+      end() {
+        const last = editor.lastElementChild;
+        const rect = (last ?? editor).getBoundingClientRect();
+        return last ? rect.bottom : rect.top;
+      },
       caret() {
         const selection = win.getSelection();
         if (!selection || selection.rangeCount === 0 || !doc.hasFocus())
@@ -5133,7 +5151,7 @@
   var chrome = installNativeChrome(editor, toolbarRoot, () => toolbar.closePopovers());
   var framed = installFramed(editor, {
     caret: (top, bottom) => hostRequests.tell("caret", { top, bottom }),
-    scroll: (px) => hostRequests.tell("scroll", { px })
+    scroll: (px, end) => hostRequests.tell("scroll", { px, end })
   });
   installImageResize(editor);
   var revision = installRevisionCounter(editor);
@@ -5244,6 +5262,7 @@
     toolbar.fit();
   };
   window.useFramedComposer = () => framed.useFramedComposer();
+  window.holdComposerWheelDown = (hold) => framed.holdWheelDown(hold === true);
   window.setComposerTopInset = (cssPx) => chrome.setComposerTopInset(cssPx);
   window.setComposerHostRequests = (kinds) => {
     hostRequests.setAnswered(kinds);
