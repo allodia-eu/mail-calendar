@@ -171,7 +171,7 @@ internal fun ComposerNotices(error: String?, draftStatus: DraftStatus) {
             text = message,
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(top = 12.dp),
         )
     }
     composerDraftHint(draftStatus, ctx)?.let { hint ->
@@ -183,7 +183,7 @@ internal fun ComposerNotices(error: String?, draftStatus: DraftStatus) {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
             style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(bottom = 8.dp),
+            modifier = Modifier.padding(top = 12.dp),
         )
     }
 }

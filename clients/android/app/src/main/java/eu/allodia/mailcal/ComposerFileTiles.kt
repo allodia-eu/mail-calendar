@@ -81,7 +81,9 @@ internal fun ComposerFileTiles(files: ComposerFiles, onRemove: (ComposerFileTile
     if (files.tiles.isEmpty()) {
         return
     }
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+    // The space goes above, as the notes' does, so whichever comes first under the fields stands
+    // clear of Subject's divider. The editor keeps its own above the message.
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
         val columns = ((maxWidth + TILE_GAP) / (TILE_WIDTH + TILE_GAP)).toInt().coerceAtLeast(1)
         val width = (maxWidth - TILE_GAP * (columns - 1)) / columns
         FlowRow(
