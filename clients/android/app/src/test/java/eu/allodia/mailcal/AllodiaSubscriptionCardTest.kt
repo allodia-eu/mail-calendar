@@ -1,4 +1,4 @@
-// Settings → Allodia account → Subscription: what the card puts on screen in each of its states,
+// Settings → Allodia account → Subscription: what the section puts on screen from the core's card,
 // and the two things both stores make review-blocking.
 //
 // The renewal terms beside the buy button and a way to reach the store's own subscription page are
@@ -9,8 +9,12 @@ package eu.allodia.mailcal
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import org.junit.Assert.assertEquals
@@ -18,292 +22,289 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import uniffi.mailcal_bindings.AllodiaBiller
+import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.AllodiaOffer
 import uniffi.mailcal_bindings.AllodiaPlan
+import uniffi.mailcal_bindings.AllodiaPrices
 import uniffi.mailcal_bindings.AllodiaStore
-import uniffi.mailcal_bindings.AllodiaStoreSubscription
+import uniffi.mailcal_bindings.AllodiaStorePage
+import uniffi.mailcal_bindings.AllodiaSubscriptionCard
+import uniffi.mailcal_bindings.AllodiaSubscriptionOutcome
+import uniffi.mailcal_bindings.AllodiaSubscriptionState
+import uniffi.mailcal_bindings.AllodiaSwitch
+import uniffi.mailcal_bindings.AllodiaWriteFailure
+import uniffi.mailcal_bindings.ControlState
+
+private val RUNNING = ControlState(enabled = false, running = true)
+private const val PLAY = "https://play.google.com/store/account/subscriptions"
 
 @RunWith(RobolectricTestRunner::class)
 class AllodiaSubscriptionCardTest {
     @get:Rule val compose = createComposeRule()
 
-    private var refreshes = 0
-    private var bought = mutableListOf<AllodiaPlan>()
-    private var managed = mutableListOf<AllodiaStoreSubscription>()
-    private var signInsAgain = 0
+    private var shown = 0
     private var closes = 0
-    private var cancels = 0
-    private var restarts = 0
-    private var switched = mutableListOf<AllodiaPlan>()
+    private val offersAsked = mutableListOf<AllodiaPrices?>()
+    private val bought = mutableListOf<AllodiaPlan>()
+    private val managed = mutableListOf<AllodiaStorePage>()
+    private var signInsAgain = 0
+    private val written = mutableListOf<AllodiaIntent>()
 
-    private fun card(ui: AllodiaSubscriptionUi) {
-        compose.setContent {
-            AllodiaSubscriptionCard(
-                ui = ui,
-                onRefresh = { refreshes += 1 },
-                onBuy = { bought.add(it) },
-                onManageStore = { managed.add(it) },
-                onSignInAgain = { signInsAgain += 1 },
-                onClosed = { closes += 1 },
-                onCancel = { cancels += 1 },
-                onResubscribe = { restarts += 1 },
-                onSwitch = { switched.add(it) },
-            )
+    private val actions = AllodiaSubscriptionActions(
+        onShown = { shown += 1 },
+        onClosed = { closes += 1 },
+        onOffers = { offersAsked.add(it) },
+        onBuy = { bought.add(it) },
+        onManageStore = { managed.add(it) },
+        onSignInAgain = { signInsAgain += 1 },
+        onWrite = { written.add(it) },
+    )
+
+    private val drawn = mutableStateOf<AllodiaSubscriptionCard?>(null)
+    private val drawnStore = mutableStateOf(AllodiaStoreUi())
+
+    /** Draws [card], or redraws the section already drawn with it. */
+    private fun section(card: AllodiaSubscriptionCard, store: AllodiaStoreUi = AllodiaStoreUi(accountId = "an-id")) {
+        val first = drawn.value == null
+        drawn.value = card
+        drawnStore.value = store
+        if (first) {
+            compose.setContent { drawn.value?.let { AllodiaSubscriptionSection(it, drawnStore.value, actions) } }
         }
         compose.waitForIdle()
     }
 
-    private fun loaded(
-        subscription: uniffi.mailcal_bindings.AllodiaSubscription,
-        offers: List<AllodiaOffer> = emptyList(),
-        anythingStuck: Boolean = false,
-        claimedElsewhere: Boolean = false,
-        accountId: String? = "an-id",
-        buying: AllodiaPlan? = null,
-    ) = AllodiaSubscriptionUi(
-        state = AllodiaSubscriptionState.Loaded(
-            AllodiaSubscriptionView(subscription, offers, anythingStuck, claimedElsewhere)
-        ),
-        accountId = accountId,
-        buying = buying,
-    )
+    private fun text(id: Int, vararg args: Any) = ctx().getString(id, *args)
 
-    /** The read is the card's own, so opening the category is what starts it. */
+    /** The page asks the core for a read when it opens, and lets go of a Play sheet when it closes. */
     @Test
-    fun opening_the_card_asks_for_the_subscription() {
-        card(AllodiaSubscriptionUi())
-        assertEquals(1, refreshes)
-    }
-
-    /**
-     * ⚠️ Leaving the card is the way back from a flow the shop never answers, which would
-     * otherwise leave every button disabled behind a spinner that does not stop. Letting go of the
-     * wait is not abandoning the purchase: Play reports it on its own listener.
-     */
-    @Test
-    fun leaving_the_card_lets_go_of_a_purchase_in_flight() {
-        val shown = mutableStateOf(true)
+    fun opening_the_section_asks_for_the_subscription_and_leaving_lets_go() {
+        val present = mutableStateOf(true)
         compose.setContent {
-            if (shown.value) {
-                AllodiaSubscriptionCard(
-                    ui = AllodiaSubscriptionUi(buying = AllodiaPlan.YEARLY),
-                    onRefresh = {},
-                    onBuy = {},
-                    onManageStore = {},
-                    onSignInAgain = {},
-                    onClosed = { closes += 1 },
-                onCancel = { cancels += 1 },
-                onResubscribe = { restarts += 1 },
-                onSwitch = { switched.add(it) },
-                )
+            if (present.value) {
+                AllodiaSubscriptionSection(subscriptionCard(AllodiaSubscriptionState.Checking), AllodiaStoreUi(), actions)
             }
         }
         compose.waitForIdle()
+        assertEquals(1, shown)
         assertEquals(0, closes)
-        shown.value = false
+        compose.onNodeWithText(text(R.string.settings_subscription_checking)).assertIsDisplayed()
+        present.value = false
         compose.waitForIdle()
         assertEquals(1, closes)
     }
 
-    /**
-     * A read that did not arrive costs a sentence, never access.
-     *
-     * Whether a paid capability is on is answered locally and does not pass through here, so the
-     * wording must not read as a lapse or an error somebody has to act on.
-     */
+    /** A read that did not arrive costs a sentence, never access, so it never reads as a lapse. */
     @Test
     fun a_read_that_did_not_arrive_says_so_quietly() {
-        card(AllodiaSubscriptionUi(state = AllodiaSubscriptionState.Unavailable))
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_unavailable))
-            .assertIsDisplayed()
+        section(subscriptionCard(AllodiaSubscriptionState.Unavailable))
+        compose.onNodeWithText(text(R.string.settings_subscription_unavailable)).assertIsDisplayed()
     }
 
-    /**
-     * ⚠️ A sign-in too old to carry the permission this read needs is an offer, not an outage.
-     *
-     * The two look identical from the failure alone, and the remedies are opposites: waiting fixes
-     * an outage and never fixes this one. Observed on a real device, whose grant predated the
-     * permission and which was told its subscription could not be checked "right now".
-     */
+    /** ⚠️ A sign-in too old to carry the permission the read needs is an offer, not an outage. */
     @Test
     fun a_sign_in_too_old_to_read_the_subscription_offers_a_fresh_one() {
-        card(AllodiaSubscriptionUi(state = AllodiaSubscriptionState.NeedsReauth))
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_reauth))
-            .assertIsDisplayed()
-        compose.onNodeWithText(ctx().getString(R.string.settings_allodia_reauth_action))
-            .performClick()
+        section(subscriptionCard(AllodiaSubscriptionState.NeedsReauth))
+        compose.onNodeWithText(text(R.string.settings_subscription_reauth)).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.settings_allodia_reauth_action)).performClick()
         assertEquals(1, signInsAgain)
     }
 
-    /**
-     * ⚠️ Both stores reject an app that puts a recurring charge behind a button without saying,
-     * beside it, that it renews until cancelled.
-     */
+    /** A read beside an answer keeps the answer and says it is running. */
     @Test
-    fun the_renewal_terms_sit_beside_the_buy_button() {
-        card(
-            loaded(
-                subscription(),
-                offers = listOf(
-                    AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90")
-                ),
-            )
-        )
-        compose.onNodeWithText("€29.90", substring = true).assertIsDisplayed()
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_terms))
-            .assertIsDisplayed()
+    fun a_read_beside_an_answer_keeps_it_drawn() {
+        section(loadedSubscription(subscriptionView(entitled = true, billedBy = AllodiaBiller.Allodia, refreshing = true)))
+        compose.onNodeWithTag("subscription-refreshing").assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.settings_subscription_billed_by, "Allodia")).assertIsDisplayed()
     }
 
     /**
-     * The period is on the button rather than in the small print under it: a row of buttons that
-     * all read "Subscribe" makes the reader pair each one with a line of text to find out what it
-     * does.
+     * The free half asks this build's shop what it sells, handing it Allodia's own list while the
+     * core sells the checkout, and ⚠️ puts the renewal terms beside the buy button.
      */
     @Test
-    fun each_button_names_the_period_it_buys() {
-        card(
-            loaded(
-                subscription(),
-                offers = listOf(
-                    AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90"),
-                    AllodiaOffer(AllodiaPlan.MONTHLY, AllodiaStore.GOOGLE, "€2.99"),
-                ),
-            )
+    fun the_free_half_asks_for_offers_and_puts_the_terms_beside_them() {
+        val store = AllodiaStoreUi(
+            offers = listOf(AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90")),
+            accountId = "an-id",
         )
-        compose.onNodeWithText(
-            ctx().getString(R.string.settings_subscription_buy_monthly, "€2.99")
-        ).performClick()
+        section(loadedSubscription(subscriptionView(checkout = allodiaCheckout())), store)
+        assertEquals(listOf<AllodiaPrices?>(allodiaPrices()), offersAsked)
+        compose.onNodeWithText("€29.90", substring = true).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.settings_subscription_terms)).assertIsDisplayed()
+    }
+
+    /** The period is on the button rather than in the small print under it. */
+    @Test
+    fun each_button_names_the_period_it_buys() {
+        val store = AllodiaStoreUi(
+            offers = listOf(
+                AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90"),
+                AllodiaOffer(AllodiaPlan.MONTHLY, AllodiaStore.GOOGLE, "€2.99"),
+            ),
+            accountId = "an-id",
+        )
+        section(loadedSubscription(subscriptionView()), store)
+        compose.onNodeWithText(text(R.string.settings_subscription_buy_monthly, "€2.99")).performClick()
         assertEquals(listOf(AllodiaPlan.MONTHLY), bought)
     }
 
+    /** A Play sheet that is up holds both buttons and spins on the period being bought. */
+    @Test
+    fun a_store_purchase_in_flight_spins_on_its_own_button() {
+        val store = AllodiaStoreUi(
+            offers = listOf(
+                AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90"),
+                AllodiaOffer(AllodiaPlan.MONTHLY, AllodiaStore.GOOGLE, "€2.99"),
+            ),
+            accountId = "an-id",
+            buying = AllodiaPlan.YEARLY,
+        )
+        section(loadedSubscription(subscriptionView()), store)
+        compose.onNodeWithTag("subscription-buy-yearly-running", useUnmergedTree = true).assertIsDisplayed()
+        compose.onAllNodesWithTag("subscription-buy-monthly-running", useUnmergedTree = true).assertCountEquals(0)
+        compose.onNodeWithTag("subscription-buy-monthly").assertIsNotEnabled()
+    }
+
     /**
-     * ⚠️ A device that cannot name its account is asked to sign in again rather than sold a
-     * purchase nothing can attribute.
+     * Allodia's checkout is drawn from the card: its button runs while the core's checkout runs,
+     * and is gone once the card stops selling it, whatever the shop last priced.
      */
+    @Test
+    fun the_checkout_follows_the_card() {
+        val store = AllodiaStoreUi(
+            offers = listOf(
+                AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.ALLODIA, "€29.90"),
+                AllodiaOffer(AllodiaPlan.MONTHLY, AllodiaStore.ALLODIA, "€2.99"),
+            ),
+        )
+        section(loadedSubscription(subscriptionView(checkout = allodiaCheckout(monthly = HELD, yearly = RUNNING))), store)
+        compose.onNodeWithTag("subscription-buy-yearly-running", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("subscription-buy-monthly").assertIsNotEnabled()
+
+        section(loadedSubscription(subscriptionView(checkout = null)), store)
+        compose.onAllNodesWithTag("subscription-buy-yearly").assertCountEquals(0)
+        compose.onAllNodesWithTag("subscription-buy-monthly").assertCountEquals(0)
+    }
+
+    /** ⚠️ A device that cannot name its account is asked to sign in again rather than sold anything. */
     @Test
     fun a_device_with_no_account_id_is_asked_to_sign_in_rather_than_sold_anything() {
-        card(
-            loaded(
-                subscription(),
-                offers = listOf(
-                    AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90")
-                ),
-                accountId = null,
-            )
-        )
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_reauth))
-            .assertIsDisplayed()
-        compose.onNodeWithText(ctx().getString(R.string.settings_allodia_reauth_action))
-            .performClick()
+        val store = AllodiaStoreUi(offers = listOf(AllodiaOffer(AllodiaPlan.YEARLY, AllodiaStore.GOOGLE, "€29.90")))
+        section(loadedSubscription(subscriptionView()), store)
+        compose.onNodeWithText(text(R.string.settings_subscription_reauth)).assertIsDisplayed()
+        compose.onAllNodesWithTag("subscription-buy-yearly").assertCountEquals(0)
+        compose.onNodeWithText(text(R.string.settings_allodia_reauth_action)).performClick()
         assertEquals(1, signInsAgain)
-        assertEquals(emptyList<AllodiaPlan>(), bought)
     }
 
-    /**
-     * ⚠️ A store's subscription is changed only at that store, so the card has to offer the way
-     * there. Review-blocking on both stores, and drawn for every store subscription rather than
-     * for a recognised one.
-     */
+    /** ⚠️ A store's subscription is changed only at that store, so the section offers the way there. */
     @Test
     fun a_paid_account_can_reach_the_store_that_bills_it() {
-        val store = storeSubscription(currentPeriodEnd = "2027-09-18T00:00:00+02:00")
-        card(loaded(subscription(entitled = true, stores = listOf(store))))
-        compose.onNodeWithText(
-            ctx().getString(R.string.settings_subscription_manage, "Google Play")
-        ).performClick()
-        assertEquals(listOf(store), managed)
+        val page = AllodiaStorePage(AllodiaStore.GOOGLE, PLAY)
+        section(loadedSubscription(subscriptionView(entitled = true, billedBy = AllodiaBiller.Google, storePages = listOf(page))))
+        compose.onNodeWithText(text(R.string.settings_subscription_manage, "Google Play")).performClick()
+        assertEquals(listOf(page), managed)
     }
 
-    /**
-     * ⚠️ Cancelling asks first, and the way out never says "Cancel".
-     *
-     * On a dialog headed "Cancel your subscription?" that word is the thing being asked about, so a
-     * dismiss button carrying it is a coin toss. The confirmation also has to name the date, or it
-     * reads as "it stops now", which is the one thing cancelling does not do.
-     */
+    /** ⚠️ On hold and paused grant nothing and are put right only at the store: the page stays. */
+    @Test
+    fun the_free_half_still_offers_a_store_with_something_to_fix() {
+        val page = AllodiaStorePage(AllodiaStore.GOOGLE, PLAY)
+        section(loadedSubscription(subscriptionView(storePages = listOf(page))))
+        compose.onNodeWithText(text(R.string.settings_subscription_free)).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.settings_subscription_manage, "Google Play")).performClick()
+        assertEquals(listOf(page), managed)
+    }
+
+    /** ⚠️ Cancelling asks first, names the date, and the way out never says "Cancel". */
     @Test
     fun cancelling_asks_first_and_says_what_is_kept() {
-        card(loaded(subscription(entitled = true, own = ownSubscription())))
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_cancel)).performClick()
-        assertEquals("nothing may happen before the question is answered", 0, cancels)
-
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_cancel_title))
-            .assertIsDisplayed()
+        section(loadedSubscription(subscriptionView(entitled = true, cancel = FREE)))
+        compose.onNodeWithText(text(R.string.settings_subscription_cancel)).performClick()
+        assertEquals("nothing may happen before the question is answered", emptyList<AllodiaIntent>(), written)
+        compose.onNodeWithText(text(R.string.settings_subscription_cancel_title)).assertIsDisplayed()
         compose.onNodeWithText("2027", substring = true).assertIsDisplayed()
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_cancel_keep))
-            .performClick()
-        assertEquals("dismissing cancels nothing", 0, cancels)
+        compose.onNodeWithText(text(R.string.settings_subscription_cancel_keep)).performClick()
+        assertEquals("dismissing cancels nothing", emptyList<AllodiaIntent>(), written)
+
+        compose.onNodeWithText(text(R.string.settings_subscription_cancel)).performClick()
+        compose.onNodeWithTag("subscription-confirm").performClick()
+        assertEquals(listOf<AllodiaIntent>(AllodiaIntent.CancelSubscription), written)
     }
 
-    /**
-     * ⚠️ The switch confirmation quotes no price.
-     *
-     * What this subscriber is charged is not today's list price, because a price change never
-     * reaches somebody who already subscribed. The amount comes back from the switch itself, so
-     * saying one beforehand would be telling a long-standing subscriber a number they will not pay.
-     */
+    /** ⚠️ The switch confirmation quotes no price: today's list is not what a subscriber pays. */
     @Test
     fun switching_period_asks_without_quoting_a_price() {
-        card(
-            loaded(
-                subscription(
+        section(loadedSubscription(subscriptionView(entitled = true, switch = AllodiaSwitch(AllodiaPlan.YEARLY, FREE))))
+        compose.onNodeWithText(text(R.string.settings_subscription_switch_yearly)).performClick()
+        compose.onNodeWithText(text(R.string.settings_subscription_switch_title)).assertIsDisplayed()
+        compose.onAllNodesWithText("€", substring = true).assertCountEquals(0)
+        compose.onNodeWithText(text(R.string.action_update)).performClick()
+        assertEquals(listOf<AllodiaIntent>(AllodiaIntent.SwitchInterval(AllodiaPlan.YEARLY)), written)
+    }
+
+    /** A running write spins on its own button and holds every other one, as the core says. */
+    @Test
+    fun a_running_write_spins_on_its_button_and_holds_the_rest() {
+        section(
+            loadedSubscription(
+                subscriptionView(
                     entitled = true,
-                    own = ownSubscription(interval = AllodiaPlan.MONTHLY),
+                    switch = AllodiaSwitch(AllodiaPlan.MONTHLY, HELD),
+                    resubscribe = HELD,
+                    cancel = RUNNING,
                 )
             )
         )
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_switch_yearly))
-            .performClick()
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_switch_title))
-            .assertIsDisplayed()
-        compose.onAllNodesWithText("€", substring = true).assertCountEquals(0)
-
-        compose.onNodeWithText(ctx().getString(R.string.action_update)).performClick()
-        assertEquals(listOf(AllodiaPlan.YEARLY), switched)
+        compose.onNodeWithTag("subscription-cancel-running", useUnmergedTree = true).assertIsDisplayed()
+        compose.onNodeWithTag("subscription-cancel").assertIsNotEnabled()
+        compose.onNodeWithTag("subscription-switch").assertIsNotEnabled()
+        compose.onNodeWithTag("subscription-resubscribe").assertIsNotEnabled()
+        compose.onAllNodesWithTag("subscription-switch-running", useUnmergedTree = true).assertCountEquals(0)
     }
 
-    /**
-     * A store's subscription is the store's to change, so none of the three writes is offered for
-     * one: the service refuses them, and the card draws what the service permits.
-     */
+    /** What the card does not offer is not drawn: a store's subscription is that store's to change. */
     @Test
     fun a_store_billed_account_is_offered_none_of_the_writes() {
-        card(
-            loaded(
-                subscription(entitled = true, stores = listOf(storeSubscription()))
-                    .copy(actions = refusing())
-            )
-        )
-        compose.onAllNodesWithText(ctx().getString(R.string.settings_subscription_cancel))
-            .assertCountEquals(0)
-        compose.onAllNodesWithText(ctx().getString(R.string.settings_subscription_switch_yearly))
-            .assertCountEquals(0)
+        section(loadedSubscription(subscriptionView(entitled = true, billedBy = AllodiaBiller.Google)))
+        compose.onAllNodesWithTag("subscription-cancel").assertCountEquals(0)
+        compose.onAllNodesWithTag("subscription-switch").assertCountEquals(0)
+        compose.onAllNodesWithTag("subscription-resubscribe").assertCountEquals(0)
     }
 
-    /**
-     * ⚠️ A purchase that belongs to a different Allodia account is said out loud.
-     *
-     * It is what signing in to a second account on a phone that has bought something looks like,
-     * and it is the one ending waiting cannot fix: nothing was granted here and nothing will be.
-     * Reachable today on a device that bought through Play and then signed in elsewhere, where it
-     * said nothing at all.
-     */
+    /** A restart the card offers is one press, asked nothing. */
     @Test
-    fun a_purchase_owned_by_another_account_is_said_out_loud() {
-        card(loaded(subscription(), claimedElsewhere = true))
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_claimed_elsewhere))
-            .assertIsDisplayed()
+    fun restarting_sends_the_write() {
+        section(loadedSubscription(subscriptionView(entitled = true, resubscribe = FREE)))
+        compose.onNodeWithTag("subscription-resubscribe").assertIsEnabled().performClick()
+        assertEquals(listOf<AllodiaIntent>(AllodiaIntent.Resubscribe), written)
     }
 
-    /**
-     * ⚠️ Money was taken and nothing was granted. A card that stays silent leaves somebody with no
-     * way to find that out.
-     */
+    /** ⚠️ What a write came to is said with the date it keeps, or the refusal's own sentence. */
     @Test
-    fun a_purchase_that_has_not_gone_through_is_said_out_loud() {
-        card(loaded(subscription(), anythingStuck = true))
-        compose.onNodeWithText(ctx().getString(R.string.settings_subscription_stuck))
-            .assertIsDisplayed()
+    fun what_a_write_came_to_is_said_under_the_section() {
+        val paid = subscriptionView(entitled = true)
+        section(loadedSubscription(paid, AllodiaSubscriptionOutcome.Cancelled("2027-09-18T00:00:00+02:00")))
+        compose.onNodeWithText("2027", substring = true).assertIsDisplayed()
+
+        section(loadedSubscription(paid, AllodiaSubscriptionOutcome.Failed(AllodiaWriteFailure.NOT_SWITCHABLE)))
+        compose.onNodeWithText(text(R.string.settings_subscription_refused_not_switchable)).assertIsDisplayed()
+
+        section(loadedSubscription(paid, AllodiaSubscriptionOutcome.Failed(AllodiaWriteFailure.UNEXPLAINED)))
+        compose.onNodeWithText(text(R.string.settings_subscription_write_failed)).assertIsDisplayed()
+
+        section(loadedSubscription(paid, AllodiaSubscriptionOutcome.Switched("2027-09-18", 2990, "EUR")))
+        compose.onNodeWithText("29.90", substring = true).assertIsDisplayed()
+    }
+
+    /** ⚠️ A purchase owned by a different Allodia account, and one not yet through, are said out loud. */
+    @Test
+    fun a_purchase_that_has_not_reached_this_account_is_said_out_loud() {
+        section(loadedSubscription(subscriptionView()), AllodiaStoreUi(claimedElsewhere = true, anythingStuck = true))
+        compose.onNodeWithText(text(R.string.settings_subscription_claimed_elsewhere)).assertIsDisplayed()
+        compose.onNodeWithText(text(R.string.settings_subscription_stuck)).assertIsDisplayed()
     }
 
     private fun ctx() = org.robolectric.RuntimeEnvironment.getApplication()

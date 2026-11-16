@@ -212,6 +212,8 @@ pub(crate) struct AccountWork {
     pub(crate) browser: crate::account_page::browser::BrowserSignIns,
     /// What the Allodia account's card keeps between signals.
     pub(crate) allodia: crate::allodia::AllodiaWork,
+    /// What the Allodia account's subscription section keeps between signals.
+    pub(crate) subscription: crate::allodia_subscription_card::SubscriptionWork,
     raised: AtomicU64,
 }
 

@@ -44,8 +44,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AccountRow
-import uniffi.mailcal_bindings.AllodiaPlan
-import uniffi.mailcal_bindings.AllodiaStoreSubscription
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
@@ -120,16 +118,9 @@ internal fun SettingsScreen(
     allodia: AllodiaSettings,
     onAllodia: (AllodiaIntent) -> Unit,
     onAllodiaManage: () -> Unit,
-    // The subscription, drawn under the account card and only while somebody is signed in. Its
-    // state is the activity's for the same reason: buying leaves for Play's sheet or a browser.
+    // The subscription, drawn under the account card while the core draws a section. Held by the
+    // activity: buying leaves for Play's sheet or a browser.
     allodiaSubscription: AllodiaSubscriptionUi,
-    onAllodiaRefreshSubscription: () -> Unit,
-    onAllodiaBuy: (AllodiaPlan) -> Unit,
-    onAllodiaManageStore: (AllodiaStoreSubscription) -> Unit,
-    onAllodiaSubscriptionClosed: () -> Unit,
-    onAllodiaCancel: () -> Unit,
-    onAllodiaResubscribe: () -> Unit,
-    onAllodiaSwitch: (AllodiaPlan) -> Unit,
     allodiaDevices: AllodiaDevices?,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
     // Diagnostics, opens the Diagnostics screen (log viewer/share, debug toggle).
@@ -252,13 +243,6 @@ internal fun SettingsScreen(
                     onAllodia = onAllodia,
                     onAllodiaManage = onAllodiaManage,
                     allodiaSubscription = allodiaSubscription,
-                    onAllodiaRefreshSubscription = onAllodiaRefreshSubscription,
-                    onAllodiaBuy = onAllodiaBuy,
-                    onAllodiaManageStore = onAllodiaManageStore,
-                    onAllodiaSubscriptionClosed = onAllodiaSubscriptionClosed,
-                    onAllodiaCancel = onAllodiaCancel,
-                    onAllodiaResubscribe = onAllodiaResubscribe,
-                    onAllodiaSwitch = onAllodiaSwitch,
                     allodiaDevices = allodiaDevices,
                     onAllodiaSetUp = onAllodiaSetUp,
                     onRequestReset = { confirmingReset = true },

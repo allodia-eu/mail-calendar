@@ -8,7 +8,7 @@
 //! token issued for it cannot touch anyone's mail. Its screen is Settings → Allodia account, and
 //! the first-run card offers it too.
 
-use mailcal_bindings::{AllodiaCardState, AllodiaIntent, AllodiaOnboarding, Intent};
+use mailcal_bindings::{AllodiaIntent, AllodiaOnboarding, Intent};
 
 use super::{AppModel, oauth_loopback, settings, setup_onboarding::Progress};
 
@@ -47,8 +47,8 @@ impl AppModel {
         });
     }
 
-    /// The core's Allodia signal: the cards read the card again, the service's sign-out page
-    /// opens once, and the subscription goes with the account it was read for.
+    /// The core's Allodia signal: the cards read the card again, and the service's sign-out page
+    /// and the subscription's payment page each open once.
     pub(super) fn allodia_signalled(&mut self) {
         let Some(app) = self.app.clone() else {
             return;
@@ -64,21 +64,7 @@ impl AppModel {
             // against a session someone thought they left.
             oauth_loopback::launch_browser(&end.url, || {});
         }
-        let seen = match card.state {
-            AllodiaCardState::SignedIn { account } | AllodiaCardState::Ended { account } => {
-                Some(account.email)
-            }
-            AllodiaCardState::SignedOut => None,
-        };
-        let signing_in = card.browser.is_some();
-        let signed_in_again = self.settings.allodia_signing_in && !signing_in;
-        self.settings.allodia_signing_in = signing_in;
-        // What was read was about another account, or about none, or about the grant a sign-in
-        // just replaced, which may have been refused or too narrow.
-        if seen != self.settings.allodia_seen || signed_in_again {
-            self.settings.allodia_seen = seen;
-            self.forget_allodia_subscription();
-        }
+        self.open_checkout_page();
         self.settings
             .refresh_if_showing(settings::Category::Allodia);
         self.refresh_onboarding_card();

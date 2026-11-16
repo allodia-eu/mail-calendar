@@ -35,16 +35,13 @@ pub(in crate::ui) struct SettingsState {
     generation: u64,
     category: Category,
     redraw: Redraw,
-    /// Who the Allodia card last drew as signed in: the subscription is forgotten when it moves.
-    pub(in crate::ui) allodia_seen: Option<String>,
-    /// Whether a sign-in was out when the card was last read: one ending reads the subscription
-    /// again.
-    pub(in crate::ui) allodia_signing_in: bool,
+    /// Pages whose state changed while another was shown. Every page is built with the window,
+    /// so a hidden one is drawn from what it held then, and is drawn again when it is shown.
+    stale: Vec<Category>,
     /// The last of the service's sign-out pages opened, so each is opened once.
     pub(in crate::ui) allodia_end_session: u64,
-    /// What the subscription section has learned, for the same reason: its read is a network
-    /// round trip and its writes are three more.
-    pub(in crate::ui) allodia_subscription: crate::ui::allodia_subscription::SubscriptionState,
+    /// The last of the subscription's payment pages opened, so each is opened once.
+    pub(in crate::ui) allodia_checkout_opened: u64,
     /// The account whose page Accounts shows, or `None` for the list. Here because a change on
     /// that page redraws the window, and the page must survive it.
     pub(in crate::ui) account: Option<String>,
@@ -68,10 +65,9 @@ impl Default for SettingsState {
             generation: 0,
             category: Category::General,
             redraw: Redraw::Open,
-            allodia_seen: None,
-            allodia_signing_in: false,
+            stale: Vec::new(),
             allodia_end_session: 0,
-            allodia_subscription: crate::ui::allodia_subscription::SubscriptionState::default(),
+            allodia_checkout_opened: 0,
             account: None,
             separate: None,
             separate_forms: 0,
@@ -95,6 +91,7 @@ impl SettingsState {
         // Nor with a notice raised while it was closed, about a change made before.
         self.notice = None;
         self.redraw = Redraw::Open;
+        self.stale.clear();
         self.bump();
     }
 
@@ -104,23 +101,31 @@ impl SettingsState {
         self.account = Some(account);
     }
 
-    /// Records the page the window is showing, without redrawing anything.
-    ///
-    /// The sidebar switches the stack itself, so navigating inside the window never reached the
-    /// model; and every model-driven rebuild therefore dropped the person back on whatever page
-    /// the model last *named*. Deliberately no `bump`: the widget already shows this page, and a
-    /// generation here would rebuild the window under a click.
-    /// Redraws the window in place when it shows `category`, and otherwise leaves it alone: for
-    /// state only that page draws. A rebuild of another page would close a dropdown the person
-    /// just opened and take what they typed, for nothing that page shows.
+    /// Redraws the window in place when it shows `category`, and otherwise marks that page to be
+    /// drawn again when it is shown: for state only that page draws. A rebuild of another page
+    /// would close a dropdown the person just opened and take what they typed, for nothing that
+    /// page shows.
     pub(in crate::ui) fn refresh_if_showing(&mut self, category: Category) {
         if self.category == category {
             self.refresh_in_place();
+        } else if !self.stale.contains(&category) {
+            self.stale.push(category);
         }
     }
 
-    pub(in crate::ui) const fn record_category(&mut self, category: Category) {
+    /// Records the page the window is showing, redrawing it only when its state changed while it
+    /// was hidden.
+    ///
+    /// The sidebar switches the stack itself, so navigating inside the window never reached the
+    /// model; and every model-driven rebuild therefore dropped the person back on whatever page
+    /// the model last *named*. No `bump` otherwise: the widget already shows this page, and a
+    /// generation here would rebuild the window under a click.
+    pub(in crate::ui) fn record_category(&mut self, category: Category) {
         self.category = category;
+        if let Some(at) = self.stale.iter().position(|stale| *stale == category) {
+            self.stale.remove(at);
+            self.refresh_in_place();
+        }
     }
 
     /// Redraws whatever page is open, without moving the person off it.
@@ -130,6 +135,8 @@ impl SettingsState {
     /// rejecting what they just did rather than doing it.
     pub(in crate::ui) fn refresh_in_place(&mut self) {
         self.redraw = Redraw::InPlace;
+        // Every page is built again.
+        self.stale.clear();
         self.bump();
     }
 
@@ -177,7 +184,6 @@ impl SettingsState {
         RenderState {
             generation: self.generation,
             category: self.category,
-            allodia_subscription: &self.allodia_subscription,
             account: self.account.as_deref(),
             separate: self.separate.as_ref(),
             notice: self.notice.as_ref(),

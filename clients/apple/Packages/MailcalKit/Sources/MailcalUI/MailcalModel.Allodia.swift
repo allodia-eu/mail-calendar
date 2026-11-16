@@ -12,8 +12,8 @@ struct AllodiaCardHeld: Equatable {
     var card: AllodiaCard?
     /// The last end-of-session page opened, so each opens once.
     var endSessionOpened: UInt64 = 0
-    /// Grows whenever the subscription is to be read again, which keys its section.
-    var subscriptionRead = 0
+    /// The subscription section as the core last drew it, read on the same signal.
+    var subscription: AllodiaSubscriptionCard?
 }
 
 extension MailboxModel {
@@ -42,9 +42,9 @@ extension MailboxModel {
         allodia.card?.signIn ?? .free(false)
     }
 
-    /// Reads the card again, on an Allodia signal, an OtherDevices one and at connect. Opens the
-    /// service's end-of-session page once for each sign-out that names one, and has the
-    /// subscription read again for whoever is signed in now.
+    /// Reads the card and the subscription section again, on an Allodia signal, an OtherDevices
+    /// one and at connect. Opens the service's end-of-session page once for each sign-out that
+    /// names one.
     func refreshAllodiaCard() {
         guard let app else { return }
         let fresh = app.allodiaCard()
@@ -55,10 +55,9 @@ extension MailboxModel {
             // silently against a session someone thought they had left.
             openAllodia(url: end.url)
         }
-        if AllodiaCardRules.readsSubscriptionAgain(allodia.card, fresh) {
-            allodia.subscriptionRead &+= 1
-        }
         if fresh != allodia.card { allodia.card = fresh }
+        let subscription = app.allodiaSubscriptionCard()
+        if subscription != allodia.subscription { allodia.subscription = subscription }
     }
 
     /// Opens the service's own account page. A page, not a flow: nothing is pending and nothing
@@ -112,13 +111,6 @@ enum AllodiaCardRules {
         case let .signedIn(account)?, let .ended(account)?: account
         case .signedOut?, nil: nil
         }
-    }
-
-    /// Whether the subscription is read again: someone else is signed in, or nobody is, or a
-    /// sign-in ended, which may have given a grant the subscription read needs.
-    static func readsSubscriptionAgain(_ before: AllodiaCard?, _ after: AllodiaCard) -> Bool {
-        account(before?.state)?.email != account(after.state)?.email
-            || (before?.browser != nil && after.browser == nil)
     }
 
     /// Why the last sign-in or sign-out did not work.

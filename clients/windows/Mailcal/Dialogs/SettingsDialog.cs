@@ -66,6 +66,7 @@ public sealed partial class SettingsDialog : ContentDialog
         Closed += (_, _) => model.AccountsChanged -= OnAccountsChanged;
         model.AllodiaChanged += OnAllodiaChanged;
         Closed += (_, _) => model.AllodiaChanged -= OnAllodiaChanged;
+        Closed += (_, _) => LeavingAllodiaSubscription();
         model.OtherDevicesChanged += OnOtherDevices;
         Closed += (_, _) => model.OtherDevicesChanged -= OnOtherDevices;
         model.RemovalFailed += OnRemovalFailed;
@@ -132,7 +133,7 @@ public sealed partial class SettingsDialog : ContentDialog
             _editingSignature = null;
             _deletingSignature = null;
         }
-        CloseAllodiaSubscription(tag);
+        ShowingAllodiaSubscription(tag);
         // Leaving Accounts goes back to its list, and what a page said goes with it.
         if (tag != "accounts")
         {

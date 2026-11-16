@@ -6,8 +6,9 @@ use mailcal_bindings::{Intent, Surface};
 use relm4::ComponentSender;
 
 use super::{
-    AppInput, AppModel, AppWindow, PrimaryView, composer_model::ComposeKind,
-    notification_open::present_main_window, reader::ReadingSource, setup_model,
+    AppInput, AppModel, AppWindow, PrimaryView, allodia_subscription::SubscriptionInput,
+    composer_model::ComposeKind, notification_open::present_main_window, reader::ReadingSource,
+    settings::Category, setup_model,
 };
 use crate::l10n;
 
@@ -392,11 +393,12 @@ impl AppModel {
             AppInput::ManageAllodiaAccount => self.manage_allodia_account(),
             AppInput::CancelAllodiaSignIn => self.cancel_allodia_sign_in(),
             AppInput::SignOutOfAllodia => self.sign_out_of_allodia(),
-            AppInput::AllodiaSubscription(input) => {
-                self.allodia_subscription_input(input, sender.input_sender().clone());
-            }
+            AppInput::AllodiaSubscription(input) => self.allodia_subscription_input(input),
             AppInput::SettingsCategoryShown(category) => {
                 self.settings.record_category(category);
+                if category != Category::Allodia {
+                    self.allodia_subscription_input(SubscriptionInput::Left);
+                }
             }
             AppInput::SetUpOfferedAccount(offer) => {
                 self.set_up_offered_account(*offer, sender.input_sender().clone());
