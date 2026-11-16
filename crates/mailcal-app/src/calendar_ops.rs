@@ -59,7 +59,7 @@ impl<P: Provider> App<P> {
     /// A synced calendar account always has at least one collection, so "no calendars at all" is
     /// the honest signal for *we have never synced*, as distinct from *you have nothing on*.
     async fn has_stored_calendars(&self) -> bool {
-        for id in self.account_ids().await {
+        for id in self.account_ids() {
             if !self
                 .engine
                 .calendars(&id)

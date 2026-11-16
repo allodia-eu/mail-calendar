@@ -151,7 +151,7 @@ impl<P: Provider> App<P> {
                  stopped; they are retried once their attempt expires: {err}"
             ),
         }
-        for account in self.account_ids().await {
+        for account in self.account_ids() {
             self.log_outbox_contents(&account).await;
         }
     }

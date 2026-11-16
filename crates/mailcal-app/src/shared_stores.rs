@@ -52,15 +52,15 @@ pub enum SharedStoreLookup {
 
 impl<P: Provider> App<P> {
     /// Which of `uses` `account` has a live provider for, to ask which stores it opens: what
-    /// [`App::shared_store_offer`] answers [`SharedStoreOffer::NotConnected`] without.
-    pub async fn live_shared_uses(&self, account: &AccountId, uses: SharedUses) -> SharedUses {
-        match self.account_handle(account).await {
-            Some(handle) => uses
-                .iter()
-                .filter(|kind| asked_of(&handle, *kind).is_some())
-                .collect(),
-            None => SharedUses::default(),
-        }
+    /// [`App::shared_store_offer`] answers [`SharedStoreOffer::NotConnected`] without. Never waits
+    /// on the account list's lock, so a UI thread may ask it.
+    pub fn live_shared_uses(&self, account: &AccountId, uses: SharedUses) -> SharedUses {
+        uses.iter()
+            .filter(|kind| match kind {
+                SharedUse::Mail => self.accounts.has_mailbox(account),
+                SharedUse::Calendar => self.accounts.has_calendar(account),
+            })
+            .collect()
     }
 
     /// Which stores `account`'s sign-in opens besides its own that hold any of `uses`, asked of

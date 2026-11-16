@@ -117,6 +117,7 @@ pub(crate) fn build_demo(
     });
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
+    mailcal.read_mail_rows_ahead();
     mailcal
 }
 
@@ -360,6 +361,7 @@ fn finish_showcase(
     });
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
+    mailcal.read_mail_rows_ahead();
     mailcal
 }
 

@@ -191,7 +191,7 @@ impl<P: Provider> App<P> {
     /// Called after a sync, never on a timer: the engine holds no clock for this, and
     /// polling a dead network is what a reachability signal exists to avoid.
     pub(crate) async fn drain_outboxes(&self) {
-        for account in self.account_ids().await {
+        for account in self.account_ids() {
             self.drain_account(&account).await;
         }
     }
@@ -211,7 +211,7 @@ impl<P: Provider> App<P> {
     /// and hurrying it means sending it again: reconnecting is no answer to a refusal, so it
     /// waits for the user rather than going out again on its own.
     pub(crate) async fn flush_outboxes(&self) {
-        for account in self.account_ids().await {
+        for account in self.account_ids() {
             let queued = self.engine.outbox(&account).await.unwrap_or_default();
             for row in queued.iter().filter(|row| {
                 matches!(
