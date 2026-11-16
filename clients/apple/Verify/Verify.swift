@@ -70,17 +70,18 @@ func waitForStableMailbox(_ app: MailcalApp, quiet: TimeInterval, timeout: TimeI
 func verifySendAndSwipeSettings(_ app: MailcalApp) -> Bool {
     // Unset until the user picks one, the core then falls back to the first configured account.
     let initiallyUnset = app.defaultSendAccount() == nil
-    app.setDefaultSendAccount(account: "acct-1")
+    // A preference takes effect before `dispatch` returns, so the read that follows sees it.
+    app.dispatch(intent: .preferences(intent: .setDefaultSendAccount(account: "acct-1")))
     let stored = app.defaultSendAccount() == "acct-1"
     // Clearing restores "the first configured account" rather than dropping the send.
-    app.setDefaultSendAccount(account: nil)
+    app.dispatch(intent: .preferences(intent: .setDefaultSendAccount(account: nil)))
     let cleared = app.defaultSendAccount() == nil
 
     // Both directions default to Delete: the behaviour before the setting existed.
     var swipe = app.swipeSettings()
     let defaulted = swipe.left == .delete && swipe.right == .delete
     // The two directions are configured independently, setting one leaves the other alone.
-    app.setSwipeAction(direction: .left, action: .archive)
+    app.dispatch(intent: .preferences(intent: .setSwipeAction(direction: .left, action: .archive)))
     swipe = app.swipeSettings()
     let independent = swipe.left == .archive && swipe.right == .delete
 

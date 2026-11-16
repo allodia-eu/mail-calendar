@@ -100,16 +100,14 @@ extension MailboxModel {
         mcpSettings = app.mcpSettings()
         refreshAccountsSnapshot()
         refreshAllodiaCard()
-        // The swipe actions are read while rendering every row, so mirror them now rather
-        // than crossing the FFI per row; the composer's From dropdown wants the stored
-        // default send account before the first `Surface::Settings` signal arrives.
-        swipeSettings = app.swipeSettings()
-        defaultSendAccount = app.defaultSendAccount()
+        // The preferences, before the first `Surface::Settings` signal: the swipe actions are
+        // read while rendering every row, the composer's From dropdown wants the stored default
+        // send account, the calendar opens on the stored horizon and shape, and
+        // `analyticsConsent.asked == false` puts the welcome screen up.
+        reloadPreferences(app, repaint: false)
         // The composer resolves the account's signature when it opens, so the library has to
         // be mirrored before the first compose, not on the first `Surface::Settings` signal.
         signatures = app.signatures()
-        // Is the usage-statistics question settled? `asked == false` puts the welcome screen up.
-        analyticsConsent = app.analyticsConsent()
         // The retention signal, once per launch. A no-op until the user opts in, and on the
         // very first launch the opt-in itself reports the session, so consenting is never a
         // launch we fail to count.

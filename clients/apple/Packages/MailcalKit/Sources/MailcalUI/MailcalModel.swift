@@ -118,11 +118,11 @@ final class MailboxModel {
     var calendarVersion = 0
     @ObservationIgnored let calendarPages = CalendarCache<CalendarPageKey, CalendarPage>()
     /// The persisted display preferences the core owns: first day of the week, the 12/24-hour clock
-    /// (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Seeded
-    /// with the core's own defaults so the very first frame agrees with it.
+    /// (mail AND calendar), the light/dark appearance, and the calendar's default horizon, read on
+    /// `Surface::Settings`. A placeholder until `didOpen` reads the core's.
     var displaySettings = DisplaySettings(
         weekStart: .monday, timeFormat: .twentyFourHour, appearance: .system,
-        darkMessageBackground: true, visibleHours: 12, layout: .week
+        darkMessageBackground: true, visibleHours: 12, visibleHoursChoices: [], layout: .week
     )
     /// The appearance the app is **painted** in. Settled here, at model construction, rather than
     /// read off `displaySettings`: the core is an engine open and a network dial away, so waiting
@@ -176,7 +176,7 @@ final class MailboxModel {
     /// which may name an account the user has since removed, resolve it through `sendAccount`.
     var defaultSendAccount: String?
     /// What a leftward and a rightward swipe across a message row do (pulled on a
-    /// `Surface::Settings` signal). Both default to `.delete`, the behaviour before the setting.
+    /// `Surface::Settings` signal). A placeholder until `didOpen` reads the core's.
     var swipeSettings = SwipeSettings(left: .delete, right: .delete)
     /// The signature library and each account's two assignments (pulled on a `Surface::Settings`
     /// signal). Metadata only, a body is fetched one at a time (`signatureHTML`), so a library
@@ -321,9 +321,10 @@ final class MailboxModel {
     /// puts it here and the shell drains it once accounts exist, which is what Windows's
     /// `_pendingShare` and Linux's `pending_share` each do for the same reason.
     var pendingShare: ShareOpenRequest?
-    /// Whether the usage-statistics question is settled, pulled once at connect. `asked == false`
-    /// puts the welcome screen up, it is the first thing a new user sees, ahead of setup. Nil
-    /// until the core answers, so the screen is never shown on a guess.
+    /// Whether the usage-statistics question is settled, pulled at connect and on a
+    /// `Surface::Settings` signal. `asked == false` puts the welcome screen up, it is the first
+    /// thing a new user sees, ahead of setup. Nil until the core answers, so the screen is never
+    /// shown on a guess.
     var analyticsConsent: AnalyticsConsent?
     var app: MailcalApp?
     /// The Allodia account's card, read on `Surface::Allodia` (MailcalModel.Allodia.swift).

@@ -365,7 +365,7 @@ struct CalendarScreenView: View {
     /// which rounds to 6 while the level it maps to is the whole week, of 7.
     func settleZoom() {
         position.held = true
-        model.setVisibleHours(position.zoom.settledHours)
+        model.setVisibleHours(UInt8(clamping: position.zoom.settledHours))
         position.zoom.settleDays()
         let settled = modeForColumns(position.zoom.settledDays)
         setZoomMode(settled)

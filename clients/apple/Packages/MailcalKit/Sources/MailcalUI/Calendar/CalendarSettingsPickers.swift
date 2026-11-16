@@ -7,10 +7,6 @@
 import MailcalBindings
 import SwiftUI
 
-/// The horizons the picker offers. Between the core's clamp of 4 and 24, a short list of sensible
-/// stops, because a pinch is the fine-grained control and a slider here would be a worse version of it.
-private let horizonChoices = [6, 8, 12, 16, 24]
-
 /// How times are shown, in **mail and calendar alike**.
 struct TimeFormatPicker: View {
     var model: MailboxModel
@@ -76,7 +72,8 @@ struct WeekStartPicker: View {
 }
 
 /// How much of the day the grid shows at once, the same number a pinch settles on, so the two
-/// controls are one setting rather than two that drift apart.
+/// controls are one setting rather than two that drift apart. The stops are the core's, with the
+/// horizon a pinch left the grid at among them.
 struct CalendarHorizonPicker: View {
     var model: MailboxModel
 
@@ -84,11 +81,11 @@ struct CalendarHorizonPicker: View {
         Picker(
             L10n.settings_horizon_heading(),
             selection: Binding(
-                get: { Int(model.displaySettings.visibleHours) },
+                get: { model.displaySettings.visibleHours },
                 set: { model.setVisibleHours($0) }
             )
         ) {
-            ForEach(horizonChoices, id: \.self) { hours in
+            ForEach(model.displaySettings.visibleHoursChoices, id: \.self) { hours in
                 Text(L10n.settings_horizon_hours(hours: "\(hours)")).tag(hours)
             }
         }
