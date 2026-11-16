@@ -19,7 +19,6 @@ func composeOpening(
     bodyHtml: String = "",
     bodyText: String = "",
     quote: QuoteSource? = nil,
-    attachments: [ComposerFileAttachment] = [],
     seedsSignature: Bool = true
 ) -> ComposeOpening {
     ComposeOpening(
@@ -33,7 +32,6 @@ func composeOpening(
         bodyHtml: bodyHtml,
         bodyText: bodyText,
         quote: quote,
-        attachments: attachments,
         attachmentsFailed: false,
         seedsSignature: seedsSignature
     )

@@ -74,7 +74,6 @@ fn a_message_sent_from_it_is_filed_in_its_own_sent(app: &MailcalApp, child: &str
         r#"{"blocks":[{"Paragraph":{"content":[{"Text":{"text":"Hello from the group",
             "bold":false,"italic":false,"underline":false,"link":null}}]}}]}"#
             .to_owned(),
-        Vec::new(),
         Some(child.to_owned()),
     )
     .expect("the send is accepted");

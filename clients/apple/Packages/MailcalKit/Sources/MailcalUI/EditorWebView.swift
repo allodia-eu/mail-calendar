@@ -54,6 +54,28 @@ final class EditorWebView: HistoryWebView {
         filter(menu)
     }
 
+    /// Whether a vertical step of a gesture over the editor goes to the column around it rather
+    /// than to the message, asked with the step's direction (`true` down the message). Set for the
+    /// composer, whose column carries the header away before the message scrolls
+    /// (`docs/composer-layout.md`, rule 2).
+    ///
+    /// ⚠️ `WKWebView` takes every wheel event over it, even when its page cannot move, so the
+    /// column would scroll everywhere except over the message. Only the vertical part is handed
+    /// on: a table wider than the column still scrolls sideways inside the page.
+    var columnTakesScroll: ((_ towardsEnd: Bool) -> Bool)?
+
+    override func scrollWheel(with event: NSEvent) {
+        if let columnTakesScroll, event.scrollingDeltaY != 0,
+           abs(event.scrollingDeltaY) > abs(event.scrollingDeltaX),
+           let column = enclosingScrollView,
+           // A positive delta moves the content down, which is a step back up the message.
+           columnTakesScroll(event.scrollingDeltaY < 0) {
+            column.scrollWheel(with: event)
+            return
+        }
+        super.scrollWheel(with: event)
+    }
+
     /// Files dropped on the message itself, handed to the host.
     ///
     /// Set by `RichComposerEditor.mount()`, which forwards to `ComposerDropModifier`, the owner of

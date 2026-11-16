@@ -75,9 +75,9 @@ internal fun MainActivity.composerDrafts(instance: MailcalApp) = ComposerDrafts(
  * Stores what the composer holds in the Drafts folder, replacing what this composition's previous
  * save left there.
  *
- * Always the file-carrying call, even from a composer holding none. A save replaces the stored
- * copy, so one that left the files out would take them off a draft the user is still writing, and
- * a composer can pick a file at any moment.
+ * Always the file-carrying call, even from a composer holding none: it saves the files the core
+ * holds for the composition. A save replaces the stored copy, so one that left the files out would
+ * take them off a draft the user is still writing.
  *
  * Fire and forget: it returns as soon as the document validates, and the outcome arrives as a
  * `Surface::DraftStatus` signal. A save with no network is queued, not lost. With `close`, the core
@@ -96,7 +96,6 @@ private fun saveDraft(
             content.recipients,
             content.subject,
             content.documentJson,
-            content.files,
             content.from,
         )
     } catch (e: MailcalException) {

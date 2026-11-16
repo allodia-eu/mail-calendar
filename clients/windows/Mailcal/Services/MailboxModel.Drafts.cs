@@ -45,9 +45,9 @@ public sealed partial class MailboxModel
     /// <paramref name="composition"/>'s previous save left there.
     /// </summary>
     /// <remarks>
-    /// Always the file-carrying call, even from a composer holding none. A save replaces the
-    /// stored copy, so one that left the files out would take them off a draft the user is still
-    /// writing, and a composer can pick a file at any moment.
+    /// Always the file-carrying call, even from a composer holding none: it takes the files the
+    /// core holds for the composition. A save replaces the stored copy, so one that left the files
+    /// out would take them off a draft the user is still writing.
     /// <para>Fire and forget: it returns as soon as the document validates, and the outcome
     /// arrives as a <c>Surface.DraftStatus</c> signal. A save made with no network is queued, not
     /// lost. Only the error category is surfaced for diagnostics; the body is never logged.</para>
@@ -57,7 +57,6 @@ public sealed partial class MailboxModel
         Recipients recipients,
         string subject,
         string documentJson,
-        ComposerFileAttachment[] files,
         string? from)
     {
         if (_app is null)
@@ -66,7 +65,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SaveDraftWithFiles(composition, recipients, subject, documentJson, files, from);
+            _app.SaveDraftWithFiles(composition, recipients, subject, documentJson, from);
         }
         catch (Exception ex)
         {
@@ -89,7 +88,6 @@ public sealed partial class MailboxModel
         Recipients recipients,
         string subject,
         string documentJson,
-        ComposerFileAttachment[] files,
         string? from)
     {
         if (_app is null)
@@ -98,7 +96,7 @@ public sealed partial class MailboxModel
         }
         try
         {
-            _app.SaveDraftAndClose(composition, recipients, subject, documentJson, files, from);
+            _app.SaveDraftAndClose(composition, recipients, subject, documentJson, from);
         }
         catch (Exception ex)
         {
