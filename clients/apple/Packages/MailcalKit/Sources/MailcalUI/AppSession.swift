@@ -9,6 +9,7 @@
 // It is the package's one public handle on the model: the model itself stays internal, so the app
 // target composes scenes without the sixty published properties behind them becoming API.
 
+import MailcalBindings
 import SwiftUI
 #if os(macOS)
 import AppKit
