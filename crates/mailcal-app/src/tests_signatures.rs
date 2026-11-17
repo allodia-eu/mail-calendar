@@ -105,6 +105,8 @@ async fn the_library_and_the_assignments_survive_a_relaunch() {
             Some(row.id.clone()),
         )
         .await;
+        // Closed as a host closes it: what is still being saved is written first.
+        app.settle_preferences();
         row.id
     };
 

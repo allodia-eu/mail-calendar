@@ -114,7 +114,9 @@ async fn the_offer_is_put_once_and_the_answer_survives_a_relaunch() {
 
     // Spent for this session,
     assert!(!app.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false)));
-    // and for every one after it: the answer is in the preferences file, not in memory.
+    // and for every one after it: the answer is in the preferences file, not in memory, once the
+    // app has closed as a host closes it.
+    app.settle_preferences();
     let relaunched = app_with_prefs(vec![account("acct", FakeProvider::new())], path, &surfaces);
     assert!(
         !relaunched.should_offer_default_mail_app(DefaultMailAppSupport::SetDirectly, Some(false))
