@@ -5,6 +5,8 @@
 //! changes sent in order take effect in that order. A save that fails is
 //! `NoticeKind::SettingsNotSaved`, whose Try again writes what is waiting.
 
+use std::time::Duration;
+
 use mailcal_account::DefaultCalendar;
 
 use crate::{MailcalApp, PreferenceIntent};
@@ -93,6 +95,23 @@ impl MailcalApp {
             this.app.retry_preferences_save();
             this.settle_notice_retries();
         });
+    }
+}
+
+/// How long closing waits for the settings to be written. A save is one small local file, so
+/// this is reached only by a disk that does not answer, and closing goes on regardless.
+const CLOSING_WAIT: Duration = Duration::from_secs(1);
+
+#[uniffi::export]
+impl MailcalApp {
+    /// Writes every change to the settings still waiting, for no longer than a second. A host
+    /// calls it as the app closes, or as a phone app leaves the screen, where the system may end
+    /// the process without asking. The one call that waits on the disk on the host's thread,
+    /// because what follows it may be the process ending.
+    pub fn finish_saving_settings(&self) {
+        if !self.app.settle_preferences_within(CLOSING_WAIT) {
+            log::warn!("preferences: still saving when the app closed");
+        }
     }
 }
 

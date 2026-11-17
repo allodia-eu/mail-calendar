@@ -13,7 +13,7 @@ where its platform puts it. Two platforms showing the same moment show the same 
 | # | Rule | Why |
 |---|---|---|
 | 1 | **The core decides every notice**: whether it exists, its kind, severity, screens, account, action and rank, all in `NoticesSnapshot`, pulled after `Surface::Notices`. A client never infers a notice from an error, a field or a string. | Four clients deciding the same facts drew them with four severities, on different screens, and two facts on none. |
-| 2 | **One notice is prominent per screen.** The first notice whose `screens` include the screen on show is drawn in the platform's prominent place; every other one is reachable from a single Issues entry, never stacked. | Six banners stacked above a list push the list off a phone, and the one that matters is no easier to find. |
+| 2 | **One notice is prominent per screen.** The first notice whose `screens` include the screen on show is drawn in the platform's prominent place; every other one is reachable from a single Issues entry, never stacked. **Settings is a screen too**: the first `Everywhere` notice is drawn at its top, above whichever category is open, through the same component, and the rest stay behind the window's Issues entry. On an account's page a notice about that account is left out there, because the page lists it (rule 6). | Six banners stacked above a list push the list off a phone, and the one that matters is no easier to find. A setting that could not be saved is said where it was changed, and Settings, a window or sheet over the app, hides the window's own notice. |
 | 3 | **Rank is severity, then scope, then age**: Blocked before Degraded before Informational; the whole app before one account; older before newer. The core sorts; a client draws in the order given. | So every platform shows the same notice first. |
 | 4 | **Three severities, each with a meaning.** `Blocked`: something the person relies on has stopped. `Degraded`: part of it works. `Informational`: nothing is broken. Only Blocked uses the warning colour, and colour is never the only signal. | A permission gap and a dead sign-in drawn with the same triangle tell the person nothing about which to fix first. |
 | 5 | **One notice per account and fact.** Three expired sign-ins are three notices, each with its own button, ranked together; two facts about one account are two notices. | Text naming three accounts above one button that fixes the first is a button that lies. |
@@ -89,6 +89,7 @@ heavier reload.
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | The snapshot, its ranking and both intents (rules 1, 3 to 5, 7, 9, 10) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | One prominent notice and an Issues entry (rule 2) | | ✅ | ✅ | ✅ | ✅ | ✅ |
+| The first `Everywhere` notice at the top of Settings (rule 2) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The account row's glyph and label, and its Settings page (rule 6) | | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The three questions as notices (rule 8) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Generated words per kind (rule 11) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -114,7 +115,10 @@ inside the button while `running`, and a question draws both answers in its cont
 first in the accent style, held with a spinner beside them while `running`. The event detail is a
 `ContentDialog` whose overlay hides the bar, so it draws the reply question about an answer given
 there as well
-([`EventDetailDialog.Answer.cs`](../clients/windows/Mailcal/Dialogs/EventDetailDialog.Answer.cs)).
+([`EventDetailDialog.Answer.cs`](../clients/windows/Mailcal/Dialogs/EventDetailDialog.Answer.cs)). Settings draws the same `NoticeBar` across its top, above the category list and whichever category
+is open ([`SettingsDialog.Notice.cs`](../clients/windows/Mailcal/Dialogs/SettingsDialog.Notice.cs)),
+with no Issues entry of its own; an action that would open a dialog (opening account settings,
+Review) opens the account's page there instead, because WinUI shows one dialog at a time.
 
 Linux: [`NoticeBar`](../clients/linux/src/ui/notice_bar.rs) across the top of the window,
 [`notice_rules`](../clients/linux/src/ui/notice_rules.rs) (pinned by `notice_rules_tests.rs`),
@@ -124,13 +128,17 @@ one sentence and one button, so the strip around it carries the severity's glyph
 the button's sign-in runs and the Issues button; the detail shares the banner's sentence, a line
 below the title. A question's banner draws neither answer: the strip draws both after the sentence,
 the lesser first, because a banner's own button can be neither held nor given a sibling. The account row's glyph sits at the row's end, the one place an `AdwActionRow`
-takes a widget, with the mark as its subtitle.
+takes a widget, with the mark as its subtitle. Settings draws the first `Everywhere` notice in a second `NoticeBar` above every category
+([`top_notice.rs`](../clients/linux/src/ui/settings/top_notice.rs)), which leaves the
+announcement to the window's (rule 12).
 
 Android: [`NoticeArea`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeViews.kt)
 under each screen's bar, [`NoticeRules`](../clients/android/app/src/main/java/eu/allodia/mailcal/NoticeRules.kt)
 (pinned by `NoticeRulesTest`, `NoticeViewsTest` and, for the questions, `QuestionNoticesTest`), each action in
 [`MainActivityNotices.kt`](../clients/android/app/src/main/java/eu/allodia/mailcal/MainActivityNotices.kt),
-and the account's page through `AccountNoticesGroup`. The account's mark is a second line under its
+and the account's page through `AccountNoticesGroup`. Settings draws the first `Everywhere` notice in the same card,
+through `SettingsNotice`, under its title bar and above the hub or whichever category is open, with
+no Issues button, because Settings covers the screen whose Issues entry holds the rest. The account's mark is a second line under its
 address in the folder drawer, and its glyph leads its entry in the account switcher. A notice is
 announced through a polite live region, because a view's own announcement is deprecated.
 
@@ -138,7 +146,7 @@ On iPhone the row sits under each tab's bar rather than inside the list, so the 
 no list, draws it in the same place. An iPad whose sidebar column is hidden, as a split view hides it in
 portrait, draws that same row over its detail column, so a notice is never out of sight. On Apple the rules are `NoticeRules.swift`, tested in
 `NoticeRulesTests`; the views are `NoticeViews.swift`, the model's pull, announcement and remedies
-`MailcalModel.Notices.swift`, and `BannerPlacementTests` holds the iPhone row under the bar.
+`MailcalModel.Notices.swift`, and `BannerPlacementTests` holds the iPhone row under the bar. Settings draws the first `Everywhere` notice through `SettingsNotice` in `NoticeViews.swift`, above the open category's scrolling page: in the detail column of the Mac's Settings window, the iPad's detail and each category the iPhone pushes, and on an account's page (`NoticeRules.settings`).
 
 Legend as [`README.md`](../README.md): ✅ shipped · 🚧 in progress · ⬜ planned.
 

@@ -47,9 +47,10 @@ fn eventually(mut done: impl FnMut() -> bool) -> bool {
     done()
 }
 
-/// A change is what the next read says before `dispatch` returns, and is in the file after.
+/// A change is what the next read says before `dispatch` returns, and is in the file once the
+/// host has said it is closing.
 #[test]
-fn a_change_is_read_at_once_and_saved_behind() {
+fn a_change_is_read_at_once_and_on_disk_when_the_app_closes() {
     let (app, dir, _rx) = app("preferences-at-once");
     set(
         &app,
@@ -63,7 +64,7 @@ fn a_change_is_read_at_once_and_saved_behind() {
     assert_eq!(settings.visible_hours, 9);
     assert_eq!(settings.visible_hours_choices, [6, 8, 9, 12, 16, 24]);
 
-    app.app.settle_preferences();
+    app.finish_saving_settings();
     let stored = mailcal_account::load_preferences(mailcal_account::preferences_path(&dir));
     assert_eq!(stored.appearance, mailcal_account::Appearance::Dark);
     assert_eq!(stored.calendar_visible_hours, 9);

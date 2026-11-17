@@ -38,7 +38,10 @@ before the work does.
    actions update the list optimistically; a folder change shows its pending row
    ([`folder-pane.md`](folder-pane.md)). A preference is applied by the core before `dispatch`
    returns and saved behind it, so a client keeps no copy of its own: the next read is the new
-   value.
+   value. A client calls `finish_saving_settings` as the app closes, and on a phone as the app
+   leaves the screen, where the system may end the process without asking. It is the one call
+   that waits on the disk on the host's thread, for at most a second, because what follows it may
+   be the process ending.
 
 ## How the core says it
 
@@ -161,7 +164,7 @@ record, not a state the client keeps.
 | An account's sharing and the other devices' card: drawn from `account_page` and `allodia_devices`, a change sent as a page change, the pass run by the core | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia account's sign-in and sign-out: drawn from `allodia_card`, run by the core as `AllodiaIntent`s, the sign-in as its one browser sign-in | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | ✅ | ✅ | ✅ | ✅ | ✅ |
-| A preference: changed as a `PreferenceIntent`, drawn from the core's value with no copy kept, a failed save the `SettingsNotSaved` notice | ✅ | ✅ | ✅ | ✅ | ✅ |
+| A preference: changed as a `PreferenceIntent`, drawn from the core's value with no copy kept, a failed save the `SettingsNotSaved` notice, written before the app closes | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -236,9 +239,11 @@ record, not a state the client keeps.
 - [`preferences_file_tests.rs`](../crates/mailcal-app/src/preferences_file_tests.rs) pins the
   preferences file's one writer: a change read at once and saved behind, changes made together all
   kept, a field another process wrote surviving, and a failed save keeping its change until a retry
-  writes it; [`app_preferences_tests.rs`](../crates/mailcal-bindings/src/app_preferences_tests.rs)
-  drives a `PreferenceIntent` through `dispatch`: read back before it returns, a failed save raised
-  as a notice whose Try again writes it, and one that fails again saying so.
+  writes it, and a wait at closing that ends once written or at its limit;
+  [`app_preferences_tests.rs`](../crates/mailcal-bindings/src/app_preferences_tests.rs) drives a
+  `PreferenceIntent` through `dispatch`: read back before it returns, on disk once the host says
+  it is closing, a failed save raised as a notice whose Try again writes it, and one that fails
+  again saying so.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.

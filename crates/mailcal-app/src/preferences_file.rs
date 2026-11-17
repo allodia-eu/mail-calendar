@@ -19,6 +19,7 @@
 use std::{
     path::PathBuf,
     sync::{Arc, Condvar, Mutex, MutexGuard},
+    time::{Duration, Instant},
 };
 
 use engine_api::Provider;
@@ -188,6 +189,28 @@ impl PreferencesFile {
                 .expect("preferences queue poisoned");
         }
     }
+
+    /// [`settle`](Self::settle), for no longer than `limit`. Whether nothing was left to write
+    /// when it returned.
+    pub(crate) fn settle_within(&self, limit: Duration) -> bool {
+        let Some(handle) = &self.0 else {
+            return true;
+        };
+        let shared = &handle.0;
+        let deadline = Instant::now() + limit;
+        let mut queue = lock(&shared.queue);
+        while queue.due() || queue.writing {
+            let Some(left) = deadline.checked_duration_since(Instant::now()) else {
+                return false;
+            };
+            queue = shared
+                .moved
+                .wait_timeout(queue, left)
+                .expect("preferences queue poisoned")
+                .0;
+        }
+        true
+    }
 }
 
 impl Drop for Handle {
@@ -269,6 +292,13 @@ impl<P: Provider> App<P> {
     /// process about to end, and for tests. Not for a UI thread.
     pub fn settle_preferences(&self) {
         self.prefs.settle();
+    }
+
+    /// Waits, for no longer than `limit`, until every change to the settings has been written or
+    /// a write has failed. For a host whose process may end once it returns. Whether nothing was
+    /// left to write.
+    pub fn settle_preferences_within(&self, limit: Duration) -> bool {
+        self.prefs.settle_within(limit)
     }
 }
 
