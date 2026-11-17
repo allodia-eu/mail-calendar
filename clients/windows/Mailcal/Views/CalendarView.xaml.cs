@@ -184,10 +184,16 @@ public sealed partial class CalendarView : UserControl
 
         ApplyDisplaySettings(display);
 
+        // Every seat builds the pager with the core's week start, the agenda and the month included:
+        // they align nothing themselves, but the week a later menu choice or Today seats is aligned
+        // only by the pager they leave behind.
         var mode = display.Layout.ToMode();
+        _pager = new CalendarPager(
+            DateOnly.FromDateTime(DateTime.Now),
+            mode.IsGrid() ? mode : _pager.Mode,
+            Model.WeekStart);
         if (mode.IsGrid())
         {
-            _pager = new CalendarPager(DateOnly.FromDateTime(DateTime.Now), mode, Model.WeekStart);
             _grid.Recentre(mode);
         }
 
