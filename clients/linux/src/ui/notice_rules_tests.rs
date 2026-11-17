@@ -6,8 +6,8 @@ use mailcal_bindings::{
 };
 
 use super::{
-    Announcements, about, answer, asks, belongs, beneath, core_remedy, glyph, marks, more, offers,
-    prominent, screen_of, words,
+    Announcements, about, answer, asks, belongs, beneath, core_remedy, glyph, in_settings, marks,
+    more, offers, prominent, screen_of, words,
 };
 use crate::{
     l10n,
@@ -407,4 +407,32 @@ fn each_answer_sends_the_intent_its_question_stands_for() {
             "{action:?} answers no question"
         );
     }
+}
+
+#[test]
+fn settings_carries_the_first_notice_for_every_screen_but_not_one_its_open_page_lists() {
+    let notices = [
+        notice("mail", NoticeScreens::Mail, NoticeSeverity::Blocked, None),
+        notice(
+            "page",
+            NoticeScreens::Everywhere,
+            NoticeSeverity::Blocked,
+            Some("a"),
+        ),
+        notice(
+            "app",
+            NoticeScreens::Everywhere,
+            NoticeSeverity::Degraded,
+            None,
+        ),
+    ];
+    let shown = |account| in_settings(&notices, account).map(|notice| notice.id.as_str());
+    assert_eq!(shown(None), Some("page"));
+    assert_eq!(shown(Some("b")), Some("page"));
+    assert_eq!(shown(Some("a")), Some("app"), "the page lists its own");
+    assert_eq!(
+        in_settings(&notices[..1], None),
+        None,
+        "Mail's alone is not Settings'"
+    );
 }
