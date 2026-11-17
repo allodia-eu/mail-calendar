@@ -99,6 +99,8 @@ public sealed partial class MainWindow
         // list (docs/reading-window.md). Before the showcase return below: a capture run is still
         // a run, and windows left open would outlive the shell there too.
         CloseChildWindows();
+        // A preference is saved behind its change, and closing the window ends the process.
+        Model.FinishSavingSettings();
         // A capture pass relaunches the app once per screen per language, each time at the pinned
         // showcase frame. Persisting that would quietly replace the developer's own window placement
         // This is the same trap the Android capture path avoids by restoring the per-app locale it sets.

@@ -21,6 +21,11 @@ public sealed partial class MailboxModel
     private void DispatchPreference(PreferenceIntent intent) =>
         _app?.Dispatch(new Intent.Preferences(intent));
 
+    /// <summary>Writes the preferences still waiting to be saved, for at most a second, on this
+    /// thread: the app is closing, and what follows may be the process ending. Nothing without a
+    /// core.</summary>
+    public void FinishSavingSettings() => _app?.FinishSavingSettings();
+
     /// <summary>Switch the list between flat and threaded.</summary>
     public void SetMode(ViewModeKind mode) =>
         _app?.Dispatch(new Intent.SetViewMode(mode == ViewModeKind.Threaded ? ViewMode.Threaded : ViewMode.Flat));

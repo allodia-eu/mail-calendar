@@ -28,6 +28,18 @@ internal static class NoticeRules
     internal static Notice? Prominent(IReadOnlyList<Notice> notices, NoticeScreens screen) =>
         notices.FirstOrDefault(notice => Belongs(notice, screen));
 
+    /// <summary>The notice drawn at the top of Settings (rule 2): the first, in the core's order,
+    /// whose screens are everywhere, leaving out one about the account whose page is open
+    /// (<paramref name="accountPage"/>), because the page lists it. None when nothing is.</summary>
+    internal static Notice? InSettings(IReadOnlyList<Notice> notices, string? accountPage) =>
+        notices.FirstOrDefault(notice => notice.Screens == NoticeScreens.Everywhere
+            && (accountPage is null || notice.Account != accountPage));
+
+    /// <summary>Whether an action is met by an account's page in Settings: from inside Settings it
+    /// opens that page, because a second dialog cannot open over the first.</summary>
+    internal static bool OpensAccountPage(NoticeAction action) =>
+        action is NoticeAction.OpenAccountSettings or NoticeAction.Review;
+
     /// <summary>How many notices besides the bar's are in force, which the bar's "more" entry
     /// counts. None while the screen has no bar: an account's notices are on its row then.</summary>
     internal static int More(IReadOnlyList<Notice> notices, NoticeScreens screen) =>

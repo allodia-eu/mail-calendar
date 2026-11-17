@@ -94,7 +94,7 @@ public sealed partial class SettingsDialog : ContentDialog
             }
         };
 
-        var root = new Grid { Width = 680, Height = 500, ColumnSpacing = 16 };
+        var root = new Grid { ColumnSpacing = 16 };
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(_categories, 0);
@@ -105,7 +105,7 @@ public sealed partial class SettingsDialog : ContentDialog
         Grid.SetColumn(scroller, 1);
         root.Children.Add(_categories);
         root.Children.Add(scroller);
-        Content = root;
+        Content = WithSettingsNotice(root);
 
         // Dismissing the dialog leaves the detail panel built, so a signature editor open at that
         // moment would keep its WebView2 alive past the dialog.
@@ -158,6 +158,8 @@ public sealed partial class SettingsDialog : ContentDialog
             "about" => BuildAbout(),
             _ => BuildGeneral(),
         });
+        // Opening or leaving an account's page decides whether a notice about it is drawn above.
+        _settingsNotice.Draw();
         _rebuilding = false;
     }
 
