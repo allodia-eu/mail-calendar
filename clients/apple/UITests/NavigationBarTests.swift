@@ -5,6 +5,7 @@
 // the app's own accessibility objects, with UIKit's names for its own controls loaded, and gets
 // every item with its label.
 
+import UIKit
 import XCTest
 
 @MainActor
@@ -34,6 +35,10 @@ final class NavigationBarTests: XCTestCase {
     /// An open message has the screen to itself: the tab bar goes while it is read, and comes back
     /// with the list. Calendar stands for the bar, being a tab and nothing else on either screen.
     func testAnOpenMessageHidesTheTabBarAndBackBringsItBack() throws {
+        try XCTSkipIf(
+            UIDevice.current.userInterfaceIdiom == .pad,
+            "the iPad has no tab bar, and reads beside the list with no Back"
+        )
         let app = try ShowcaseApp.launch()
         try ShowcaseApp.openFirstMessage(app)
         try app.wait(.button("Reply"), "no message was opened")
