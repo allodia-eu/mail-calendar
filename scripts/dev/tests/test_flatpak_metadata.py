@@ -354,11 +354,18 @@ class GeneratedFiles(unittest.TestCase):
         self.assertEqual(newest.get("version"), version)
         self.assertRegex(newest.get("date"), r"^\d{4}-\d{2}-\d{2}$")
 
-    def test_the_newest_release_says_what_changed(self):
+    def test_the_newest_release_that_reached_linux_says_what_changed(self):
         """A software centre writes "No details for this release" under a version with no
-        description, which is what every release read as up to 0.8.2."""
+        description, which is what every release read as up to 0.8.2.
+
+        The newest release that reached Linux, not the newest release: one that shipped on other
+        platforms only is listed bare on purpose (the case above), so `/VERSION` can be one.
+        """
         root = ElementTree.fromstring(self.metainfo)
-        newest = root.find("releases/release")
+        linux = meta.release_notes(meta.REPO_ROOT / "docs" / "changelog" / "released")
+        reached = [r for r in root.findall("releases/release") if r.get("version") in linux]
+        self.assertTrue(reached, "no release in the metainfo reached Linux, so this asserts nothing")
+        newest = reached[0]
         description = newest.find("description")
         self.assertIsNotNone(
             description, f"{newest.get('version')} tells a reader nothing about what changed"

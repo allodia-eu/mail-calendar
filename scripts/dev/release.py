@@ -82,6 +82,7 @@ from check_store_copy_length import (  # noqa: E402
 )
 
 import announcement  # noqa: E402  (a sibling in scripts/dev)
+from bashtools import bash_argv  # noqa: E402  (a sibling in scripts/dev)
 
 # A publisher's help pages are written in their own voice, and so are the tools that publish them,
 # so neither is in this tree. `MAILCAL_RELEASE_TOOLS` names the directory holding those tools, for
@@ -440,7 +441,8 @@ def main(argv=None):
             )
         )
 
-    steps = [[str(BUMP_SCRIPT), version]]
+    # Through the bash bashtools chose: Windows cannot execute a `.sh` file itself.
+    steps = [bash_argv(str(BUMP_SCRIPT), version)]
     if not args.skip_docs and docs_release:
         # After the bump, not before: a page's `updated_for` may never exceed `/VERSION`, so the
         # pages can only claim this release once that file names it.
