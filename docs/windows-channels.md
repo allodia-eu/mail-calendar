@@ -42,21 +42,34 @@ That is so `Get-AppxPackage` answers a support question without anyone having to
 one set or the other into the committed manifest, and `clients/windows/package.ps1 -Channel Direct`
 is what builds the second.
 
-## ⚠️ Both installed at once is one mailbox with two writers
+## Each package keeps its data in its own sandbox
 
-The app keeps its mail under `%LOCALAPPDATA%`, in the brand's `MAILCAL_WINDOWS_DATA_DIR`
-([`branding.md`](branding.md)), an ordinary path outside the
-package container, because a packaged full-trust app gets no redirection there. Two installed
-packages therefore read and write **one** store, one log and one credential namespace.
+The app asks for `%LOCALAPPDATA%` and the brand's `MAILCAL_WINDOWS_DATA_DIR`
+([`branding.md`](branding.md)), and Windows decides where that is. A packaged app that **creates** a
+folder under `AppData` is given the package's private copy,
+`%LOCALAPPDATA%\Packages\<package family>\LocalCache\Local\<data dir>`, merged into its view of the
+real path, and Windows deletes it with the package. A folder that **already existed** is written in
+place
+([Microsoft](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-behind-the-scenes),
+"AppData operations on Windows 10, version 1903 and later"). That sandbox is the rule, as it is on
+Android and iOS:
 
-That is the right answer when somebody *moves* between channels: their mail, accounts and settings
-are where they left them, and no migration step exists to go wrong. It is the wrong answer when
-both are installed and both are open, which is two processes on one SQLite database.
+- **A fresh install keeps everything in its package's `LocalCache`**: the store, the log, the
+  composer's staged files. Uninstalling removes them. Moving from the Store build to the download
+  starts over: the accounts are added again and the mail syncs anew.
+- **The two packages share nothing**, being two package families with two sandboxes.
+- **Credentials are the exception.** They go to the Windows Credential Manager, which is not
+  sandboxed and outlives the package, as an iOS keychain item outlives its app.
+- ⚠️ **A machine that already has the real folder shares it.** Any unpackaged run creates it (every
+  developer machine has one), and from then on every package writes there in place: one store and
+  one log for all of them, two processes on one SQLite database when two are open, and nothing
+  removed on uninstall. What a developer sees is therefore not what a new user gets; the release
+  smoke test installs on a machine without the folder and asserts the log lands in the sandbox.
 
-Windows does not prevent it, and neither does anything here. What holds the line is that nobody is
-offered both: the Store listing is the Store's, the download page offers the direct build, and each
-says to remove the other first. Two smaller consequences follow from the same root and are worth
-knowing before somebody reports them as bugs:
+Windows installs both packages side by side without complaint. What holds the line is that nobody
+is offered both: the Store listing is the Store's, the download page offers the direct build, and
+each says to remove the other first and to add the accounts again. Two smaller consequences of two
+packages are worth knowing before somebody reports them as bugs:
 
 - **Both packages claim `mailto` and the app's own URI scheme.** With both installed, Windows
   cannot know which should receive a browser sign-in redirect, so it asks. The dev loop already
