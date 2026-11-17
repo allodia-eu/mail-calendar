@@ -71,7 +71,7 @@ bundles = [app] + sorted(
 
 problems = []
 for bundle in bundles:
-    rel = "." if bundle == app else str(bundle.relative_to(app))
+    rel = "." if bundle == app else bundle.relative_to(app).as_posix()
     if (bundle / "Contents" / "Info.plist").is_file():
         info, exedir = bundle / "Contents" / "Info.plist", bundle / "Contents" / "MacOS"
         manifest = bundle / "Contents" / "Resources" / "PrivacyInfo.xcprivacy"
@@ -93,7 +93,7 @@ for bundle in bundles:
     print(f"    {rel}: {', '.join(c.removeprefix('NSPrivacyAccessedAPICategory') for c in used) or 'no required-reason API'}")
 
     if not manifest.is_file():
-        problems.append(f"{rel}: no {manifest.relative_to(bundle)}")
+        problems.append(f"{rel}: no {manifest.relative_to(bundle).as_posix()}")
         continue
     try:
         declared = {
