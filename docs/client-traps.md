@@ -461,6 +461,16 @@ that same file.
   rule itself is `DefaultMailApp.WhenToAsk`
   ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
   `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
+- **The Windows App SDK's `ApplicationLanguages.PrimaryLanguageOverride` refuses the empty
+  string**, in both build shapes, although `Windows.Globalization`'s override takes it as "none".
+  The SDK's setter checks for a well-formed language tag before anything else. Called from `App`'s
+  constructor, the refusal ends the process inside `Application.Start` with 0xC000027B in
+  `Microsoft.UI.Xaml.dll`, and the log stops at the session marker, because the crash handler is
+  wired a line later. It hides because "follow the system" is the one value no gate stores: every
+  UI suite launch and every showcase pins English, so only a fresh install meets it.
+  `SystemLanguageTests` is the launch that does
+  ([`LanguageStore.cs`](../clients/windows/Mailcal/Services/LanguageStore.cs) says what is set
+  instead).
 
 - **A WinUI window that handles its own `Closed` or `AppWindow.Closing` is never collected.** The
   handler is a delegate the native window holds with an ordinary COM reference, and it refers back
