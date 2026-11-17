@@ -11,8 +11,8 @@ import XCTest
 @MainActor
 final class SharePhotoTests: XCTestCase {
     func testAPhotographSharedFromPhotosOpensAComposerHoldingIt() throws {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
 
         let photos = XCUIApplication(bundleIdentifier: "com.apple.mobileslideshow")
         photos.launch()
@@ -36,7 +36,7 @@ final class SharePhotoTests: XCTestCase {
         share.tap()
 
         // The share sheet labels the extension with the app's own name, which the brand decides.
-        let name = app.label
+        let name = app.input.label
         let target = shareSheetTarget(named: name, in: photos)
         guard target.waitForExistence(timeout: ShowcaseApp.timeout) else {
             throw XCTSkip("the share sheet does not list \(name)")
@@ -46,23 +46,13 @@ final class SharePhotoTests: XCTestCase {
         // The extension stages the photograph and brings the app forward itself: a share sheet
         // that only closes reads as a share that went nowhere.
         XCTAssertTrue(
-            app.wait(for: .runningForeground, timeout: ShowcaseApp.timeout),
+            app.input.wait(for: .runningForeground, timeout: ShowcaseApp.timeout),
             "the share did not bring the app forward"
         )
-        XCTAssertTrue(
-            app.buttons["Send"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "no composer opened for the shared photograph"
-        )
-        let summary = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "1 file")
-        ).firstMatch
-        XCTAssertTrue(
-            summary.waitForExistence(timeout: ShowcaseApp.timeout),
-            "the composer opened without the photograph"
-        )
+        try app.wait(.button("Send"), "no composer opened for the shared photograph")
+        try app.wait(.textLike("1 file"), "the composer opened without the photograph")
         XCTAssertFalse(
-            app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH %@", "Couldn't attach"))
-                .firstMatch.exists,
+            try app.exists(.textLike("Couldn't attach")),
             "the composer says the photograph could not be attached"
         )
     }

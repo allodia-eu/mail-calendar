@@ -24,34 +24,28 @@ final class ReadingPaneMoveOnTests: XCTestCase {
         try XCTSkipIf(
             UIDevice.current.userInterfaceIdiom != .pad, "a phone goes back to the list instead"
         )
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.openMessage(containing: archived, in: app)
-        XCTAssertTrue(
-            app.buttons["Reply"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the message to archive did not open"
-        )
-        ShowcaseApp.tap(readingArchive(app))
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.openMessage(containing: archived, in: app)
+        try app.wait(.button("Reply"), "the message to archive did not open")
+        try app.activate(readingArchive(app))
 
-        let body = app.webViews.staticTexts
+        // The body is web content, which only XCUITest sees.
+        let body = app.input.webViews.staticTexts
             .containing(NSPredicate(format: "label CONTAINS[c] %@", newestBody)).firstMatch
         XCTAssertTrue(
             body.waitForExistence(timeout: ShowcaseApp.timeout),
             "the pane did not move on to the newest message of '\(conversation)'"
         )
         XCTAssertTrue(
-            app.cells.containing(NSPredicate(format: "label CONTAINS[c] %@", reply)).firstMatch
-                .waitForExistence(timeout: 5),
+            try app.appears(ShowcaseApp.row(mentioning: reply), timeout: 5),
             "the pane opened a message of a collapsed conversation without expanding it, as a click on its row would"
         )
     }
 
     /// The reading view's Archive, rightmost of the buttons by that name: the sidebar's Archive
     /// folder shares the label.
-    private func readingArchive(_ app: XCUIApplication) -> XCUIElement {
-        let screen = app.windows.firstMatch.frame
-        let archives = app.buttons.matching(NSPredicate(format: "label == %@", "Archive"))
-            .allElementsBoundByIndex
-            .filter { screen.contains(CGPoint(x: $0.frame.midX, y: $0.frame.midY)) }
-        return archives.max { $0.frame.midX < $1.frame.midX } ?? app.buttons["Archive"]
+    private func readingArchive(_ app: App) throws -> Element {
+        let archives = try app.waitAll(.button("Archive"), "no Archive on screen")
+        return archives.max { ($0.frame?.midX ?? 0) < ($1.frame?.midX ?? 0) } ?? archives[0]
     }
 }

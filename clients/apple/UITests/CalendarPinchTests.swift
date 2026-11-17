@@ -1,11 +1,10 @@
 // The calendar's pinch (`docs/calendar.md`).
 //
-// This is the one thing no other mechanism in this repository can do. `idb` has no pinch, the
-// Windows UI suite drives UI Automation rather than touches, and the Rust and Swift unit tests see
-// the zoom arithmetic but never the gesture that feeds it. A pinch that never reaches the grid is
-// therefore invisible to every gate except this one, and that is exactly what had happened: the
-// recognizer sat on a SwiftUI overlay, which is a sibling of the content rather than its ancestor,
-// so UIKit never offered it a touch and the iOS grid could not be zoomed at all.
+// A pinch is a gesture, which only real input can give: `idb` has no pinch, the agent acts as
+// VoiceOver does and has none either, and the Rust and Swift unit tests see the zoom arithmetic but
+// never the gesture that feeds it. A pinch that never reaches the grid is therefore invisible to
+// every gate except this one: the recognizer once sat on a SwiftUI overlay, a sibling of the
+// content rather than its ancestor, so UIKit never offered it a touch.
 //
 // ⚠️ `XCUIElement.pinch(withScale:velocity:)` moves the fingers a good deal less than the scale
 // suggests: at `withScale: 3` they end about 20 x 37 points apart, under the 48-point floor each
@@ -21,44 +20,48 @@ final class CalendarPinchTests: XCTestCase {
     /// Measured off the hour ruler's own labels, so the assertion is on what the grid drew rather
     /// than on a number the view model agreed with itself about. The ruler is the pinned column on
     /// the left, which is what separates the hour "09" from the ninth of the month.
-    func testPinchZoomsTheHourAxis() {
-        let app = ShowcaseApp.launch(["MAILCAL_CALENDAR": "1"])
-        XCTAssertTrue(
-            app.staticTexts.matching(NSPredicate(format: "label == %@", "09")).firstMatch
-                .waitForExistence(timeout: ShowcaseApp.timeout),
-            "the calendar grid did not come up"
-        )
+    func testPinchZoomsTheHourAxis() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_CALENDAR": "1"])
+        try app.wait(hour("09"), "the calendar grid did not come up")
 
-        let grid = app.windows.firstMatch
-        let resting = hourPitch(app)
+        let grid = app.input.windows.firstMatch
+        let resting = try hourPitch(app)
         XCTAssertGreaterThan(resting, 0, "the hour ruler drew no hours to measure")
 
         grid.pinch(withScale: 10, velocity: 3)
-        let spread = hourPitch(app)
+        try app.settle()
+        let spread = try hourPitch(app)
         XCTAssertGreaterThan(
             spread, resting * 1.2,
             "spreading the fingers did not give the hours more room (\(resting) -> \(spread))"
         )
 
         grid.pinch(withScale: 0.2, velocity: -3)
-        let squeezed = hourPitch(app)
+        try app.settle()
+        let squeezed = try hourPitch(app)
         XCTAssertLessThan(
             squeezed, spread * 0.9,
             "pinching the fingers together did not take room back (\(spread) -> \(squeezed))"
         )
     }
 
-    /// The distance between two neighbouring hour labels in the pinned ruler.
+    /// An hour of the ruler. They are zero-padded, which is what tells them apart from the
+    /// day-of-month numbers in the header; the ruler runs `00`–`23` under the app's own clock
+    /// setting.
     ///
-    /// `08` and `09` by name, not the ruler's nth and (n+1)th: enumerating every label on the grid
-    /// walks hundreds of elements whose snapshots go stale mid-walk, and the two hours nearest the
-    /// middle of the viewport are the ones a zoom anchored on the screen's centre keeps on screen.
-    /// They are zero-padded, which is what tells them apart from the day-of-month numbers in the
-    /// header; the ruler runs `00`–`23` under the app's own clock setting.
-    private func hourPitch(_ app: XCUIApplication) -> CGFloat {
-        let eight = app.staticTexts.matching(NSPredicate(format: "label == %@", "08")).firstMatch
-        let nine = app.staticTexts.matching(NSPredicate(format: "label == %@", "09")).firstMatch
-        guard eight.exists, nine.exists else { return 0 }
-        return nine.frame.midY - eight.frame.midY
+    /// Off screen included: a spread can carry one of the two past the edge, and its frame still
+    /// says where it went.
+    private func hour(_ label: String) -> Filter {
+        .text(label).role("AXStaticText").hidden()
+    }
+
+    /// The distance between two neighbouring hour labels in the pinned ruler: `08` and `09`, the
+    /// two hours nearest the middle of the viewport, which a zoom anchored on the screen's centre
+    /// keeps on screen.
+    private func hourPitch(_ app: App) throws -> CGFloat {
+        guard let eight = try app.query(hour("08")).first?.frame,
+              let nine = try app.query(hour("09")).first?.frame
+        else { return 0 }
+        return nine.midY - eight.midY
     }
 }

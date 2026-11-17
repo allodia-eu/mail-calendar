@@ -212,6 +212,13 @@ fn the_apple_switch_read_outside_the_agent_fails() {
 }
 
 #[test]
+fn the_ui_test_bundle_launching_the_app_with_the_switch_passes() {
+    let launcher = "input.launchEnvironment = [\"MAILCAL_TEST_AGENT\": agent.path]\n";
+    let name = "clients/apple/UITests/ShowcaseApp.swift";
+    assert_eq!(run(apple(&[(name, launcher)]).root()), Ok(true));
+}
+
+#[test]
 fn a_tree_without_the_apple_agent_is_an_error_not_a_pass() {
     let repo = Repo::new(&[
         (LINUX_MAIN, GOOD_LINUX_MAIN),

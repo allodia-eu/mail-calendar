@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for `signing_team` in scripts/dev/lib.sh: which Apple team a device build signs with.
 
-It decides for device.sh, `test-ui.sh --device` and `build-and-run.sh --iphone`, and the last of
+It decides for device.sh and `build-and-run.sh --iphone`, and the second of
 those writes its answer into clients/apple/signing.local.xcconfig, where Xcode's own device builds
 read it. A keychain with Apple Development certificates from more than one team is ordinary (a
 personal team beside a company's), and the team that owns this app's identifier is then a question

@@ -9,35 +9,32 @@ import XCTest
 
 @MainActor
 final class ComposerActionBarTests: XCTestCase {
-    func testTheHeaderFitsAPhoneAndKeepsEveryAction() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
-        ShowcaseApp.tap(app.buttons["New Mail"])
-        XCTAssertTrue(app.buttons["Send"].waitForExistence(timeout: ShowcaseApp.timeout))
+    func testTheHeaderFitsAPhoneAndKeepsEveryAction() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
+        try app.press(.button("New Mail"))
+        try app.wait(.button("Send"), "Compose did not open the composer")
 
-        let from = app.staticTexts["From"]
-        XCTAssertGreaterThan(from.frame.width, from.frame.height, "From is squeezed into a column")
+        let from = try XCTUnwrap(
+            try app.wait(.text("From").role("AXStaticText")).frame, "From has no frame"
+        )
+        XCTAssertGreaterThan(from.width, from.height, "From is squeezed into a column")
 
-        let screen = app.windows.firstMatch.frame
+        let screen = app.input.windows.firstMatch.frame
         for name in ["Attach files", "Signature", "More actions"] {
-            let button = app.buttons[name]
-            XCTAssertTrue(button.exists, "the action bar has no \(name)")
-            XCTAssertTrue(screen.contains(button.frame), "\(name) runs off the screen")
-            XCTAssertLessThanOrEqual(button.frame.height, 50, "\(name) wraps onto more lines")
+            let button = try app.query(.button(name)).first
+            let frame = try XCTUnwrap(button?.frame, "the action bar has no \(name)")
+            XCTAssertTrue(screen.contains(frame), "\(name) runs off the screen")
+            XCTAssertLessThanOrEqual(frame.height, 50, "\(name) wraps onto more lines")
         }
 
-        ShowcaseApp.tap(app.buttons["More actions"])
-        XCTAssertTrue(
-            app.buttons["Save as draft"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "More holds no Save as draft"
-        )
-        ShowcaseApp.tap(app.buttons["Discard"])
+        try app.press(.button("More actions"))
+        try app.wait(.button("Save as draft"), "More holds no Save as draft")
+        try app.press(.button("Discard"))
         // An untouched message closes at once; one with something to lose asks first.
-        let confirm = app.alerts.buttons["Discard"]
-        if confirm.waitForExistence(timeout: 2) { confirm.tap() }
-        XCTAssertTrue(
-            app.buttons["New Mail"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "Discard did not close the composer"
-        )
+        if try !app.goes(.button("Send"), timeout: 2) {
+            try app.press(.button("Discard"))
+        }
+        try app.wait(.button("New Mail"), "Discard did not close the composer")
     }
 }
