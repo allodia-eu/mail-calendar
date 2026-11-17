@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import uuid
 from pathlib import Path
 from typing import Dict
 
@@ -49,6 +50,21 @@ IDENTITY_KEYS = {
     "store": ("MAILCAL_MSIX_IDENTITY_NAME", "MAILCAL_MSIX_PUBLISHER"),
     "direct": ("MAILCAL_MSIX_DIRECT_IDENTITY_NAME", "MAILCAL_MSIX_DIRECT_PUBLISHER"),
 }
+
+
+# The namespace toast activator CLSIDs are derived in: fixed, and ours alone, so a CLSID is a
+# function of the package identity and of nothing another application could derive as well.
+ACTIVATOR_NAMESPACE = uuid.UUID("9bd8c064-9404-43da-872c-6ab75590c7ed")
+
+
+def toast_activator_clsid(identity_name: str) -> str:
+    """The CLSID a package registers its notification activator under, one per package identity.
+
+    The shell routes a click on a toast to the COM class with this id, and the Store and direct
+    packages are two packages that can be installed at once (docs/windows-channels.md), so the two
+    must not share one. Derived rather than chosen, so no brand file has to carry it.
+    """
+    return str(uuid.uuid5(ACTIVATOR_NAMESPACE, identity_name)).upper()
 
 
 def _one(pattern: str, replacement: str, text: str, what: str) -> str:
@@ -110,6 +126,20 @@ def rebrand(
         lambda m: m.group(1) + _xml(wanted[publisher_key]) + m.group(2),
         text,
         "Identity/@Publisher",
+    )
+    # The notification activator follows the identity, in both places that name it.
+    clsid = toast_activator_clsid(wanted[name_key])
+    text = _one(
+        r'(\bToastActivatorCLSID=")[^"]*(")',
+        lambda m: m.group(1) + clsid + m.group(2),
+        text,
+        "desktop:ToastNotificationActivation/@ToastActivatorCLSID",
+    )
+    text = _one(
+        r'(<com:Class Id=")[^"]*(")',
+        lambda m: m.group(1) + clsid + m.group(2),
+        text,
+        "the notification activator's com:Class/@Id",
     )
     text = _one(
         r"(<PublisherDisplayName>)[^<]*(</PublisherDisplayName>)",

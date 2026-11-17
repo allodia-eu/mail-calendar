@@ -471,6 +471,14 @@ that same file.
   `SystemLanguageTests` is the launch that does
   ([`LanguageStore.cs`](../clients/windows/Mailcal/Services/LanguageStore.cs) says what is set
   instead).
+- **A packaged Windows build raises no notification unless its manifest declares the activator.**
+  `AppNotificationManager.Register()` in a packaged process looks for the COM server the package
+  declares with the runtime's activation argument and throws `E_FAIL` ("No COM servers are
+  registered for this app") when there is none; an unpackaged one registers that server itself at
+  runtime. Every UI suite runs unpackaged, so the only sign is a `notifications: could not register
+  (COMException 0x80004005)` line in a packaged build's log. The declaration is in
+  [`Package.appxmanifest`](../clients/windows/Mailcal/Package.appxmanifest), and
+  `test_msix_manifest` holds it there.
 
 - **A WinUI window that handles its own `Closed` or `AppWindow.Closing` is never collected.** The
   handler is a delegate the native window holds with an ordinary COM reference, and it refers back
