@@ -136,7 +136,11 @@ fn the_first_run_card_draws_its_way_back_once_the_sign_in_has_run_long_enough() 
         card.onboarding == AllodiaOnboarding::SigningIn { escape: true }
     });
     assert!(card.browser.is_some());
-    assert!(moved(&rx) > 0, "the card is told when its way back appears");
+    // The card reads the elapsed time, so it can show the way back before the thread that signals
+    // it has woken: wait for the signal itself, however loaded the machine.
+    let told = std::iter::from_fn(|| rx.recv_timeout(Duration::from_secs(10)).ok())
+        .any(|surface| matches!(surface, Surface::Allodia));
+    assert!(told, "the card is told when its way back appears");
 }
 
 #[test]
