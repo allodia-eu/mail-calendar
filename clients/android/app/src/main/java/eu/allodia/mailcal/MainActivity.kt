@@ -407,6 +407,9 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         logUiInfo("activity stopped")
+        // A stopped app may be ended without being asked, so a setting still being written is
+        // finished here, on this thread: work handed to another dies with the process.
+        app?.finishSavingSettings()
     }
 
     override fun onDestroy() {

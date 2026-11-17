@@ -71,6 +71,30 @@ class NoticeRulesTest {
     }
 
     @Test
+    fun `Settings opens with the first notice that stands everywhere`() {
+        val notices = listOf(
+            notice("mail", account = "a"),
+            notice("signin", screens = NoticeScreens.EVERYWHERE, account = "a"),
+            notice("settings", screens = NoticeScreens.EVERYWHERE),
+        )
+
+        assertEquals("signin", NoticeRules.inSettings(notices, page = null)?.id)
+        assertEquals("signin", NoticeRules.inSettings(notices, page = "b")?.id)
+        assertNull(NoticeRules.inSettings(notices.take(1), page = null))
+    }
+
+    @Test
+    fun `an account's page leaves its own notice to the page`() {
+        val notices = listOf(
+            notice("signin", screens = NoticeScreens.EVERYWHERE, account = "a"),
+            notice("settings", screens = NoticeScreens.EVERYWHERE),
+        )
+
+        assertEquals("settings", NoticeRules.inSettings(notices, page = "a")?.id)
+        assertNull(NoticeRules.inSettings(notices.take(1), page = "a"))
+    }
+
+    @Test
     fun `each tab is its own screen`() {
         assertEquals(NoticeScreens.MAIL, NoticeRules.screenOf(AppDestination.MAIL))
         assertEquals(NoticeScreens.CALENDAR, NoticeRules.screenOf(AppDestination.CALENDAR))

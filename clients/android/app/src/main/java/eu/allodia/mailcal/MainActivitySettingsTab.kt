@@ -132,7 +132,8 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
 // (MainActivityAccountSettings.kt).
 private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     state = accountSettings,
-    // Its notices open its page (docs/notices.md rule 6).
+    // Its notices open its page (docs/notices.md rule 6), and Settings opens with the first that
+    // stands everywhere (rule 2).
     notices = notices.notices,
     noticeHandlers = noticeHandlers(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
