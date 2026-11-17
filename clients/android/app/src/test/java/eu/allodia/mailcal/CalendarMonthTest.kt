@@ -27,7 +27,7 @@ class CalendarMonthTest {
     fun a_month_pages_by_calendar_month_not_by_a_fixed_number_of_days() {
         // Months are 28–31 days long. Striding by any constant would drift off the month within a
         // year, silently, because each page still renders a perfectly plausible grid.
-        val pager = CalendarPager(LocalDate.of(2026, 7, 15), CalendarMode.MONTH)
+        val pager = CalendarPager(LocalDate.of(2026, 7, 15), CalendarMode.MONTH, ::mondayWeekStart)
         assertEquals(LocalDate.of(2026, 7, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN))
         assertEquals(LocalDate.of(2026, 8, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN + 1))
         assertEquals(LocalDate.of(2026, 6, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN - 1))
@@ -40,7 +40,7 @@ class CalendarMonthTest {
         // The trap: `plusMonths` from the 31st clamps to the 28th in February, and then the *next*
         // page is measured from the clamped date, so the anchor walks backwards through the year.
         // Anchoring on the 1st is what stops it.
-        val pager = CalendarPager(LocalDate.of(2026, 1, 31), CalendarMode.MONTH)
+        val pager = CalendarPager(LocalDate.of(2026, 1, 31), CalendarMode.MONTH, ::mondayWeekStart)
         assertEquals(LocalDate.of(2026, 1, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN))
         assertEquals(LocalDate.of(2026, 2, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN + 1))
         assertEquals(LocalDate.of(2026, 3, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN + 2))

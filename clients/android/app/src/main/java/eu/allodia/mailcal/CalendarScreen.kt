@@ -136,7 +136,7 @@ internal fun CalendarScreen(
     // sideways swipe pages between.
     // Seeded from the CORE's persisted layout, so the calendar reopens in the shape it was left in:
     // and reopens the same way on every client, rather than each one keeping its own idea.
-    val pager = remember { CalendarPager(weekStartFor(today), display.layout.toMode()) }
+    val pager = remember { CalendarPager(today, display.layout.toMode(), weekStartFor) }
     val pagerState = rememberPagerState(initialPage = CALENDAR_PAGE_ORIGIN) { CALENDAR_PAGE_COUNT }
     // The open editor (create or edit), or null; and the event whose detail is open, or null.
     var editor by remember { mutableStateOf<EventEditorState?>(null) }
