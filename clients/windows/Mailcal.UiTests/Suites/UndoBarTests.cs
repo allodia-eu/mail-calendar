@@ -66,14 +66,19 @@ public sealed class UndoBarTests(ShowcaseApp showcase)
             (int)(undo.X + undo.Width + 8), (int)(bar.Y + (bar.Height * 0.2)),
             (int)(bar.X + bar.Width - 8), (int)(bar.Y + (bar.Height * 0.8)));
         Assert.True(strip.Width >= 40 && strip.Height >= 8, $"the bar leaves no room past Undo to read ({strip}), so this would measure nothing");
-        var onTheBar = Spread(bar.Window, strip);
+        // The bar is in the tree before a slow runner has painted it, so each reading is taken until
+        // it settles. A see-through bar never reads as one colour however long it is given, and two
+        // seconds leave Undo inside its four-second window.
+        var onTheBar = double.MaxValue;
+        App.Eventually(() => (onTheBar = Spread(bar.Window, strip)) <= MaxSpreadOnTheBar, TimeSpan.FromSeconds(2));
 
         app.Agent.Invoke(undo);
         app.Agent.WaitGone(Filter.ById("UndoBar") with { Window = app.Mailbox.Hwnd, OnScreen = true }, TimeSpan.FromSeconds(5));
         Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Type = "ListItem", Under = app.RowsList(), Has = new Filter { TextLike = FlatRow } }) is not null, TimeSpan.FromSeconds(5)),
             $"Undo did not bring '{FlatRow}' back");
         app.Agent.Settle();
-        var onTheList = Spread(bar.Window, strip);
+        var onTheList = 0.0;
+        App.Eventually(() => (onTheList = Spread(bar.Window, strip)) >= MinSpreadOnTheList, TimeSpan.FromSeconds(5));
 
         Assert.True(onTheList >= MinSpreadOnTheList,
             $"with the bar gone the list draws nothing where it stood (spread {onTheList:F0}), so a see-through bar would pass; the showcase needs rows under the list's bottom edge");
