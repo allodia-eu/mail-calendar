@@ -18,8 +18,9 @@ internal static class AppPaths
     /// <summary>
     /// The shared app-data root (<c>%LOCALAPPDATA%\</c> and the brand's
     /// <c>MAILCAL_WINDOWS_DATA_DIR</c>), engine store, rotating log, and credential index. A
-    /// packaged build writes here unvirtualized, so two brands on one machine share a store unless
-    /// each states its own. The log deliberately stays here even under a dev run, so one file
+    /// package sees this path but, on a machine without the folder, Windows keeps it in the
+    /// package's own sandbox (docs/windows-channels.md); where the folder exists, every build writes
+    /// here in place, so two brands on one machine share a store unless each states its own. The log deliberately stays here even under a dev run, so one file
     /// diagnoses whatever ran last on this machine.
     /// </summary>
     internal static string Root => ResolveRoot(
