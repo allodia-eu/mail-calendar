@@ -145,9 +145,13 @@ struct SettingsNotice: View {
 
     var body: some View {
         if let notice = model.settingsNotice(openAccount: openAccount) {
+            // The floor is what keeps the Mac's Settings sheet whole: its split view asks this for
+            // a size at next to no width, the notice's text, fixed vertically, answers one word a
+            // line, and the page grows past the sheet's fixed height, pushing its header and
+            // sidebar out of the window.
             GroupBox {
                 NoticeEntry(model: model, notice: notice)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
                     .padding(6)
             }
             .padding([.horizontal, .top], 20)
