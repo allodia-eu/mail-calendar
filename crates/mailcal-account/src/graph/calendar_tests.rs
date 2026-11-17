@@ -15,7 +15,6 @@ async fn invitation_answers_are_forwarded_to_graph() {
     let (endpoint, _hits) = dead_grant_token_endpoint();
     let provider = RefreshingGraphCalendarProvider::new(
         source_at(endpoint, None),
-        rolling_window().unwrap(),
         TimeZoneId::utc(),
         tls_with(&[]).unwrap(),
         MailboxPrincipal::Me,
@@ -31,7 +30,6 @@ fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
     let calendar = CalendarId::try_from("cal-123").unwrap();
     let provider = RefreshingGraphCalendarProvider::new(
         source,
-        rolling_window().unwrap(),
         TimeZoneId::utc(),
         tls_with(&[]).unwrap(),
         MailboxPrincipal::Me,
@@ -76,29 +74,12 @@ fn a_403_calendar_probe_is_classified_as_access_denied() {
 }
 
 #[test]
-fn the_fetch_window_brackets_today() {
-    let today = OffsetDateTime::now_utc().date();
-    let window = rolling_window().unwrap();
-    // Start is before today and end after it, so a freshly connected provider covers the
-    // current week the grid opens on.
-    assert_eq!(
-        window.start,
-        calendar_date(today - Duration::days(WINDOW_DAYS_BACK)).unwrap(),
-    );
-    assert_eq!(
-        window.end,
-        calendar_date(today + Duration::days(WINDOW_DAYS_AHEAD)).unwrap(),
-    );
-}
-
-#[test]
 fn it_answers_for_a_shared_store_by_address_before_its_first_call() {
     // Settings asks before anything has synced: a wrapper that waited for its delegate would read
     // as a sign-in that opens no shared calendar.
     let (endpoint, _hits) = mock_token_endpoint(vec![]);
     let provider = RefreshingGraphCalendarProvider::new(
         source_at(endpoint, None),
-        rolling_window().unwrap(),
         TimeZoneId::utc(),
         tls_with(&[]).unwrap(),
         MailboxPrincipal::Me,
@@ -116,7 +97,6 @@ async fn an_address_is_checked_by_the_delegate() {
     let (endpoint, _hits) = dead_grant_token_endpoint();
     let provider = RefreshingGraphCalendarProvider::new(
         source_at(endpoint, None),
-        rolling_window().unwrap(),
         TimeZoneId::utc(),
         tls_with(&[]).unwrap(),
         MailboxPrincipal::Me,

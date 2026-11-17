@@ -327,6 +327,24 @@ impl Provider for CalendarFake {
         _account: &AccountId,
         calendar: &CalendarId,
         cursor: Option<&SyncState>,
+        window: engine_api::Horizon,
+    ) -> ProviderResult<ScopeSync<Event>> {
+        self.windowed.enter(window).await;
+        let sync = self.fetch_events(calendar, cursor)?;
+        Ok(if self.caps.windowed_events() {
+            super::calendar_windowed::WindowedFetch::keep_inside(sync, window)
+        } else {
+            sync
+        })
+    }
+}
+
+impl CalendarFake {
+    /// What the calendar's server answers for `calendar`'s events, whatever window was named.
+    fn fetch_events(
+        &self,
+        calendar: &CalendarId,
+        cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {
         self.syncs.fetch_add(1, Ordering::Relaxed);
         self.event_fetches
@@ -355,20 +373,6 @@ impl Provider for CalendarFake {
         Ok(ScopeSync::new(
             SyncUpdate::snapshot(events, present),
             SyncState::new("ev-1"),
-        ))
-    }
-
-    async fn sync_events_within(
-        &self,
-        account: &AccountId,
-        calendar: &CalendarId,
-        cursor: Option<&SyncState>,
-        window: engine_api::Horizon,
-    ) -> ProviderResult<ScopeSync<Event>> {
-        self.windowed.enter(window).await;
-        let sync = self.sync_events(account, calendar, cursor).await?;
-        Ok(super::calendar_windowed::WindowedFetch::keep_inside(
-            sync, window,
         ))
     }
 }

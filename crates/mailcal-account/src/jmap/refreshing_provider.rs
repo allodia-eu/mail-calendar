@@ -19,6 +19,7 @@ use engine_core::{
     mail::{Mailbox, Message},
     raw::RawMime,
     sync::{SyncScope, SyncState, SyncWindow},
+    time::Horizon,
 };
 use engine_provider::{
     CalendarListing, CalendarUserAddresses, ConnectionInfo, Draft, EmailStream, EventDeletion,
@@ -190,10 +191,11 @@ impl Provider for RefreshingJmapProvider {
         account: &AccountId,
         calendar: &CalendarId,
         cursor: Option<&SyncState>,
+        window: Horizon,
     ) -> ProviderResult<ScopeSync<Event>> {
         self.delegate()
             .await?
-            .sync_events(account, calendar, cursor)
+            .sync_events(account, calendar, cursor, window)
             .await
     }
 

@@ -242,6 +242,7 @@ impl Provider for ShowcaseCalendarProvider {
         _account: &AccountId,
         _calendar: &engine_api::CalendarId,
         cursor: Option<&SyncState>,
+        _window: engine_api::Horizon,
     ) -> ProviderResult<ScopeSync<Event>> {
         let (events, revision) = &*self.events();
         let state = SyncState::new(format!("ev-{revision}"));
