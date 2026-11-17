@@ -10,6 +10,9 @@
 // target composes scenes without the sixty published properties behind them becoming API.
 
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 @Observable
@@ -25,6 +28,15 @@ public final class AppSession {
     public init() {
         #if DEBUG
         TestAgent.start()
+        #endif
+        #if os(macOS)
+        // Posted on the main thread as the process ends, so the save is waited on here: a task
+        // started now would never run.
+        _ = NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.model.app?.finishSavingSettings() }
+        }
         #endif
     }
 }
