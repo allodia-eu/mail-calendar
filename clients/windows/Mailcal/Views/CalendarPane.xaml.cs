@@ -47,6 +47,8 @@ public sealed partial class CalendarPane : UserControl
                 Pull();
             }
         };
+        // A group's heading carries its account's notice mark.
+        model.NoticesChanged += Pull;
         calendar.ShownDaysChanged += () =>
         {
             if (_state.Follow(calendar.Place))

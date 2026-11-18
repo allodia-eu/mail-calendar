@@ -178,7 +178,6 @@
                  error that names them all and not the line that caused it. -->
             <NavigationView.Resources>
                 <views:BoolToVisibilityConverter x:Key="BoolToVisibility" />
-                <views:MarkToneBrushConverter x:Key="MarkToneBrush" />
             </NavigationView.Resources>
 
             <!-- The accordion is BOUND, not hand-built. It used to be reconstructed from scratch,
@@ -314,26 +313,7 @@
                                 </NavigationViewItem.Icon>
                                 <StackPanel Padding="0,4">
                                     <TextBlock Text="{Binding Content}" TextTrimming="CharacterEllipsis" FontWeight="SemiBold" />
-                                    <Grid ColumnSpacing="6"
-                                          Visibility="{Binding HasMark, Converter={StaticResource BoolToVisibility}}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                        <FontIcon Grid.Column="0"
-                                                  Glyph="{Binding MarkGlyph}"
-                                                  FontSize="12"
-                                                  VerticalAlignment="Center"
-                                                  AutomationProperties.AccessibilityView="Raw"
-                                                  Foreground="{Binding MarkTone, Converter={StaticResource MarkToneBrush}}" />
-                                        <TextBlock Grid.Column="1"
-                                                   Text="{Binding MarkLabel}"
-                                                   Style="{StaticResource CaptionTextBlockStyle}"
-                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                                   TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   AutomationProperties.AutomationId="AccountNoticeLabel" />
-                                    </Grid>
+                                    <views:AccountMarkLine Mark="{Binding Mark}" />
                                 </StackPanel>
                                 <!-- No ContextFlyout here: a NavigationViewItem declared in an item
                                      template never receives the right-click, so one set here opens

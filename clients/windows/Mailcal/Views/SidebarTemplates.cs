@@ -1,5 +1,5 @@
-// The WinUI half of the data-bound sidebar: which DataTemplate a node gets, and the two type
-// conversions the templates need. Kept beside the views rather than in ViewModels/ because both
+// The WinUI half of the data-bound sidebar: which DataTemplate a node gets, and the type
+// conversion the templates need. Kept beside the views rather than in ViewModels/ because both
 // touch WinUI types, and SidebarItem/SidebarTree must stay free of them (they are linked into
 // Mailcal.Tests, a plain net10.0 assembly).
 
@@ -66,7 +66,7 @@ public sealed partial class SidebarItemTemplateSelector : DataTemplateSelector
 }
 
 /// <summary>
-/// A bound <c>bool</c> as a <see cref="Visibility"/>, for the account row's notice mark.
+/// A bound <c>bool</c> as a <see cref="Visibility"/>, for a folder row's unread count.
 /// </summary>
 /// <remarks>
 /// The rest of the app needs no converter at all, its row types expose <c>Visibility</c> directly
@@ -83,18 +83,4 @@ public sealed partial class BoolToVisibilityConverter : IValueConverter
     /// <inheritdoc/>
     public object ConvertBack(object value, Type targetType, object parameter, string language) =>
         value is Visibility.Visible;
-}
-
-/// <summary>
-/// An account mark's tone as the brush its glyph is drawn in (docs/notices.md rule 4).
-/// </summary>
-public sealed partial class MarkToneBrushConverter : IValueConverter
-{
-    /// <inheritdoc/>
-    public object Convert(object value, Type targetType, object parameter, string language) =>
-        NoticeBar.ToneBrush(value is SidebarMarkTone tone ? tone : SidebarMarkTone.Informational);
-
-    /// <inheritdoc/>
-    public object ConvertBack(object value, Type targetType, object parameter, string language) =>
-        throw new NotSupportedException();
 }

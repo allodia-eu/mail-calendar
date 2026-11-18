@@ -59,13 +59,17 @@ public sealed partial class CalendarPane
         };
         AutomationProperties.SetAccessibilityView(chevron, Microsoft.UI.Xaml.Automation.Peers.AccessibilityView.Raw);
         line.Children.Add(chevron);
-        var address = new TextBlock
+        // The address, and beneath it the mark the account's folder-tree row carries while a notice
+        // is about it (docs/notices.md rule 6).
+        var mark = _model?.MarkOf(group.Account);
+        var address = new StackPanel { Padding = new Thickness(0, 4, 0, 4), VerticalAlignment = VerticalAlignment.Center };
+        address.Children.Add(new TextBlock
         {
             Text = group.Address,
             FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
+        });
+        address.Children.Add(new AccountMarkLine { Mark = mark });
         Grid.SetColumn(address, 1);
         line.Children.Add(address);
 
@@ -81,7 +85,7 @@ public sealed partial class CalendarPane
         ToolTipService.SetToolTip(heading, group.Address);
         AutomationProperties.SetName(heading, group.Address);
         AutomationProperties.SetAutomationId(heading, $"CalendarPaneGroup_{group.Account}");
-        AutomationProperties.SetItemStatus(heading, group.Expanded ? "expanded" : "collapsed");
+        AutomationProperties.SetItemStatus(heading, mark?.Detail ?? string.Empty);
         heading.Click += (_, _) => _model?.SetCalendarGroupExpanded(group.Account, !group.Expanded);
         return heading;
     }
