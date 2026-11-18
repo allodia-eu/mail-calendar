@@ -343,8 +343,11 @@
     <!-- How a composer opens from the core's ComposeOpening: its kind, the quote seed, the
          attribution a reopened quote is completed with. Pure BCL over the generated records. -->
     <Compile Include="..\Mailcal\Services\ComposeOpeningSeed.cs" Link="Services\ComposeOpeningSeed.cs" />
-    <!-- The embedded-image cap and the media-type refusal, enforced client-side, where the user can
-         still be told, so the core never sees an oversized logo. Pure BCL. -->
+    <!-- The signature editor's half of Settings → Signatures (docs/signatures.md): the id it saves
+         under, Save's state, which outcome closes it and the words for a refusal, and a picked
+         picture as the data URI it inserts. WinUI-free and L10n-free, the words arrive as
+         parameters; it reads the generated SignaturesPage, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\SignatureEditorRules.cs" Link="Services\SignatureEditorRules.cs" />
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
