@@ -68,7 +68,9 @@ final class AccountPageTests: XCTestCase {
             try wait(until: { try !app.wait(calendar).enabled }), "the last use can be switched off"
         )
         XCTAssertTrue(
-            try app.exists(.text("An account is used for at least one of these. Remove it instead.")),
+            try app.appears(
+                .text("An account is used for at least one of these. Remove it instead."), timeout: 5
+            ),
             "the held switch does not say why"
         )
 

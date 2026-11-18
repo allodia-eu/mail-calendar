@@ -79,6 +79,8 @@ struct Element: CustomStringConvertible {
     let focused: Bool
     let selected: Bool
     let active: Bool?
+    /// What found it, so it can be found again once the toolkit has replaced it.
+    var found: Filter?
 
     init(_ reply: [String: Any]) {
         h = reply["h"] as? Int ?? 0
