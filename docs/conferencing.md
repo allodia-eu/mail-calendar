@@ -65,9 +65,9 @@ nobody has to dig a link out of the notes.
    calendar redraws the row from the new calendar's choices, and a choice the new one lacks goes
    back to None.
 10. **A new event starts with no meeting, and takes its account's default once it has an
-    invitee.** Settings → Videoconferencing holds a default per account (`meeting_defaults`),
-    none until the person chooses one, and the core resolves it against what each calendar
-    offers into `CalendarRow.default_meeting`. A new event's row holds None while nobody is
+    invitee.** Settings → Videoconferencing holds a default per account
+    (`VideoconferencingPage::defaults`), none until the person chooses one, and the core resolves
+    it against what each calendar offers into `CalendarRow.default_meeting`. A new event's row holds None while nobody is
     invited and the chosen calendar's default from the first invitee on, so an event of the
     person's own makes no meeting at any service. A pick in the row, None included, stands from
     then on; a row nobody picked in follows the calendar when it changes. An event being edited
@@ -91,7 +91,9 @@ nobody has to dig a link out of the notes.
     the room exists only once someone opens it.
 13. **The Jitsi server is the person's, never a default.** Settings → Videoconferencing holds one
     field, empty until the person fills it: an `https` address without a query or fragment, which
-    the core checks before it stores it. While it is empty, no calendar offers Jitsi.
+    the core checks before it stores it (`PreferenceIntent::SetJitsiServer`). A refused address is
+    the page's to say (`VideoconferencingPage::jitsi_refused`), and text that comes to the stored
+    server writes nothing. While it is empty, no calendar offers Jitsi.
 
 14. **An account used for video meetings makes them for an event on any calendar.** A Microsoft
     account an organisation administers makes Teams meetings, a Google account makes Meet
