@@ -27,6 +27,8 @@ struct CalendarGridContent: View {
     let pager: CalendarPager
     let calendar: Calendar
     let today: Date
+    /// The day a pressed mini-month day asked the grid to frame; nil frames today.
+    let framedDay: Date?
     let nowMinutes: Int
     @Bindable var position: CalendarGridPosition
     /// Bumped whenever the grid should frame itself on today again.
@@ -242,7 +244,7 @@ struct CalendarGridContent: View {
         position.held = false
         let origin = pager.anchor(forPage: 0)
         let column = calendar.dateComponents(
-            [.day], from: origin, to: calendar.startOfDay(for: today)
+            [.day], from: origin, to: calendar.startOfDay(for: framedDay ?? today)
         ).day
         var framed = position.strip
         framed.frame(

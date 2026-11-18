@@ -1,4 +1,6 @@
-// The calendar manager: which calendars are drawn, and in what colour. And the agenda list.
+// The calendar manager on a phone, or an iPad at compact width: which calendars are drawn, and in
+// what colour. A desktop shows the same in its calendar pane (`docs/calendar-pane.md`). And the
+// agenda list.
 //
 // Grouped by account, because a calendar id is unique only within its account, two accounts can each
 // have a "Work", and a flat list would leave the user unable to tell which is which. Every toggle and
@@ -10,33 +12,25 @@ import SwiftUI
 
 struct CalendarManagerView: View {
     var model: MailboxModel
-    let calendars: [CalendarRow]
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var picking: PickedCalendar?
 
-    private var byAccount: [(account: String, rows: [CalendarRow])] {
-        var order: [String] = []
-        var grouped: [String: [CalendarRow]] = [:]
-        for row in calendars {
-            if grouped[row.account] == nil { order.append(row.account) }
-            grouped[row.account, default: []].append(row)
-        }
-        return order.map { ($0, grouped[$0] ?? []) }
-    }
-
     var body: some View {
         NavigationStack {
+            // Re-pulled whenever the calendar signals, so a toggle shows the core's answer.
+            let _ = model.calendarVersion
+            let groups = model.calendarGroups()
             List {
-                if calendars.isEmpty {
+                if groups.isEmpty {
                     Text(L10n.calendar_manage_empty()).foregroundStyle(.secondary)
                 }
-                ForEach(byAccount, id: \.account) { group in
+                ForEach(groups, id: \.account) { group in
                     // Headed by the address, the one a person recognises; grouped by the id, which
                     // is what is unique.
-                    Section(group.rows.first?.accountAddress ?? group.account) {
-                        ForEach(group.rows, id: \.rowIdentity) { calendar in
+                    Section(group.address) {
+                        ForEach(group.calendars, id: \.rowIdentity) { calendar in
                             row(calendar)
                         }
                     }
@@ -197,7 +191,7 @@ struct CalendarAgendaList: View {
 /// collide them: SwiftUI would reuse one row's state for the other. So the identity is the pair.
 struct PickedCalendar: Identifiable {
     let row: CalendarRow
-    var id: String { calendarRowID(row) }
+    var id: String { row.rowIdentity }
 }
 
 extension CalendarRow {
@@ -205,5 +199,3 @@ extension CalendarRow {
     var rowIdentity: String { "\(account):\(id)" }
 }
 
-/// The identity of a calendar row: its account AND its id.
-func calendarRowID(_ row: CalendarRow) -> String { row.rowIdentity }

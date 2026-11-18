@@ -117,6 +117,10 @@ final class MailboxModel {
     /// it. See MailcalModel.Calendar.swift.
     var calendarVersion = 0
     @ObservationIgnored let calendarPages = CalendarCache<CalendarPageKey, CalendarPage>()
+    /// Where the grid rests and the month the mini month was paged to (`docs/calendar-pane.md`).
+    var calendarPaneState = CalendarPaneModel()
+    /// A pressed mini-month day, for the calendar screen to apply.
+    var calendarSeatRequest: CalendarSeatRequest?
     /// The persisted display preferences the core owns: first day of the week, the 12/24-hour clock
     /// (mail AND calendar), the light/dark appearance, and the calendar's default horizon, read on
     /// `Surface::Settings`. A placeholder until `didOpen` reads the core's.

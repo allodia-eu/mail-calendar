@@ -44,8 +44,8 @@ tri-state check on the group heading; "show only this calendar".
 
 | Platform | Pane | Mini month | Calendars | Mail destination | Desktop manager removed |
 |---|---|---|---|---|---|
-| macOS | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| iPadOS (regular width) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| macOS | ✅ `sidebarColumn` → `CalendarPane.swift` | ✅ `CalendarPaneMonth.swift` | ✅ `CalendarPaneList` | ✅ `sidebarDestinations` | ✅ no menu item or toolbar entry; `CalendarManagerView` is the phone's |
+| iPadOS (regular width) | ✅ the same pane, in the split view's sidebar column | ✅ the same | ✅ the same | ✅ the same bar | ✅ at regular width; compact width keeps the manager |
 | Windows | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Linux | ⬜ | ⬜ | ⬜ | ✅ `DestinationBar` | ⬜ |
 | iOS (iPhone) | — | — | — | — | — |
