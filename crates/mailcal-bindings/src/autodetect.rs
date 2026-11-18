@@ -134,9 +134,8 @@ pub enum MissReason {
 /// prefilled. When `is_trusted` is `false` the host MUST show the untrusted-settings
 /// warning and require explicit approval before Connect (docs/account-autodetect.md).
 ///
-/// The `Imap` variant is much larger than `Manual`/`Microsoft`, but this value is
-/// built once per detection and handed straight across the FFI; boxing a variant's
-/// payload isn't expressible as a UniFFI enum, and the size is irrelevant here.
+/// The `Imap` variant is much larger than `Manual`/`Microsoft`. Boxing it would buy nothing:
+/// this value is built once per detection and handed straight across the FFI.
 #[allow(clippy::large_enum_variant)]
 #[derive(uniffi::Enum, Debug, Clone, PartialEq, Eq)]
 pub enum SetupRecommendation {

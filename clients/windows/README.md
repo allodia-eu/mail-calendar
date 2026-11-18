@@ -149,9 +149,10 @@ versa.
   2004 (`10.0.19041`). **Visual Studio 2026** (or its Build Tools) provides both.
 - **`uniffi-bindgen-cs`** needs **no install**, it's vendored as the `mailcal-bindgen-cs`
   binshim crate and the scripts run it via `cargo run -p mailcal-bindgen-cs`, so the generator's
-  version is pinned in `Cargo.lock` (the tag tracks the core's UniFFI 0.31, a generator built
-  against a different UniFFI can't read the cdylib's metadata). It's excluded from the workspace
-  `default-members`, so a bare `cargo build` and non-Windows hosts never compile it.
+  version is pinned in `Cargo.lock` (the tag names the UniFFI release it builds against, which
+  the workspace pins exactly, and a generator built against a different UniFFI can't read the
+  cdylib's metadata). It's excluded from the workspace `default-members`, so a bare `cargo build`
+  and non-Windows hosts never compile it.
 - **`winapp`** 0.7 or later, only for driving the app by hand: `winget install Microsoft.WinAppCLI`.
   The presses [`winapp.ps1`](winapp.ps1) makes go through it; the UI suites send their own input.
 

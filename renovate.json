@@ -52,7 +52,7 @@
       "labels": ["dependencies", "rust", "engine"]
     },
     {
-      "description": "UniFFI and its C# generator are one version in two places. `uniffi-bindgen-cs` reads the metadata a specific UniFFI release emits — its tag carries that release as build metadata (`v0.11.0+v0.31.0`) — and it trails upstream by months, skipping releases. Bumping `uniffi` alone leaves both in the lockfile and the generator decoding a layout it does not know, so C# binding generation fails and the Windows job is where that surfaces, eight minutes in. Renovate cannot hold one update until another is ready, so the pair leaves the workspace group and waits for a tick on the dependency dashboard: a new UniFFI is still reported there, and the PR is opened once `uniffi-bindgen-cs` has a tag naming it.",
+      "description": "UniFFI and its C# generator are one version in two places. `uniffi-bindgen-cs` reads the metadata a specific UniFFI release emits — its tag carries that release as build metadata (`v0.12.0+v0.32.0`) — and it trails upstream by months, skipping releases. Bumping `uniffi` alone leaves both in the lockfile and the generator decoding a layout it does not know, so C# binding generation fails and the Windows job is where that surfaces, eight minutes in. Renovate cannot hold one update until another is ready, so the pair leaves the workspace group and waits for a tick on the dependency dashboard: a new UniFFI is still reported there, and the PR is opened once `uniffi-bindgen-cs` has a tag naming it.",
       "matchManagers": ["cargo"],
       "matchPackageNames": ["uniffi", "/uniffi-bindgen-cs/"],
       "groupName": "UniFFI toolchain",

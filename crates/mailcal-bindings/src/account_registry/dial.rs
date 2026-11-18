@@ -167,7 +167,7 @@ impl From<ConnectFailure> for crate::MailcalError {
         match failure.certificate {
             Some(certificate) => Self::CertificateRejected {
                 reason: failure.detail,
-                certificate: (*certificate).into(),
+                certificate: Box::new((*certificate).into()),
             },
             None if failure.signin_expired => Self::SignInRefused {
                 reason: failure.detail,

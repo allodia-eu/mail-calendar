@@ -29,8 +29,9 @@ pub enum MailcalError {
     CertificateRejected {
         /// What the transport said, for the diagnostic log.
         reason: String,
-        /// What the server presented, for the person deciding.
-        certificate: RejectedCertificate,
+        /// What the server presented, for the person deciding. Boxed so every `Result` carrying
+        /// this error stays small; the box is invisible to a host.
+        certificate: Box<RejectedCertificate>,
     },
     /// The server answered and refused the sign-in: a wrong password or API token, or a grant it
     /// no longer accepts.
