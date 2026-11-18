@@ -68,7 +68,7 @@ public sealed class ThreadMessageItem
     public bool HasAttachment { get; init; }
 
     /// <summary>The importance its sender stated (docs/importance.md).</summary>
-    public MessageImportance Importance { get; init; } = MessageImportance.Normal;
+    internal MessageImportance Importance { get; init; } = MessageImportance.Normal;
 
     /// <summary>Show the red exclamation mark only on a high-importance message.</summary>
     public Visibility ImportanceHighVisibility =>

@@ -2,6 +2,7 @@
 // and which, is the core's ReadingSnapshot.ImportanceBanner; this only words and shows it. Its own
 // partial to keep ReadingView.xaml.cs under the 500-line limit.
 
+using Allodia.Mailcal.ViewModels;
 using Microsoft.UI.Xaml.Controls;
 using uniffi.mailcal_bindings;
 

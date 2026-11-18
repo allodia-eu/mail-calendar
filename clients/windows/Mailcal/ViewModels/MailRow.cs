@@ -129,7 +129,7 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
     /// The importance the core decided for the row: the message's own (flat), or the
     /// conversation's (threaded). A mark for high and for low, none for normal (docs/importance.md).
     /// </summary>
-    public MessageImportance Importance { get => _importance; init => _importance = value; }
+    internal MessageImportance Importance { get => _importance; init => _importance = value; }
 
     /// <summary>Show the red exclamation mark only on a high-importance row.</summary>
     public Visibility ImportanceHighVisibility =>
