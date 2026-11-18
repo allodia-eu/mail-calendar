@@ -431,6 +431,7 @@ public sealed partial class MailboxModel
             Flagged = flat.Row.Flagged,
             Draft = flat.Row.Draft,
             HasAttachment = flat.Row.HasAttachment,
+            Importance = flat.Row.Importance,
             MessageCount = 1,
         },
         SnapshotRow.Thread thread => new MailRow
@@ -452,6 +453,7 @@ public sealed partial class MailboxModel
             // Flagged while anything on it is, which is when its menu offers Clear flag.
             Flagged = thread.Row.Flagged,
             HasAttachment = thread.Row.HasAttachment,
+            Importance = thread.Row.Importance,
             MessageCount = thread.Row.MessageCount,
             // The whole conversation as sub-rows the expanded thread reveals (newest first).
             Messages = thread.Row.Messages.Select(m => new ThreadMessageItem
@@ -470,6 +472,7 @@ public sealed partial class MailboxModel
                 Outgoing = m.Outgoing,
                 Draft = m.Draft,
                 HasAttachment = m.HasAttachment,
+                Importance = m.Importance,
             }).ToList(),
         },
         _ => throw new InvalidOperationException("unknown snapshot row kind"),
@@ -485,7 +488,7 @@ public sealed partial class MailboxModel
         a.IsThread == b.IsThread && a.Title == b.Title && a.Subtitle == b.Subtitle
         && a.DateText == b.DateText && a.Date == b.Date
         && a.Unread == b.Unread && a.Flagged == b.Flagged && a.Draft == b.Draft
-        && a.HasAttachment == b.HasAttachment
+        && a.HasAttachment == b.HasAttachment && a.Importance == b.Importance
         && a.MessageCount == b.MessageCount
         && a.Avatar == b.Avatar
         && MailRow.SameSubRows(a.Messages, b.Messages);

@@ -19,6 +19,8 @@ use super::{
 mod compose_move_tests;
 #[path = "compose_open_tests.rs"]
 mod compose_open_tests;
+#[path = "draft_importance_tests.rs"]
+mod draft_importance_tests;
 #[path = "draft_interop_tests.rs"]
 mod draft_interop_tests;
 #[path = "draft_ops_leave_tests.rs"]

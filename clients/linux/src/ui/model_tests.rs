@@ -9,6 +9,7 @@ use crate::ui::mailbox::ThreadKey;
 
 fn message(key: &str, draft: bool) -> ThreadMessage {
     ThreadMessage {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: super::blank_avatar(),
         account: "acct".to_owned(),
         key: key.to_owned(),
@@ -25,6 +26,7 @@ fn message(key: &str, draft: bool) -> ThreadMessage {
 
 fn conversation(latest_key: &str, messages: Vec<ThreadMessage>) -> ThreadRow {
     ThreadRow {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: super::blank_avatar(),
         account: "acct".to_owned(),
         thread_id: "thread".to_owned(),

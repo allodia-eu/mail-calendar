@@ -127,6 +127,7 @@ mod tests {
     fn flat(account: &str, key: &str) -> SnapshotRow {
         SnapshotRow::Flat {
             row: FlatRow {
+                importance: mailcal_bindings::MessageImportance::Normal,
                 account: account.to_owned(),
                 key: key.to_owned(),
                 subject: "Quarterly report".to_owned(),
@@ -145,6 +146,7 @@ mod tests {
     fn thread(account: &str, keys: &[&str]) -> SnapshotRow {
         SnapshotRow::Thread {
             row: ThreadRow {
+                importance: mailcal_bindings::MessageImportance::Normal,
                 account: account.to_owned(),
                 thread_id: "t1".to_owned(),
                 latest_key: keys[0].to_owned(),
@@ -160,6 +162,7 @@ mod tests {
                 messages: keys
                     .iter()
                     .map(|key| ThreadMessage {
+                        importance: mailcal_bindings::MessageImportance::Normal,
                         account: account.to_owned(),
                         key: (*key).to_owned(),
                         from: "Jane".to_owned(),

@@ -285,6 +285,15 @@ log "appending the dark-mode fixtures to INBOX (reading-view colour scheme; sequ
 imap_append "$MAIL_DIR/14-dark-mode-colours.eml" INBOX
 imap_append "$MAIL_DIR/15-sender-dark-mode.eml" INBOX
 
+# A message sent with high importance (Importance and X-Priority, as Outlook writes them) and one
+# sent with low importance in X-Priority alone (as Thunderbird writes it), so a list row's marks,
+# the reading banner and the X-Priority fallback have something to show (docs/importance.md).
+# Before the conversations below, which must stay the newest; sequence-safe for the reason
+# 08-html.eml is.
+log "appending the importance fixtures to INBOX (high, and low in X-Priority alone)"
+imap_append "$MAIL_DIR/20-importance-high.eml" INBOX
+imap_append "$MAIL_DIR/21-importance-low.eml" INBOX
+
 # The three conversations a row menu is judged against (docs/row-actions.md): the newest message
 # received, the newest sent, and the newest a draft. Each answers Bob across the Inbox, Sent Items
 # and Drafts, as a real conversation does, so the threaded Inbox gathers its other members from the

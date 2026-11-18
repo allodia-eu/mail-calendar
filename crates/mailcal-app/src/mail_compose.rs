@@ -80,7 +80,9 @@ impl<P: Provider> App<P> {
             return;
         };
         // A reply moved back out of the Outbox stays a reply.
-        let draft = self.with_threading(composition.as_ref(), draft);
+        let draft = self
+            .with_threading(composition.as_ref(), draft)
+            .with_importance(self.composition_importance(composition.as_ref()));
         self.send_draft(&account, &draft, composition.as_ref())
             .await;
     }

@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use engine_api::{MailListRow, Mailbox};
+use engine_api::{Importance, MailListRow, Mailbox};
 
 use crate::{
     avatar::Avatar,
@@ -266,6 +266,9 @@ pub struct FlatRow {
     pub flagged: bool,
     /// Whether the provider says the message has a non-inline attachment.
     pub has_attachment: bool,
+    /// The importance its sender stated (`docs/importance.md`). A row draws a glyph for high and
+    /// for low, and none for normal.
+    pub importance: Importance,
     /// A short body-preview snippet for a two-line list row (empty if the provider didn't supply
     /// one; Microsoft 365 and JMAP populate it; IMAP does not yet).
     pub preview: String,
@@ -309,6 +312,9 @@ pub struct ThreadRow {
     pub flagged: bool,
     /// Whether any message in the conversation has a non-inline attachment.
     pub has_attachment: bool,
+    /// The conversation's importance: high when any of its messages is, low only when every one
+    /// is, else normal (`docs/importance.md`).
+    pub importance: Importance,
     /// A short preview snippet of the representative message's body (empty if none), for a
     /// two-line list row.
     pub preview: String,
@@ -349,6 +355,8 @@ pub struct ThreadMessage {
     pub kind: MessageKind,
     /// Whether the message has a non-inline attachment.
     pub has_attachment: bool,
+    /// The importance its sender stated; [`FlatRow::importance`].
+    pub importance: Importance,
     /// The keys of the folders the message is filed in, for the row menu's question of what a
     /// move would take. Not carried across the FFI, for [`FlatRow::from_address`]'s reason.
     pub folders: Vec<String>,

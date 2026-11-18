@@ -176,6 +176,7 @@ extension ContentView {
                 }
             }
             Spacer()
+            ImportanceMark(importance: message.importance)
             if message.flagged {
                 Image(systemName: "flag.fill").foregroundStyle(.orange)
             }
@@ -259,6 +260,7 @@ extension ContentView {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            ImportanceMark(importance: thread.importance)
             // Flagged while anything on it is, which is when its menu offers Clear flag.
             if thread.flagged {
                 Image(systemName: "flag.fill").foregroundStyle(.orange)
@@ -309,6 +311,7 @@ extension ContentView {
                 }
             }
             Spacer()
+            ImportanceMark(importance: message.importance)
             if message.flagged {
                 Image(systemName: "flag.fill").foregroundStyle(.orange)
             }

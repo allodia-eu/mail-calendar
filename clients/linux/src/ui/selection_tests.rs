@@ -10,6 +10,7 @@ fn flat(key: &str, unread: bool, flagged: bool) -> SnapshotRow {
     avatar.initials = "S".to_owned();
     SnapshotRow::Flat {
         row: FlatRow {
+            importance: mailcal_bindings::MessageImportance::Normal,
             avatar,
             account: "acct-1".to_owned(),
             key: key.to_owned(),
@@ -30,6 +31,7 @@ fn thread(id: &str, unread_count: u32) -> SnapshotRow {
     avatar.initials = "T".to_owned();
     SnapshotRow::Thread {
         row: ThreadRow {
+            importance: mailcal_bindings::MessageImportance::Normal,
             avatar,
             account: "acct-1".to_owned(),
             thread_id: id.to_owned(),

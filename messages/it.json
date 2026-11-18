@@ -140,6 +140,8 @@
 
 	"a11y_flagged": "Contrassegnato",
 	"a11y_has_attachment": "Contiene un allegato",
+	"a11y_importance_high": "Priorità alta",
+	"a11y_importance_low": "Priorità bassa",
 	"a11y_mail_row": "{sender}, {subject}, {date}",
 	"a11y_message_list": "Elenco dei messaggi",
 	"a11y_more_actions": "Altre azioni",
@@ -448,6 +450,8 @@
 	"reading_loading": "Caricamento del messaggio…",
 	"reading_no_content": "Questo messaggio non contiene nulla che si possa visualizzare.",
 	"reading_remote_blocked": "Le immagini remote sono bloccate per proteggere la tua privacy.",
+	"reading_importance_high": "Questo messaggio è stato inviato con priorità alta.",
+	"reading_importance_low": "Questo messaggio è stato inviato con priorità bassa.",
 	"reading_load_error": "Impossibile caricare questo messaggio.",
 	"reading_back_tooltip": "Torna all’elenco",
 	"reading_webview_unavailable": "Impossibile visualizzare questo messaggio (il runtime WebView2 non è disponibile).",
@@ -969,6 +973,10 @@
 	"settings_signatures_image_too_large": "Questa immagine è troppo grande. Scegline una più piccola di {limit}.",
 	"settings_signatures_image_failed": "Impossibile leggere questa immagine.",
 	"compose_signature_label": "Firma",
+	"compose_importance_label": "Priorità",
+	"compose_importance_high": "Alta",
+	"compose_importance_normal": "Normale",
+	"compose_importance_low": "Bassa",
 
 	"settings_category_notifications": "Notifiche",
 	"settings_category_general_summary": "Lingua, aspetto, fuso orario e formato ora",

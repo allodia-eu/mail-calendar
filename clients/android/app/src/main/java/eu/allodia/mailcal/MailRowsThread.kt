@@ -87,6 +87,7 @@ internal fun ThreadConversationRow(
                         Spacer(modifier = Modifier.width(6.dp))
                         Badge { Text("${thread.messageCount}") }
                     }
+                    ImportanceMark(thread.importance)
                     // Flagged while anything on it is, which is when its menu offers Unflag.
                     if (thread.flagged) {
                         Spacer(modifier = Modifier.width(6.dp))

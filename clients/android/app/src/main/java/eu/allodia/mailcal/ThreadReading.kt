@@ -145,6 +145,7 @@ private fun ConversationStripCard(
                 if (message.draft) {
                     ThreadBadge(L10n.thread_draft(ctx))
                 }
+                ImportanceMark(message.importance, size = 14.dp)
                 if (message.flagged) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Icon(

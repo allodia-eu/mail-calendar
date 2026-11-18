@@ -140,6 +140,8 @@
 
 	"a11y_flagged": "Sinalizada",
 	"a11y_has_attachment": "Tem anexo",
+	"a11y_importance_high": "Importância alta",
+	"a11y_importance_low": "Importância baixa",
 	"a11y_mail_row": "{sender}, {subject}, {date}",
 	"a11y_message_list": "Lista de mensagens",
 	"a11y_more_actions": "Mais ações",
@@ -448,6 +450,8 @@
 	"reading_loading": "A carregar a mensagem…",
 	"reading_no_content": "Esta mensagem não tem conteúdo que possa ser apresentado.",
 	"reading_remote_blocked": "As imagens remotas estão bloqueadas para proteger a sua privacidade.",
+	"reading_importance_high": "Esta mensagem foi enviada com importância alta.",
+	"reading_importance_low": "Esta mensagem foi enviada com importância baixa.",
 	"reading_load_error": "Não foi possível carregar esta mensagem.",
 	"reading_back_tooltip": "Voltar à lista",
 	"reading_webview_unavailable": "Não foi possível apresentar esta mensagem (o motor WebView2 não está disponível).",
@@ -969,6 +973,10 @@
 	"settings_signatures_image_too_large": "Essa imagem é demasiado grande. Escolha uma com menos de {limit}.",
 	"settings_signatures_image_failed": "Não foi possível ler essa imagem.",
 	"compose_signature_label": "Assinatura",
+	"compose_importance_label": "Importância",
+	"compose_importance_high": "Alta",
+	"compose_importance_normal": "Normal",
+	"compose_importance_low": "Baixa",
 
 	"settings_category_notifications": "Notificações",
 	"settings_category_general_summary": "Idioma, aspeto, fuso horário e formato da hora",

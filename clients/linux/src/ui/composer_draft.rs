@@ -156,7 +156,7 @@ impl DraftGuard {
         headers_edited(
             &HeaderValues::on_screen(&self.fields),
             &self.opening,
-            self.fields.files.current().changed,
+            self.fields.files.current().changed || self.fields.importance_changed(),
         )
     }
 

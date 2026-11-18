@@ -91,6 +91,10 @@ struct ComposeHost: View {
                 add: { await model.addComposerFiles($0, $1) },
                 remove: { model.removeComposerFile($0, $1) }
             ),
+            importance: ComposerImportanceVerbs(
+                read: { model.composerImportance($0) },
+                set: { model.setComposerImportance($0, $1) }
+            ),
             moved: opening.moved,
             popOut: popOut
         ) { submission in

@@ -116,6 +116,8 @@ noted beside it, and the two without one are this app's own drawings.
 |---|---|---|---|---|
 | Flagged | `flag.fill` | `ic_star` | `E7C1` Flag | `starred-symbolic` |
 | Has an attachment | `paperclip` | `ic_attachment` | `E723` Attach | `mail-attachment-symbolic` |
+| High importance, on a row, the banner and the composer's menu ([`importance.md`](importance.md)) | `exclamationmark` | `ic_priority_high` | `E8C9` Important | `mail-mark-important-symbolic` |
+| Low importance | `arrow.down` | `ic_arrow_downward` | `E74B` Down | `go-down-symbolic` |
 | Conversation open / closed | `chevron.down` / `chevron.right` | — | `E70D` ChevronDown / `E76C` ChevronRight | the expander row's own |
 | A row's actions | a context menu | `ic_more_vert` | a context menu | `view-more-symbolic` |
 | Open | `envelope.open` | — | `E8C3` Read | `go-next-symbolic` |

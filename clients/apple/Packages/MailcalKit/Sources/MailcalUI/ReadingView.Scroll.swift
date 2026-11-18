@@ -24,6 +24,7 @@ extension ReadingView {
         VStack(spacing: 0) {
             identityHeader
             recipientsHeader
+            ImportanceBanner(importance: bodySnapshot?.importanceBanner)
             attachmentBar
             invitationCard
             if remoteImagesOffered {

@@ -264,6 +264,8 @@ pub struct MessageSummary {
     pub flagged: bool,
     /// Whether it has an attachment.
     pub has_attachment: bool,
+    /// The importance its sender stated: `high`, `normal` or `low`.
+    pub importance: String,
 }
 
 /// A page of message summaries.
@@ -306,6 +308,8 @@ pub struct MessageOut {
     pub unread: bool,
     /// Whether it is flagged.
     pub flagged: bool,
+    /// The importance its sender stated: `high`, `normal` or `low`.
+    pub importance: String,
     /// The names of its attachments. Names only: no bytes cross this boundary.
     pub attachments: Vec<String>,
     /// The body as plain text, wrapped in an `<untrusted-message-content>` fence. See

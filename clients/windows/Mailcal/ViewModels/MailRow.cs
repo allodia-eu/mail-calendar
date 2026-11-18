@@ -18,6 +18,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using Microsoft.UI.Xaml;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.ViewModels;
 
@@ -122,6 +123,22 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
     /// </summary>
     public bool HasAttachment { get => _hasAttachment; init => _hasAttachment = value; }
 
+    private MessageImportance _importance = MessageImportance.Normal;
+
+    /// <summary>
+    /// The importance the core decided for the row: the message's own (flat), or the
+    /// conversation's (threaded). A mark for high and for low, none for normal (docs/importance.md).
+    /// </summary>
+    public MessageImportance Importance { get => _importance; init => _importance = value; }
+
+    /// <summary>Show the red exclamation mark only on a high-importance row.</summary>
+    public Visibility ImportanceHighVisibility =>
+        _importance == MessageImportance.High ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Show the down arrow only on a low-importance row.</summary>
+    public Visibility ImportanceLowVisibility =>
+        _importance == MessageImportance.Low ? Visibility.Visible : Visibility.Collapsed;
+
     private uint _messageCount;
 
     /// <summary>How many messages a thread holds (threaded rows).</summary>
@@ -208,7 +225,8 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
         && a.Flagged == b.Flagged
         && a.Outgoing == b.Outgoing
         && a.Draft == b.Draft
-        && a.HasAttachment == b.HasAttachment;
+        && a.HasAttachment == b.HasAttachment
+        && a.Importance == b.Importance;
 
     /// <summary>
     /// Takes every projected field from <paramref name="next"/>, announcing the ones that moved.
@@ -263,6 +281,13 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
             _hasAttachment = next.HasAttachment;
             Changed(
                 nameof(HasAttachment), nameof(AttachmentVisibility), nameof(AccessibleName));
+        }
+        if (_importance != next.Importance)
+        {
+            _importance = next.Importance;
+            Changed(
+                nameof(Importance), nameof(ImportanceHighVisibility),
+                nameof(ImportanceLowVisibility), nameof(AccessibleName));
         }
         if (_messageCount != next.MessageCount)
         {
@@ -330,6 +355,14 @@ public sealed class MailRow : INotifyPropertyChanged, Allodia.Mailcal.Services.I
             if (Unread)
             {
                 text += ", " + L10n.ActionUnread();
+            }
+            if (Importance == MessageImportance.High)
+            {
+                text += ", " + L10n.A11yImportanceHigh();
+            }
+            else if (Importance == MessageImportance.Low)
+            {
+                text += ", " + L10n.A11yImportanceLow();
             }
             if (Flagged)
             {

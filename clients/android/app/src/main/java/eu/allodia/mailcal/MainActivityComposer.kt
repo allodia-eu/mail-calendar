@@ -205,6 +205,9 @@ private fun MainActivity.ComposerFor(
         suggestionsFor = recipientSuggestionsFor(instance),
         signatures = composerSignatures(instance, signatures?.signatures.orEmpty()),
         drafts = composerDrafts(instance),
+        importance = remember(opening.composition) {
+            composerImportanceStore(instance, opening.composition)
+        },
         onSubmitRich = { submission -> submitComposition(instance, submission) },
         onDismiss = onDismiss,
     )

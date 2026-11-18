@@ -140,6 +140,8 @@
 
 	"a11y_flagged": "Markiert",
 	"a11y_has_attachment": "Hat einen Anhang",
+	"a11y_importance_high": "Hohe Wichtigkeit",
+	"a11y_importance_low": "Niedrige Wichtigkeit",
 	"a11y_mail_row": "{sender}, {subject}, {date}",
 	"a11y_message_list": "Nachrichtenliste",
 	"a11y_more_actions": "Weitere Aktionen",
@@ -448,6 +450,8 @@
 	"reading_loading": "Nachricht wird geladen…",
 	"reading_no_content": "Diese Nachricht enthält keinen darstellbaren Inhalt.",
 	"reading_remote_blocked": "Externe Bilder werden blockiert, um Ihre Privatsphäre zu schützen.",
+	"reading_importance_high": "Diese Nachricht wurde mit hoher Wichtigkeit gesendet.",
+	"reading_importance_low": "Diese Nachricht wurde mit niedriger Wichtigkeit gesendet.",
 	"reading_load_error": "Diese Nachricht kann nicht geladen werden.",
 	"reading_back_tooltip": "Zurück zur Liste",
 	"reading_webview_unavailable": "Diese Nachricht kann nicht angezeigt werden (die WebView2-Laufzeit ist nicht verfügbar).",
@@ -969,6 +973,10 @@
 	"settings_signatures_image_too_large": "Dieses Bild ist zu groß. Wählen Sie eines unter {limit}.",
 	"settings_signatures_image_failed": "Dieses Bild kann nicht gelesen werden.",
 	"compose_signature_label": "Signatur",
+	"compose_importance_label": "Wichtigkeit",
+	"compose_importance_high": "Hoch",
+	"compose_importance_normal": "Normal",
+	"compose_importance_low": "Niedrig",
 
 	"settings_category_notifications": "Benachrichtigungen",
 	"settings_category_general_summary": "Sprache, Erscheinungsbild, Zeitzone und Zeitformat",

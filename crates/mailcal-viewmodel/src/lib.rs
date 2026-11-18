@@ -35,6 +35,8 @@ pub use calendar::{CalendarSnapshot, EventRow};
 pub use command_bar::{Command, CommandBar, CommandItem, command_bar};
 pub use connectivity::ConnectivitySnapshot;
 pub use contacts::{ContactCardRef, ContactDetail, ContactRow, ContactValue, ContactsSnapshot};
+/// The importance a row and an open message carry; the engine's, as it reads it.
+pub use engine_api::Importance;
 pub use folder_changes::{
     FolderAction, FolderNameCheck, FolderNotice, FolderProblem, QueuedFolderChange,
     check_folder_name, pending_folder_key, stamp_folder_actions, with_folder_changes,
@@ -45,7 +47,7 @@ pub use folders::{
 };
 pub use invitation::{AttendeeTally, InvitationCard, InvitationKind, ResponseStatus};
 pub use outbox::{QueuedRow, QueuedState, queued_rows};
-pub use reading::{AttachmentRow, ReadingSnapshot};
+pub use reading::{AttachmentRow, ReadingSnapshot, importance_banner};
 pub use reading_stop::{conversation_opens, stop_after_removing};
 pub use row_menu::{MenuMessage, MenuRow, RowMenu, RowMenuItem, row_menu};
 pub use row_reach::{

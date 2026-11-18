@@ -10,6 +10,7 @@ use engine_api::{
 use mailcal_viewmodel::{
     AttachmentRow, Avatar, ReadingSnapshot,
     avatar::{self},
+    importance_banner,
 };
 
 use crate::{App, ReaderId, reading_trace::OpenTrace, reference::MessageRef};
@@ -306,6 +307,7 @@ impl<P: Provider> App<P> {
             load_error: false,
             attachments,
             invitation,
+            importance_banner: importance_banner(original.envelope.importance),
         }
     }
 

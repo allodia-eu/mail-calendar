@@ -39,6 +39,7 @@ class MailSelectionTest {
                 unread = unread,
                 flagged = flagged,
                 hasAttachment = false,
+                importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
                 preview = "",
             ),
         )
@@ -55,6 +56,7 @@ class MailSelectionTest {
             messageCount = 3u,
             unreadCount = unreadCount,
             hasAttachment = false,
+            importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
             preview = "",
             messages = emptyList(),
         ),

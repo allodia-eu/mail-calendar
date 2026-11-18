@@ -17,6 +17,7 @@ pub(crate) mod attachments;
 pub(crate) mod canvas;
 mod document;
 mod header;
+mod importance;
 mod overflow;
 mod print;
 mod scheme;
@@ -83,6 +84,7 @@ pub(crate) struct ReadingPane {
     /// What the web view shows, so a render rebuilds the document only when it moved.
     body_shown: document::ShownBody,
     remote_banner: adw::Banner,
+    importance_banner: adw::Banner,
     /// The meeting-invitation card, above the body. Whether there is one at all is the core's
     /// two-condition RSVP gate (`docs/invitations.md`), so a published `.ics` produces none here
     /// and keeps its attachment chip instead.
@@ -143,6 +145,8 @@ impl ReadingPane {
         metadata.append(&date);
         identity.append(&metadata);
         content.append(&identity);
+        let importance_banner = importance::banner();
+        content.append(&importance_banner);
 
         let remote_banner = adw::Banner::new(l10n::reading_remote_blocked());
         remote_banner.set_button_label(Some(l10n::action_load_images()));
@@ -222,6 +226,7 @@ impl ReadingPane {
             scheme: Cell::new(MessageScheme::Light),
             body_shown: document::ShownBody::default(),
             remote_banner,
+            importance_banner,
             invitation,
             invitation_generation: Cell::new(None),
             body_stack,
@@ -266,6 +271,7 @@ impl ReadingPane {
             *self.print_source.borrow_mut() = None;
             self.clear_header();
             self.remote_banner.set_revealed(false);
+            importance::show(&self.importance_banner, None);
             self.clear_invitation();
             self.show("idle");
             return;
@@ -291,6 +297,7 @@ impl ReadingPane {
         if !state.matches_opened() {
             self.recipients.set_text("");
             self.remote_banner.set_revealed(false);
+            importance::show(&self.importance_banner, None);
             // A stale snapshot belongs to the message that was open a moment ago; drawing its card
             // over the one now loading would offer an answer to the wrong meeting.
             self.clear_invitation();
@@ -300,6 +307,7 @@ impl ReadingPane {
         }
         let reading = &state.snapshot;
         self.avatar.set(&AvatarData::from(&reading.avatar));
+        importance::show(&self.importance_banner, reading.importance_banner);
         match reading.invitation.as_ref() {
             Some(card) if self.invitation_generation.get() != Some(clock.generation) => {
                 self.invitation_generation.set(Some(clock.generation));
@@ -457,44 +465,5 @@ fn sender_line<'a>(reading: &'a ReadingSnapshot, opened: &'a OpenedMessage) -> &
 pub(crate) mod attachment_tests;
 
 #[cfg(test)]
-mod tests {
-    use mailcal_bindings::ReadingSnapshot;
-
-    use super::sender_line;
-    use crate::ui::model::OpenedMessage;
-
-    #[test]
-    fn loaded_sender_uses_the_full_reading_header_and_loading_falls_back_to_the_row() {
-        let opened = OpenedMessage {
-            account: "account".to_owned(),
-            key: "message".to_owned(),
-            subject: "Subject".to_owned(),
-            from: "Sender".to_owned(),
-            date: "2026-07-20".to_owned(),
-            avatar: crate::ui::avatar::AvatarData::from(&crate::ui::model::blank_avatar()),
-        };
-        let mut reading = ReadingSnapshot {
-            avatar: crate::ui::model::blank_avatar(),
-            key: "message".to_owned(),
-            subject: String::new(),
-            from: "Sender <sender@example.test>".to_owned(),
-            to: String::new(),
-            cc: String::new(),
-            bcc: String::new(),
-            html: None,
-            plain: None,
-            has_remote_images: false,
-            load_error: false,
-            attachments: Vec::new(),
-            invitation: None,
-            pending: false,
-        };
-
-        assert_eq!(
-            sender_line(&reading, &opened),
-            "Sender <sender@example.test>"
-        );
-        reading.from.clear();
-        assert_eq!(sender_line(&reading, &opened), "Sender");
-    }
-}
+#[path = "sender_tests.rs"]
+mod sender_tests;

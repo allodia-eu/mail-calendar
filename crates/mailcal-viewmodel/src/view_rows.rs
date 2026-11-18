@@ -17,7 +17,7 @@ use std::{
     collections::{HashMap, HashSet},
 };
 
-use engine_api::{MailRow, UtcDateTime};
+use engine_api::{Importance, MailRow, UtcDateTime};
 
 use crate::{
     avatar::{self, Avatar},
@@ -107,6 +107,7 @@ pub(crate) fn flat_row(item: &AccountMessage) -> FlatRow {
         unread: row.flags.is_unread(),
         flagged: row.flags.flagged(),
         has_attachment: row.has_attachment,
+        importance: row.importance,
         preview: row.preview.clone().unwrap_or_default(),
         kind: kind(item),
         folders: folders(item),
@@ -339,6 +340,7 @@ fn thread_row(account: String, thread_id: String, deduped: &[&AccountMessage]) -
         .unwrap_or(u32::MAX),
         flagged: deduped.iter().any(|m| m.row.mail.flags.flagged()),
         has_attachment: deduped.iter().any(|m| m.row.mail.has_attachment),
+        importance: conversation_importance(deduped.iter().map(|m| m.row.mail.importance)),
         preview: row.preview.clone().unwrap_or_default(),
         messages: deduped.iter().map(|item| thread_message(item)).collect(),
     }
@@ -359,6 +361,24 @@ fn thread_message(item: &AccountMessage) -> ThreadMessage {
         flagged: row.flags.flagged(),
         kind: kind(item),
         has_attachment: row.has_attachment,
+        importance: row.importance,
         folders: folders(item),
+    }
+}
+
+/// A conversation's importance, from its messages': high when any is, so an urgent message is
+/// never hidden behind the replies to it, and low only when every one is.
+pub(crate) fn conversation_importance(
+    mut messages: impl Iterator<Item = Importance> + Clone,
+) -> Importance {
+    if messages
+        .clone()
+        .any(|importance| importance == Importance::High)
+    {
+        Importance::High
+    } else if messages.all(|importance| importance == Importance::Low) {
+        Importance::Low
+    } else {
+        Importance::Normal
     }
 }
