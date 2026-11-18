@@ -135,7 +135,6 @@ enum ShowcaseApp {
         if let bar = try app.query(Filter().type("UITabBar")).first?.frame,
            let frame = found.frame, frame.maxY > bar.minY {
             app.input.swipeUp()
-            try app.settle()
             found = try app.wait(row(mentioning: text), because)
         }
         try app.tap(found)

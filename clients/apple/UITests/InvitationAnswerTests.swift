@@ -25,10 +25,9 @@ final class InvitationAnswerTests: XCTestCase {
         ]
         for (name, line) in presses {
             let button = try app.wait(.button(name), "no '\(name)'")
-            try app.settle()
             // Near the trailing edge, off the word: the part of the button a block above the
             // preview covers and the label does not.
-            try app.point(button, at: CGVector(dx: 0.92, dy: 0.5)).tap()
+            try app.tap(button, at: CGVector(dx: 0.92, dy: 0.5))
             try app.wait(.text(line), "'\(name)' did not take a press near its trailing edge")
         }
     }

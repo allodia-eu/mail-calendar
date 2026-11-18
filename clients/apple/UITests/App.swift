@@ -27,7 +27,7 @@ final class App {
 
     /// What matches now, without waiting.
     func query(_ filter: Filter) throws -> [Element] {
-        elements(try agent.call("query", filter.fields))
+        elements(try agent.call("query", filter.fields), filter)
     }
 
     func exists(_ filter: Filter) throws -> Bool {
@@ -48,7 +48,7 @@ final class App {
     ) throws -> [Element] {
         var arguments = filter.fields
         arguments["timeoutMs"] = Int(timeout * 1000)
-        return try explained(because, filter) { elements(try agent.call("wait", arguments)) }
+        return try explained(because, filter) { elements(try agent.call("wait", arguments), filter) }
     }
 
     /// Returns once nothing matches `filter`.
@@ -91,18 +91,11 @@ final class App {
     /// What VoiceOver's double tap does: the element's accessibility activation, or, for one that
     /// takes none (a list row, a menu button, UIKit's back button), a tap where it is drawn.
     ///
-    /// An element found while it was still sliding in (a menu's item, a sheet's button) can be
-    /// refused as not yet on screen: it is asked again once the screen is still.
+    /// Once the screen is still, as a person waits: a menu opened while a sheet is still coming up
+    /// is closed again by SwiftUI, and an element found while it slid in is not where it was.
     func activate(_ element: Element) throws {
-        do {
-            try activateOnce(element)
-        } catch let refusal as AgentRefusal where refusal.code == "not-showing" {
-            try settle()
-            try activateOnce(element)
-        }
-    }
-
-    private func activateOnce(_ element: Element) throws {
+        try settle(quietMs: Self.beforeActing)
+        let element = try current(element)
         do {
             try agent.call("activate", ["h": element.h])
         } catch let refusal as AgentRefusal where refusal.code == "not-activatable" {
@@ -110,14 +103,11 @@ final class App {
         }
     }
 
-    /// Opens `menu` and presses its item `item`, as a person does with two taps.
-    ///
-    /// SwiftUI closes a menu presented while the screen under it is still moving (a sheet coming
-    /// up, a launch hook changing surface), and nothing on screen says when that has finished. A
-    /// menu that closed before its item was pressed is opened again, as a person would.
+    /// Opens `menu` and presses its item `item`, as a person does with two taps, opening it again
+    /// if it closed before the item was pressed: a SwiftUI menu now and then closes itself just
+    /// after opening, on a still screen, and a person would simply open it again.
     func choose(_ item: Filter, from menu: Element, _ because: String? = nil) throws {
         for attempt in 1...3 {
-            try settle()
             try activate(menu)
             do {
                 try press(item, timeout: 5, because)
@@ -126,6 +116,18 @@ final class App {
                 where attempt < 3 && ["not-showing", "timeout"].contains(refusal.code) {
                 continue
             }
+        }
+    }
+
+    /// `element`, or what its filter finds in its place once the toolkit has replaced it: SwiftUI
+    /// rebuilds a control's accessibility object when its view updates, which a settle can see.
+    private func current(_ element: Element) throws -> Element {
+        do {
+            _ = try read(element)
+            return element
+        } catch let refusal as AgentRefusal where refusal.code == "gone" {
+            guard let found = element.found else { throw refusal }
+            return try wait(found, timeout: 5, "it was replaced and is not back")
         }
     }
 
@@ -181,15 +183,19 @@ final class App {
 
     /// A finger on the element, once the screen has stopped moving: a frame read mid-animation aims
     /// the touch where the element was.
-    func tap(_ element: Element) throws {
-        try settle()
-        try point(element).tap()
+    func tap(_ element: Element, at offset: CGVector = CGVector(dx: 0.5, dy: 0.5)) throws {
+        try settle(quietMs: Self.beforeActing)
+        try point(current(element), at: offset).tap()
     }
 
     func longPress(_ element: Element, duration: TimeInterval = 1.2) throws {
-        try settle()
-        try point(element).press(forDuration: duration)
+        try settle(quietMs: Self.beforeActing)
+        try point(current(element)).press(forDuration: duration)
     }
+
+    /// How long the screen has to have been still before an action. Short, because `settle` also
+    /// waits out anything still moving; a read that follows a change asks for the full default.
+    private static let beforeActing = 100
 
     /// Sends a chord from the keyboard, and returns whether `arrived` came to hold.
     ///
@@ -233,8 +239,12 @@ final class App {
         return found[0]
     }
 
-    private func elements(_ reply: [String: Any]) -> [Element] {
-        (reply["elements"] as? [[String: Any]] ?? []).map(Element.init)
+    private func elements(_ reply: [String: Any], _ filter: Filter) -> [Element] {
+        (reply["elements"] as? [[String: Any]] ?? []).enumerated().map { index, fields in
+            var element = Element(fields)
+            element.found = filter.index(index)
+            return element
+        }
     }
 
     /// Puts the test's own words, and the filter it was looking for, in front of a refusal.

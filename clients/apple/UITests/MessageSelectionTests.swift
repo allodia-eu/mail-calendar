@@ -29,7 +29,7 @@ final class MessageSelectionTests: XCTestCase {
         )
 
         try app.press(.button("Select all"))
-        XCTAssertTrue(try app.wait(bar).enabled, "Select all picked nothing")
+        XCTAssertTrue(try app.appears(bar.enabled(true), timeout: 5), "Select all picked nothing")
         XCTAssertGreaterThan(selectedRows(in: app), 1, "the rows do not report themselves selected")
 
         try app.press(.button("Done"))
