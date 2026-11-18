@@ -29,6 +29,7 @@ use crate::{
 
 fn message_row() -> FlatRow {
     FlatRow {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: crate::ui::model::blank_avatar(),
         account: "account-a".to_owned(),
         key: "message-a".to_owned(),
@@ -45,6 +46,7 @@ fn message_row() -> FlatRow {
 
 fn conversation() -> ThreadRow {
     ThreadRow {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: crate::ui::model::blank_avatar(),
         account: "account-a".to_owned(),
         thread_id: "thread-a".to_owned(),
@@ -63,6 +65,7 @@ fn conversation() -> ThreadRow {
 
 fn thread_message() -> ThreadMessage {
     ThreadMessage {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: crate::ui::model::blank_avatar(),
         account: "account-a".to_owned(),
         key: "message-b".to_owned(),

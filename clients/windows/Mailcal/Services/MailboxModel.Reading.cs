@@ -375,6 +375,7 @@ public sealed partial class MailboxModel
             // Passed through as the core built it, see ReadingBody.Invitation for why this one is
             // not re-projected. Null for all but a genuine iMIP invitation.
             Invitation = snapshot.Invitation,
+            ImportanceBanner = snapshot.ImportanceBanner,
         };
 
     /// <summary>

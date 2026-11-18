@@ -106,6 +106,7 @@ internal fun FlatMessageRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                ImportanceMark(message.importance)
                 // A small amber star marks flagged messages at a glance (cf. macOS `flag.fill`).
                 if (message.flagged) {
                     Spacer(modifier = Modifier.width(6.dp))

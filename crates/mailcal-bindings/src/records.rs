@@ -12,6 +12,7 @@
 pub(crate) mod settings;
 
 use crate::{
+    composer_importance::MessageImportance,
     records_avatar::Avatar,
     records_folders::{AccountFolderRow, FolderRow},
     records_outbox::QueuedRow,
@@ -70,6 +71,10 @@ pub struct ReadingSnapshot {
     /// The meeting-invitation card, when this message carries an iTIP object warranting one;
     /// `None` for ordinary mail. Draw it **above** the body.
     pub invitation: Option<crate::records_invitation::InvitationCard>,
+    /// The importance banner above the body, when the sender stated one other than normal:
+    /// "sent with high importance" or "with low importance". `None` draws none.
+    #[uniffi(default = None)]
+    pub importance_banner: Option<MessageImportance>,
     /// The open for `key` is still running and has been long enough to be worth saying so:
     /// show the loading indicator, and **only** then.
     ///
@@ -358,6 +363,8 @@ pub struct FlatRow {
     pub draft: bool,
     /// Whether the provider says the message has a non-inline attachment.
     pub has_attachment: bool,
+    /// The importance its sender stated: a glyph for high and for low, none for normal.
+    pub importance: MessageImportance,
     /// A short body-preview snippet for a two-line list row (empty if none; Microsoft 365 and
     /// JMAP populate it; IMAP does not yet).
     pub preview: String,
@@ -394,6 +401,9 @@ pub struct ThreadRow {
     pub flagged: bool,
     /// Whether any message in the conversation has a non-inline attachment.
     pub has_attachment: bool,
+    /// The conversation's importance: high when any of its messages is, low only when every one
+    /// is.
+    pub importance: MessageImportance,
     /// A short preview snippet of the representative message's body (empty if none), for a
     /// two-line list row.
     pub preview: String,
@@ -434,4 +444,6 @@ pub struct ThreadMessage {
     pub draft: bool,
     /// Whether the message has a non-inline attachment.
     pub has_attachment: bool,
+    /// The importance its sender stated.
+    pub importance: MessageImportance,
 }

@@ -1,10 +1,8 @@
-//! UniFFI Kotlin/Swift bindings over `mailcal-app`.
-//!
-//! The FFI surface every native client consumes: a [`MailcalApp`] object exposing the
-//! unidirectional loop. A host dispatches an [`Intent`] (fire-and-forget, scheduled on an
-//! internal runtime so native never awaits Rust), and the app notifies a foreign [`Observer`]
-//! when a [`Surface`] changes, and the host pulls that surface's snapshot. FFI types mirror the
-//! pure `mailcal-app` types so the app stays binding-free.
+//! UniFFI bindings over `mailcal-app`: a [`MailcalApp`] object exposing the unidirectional loop.
+//! A host `dispatch`es an [`Intent`] (fire-and-forget, on an internal runtime), the app notifies
+//! a foreign [`Observer`] when a [`Surface`] changes, and the host pulls that surface's snapshot
+//! ([`MailcalApp::mailbox_list`]). FFI types mirror the `mailcal-app` types, which stay
+//! binding-free.
 
 // A test drives a runtime of its own from the test harness's thread, not from a host's, so the
 // `clippy.toml` rule that keeps FFI calls off the caller's stack does not apply to it.
@@ -81,6 +79,7 @@ mod composer;
 mod composer_file_list;
 mod composer_files;
 mod composer_host;
+mod composer_importance;
 mod composer_layout;
 mod composer_open;
 mod connected_account;
@@ -216,6 +215,7 @@ pub use composer_host::{
     composer_host_requests_script, composer_host_requests_with_history_script,
     composer_link_address, composer_link_answer_script, parse_composer_host_request,
 };
+pub use composer_importance::{ComposerImportance, MessageImportance};
 pub use composer_layout::{ComposerScroller, composer_caret_scroll, composer_scroller};
 pub use composer_open::{
     ComposeKind, ComposeOpening, ComposeOrigin, ComposePrefill, ComposerState, MovedComposer,

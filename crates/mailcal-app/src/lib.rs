@@ -142,7 +142,7 @@ pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
 use draft_ops::DraftState;
-pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE, moved::*};
+pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE, importance::*, moved::*};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;

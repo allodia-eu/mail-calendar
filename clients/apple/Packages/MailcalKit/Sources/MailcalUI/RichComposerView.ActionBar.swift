@@ -1,5 +1,5 @@
-// The composer's action bar: Send and Discard on the Mac, Attach, Signature and the draft's
-// actions everywhere. Split from RichComposerView.swift, which stays under the line limit.
+// The composer's action bar: Send and Discard on the Mac, Attach, Signature, Importance and the
+// draft's actions everywhere. Split from RichComposerView.swift, which stays under the line limit.
 
 import MailcalBindings
 import SwiftUI
@@ -49,6 +49,7 @@ extension RichComposeView {
             if showsSignaturePicker {
                 signatureMenu
             }
+            importanceMenu
             Spacer()
         }
         #else
@@ -64,6 +65,7 @@ extension RichComposeView {
             if showsSignaturePicker {
                 signatureMenu
             }
+            importanceMenu
             Spacer()
             if drafts != nil {
                 Menu {

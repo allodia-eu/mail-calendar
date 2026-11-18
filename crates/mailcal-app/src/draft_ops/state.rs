@@ -5,7 +5,7 @@ use std::{
     sync::Arc,
 };
 
-use engine_api::{AccountId, InlinePart, MessageIdHeader, PendingOpId, ProviderKey};
+use engine_api::{AccountId, Importance, InlinePart, MessageIdHeader, PendingOpId, ProviderKey};
 
 use crate::{ComposeKind, CompositionId, DraftStatus};
 
@@ -42,6 +42,11 @@ pub(super) struct Composition {
     /// What its composer is doing, for the feature-adoption count a send makes
     /// (`docs/analytics.md`).
     pub(super) kind: ComposeKind,
+    /// The importance every save and the send carry (`importance`).
+    pub(super) importance: Importance,
+    /// The importance it opened with: a stored draft's own, else normal. What
+    /// [`ComposerImportance::changed`](crate::ComposerImportance::changed) compares against.
+    pub(super) opened_importance: Importance,
 }
 
 impl Composition {
@@ -56,6 +61,8 @@ impl Composition {
             threading: None,
             pictures: Arc::from([]),
             kind: ComposeKind::New,
+            importance: Importance::Normal,
+            opened_importance: Importance::Normal,
         }
     }
 }

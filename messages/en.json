@@ -140,6 +140,8 @@
 
 	"a11y_flagged": "Flagged",
 	"a11y_has_attachment": "Has attachment",
+	"a11y_importance_high": "High importance",
+	"a11y_importance_low": "Low importance",
 	"a11y_mail_row": "{sender}, {subject}, {date}",
 	"a11y_message_list": "Message list",
 	"a11y_more_actions": "More actions",
@@ -448,6 +450,8 @@
 	"reading_loading": "Loading message…",
 	"reading_no_content": "This message has no displayable content.",
 	"reading_remote_blocked": "Remote images are blocked to protect your privacy.",
+	"reading_importance_high": "This message was sent with high importance.",
+	"reading_importance_low": "This message was sent with low importance.",
 	"reading_load_error": "Couldn't load this message.",
 	"reading_back_tooltip": "Back to list",
 	"reading_webview_unavailable": "Couldn't display this message (the web content renderer is unavailable).",
@@ -969,6 +973,10 @@
 	"settings_signatures_image_too_large": "That image is too large. Pick one under {limit}.",
 	"settings_signatures_image_failed": "That image couldn't be read.",
 	"compose_signature_label": "Signature",
+	"compose_importance_label": "Importance",
+	"compose_importance_high": "High",
+	"compose_importance_normal": "Normal",
+	"compose_importance_low": "Low",
 
 	"settings_category_notifications": "Notifications",
 	"settings_category_general_summary": "Language, appearance, time zone, and time format",

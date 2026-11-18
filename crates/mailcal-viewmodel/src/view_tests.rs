@@ -20,6 +20,8 @@ mod flat;
 mod folder_tree;
 #[path = "view_tests/folders_and_accounts.rs"]
 mod folders_and_accounts;
+#[path = "view_tests/importance.rs"]
+mod importance;
 #[path = "view_tests/search.rs"]
 mod search;
 #[path = "view_tests/threaded.rs"]

@@ -6,7 +6,8 @@ use std::collections::HashSet;
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 use mailcal_bindings::{
-    FlatRow, MailboxListSnapshot, SelectedRow, SnapshotRow, ThreadMessage, ThreadRow,
+    FlatRow, MailboxListSnapshot, MessageImportance, SelectedRow, SnapshotRow, ThreadMessage,
+    ThreadRow,
 };
 
 #[cfg(test)]
@@ -154,6 +155,9 @@ fn flat_row(
     widget.set_activatable(true);
     widget.add_css_class(weight_class(display.unread));
     let avatar = avatar::view(&display.avatar, 36);
+    if let Some(icon) = importance_icon(display.importance) {
+        widget.add_suffix(&icon);
+    }
     if display.flagged {
         widget.add_suffix(&flag_icon());
     }
@@ -278,6 +282,9 @@ fn thread_row(
     if display.count > 1 {
         widget.add_suffix(&count_badge(display.count));
     }
+    if let Some(icon) = importance_icon(display.importance) {
+        widget.add_suffix(&icon);
+    }
     // Flagged while anything on it is, which is when its menu offers Unflag.
     if display.flagged {
         widget.add_suffix(&flag_icon());
@@ -352,6 +359,9 @@ fn thread_message_row(
     if display.draft {
         widget.add_suffix(&badge(l10n::thread_draft()));
     }
+    if let Some(icon) = importance_icon(display.importance) {
+        widget.add_suffix(&icon);
+    }
     if display.flagged {
         widget.add_suffix(&flag_icon());
     }
@@ -384,6 +394,29 @@ fn attachment_icon() -> gtk::Image {
     let icon = gtk::Image::from_icon_name(super::icons::ATTACHMENT);
     icon.set_tooltip_text(Some(l10n::a11y_has_attachment()));
     icon
+}
+
+/// The importance glyph, or `None` for normal, which draws none: red for high, as the mark
+/// that asks for attention, and dimmed for low.
+fn importance_icon(importance: MessageImportance) -> Option<gtk::Image> {
+    let (name, label, class) = match importance {
+        MessageImportance::High => (
+            super::icons::IMPORTANCE_HIGH,
+            l10n::a11y_importance_high(),
+            "error",
+        ),
+        MessageImportance::Low => (
+            super::icons::IMPORTANCE_LOW,
+            l10n::a11y_importance_low(),
+            "dim-label",
+        ),
+        MessageImportance::Normal => return None,
+    };
+    let icon = gtk::Image::from_icon_name(name);
+    icon.add_css_class(class);
+    icon.set_tooltip_text(Some(label));
+    icon.update_property(&[AccessibleProperty::Label(label)]);
+    Some(icon)
 }
 
 fn flag_icon() -> gtk::Image {

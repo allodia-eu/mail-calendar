@@ -1,5 +1,7 @@
 //! The reading-view snapshot: the displayable body of the one open message.
 
+use engine_api::Importance;
+
 use crate::{avatar::Avatar, invitation::InvitationCard};
 
 /// One downloadable attachment shown below an open message.
@@ -78,6 +80,9 @@ pub struct ReadingSnapshot {
     /// A host draws it **above** the body. Its text fields are attacker-controlled plain text;
     /// see [`crate::invitation::InvitationCard`].
     pub invitation: Option<InvitationCard>,
+    /// The importance banner above the body: the importance the sender stated, when it is not
+    /// normal (`docs/importance.md`). `None` draws no banner. Set by [`importance_banner`].
+    pub importance_banner: Option<Importance>,
     /// The open for [`Self::key`] is still running, and has been long enough to be worth
     /// saying so: a host shows its loading indicator, and only then.
     ///
@@ -88,4 +93,26 @@ pub struct ReadingSnapshot {
     /// has gone on long enough, so the answer is the same on every platform and a fast open
     /// never flashes a spinner it immediately takes away.
     pub pending: bool,
+}
+
+/// The banner an open message carries for the importance its sender stated: one for high and
+/// one for low, as Outlook draws them, and none for normal, which is what a message that states
+/// nothing is.
+#[must_use]
+pub fn importance_banner(importance: Importance) -> Option<Importance> {
+    (!importance.is_normal()).then_some(importance)
+}
+
+#[cfg(test)]
+mod importance_tests {
+    use engine_api::Importance;
+
+    use super::importance_banner;
+
+    #[test]
+    fn only_a_stated_importance_carries_a_banner() {
+        assert_eq!(importance_banner(Importance::High), Some(Importance::High));
+        assert_eq!(importance_banner(Importance::Low), Some(Importance::Low));
+        assert_eq!(importance_banner(Importance::Normal), None);
+    }
 }

@@ -117,6 +117,7 @@ class AvatarSurfacesTest {
         unread = true,
         flagged = false,
         hasAttachment = false,
+        importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
         preview = "Numbers and notes",
     )
 
@@ -131,6 +132,7 @@ class AvatarSurfacesTest {
         outgoing = false,
         draft = false,
         hasAttachment = false,
+        importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
     )
 
     private fun threadRow() = ThreadRow(
@@ -144,6 +146,7 @@ class AvatarSurfacesTest {
         messageCount = 2u,
         unreadCount = 1u,
         hasAttachment = false,
+        importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
         preview = "Numbers and notes",
         messages = listOf(threadMessage("m1", "AL"), threadMessage("m0", "GH")),
     )

@@ -35,6 +35,7 @@ mod composer_file_preview;
 mod composer_file_tiles;
 mod composer_header;
 mod composer_host;
+mod composer_importance;
 mod composer_labels;
 mod composer_layout;
 mod composer_model;

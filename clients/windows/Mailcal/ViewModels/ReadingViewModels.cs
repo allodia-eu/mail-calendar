@@ -138,6 +138,12 @@ public sealed class ReadingBody
     /// out of this assembly's public surface.
     /// </remarks>
     internal uniffi.mailcal_bindings.InvitationCard? Invitation { get; init; }
+
+    /// <summary>
+    /// The importance banner the core asked for under the header, or null for none: a message
+    /// whose sender stated no importance other than normal (docs/importance.md).
+    /// </summary>
+    internal uniffi.mailcal_bindings.MessageImportance? ImportanceBanner { get; init; }
 }
 
 /// <summary>One downloadable attachment in the reading view.</summary>

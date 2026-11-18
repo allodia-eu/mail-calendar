@@ -1,0 +1,11 @@
+From: Dave Example <dave@example.net>
+To: Alice Tester <alice@test.local>
+Subject: Office plants, whenever you have a moment
+Date: Mon, 12 Jan 2026 09:10:00 +0000
+Message-ID: <importance-low-0021@test.local>
+X-Priority: 5 (Lowest)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Sent with low importance, as Thunderbird writes it: X-Priority alone, with no Importance
+header, so the row's down arrow proves the fallback reading (docs/importance.md).

@@ -140,6 +140,8 @@
 
 	"a11y_flagged": "Gemarkeerd",
 	"a11y_has_attachment": "Heeft bijlage",
+	"a11y_importance_high": "Hoge urgentie",
+	"a11y_importance_low": "Lage urgentie",
 	"a11y_mail_row": "{sender}, {subject}, {date}",
 	"a11y_message_list": "Berichtenlijst",
 	"a11y_more_actions": "Meer acties",
@@ -448,6 +450,8 @@
 	"reading_loading": "Bericht laden…",
 	"reading_no_content": "Dit bericht bevat geen weergeefbare inhoud.",
 	"reading_remote_blocked": "Externe afbeeldingen zijn geblokkeerd om je privacy te beschermen.",
+	"reading_importance_high": "Dit bericht is verzonden met hoge urgentie.",
+	"reading_importance_low": "Dit bericht is verzonden met lage urgentie.",
 	"reading_load_error": "Kan dit bericht niet laden.",
 	"reading_back_tooltip": "Terug naar lijst",
 	"reading_webview_unavailable": "Kan dit bericht niet weergeven (de webinhoudsweergave is niet beschikbaar).",
@@ -969,6 +973,10 @@
 	"settings_signatures_image_too_large": "Die afbeelding is te groot. Kies er een onder {limit}.",
 	"settings_signatures_image_failed": "Die afbeelding kon niet gelezen worden.",
 	"compose_signature_label": "Handtekening",
+	"compose_importance_label": "Urgentie",
+	"compose_importance_high": "Hoog",
+	"compose_importance_normal": "Normaal",
+	"compose_importance_low": "Laag",
 
 	"settings_category_notifications": "Meldingen",
 	"settings_category_general_summary": "Taal, weergave, tijdzone en tijdnotatie",

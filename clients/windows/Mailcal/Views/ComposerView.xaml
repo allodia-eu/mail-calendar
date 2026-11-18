@@ -137,6 +137,20 @@
                                 <MenuFlyout x:Name="SignatureMenu" />
                             </DropDownButton.Flyout>
                         </DropDownButton>
+                        <!-- Importance (docs/importance.md), its entries the core's and the choice a
+                             checkmark in the menu, as Signature's is; the glyph is the list row's for
+                             what is in force. Hidden until the core has answered. -->
+                        <DropDownButton x:Name="ImportanceButton" Visibility="Collapsed"
+                                        AutomationProperties.AutomationId="ComposerImportance"
+                                        AutomationProperties.Name="{x:Bind l10n:L10n.ComposeImportanceLabel(), Mode=OneTime}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon x:Name="ImportanceIcon" Glyph="&#xE8C9;" FontSize="12" />
+                                <TextBlock Text="{x:Bind l10n:L10n.ComposeImportanceLabel(), Mode=OneTime}" />
+                            </StackPanel>
+                            <DropDownButton.Flyout>
+                                <MenuFlyout x:Name="ImportanceMenu" />
+                            </DropDownButton.Flyout>
+                        </DropDownButton>
                         <!-- Never disabled: a draft is unfinished by definition, so there is no state a
                              composer can be in that this refuses, and pressing it on an unchanged
                              message reaches no server (docs/drafts.md). Hidden only where the composer
