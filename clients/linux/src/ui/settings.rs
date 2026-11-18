@@ -40,6 +40,7 @@ pub(super) mod redraw;
 pub(super) mod sender_name;
 mod shared_stores;
 mod signature_editor;
+mod signature_pictures;
 pub(super) mod signatures;
 mod state;
 mod top_notice;
@@ -125,6 +126,8 @@ struct PageContext {
     page: Option<mailcal_bindings::AccountPage>,
     /// What the person's other devices have to say, read with it.
     devices: Option<mailcal_bindings::AllodiaDevices>,
+    /// Where the Signatures page registers itself, so the window can ask it to follow the core.
+    signatures: signatures::Shown,
 }
 
 #[derive(Debug, Default)]
@@ -151,6 +154,8 @@ pub(super) struct SettingsWindow {
     prompts: super::separate_sign_in_view::Prompts,
     /// The banner above every category.
     top_notice: Option<super::notice_bar::NoticeBar>,
+    /// The Signatures page drawn last, which follows the core's signals itself.
+    signatures: signatures::Shown,
 }
 
 impl SettingsWindow {
@@ -269,6 +274,7 @@ impl SettingsWindow {
             account: state.account.map(str::to_owned),
             page: None,
             devices: None,
+            signatures: self.signatures.clone(),
         };
         // Read before the pages are built, which draw the account's page from it: a change
         // landing in between then reads as one the window has not drawn, and the next signal

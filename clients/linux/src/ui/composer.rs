@@ -353,6 +353,13 @@ impl ComposerPane {
         }
     }
 
+    /// Lists the signature library again in the picker when the core signalled a read of it.
+    pub(crate) fn follow_signatures(&self, read: u64) {
+        if let Some(control) = self.signature.borrow().as_ref() {
+            control.follow(read);
+        }
+    }
+
     pub(crate) fn show_error(&self, text: &str) {
         if let Some(error) = self.error.borrow().as_ref() {
             error.set_text(text);

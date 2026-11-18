@@ -1,21 +1,15 @@
-//! The Signatures settings category: the library; write once, reuse on any account; above the
-//! per-account defaults, one **For new messages** and one **For replies or forwards** picker each.
+//! The Signatures settings category, drawn from the core's `signatures_page`
+//! (`docs/signatures.md`): the library first, since an account's picker with nothing to pick
+//! means nothing, then each account's **For new messages** and **For replies or forwards**
+//! pickers. **None** is a real choice in both rather than a separate switch, so no second control
+//! can disagree with them. Every control is drawn through [`controls`], and the page keeps no copy
+//! of the library and no rule of its own.
 //!
-//! State lives in the Rust core (the `SignaturesSnapshot`); this renders it and dispatches the
-//! setters. Two things the layout is deliberate about, and they match every other client: the
-//! library comes first, because an account picker with nothing to pick is meaningless; a
-//! first-time user has to write a signature before the defaults mean anything. And **None** is a
-//! real option in both pickers rather than a separate enable switch: "None in both" already says
-//! "this account sends no signature", and a second control that could disagree with the pickers is
-//! a bug waiting to happen.
-//!
-//! **The category is built once and then reconciled, never rebuilt**: a create appends a row, a
-//! rename retitles one, the empty-state row is hidden rather than removed, and every slot picker
-//! shares one model, so a new signature reaches all of them without a picker being replaced.
-//!
-//! Reconciliation keeps the long-lived Settings tree quiet. The signature editor stays in that
-//! same toplevel too; creating and destroying a second visible toplevel can race GTK's AT-SPI root
-//! enumeration (`docs/signatures.md`).
+//! The window asks the page to follow each `Surface::Signatures` and `Surface::Settings` signal:
+//! the page is drawn again in place when what it reads differs from what it drew, and waits while
+//! a picker's list is open, which a redraw would close under the pointer. The signature editor
+//! replaces the window's content in the same toplevel, since creating a second one can race GTK's
+//! AT-SPI root enumeration; a redraw of the list never touches it, and it follows the same reads.
 
 use std::{
     cell::{Cell, RefCell},
@@ -24,333 +18,301 @@ use std::{
 
 use adw::prelude::*;
 use gtk::glib;
-use mailcal_bindings::{AccountSignatureRow, SignatureRow, SignatureSlotKind, SignaturesSnapshot};
+use mailcal_bindings::{
+    AccountSignatures, Intent, SignatureEntry, SignatureIntent, SignaturePicker, SignatureSlotKind,
+    SignaturesPage,
+};
 
-use super::{PageContext, group, page_box, pages, signature_editor};
-use crate::{l10n, ui::mailbox::plain_text_row};
+use super::{PageContext, SettingsWindow, group, page_box, redraw, signature_editor};
+use crate::{
+    l10n,
+    ui::{controls, mailbox::plain_text_row},
+};
+
+/// The Signatures page the window drew last, and the last read it was asked to follow.
+#[derive(Clone, Default)]
+pub(super) struct Shown {
+    view: Rc<RefCell<Option<Rc<View>>>>,
+    read: Rc<Cell<u64>>,
+}
+
+impl std::fmt::Debug for Shown {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Shown")
+    }
+}
+
+impl SettingsWindow {
+    /// Brings Settings → Signatures, and an editor open on it, to the core's page once for each
+    /// read the model counted.
+    pub(in crate::ui) fn follow_signatures(&self, read: u64) {
+        if self.signatures.read.replace(read) == read {
+            return;
+        }
+        let view = self.signatures.view.borrow().clone();
+        if let Some(view) = view {
+            view.follow();
+        }
+    }
+}
 
 pub(super) fn signatures(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_signatures());
-    let snapshot = ctx.app.signatures();
-
-    let library_group = group(
-        l10n::settings_signatures_library_heading(),
-        l10n::settings_signatures_library_description(),
-    );
-    // Present from the start and hidden when it does not apply, so writing a first signature adds
-    // a row rather than replacing one.
-    let empty = named_row(l10n::settings_signatures_empty());
-    empty.set_visible(snapshot.signatures.is_empty());
-    library_group.add(&empty);
-
-    // One model behind every slot picker: a create appends a name to it and each account's two
-    // pickers gain the option, with no picker being rebuilt.
-    let names = gtk::StringList::new(&[l10n::settings_signatures_none()]);
-
-    let library = Library {
+    let body = gtk::Box::new(gtk::Orientation::Vertical, 18);
+    content.append(&body);
+    let view = Rc::new(View {
         ctx: ctx.clone(),
-        group: library_group.downgrade(),
-        empty: empty.downgrade(),
-        rows: Rc::new(RefCell::new(Vec::new())),
-        names: names.clone(),
-        ids: Rc::new(RefCell::new(Vec::new())),
-        pickers: Rc::new(RefCell::new(Vec::new())),
-        syncing: Rc::new(Cell::new(false)),
-    };
-
-    content.append(&library_group);
-    content.append(&library.add_button());
-    content.append(&library.defaults_group(&snapshot));
-    library.refresh();
+        body,
+        drawn: RefCell::new(None),
+        waiting_on: RefCell::new(None),
+        editor: RefCell::new(None),
+    });
+    view.draw(ctx.app.signatures_page());
+    ctx.signatures.view.replace(Some(view));
     content
 }
 
-/// The category's live widgets, and the bookkeeping that lets them be updated rather than replaced.
-///
-/// Cloned into every handler; the widget references are weak so a handler cannot keep the page
-/// alive past the Settings window.
-#[derive(Clone)]
-struct Library {
+struct View {
     ctx: PageContext,
-    group: glib::WeakRef<adw::PreferencesGroup>,
-    /// The "you haven't written one yet" row, shown and hidden rather than added and removed.
-    empty: glib::WeakRef<adw::ActionRow>,
-    /// The rows on screen, in the core's order, so a refresh can tell a create from a rename.
-    rows: Rc<RefCell<Vec<(String, adw::ActionRow)>>>,
-    /// **None** first, then the library; the model every slot picker draws from.
-    names: gtk::StringList,
-    /// The library's ids, parallel to `names` from index 1.
-    ids: Rc<RefCell<Vec<String>>>,
-    /// Every slot picker: which account and slot it sets, and the row itself.
-    pickers: Rc<RefCell<Vec<Picker>>>,
-    /// Set while selections are written back from the core, so a picker's own change handler does
-    /// not echo them straight back into it.
-    syncing: Rc<Cell<bool>>,
+    /// Everything under the heading, drawn again whole.
+    body: gtk::Box,
+    drawn: RefCell<Option<SignaturesPage>>,
+    /// The open list a redraw waits for.
+    waiting_on: RefCell<Option<glib::WeakRef<gtk::Popover>>>,
+    editor: RefCell<Option<Rc<signature_editor::Editor>>>,
 }
 
-#[derive(Clone)]
-struct Picker {
-    account: String,
-    new_message: bool,
-    row: adw::ComboRow,
-}
-
-impl Library {
-    /// Re-reads the core and brings the category to match it.
-    ///
-    /// Every setter signals `Surface::Settings`, but this window is built once and does not listen
-    /// for that; reconciling here is what makes a create, a rename, a delete or an assignment
-    /// visible at once; including a delete's other half, which clears the slots that pointed at
-    /// it.
-    fn refresh(&self) {
-        let snapshot = self.ctx.app.signatures();
-        self.sync_names(&snapshot.signatures);
-        self.sync_rows(&snapshot.signatures);
-        self.sync_selections(&snapshot.accounts);
-    }
-
-    /// Brings the shared picker model to match the library, **entry by entry**.
-    ///
-    /// Not a wholesale splice: replacing every entry replaces the rows a realised picker popover
-    /// built from them, which is the widget destruction this category exists to avoid. Written
-    /// this way a create is a pure `append`, a rename touches one entry, and an assignment touches
-    /// none.
-    fn sync_names(&self, signatures: &[SignatureRow]) {
-        for (index, signature) in signatures.iter().enumerate() {
-            let Ok(position) = u32::try_from(index + 1) else {
-                break;
-            };
-            match self.names.string(position) {
-                Some(current) if current == signature.name => {}
-                Some(_) => self.names.splice(position, 1, &[signature.name.as_str()]),
-                None => self.names.append(&signature.name),
-            }
-        }
-        let wanted = u32::try_from(signatures.len())
-            .unwrap_or(u32::MAX)
-            .saturating_add(1);
-        while self.names.n_items() > wanted {
-            self.names.remove(self.names.n_items() - 1);
-        }
-        self.ids
-            .replace(signatures.iter().map(|row| row.id.clone()).collect());
-    }
-
-    /// Appends what is new, retitles what was renamed, and removes only what the user deleted.
-    fn sync_rows(&self, signatures: &[SignatureRow]) {
-        let Some(section) = self.group.upgrade() else {
+impl View {
+    fn follow(self: &Rc<Self>) {
+        if !self.ctx.window.is_visible() {
             return;
-        };
-        let mut rows = self.rows.borrow_mut();
-        rows.retain(|(id, row)| {
-            let kept = signatures.iter().any(|signature| &signature.id == id);
-            if !kept {
-                section.remove(row);
-            }
-            kept
-        });
-        for signature in signatures {
-            if let Some((_, row)) = rows.iter().find(|(id, _)| id == &signature.id) {
-                if row.title() != signature.name {
-                    row.set_title(&signature.name);
+        }
+        let page = self.ctx.app.signatures_page();
+        let editor = self.editor.borrow().clone();
+        if let Some(editor) = editor {
+            editor.follow(&page);
+        }
+        if self.drawn.borrow().as_ref() == Some(&page) {
+            return;
+        }
+        match redraw::open_popover(self.body.upcast_ref()) {
+            Some(open) => self.wait_for(&open),
+            None => self.draw(page),
+        }
+    }
+
+    /// Follows again once `open` closes: on the next turn of the loop, since the row that owns the
+    /// list is still handling the pick when it closes.
+    fn wait_for(self: &Rc<Self>, open: &gtk::Popover) {
+        let mut waiting = self.waiting_on.borrow_mut();
+        if waiting.as_ref().and_then(glib::WeakRef::upgrade).as_ref() == Some(open) {
+            return;
+        }
+        let view = Rc::downgrade(self);
+        open.connect_closed(move |_| {
+            let view = view.clone();
+            glib::idle_add_local_once(move || {
+                if let Some(view) = view.upgrade() {
+                    view.follow();
                 }
-            } else {
-                let row = self.signature_row(signature);
-                section.add(&row);
-                rows.push((signature.id.clone(), row));
-            }
-        }
-        if let Some(empty) = self.empty.upgrade() {
-            empty.set_visible(signatures.is_empty());
-        }
-    }
-
-    /// Puts each picker on what the account now assigns, without the change looking like the user
-    /// making a choice.
-    fn sync_selections(&self, accounts: &[AccountSignatureRow]) {
-        let ids = self.ids.borrow();
-        self.syncing.set(true);
-        for picker in self.pickers.borrow().iter() {
-            let Some(account) = accounts
-                .iter()
-                .find(|account| account.account_id == picker.account)
-            else {
-                continue;
-            };
-            let assigned = if picker.new_message {
-                account.new_message.as_deref()
-            } else {
-                account.reply_forward.as_deref()
-            };
-            // Only when it actually moved: assigning the value it already holds still notifies,
-            // and a picker that rebuilds its selected child for nothing is churn in the one place
-            // this category is trying not to churn.
-            let selection = slot_selection(assigned, &ids);
-            if picker.row.selected() != selection {
-                picker.row.set_selected(selection);
-            }
-        }
-        self.syncing.set(false);
-    }
-
-    /// The button that writes a new signature. Outside the group rather than the last row in it,
-    /// so appending a library row lands after the existing ones without anything being re-added.
-    fn add_button(&self) -> gtk::Button {
-        let add = gtk::Button::with_label(l10n::settings_signatures_add());
-        add.add_css_class("suggested-action");
-        add.set_halign(gtk::Align::Start);
-        let library = self.clone();
-        add.connect_clicked(move |_| {
-            library.edit(signature_editor::EditingSignature {
-                id: None,
-                name: l10n::settings_signatures_default_name().to_owned(),
-                body_html: String::new(),
             });
         });
-        add
+        *waiting = Some(open.downgrade());
     }
 
-    /// One library row: the name, Edit, Delete. The row itself is not activatable; Delete sits
-    /// beside it, and a stray click that opens an editor is recoverable while one that deletes is
-    /// not.
-    fn signature_row(&self, signature: &SignatureRow) -> adw::ActionRow {
-        let row = named_row(&signature.name);
-
-        let edit = gtk::Button::with_label(l10n::settings_signatures_edit());
-        edit.set_valign(gtk::Align::Center);
-        let library = self.clone();
-        let id = signature.id.clone();
-        let name = signature.name.clone();
-        edit.connect_clicked(move |_| {
-            library.edit(signature_editor::EditingSignature {
-                id: Some(id.clone()),
-                name: name.clone(),
-                // Fetched only now: the snapshot carries names, so drawing this list never drags
-                // an embedded logo across the FFI.
-                body_html: library
-                    .ctx
-                    .app
-                    .signature_html(id.clone())
-                    .unwrap_or_default(),
-            });
-        });
-        row.add_suffix(&edit);
-
-        let delete = gtk::Button::with_label(l10n::settings_signatures_delete());
-        delete.add_css_class("destructive-action");
-        delete.set_valign(gtk::Align::Center);
-        let library = self.clone();
-        let id = signature.id.clone();
-        delete.connect_clicked(move |_| library.confirm_delete(id.clone()));
-        row.add_suffix(&delete);
-        row
-    }
-
-    /// For each configured account, which signature a new message opens with and which a reply or
-    /// forward does; independently, each with **None**.
-    fn defaults_group(&self, snapshot: &SignaturesSnapshot) -> adw::PreferencesGroup {
-        let section = group(
-            l10n::settings_signatures_defaults_heading(),
-            l10n::settings_signatures_defaults_description(),
-        );
-        if snapshot.accounts.is_empty() {
-            section.add(&named_row(l10n::settings_accounts_empty()));
-            return section;
+    fn draw(self: &Rc<Self>, page: SignaturesPage) {
+        while let Some(child) = self.body.first_child() {
+            self.body.remove(&child);
         }
-        for account in &snapshot.accounts {
-            // With one account the address is still shown: the setting is per account, and a user
-            // who later adds a second must not have to relearn that.
-            let heading = named_row(&account.email);
-            heading.add_css_class("heading");
-            section.add(&heading);
-            section.add(&self.slot_row(
-                l10n::settings_signatures_new_message_label(),
-                account,
-                true,
-            ));
-            section.add(&self.slot_row(
-                l10n::settings_signatures_reply_forward_label(),
-                account,
-                false,
-            ));
-        }
-        section
+        let edit = Rc::downgrade(self);
+        let delete = Rc::downgrade(self);
+        let app = self.ctx.app.clone();
+        let actions = Actions {
+            edit: Rc::new(move |id| {
+                if let Some(view) = edit.upgrade() {
+                    view.edit(id.as_deref());
+                }
+            }),
+            delete: Rc::new(move |id| {
+                if let Some(view) = delete.upgrade() {
+                    view.confirm_delete(id);
+                }
+            }),
+            assign: Rc::new(move |account, slot, signature| {
+                app.dispatch(Intent::Signature {
+                    intent: SignatureIntent::Assign {
+                        account,
+                        slot,
+                        signature,
+                    },
+                });
+            }),
+        };
+        page_content(&self.body, &page, &actions);
+        self.drawn.replace(Some(page));
     }
 
-    /// One slot's picker, labelled by the slot rather than by the account; two rows holding the
-    /// same signature would otherwise be indistinguishable.
-    fn slot_row(
-        &self,
-        label: &str,
-        account: &AccountSignatureRow,
-        new_message: bool,
-    ) -> adw::ComboRow {
-        let row = slot_picker(label, &self.names);
-        let library = self.clone();
-        let account_id = account.account_id.clone();
-        row.connect_selected_notify(move |picker| {
-            // A selection written back from the core is not the user choosing; storing it again
-            // would be a write per refresh, and on a slot the core had just cleared it would put
-            // the assignment back.
-            if library.syncing.get() {
-                return;
+    /// Opens the editor on the signature `id`, or on a new one.
+    fn edit(self: &Rc<Self>, id: Option<&str>) {
+        let page = self.ctx.app.signatures_page();
+        let entry = id.and_then(|id| page.signatures.iter().find(|entry| entry.id == id));
+        if id.is_some() && entry.is_none() {
+            return;
+        }
+        let view = Rc::downgrade(self);
+        let editor = signature_editor::open(&self.ctx, &page, entry, move || {
+            if let Some(view) = view.upgrade() {
+                view.editor.replace(None);
             }
-            let chosen = slot_choice(picker.selected(), &library.ids.borrow());
-            library.ctx.app.set_account_signature(
-                account_id.clone(),
-                if new_message {
-                    SignatureSlotKind::NewMessage
-                } else {
-                    SignatureSlotKind::ReplyForward
-                },
-                chosen,
-            );
         });
-        self.pickers.borrow_mut().push(Picker {
-            account: account.account_id.clone(),
-            new_message,
-            row: row.clone(),
-        });
-        row
+        self.editor.replace(Some(editor));
     }
 
-    fn edit(&self, editing: signature_editor::EditingSignature) {
-        let library = self.clone();
-        signature_editor::open(&self.ctx, editing, move || library.refresh());
-    }
-
-    /// Deleting is confirmed in a modal, as every other destructive action in this client is, and
-    /// the message says what it costs beyond this list: every account pointing at this signature
-    /// loses it; which the core does in one place, so no client can forget a teardown path.
+    /// Asks before deleting, and says what it costs beyond this list: every account using the
+    /// signature loses it, which the core does in one place.
     fn confirm_delete(&self, id: String) {
-        let dialog = pages::confirm_window(
+        let app = self.ctx.app.clone();
+        controls::confirm(
             &self.ctx.window,
             l10n::settings_signatures_delete_title(),
             l10n::settings_signatures_delete_message(),
+            l10n::settings_signatures_delete(),
+            move |confirmed| {
+                if confirmed {
+                    app.dispatch(Intent::Signature {
+                        intent: SignatureIntent::Delete { id: id.clone() },
+                    });
+                }
+            },
         );
-        let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-        actions.set_halign(gtk::Align::End);
-        let cancel = gtk::Button::with_label(l10n::action_cancel());
-        let window = dialog.clone();
-        cancel.connect_clicked(move |_| window.close());
-        actions.append(&cancel);
-        let delete = gtk::Button::with_label(l10n::settings_signatures_delete());
-        delete.add_css_class("destructive-action");
-        let window = dialog.clone();
-        let library = self.clone();
-        delete.connect_clicked(move |_| {
-            library.ctx.app.delete_signature(id.clone());
-            library.refresh();
-            window.close();
-        });
-        actions.append(&delete);
-        dialog
-            .child()
-            .and_downcast::<gtk::Box>()
-            .expect("confirmation content")
-            .append(&actions);
-        dialog.present();
     }
+}
+
+/// What the page's controls ask for: the editor on a signature or on a new one, a deletion, and
+/// an account's slot set.
+struct Actions {
+    edit: Rc<dyn Fn(Option<String>)>,
+    delete: Rc<dyn Fn(String)>,
+    assign: Rc<dyn Fn(String, SignatureSlotKind, Option<String>)>,
+}
+
+/// Draws `page` into `body`.
+fn page_content(body: &gtk::Box, page: &SignaturesPage, actions: &Actions) {
+    let library = group(
+        l10n::settings_signatures_library_heading(),
+        l10n::settings_signatures_library_description(),
+    );
+    if page.signatures.is_empty() {
+        library.add(&named_row(l10n::settings_signatures_empty()));
+    }
+    for entry in &page.signatures {
+        library.add(&signature_row(entry, actions));
+    }
+    body.append(&library);
+
+    let edit = actions.edit.clone();
+    let add = controls::button(
+        l10n::settings_signatures_add(),
+        page.add,
+        false,
+        move || {
+            edit(None);
+        },
+    );
+    add.add_css_class("suggested-action");
+    add.set_halign(gtk::Align::Start);
+    body.append(&add);
+
+    let defaults = group(
+        l10n::settings_signatures_defaults_heading(),
+        l10n::settings_signatures_defaults_description(),
+    );
+    if page.accounts.is_empty() {
+        defaults.add(&named_row(l10n::settings_accounts_empty()));
+    }
+    let names = std::iter::once(l10n::settings_signatures_none())
+        .chain(page.signatures.iter().map(|entry| entry.name.as_str()))
+        .collect::<Vec<_>>();
+    let ids = page
+        .signatures
+        .iter()
+        .map(|entry| entry.id.clone())
+        .collect::<Rc<[_]>>();
+    for account in &page.accounts {
+        // With one account the address is still shown: the setting is per account, and a person
+        // who later adds a second must not have to learn that again.
+        let heading = named_row(&account.email);
+        heading.add_css_class("heading");
+        defaults.add(&heading);
+        for (label, slot, picker) in slots(account) {
+            defaults.add(&slot_row(
+                label, account, slot, picker, &names, &ids, actions,
+            ));
+        }
+    }
+    body.append(&defaults);
+}
+
+/// One library row: the name, Edit, Delete. The row itself is not activatable; Delete sits
+/// beside it, and a stray click that opens an editor is recoverable while one that deletes is not.
+fn signature_row(entry: &SignatureEntry, actions: &Actions) -> adw::ActionRow {
+    let row = named_row(&entry.name);
+    let (edit, id) = (actions.edit.clone(), entry.id.clone());
+    let edit = controls::button(
+        l10n::settings_signatures_edit(),
+        entry.edit,
+        false,
+        move || {
+            edit(Some(id.clone()));
+        },
+    );
+    row.add_suffix(&edit);
+    let (delete, id) = (actions.delete.clone(), entry.id.clone());
+    let delete = controls::button(
+        l10n::settings_signatures_delete(),
+        entry.delete,
+        true,
+        move || delete(id.clone()),
+    );
+    row.add_suffix(&delete);
+    row
+}
+
+fn slots(account: &AccountSignatures) -> [(&'static str, SignatureSlotKind, &SignaturePicker); 2] {
+    [
+        (
+            l10n::settings_signatures_new_message_label(),
+            SignatureSlotKind::NewMessage,
+            &account.new_message,
+        ),
+        (
+            l10n::settings_signatures_reply_forward_label(),
+            SignatureSlotKind::ReplyForward,
+            &account.reply_forward,
+        ),
+    ]
+}
+
+/// One slot's picker, titled by the slot rather than by the account: two rows holding the same
+/// signature would otherwise be indistinguishable.
+fn slot_row(
+    label: &str,
+    account: &AccountSignatures,
+    slot: SignatureSlotKind,
+    picker: &SignaturePicker,
+    names: &[&str],
+    ids: &Rc<[String]>,
+    actions: &Actions,
+) -> adw::ComboRow {
+    let selected = slot_selection(picker.selected.as_deref(), ids);
+    let (assign, ids, account) = (
+        actions.assign.clone(),
+        Rc::clone(ids),
+        account.account_id.clone(),
+    );
+    controls::combo_row(label, names, selected, picker.control, move |index| {
+        assign(account.clone(), slot, slot_choice(index, &ids));
+    })
 }
 
 /// A row whose title is text somebody else wrote; a signature's name, an account's address.
@@ -365,27 +327,7 @@ fn named_row(text: &str) -> adw::ActionRow {
     row
 }
 
-/// A labelled picker for one slot.
-///
-/// An `AdwComboRow` rather than the settings pages' row-plus-`GtkDropDown`, because here the label
-/// is the whole point: an account has two of these and they both read "None" until one is set. A
-/// `GtkDropDown` is labelled by its **selected item** through a relation, and by the ARIA rules GTK
-/// follows a relation beats an explicit label: so a screen reader would hear "None, combo box"
-/// twice per account with nothing to tell them apart. A combo row is one control that carries its
-/// own title, so its name is the slot.
-fn slot_picker(label: &str, names: &gtk::StringList) -> adw::ComboRow {
-    let row = adw::ComboRow::new();
-    row.set_use_markup(false);
-    row.set_title(label);
-    row.set_model(Some(names));
-    row
-}
-
-/// Which entry a slot opens on.
-///
-/// A slot can name a signature that has since been deleted only if the core failed to clear it (it
-/// clears every assignment on delete), so falling back to **None** here is a display detail, not a
-/// second teardown path.
+/// The entry a slot is drawn on: **None** first, then the library.
 fn slot_selection(selected: Option<&str>, ids: &[String]) -> u32 {
     selected
         .and_then(|id| ids.iter().position(|candidate| candidate == id))
@@ -393,7 +335,7 @@ fn slot_selection(selected: Option<&str>, ids: &[String]) -> u32 {
         .unwrap_or(0)
 }
 
-/// What picking entry `index` assigns: a signature id, or `None` for the first entry: which is a
+/// What picking entry `index` assigns: a signature id, or `None` for the first entry, which is a
 /// real assignment ("this account sends no signature"), not the absence of one.
 fn slot_choice(index: u32, ids: &[String]) -> Option<String> {
     usize::try_from(index)
