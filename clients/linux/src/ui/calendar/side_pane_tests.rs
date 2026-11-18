@@ -1,19 +1,25 @@
 //! What the calendar pane asks the core for, and what it says about a day
 //! (`docs/calendar-pane.md`, rules 3, 4 and 11).
 
+use std::collections::HashMap;
+
 use gtk::gdk::Key;
 use mailcal_bindings::{
-    CalendarColor, CalendarGroup, CalendarLayout, CalendarRow, MiniDay, ShownSpan, Swatch,
+    CalendarColor, CalendarGroup, CalendarLayout, CalendarRow, MiniDay, NoticeSeverity, ShownSpan,
+    Swatch,
 };
 use time::{Date, Month};
 
 use super::{CalendarSide, Shown};
 use crate::{
     l10n,
-    ui::calendar::{
-        model::{CalendarMode, CalendarModel},
-        side_pane_list::keys,
-        side_pane_month::{arrow_target, band_class, spoken},
+    ui::{
+        calendar::{
+            model::{CalendarMode, CalendarModel},
+            side_pane_list::keys,
+            side_pane_month::{arrow_target, band_class, spoken},
+        },
+        notice_rules::AccountMark,
     },
 };
 
@@ -188,9 +194,24 @@ fn group(visible: bool) -> CalendarGroup {
 
 #[test]
 fn the_list_is_drawn_again_only_when_what_it_shows_changed() {
-    assert_eq!(keys(&[group(true)]), keys(&[group(true)]));
-    assert_ne!(keys(&[group(true)]), keys(&[group(false)]));
+    let none = HashMap::new();
+    assert_eq!(keys(&[group(true)], &none), keys(&[group(true)], &none));
+    assert_ne!(keys(&[group(true)], &none), keys(&[group(false)], &none));
     let mut shut = group(true);
     shut.expanded = false;
-    assert_ne!(keys(&[group(true)]), keys(&[shut]));
+    assert_ne!(keys(&[group(true)], &none), keys(&[shut], &none));
+    let account = group(true).account;
+    let marked = HashMap::from([(
+        account,
+        AccountMark {
+            severity: NoticeSeverity::Blocked,
+            label: "Sign in again".to_owned(),
+            detail: "Sign in again".to_owned(),
+        },
+    )]);
+    assert_ne!(
+        keys(&[group(true)], &none),
+        keys(&[group(true)], &marked),
+        "a notice about the account draws its heading again"
+    );
 }

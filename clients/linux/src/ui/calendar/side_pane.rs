@@ -4,6 +4,8 @@
 //! Everything it draws is one pull, `calendar_pane`. The one thing kept here of its own is the
 //! month the person paged to, which follows the grid again as soon as the grid shows other days.
 
+use std::collections::HashMap;
+
 use adw::prelude::*;
 use mailcal_bindings::{
     CalendarPane as PaneRecord, CalendarPaneQuery, MailcalApp, PreferenceIntent,
@@ -15,7 +17,7 @@ use super::{
     side_pane_list::CalendarList,
     side_pane_month::MiniMonthView,
 };
-use crate::ui::{AppInput, preference};
+use crate::ui::{AppInput, notice_rules::AccountMark, preference};
 
 /// What the pane asks the host to do.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -204,12 +206,12 @@ impl SidePane {
 
     /// Draws what was pulled. Nothing is drawn again that has not changed: the app renders on
     /// every input, and a rebuilt day or row loses the keyboard focus that is on it.
-    pub(crate) fn render(&mut self, side: &CalendarSide) {
+    pub(crate) fn render(&mut self, side: &CalendarSide, marks: &HashMap<String, AccountMark>) {
         let Some(pane) = &side.pane else {
             return;
         };
         self.month.render(&pane.month);
-        self.calendars.render(&pane.groups);
+        self.calendars.render(&pane.groups, marks);
     }
 
     #[cfg(test)]
