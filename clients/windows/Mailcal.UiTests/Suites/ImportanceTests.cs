@@ -111,9 +111,9 @@ public sealed class ImportanceTests(HarnessApp harness)
             // Reopened, the menu marks what the draft was stored with; lowering it is a change of its own.
             flow.OpenStoredDraft(subject);
             var high = OpenMenu(app, Catalog.English("compose_importance_high"));
-            Assert.True(app.Agent.Read(high).Selected == true,
+            Assert.True(app.Agent.Read(high).Active == true,
                 "the reopened draft's menu does not mark High: the composer opened at normal, and a save from here would lower the stored draft (docs/importance.md, rule 6)");
-            app.Agent.Invoke(app.Agent.Find(MenuItem(Catalog.English("compose_importance_low")))!);
+            app.Agent.SetToggle(app.Agent.Find(MenuItem(Catalog.English("compose_importance_low")))!, true);
             Save(app, flow);
             flow.CloseDraftComposer();
             AssertDraftAnnounces(app, flow, subject, LowMark, "the reopened draft was saved after Low was picked");
@@ -133,9 +133,11 @@ public sealed class ImportanceTests(HarnessApp harness)
             ?? throw new InvalidOperationException($"the Importance menu offers no '{label}'");
     }
 
+    /// <summary>Picks <paramref name="label"/>. A <c>RadioMenuFlyoutItem</c> offers UI Automation a
+    /// toggle and nothing to invoke or select, so the pick is a toggle put on, as Narrator's is.</summary>
     private static void Pick(App app, string label)
     {
-        app.Agent.Invoke(OpenMenu(app, label));
+        app.Agent.SetToggle(OpenMenu(app, label), true);
         app.Agent.WaitGone(MenuItem(label), TimeSpan.FromSeconds(5));
     }
 
