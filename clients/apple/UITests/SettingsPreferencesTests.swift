@@ -14,6 +14,7 @@ import XCTest
 @MainActor
 final class SettingsPreferencesTests: XCTestCase {
     func testTheDefaultZoomShowsANewStopAtOnceAndOnReturn() throws {
+        try XCTSkipIf(ShowcaseApp.pad, "the iPad's Settings has a sidebar, not the phone's hub")
         let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"]).input
         openCategory("Calendar", in: app)
         let zoom = app.pickerWheels.element(boundBy: 1)
@@ -33,6 +34,7 @@ final class SettingsPreferencesTests: XCTestCase {
     }
 
     func testTheDarkBackgroundToggleShowsAChangeAtOnceAndOnReturn() throws {
+        try XCTSkipIf(ShowcaseApp.pad, "the iPad's Settings has a sidebar, not the phone's hub")
         let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"]).input
         openCategory("Reading", in: app)
         let toggle = darkBackgroundSwitch(in: app)
