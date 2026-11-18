@@ -198,8 +198,10 @@ impl TryFrom<Intent> for AppIntent {
             Intent::Outbox { intent } => Self::Outbox(outbox_intent(intent)?),
             Intent::Folders { intent } => Self::Folders(folder_intent(intent)?),
             // `dispatch` handles these itself, before converting.
-            Intent::AccountPage { .. } | Intent::Allodia { .. } => {
-                return Err("an account page or Allodia change is the binding's own".to_owned());
+            Intent::AccountPage { .. } | Intent::Allodia { .. } | Intent::Preferences { .. } => {
+                return Err(
+                    "an account page, Allodia or preference change is the binding's own".to_owned(),
+                );
             }
             Intent::DismissComposeRequest => Self::DismissComposeRequest,
             Intent::RefreshContacts => Self::Contacts(AppContactsIntent::RefreshContacts),

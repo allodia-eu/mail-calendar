@@ -486,6 +486,8 @@
 	"notice_sent_not_filed": "„{subject}“ hat die Empfänger erreicht, aber im Ordner „Gesendet“ konnte keine Kopie gespeichert werden.",
 	"notice_reply_not_delivered": "Ihre Antwort auf „{summary}“ ist gespeichert, aber Ihr Kalenderserver konnte sie nicht an {organizer} weitergeben.",
 	"notice_time_zone_changed": "Ihr Gerät befindet sich jetzt in {zone}. Die angezeigte Zeitzone aktualisieren?",
+	"notice_settings_not_saved": "Ihre letzten Einstellungen konnten nicht gespeichert werden.",
+	"notice_detail_settings_not_saved": "Sie gelten, bis die App geschlossen wird. Versuchen Sie es erneut, um sie zu behalten.",
 	"notice_detail_reply_not_delivered": "Wir können sie von Ihrem Konto aus per E-Mail senden. Was beim nächsten Mal geschieht, legen Sie auf der Seite des Kontos in den Einstellungen fest.",
 	"notice_mark_sent_not_filed": "Kopie nicht in „Gesendet“",
 	"notice_mark_reply_not_delivered": "Antwort nicht weitergegeben",

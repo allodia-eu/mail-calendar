@@ -14,7 +14,7 @@ use std::{
 };
 
 use engine_api::{AccountId, CalendarUserAddresses, addresses_match};
-use mailcal_account::{AccountLinks, Preferences, load_preferences};
+use mailcal_account::{AccountLinks, Preferences};
 
 use crate::App;
 
@@ -107,7 +107,7 @@ impl<P: engine_api::Provider> App<P> {
         // cold paths (opening a message, rebuilding the calendar cache), both of which already do
         // store or network I/O: so one small TOML read is noise, and it can never be stale after
         // the user edits it.
-        let preferences = self.prefs_path.as_ref().map(load_preferences);
+        let preferences = self.prefs.is_stored().then(|| self.prefs.load());
         let mut addresses = self.own_addresses(account, preferences.as_ref()).await;
         for partner in self.invitation_partners(account) {
             addresses.extend(self.own_addresses(&partner, preferences.as_ref()).await);
@@ -120,7 +120,7 @@ impl<P: engine_api::Provider> App<P> {
     /// account linked with it that the address belongs to, so a calendar two mailboxes file into
     /// answers each invitation from the mailbox it invited.
     pub(crate) async fn answering_mail(&self, calendar: &AccountId, attendee: &str) -> AccountId {
-        let preferences = self.prefs_path.as_ref().map(load_preferences);
+        let preferences = self.prefs.is_stored().then(|| self.prefs.load());
         let owns = |addresses: Vec<String>| {
             addresses
                 .iter()

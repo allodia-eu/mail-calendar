@@ -4,7 +4,9 @@ use std::{cell::RefCell, collections::BTreeMap, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
-use mailcal_bindings::{CalendarColor, CalendarRow, MailcalApp, Swatch, calendar_palette};
+use mailcal_bindings::{
+    CalendarColor, CalendarRow, MailcalApp, PreferenceIntent, Swatch, calendar_palette,
+};
 
 use crate::l10n;
 
@@ -111,7 +113,14 @@ fn calendar_row(app: Arc<MailcalApp>, calendar: &CalendarRow) -> adw::ActionRow 
     let account = calendar.account.clone();
     let id = calendar.id.clone();
     visible.connect_active_notify(move |control| {
-        app.set_calendar_visible(account.clone(), id.clone(), control.is_active());
+        crate::ui::preference::set(
+            &app,
+            PreferenceIntent::SetCalendarVisible {
+                account: account.clone(),
+                calendar: id.clone(),
+                visible: control.is_active(),
+            },
+        );
     });
     row.add_suffix(&visible);
     row.set_activatable_widget(Some(&visible));
@@ -140,7 +149,14 @@ fn color_popover(
         let current = Rc::clone(&color);
         let target = swatch.clone();
         button.connect_clicked(move |_| {
-            app.set_calendar_color(account.clone(), id.clone(), Some(hex.clone()));
+            crate::ui::preference::set(
+                &app,
+                PreferenceIntent::SetCalendarColor {
+                    account: account.clone(),
+                    calendar: id.clone(),
+                    hex: Some(hex.clone()),
+                },
+            );
             update_resolved_color(&app, &account, &id, &current, &target);
         });
         choices.insert(&button, -1);
@@ -157,7 +173,14 @@ fn color_popover(
     let current = color;
     let target = swatch.clone();
     reset.connect_clicked(move |_| {
-        app.set_calendar_color(account.clone(), id.clone(), None);
+        crate::ui::preference::set(
+            &app,
+            PreferenceIntent::SetCalendarColor {
+                account: account.clone(),
+                calendar: id.clone(),
+                hex: None,
+            },
+        );
         if let Some(resolved) = app
             .calendars()
             .into_iter()

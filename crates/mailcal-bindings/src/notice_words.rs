@@ -42,6 +42,7 @@ pub(crate) fn title(kind: &NoticeKind, address: &str) -> NoticeText {
             &[("summary", summary), ("organizer", organizer)],
         ),
         NoticeKind::TimeZoneChanged { zone } => text("notice_time_zone_changed", &[("zone", zone)]),
+        NoticeKind::SettingsNotSaved => text("notice_settings_not_saved", &[]),
         NoticeKind::FolderChangeRefused {
             folder, problem, ..
         } => {
@@ -63,6 +64,9 @@ pub(crate) fn detail(kind: &NoticeKind) -> Option<NoticeText> {
         NoticeKind::ContactsOutage { problem } => (problem, "contacts"),
         NoticeKind::ReplyNotDelivered { .. } => {
             return Some(text("notice_detail_reply_not_delivered", &[]));
+        }
+        NoticeKind::SettingsNotSaved => {
+            return Some(text("notice_detail_settings_not_saved", &[]));
         }
         _ => return None,
     };
@@ -97,7 +101,8 @@ pub(crate) fn mark(kind: &NoticeKind) -> Option<NoticeText> {
         NoticeKind::Offline
         | NoticeKind::AllodiaSignInEnded { .. }
         | NoticeKind::AccountsSkipped { .. }
-        | NoticeKind::TimeZoneChanged { .. } => return None,
+        | NoticeKind::TimeZoneChanged { .. }
+        | NoticeKind::SettingsNotSaved => return None,
     };
     Some(text(key, &[]))
 }

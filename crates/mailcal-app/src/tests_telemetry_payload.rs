@@ -209,7 +209,7 @@ async fn a_build_with_no_relay_still_previews_the_real_device() {
         None,
         std::sync::Arc::new(SilentObserver),
         // Exactly what `build_telemetry` constructs when `ALLODIA_TELEMETRY_URL` is absent.
-        Telemetry::unsent(Some(path), device()),
+        Telemetry::unsent(device()),
     );
 
     let preview: serde_json::Value =

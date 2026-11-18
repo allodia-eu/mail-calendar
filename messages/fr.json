@@ -486,6 +486,8 @@
 	"notice_sent_not_filed": "« {subject} » est arrivé à ses destinataires, mais aucune copie n’a pu être enregistrée dans votre dossier Envoyés.",
 	"notice_reply_not_delivered": "Votre réponse à « {summary} » est enregistrée, mais votre serveur d’agenda n’a pas pu la transmettre à {organizer}.",
 	"notice_time_zone_changed": "Votre appareil se trouve maintenant dans le fuseau {zone}. Mettre à jour le fuseau horaire d’affichage ?",
+	"notice_settings_not_saved": "Vos derniers réglages n’ont pas pu être enregistrés.",
+	"notice_detail_settings_not_saved": "Ils s’appliquent jusqu’à la fermeture de l’application. Réessayez pour les conserver.",
 	"notice_detail_reply_not_delivered": "Nous pouvons l’envoyer par e-mail depuis votre compte. Ce qui se passe la prochaine fois se règle sur la page du compte, dans Réglages.",
 	"notice_mark_sent_not_filed": "Copie absente d’Envoyés",
 	"notice_mark_reply_not_delivered": "Réponse non transmise",

@@ -11,7 +11,7 @@ namespace Allodia.Mailcal.Tests;
 public class CalendarSettingsRulesTests
 {
     private static readonly DisplaySettings Display =
-        new(WeekStart.Monday, TimeFormat.TwentyFourHour, Appearance.System, true, 12, CalendarLayout.Week);
+        new(WeekStart.Monday, TimeFormat.TwentyFourHour, Appearance.System, true, 12, [6, 8, 12, 16, 24], CalendarLayout.Week);
 
     private static CalendarRow Calendar(bool visible = true, bool canWrite = true)
     {
@@ -36,6 +36,8 @@ public class CalendarSettingsRulesTests
         Assert.NotEqual(drawn, Drawn(use24Hour: false));
         Assert.NotEqual(drawn, Drawn(display: Display with { WeekStart = WeekStart.Sunday }));
         Assert.NotEqual(drawn, Drawn(display: Display with { VisibleHours = 16 }));
+        // The reading views draw the message background again on the same redraw.
+        Assert.NotEqual(drawn, Drawn(display: Display with { DarkMessageBackground = false }));
         Assert.NotEqual(drawn, Drawn(calendar: Calendar(visible: false)));
         // Whether a new event can be made is read off the calendars' rights.
         Assert.NotEqual(drawn, Drawn(calendar: Calendar(canWrite: false)));

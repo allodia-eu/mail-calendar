@@ -43,6 +43,17 @@ public sealed class SettingsSharedCalendarsTests(HarnessApp harness)
     private static string? Note(App app, Element dialog) =>
         app.Agent.Find(new Filter { Id = "SharedMailboxesNote", Under = dialog })?.Name;
 
+    /// <summary>The store's switch once it can be pressed, found afresh each time: the page holds
+    /// every control while a change on it runs, then draws itself again from the server's answer,
+    /// so a switch found during the hold stays disabled after a new one has replaced it.</summary>
+    private static Element Pressable(App app, Element dialog, string store)
+    {
+        Element? found = null;
+        return App.Eventually(() => (found = Switch(app, dialog, store)).Enabled, TimeSpan.FromSeconds(30))
+            ? found!
+            : throw new InvalidOperationException($"the switch for {store} stayed disabled");
+    }
+
     private static bool IsOn(App app, Element dialog, string store) => app.Agent.Read(Switch(app, dialog, store)).Active == true;
 
     private static Element Button(App app, Element dialog, string id) =>
@@ -66,7 +77,7 @@ public sealed class SettingsSharedCalendarsTests(HarnessApp harness)
         {
             return;
         }
-        app.Agent.SetToggle(toggle, on: false);
+        app.Agent.SetToggle(Pressable(app, dialog, store), on: false);
         app.Agent.Invoke(Button(app, dialog, "SharedMailboxOffConfirm"));
         App.Eventually(() => !IsOn(app, dialog, store), TimeSpan.FromSeconds(20));
     }
@@ -88,10 +99,10 @@ public sealed class SettingsSharedCalendarsTests(HarnessApp harness)
     {
         Assert.Empty(SharedDefaults(app, setup));
         var dialog = setup.OpenAccount(Harness.Alice);
-        app.Agent.SetToggle(Switch(app, dialog, Support), on: true);
+        app.Agent.SetToggle(Pressable(app, dialog, Support), on: true);
         Assert.True(App.Eventually(() => IsOn(app, dialog, Support), TimeSpan.FromSeconds(30)),
             "the page is drawn again from what the server answers after the switch, and it is on");
-        app.Agent.SetToggle(Switch(app, dialog, Dave), on: true);
+        app.Agent.SetToggle(Pressable(app, dialog, Dave), on: true);
         Assert.True(App.Eventually(() => IsOn(app, dialog, Dave), TimeSpan.FromSeconds(30)),
             "the page is drawn again from what the server answers after the switch, and it is on");
         // Rule 11: each is a calendar account of its own, with the rights its server gives. Alice
@@ -108,19 +119,19 @@ public sealed class SettingsSharedCalendarsTests(HarnessApp harness)
     public void SwitchingItOffIsAskedFirstAndTakesItAway() => Case(nameof(SwitchingItOffIsAskedFirstAndTakesItAway), (app, setup) =>
     {
         var dialog = setup.OpenAccount(Harness.Alice);
-        app.Agent.SetToggle(Switch(app, dialog, Support), on: true);
+        app.Agent.SetToggle(Pressable(app, dialog, Support), on: true);
         Assert.True(App.Eventually(() => IsOn(app, dialog, Support), TimeSpan.FromSeconds(30)), "the calendar could not be switched on");
         Assert.True(App.Eventually(() => SharedDefaults(app, setup).Count == 1, TimeSpan.FromSeconds(60)),
             "the support calendar is switched on and Settings → Calendar does not offer it");
 
         dialog = setup.OpenAccount(Harness.Alice);
-        app.Agent.SetToggle(Switch(app, dialog, Support), on: false);
+        app.Agent.SetToggle(Pressable(app, dialog, Support), on: false);
         // Rule 7: switching it off deletes what the device holds of it, so it is confirmed first.
         Button(app, dialog, "SharedMailboxOffConfirm");
         app.Agent.Invoke(Button(app, dialog, "SharedMailboxOffCancel"));
         Assert.True(App.Eventually(() => IsOn(app, dialog, Support), TimeSpan.FromSeconds(5)), "cancelling leaves the calendar on");
 
-        app.Agent.SetToggle(Switch(app, dialog, Support), on: false);
+        app.Agent.SetToggle(Pressable(app, dialog, Support), on: false);
         app.Agent.Invoke(Button(app, dialog, "SharedMailboxOffConfirm"));
         Assert.True(App.Eventually(() => !IsOn(app, dialog, Support), TimeSpan.FromSeconds(20)), "confirmed, the calendar is switched off");
         Assert.True(App.Eventually(() => SharedDefaults(app, setup).Count == 0, TimeSpan.FromSeconds(20)),

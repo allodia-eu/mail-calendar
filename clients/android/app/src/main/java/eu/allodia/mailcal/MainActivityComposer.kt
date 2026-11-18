@@ -184,6 +184,8 @@ private fun MainActivity.ComposerFor(
     opening: ComposeOpening,
     onDismiss: () -> Unit,
 ) {
+    // Pulled in the same step that sets the core, so never null here.
+    val quotes = quoteSettings ?: return
     val ctx = LocalContext.current
     val use24Hour = LocalUse24Hour.current
     val zone = timeZone?.active
@@ -192,7 +194,7 @@ private fun MainActivity.ComposerFor(
             ctx = ctx,
             opening = opening,
             initialFrom = sendAccountFor(opening.account, defaultSendAccount, accounts),
-            quoteSettings = quoteSettings,
+            quoteSettings = quotes,
             dateText = { localDateTime(it, zone, use24Hour) },
         )
     }

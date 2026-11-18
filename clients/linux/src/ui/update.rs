@@ -194,8 +194,11 @@ impl AppModel {
             }
             AppInput::ToggleDarkMessages => {
                 if let Some(app) = &self.app {
-                    let dark = app.display_settings().dark_message_background;
-                    app.set_dark_message_background(!dark);
+                    let dark = !app.display_settings().dark_message_background;
+                    crate::ui::preference::set(
+                        app,
+                        mailcal_bindings::PreferenceIntent::SetDarkMessageBackground { dark },
+                    );
                 }
             }
             AppInput::RetryOpen(source) => self.retry_open(&source),
@@ -418,8 +421,12 @@ impl AppModel {
             }
             AppInput::AnalyticsDecided(enabled) => {
                 if let Some(app) = &self.app {
-                    app.set_analytics_consent(enabled);
-                    app.report_app_opened();
+                    // Opting in counts this session in the core; a second report here would count
+                    // it twice.
+                    crate::ui::preference::set(
+                        app,
+                        mailcal_bindings::PreferenceIntent::SetAnalyticsConsent { enabled },
+                    );
                 }
                 self.host_tasks.welcome_pending = false;
                 if self.host_tasks.setup_after_welcome {

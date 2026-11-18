@@ -303,7 +303,7 @@ fn test_app(accounts: Vec<Account<WindowProvider>>) -> App<WindowProvider> {
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }
 

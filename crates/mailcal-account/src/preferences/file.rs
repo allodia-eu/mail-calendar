@@ -37,6 +37,10 @@ pub fn load_preferences(path: impl AsRef<Path>) -> Preferences {
 
 /// Writes `prefs` to `path` as TOML, creating parent directories as needed.
 ///
+/// Written beside it and renamed over it, so a reader in this process or another sees the old
+/// file or the new one, never one cut short: a file that does not parse reads as the defaults,
+/// and a save built on that read would write every setting back to its default.
+///
 /// # Errors
 ///
 /// Returns an [`io::Error`] if the parent directory or file cannot be written (a
@@ -45,8 +49,13 @@ pub fn load_preferences(path: impl AsRef<Path>) -> Preferences {
 pub fn save_preferences(path: impl AsRef<Path>, prefs: &Preferences) -> io::Result<()> {
     let body =
         toml::to_string(prefs).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    if let Some(parent) = path.as_ref().parent() {
+    let path = path.as_ref();
+    if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::write(path, body)
+    let mut staged = path.as_os_str().to_owned();
+    staged.push(".saving");
+    let staged = PathBuf::from(staged);
+    fs::write(&staged, body)?;
+    fs::rename(&staged, path)
 }

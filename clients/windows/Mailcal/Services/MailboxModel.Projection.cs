@@ -183,8 +183,8 @@ public sealed partial class MailboxModel
         var calendarSettings = changed is null or Surface.Calendar or Surface.Settings
             ? CalendarSettingsRules.Fingerprint(zone, use24Hour, _app.DisplaySettings(), Calendars())
             : null;
-        var calendarMoved = changed is null or Surface.Calendar
-            || (changed == Surface.Settings && calendarSettings != _calendarSettingsDrawn);
+        var settingsMoved = calendarSettings is not null && calendarSettings != _calendarSettingsDrawn;
+        var calendarMoved = changed is null or Surface.Calendar || (changed == Surface.Settings && settingsMoved);
         if (calendarSettings is not null)
         {
             _calendarSettingsDrawn = calendarSettings;
@@ -218,15 +218,17 @@ public sealed partial class MailboxModel
             CalendarVersion++;
         }
 
-        // A settings change is its own signal to the calendar: re-apply the display settings (horizon,
-        // clock, week-start alignment) and re-seat, which the plain calendar-data version bump above
-        // deliberately does NOT do, so a background sync cannot jerk the grid back to today.
+        // A settings change is its own signal to the calendar and the reading views: re-apply the
+        // display settings (horizon, clock, week-start alignment, message background) and re-seat,
+        // which the plain calendar-data version bump above deliberately does NOT do, so a background
+        // sync cannot jerk the grid back to today. The first reload a core answers draws them too.
+        if (changed is null or Surface.Settings)
+        {
+            FollowPreferences(redrawDisplay: settingsMoved);
+        }
         if (changed == Surface.Settings)
         {
-            if (calendarMoved)
-            {
-                BumpDisplaySettings();
-            }
+            RaiseAnalyticsConsent();
             RaiseAccountsChanged();
         }
 

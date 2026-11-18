@@ -1,9 +1,8 @@
 // Settings → Reading → Swipe actions: the two per-direction pickers, as on macOS and Android
 // Split into its own partial to keep SettingsDialog.cs under the 500-line limit.
 //
-// The two directions are set independently and both default to Move to Trash; the values are
-// persisted in Rust (`swipe_settings` / `set_swipe_action`, over the FFI since #67), so there is no
-// client-side state to keep in step here, the picker reads the core and writes back to it.
+// The two directions are set independently; the values and their defaults are the core's, so there
+// is no client-side state to keep in step here: the picker reads the core and writes back to it.
 
 using System.Linq;
 using Allodia.Mailcal.Views;
@@ -26,8 +25,12 @@ public sealed partial class SettingsDialog
 
     private UIElement SwipeActionControls()
     {
-        var settings = _model.SwipeActions;
         var panel = new StackPanel { Spacing = 12 };
+        if (_model.SwipeActions is not { } settings)
+        {
+            // No core yet, nothing to configure.
+            return panel;
+        }
         panel.Children.Add(SwipePicker(L10n.SettingsSwipeLeft(), SwipeDirection.Left, settings.Left));
         panel.Children.Add(SwipePicker(L10n.SettingsSwipeRight(), SwipeDirection.Right, settings.Right));
         return panel;

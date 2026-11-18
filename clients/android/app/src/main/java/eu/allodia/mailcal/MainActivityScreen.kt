@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import uniffi.mailcal_bindings.PreferenceIntent
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.launchStatusAfterMs
 
@@ -24,7 +25,9 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
               // Mail and calendar render times through the same ambient setting, so the app can
               // never disagree with itself about whether it is 14:05 or 2:05 PM.
               androidx.compose.runtime.CompositionLocalProvider(
-                  LocalUse24Hour provides (displaySettings.timeFormat == TimeFormat.TWENTY_FOUR_HOUR),
+                  LocalUse24Hour provides (
+                      displaySettings?.let { it.timeFormat == TimeFormat.TWENTY_FOUR_HOUR } ?: LocalUse24Hour.current
+                  ),
               ) {
                 // Ask for notification permission (Android 13+) only once at least one account
                 // exists, a returning user is asked on this launch, a first-time user right after
@@ -59,9 +62,9 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                         // screenshot run ever sees this.
                         instance != null && analyticsConsent?.asked == false -> WelcomeScreen(
                             payloadPreview = { instance.analyticsPayloadPreview() },
+                            // The decision raises SETTINGS, whose pull takes this screen down.
                             onGetStarted = { share ->
-                                instance.setAnalyticsConsent(share)
-                                analyticsConsent = instance.analyticsConsent()
+                                instance.setPreference(PreferenceIntent.SetAnalyticsConsent(share))
                             },
                         )
                         // A message is open: show its reading view over the list.

@@ -14,6 +14,7 @@ mod intent_events;
 mod intent_folders;
 mod intent_notices;
 mod intent_outbox;
+mod intent_preferences;
 
 pub use intent::Intent;
 pub use intent_account_page::AccountPageIntent;
@@ -22,6 +23,7 @@ pub use intent_events::EventIntent;
 pub use intent_folders::FolderIntent;
 pub use intent_notices::NoticeIntent;
 pub use intent_outbox::OutboxIntent;
+pub use intent_preferences::PreferenceIntent;
 
 /// Which folders an active search covers: the host's scope filter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]

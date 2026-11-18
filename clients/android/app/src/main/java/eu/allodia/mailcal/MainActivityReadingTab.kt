@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
+import uniffi.mailcal_bindings.PreferenceIntent
 import uniffi.mailcal_bindings.SelectedRow
 
 private const val TAG = "Mailcal"
@@ -20,6 +21,8 @@ private const val TAG = "Mailcal"
 // A message is open: show its reading view over the list.
 @Composable
 internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: OpenedMessage) {
+    // Pulled in the same step that sets the core, so never null here.
+    val display = displaySettings ?: return
     val ctx = LocalContext.current
     var purging by remember { mutableStateOf<SelectedRow.Message?>(null) }
     purging?.let { row ->
@@ -102,13 +105,11 @@ internal fun MainActivity.ReadingTabContent(instance: MailcalApp, opened: Opened
                                     instance.dispatch(Intent.Delete(account, key))
                                 }
                             },
-                            // The sun/moon button: the preference Settings → Reading also shows.
-                            // Applied here as well, so the open message re-renders on the press
-                            // rather than on the SETTINGS pull that follows it.
-                            darkMessages = displaySettings.darkMessageBackground,
-                            onSetDarkMessages = { dark ->
-                                displaySettings = displaySettings.copy(darkMessageBackground = dark)
-                                instance.setDarkMessageBackground(dark)
+                            // The sun/moon button: the preference Settings → Reading also shows. The
+                            // open message draws again on the SETTINGS pull that follows the press.
+                            darkMessages = display.darkMessageBackground,
+                            onSetDarkMessages = {
+                                instance.setPreference(PreferenceIntent.SetDarkMessageBackground(it))
                             },
                             // Screenshot only: MAILCAL_SHOWCASE_SCREEN=reply opened this message, so
                             // open its reply composer too; `openComposer` lays the sample reply

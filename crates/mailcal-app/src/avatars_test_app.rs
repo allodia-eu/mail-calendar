@@ -242,7 +242,7 @@ pub(super) fn app_with_sources(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }
 

@@ -22,7 +22,7 @@ public sealed partial class ReadingView
     /// left dark messages on. Known before the body arrives, so the canvas is right from the
     /// first frame.</summary>
     private MessageScheme Scheme =>
-        MessageSchemes.For(this.IsDark(), _model?.DarkMessageBackground ?? true);
+        MessageSchemes.For(this.IsDark(), _model?.DarkMessageBackground == true);
 
     /// <summary>The scheme the canvas and the button were last set for.</summary>
     private MessageScheme? _appliedScheme;

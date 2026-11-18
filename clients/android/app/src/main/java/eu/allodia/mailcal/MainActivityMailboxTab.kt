@@ -22,11 +22,15 @@ import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailcalException
 import uniffi.mailcal_bindings.OutboxIntent
+import uniffi.mailcal_bindings.PreferenceIntent
 
 private const val TAG = "Mailcal"
 
 @Composable
 internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
+    // Pulled in the same step that sets the core, so neither is null here.
+    val display = displaySettings ?: return
+    val swipe = swipeSettings ?: return
     // The contacts reads below are network-free but not free: each blocks on the core's runtime
     // and lands on the store's connection thread, so a call made while a sync holds it waits for
     // it. Off the UI thread, therefore, unlike the detail read this screen already does inline.
@@ -149,7 +153,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 weekStartFor = { date ->
                                     parseIsoDate(instance.weekStartDate(date.toString()))
                                 },
-                                display = displaySettings,
+                                display = display,
                                 calendarVersion = calendarVersion,
                                 events = events,
                                 writeStatus = calendarWriteStatus,
@@ -249,20 +253,20 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 deviceZoneId = java.time.ZoneId.systemDefault().id,
                                 // A settled pinch persists the horizon; the core clamps it.
                                 onSetVisibleHours = { hours ->
-                                    instance.setCalendarVisibleHours(hours.toUByte())
+                                    instance.setPreference(PreferenceIntent.SetCalendarVisibleHours(hours.toUByte()))
                                 },
                                 // The shape the user is reading in, remembered across launches.
-                                onSetLayout = { instance.setCalendarLayout(it) },
+                                onSetLayout = { instance.setPreference(PreferenceIntent.SetCalendarLayout(it)) },
                                 // The calendar manager. Both writes are persisted by the core and
                                 // applied at page-read time, so the grid redraws at once, no sync,
                                 // no network. The palette comes from the core too: a client cannot
                                 // invent a colour, and Allodia Orange is deliberately not in it.
                                 palette = calendarPalette,
                                 onSetCalendarVisible = { account, calendar, visible ->
-                                    instance.setCalendarVisible(account, calendar, visible)
+                                    instance.setPreference(PreferenceIntent.SetCalendarVisible(account, calendar, visible))
                                 },
                                 onSetCalendarColor = { account, calendar, hex ->
-                                    instance.setCalendarColor(account, calendar, hex)
+                                    instance.setPreference(PreferenceIntent.SetCalendarColor(account, calendar, hex))
                                 },
                                 // The calendar's own menu opens Settings on the Calendar category:
                                 // the settings that govern this screen are otherwise three taps
@@ -379,7 +383,7 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                             messageFiling = MessageFiling.of(instance, this@MailboxTabContent),
                             // Swipe actions (per direction) + the archive intent a swipe may run;
                             // both come from the core, which persists the choice.
-                            swipe = swipeSettings,
+                            swipe = swipe,
                             onArchive = { account, key -> instance.dispatch(Intent.Archive(account, key)) },
                             // Display-timezone change prompt (an overlay). The zone *selector*
                             // now lives in the Settings screen; the accept/dismiss of a device-zone

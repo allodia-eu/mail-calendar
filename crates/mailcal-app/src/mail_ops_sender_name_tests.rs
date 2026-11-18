@@ -45,7 +45,7 @@ fn app_with_prefs(
         },
         None,
         Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), outbox)
 }
@@ -113,6 +113,8 @@ async fn a_name_set_in_an_earlier_session_is_read_back_at_boot() {
     first
         .set_account_sender_name("acct-1", "Ada Lovelace")
         .await;
+    // Closed as a host closes it: what is still being saved is written first.
+    first.settle_preferences();
     drop(first);
 
     let (app, outbox) = app_with_prefs(Some(path));
@@ -255,7 +257,7 @@ fn app_using_identity(
         },
         None,
         Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     ))
 }
 
