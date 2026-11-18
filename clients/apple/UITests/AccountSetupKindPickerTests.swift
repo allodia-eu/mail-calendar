@@ -13,11 +13,8 @@ final class AccountSetupKindPickerTests: XCTestCase {
         let menu = try XCTUnwrap(
             menus.first { $0.label.hasPrefix("Account type") }, "no account type menu"
         )
-        // The form is a sheet, and a menu opened while the sheet is still coming up closes again.
-        try app.settle()
-        try app.activate(menu)
-        try app.press(
-            .button("Calendar and contacts (CalDAV/CardDAV)"), "the menu did not open"
+        try app.choose(
+            .button("Calendar and contacts (CalDAV/CardDAV)"), from: menu, "the menu did not open"
         )
 
         let label = try app.wait(.text("Account type").role("AXStaticText"), "the label went missing")

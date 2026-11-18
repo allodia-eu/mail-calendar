@@ -110,6 +110,25 @@ final class App {
         }
     }
 
+    /// Opens `menu` and presses its item `item`, as a person does with two taps.
+    ///
+    /// SwiftUI closes a menu presented while the screen under it is still moving (a sheet coming
+    /// up, a launch hook changing surface), and nothing on screen says when that has finished. A
+    /// menu that closed before its item was pressed is opened again, as a person would.
+    func choose(_ item: Filter, from menu: Element, _ because: String? = nil) throws {
+        for attempt in 1...3 {
+            try settle()
+            try activate(menu)
+            do {
+                try press(item, timeout: 5, because)
+                return
+            } catch let refusal as AgentRefusal
+                where attempt < 3 && ["not-showing", "timeout"].contains(refusal.code) {
+                continue
+            }
+        }
+    }
+
     /// Waits for exactly one field `filter` matches, and replaces its text as typing would.
     func fill(_ filter: Filter, _ text: String, submit: Bool = false) throws {
         let field = try only(filter, timeout: App.timeout, nil)
@@ -172,7 +191,32 @@ final class App {
         try point(element).press(forDuration: duration)
     }
 
+    /// Sends a chord from the keyboard, and returns whether `arrived` came to hold.
+    ///
+    /// ⚠️ On an iPad simulator a chord into a focused field is now and then dropped before the app
+    /// sees it: nothing changes, and the same chord sent a second later arrives. So a chord whose
+    /// effect has not shown within a second is sent once more. A chord the app ignores is ignored
+    /// both times, and the test still fails.
+    func chord(
+        _ key: String, _ modifiers: XCUIElement.KeyModifierFlags, timeout: TimeInterval = 5,
+        arrived: () throws -> Bool
+    ) throws -> Bool {
+        input.typeKey(key, modifierFlags: modifiers)
+        if try holds(within: 1, arrived) { return true }
+        input.typeKey(key, modifierFlags: modifiers)
+        return try holds(within: timeout, arrived)
+    }
+
     // MARK: Helpers
+
+    private func holds(within timeout: TimeInterval, _ condition: () throws -> Bool) throws -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while true {
+            if try condition() { return true }
+            if Date() >= deadline { return false }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+    }
 
     /// The one element `filter` matches. Two are a refusal, as `press` refuses two
     /// (docs/test-agent.md): a test that cannot say which one it means has found a different screen.

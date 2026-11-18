@@ -59,8 +59,13 @@ final class SettingsAddAccountTests: XCTestCase {
         )
     }
 
-    /// The Accounts row on screen, or nil while the hub has not drawn it.
+    /// The Accounts row on screen, or nil while the hub has not drawn it. The iPad's sidebar row
+    /// reads as its name alone, as text.
     private func accountsRow(_ app: App) throws -> Element? {
-        try app.query(.textLike("Accounts").role("AXButton")).first { $0.label.hasPrefix("Accounts") }
+        if ShowcaseApp.pad {
+            return try app.query(.text("Accounts")).first
+        }
+        return try app.query(.textLike("Accounts").role("AXButton"))
+            .first { $0.label.hasPrefix("Accounts") }
     }
 }

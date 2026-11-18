@@ -5,8 +5,9 @@
 // it, Select all and ⌘A pick every listed row, ⌘A in a focused field stays the field's, and a row
 // opened by a tap opens again by the next one.
 //
-// The bar's Archive shares its name with the Archive folder, so the bar is found by Delete, which
-// no folder is called.
+// The bar is found by its Flag, the one of its buttons nothing else on screen is: its Archive shares
+// a name with the Archive folder, its Delete with the reading pane beside an iPad's list, and its
+// Move stays disabled for a selection across accounts, which All Accounts is.
 
 import UIKit
 import XCTest
@@ -14,7 +15,7 @@ import XCTest
 @MainActor
 final class MessageSelectionTests: XCTestCase {
     private let rows = Filter().type("UICollectionViewCell").has(.role("AXStaticText"))
-    private let trash = Filter.button("Delete")
+    private let bar = Filter.button("Flag")
 
     func testSelectModeBringsTheBarAndSelectAllPicksEveryRow() throws {
         let app = try ShowcaseApp.launch()
@@ -23,16 +24,16 @@ final class MessageSelectionTests: XCTestCase {
 
         try app.press(.button("Select"))
         XCTAssertFalse(
-            try app.wait(trash, timeout: 5, "the bar did not come with the mode").enabled,
+            try app.wait(bar, timeout: 5, "the bar did not come with the mode").enabled,
             "the bar acts with nothing selected"
         )
 
         try app.press(.button("Select all"))
-        XCTAssertTrue(try app.wait(trash).enabled, "Select all picked nothing")
+        XCTAssertTrue(try app.wait(bar).enabled, "Select all picked nothing")
         XCTAssertGreaterThan(selectedRows(in: app), 1, "the rows do not report themselves selected")
 
         try app.press(.button("Done"))
-        try app.waitGone(trash, "the bar outlived the mode")
+        try app.waitGone(bar, "the bar outlived the mode")
         XCTAssertEqual(selectedRows(in: app), 0, "leaving the mode kept the selection")
     }
 
@@ -51,11 +52,10 @@ final class MessageSelectionTests: XCTestCase {
         XCTAssertFalse(try app.exists(.button("Done")), "⌘A outside the mode entered it")
 
         try app.press(.button("Select"))
-        try app.wait(trash, timeout: 5, "the bar did not come with the mode")
-        app.input.typeKey("a", modifierFlags: .command)
+        try app.wait(bar, timeout: 5, "the bar did not come with the mode")
 
         XCTAssertTrue(
-            try app.appears(trash.enabled(true), timeout: 5), "⌘A picked nothing"
+            try app.chord("a", .command) { try app.exists(bar.enabled(true)) }, "⌘A picked nothing"
         )
         XCTAssertGreaterThan(selectedRows(in: app), 1, "⌘A picked one row at most")
     }
@@ -74,14 +74,21 @@ final class MessageSelectionTests: XCTestCase {
         let field = try app.wait(.text("Search mail").role("AXSearchField"))
         try app.tap(field)
         app.input.typeText("lunch")
-
-        app.input.typeKey("a", modifierFlags: .command)
-        app.input.typeText("x")
         try app.settle()
+
+        // What ⌘A did shows only in what the next key replaces, so a dropped chord (`App.chord`)
+        // is told by the x landing after the text: that x goes, and the chord is sent once more.
+        for attempt in 1...2 {
+            app.input.typeKey("a", modifierFlags: .command)
+            app.input.typeText("x")
+            try app.settle()
+            guard attempt == 1, try app.read(field).value == "lunchx" else { break }
+            app.input.typeKey(XCUIKeyboardKey.delete, modifierFlags: [])
+        }
 
         XCTAssertEqual(try app.read(field).value, "x", "⌘A did not select the field's text")
         XCTAssertFalse(
-            try app.query(trash).contains(where: \.enabled), "⌘A in the search field selected mail"
+            try app.query(bar).contains(where: \.enabled), "⌘A in the search field selected mail"
         )
     }
 

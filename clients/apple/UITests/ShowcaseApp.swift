@@ -45,16 +45,38 @@ enum ShowcaseApp {
     /// where the tests want to start anyway. An iPad has no tab bar: the mailbox is the split view's
     /// own column.
     static func showMailbox(_ app: App) throws {
-        if UIDevice.current.userInterfaceIdiom != .pad {
+        if !pad {
             try tab("Mail", in: app)
         }
         try app.wait(.button("New Mail"), "the mailbox did not come up")
     }
 
-    /// Presses the tab called `name` on the iPhone's tab bar; an iPad has none.
+    static var pad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    /// The mailbox bar's button that brings the folders: the iPhone's drawer, the iPad's sidebar.
+    static var folders: String { pad ? "Show Sidebar" : "Folders" }
+
+    /// Goes to the surface called `name`: a tab on the iPhone's tab bar, an entry in the iPad's
+    /// sidebar.
+    ///
+    /// An upright iPad keeps its sidebar hidden and lays it over the columns when shown, so it is
+    /// shown for the press and hidden again, leaving the surface as a person would then see it.
     static func tab(_ name: String, in app: App) throws {
-        let bar = try app.wait(Filter().type("UITabBar"), "there is no tab bar")
-        try app.press(.button(name).under(bar), "the tab bar has no \(name)")
+        guard pad else {
+            let bar = try app.wait(Filter().type("UITabBar"), "there is no tab bar")
+            try app.press(.button(name).under(bar), "the tab bar has no \(name)")
+            return
+        }
+        let hidden = try app.exists(.button("Show Sidebar"))
+        if hidden {
+            try app.press(.button("Show Sidebar"))
+        }
+        try app.press(.button(name), "the sidebar has no \(name)")
+        // Each column's bar carries its own Hide Sidebar, and any one of them hides it.
+        if hidden, let hide = try app.waitAll(.button("Hide Sidebar")).first {
+            try app.activate(hide)
+            try app.wait(.button("Show Sidebar"), "the sidebar stayed open")
+        }
     }
 
     /// Back, from a pushed screen to the one it was pushed from.
@@ -72,7 +94,8 @@ enum ShowcaseApp {
     /// that chord depends on which classes run and in what order, so a chord test that does not
     /// spend it first fails when run alone and passes in the full suite. ⌘A on the mailbox outside
     /// Select is the chord to spend, because delivered it does nothing
-    /// (`MessageSelectionTests.testCommandAInSelectModePicksEveryRow`).
+    /// (`MessageSelectionTests.testCommandAInSelectModePicksEveryRow`). It is not always enough on
+    /// an iPad, which is what `App.chord` is for.
     static func attachHardwareKeyboard(_ app: App) {
         app.input.typeKey("a", modifierFlags: .command)
     }
@@ -116,6 +139,17 @@ enum ShowcaseApp {
             found = try app.wait(row(mentioning: text), because)
         }
         try app.tap(found)
+    }
+
+    /// The first line of the message in an open composer: just under the header's action row,
+    /// where the message starts on every size (docs/composer-layout.md). A point a fraction of the
+    /// way down the web view misses it on an iPad, whose sheet is tall enough to put that point
+    /// below the text, where a tap focuses nothing.
+    static func composerBody(_ app: App) throws -> XCUICoordinate {
+        let attach = try app.wait(.button("Attach files"), "the composer has no action row")
+        let row = try XCTUnwrap(attach.frame, "the composer's action row has no frame")
+        return app.input.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: row.minX + 100, dy: row.maxY + 24))
     }
 
     /// Whether the button called `name` is on screen and a person could press it.

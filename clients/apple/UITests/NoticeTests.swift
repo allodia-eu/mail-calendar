@@ -1,5 +1,6 @@
-// The core's notices on iPhone (docs/notices.md): one row under the bar of the tab on show, holding
-// the first notice that tab has, and a sheet with each notice and its own button.
+// The core's notices on iPhone, and on an upright iPad with its sidebar hidden (docs/notices.md): one
+// row under the bar of the tab on show, holding the first notice that tab has, and a sheet with each
+// notice and its own button.
 //
 // The two reauth notices are staged by MAILCAL_SHOWCASE_REAUTH, which the core reads, so everything
 // from the core's facts to the row is real. Mail's belongs to the mail tab and the
@@ -24,7 +25,7 @@ final class NoticeTests: XCTestCase {
         try app.press(.button("Close"))
         try app.waitGone(signIn, timeout: ShowcaseApp.timeout, "Close kept the sheet")
 
-        try app.press(.button("Calendar"))
+        try ShowcaseApp.tab("Calendar", in: app)
         try app.wait(.button("New Event"), "the calendar did not come up")
         let calendarNotice = try app.wait(.id("notice"), "the calendar shows no notice")
         XCTAssertTrue(
