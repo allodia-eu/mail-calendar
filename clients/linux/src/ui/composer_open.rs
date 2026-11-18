@@ -352,6 +352,10 @@ mod tests {
     /// the Flatpak the user runs, so a draft opens without its files and the next save takes
     /// them off the server.
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the assertion is that the path is outside the OS temporary directory"
+    )]
     fn a_staged_file_never_lands_in_the_sandboxs_private_tmp() {
         let directory = super::staging_dir("composer-1");
         assert!(

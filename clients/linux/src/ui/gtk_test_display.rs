@@ -80,8 +80,8 @@ mod tests {
 
     #[test]
     fn a_failed_start_says_whether_the_compositor_was_gone_refusing_or_answering() {
-        let runtime = std::env::temp_dir().join(format!("gtk-display-{}", std::process::id()));
-        std::fs::create_dir_all(&runtime).unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        let runtime = scratch.path().to_path_buf();
         let name = PathBuf::from("wayland-test");
 
         assert!(display_state(None, None).contains("WAYLAND_DISPLAY is not set"));
@@ -100,6 +100,5 @@ mod tests {
         assert!(
             display_state(Some(name), Some(runtime.clone())).contains("refused the connection")
         );
-        std::fs::remove_dir_all(runtime).unwrap();
     }
 }

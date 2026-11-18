@@ -25,7 +25,6 @@ fn layout_on(device_class: DeviceClass, name: &str) -> CalendarLayout {
     .expect("an app with no accounts boots");
     let layout = app.display_settings().layout;
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
     layout
 }
 

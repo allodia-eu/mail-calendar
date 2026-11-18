@@ -3,6 +3,11 @@
 //! Split from `allodia_tokens.rs` to keep that file under the 500-line limit; `#[path]` above
 //! keeps it the same module, so `super::` still names the private items under test.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use std::sync::mpsc;
 
 use mailcal_oauth::Secret;

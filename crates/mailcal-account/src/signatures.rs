@@ -248,9 +248,8 @@ mod tests {
 
     #[test]
     fn a_library_round_trips_through_toml_with_its_order_preserved() {
-        let dir = std::env::temp_dir().join("mailcal-signatures-roundtrip-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = signatures_path(&dir);
+        let dir = tempfile::tempdir().unwrap();
+        let path = signatures_path(dir.path());
 
         let mut library = Signatures::default();
         // Inserted in an order the id sort would NOT produce, so the assertion below proves the
@@ -270,7 +269,6 @@ mod tests {
             reloaded.get(&id("aaa")).unwrap().body_html,
             "<p>Personal</p>"
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

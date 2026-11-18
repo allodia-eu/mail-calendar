@@ -68,12 +68,9 @@ fn save(id: &str, text: &str) -> Intent {
     })
 }
 
-/// A directory of this test's own, emptied first so a previous run cannot make an assertion
-/// pass.
-fn staging_dir(name: &str) -> String {
-    let dir = std::env::temp_dir().join(format!("mailcal-resume-staging-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir.to_string_lossy().into_owned()
+/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
+fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
+    scratch.path().join(name).to_string_lossy().into_owned()
 }
 
 /// A resumed draft opens as the message it is: its recipients, its subject and its words.
@@ -82,6 +79,7 @@ fn staging_dir(name: &str) -> String {
 /// hand back, and the answer says so rather than inventing one.
 #[tokio::test]
 async fn a_resumed_draft_opens_with_what_the_stored_copy_holds() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -92,7 +90,7 @@ async fn a_resumed_draft_opens_with_what_the_stored_copy_holds() {
                 message: draft_ref("d1"),
             },
             None,
-            &staging_dir("opens"),
+            &staging_dir(&scratch, "opens"),
         )
         .await
         .expect("the draft resumes");
@@ -113,6 +111,7 @@ async fn a_resumed_draft_opens_with_what_the_stored_copy_holds() {
 /// that echoed the key back would let a caller that never names what it supersedes pass.
 #[tokio::test]
 async fn a_save_from_a_resumed_composer_supersedes_the_stored_draft() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -121,7 +120,7 @@ async fn a_save_from_a_resumed_composer_supersedes_the_stored_draft() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("supersede"),
+        &staging_dir(&scratch, "supersede"),
     )
     .await
     .expect("the draft resumes");
@@ -145,6 +144,7 @@ async fn a_save_from_a_resumed_composer_supersedes_the_stored_draft() {
 /// closed, rather than superseding them.
 #[tokio::test]
 async fn a_resumed_composition_keeps_the_drafts_own_message_id() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -153,7 +153,7 @@ async fn a_resumed_composition_keeps_the_drafts_own_message_id() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("message-id"),
+        &staging_dir(&scratch, "message-id"),
     )
     .await
     .expect("the draft resumes");
@@ -175,6 +175,7 @@ async fn a_resumed_composition_keeps_the_drafts_own_message_id() {
 /// their mailbox with nothing said.
 #[tokio::test]
 async fn a_resumed_draft_opens_holding_its_files() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -185,7 +186,7 @@ async fn a_resumed_draft_opens_holding_its_files() {
                 message: draft_ref("d1"),
             },
             None,
-            &staging_dir("files"),
+            &staging_dir(&scratch, "files"),
         )
         .await
         .expect("the draft resumes");
@@ -205,6 +206,7 @@ async fn a_resumed_draft_opens_holding_its_files() {
 /// and then saved anyway would replace the draft with whatever was on screen.
 #[tokio::test]
 async fn a_draft_whose_content_cannot_be_read_is_not_resumed() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_source());
     app.dispatch(Intent::RefreshMail).await;
 
@@ -215,7 +217,7 @@ async fn a_draft_whose_content_cannot_be_read_is_not_resumed() {
                 message: draft_ref("d1"),
             },
             None,
-            &staging_dir("unreadable"),
+            &staging_dir(&scratch, "unreadable"),
         )
         .await;
     assert!(refused.is_err(), "a draft that cannot be read is refused");
@@ -241,8 +243,8 @@ async fn a_draft_whose_content_cannot_be_read_is_not_resumed() {
 async fn a_draft_whose_files_cannot_be_staged_is_not_resumed() {
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
-    let blocked = std::env::temp_dir().join("mailcal-resume-staging-blocked");
-    let _ = std::fs::remove_dir_all(&blocked);
+    let scratch = tempfile::tempdir().unwrap();
+    let blocked = scratch.path().join("blocked");
     std::fs::write(&blocked, b"not a directory").unwrap();
     let directory = blocked.join("inside").to_string_lossy().into_owned();
 
@@ -277,6 +279,7 @@ async fn a_draft_whose_files_cannot_be_staged_is_not_resumed() {
 /// still recording the key would leave the second one live.
 #[tokio::test]
 async fn a_message_that_is_not_a_draft_is_never_resumed() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -287,7 +290,7 @@ async fn a_message_that_is_not_a_draft_is_never_resumed() {
                 message: draft_ref("m1"),
             },
             None,
-            &staging_dir("not-a-draft"),
+            &staging_dir(&scratch, "not-a-draft"),
         )
         .await;
     assert!(refused.is_err(), "ordinary mail is not a draft");
@@ -308,6 +311,7 @@ async fn a_message_that_is_not_a_draft_is_never_resumed() {
 /// do nothing and leave the draft the user threw away in their mailbox.
 #[tokio::test]
 async fn discarding_a_resumed_draft_removes_the_stored_copy() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -316,7 +320,7 @@ async fn discarding_a_resumed_draft_removes_the_stored_copy() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("discard"),
+        &staging_dir(&scratch, "discard"),
     )
     .await
     .expect("the draft resumes");
@@ -338,6 +342,7 @@ async fn discarding_a_resumed_draft_removes_the_stored_copy() {
 /// document, because what reaches the provider is the only thing that survives the round trip.
 #[tokio::test]
 async fn a_save_keeps_the_file_the_composer_is_holding() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -346,7 +351,7 @@ async fn a_save_keeps_the_file_the_composer_is_holding() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("keeps-files"),
+        &staging_dir(&scratch, "keeps-files"),
     )
     .await
     .expect("the draft resumes");

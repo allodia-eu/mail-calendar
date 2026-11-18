@@ -162,20 +162,14 @@ fn copy_log(source: &PathBuf, destination: &PathBuf) -> std::io::Result<u64> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
 
     use super::{copy_log, log_stats};
 
     #[test]
     fn total_size_includes_the_three_rotated_backups() {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        let path = std::env::temp_dir().join(format!("mailcal-log-stats-{nonce}.log"));
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let path = dir.path().join("mailcal.log");
         fs::write(&path, b"12").expect("write live log");
         fs::write(format!("{}.1", path.to_string_lossy()), b"345").expect("write backup");
 
@@ -184,12 +178,9 @@ mod tests {
 
     #[test]
     fn export_copies_the_current_log_to_the_chosen_destination() {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        let source = std::env::temp_dir().join(format!("mailcal-log-source-{nonce}.log"));
-        let destination = std::env::temp_dir().join(format!("mailcal-log-export-{nonce}.log"));
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let source = dir.path().join("mailcal.log");
+        let destination = dir.path().join("exported.log");
         fs::write(&source, b"privacy-safe diagnostics").expect("write source log");
 
         copy_log(&source, &destination).expect("export log");

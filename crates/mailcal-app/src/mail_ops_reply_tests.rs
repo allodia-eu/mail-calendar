@@ -28,6 +28,7 @@ use crate::{ComposerBlob, Intent, MessageRef, SendStatus};
 /// the composer opened with.
 #[allow(clippy::too_many_arguments)]
 pub(super) async fn send_from_composer(
+    scratch: &tempfile::TempDir,
     app: &crate::App<impl engine_api::Provider>,
     origin: crate::ComposeOrigin,
     from: Option<&str>,
@@ -41,7 +42,7 @@ pub(super) async fn send_from_composer(
     static OPENED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let id = OPENED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let composition = crate::CompositionId::new(format!("composer-{id}")).unwrap();
-    let staging = std::env::temp_dir().join(format!("mailcal-send-{}-{id}", std::process::id()));
+    let staging = scratch.path().join(format!("composer-{id}"));
     let opening = app
         .open_composer(composition.clone(), origin, None, staging.to_str().unwrap())
         .await
@@ -92,6 +93,7 @@ fn reply_document() -> (ComposerDocument, Vec<ComposerBlob>) {
 
 #[tokio::test(start_paused = true)]
 async fn rich_reply_threads_and_carries_the_composer_html() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, submissions) = reply_app(vec![original_message("m1")]);
     // Sync first so the original is in the store and the reply can derive its headers.
     app.dispatch(Intent::RefreshMail).await;
@@ -100,6 +102,7 @@ async fn rich_reply_threads_and_carries_the_composer_html() {
     // The host pre-fills the recipients from `reply_recipients` (here a plain reply: To =
     // Reply-To, no Cc) and may add a Bcc; the reply send uses exactly what it is given.
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,
@@ -234,6 +237,7 @@ async fn reply_to_your_own_message_keeps_the_sender_in_to() {
 
 #[tokio::test(start_paused = true)]
 async fn rich_reply_with_no_recipients_fails_without_sending() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     // The command surface guards against a recipient-less send for every caller (not just the
     // clients' Send-button gating): all of To/Cc/Bcc empty (or whitespace-only) → a Failed
     // hint, never a queued empty draft.
@@ -242,6 +246,7 @@ async fn rich_reply_with_no_recipients_fails_without_sending() {
 
     let (document, blobs) = reply_document();
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,

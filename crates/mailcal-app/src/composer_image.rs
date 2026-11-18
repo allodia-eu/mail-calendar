@@ -136,8 +136,8 @@ mod tests {
 
     #[test]
     fn a_picture_becomes_a_base64_data_uri_and_a_non_picture_becomes_nothing() {
-        let dir = std::env::temp_dir().join("mailcal-composer-image-test");
-        std::fs::create_dir_all(&dir).expect("temp dir");
+        let scratch = tempfile::tempdir().expect("temp dir");
+        let dir = scratch.path();
         let picture = dir.join("shot.png");
         std::fs::write(&picture, PNG).expect("write picture");
         // The extension says PNG and the bytes say otherwise; the bytes decide.
@@ -151,9 +151,7 @@ mod tests {
         assert!(is_raster_picture(&picture));
         assert!(!is_raster_picture(&liar));
         assert!(!is_raster_picture(&dir.join("absent.png")));
-        assert!(!is_raster_picture(&dir));
-
-        std::fs::remove_dir_all(&dir).ok();
+        assert!(!is_raster_picture(dir));
     }
 
     #[test]

@@ -13,24 +13,22 @@ use std::{
     io::{BufRead, BufReader, Write},
     os::unix::net::UnixListener,
     process::{Command, Stdio},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
 mod common;
 
-/// A unique socket path for one test, well inside the 104-byte `sun_path` limit.
-fn socket_path(name: &str) -> std::path::PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("a clock after 1970")
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!("amcp-{name}-{unique}.sock"));
+/// A socket path in a directory of the test's own, which the returned guard removes, well inside
+/// the 104-byte `sun_path` limit.
+fn socket_path(name: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().expect("a directory of the test's own");
+    let path = dir.path().join(format!("amcp-{name}.sock"));
     assert!(
         path.as_os_str().len() < 104,
         "the test socket path itself must fit in sun_path: {}",
         path.display(),
     );
-    path
+    (dir, path)
 }
 
 /// Spawns the relay against `endpoint`, with piped stdio.
@@ -47,7 +45,7 @@ fn spawn(endpoint: &std::path::Path) -> std::process::Child {
 
 #[test]
 fn a_request_reaches_the_socket_and_the_reply_reaches_stdout() {
-    let path = socket_path("roundtrip");
+    let (_dir, path) = socket_path("roundtrip");
     let listener = UnixListener::bind(&path).expect("the test listener binds");
 
     // A one-shot fake app: accept, read one line, answer it.
@@ -94,7 +92,6 @@ fn a_request_reaches_the_socket_and_the_reply_reaches_stdout() {
 
     drop(stdin);
     let _ = child.wait();
-    let _ = std::fs::remove_file(&path);
 }
 
 #[test]
@@ -104,7 +101,7 @@ fn a_second_request_is_answered_too() {
     // is where a reader would look for the property. Every other test here sends exactly ONE
     // request, which is precisely the coverage gap that let the Windows relay ship deadlocking on
     // its second.
-    let path = socket_path("second-request");
+    let (_dir, path) = socket_path("second-request");
     let listener = UnixListener::bind(&path).expect("the test listener binds");
 
     let server = std::thread::spawn(move || {
@@ -158,7 +155,6 @@ fn a_second_request_is_answered_too() {
     assert_eq!(server.join().expect("the fake app finished"), 2);
     drop(stdin);
     let _ = child.wait();
-    let _ = std::fs::remove_file(&path);
 }
 
 #[test]
@@ -167,7 +163,7 @@ fn nothing_but_json_rpc_ever_reaches_stdout() {
     // stdout desynchronizes the client's parser and the server looks broken rather than chatty.
     // Here the app is deliberately NOT running, which is exactly when a program is most tempted
     // to print an explanation.
-    let path = socket_path("stdout-purity");
+    let (_dir, path) = socket_path("stdout-purity");
     let mut child = spawn(&path);
     let mut stdin = child.stdin.take().expect("piped stdin");
     writeln!(
@@ -196,7 +192,7 @@ fn a_request_with_the_app_shut_down_gets_a_clean_error_carrying_its_own_id() {
     // The client must see a live-but-unavailable server, not a crashed one, and it must be able
     // to match the error to the call it made, or the request stays pending until it times out
     // and the symptom is a hang.
-    let path = socket_path("not-running");
+    let (_dir, path) = socket_path("not-running");
     let mut child = spawn(&path);
     let mut stdin = child.stdin.take().expect("piped stdin");
     writeln!(
@@ -243,7 +239,7 @@ fn a_request_with_the_app_shut_down_gets_a_clean_error_carrying_its_own_id() {
 fn a_reply_split_across_reads_still_arrives_as_one_frame() {
     // A socket can deliver a response in pieces; a relay that copied whatever a read returned
     // would emit half a JSON object and the client's line-based parser would choke on it.
-    let path = socket_path("partial");
+    let (_dir, path) = socket_path("partial");
     let listener = UnixListener::bind(&path).expect("the test listener binds");
 
     let server = std::thread::spawn(move || {
@@ -280,5 +276,4 @@ fn a_reply_split_across_reads_still_arrives_as_one_frame() {
     server.join().unwrap();
     drop(stdin);
     let _ = child.wait();
-    let _ = std::fs::remove_file(&path);
 }

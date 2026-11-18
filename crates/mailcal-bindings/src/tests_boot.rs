@@ -1,10 +1,15 @@
 //! Binding-level boot recovery tests. These lock the host-facing guarantee that every native
 //! client constructor using `new_accounts` runs the shared engine startup lease recovery.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use std::{
     fs,
     sync::Mutex,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use engine_api::{AccountId, CalendarWrites, Engine};
@@ -12,7 +17,7 @@ use engine_core::{mail::Mailbox, sync::SyncState};
 use engine_provider::{Capabilities, ConnectionInfo, Provider, ProviderResult, ScopeSync};
 use tokio::sync::oneshot;
 
-use crate::{LogLevel, Logger, MailcalApp, Observer, Surface};
+use crate::{LogLevel, Logger, MailcalApp, Observer, Surface, tests::temp_data_dir};
 
 struct NoopObserver;
 
@@ -79,17 +84,6 @@ impl Provider for BlockingMailboxProvider {
 impl engine_api::MailboxWrites for BlockingMailboxProvider {}
 impl CalendarWrites for BlockingMailboxProvider {}
 
-fn temp_data_dir(name: &str) -> std::path::PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock is after the Unix epoch")
-        .as_nanos();
-    std::env::temp_dir().join(format!(
-        "mailcal-bindings-{name}-{}-{nanos}",
-        std::process::id(),
-    ))
-}
-
 #[test]
 fn new_accounts_abandons_interrupted_sync_leases_on_boot() {
     let data_dir = temp_data_dir("boot-recovery");
@@ -147,8 +141,6 @@ fn new_accounts_abandons_interrupted_sync_leases_on_boot() {
         0,
         "new_accounts should have abandoned the interrupted lease during boot",
     );
-
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// Keeps every config the core stores, as a host's keychain would.
@@ -245,7 +237,6 @@ fn a_stored_shared_mailbox_is_listed_once_under_its_own_id_after_a_relaunch() {
             "alice, listed once"
         );
     }
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 #[path = "tests_boot_outbox.rs"]

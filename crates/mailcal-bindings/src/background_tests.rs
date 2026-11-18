@@ -1,6 +1,11 @@
 //! The watch backoff, its log scope and logging rule, and the refresher that keeps a watch
 //! from waiting on its own refreshes.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use super::*;
 
 #[test]

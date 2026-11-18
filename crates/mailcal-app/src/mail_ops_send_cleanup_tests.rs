@@ -28,6 +28,7 @@ use crate::DraftsIntent;
 /// cannot tell whether it went.
 #[tokio::test(start_paused = true)]
 async fn an_accepted_send_takes_the_stored_draft_away() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]));
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -36,7 +37,7 @@ async fn an_accepted_send_takes_the_stored_draft_away() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("sent"),
+        &staging_dir(&scratch, "sent"),
     )
     .await
     .expect("the draft resumes");
@@ -69,6 +70,7 @@ async fn an_accepted_send_takes_the_stored_draft_away() {
 /// Drafts would be a second place holding it, and sending both would deliver it twice.
 #[tokio::test(start_paused = true)]
 async fn a_refused_send_moves_the_message_out_of_drafts_and_into_the_outbox() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_send());
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -77,7 +79,7 @@ async fn a_refused_send_moves_the_message_out_of_drafts_and_into_the_outbox() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("failed"),
+        &staging_dir(&scratch, "failed"),
     )
     .await
     .expect("the draft resumes");
@@ -146,6 +148,7 @@ async fn a_send_from_a_composer_that_never_saved_removes_nothing() {
 /// composition once the drain settles it.
 #[tokio::test(start_paused = true)]
 async fn a_queued_send_takes_the_stored_draft_away_as_well() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).queueing_send());
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -154,7 +157,7 @@ async fn a_queued_send_takes_the_stored_draft_away_as_well() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("queued"),
+        &staging_dir(&scratch, "queued"),
     )
     .await
     .expect("the draft resumes");
@@ -185,6 +188,7 @@ async fn a_queued_send_takes_the_stored_draft_away_as_well() {
 /// life of the process, and hand it to whatever composer took the id next.
 #[tokio::test(start_paused = true)]
 async fn a_refused_send_forgets_the_composition() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored_draft("d1")]).failing_send());
     app.dispatch(Intent::RefreshMail).await;
     app.open_composer(
@@ -193,7 +197,7 @@ async fn a_refused_send_forgets_the_composition() {
             message: draft_ref("d1"),
         },
         None,
-        &staging_dir("failed-forget"),
+        &staging_dir(&scratch, "failed-forget"),
     )
     .await
     .expect("the draft resumes");

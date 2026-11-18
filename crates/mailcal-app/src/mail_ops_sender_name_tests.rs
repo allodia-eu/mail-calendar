@@ -12,10 +12,11 @@
 use std::sync::Arc;
 
 use engine_api::{AccountId, EmailAddress, Engine, TimeZoneId};
-use mailcal_account::{Preferences, save_preferences};
 
 use super::{SilentObserver, ThreadProvider, dispatch_until, from_account::new_mail};
-use crate::{Account, App, SendStatus, Telemetry, TimeZoneInit};
+use crate::{
+    Account, App, SendStatus, Telemetry, TimeZoneInit, preferences_file::ScratchPreferences,
+};
 
 /// A one-account app over `prefs`, so a test can set a name before the app boots and prove
 /// the value is read from disk rather than only from the setter that wrote it.
@@ -50,15 +51,6 @@ fn app_with_prefs(
     (Arc::new(app), outbox)
 }
 
-/// A fresh preferences file of its own, so one test's writes cannot reach another's.
-fn scratch_prefs(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-sender-name-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    let path = dir.join("preferences.toml");
-    save_preferences(&path, &Preferences::default()).unwrap();
-    path
-}
-
 #[tokio::test(start_paused = true)]
 async fn an_account_with_no_name_still_sends_as_a_bare_address() {
     // The state every account starts in, and the one that must stay valid: a name is
@@ -74,7 +66,8 @@ async fn an_account_with_no_name_still_sends_as_a_bare_address() {
 
 #[tokio::test(start_paused = true)]
 async fn a_sent_message_carries_the_name_the_user_set() {
-    let (app, outbox) = app_with_prefs(Some(scratch_prefs("send")));
+    let prefs = ScratchPreferences::new();
+    let (app, outbox) = app_with_prefs(Some(prefs.path()));
     app.set_account_sender_name("acct-1", "Ada Lovelace").await;
 
     let _task = dispatch_until(&app, new_mail(None), SendStatus::Sent).await;
@@ -89,9 +82,10 @@ async fn a_sent_message_carries_the_name_the_user_set() {
 
 #[tokio::test(start_paused = true)]
 async fn a_name_stored_before_its_provider_push_is_the_one_sent() {
+    let prefs = ScratchPreferences::new();
     // A host stores the name where it cannot wait, and the push to the provider runs after: a
     // send in between already carries the name.
-    let (app, outbox) = app_with_prefs(Some(scratch_prefs("stored")));
+    let (app, outbox) = app_with_prefs(Some(prefs.path()));
     assert!(app.store_sender_name("acct-1", "Ada Lovelace"));
     assert!(
         !app.store_sender_name("acct-1", "Ada Lovelace"),
@@ -106,9 +100,10 @@ async fn a_name_stored_before_its_provider_push_is_the_one_sent() {
 
 #[tokio::test(start_paused = true)]
 async fn a_name_set_in_an_earlier_session_is_read_back_at_boot() {
+    let prefs = ScratchPreferences::new();
     // The persisted half. An app that only knew the name because it had just been told
     // would send correctly today and as a bare address tomorrow.
-    let path = scratch_prefs("reload");
+    let path = prefs.path();
     let (first, _) = app_with_prefs(Some(path.clone()));
     first
         .set_account_sender_name("acct-1", "Ada Lovelace")
@@ -126,10 +121,11 @@ async fn a_name_set_in_an_earlier_session_is_read_back_at_boot() {
 
 #[tokio::test(start_paused = true)]
 async fn a_pasted_header_cannot_reach_the_wire_through_the_name() {
+    let prefs = ScratchPreferences::new();
     // The engine's assembler refuses a control character too, but by then the user has a
     // mailbox that will not send and no idea why. Sanitising on store is what keeps anyone
     // from reaching that.
-    let (app, outbox) = app_with_prefs(Some(scratch_prefs("injection")));
+    let (app, outbox) = app_with_prefs(Some(prefs.path()));
     app.set_account_sender_name("acct-1", "Ada\r\nBcc: eve@example.com")
         .await;
 
@@ -143,7 +139,8 @@ async fn a_pasted_header_cannot_reach_the_wire_through_the_name() {
 
 #[tokio::test(start_paused = true)]
 async fn clearing_the_name_goes_back_to_a_bare_address() {
-    let (app, outbox) = app_with_prefs(Some(scratch_prefs("clear")));
+    let prefs = ScratchPreferences::new();
+    let (app, outbox) = app_with_prefs(Some(prefs.path()));
     app.set_account_sender_name("acct-1", "Ada Lovelace").await;
     app.set_account_sender_name("acct-1", "").await;
 
@@ -154,9 +151,10 @@ async fn clearing_the_name_goes_back_to_a_bare_address() {
 
 #[tokio::test]
 async fn the_account_row_carries_the_name_beside_the_address() {
+    let prefs = ScratchPreferences::new();
     // What every client renders. `email` stays the address so no existing label breaks, and
     // `name` is empty rather than a copy of the address when nobody has set one.
-    let (app, _) = app_with_prefs(Some(scratch_prefs("row")));
+    let (app, _) = app_with_prefs(Some(prefs.path()));
     // The rows are published by a rebuild, not by construction.
     app.prime_snapshot().await;
 
@@ -173,9 +171,10 @@ async fn the_account_row_carries_the_name_beside_the_address() {
 
 #[tokio::test]
 async fn removing_an_account_forgets_the_name_it_sent_under() {
+    let prefs = ScratchPreferences::new();
     // A re-added id must not inherit a name the user chose for a different mailbox: it is
     // what recipients see, so an inherited one misrepresents the sender.
-    let path = scratch_prefs("removal");
+    let path = prefs.path();
     let (app, _) = app_with_prefs(Some(path.clone()));
     app.set_account_sender_name("acct-1", "Ada Lovelace").await;
 
@@ -263,11 +262,12 @@ fn app_using_identity(
 
 #[tokio::test]
 async fn a_name_the_provider_already_holds_is_adopted_and_not_asked_for() {
+    let prefs = ScratchPreferences::new();
     // The step the user would have seen here has a pre-filled answer and nothing to decide.
     // Adopting rather than merely skipping is the half that matters: the `From` reads the
     // stored name, so a skip that stored nothing sends as a bare address while Gmail's own
     // client shows a name.
-    let app = app_with_identity(Some("Ada Lovelace"), scratch_prefs("adopt"));
+    let app = app_with_identity(Some("Ada Lovelace"), prefs.path());
     let account = AccountId::try_from("acct-1").unwrap();
 
     assert!(!app.needs_sender_name(&account).await);
@@ -276,8 +276,9 @@ async fn a_name_the_provider_already_holds_is_adopted_and_not_asked_for() {
 
 #[tokio::test]
 async fn a_provider_holding_no_name_is_still_asked() {
+    let prefs = ScratchPreferences::new();
     // The ordinary IMAP case, and the one the step exists for.
-    let app = app_with_identity(None, scratch_prefs("ask"));
+    let app = app_with_identity(None, prefs.path());
     let account = AccountId::try_from("acct-1").unwrap();
 
     assert!(app.needs_sender_name(&account).await);
@@ -290,9 +291,10 @@ async fn a_provider_holding_no_name_is_still_asked() {
 
 #[tokio::test]
 async fn an_account_without_mail_is_never_asked() {
+    let prefs = ScratchPreferences::new();
     // It sends nothing, so it has no name to send under; asking would put a mail question to
     // an account every mail surface leaves out (`docs/accounts.md` rule 6).
-    let app = app_using_identity(None, scratch_prefs("no-mail"), false);
+    let app = app_using_identity(None, prefs.path(), false);
     let account = AccountId::try_from("acct-1").unwrap();
 
     assert!(!app.needs_sender_name(&account).await);
@@ -305,9 +307,10 @@ async fn an_account_without_mail_is_never_asked() {
 
 #[tokio::test]
 async fn a_provider_name_of_nothing_but_control_characters_is_not_a_name() {
+    let prefs = ScratchPreferences::new();
     // Sanitising decides what a name is, so a server answer that survives as empty leaves
     // the account in the state that still needs asking rather than in a named one.
-    let app = app_with_identity(Some("\u{7}\u{7}"), scratch_prefs("blank"));
+    let app = app_with_identity(Some("\u{7}\u{7}"), prefs.path());
     let account = AccountId::try_from("acct-1").unwrap();
 
     assert!(app.needs_sender_name(&account).await);
@@ -315,8 +318,9 @@ async fn a_provider_name_of_nothing_but_control_characters_is_not_a_name() {
 
 #[tokio::test]
 async fn a_name_the_user_already_set_is_never_replaced_by_the_provider_s() {
+    let prefs = ScratchPreferences::new();
     // The user's own answer outranks the server's, and the question is not asked again.
-    let app = app_with_identity(Some("Directory Name"), scratch_prefs("prefer-stored"));
+    let app = app_with_identity(Some("Directory Name"), prefs.path());
     let account = AccountId::try_from("acct-1").unwrap();
     app.set_account_sender_name("acct-1", "Ada Lovelace").await;
 
@@ -326,12 +330,10 @@ async fn a_name_the_user_already_set_is_never_replaced_by_the_provider_s() {
 
 #[tokio::test]
 async fn a_suggestion_is_sanitised_before_it_reaches_the_field() {
+    let prefs = ScratchPreferences::new();
     // The provider's answer is offered, not only stored, so it passes the same rule: a field
     // prefilled with control characters shows a name that sanitises back to nothing on save.
-    let app = app_with_identity(
-        Some("Ada\r\nBcc: eve@example.com"),
-        scratch_prefs("suggest"),
-    );
+    let app = app_with_identity(Some("Ada\r\nBcc: eve@example.com"), prefs.path());
     let account = AccountId::try_from("acct-1").unwrap();
 
     let suggestion = app.suggested_sender_name(&account).await;
@@ -344,7 +346,8 @@ async fn a_suggestion_is_sanitised_before_it_reaches_the_field() {
 
 #[tokio::test]
 async fn a_session_that_names_other_identities_does_not_send_as_this_address() {
-    let app = app_with_identity(None, scratch_prefs("sends-as"));
+    let prefs = ScratchPreferences::new();
+    let app = app_with_identity(None, prefs.path());
     let provider = IdentityProvider { name: None };
     let account = AccountId::try_from("acct-1").unwrap();
 

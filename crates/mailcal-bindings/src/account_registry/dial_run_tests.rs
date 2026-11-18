@@ -3,6 +3,11 @@
 //! Every server here is a local port nothing listens on, so each attempt fails at once, and the
 //! failure says which capability the dial tried.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use engine_api::TimeZoneId;
 
 use crate::{ConnectedAccount, account_registry::dial::AccountDial};

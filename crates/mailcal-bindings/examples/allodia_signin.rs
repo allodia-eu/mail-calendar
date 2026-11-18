@@ -155,9 +155,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let data_dir =
-        std::env::temp_dir().join(format!("allodia-signin-probe-{}", std::process::id()));
-    std::fs::create_dir_all(&data_dir)?;
+    let scratch = tempfile::Builder::new()
+        .prefix("allodia-signin-probe-")
+        .tempdir()?;
+    let data_dir = scratch.path();
     let store = Arc::new(MemoryStore::default());
     println!("data dir: {}", data_dir.display());
 

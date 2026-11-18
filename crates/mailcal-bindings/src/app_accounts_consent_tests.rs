@@ -1,3 +1,8 @@
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use std::sync::{Arc, mpsc};
 
 use super::{OAuthAccount, PendingConsent, Provider, same_address};

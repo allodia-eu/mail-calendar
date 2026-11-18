@@ -11,6 +11,7 @@ use crate::{Intent, SendStatus};
 
 #[tokio::test(start_paused = true)]
 async fn an_edited_subject_replaces_the_derived_one_on_a_reply() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     // The composer's Subject field is editable on a reply, so a user who renames the thread
     // sends under the name they chose, not under `Re: <the original>`.
     let (app, submissions) = reply_app(vec![original_message("m1")]);
@@ -18,6 +19,7 @@ async fn an_edited_subject_replaces_the_derived_one_on_a_reply() {
 
     let (document, blobs) = reply_document();
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,
@@ -40,11 +42,13 @@ async fn an_edited_subject_replaces_the_derived_one_on_a_reply() {
 
 #[tokio::test(start_paused = true)]
 async fn an_edited_subject_replaces_the_derived_one_on_a_forward() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
     let intent = send_from_composer(
+        &scratch,
         &app,
         forward_origin("m1"),
         None,
@@ -64,6 +68,7 @@ async fn an_edited_subject_replaces_the_derived_one_on_a_forward() {
 
 #[tokio::test(start_paused = true)]
 async fn a_cleared_subject_is_honoured_rather_than_refilled() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     // An empty field is a decision, not a missing value: only `None` (a caller with no subject
     // field at all, such as the MCP surface) falls back to the derived `Re:`. Refilling a
     // cleared field would put a subject on the wire the user had deliberately removed.
@@ -72,6 +77,7 @@ async fn a_cleared_subject_is_honoured_rather_than_refilled() {
 
     let (document, blobs) = reply_document();
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,

@@ -363,7 +363,8 @@ mod tests {
 
     #[test]
     fn a_directory_that_is_not_the_root_is_not_mistaken_for_it() {
-        let dir = std::env::temp_dir();
-        assert!(!is_workspace_root(&dir));
+        // A crate of the workspace: a manifest of its own, but neither `VERSION` nor `[workspace]`.
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!is_workspace_root(dir));
     }
 }

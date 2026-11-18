@@ -22,10 +22,9 @@ fn original() -> MessageRef {
     MessageRef::from_parts("acct-1", "m1".to_owned()).expect("a message reference")
 }
 
-fn staging_dir(name: &str) -> String {
-    let dir = std::env::temp_dir().join(format!("mailcal-move-staging-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir.to_string_lossy().into_owned()
+/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
+fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
+    scratch.path().join(name).to_string_lossy().into_owned()
 }
 
 fn save(composition: &CompositionId, subject: &str) -> Intent {
@@ -69,6 +68,7 @@ fn moved(state: ComposerState) -> ComposeOrigin {
 /// the first copy in Drafts beside the second, and a reply would turn into a new message.
 #[tokio::test]
 async fn a_moved_composer_saves_over_what_the_one_it_left_saved() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let reply = composition("reply");
@@ -79,15 +79,20 @@ async fn a_moved_composer_saves_over_what_the_one_it_left_saved() {
             all: false,
         },
         None,
-        &staging_dir("reply"),
+        &staging_dir(&scratch, "reply"),
     )
     .await
     .expect("the reply opens");
     app.dispatch(save(&reply, "Re: Quarterly report")).await;
 
-    app.open_composer(reply.clone(), moved(state()), None, &staging_dir("moved"))
-        .await
-        .expect("the composer moves");
+    app.open_composer(
+        reply.clone(),
+        moved(state()),
+        None,
+        &staging_dir(&scratch, "moved"),
+    )
+    .await
+    .expect("the composer moves");
     assert_eq!(
         app.draft_status(&reply),
         DraftStatus::Saved,
@@ -118,6 +123,7 @@ async fn a_moved_composer_saves_over_what_the_one_it_left_saved() {
 /// as the editor wrote it, the files and the signature choice, with nothing seeded over them.
 #[tokio::test]
 async fn a_moved_composer_opens_holding_what_it_was_given() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let reply = composition("reply-all");
@@ -128,14 +134,19 @@ async fn a_moved_composer_opens_holding_what_it_was_given() {
             all: true,
         },
         None,
-        &staging_dir("reply-all"),
+        &staging_dir(&scratch, "reply-all"),
     )
     .await
     .expect("the reply opens");
 
     let given = state();
     let opening = app
-        .open_composer(reply, moved(given.clone()), None, &staging_dir("moved-all"))
+        .open_composer(
+            reply,
+            moved(given.clone()),
+            None,
+            &staging_dir(&scratch, "moved-all"),
+        )
         .await
         .expect("the composer moves");
 
@@ -174,6 +185,7 @@ async fn a_moved_composer_opens_holding_what_it_was_given() {
 /// composition is written from.
 #[tokio::test]
 async fn a_moved_composer_with_no_from_keeps_its_compositions_account() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let new = composition("new");
@@ -181,7 +193,7 @@ async fn a_moved_composer_with_no_from_keeps_its_compositions_account() {
         new.clone(),
         ComposeOrigin::New { account: None },
         None,
-        &staging_dir("new"),
+        &staging_dir(&scratch, "new"),
     )
     .await
     .expect("a new message opens");
@@ -194,7 +206,7 @@ async fn a_moved_composer_with_no_from_keeps_its_compositions_account() {
                 ..state()
             }),
             None,
-            &staging_dir("moved-new"),
+            &staging_dir(&scratch, "moved-new"),
         )
         .await
         .expect("the composer moves");
@@ -207,6 +219,7 @@ async fn a_moved_composer_with_no_from_keeps_its_compositions_account() {
 /// composer it claims to continue saved, not over it.
 #[tokio::test]
 async fn moving_a_composer_that_is_not_open_is_refused() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
 
     let refused = app
@@ -214,7 +227,7 @@ async fn moving_a_composer_that_is_not_open_is_refused() {
             composition("nobody"),
             moved(state()),
             None,
-            &staging_dir("nobody"),
+            &staging_dir(&scratch, "nobody"),
         )
         .await;
 
@@ -225,6 +238,7 @@ async fn moving_a_composer_that_is_not_open_is_refused() {
 /// it was: a composer opened on an empty body would save it over the message.
 #[tokio::test]
 async fn a_moved_composer_whose_document_is_not_one_is_refused() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let new = composition("broken");
@@ -232,7 +246,7 @@ async fn a_moved_composer_whose_document_is_not_one_is_refused() {
         new.clone(),
         ComposeOrigin::New { account: None },
         None,
-        &staging_dir("broken"),
+        &staging_dir(&scratch, "broken"),
     )
     .await
     .expect("a new message opens");
@@ -246,7 +260,7 @@ async fn a_moved_composer_whose_document_is_not_one_is_refused() {
                 ..state()
             }),
             None,
-            &staging_dir("broken-moved"),
+            &staging_dir(&scratch, "broken-moved"),
         )
         .await;
 

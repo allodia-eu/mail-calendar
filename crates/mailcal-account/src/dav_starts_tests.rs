@@ -1,10 +1,7 @@
 use super::{DavLearned, DavStarts, DavStartsFile, Learned};
 
-fn dir(name: &str) -> std::path::PathBuf {
-    let dir =
-        std::env::temp_dir().join(format!("mailcal-dav-starts-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir
+fn scratch() -> tempfile::TempDir {
+    tempfile::tempdir().unwrap()
 }
 
 fn calendar(url: &str) -> DavStarts {
@@ -16,12 +13,14 @@ fn calendar(url: &str) -> DavStarts {
 
 #[test]
 fn a_missing_file_is_an_empty_cache() {
-    assert!(DavStartsFile::in_dir(dir("missing")).load().is_empty());
+    let dir = scratch();
+    assert!(DavStartsFile::in_dir(dir.path()).load().is_empty());
 }
 
 #[test]
 fn starts_are_kept_per_account_and_read_back() {
-    let file = DavStartsFile::in_dir(dir("round-trip"));
+    let dir = scratch();
+    let file = DavStartsFile::in_dir(dir.path());
     file.store("a", &calendar("https://dav.example.net/a/principal/"))
         .unwrap();
     file.store(
@@ -43,7 +42,8 @@ fn starts_are_kept_per_account_and_read_back() {
 
 #[test]
 fn storing_nothing_forgets_the_account() {
-    let file = DavStartsFile::in_dir(dir("forget"));
+    let dir = scratch();
+    let file = DavStartsFile::in_dir(dir.path());
     file.store("a", &calendar("https://dav.example.net/a/principal/"))
         .unwrap();
     file.store("a", &DavStarts::default()).unwrap();
@@ -52,10 +52,9 @@ fn storing_nothing_forgets_the_account() {
 
 #[test]
 fn an_unreadable_file_is_an_empty_cache() {
-    let base = dir("garbage");
-    std::fs::create_dir_all(&base).unwrap();
-    std::fs::write(base.join("dav-principals.toml"), "not = [toml").unwrap();
-    assert!(DavStartsFile::in_dir(&base).load().is_empty());
+    let base = scratch();
+    std::fs::write(base.path().join("dav-principals.toml"), "not = [toml").unwrap();
+    assert!(DavStartsFile::in_dir(base.path()).load().is_empty());
 }
 
 #[test]

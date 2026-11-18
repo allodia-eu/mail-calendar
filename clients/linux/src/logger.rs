@@ -174,10 +174,7 @@ fn timestamp() -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
 
     use mailcal_bindings::{LogLevel, Logger};
 
@@ -196,19 +193,10 @@ mod tests {
         assert!(epoch.chars().all(|value| value.is_ascii_digit()));
     }
 
-    fn scratch(name: &str) -> std::path::PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        let dir = std::env::temp_dir().join(format!("mailcal-linux-{name}-{nonce}"));
-        fs::create_dir_all(&dir).expect("create scratch directory");
-        dir.join("mailcal.log")
-    }
-
     #[test]
     fn rotates_before_writing_and_keeps_exactly_three_backups() {
-        let path = scratch("rotation");
+        let dir = tempfile::tempdir().expect("create scratch directory");
+        let path = dir.path().join("mailcal.log");
         let logger = FileLogger::with_policy(
             path.clone(),
             RotationPolicy {

@@ -8,7 +8,7 @@
 //! withdraws its own. Remote wipe is the stand-in's (`src/nextcloud_wipe_tests.rs`): marking a
 //! password for wipe takes a web session and the server's own token id.
 
-// A test drives a runtime of its own from the test thread; see `src/lib.rs`.
+// A test drives a runtime of its own from the test thread, never a host's.
 #![allow(clippy::disallowed_methods)]
 
 #[allow(
@@ -41,7 +41,7 @@ fn a_nextcloud_sign_in_connects_signs_in_again_and_leaves_with_the_account() {
         return;
     };
     let store = RecordingStore::default();
-    let app = live_oauth::app("nextcloud-sign-in", store.clone());
+    let (_dir, app) = live_oauth::app("nextcloud-sign-in", store.clone());
     assert!(app.offers_nextcloud_sign_in(format!("{base}/remote.php/dav/")));
     // A bare host is asked once its own `.well-known` lands on `/remote.php/dav/`.
     assert!(app.offers_nextcloud_sign_in(base.clone()));

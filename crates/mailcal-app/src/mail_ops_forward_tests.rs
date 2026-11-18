@@ -12,12 +12,9 @@ use super::{
 };
 use crate::{Intent, MessageRef, SendStatus};
 
-/// A directory of this test's own under the system temp dir, emptied first so a previous run
-/// cannot make an assertion pass.
-fn staging_dir(name: &str) -> String {
-    let dir = std::env::temp_dir().join(format!("mailcal-forward-staging-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir.to_string_lossy().into_owned()
+/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
+fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
+    scratch.path().join(name).to_string_lossy().into_owned()
 }
 
 /// A forward belongs to the conversation it came from. It carries the original's
@@ -26,11 +23,13 @@ fn staging_dir(name: &str) -> String {
 /// separate one-message conversation sitting beside the discussion it is part of.
 #[tokio::test(start_paused = true)]
 async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
     let intent = send_from_composer(
+        &scratch,
         &app,
         forward_origin("m1"),
         None,
@@ -79,10 +78,11 @@ async fn rich_forward_sets_fwd_subject_and_threads_on_references() {
 /// message twice, once as a file nobody attached.
 #[tokio::test]
 async fn staging_writes_the_files_the_original_carries() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
-    let directory = staging_dir("carries");
+    let directory = staging_dir(&scratch, "carries");
     let staged = app
         .stage_message_attachments(
             MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
@@ -111,13 +111,14 @@ async fn staging_writes_the_files_the_original_carries() {
 /// cannot read "this message has nothing attached" out of a message it never found.
 #[tokio::test]
 async fn staging_a_message_that_is_not_there_is_an_error() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _submissions) = reply_app(Vec::new());
     app.dispatch(Intent::RefreshMail).await;
 
     let staged = app
         .stage_message_attachments(
             MessageRef::from_parts("acct-1", "absent".to_owned()).unwrap(),
-            &staging_dir("absent"),
+            &staging_dir(&scratch, "absent"),
         )
         .await;
     assert!(staged.is_err(), "a message that is not there is not staged");
@@ -128,6 +129,7 @@ async fn staging_a_message_that_is_not_there_is_an_error() {
 /// nothing attached: the user would send it without ever knowing.
 #[tokio::test]
 async fn staging_reports_files_it_cannot_read() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     // Syncing needs no raw source, so the original is in the store and only reading its parts
     // fails: the account offline, or the message gone from the server.
     let (app, _submissions) =
@@ -137,7 +139,7 @@ async fn staging_reports_files_it_cannot_read() {
     let staged = app
         .stage_message_attachments(
             MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
-            &staging_dir("unreadable"),
+            &staging_dir(&scratch, "unreadable"),
         )
         .await;
     assert!(

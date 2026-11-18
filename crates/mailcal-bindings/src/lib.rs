@@ -4,10 +4,6 @@
 //! ([`MailcalApp::mailbox_list`]). FFI types mirror the `mailcal-app` types, which stay
 //! binding-free.
 
-// A test drives a runtime of its own from the test harness's thread, not from a host's, so the
-// `clippy.toml` rule that keeps FFI calls off the caller's stack does not apply to it.
-#![cfg_attr(test, allow(clippy::disallowed_methods))]
-
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},

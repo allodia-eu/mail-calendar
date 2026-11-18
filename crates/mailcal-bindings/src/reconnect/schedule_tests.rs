@@ -1,6 +1,11 @@
 //! The launch order, on a paused clock: a dial and a catch-up are timers, and the log says what
 //! happened in which order.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use std::{
     sync::{
         Arc, Mutex,

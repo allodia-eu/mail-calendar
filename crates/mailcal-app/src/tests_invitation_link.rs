@@ -20,7 +20,7 @@ use super::{
         shared_calendar_app,
     },
 };
-use crate::{App, EventIntent, ReaderId};
+use crate::{App, EventIntent, ReaderId, preferences_file::ScratchPreferences};
 
 fn invite() -> MessageRef {
     MessageRef {
@@ -31,15 +31,10 @@ fn invite() -> MessageRef {
 
 /// A preferences file naming `info@` as an alias of the mail account, which is what the calendar
 /// needs to recognise the meeting as the user's: it has no message to read a `To:` from.
-fn with_alias(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-invitation-link-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("preferences.toml");
-    let mut prefs = mailcal_account::load_preferences(&path);
+fn with_alias() -> ScratchPreferences {
+    let mut prefs = mailcal_account::Preferences::default();
     prefs.set_account_aliases("acct-a", vec![ALIAS.to_owned()]);
-    mailcal_account::save_preferences(&path, &prefs).unwrap();
-    path
+    ScratchPreferences::seeded(&prefs)
 }
 
 /// Boots the two accounts over `calendar`, linked or not, and returns the app with what the
@@ -167,7 +162,8 @@ async fn an_answer_from_the_linked_calendar_is_emailed_through_its_mail_account(
     let mut calendar = InvitationFake::new().without_server_scheduling();
     calendar.materialized = true;
     let rsvps = calendar.rsvps();
-    let (app, sends) = booted(calendar, true, Some(with_alias("from-calendar"))).await;
+    let prefs = with_alias();
+    let (app, sends) = booted(calendar, true, Some(prefs.path())).await;
     let event = evt(CALENDAR_ACCOUNT, EVENT_KEY);
 
     let detail = app
@@ -273,7 +269,8 @@ async fn a_server_on_the_same_account_that_does_not_schedule_as_the_alias_leaves
 async fn a_calendar_without_mail_offers_no_answer_its_server_would_not_send() {
     let mut calendar = InvitationFake::new().scheduling_as(&["login@dav.test.local"]);
     calendar.materialized = true;
-    let prefs = with_alias("calendar-only");
+    let scratch = with_alias();
+    let prefs = scratch.path();
     let mut stored = mailcal_account::load_preferences(&prefs);
     stored.set_account_aliases(CALENDAR_ACCOUNT, vec![ALIAS.to_owned()]);
     mailcal_account::save_preferences(&prefs, &stored).unwrap();
@@ -315,7 +312,8 @@ async fn a_calendar_two_mailboxes_file_into_answers_from_the_mailbox_it_invited(
     );
     let (sends, other_sends) = (mail.sends(), other.sends());
     let surfaces: Arc<Mutex<Vec<Surface>>> = Arc::new(Mutex::new(Vec::new()));
-    let app = shared_calendar_app(mail, other, calendar, &surfaces, Some(with_alias("shared")));
+    let prefs = with_alias();
+    let app = shared_calendar_app(mail, other, calendar, &surfaces, Some(prefs.path()));
     app.dispatch(Intent::RefreshCalendar).await;
 
     app.dispatch(Intent::Events(EventIntent::Respond {

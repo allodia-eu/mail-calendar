@@ -6,6 +6,11 @@
 //! minutes into the next run, which is what each assertion tells apart. A child of
 //! [`super`], reusing its boot fakes.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use std::sync::Arc;
 
 use engine_api::{Draft, EmailAddress, MessageIdHeader, PendingOpState};
@@ -102,7 +107,6 @@ fn state_after_boot(name: &str, after_hand_over: bool) -> PendingOpState {
         .block_on(engine.outbox(&account))
         .expect("read the outbox after boot");
     assert_eq!(rows.len(), 1, "the message must still be in the Outbox");
-    let _ = fs::remove_dir_all(data_dir);
     rows[0].state
 }
 

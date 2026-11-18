@@ -1,6 +1,11 @@
 //! Whether a Microsoft or Google account is a personal one: stored once its provider has said, and
 //! never written again for the same answer.
 
+#![expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
+
 use std::sync::{Arc, Mutex};
 
 use engine_api::{AccountId, Affiliation, OrganizationId};

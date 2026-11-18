@@ -360,9 +360,8 @@ mod faulting {
             std::process::exit(0);
         }
 
-        let dir = std::env::temp_dir().join(format!("mailcal-fault-{}", std::process::id()));
-        fs::create_dir_all(&dir).expect("scratch dir");
-        let log = dir.join("mailcal.log");
+        let dir = tempfile::tempdir().expect("scratch dir");
+        let log = dir.path().join("mailcal.log");
         fs::write(&log, EXISTING).expect("seed the log");
 
         let status = Command::new(std::env::current_exe().expect("this test binary"))
@@ -371,7 +370,6 @@ mod faulting {
             .status()
             .expect("run the child");
         let written = fs::read_to_string(&log).expect("read the log back");
-        let _ = fs::remove_dir_all(&dir);
 
         assert_eq!(
             status.code(),

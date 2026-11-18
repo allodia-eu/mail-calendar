@@ -109,8 +109,8 @@ fn the_name_shown_is_the_one_the_message_carries() {
 
 #[test]
 fn a_readable_file_shows_its_size_and_an_unreadable_one_none() {
-    let path =
-        std::env::temp_dir().join(format!("mailcal-composer-file-{}.txt", std::process::id()));
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("note.txt");
     std::fs::write(&path, b"forty-one bytes of a note, give or take..").expect("write");
     let lists = ComposerFileLists::default();
     let c = composition("c1");
@@ -130,12 +130,11 @@ fn a_readable_file_shows_its_size_and_an_unreadable_one_none() {
 
 #[test]
 fn a_picture_by_its_bytes_offers_a_preview_and_anything_else_none() {
-    let dir = std::env::temp_dir().join(format!("mailcal-composer-preview-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("dir");
-    let picture = dir.join("shot.png");
+    let dir = tempfile::tempdir().expect("dir");
+    let picture = dir.path().join("shot.png");
     std::fs::write(&picture, b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR").expect("write");
     // Named like a picture, but the bytes are an SVG, which is script-capable: no preview.
-    let liar = dir.join("logo.png");
+    let liar = dir.path().join("logo.png");
     std::fs::write(&liar, b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>").expect("write");
     let paths = [&picture, &liar].map(|path| path.to_str().expect("utf-8").to_owned());
     let lists = ComposerFileLists::default();
@@ -148,7 +147,7 @@ fn a_picture_by_its_bytes_offers_a_preview_and_anything_else_none() {
             file("/no/such/photo.jpg", "photo.jpg"),
         ],
     );
-    std::fs::remove_dir_all(&dir).ok();
+    drop(dir);
     assert_eq!(files.tiles[0].preview.as_deref(), Some(paths[0].as_str()));
     assert_eq!(files.tiles[1].preview, None);
     assert_eq!(files.tiles[2].preview, None);
@@ -156,8 +155,8 @@ fn a_picture_by_its_bytes_offers_a_preview_and_anything_else_none() {
 
 #[test]
 fn the_total_follows_a_file_taken_off() {
-    let path =
-        std::env::temp_dir().join(format!("mailcal-composer-total-{}.txt", std::process::id()));
+    let dir = tempfile::tempdir().expect("dir");
+    let path = dir.path().join("total.txt");
     std::fs::write(&path, [0u8; 100]).expect("write");
     let text = path.to_str().expect("utf-8");
     let lists = ComposerFileLists::default();

@@ -351,8 +351,6 @@ mod tests {
 
         drop(headless);
         drop(live);
-        let _ = std::fs::remove_dir_all(headless_dir);
-        let _ = std::fs::remove_dir_all(live_dir);
     }
 
     #[test]
