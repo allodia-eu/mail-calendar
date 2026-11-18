@@ -178,11 +178,12 @@ final class MailboxModel {
     /// What a leftward and a rightward swipe across a message row do (pulled on a
     /// `Surface::Settings` signal). A placeholder until `didOpen` reads the core's.
     var swipeSettings = SwipeSettings(left: .delete, right: .delete)
-    /// The signature library and each account's two assignments (pulled on a `Surface::Settings`
-    /// signal). Metadata only, a body is fetched one at a time (`signatureHTML`), so a library
-    /// of logos never crosses the FFI just to draw a list of names. Drives the Signatures
-    /// settings screen and the composer's override picker.
-    var signatures = SignaturesSnapshot(signatures: [], accounts: [])
+    /// Settings → Signatures as the core draws it (`signatures_page`, pulled on a
+    /// `Surface::Signatures` or `Surface::Settings` signal): the library, each account's two
+    /// slots, every control on the page and what the last change came to. Metadata only, a body
+    /// is fetched one at a time (`signatureHTML`). Its library is also what the composer's
+    /// override picker lists.
+    var signatures = SignaturesPage.empty
     /// The account whose "your name" step is open, or `nil` when none is.
     ///
     /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a

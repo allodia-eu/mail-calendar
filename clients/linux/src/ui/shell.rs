@@ -376,6 +376,7 @@ impl AppWidgets {
             // How this composition's last save ended, re-read whenever the core says some
             // composition's moved (`docs/drafts.md`).
             self.composer.show_draft_hint(model, ComposerHost::Pane);
+            self.composer.follow_signatures(model.signatures_read);
             // A navigation is waiting for this draft to be left. Issued from here because the
             // model renders behind a shared reference and cannot run the editor round trip itself.
             if let Some(generation) = model.draft_check {
@@ -423,6 +424,7 @@ impl AppWidgets {
             model.preferences.clone(),
             self.sender.clone(),
         );
+        self.settings.follow_signatures(model.signatures_read);
         self.settings.show_notice(
             &model.notices.notices,
             model.settings.render_state().account,

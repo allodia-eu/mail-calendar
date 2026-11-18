@@ -82,8 +82,10 @@ if another platform grows summaries it uses the same keys.
   battery-exemption card, and only while it is not yet exempt.
 - **The Signatures category is on every platform.** Its body editor renders where each toolkit
   allows: **inside** the Settings dialog's detail panel on Windows (WinUI forbids a nested
-  `ContentDialog`, the same reason the destructive database reset confirms in place), and in a
-  window or screen of its own everywhere else.
+  `ContentDialog`, the same reason the destructive database reset confirms in place), in place of
+  the Settings window's detail on Linux (a second toplevel meets a GTK accessibility race,
+  [`signatures.md`](signatures.md)), in a sheet on macOS, iOS and iPadOS, and in a full-screen
+  dialog on Android.
 - **Notification *content* is still English-only on Android.** The settings copy is catalog-backed
   on Android and iOS, and both settings and notification copy are catalog-backed on macOS, Linux
   and Windows. The Android notification channel name and notification texts ("N new messages",

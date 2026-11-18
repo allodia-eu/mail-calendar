@@ -44,6 +44,10 @@ pub enum Surface {
     /// and something outside the page reads raises [`Self::Settings`] besides, so this one moves
     /// nothing else a host draws.
     AccountPage,
+    /// The signature library and each account's two signatures (pulled via `App::signatures`):
+    /// a signature saved or deleted, a change to them starting or ending, and an account's
+    /// assignment changing. Drawn in Settings → Signatures and by the composer's picker.
+    Signatures,
     /// The Allodia account's card (pulled via the binding's `allodia_card`): its sign-in or
     /// sign-out moving, or the service refusing the stored sign-in. Drawn in Settings and on the
     /// first-run card, and nowhere else.

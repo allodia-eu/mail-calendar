@@ -184,16 +184,11 @@ public sealed partial class MainWindow
                 break;
 
             case ShowcaseScreen.Signatures:
-                // The same dialog, opened on the Signatures category, the showcase library is
-                // seeded, so this shows a real library and its per-account defaults rather than
-                // the empty state (crates/mailcal-bindings/src/boot/inmemory.rs).
-                //
-                // Waiting for an ACCOUNT, not just for the content to load, is what makes that
-                // true. The settings panels are built imperatively, once, and never rebuilt when
-                // the core arrives, so opening the dialog during the async bring-up renders the
-                // empty state permanently, and the capture is a screenshot of "you haven't written
-                // a signature yet" over a core holding two. Nothing about the image says so; the
-                // driver is re-entered as the model reloads, so this simply waits.
+                // The same dialog, opened on the Signatures category. The showcase library is
+                // seeded (crates/mailcal-bindings/src/boot/inmemory.rs), so this shows a real library
+                // and its per-account defaults rather than the empty state. Opened once an account
+                // is up, so the capture's first frame already holds them; the driver is re-entered
+                // as the model reloads, so this simply waits.
                 if (!_showcaseContentLoaded || Model.Accounts.Count == 0)
                 {
                     return;

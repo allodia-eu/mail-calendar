@@ -248,6 +248,10 @@ pub(crate) struct AppModel {
     /// invitation card is rebuilt when the core publishes a new one and left alone on every other
     /// render; a rebuild mid-render would take a half-typed note to the organiser away.
     reading_generation: u64,
+    /// Counts the reads of Settings → Signatures the core signalled (`Surface::Signatures` and
+    /// `Surface::Settings`), so the page, an editor open on it and each composer's picker read it
+    /// again once for each.
+    signatures_read: u64,
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeContext>,
     composer_generation: u64,

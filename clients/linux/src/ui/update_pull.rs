@@ -63,6 +63,8 @@ impl AppModel {
             Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
             Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
             Surface::Settings => {
+                // An account added or removed changes the signature slots listed.
+                self.signatures_read = self.signatures_read.wrapping_add(1);
                 self.calendar.refresh_settings(&app);
                 self.settings.signalled();
                 // After the signal's redraw, so a notice it raises is drawn rather than skipped.
@@ -86,6 +88,9 @@ impl AppModel {
                 self.settings.signalled();
                 self.refresh_onboarding_card();
             }
+            // The signature library or an account's signatures moved, or a change to them started
+            // or ended.
+            Surface::Signatures => self.signatures_read = self.signatures_read.wrapping_add(1),
             // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
             // the stored sign-in.
             Surface::Allodia => self.allodia_signalled(),

@@ -13,7 +13,7 @@ import SwiftUI
 /// what a composer whose opening seeds no signature gets, and what a preview wants.
 struct ComposerSignatures {
     /// The library, for the picker.
-    let library: [SignatureRow]
+    let library: [SignatureEntry]
     /// The signature `account` uses in `slot`, or `nil` when that slot is unassigned.
     let forAccount: (String, SignatureSlotKind) -> SignatureBody?
     /// One signature by id, the per-message override.

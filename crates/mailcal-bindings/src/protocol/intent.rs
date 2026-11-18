@@ -357,6 +357,12 @@ pub enum Intent {
         /// Which change.
         intent: super::PreferenceIntent,
     },
+    /// A change to the signature library or an account's signatures
+    /// ([`SignatureIntent`](super::SignatureIntent)).
+    Signature {
+        /// Which change.
+        intent: super::SignatureIntent,
+    },
     /// Something the person did to a notice (`docs/notices.md`).
     Notices {
         /// What they did.
