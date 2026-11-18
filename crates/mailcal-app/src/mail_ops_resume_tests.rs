@@ -17,7 +17,7 @@ use mailcal_composer::{
 };
 
 use super::mail_fake::{
-    ThreadProvider, app_and_logs, dispatch_until, original_message, stored_draft,
+    ThreadProvider, app_and_logs, dispatch_until, original_message, staging_dir, stored_draft,
 };
 use crate::{CompositionId, DraftsIntent, Intent, MessageRef, SendStatus};
 
@@ -66,11 +66,6 @@ fn save(id: &str, text: &str) -> Intent {
         blobs: Vec::new(),
         then_close: false,
     })
-}
-
-/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
-fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
-    scratch.path().join(name).to_string_lossy().into_owned()
 }
 
 /// A resumed draft opens as the message it is: its recipients, its subject and its words.

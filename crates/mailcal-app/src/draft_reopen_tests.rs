@@ -10,7 +10,9 @@ use mailcal_composer::{
     Block, ComposerDocument, InlineContent, Paragraph, Quote, QuoteAttribution, QuoteStyle, TextRun,
 };
 
-use super::mail_fake::{ThreadProvider, app_and_logs, dispatch_until, rich_stored_draft};
+use super::mail_fake::{
+    ThreadProvider, app_and_logs, dispatch_until, rich_stored_draft, staging_dir,
+};
 use crate::{CompositionId, DraftsIntent, Intent, MessageRef, SendStatus};
 
 /// The picture the stored reply's quote shows, as the editor holds it once the core has
@@ -23,11 +25,6 @@ fn composition() -> CompositionId {
 
 fn draft_ref() -> MessageRef {
     MessageRef::from_parts("acct-1", "rich-1".to_owned()).expect("a message reference")
-}
-
-/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
-fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
-    scratch.path().join(name).to_string_lossy().into_owned()
 }
 
 /// What the editor hands back for the reopened reply: the user's line over the quote, whose
@@ -66,11 +63,9 @@ fn reply_document() -> ComposerDocument {
     }
 }
 
-/// The reopened draft, staged under `staging`: a directory of the calling test's own, since each
-/// test empties its directory first and the tests run in parallel.
+/// The reopened draft, staged inside `scratch`, the calling test's own directory.
 async fn resumed(
     scratch: &tempfile::TempDir,
-    staging: &str,
 ) -> (
     std::sync::Arc<crate::App<ThreadProvider>>,
     super::mail_fake::ProviderLogs,
@@ -84,7 +79,7 @@ async fn resumed(
                 message: draft_ref(),
             },
             None,
-            &staging_dir(scratch, staging),
+            &staging_dir(scratch, "resumed"),
         )
         .await
         .expect("the draft resumes");
@@ -178,7 +173,7 @@ async fn a_resumed_draft_opens_formatted_with_its_pictures_inline() {
 #[tokio::test]
 async fn a_save_of_a_resumed_reply_keeps_its_conversation_and_its_quoted_picture() {
     let scratch = tempfile::tempdir().expect("a staging directory");
-    let (app, logs) = resumed(&scratch, "resumed-save").await;
+    let (app, logs) = resumed(&scratch).await;
 
     app.dispatch(Intent::Drafts(DraftsIntent::Save {
         composition: composition(),
@@ -203,7 +198,7 @@ async fn a_save_of_a_resumed_reply_keeps_its_conversation_and_its_quoted_picture
 #[tokio::test(start_paused = true)]
 async fn the_send_of_a_resumed_reply_keeps_its_conversation_and_its_quoted_picture() {
     let scratch = tempfile::tempdir().expect("a staging directory");
-    let (app, logs) = resumed(&scratch, "resumed-send").await;
+    let (app, logs) = resumed(&scratch).await;
 
     let intent = Intent::SubmitRichMail {
         from: None,

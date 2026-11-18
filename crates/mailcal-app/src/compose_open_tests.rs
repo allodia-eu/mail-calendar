@@ -9,7 +9,7 @@ use engine_api::{Draft, Message, MessageIdHeader, ThreadId, ThreadRef};
 use mailcal_composer::{Block, ComposerDocument, Paragraph};
 
 use super::mail_fake::{
-    ThreadProvider, app_and_logs, original_message, rich_stored_draft, stored_draft,
+    ThreadProvider, app_and_logs, original_message, rich_stored_draft, staging_dir, stored_draft,
 };
 use crate::{
     ComposeKind, ComposeOrigin, ComposePrefill, CompositionId, DraftsIntent, Intent, MessageRef,
@@ -21,11 +21,6 @@ fn composition(name: &str) -> CompositionId {
 
 fn original() -> MessageRef {
     MessageRef::from_parts("acct-1", "m1".to_owned()).expect("a message reference")
-}
-
-/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
-fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
-    scratch.path().join(name).to_string_lossy().into_owned()
 }
 
 fn empty_document() -> ComposerDocument {

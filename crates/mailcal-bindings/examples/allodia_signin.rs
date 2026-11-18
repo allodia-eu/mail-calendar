@@ -12,7 +12,7 @@
 //! (`AllodiaIntent::SignIn`), prints the authorization URL the core holds, waits for the redirect
 //! and hands it back; then **boots a second app** from what the first one stored, to prove the
 //! entry comes back as a signed-in account and not as an account error. It signs out at the end,
-//! so nothing is left behind but the temporary directory it names.
+//! and the temporary directory it names is removed when it exits, so nothing is left behind.
 
 use std::{
     collections::BTreeMap,

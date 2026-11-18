@@ -249,7 +249,8 @@ mod tests {
     #[test]
     fn a_library_round_trips_through_toml_with_its_order_preserved() {
         let dir = tempfile::tempdir().unwrap();
-        let path = signatures_path(dir.path());
+        // A data directory that does not exist yet, so the save has to make it.
+        let path = signatures_path(dir.path().join("data"));
 
         let mut library = Signatures::default();
         // Inserted in an order the id sort would NOT produce, so the assertion below proves the

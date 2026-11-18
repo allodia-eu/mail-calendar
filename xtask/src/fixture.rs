@@ -39,7 +39,9 @@ impl Repo {
         let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
         let process = std::process::id();
         let root = std::env::temp_dir().join(format!("xtask-fixture-{process}-{stamp}-{unique}"));
-        std::fs::create_dir_all(&root).expect("could not create the fixture directory");
+        // `create_dir`, not `create_dir_all`: a name another fixture already holds fails here
+        // rather than handing two tests one directory.
+        std::fs::create_dir(&root).expect("could not create the fixture directory");
 
         let repo = Self { root };
         repo.git(&["init", "--quiet"]);

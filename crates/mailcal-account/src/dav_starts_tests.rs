@@ -20,7 +20,8 @@ fn a_missing_file_is_an_empty_cache() {
 #[test]
 fn starts_are_kept_per_account_and_read_back() {
     let dir = scratch();
-    let file = DavStartsFile::in_dir(dir.path());
+    // A data directory that does not exist yet, so the first store has to make it.
+    let file = DavStartsFile::in_dir(dir.path().join("data"));
     file.store("a", &calendar("https://dav.example.net/a/principal/"))
         .unwrap();
     file.store(

@@ -8,14 +8,9 @@ use engine_api::MessageIdHeader;
 
 use super::{
     ThreadProvider, app_over, dispatch_until, forward_origin, original_message, reply_app,
-    reply_document, send_from_composer,
+    reply_document, send_from_composer, staging_dir,
 };
 use crate::{Intent, MessageRef, SendStatus};
-
-/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
-fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
-    scratch.path().join(name).to_string_lossy().into_owned()
-}
 
 /// A forward belongs to the conversation it came from. It carries the original's
 /// `References` chain (but no `In-Reply-To`, because it answers nothing) and that chain is

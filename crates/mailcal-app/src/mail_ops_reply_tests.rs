@@ -17,7 +17,9 @@ use mailcal_composer::{AttachmentId, ComposerDocument, DraftBlobHandle};
 
 use super::{
     SilentObserver,
-    mail_fake::{ThreadProvider, app_over, dispatch_until, original_message, reply_app},
+    mail_fake::{
+        ThreadProvider, app_over, dispatch_until, original_message, reply_app, staging_dir,
+    },
     rich_document,
 };
 use crate::{ComposerBlob, Intent, MessageRef, SendStatus};
