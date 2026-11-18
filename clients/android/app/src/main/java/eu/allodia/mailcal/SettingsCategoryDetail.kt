@@ -27,8 +27,6 @@ import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.MeetingDefault
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.SignatureSlotKind
-import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
@@ -71,12 +69,7 @@ internal fun CategoryDetail(
     swipe: SwipeSettings,
     onSetSwipeLeft: (SwipeActionKind) -> Unit,
     onSetSwipeRight: (SwipeActionKind) -> Unit,
-    signatures: SignaturesSnapshot?,
-    signatureHtml: (String) -> String?,
-    onCreateSignature: (name: String, bodyHtml: String, bodyPlain: String) -> Unit,
-    onUpdateSignature: (id: String, name: String, bodyHtml: String, bodyPlain: String) -> Unit,
-    onDeleteSignature: (String) -> Unit,
-    onSetAccountSignature: (account: String, slot: SignatureSlotKind, signature: String?) -> Unit,
+    signatures: SignaturesUi,
     about: AboutInfo,
     analyticsEnabled: Boolean,
     onSetAnalytics: (Boolean) -> Unit,
@@ -215,24 +208,14 @@ internal fun CategoryDetail(
                 L10n.settings_signatures_library_heading(ctx),
                 L10n.settings_signatures_library_description(ctx),
             ) {
-                SignatureLibraryCard(
-                    signatures = signatures?.signatures.orEmpty(),
-                    bodyHtmlFor = signatureHtml,
-                    onCreate = onCreateSignature,
-                    onUpdate = onUpdateSignature,
-                    onDelete = onDeleteSignature,
-                )
+                SignatureLibraryCard(signatures)
             }
             Spacer(modifier = Modifier.height(8.dp))
             SettingsGroupCard(
                 L10n.settings_signatures_defaults_heading(ctx),
                 L10n.settings_signatures_defaults_description(ctx),
             ) {
-                AccountSignatureDefaultsCard(
-                    accounts = signatures?.accounts.orEmpty(),
-                    signatures = signatures?.signatures.orEmpty(),
-                    onSet = onSetAccountSignature,
-                )
+                AccountSignatureDefaultsCard(signatures)
             }
         }
 

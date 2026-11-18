@@ -1,4 +1,4 @@
-// The signature body editor (Settings ▸ Signatures): the shared `clients/composer/dist/editor.html`
+// The signature body editor (Settings → Signatures): the shared `clients/composer/dist/editor.html`
 // bundle hosted body-only, with the same hardened WebView configuration as the composer
 // (EditorWebView.kt, docs/composer-security.md). Authoring a signature is authoring mail content,
 // so it gets the composer's gates, not a lighter set.
@@ -8,11 +8,8 @@
 // rewrites to a `cid:` part on send, because Outlook's reader blocks `data:` images.
 package eu.allodia.mailcal
 
-import android.content.Context
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.text.format.Formatter
 import android.webkit.WebView
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +38,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -47,10 +46,18 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlin.concurrent.thread
 import org.json.JSONObject
+import uniffi.mailcal_bindings.ControlState
+import uniffi.mailcal_bindings.SignatureIntent
+import uniffi.mailcal_bindings.SignatureResult
 
-// The editor for one signature: its name, the rich body, and an "add image" button. `onSave`
-// receives the name and both body renderings; the caller decides whether that is a create or an
-// update (it knows which signature it opened).
+internal const val SIGNATURE_SAVE_TAG = "signature-save"
+internal const val SIGNATURE_IMAGE_TAG = "signature-image"
+internal const val SIGNATURE_NAME_TAG = "signature-name"
+
+// The editor for one signature: its name, the rich body, and an "add image" button. Save sends a
+// `SignatureIntent.Save` under [id] (the entry's, or the page's `newId` for a new signature); the
+// page's next outcome for [id] newer than [openedSerial] says what it came to, once: saved,
+// deleted meanwhile or not written closes the editor, and refused keeps it open and says why.
 //
 // A full-screen Dialog, like the composer: the body is a live rich-text editor and a phone-sized
 // alert box would leave it a few lines tall. The system back button reaches onDismissRequest, so
@@ -58,41 +65,54 @@ import org.json.JSONObject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SignatureEditorDialog(
+    id: String,
     title: String,
     initialName: String,
     // The stored HTML of an existing signature, or null for a new one.
     initialBodyHtml: String?,
-    onSave: (name: String, bodyHtml: String, bodyPlain: String) -> Unit,
+    openedSerial: ULong,
+    ui: SignaturesUi,
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    val page = ui.page ?: return
     val html = remember(ctx) { loadComposerAsset(ctx) }
     val labelsJson = remember(ctx) { composerLabelsJson(ctx) }
     var name by remember { mutableStateOf(initialName) }
-    var imageError by remember { mutableStateOf<String?>(null) }
+    var message by remember { mutableStateOf<String?>(null) }
+    var seenSerial by remember { mutableStateOf(openedSerial) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     val linkHost = rememberComposerLinkHost()
+    val close by rememberUpdatedState(onDismiss)
 
+    val outcome = page.outcome
+    LaunchedEffect(outcome) {
+        if (outcome == null || outcome.id != id || outcome.serial <= seenSerial) return@LaunchedEffect
+        seenSerial = outcome.serial
+        when (val result = outcome.result) {
+            is SignatureResult.Refused -> message = signatureRefusalText(ctx, result.reason)
+            SignatureResult.Saved, SignatureResult.Deleted, SignatureResult.NotWritten -> close()
+        }
+    }
+
+    val imageRefusal by rememberUpdatedState(ui.imageRefusal)
     val pickImage = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument(),
     ) { uri ->
         if (uri == null) {
             return@rememberLauncherForActivityResult
         }
-        imageError = null
-        // Read + base64-encode off the main thread: it is a content-resolver read of up to the cap,
-        // which is not work for the frame that handled the tap.
+        message = null
+        // Off the main thread: a content-resolver read of up to the core's limit is not work for the
+        // frame that handled the tap.
         thread(name = "mailcal-signature-image") {
-            val outcome = readSignatureImage(ctx, uri)
+            val picked = readSignatureImage(ctx, uri, imageRefusal)
             Handler(Looper.getMainLooper()).post {
-                when (outcome) {
+                when (picked) {
                     is SignatureImage.DataUrl ->
-                        webView?.insertSignatureImage(outcome.value, altText = outcome.altText)
-                    is SignatureImage.TooLarge -> imageError = L10n.settings_signatures_image_too_large(
-                        ctx,
-                        limit = Formatter.formatShortFileSize(ctx, outcome.limitBytes.toLong()),
-                    )
-                    SignatureImage.Failed -> imageError = L10n.settings_signatures_image_failed(ctx)
+                        webView?.insertSignatureImage(picked.value, altText = picked.altText)
+                    is SignatureImage.Refused -> message = signatureImageRefusalText(ctx, picked.refusal)
+                    SignatureImage.Failed -> message = L10n.settings_signatures_image_failed(ctx)
                 }
             }
         }
@@ -128,43 +148,49 @@ internal fun SignatureEditorDialog(
                             }
                         },
                         actions = {
-                            IconButton(onClick = { pickImage.launch(arrayOf("image/*")) }) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_image),
-                                    contentDescription = L10n.settings_signatures_insert_image(ctx),
-                                )
-                            }
-                            // A signature with no name is a row the user cannot tell apart in the
-                            // picker, so Save waits for one.
-                            IconButton(
-                                enabled = name.isNotBlank(),
-                                onClick = {
-                                    webView?.readSignatureBody { body, plain ->
-                                        onSave(name.trim(), body, plain)
-                                    }
-                                },
+                            // Opens the picker and starts nothing, so it is held with the page and
+                            // never runs.
+                            ControlIconButton(
+                                icon = R.drawable.ic_image,
+                                label = L10n.settings_signatures_insert_image(ctx),
+                                control = page.save.copy(running = false),
+                                tag = SIGNATURE_IMAGE_TAG,
+                            ) { pickImage.launch(SIGNATURE_IMAGE_TYPES) }
+                            ControlIconButton(
+                                icon = R.drawable.ic_check,
+                                label = L10n.settings_signatures_save(ctx),
+                                control = ControlState(
+                                    enabled = page.save.enabled && ui.nameRefusal(name) == null,
+                                    running = page.save.running,
+                                ),
+                                tag = SIGNATURE_SAVE_TAG,
                             ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_check),
-                                    contentDescription = L10n.settings_signatures_save(ctx),
-                                )
+                                webView?.readSignatureBody { body, plain ->
+                                    ui.onChange(SignatureIntent.Save(id, name, body, plain))
+                                }
                             }
                         },
                     )
                 },
             ) { padding ->
                 Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        singleLine = true,
-                        label = { Text(L10n.settings_signatures_name_label(ctx)) },
-                        placeholder = { Text(L10n.settings_signatures_name_placeholder(ctx)) },
-                    )
-                    imageError?.let { message ->
+                    HeldFields(page.save) { enabled ->
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it },
+                            enabled = enabled,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp)
+                                .testTag(SIGNATURE_NAME_TAG),
+                            singleLine = true,
+                            label = { Text(L10n.settings_signatures_name_label(ctx)) },
+                            placeholder = { Text(L10n.settings_signatures_name_placeholder(ctx)) },
+                        )
+                    }
+                    message?.let { text ->
                         Text(
-                            text = message,
+                            text = text,
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -253,53 +279,4 @@ private fun WebView.readSignatureBody(onBody: (html: String, plain: String) -> U
 private fun WebView.insertSignatureImage(dataUrl: String, altText: String) {
     val payload = JSONObject().put("data_url", dataUrl).put("alt_text", altText).toString()
     evaluateJavascript("window.insertSignatureImage(${JSONObject.quote(payload)})", null)
-}
-
-// Reads a picked image into a `data:` URI, or says why it can't. The size check is separate from the
-// read failure so the user is told WHICH problem it is.
-internal sealed interface SignatureImage {
-    data class DataUrl(val value: String, val altText: String) : SignatureImage
-
-    data class TooLarge(val limitBytes: Int) : SignatureImage
-
-    data object Failed : SignatureImage
-}
-
-// The cap on an embedded signature image. A signature rides in EVERY message the account sends, so
-// a 5 MB logo is 5 MB per mail, and base64 adds a third on top. 512 KB is generous for a logo and
-// small enough that nobody notices it on the wire. Enforced here, where the file is picked, so the
-// user is told; the core does not police it.
-internal const val SIGNATURE_IMAGE_LIMIT_BYTES: Int = 512 * 1024
-
-// The pure half, so the cap and the media-type refusal are testable without a content resolver.
-// Anything that is not an `image/*` is refused here rather than embedded: the editor would drop it
-// anyway (it only accepts `data:image/`), and the picker is where the user can still be told.
-internal fun signatureImageDataUrl(bytes: ByteArray, mediaType: String?, altText: String): SignatureImage {
-    if (bytes.size > SIGNATURE_IMAGE_LIMIT_BYTES) {
-        return SignatureImage.TooLarge(SIGNATURE_IMAGE_LIMIT_BYTES)
-    }
-    if (bytes.isEmpty() || mediaType == null || !mediaType.startsWith("image/")) {
-        return SignatureImage.Failed
-    }
-    val encoded = java.util.Base64.getEncoder().encodeToString(bytes)
-    return SignatureImage.DataUrl("data:$mediaType;base64,$encoded", altText)
-}
-
-private fun readSignatureImage(ctx: Context, uri: Uri): SignatureImage = try {
-    // One byte past the cap is enough to reject: the user may pick a 4 GB file from a cloud
-    // provider, and `readBytes()` would pull all of it into memory to then refuse it.
-    val bytes = ctx.contentResolver.openInputStream(uri)?.use {
-        it.readNBytes(SIGNATURE_IMAGE_LIMIT_BYTES + 1)
-    }
-    if (bytes == null) {
-        SignatureImage.Failed
-    } else {
-        signatureImageDataUrl(
-            bytes = bytes,
-            mediaType = ctx.contentResolver.getType(uri),
-            altText = uri.lastPathSegment?.substringAfterLast('/').orEmpty(),
-        )
-    }
-} catch (_: Exception) {
-    SignatureImage.Failed
 }

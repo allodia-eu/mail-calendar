@@ -11,6 +11,8 @@ import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.PreferenceIntent
 import uniffi.mailcal_bindings.SwipeDirection
 import uniffi.mailcal_bindings.aboutInfo
+import uniffi.mailcal_bindings.signatureImageRefusal
+import uniffi.mailcal_bindings.signatureNameRefusal
 import uniffi.mailcal_bindings.standardPort
 
 /**
@@ -72,21 +74,15 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             swipe = swipes,
                             onSetSwipeLeft = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.LEFT, it)) },
                             onSetSwipeRight = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.RIGHT, it)) },
-                            // Signatures, the library and the per-account slots. Every setter
-                            // persists in the core and re-signals SETTINGS, which is what refreshes
-                            // the snapshot above; nothing is echoed locally.
-                            signatures = signatures,
-                            signatureHtml = { instance.signatureHtml(it) },
-                            onCreateSignature = { name, html, plain ->
-                                instance.createSignature(name, html, plain)
-                            },
-                            onUpdateSignature = { id, name, html, plain ->
-                                instance.updateSignature(id, name, html, plain)
-                            },
-                            onDeleteSignature = { instance.deleteSignature(it) },
-                            onSetAccountSignature = { account, slot, signature ->
-                                instance.setAccountSignature(account, slot, signature)
-                            },
+                            // Signatures, the core's page. A change returns at once and the
+                            // SIGNATURES signal redraws the page; nothing is echoed locally.
+                            signatures = SignaturesUi(
+                                page = signatures,
+                                bodyHtml = { instance.signatureHtml(it) },
+                                onChange = { instance.dispatch(Intent.Signature(it)) },
+                                nameRefusal = ::signatureNameRefusal,
+                                imageRefusal = { type, size -> signatureImageRefusal(type, size.toULong()) },
+                            ),
                             // Privacy, withdraw (or belatedly give) the usage-statistics consent.
                             analyticsEnabled = analyticsConsent?.enabled == true,
                             onSetAnalytics = { instance.setPreference(PreferenceIntent.SetAnalyticsConsent(it)) },

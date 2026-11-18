@@ -53,8 +53,6 @@ import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.MeetingDefault
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.SignatureSlotKind
-import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
@@ -100,13 +98,7 @@ internal fun SettingsScreen(
     onSetSwipeLeft: (SwipeActionKind) -> Unit,
     onSetSwipeRight: (SwipeActionKind) -> Unit,
     // Signatures, the library (write once, reuse on any account) and each account's two slots.
-    // Null while the first snapshot is in flight, which reads as an empty library.
-    signatures: SignaturesSnapshot?,
-    signatureHtml: (String) -> String?,
-    onCreateSignature: (name: String, bodyHtml: String, bodyPlain: String) -> Unit,
-    onUpdateSignature: (id: String, name: String, bodyHtml: String, bodyPlain: String) -> Unit,
-    onDeleteSignature: (String) -> Unit,
-    onSetAccountSignature: (account: String, slot: SignatureSlotKind, signature: String?) -> Unit,
+    signatures: SignaturesUi,
     // About, read once by the caller: it is a call into the cdylib (SettingsAbout.kt).
     about: AboutInfo,
     // Privacy
@@ -232,11 +224,6 @@ internal fun SettingsScreen(
                     onSetSwipeLeft = onSetSwipeLeft,
                     onSetSwipeRight = onSetSwipeRight,
                     signatures = signatures,
-                    signatureHtml = signatureHtml,
-                    onCreateSignature = onCreateSignature,
-                    onUpdateSignature = onUpdateSignature,
-                    onDeleteSignature = onDeleteSignature,
-                    onSetAccountSignature = onSetAccountSignature,
                     about = about,
                     analyticsEnabled = analyticsEnabled,
                     onSetAnalytics = onSetAnalytics,

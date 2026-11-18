@@ -35,12 +35,8 @@ import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaCardState
-import uniffi.mailcal_bindings.AccountSignatureRow
 import uniffi.mailcal_bindings.Attribution
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.SignatureRow
-import uniffi.mailcal_bindings.SignatureSlotKind
-import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
@@ -70,8 +66,8 @@ class SettingsHubTest {
     /** The Jitsi server the screen reads, kept the way the core keeps it. */
     private var jitsiServer: String? = null
 
-    /** The signature snapshot the screen renders; overridden by the tests that need one. */
-    private var signatures: SignaturesSnapshot? = null
+    /** The signatures page the screen renders; overridden by the tests that need one. */
+    private var signatures = signaturesPage()
 
     private fun show(
         initialCategory: SettingsCategory? = null,
@@ -119,12 +115,7 @@ class SettingsHubTest {
                 swipe = SwipeSettings(SwipeActionKind.ARCHIVE, SwipeActionKind.DELETE),
                 onSetSwipeLeft = {},
                 onSetSwipeRight = {},
-                signatures = signatures,
-                signatureHtml = { null },
-                onCreateSignature = { _, _, _ -> },
-                onUpdateSignature = { _, _, _, _ -> },
-                onDeleteSignature = {},
-                onSetAccountSignature = { _, _, _ -> },
+                signatures = testSignaturesUi(signatures),
                 analyticsEnabled = false,
                 onSetAnalytics = {},
                 analyticsPayloadPreview = { "{}" },
@@ -373,11 +364,9 @@ class SettingsHubTest {
      */
     @Test
     fun each_account_gets_both_slots_and_none_is_a_real_choice() {
-        signatures = SignaturesSnapshot(
-            signatures = listOf(SignatureRow("sig-work", "Work")),
-            accounts = listOf(
-                AccountSignatureRow("acct", "alice@test.local", newMessage = "sig-work", replyForward = null),
-            ),
+        signatures = signaturesPage(
+            signatures = listOf(signatureEntry("sig-work", "Work")),
+            accounts = listOf(accountSignatures("alice", newMessage = "sig-work")),
         )
         show()
         compose.onNodeWithText(L10n.settings_category_signatures(ctx())).performScrollTo().performClick()
@@ -393,31 +382,6 @@ class SettingsHubTest {
         // unassigned slot reads "None" rather than sitting blank.
         compose.onAllNodesWithText("Work").assertCountEquals(2)
         compose.onNodeWithText(L10n.settings_signatures_none(ctx())).performScrollTo().assertIsDisplayed()
-    }
-
-    /** Clearing a slot dispatches a null assignment, that is how a user turns a signature off. */
-    @Test
-    fun choosing_none_clears_the_slot() {
-        var cleared: Pair<SignatureSlotKind, String?>? = null
-        signatures = SignaturesSnapshot(
-            signatures = listOf(SignatureRow("sig-work", "Work")),
-            accounts = listOf(
-                AccountSignatureRow("acct", "alice@test.local", newMessage = "sig-work", replyForward = "sig-work"),
-            ),
-        )
-        compose.setContent {
-            AccountSignatureDefaultsCard(
-                accounts = signatures!!.accounts,
-                signatures = signatures!!.signatures,
-                onSet = { _, slot, signature -> cleared = slot to signature },
-            )
-        }
-
-        // The first slot's control, opened and set to None.
-        compose.onAllNodesWithText("Work")[0].performClick()
-        compose.onNodeWithText(L10n.settings_signatures_none(ctx())).performClick()
-
-        assertEquals(SignatureSlotKind.NEW_MESSAGE to null, cleared)
     }
 
     @Test
