@@ -29,6 +29,7 @@ import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.GridDay
 import uniffi.mailcal_bindings.MonthCell
 import uniffi.mailcal_bindings.MonthPage
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.ResponseStatus
 import uniffi.mailcal_bindings.Swatch
 import uniffi.mailcal_bindings.TimeFormat
@@ -179,6 +180,7 @@ abstract class CalendarGridTestBase {
                     // the middle page's anchor did not match the week the fixture describes.
                     weekStartFor = { it.with(DayOfWeek.MONDAY) },
                     calendarGroupsFor = { groupsOf(fixture.calendars) },
+                    newEventCalendarsFor = { offeredOf(fixture.calendars.filter { it.canWrite }, named = false) },
                     display = GRID_DISPLAY,
                     calendarVersion = 0,
                     events = emptyList(),
@@ -218,3 +220,7 @@ internal fun groupsOf(rows: List<CalendarRow>): List<CalendarGroup> =
             calendars = calendars,
         )
     }
+
+/** [rows] as the core's `new_event_calendars` hands them over, named or not as the core says. */
+internal fun offeredOf(rows: List<CalendarRow>, named: Boolean) =
+    NewEventCalendars(groups = groupsOf(rows), named = named)

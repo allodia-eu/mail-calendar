@@ -48,15 +48,15 @@ import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.Appearance
-import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.DisplaySettings
-import uniffi.mailcal_bindings.MeetingDefault
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.TimeZoneSnapshot
+import uniffi.mailcal_bindings.VideoconferencingPage
 import uniffi.mailcal_bindings.ViewMode
 import uniffi.mailcal_bindings.WeekStart
 
@@ -72,16 +72,14 @@ internal fun SettingsScreen(
     onSetAppearance: (Appearance) -> Unit,
     onSetWeekStart: (WeekStart) -> Unit,
     onSetVisibleHours: (Int) -> Unit,
-    // Calendar, which calendar a new event is filed on: the core's groups, whose rows carry
-    // `isDefault` already resolved against what exists, so there is no fallback rule on this side.
-    calendarGroups: List<CalendarGroup>,
+    // Calendar, which calendar a new event is filed on: the core's `newEventCalendars`, whose rows
+    // carry `isDefault` already resolved against what exists.
+    newEventCalendars: NewEventCalendars,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
-    // Videoconferencing, the person's Jitsi server: read when the row opens, and stored by the
-    // core, which answers `false` for an address it will not keep.
-    jitsiServer: () -> String?,
-    onSetJitsiServer: (String) -> Boolean,
-    // Videoconferencing, the video meeting each account's new events take, as the core lists it.
-    meetingDefaults: List<MeetingDefault>,
+    // Videoconferencing, the core's page: the Jitsi server, the text it last refused and each
+    // account's default meeting. Sending the field answers the page as the core left it.
+    videoconferencing: VideoconferencingPage,
+    onSetJitsiServer: (String) -> VideoconferencingPage,
     onSetDefaultMeeting: (account: String, choice: String?) -> Unit,
     // Reading
     mode: ViewMode,
@@ -205,11 +203,10 @@ internal fun SettingsScreen(
                     onSetAppearance = onSetAppearance,
                     onSetWeekStart = onSetWeekStart,
                     onSetVisibleHours = onSetVisibleHours,
-                    calendarGroups = calendarGroups,
+                    newEventCalendars = newEventCalendars,
                     onSetDefaultCalendar = onSetDefaultCalendar,
-                    jitsiServer = jitsiServer,
+                    videoconferencing = videoconferencing,
                     onSetJitsiServer = onSetJitsiServer,
-                    meetingDefaults = meetingDefaults,
                     onSetDefaultMeeting = onSetDefaultMeeting,
                     mode = mode,
                     onSetMode = onSetMode,

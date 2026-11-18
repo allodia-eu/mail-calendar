@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.InviteeCheck
+import uniffi.mailcal_bindings.NewEventCalendars
 
 private val NOW = LocalDateTime.of(2026, 8, 1, 9, 15, 0)
 
@@ -44,7 +45,7 @@ class EventInviteesScreenTest {
             EventEditorScreen(
                 editor = editor,
                 calendars = emptyList(),
-                calendarGroups = emptyList(),
+                newEventCalendars = NewEventCalendars(emptyList(), named = false),
                 onCancel = {},
                 onCreate = {},
                 onUpdate = {},

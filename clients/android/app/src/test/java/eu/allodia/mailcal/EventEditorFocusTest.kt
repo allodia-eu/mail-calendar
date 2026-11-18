@@ -21,6 +21,7 @@ import uniffi.mailcal_bindings.CalendarColor
 import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.Swatch
 import uniffi.mailcal_bindings.EventDetail
+import uniffi.mailcal_bindings.NewEventCalendars
 
 private val NOW = LocalDateTime.of(2026, 8, 1, 9, 15, 0)
 
@@ -84,7 +85,7 @@ class EventEditorFocusTest {
             EventEditorScreen(
                 editor = editor,
                 calendars = CALENDARS,
-                calendarGroups = groupsOf(CALENDARS),
+                newEventCalendars = NewEventCalendars(groupsOf(CALENDARS), named = false),
                 onCancel = {},
                 onCreate = {},
                 onUpdate = {},

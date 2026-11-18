@@ -51,6 +51,7 @@ import uniffi.mailcal_bindings.EventDetail
 import uniffi.mailcal_bindings.EventRow
 import uniffi.mailcal_bindings.InvitationResponse
 import uniffi.mailcal_bindings.MonthPage
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.SeriesEditWarning
 import uniffi.mailcal_bindings.TimeFormat
@@ -73,9 +74,12 @@ internal fun CalendarScreen(
     // Where a week begins. The CORE owns this, it applies the user's week-start setting, so three
     // clients cannot disagree about which day a week starts on.
     weekStartFor: (LocalDate) -> LocalDate,
-    // Every calendar under its account, in the core's account order: what the manager and the
-    // editor's picker list (`calendar_groups`).
+    // Every calendar under its account, in the core's account order: what the manager lists
+    // (`calendar_groups`).
     calendarGroupsFor: () -> List<CalendarGroup>,
+    // The calendars a new event can be put on, as the editor's picker lists them
+    // (`new_event_calendars`).
+    newEventCalendarsFor: () -> NewEventCalendars,
     display: DisplaySettings,
     calendarVersion: Int,
     events: List<EventRow>,
@@ -230,6 +234,7 @@ internal fun CalendarScreen(
     // so there is no fallback rule here to drift from Settings' idea of the same thing.
     val defaultCalendarRow = remember(calendars) { calendars.firstOrNull { it.isDefault } }
     val calendarGroups = remember(calendarVersion) { calendarGroupsFor() }
+    val newEventCalendars = remember(calendarVersion) { newEventCalendarsFor() }
     val defaultCalendar = remember(defaultCalendarRow) {
         defaultCalendarRow?.choice()
     }
@@ -270,9 +275,9 @@ internal fun CalendarScreen(
                 else -> today in visibleDays
             },
             writeStatus = writeStatus,
-            // New events need somewhere to go: some calendar, on some account, that the provider
-            // lets us write to. An empty list (nothing synced yet) is the same "no".
-            canCreateEvent = calendars.any { it.canWrite },
+            // New events need somewhere to go: the core's `newEventCalendars`, empty while no
+            // calendar on any account takes a write, nothing synced yet included.
+            canCreateEvent = newEventCalendars.groups.isNotEmpty(),
             onBackToToday = {
                 pager.jumpTo(if (pager.mode.isMonth) today else weekStartFor(today))
                 // Today's column may be scrolled off the side of its own week, so put it back in
@@ -347,7 +352,7 @@ internal fun CalendarScreen(
                     onSetLayout(settled.toLayout())
                 },
                 onOpenEvent = openEvent,
-                canCreateEvent = calendars.any { it.canWrite },
+                canCreateEvent = newEventCalendars.groups.isNotEmpty(),
                 createSwatch = createSwatch,
                 onDrop = { drag ->
                     when {
@@ -460,7 +465,7 @@ internal fun CalendarScreen(
         EventEditorScreen(
             editor = open,
             calendars = calendars,
-            calendarGroups = calendarGroups,
+            newEventCalendars = newEventCalendars,
             onCancel = { editor = null },
             onCreate = {
                 onCreateEvent(it)
