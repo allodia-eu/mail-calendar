@@ -216,6 +216,33 @@ pub fn groups(rows: Vec<CalendarRow>, expanded: impl Fn(&str) -> bool) -> Vec<Ca
     groups
 }
 
+/// The calendars a new event can be put on, under their accounts: what Settings offers as the
+/// default calendar and what an editor's calendar picker lists.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NewEventCalendars {
+    /// Each account's writable calendars, in the account order; an account with none is left out.
+    pub groups: Vec<CalendarGroup>,
+    /// Whether each group is headed by its account: only while there are two or more. A single
+    /// account states itself, and its calendars need nothing to tell them apart.
+    pub named: bool,
+}
+
+/// `groups` narrowed to the calendars a new event can be put on.
+#[must_use]
+pub fn new_event_calendars(groups: Vec<CalendarGroup>) -> NewEventCalendars {
+    let groups: Vec<CalendarGroup> = groups
+        .into_iter()
+        .filter_map(|mut group| {
+            group.calendars.retain(|calendar| calendar.can_write);
+            (!group.calendars.is_empty()).then_some(group)
+        })
+        .collect();
+    NewEventCalendars {
+        named: groups.len() > 1,
+        groups,
+    }
+}
+
 fn first_of(date: CalendarDate) -> CalendarDate {
     date_at(from_civil(date.year(), date.month(), 1))
 }

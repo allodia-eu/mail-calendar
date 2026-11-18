@@ -19,6 +19,8 @@ pub(crate) struct CalendarPrefsState {
     /// Boxed: the app is held by value in many futures, and this is its largest field.
     prefs: Box<Preferences>,
     file: PreferencesFile,
+    /// The text last refused as the Jitsi server, until the next is sent; never written.
+    jitsi_refused: Option<String>,
 }
 
 impl CalendarPrefsState {
@@ -28,6 +30,7 @@ impl CalendarPrefsState {
         Self {
             prefs: Box::new(file.load()),
             file,
+            jitsi_refused: None,
         }
     }
 
@@ -53,6 +56,19 @@ impl CalendarPrefsState {
     pub(crate) fn set_jitsi_server(&mut self, server: Option<String>) {
         self.prefs.jitsi_server = server;
         self.persist();
+    }
+
+    /// The text last refused as the Jitsi server, until the next is sent.
+    pub(crate) fn jitsi_refused(&self) -> Option<&str> {
+        self.jitsi_refused.as_deref()
+    }
+
+    /// Records what the last text sent as the Jitsi server came to: the text when it was refused,
+    /// `None` otherwise. Answers whether that changed what Settings draws.
+    pub(crate) fn note_jitsi_refused(&mut self, refused: Option<String>) -> bool {
+        let changed = self.jitsi_refused != refused;
+        self.jitsi_refused = refused;
+        changed
     }
 
     /// The video meeting `account`'s new events take, as stored: it may name a choice no calendar

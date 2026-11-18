@@ -172,3 +172,40 @@ fn the_analytics_decision_signals_settings() {
             .all(|surface| !matches!(surface, Surface::Settings))
     );
 }
+
+/// The Jitsi field sends what it holds; the page says what the core made of it, stored in its
+/// tidied form or refused as typed, before `dispatch` returns.
+#[test]
+fn the_jitsi_server_is_a_preference_whose_refusal_the_page_says() {
+    let (app, dir, _rx) = app("preferences-jitsi");
+    let jitsi = |server: &str| {
+        set(
+            &app,
+            PreferenceIntent::SetJitsiServer {
+                server: server.to_owned(),
+            },
+        );
+        app.videoconferencing_page()
+    };
+    let page = jitsi("http://meet.test.local");
+    assert_eq!(page.jitsi_server, None);
+    assert_eq!(
+        page.jitsi_refused.as_deref(),
+        Some("http://meet.test.local")
+    );
+
+    let page = jitsi(" https://meet.test.local/ ");
+    assert_eq!(
+        page.jitsi_server.as_deref(),
+        Some("https://meet.test.local")
+    );
+    assert_eq!(page.jitsi_refused, None);
+    app.finish_saving_settings();
+    let stored = mailcal_account::load_preferences(mailcal_account::preferences_path(&dir));
+    assert_eq!(
+        stored.jitsi_server.as_deref(),
+        Some("https://meet.test.local")
+    );
+
+    assert_eq!(jitsi("  ").jitsi_server, None);
+}

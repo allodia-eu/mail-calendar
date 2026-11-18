@@ -116,3 +116,55 @@ async fn choosing_a_default_redraws_the_calendar() {
     app.set_default_meeting("work", Some("server:teams"));
     assert!(surfaces.lock().unwrap().contains(&crate::Surface::Calendar));
 }
+
+#[tokio::test]
+async fn the_jitsi_field_is_kept_refused_or_left_by_the_core_and_unchanged_text_writes_nothing() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = two_accounts(&surfaces).await;
+    let page = app.videoconferencing_page();
+    assert_eq!(
+        page.jitsi_server.as_deref(),
+        Some("https://meet.test.local")
+    );
+    assert_eq!(page.jitsi_refused, None);
+    assert_eq!(page.defaults.len(), 2);
+
+    // The same server, as a field left with a trailing `/`, is no change: no write, no redraw.
+    surfaces.lock().unwrap().clear();
+    app.set_jitsi_server(Some("https://meet.test.local/"))
+        .unwrap();
+    assert!(surfaces.lock().unwrap().is_empty());
+
+    // A refusal is the page's until the next text is sent, exactly as it was typed.
+    assert!(app.set_jitsi_server(Some(" meet.test.local ")).is_err());
+    let page = app.videoconferencing_page();
+    assert_eq!(page.jitsi_refused.as_deref(), Some(" meet.test.local "));
+    assert_eq!(
+        page.jitsi_server.as_deref(),
+        Some("https://meet.test.local")
+    );
+    assert_eq!(
+        surfaces.lock().unwrap().as_slice(),
+        [crate::Surface::Settings]
+    );
+
+    // Sending the stored text again takes the refusal away without writing anything.
+    surfaces.lock().unwrap().clear();
+    app.set_jitsi_server(Some("https://meet.test.local"))
+        .unwrap();
+    assert_eq!(app.videoconferencing_page().jitsi_refused, None);
+    assert_eq!(
+        surfaces.lock().unwrap().as_slice(),
+        [crate::Surface::Settings]
+    );
+
+    // A new server is stored and redraws the calendars, which the page is read again on.
+    surfaces.lock().unwrap().clear();
+    app.set_jitsi_server(Some("https://video.test.local"))
+        .unwrap();
+    assert_eq!(
+        app.videoconferencing_page().jitsi_server.as_deref(),
+        Some("https://video.test.local")
+    );
+    assert!(surfaces.lock().unwrap().contains(&crate::Surface::Calendar));
+}

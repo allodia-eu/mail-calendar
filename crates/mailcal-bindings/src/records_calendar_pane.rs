@@ -6,7 +6,7 @@ use mailcal_app::calendar_pane::{
 };
 use mailcal_viewmodel::calendar::pane::{
     CalendarGroup as AppCalendarGroup, MiniDay as AppMiniDay, MiniMonth as AppMiniMonth,
-    MiniWeek as AppMiniWeek, ShownSpan as AppShownSpan,
+    MiniWeek as AppMiniWeek, NewEventCalendars as AppNewEventCalendars, ShownSpan as AppShownSpan,
 };
 
 use crate::{CalendarLayout, CalendarRow, RecurrenceWeekday};
@@ -94,6 +94,18 @@ pub struct CalendarGroup {
     pub calendars: Vec<CalendarRow>,
 }
 
+/// The calendars a new event can be put on, under their accounts: what Settings offers as the
+/// default calendar and what an editor's calendar picker lists. The selection is each row's
+/// `is_default`, which the core resolves against what exists.
+#[derive(uniffi::Record)]
+pub struct NewEventCalendars {
+    /// Each account's writable calendars, in the account order; an account with none is left out,
+    /// so an empty list means nowhere a new event could go.
+    pub groups: Vec<CalendarGroup>,
+    /// Whether each group is headed by its account's address: only while there are two or more.
+    pub named: bool,
+}
+
 /// The calendar pane.
 #[derive(uniffi::Record)]
 pub struct CalendarPane {
@@ -177,6 +189,15 @@ impl From<AppCalendarGroup> for CalendarGroup {
             address: group.address,
             expanded: group.expanded,
             calendars: group.calendars.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl From<AppNewEventCalendars> for NewEventCalendars {
+    fn from(offered: AppNewEventCalendars) -> Self {
+        Self {
+            groups: offered.groups.into_iter().map(Into::into).collect(),
+            named: offered.named,
         }
     }
 }
