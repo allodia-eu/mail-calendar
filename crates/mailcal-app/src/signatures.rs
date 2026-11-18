@@ -1,11 +1,12 @@
-//! The signature library's use cases: create / rename / edit / delete a signature, assign one to
-//! an account's new-message or reply-forward slot, and resolve which body a composer opens with.
+//! The signature library (`docs/signatures.md`): what the library and each account's two slots
+//! hold, read from memory, and the composer's resolution of which body a message opens with.
 //!
-//! Signatures are standalone entities shared across accounts (`docs/signatures.md`), so the
-//! library lives in its own store (`signatures.toml`) and only the small per-account pointer
-//! rides in `preferences.toml`; see [`mailcal_account::Signatures`] for why. This module holds
-//! the loaded state and writes both back read-modify-write, so a sibling setting is never
-//! clobbered. A second `impl App` block keeps `lib.rs` under the 500-line limit.
+//! Signatures are standalone entities shared across accounts, so the library lives in its own
+//! file (`signatures.toml`) and only the small per-account pointer rides in `preferences.toml`;
+//! see [`mailcal_account::Signatures`] for why. Both are loaded once and held here: a read never
+//! touches the disk, and a change is applied here and written behind (`crate::preferences_file`).
+//! Saving and deleting a signature run as work of their own ([`work`]); an
+//! assignment is applied at once.
 //!
 //! **Privacy.** A signature body is user content. Nothing here logs it; counts, ids and lengths
 //! only (`docs/logging.md`).
@@ -15,44 +16,59 @@ use std::path::PathBuf;
 use engine_api::Provider;
 use mailcal_account::{
     Preferences, SignatureId, SignatureSlot, Signatures, StoredSignature, load_signatures,
-    save_signatures,
 };
-use mailcal_viewmodel::{AccountSignatureRow, SignatureRow, SignatureSlotKind, SignaturesSnapshot};
+use mailcal_viewmodel::{AccountSignatureRow, SignatureRow, SignatureSlotKind, SignaturesView};
 
-use crate::{App, Surface, preferences_file::PreferencesFile};
+#[path = "signature_rules.rs"]
+mod rules;
+#[path = "signature_work.rs"]
+mod work;
 
-/// The loaded signature library and where the two files it spans are persisted.
+pub use rules::{SIGNATURE_IMAGE_LIMIT_BYTES, signature_image, signature_name};
+pub use work::SignatureChange;
+use work::Work;
+
+use crate::{
+    App, Surface,
+    preferences_file::{PreferencesFile, SignaturesFile},
+};
+
+/// The signature library and the assignments, as the app holds them.
 pub(crate) struct SignatureState {
-    library: Signatures,
-    /// The library's own file. `None` disables persistence (the in-memory demo and tests), in
-    /// which case the library lives only for this run.
-    signatures_path: Option<PathBuf>,
+    pub(crate) library: Signatures,
+    /// The library's own file, which keeps nothing when there is no preferences file (the demo,
+    /// the showcase and tests): the library then lives for this run.
+    pub(crate) file: SignaturesFile,
     /// The shared preferences file, which carries the per-account assignments.
     prefs: PreferencesFile,
-    /// The per-account assignments when there is **no** preferences file to hold them; the
-    /// in-memory demo and showcase boots, and tests.
-    ///
-    /// Without this, "persistence is off" meant two different things in one struct: the library
-    /// still lived for the run (`persist_library` simply no-ops over the in-memory `library`),
-    /// while an assignment vanished the instant it was made, because it existed *only* in the
-    /// file. So an in-memory boot could hold signatures that no account could be pointed at;
-    /// which is what the showcase screenshots hit: a seeded library, and a Settings screen
-    /// reporting every slot as None.
-    memory: Preferences,
+    /// The assignments as they stand: read from the preferences once, then kept here and written
+    /// through `prefs`. Only its signature assignments are read.
+    assignments: Preferences,
+    /// The id the next new signature is saved under.
+    pub(crate) new_id: SignatureId,
+    pub(crate) work: Work,
 }
 
 impl SignatureState {
-    /// Loads the library from `signatures_path` (empty when absent or unreadable).
-    pub(crate) fn new(signatures_path: Option<PathBuf>, prefs: PreferencesFile) -> Self {
+    /// Loads the library from `signatures_path` (empty when absent or unreadable) and the
+    /// assignments from `prefs`. `on_failure` is told when whether the library's file could be
+    /// written changes.
+    pub(crate) fn new(
+        signatures_path: Option<PathBuf>,
+        prefs: PreferencesFile,
+        on_failure: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
         let library = signatures_path
             .as_ref()
             .map(load_signatures)
             .unwrap_or_default();
         Self {
             library,
-            signatures_path,
+            file: SignaturesFile::at(signatures_path, on_failure),
+            assignments: prefs.load(),
             prefs,
-            memory: Preferences::default(),
+            new_id: mint_signature_id(),
+            work: Work::default(),
         }
     }
 
@@ -68,11 +84,6 @@ impl SignatureState {
             .collect()
     }
 
-    /// One signature's HTML body, or `None` when the id names nothing.
-    fn html(&self, id: &SignatureId) -> Option<String> {
-        self.library.get(id).map(|entry| entry.body_html.clone())
-    }
-
     /// One signature's HTML **and** plain-text bodies; what the composer needs to seed both
     /// parts of the outgoing message.
     fn bodies(&self, id: &SignatureId) -> Option<(String, String)> {
@@ -81,87 +92,76 @@ impl SignatureState {
             .map(|entry| (entry.body_html.clone(), entry.body_plain.clone()))
     }
 
-    /// Adds a signature under the minted `id` and persists the library.
-    fn create(&mut self, id: SignatureId, signature: StoredSignature) {
-        self.library.insert(id, signature);
-        self.persist_library();
-    }
-
-    /// Replaces an existing signature's name and body. A no-op (returning `false`) for an id
-    /// that names nothing: an edit must never silently create a signature the user thought
-    /// they were changing.
-    fn update(&mut self, id: &SignatureId, signature: StoredSignature) -> bool {
-        if !self.library.entries.contains_key(id) {
-            return false;
-        }
-        self.library.insert(id.clone(), signature);
-        self.persist_library();
-        true
+    /// Stores `signature` under `id` and has the library written.
+    pub(crate) fn put(&mut self, id: SignatureId, signature: StoredSignature) {
+        self.library.insert(id.clone(), signature.clone());
+        self.file
+            .edit(move |library| library.insert(id.clone(), signature.clone()));
     }
 
     /// Deletes a signature from the library **and** clears it from every account slot that
     /// pointed at it, so no assignment is left naming something that no longer exists.
-    fn delete(&mut self, id: &SignatureId) -> bool {
+    pub(crate) fn delete(&mut self, id: &SignatureId) {
         if !self.library.remove(id) {
-            return false;
+            return;
         }
-        self.persist_library();
-        if self.prefs.is_stored() {
+        let id = id.clone();
+        self.assignments.forget_signature(&id);
+        self.file.edit({
             let id = id.clone();
-            self.prefs.edit(move |prefs| {
-                prefs.forget_signature(&id);
-            });
-        } else {
-            self.memory.forget_signature(id);
-        }
-        true
+            move |library| {
+                library.remove(&id);
+            }
+        });
+        self.prefs.edit(move |prefs| {
+            prefs.forget_signature(&id);
+        });
     }
 
     /// The signature assigned to `account`'s `slot`, if the account has one **and** it still
-    /// resolves to a signature in the library. A stale pointer reads as "no signature" rather
-    /// than an error: the file is hand-editable, and the composer must open either way.
+    /// names a signature in the library. A stale pointer reads as "no signature" rather than an
+    /// error: the file is hand-editable, and the composer must open either way.
     fn assigned(&self, account: &str, slot: SignatureSlot) -> Option<SignatureId> {
-        let id = if self.prefs.is_stored() {
-            self.prefs
-                .load()
-                .account_signature(account)
-                .slot(slot)
-                .cloned()?
-        } else {
-            self.memory.account_signature(account).slot(slot).cloned()?
-        };
+        let id = self
+            .assignments
+            .account_signature(account)
+            .slot(slot)
+            .cloned()?;
         self.library.entries.contains_key(&id).then_some(id)
     }
 
-    /// Assigns (or clears) one of an account's slots, persisting through the shared preferences
-    /// file.
+    /// Assigns (or clears) one of an account's slots. An id naming nothing in the library clears
+    /// it instead of storing a pointer that resolves to nothing.
     fn assign(&mut self, account: &str, slot: SignatureSlot, signature: Option<SignatureId>) {
-        if self.prefs.is_stored() {
-            let account = account.to_owned();
-            self.prefs.edit(move |prefs| {
-                prefs.set_account_signature(&account, slot, signature.clone());
-            });
-        } else {
-            self.memory.set_account_signature(account, slot, signature);
-        }
+        let signature = signature.filter(|id| self.library.entries.contains_key(id));
+        self.assignments
+            .set_account_signature(account, slot, signature.clone());
+        let account = account.to_owned();
+        self.prefs.edit(move |prefs| {
+            prefs.set_account_signature(&account, slot, signature.clone());
+        });
     }
 
-    /// Every account's stored assignment, for the settings snapshot.
-    fn assignments(&self, account: &str) -> (Option<String>, Option<String>) {
-        let assignment = if self.prefs.is_stored() {
-            self.prefs.load().account_signature(account)
-        } else {
-            self.memory.account_signature(account)
+    /// Drops an account's assignment.
+    fn forget_account(&mut self, account: &str) {
+        self.assignments.remove_account_signature(account);
+        let account = account.to_owned();
+        self.prefs.edit(move |prefs| {
+            prefs.remove_account_signature(&account);
+        });
+    }
+
+    /// An account's row, each slot naming a signature that is in the library or nothing.
+    fn account_row(&self, account: &str, email: String) -> AccountSignatureRow {
+        let slot = |slot| {
+            self.assigned(account, slot)
+                .map(|id| id.as_str().to_owned())
         };
-        (
-            assignment.new_message.map(|id| id.as_str().to_owned()),
-            assignment.reply_forward.map(|id| id.as_str().to_owned()),
-        )
-    }
-
-    fn persist_library(&self) {
-        if let Some(path) = &self.signatures_path {
-            let _ = save_signatures(path, &self.library);
+        AccountSignatureRow {
+            account_id: account.to_owned(),
+            email,
+            new_message: slot(SignatureSlot::NewMessage),
+            reply_forward: slot(SignatureSlot::ReplyForward),
         }
     }
 }
@@ -178,23 +178,6 @@ pub struct SignatureBody {
     pub body_plain: String,
 }
 
-/// Builds the record to store from a host's authored signature, **sanitising the HTML first**.
-///
-/// The library is sanitised on write, not only on send, for the same reason a quoted original is
-/// sanitised at seed: what comes out of it is assigned into the composer's editor with
-/// `innerHTML`, and the editor page's CSP permits inline handlers. A stored body is therefore
-/// inert before it is ever seeded, and `signatures.toml` is a plain file a user (or anything
-/// with disk access) can edit, so this is the boundary where that stops mattering. The submit-time
-/// pass (`crate::mail_compose_signature`) is the second line: it re-hardens what the editor hands
-/// back. See `docs/composer-security.md`, Gate 10.
-fn stored(name: String, body_html: &str, body_plain: String) -> StoredSignature {
-    StoredSignature {
-        name,
-        body_html: engine_html::sanitize(body_html).into_html(),
-        body_plain,
-    }
-}
-
 /// Maps the host-facing slot to the persisted one.
 fn to_slot(kind: SignatureSlotKind) -> SignatureSlot {
     match kind {
@@ -206,7 +189,7 @@ fn to_slot(kind: SignatureSlotKind) -> SignatureSlot {
 /// Mints an opaque signature id from the system CSPRNG; random, never derived from the name, so
 /// renaming a signature cannot break the accounts pointing at it. Same shape as the analytics
 /// install id (`crate::telemetry`): 16 bytes, URL-safe base64, no padding.
-fn mint_signature_id() -> SignatureId {
+pub(crate) fn mint_signature_id() -> SignatureId {
     use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
     use ring::rand::{SecureRandom, SystemRandom};
 
@@ -218,33 +201,26 @@ fn mint_signature_id() -> SignatureId {
 }
 
 impl<P: Provider> App<P> {
-    /// The signatures surface (pulled after a [`Surface::Settings`] signal): the library in the
-    /// user's order, plus one row per configured account with its new-message and
-    /// reply-forward assignments.
+    /// The library in the user's order, every account used for mail with its two slots, and
+    /// what runs on the library. Read from memory, so a UI thread may ask it; pulled again after
+    /// [`Surface::Signatures`], and after [`Surface::Settings`], which a change to the accounts
+    /// raises.
     ///
     /// Metadata only; bodies are fetched one at a time through [`App::signature_html`], so
     /// opening Settings does not drag every signature's images across the FFI.
-    pub async fn signatures(&self) -> SignaturesSnapshot {
-        let accounts = self.account_handles().await;
+    #[must_use]
+    pub fn signatures(&self) -> SignaturesView {
+        let senders = self.accounts.senders();
         let guard = self.signatures.lock().expect("signatures mutex poisoned");
-        // A signature is added to mail the account sends, so only an account used for mail has
-        // slots.
-        let rows = accounts
-            .iter()
-            .filter(|account| account.uses_mail)
-            .map(|account| {
-                let (new_message, reply_forward) = guard.assignments(account.id.as_str());
-                AccountSignatureRow {
-                    account_id: account.id.as_str().to_owned(),
-                    email: account.identity.email.clone(),
-                    new_message,
-                    reply_forward,
-                }
-            })
-            .collect();
-        SignaturesSnapshot {
-            signatures: guard.rows(),
-            accounts: rows,
+        SignaturesView {
+            library: guard.rows(),
+            accounts: senders
+                .into_iter()
+                .map(|(id, email)| guard.account_row(id.as_str(), email))
+                .collect(),
+            new_id: guard.new_id.as_str().to_owned(),
+            work: guard.work.listed(),
+            outcome: guard.work.outcome.clone(),
         }
     }
 
@@ -256,95 +232,26 @@ impl<P: Provider> App<P> {
         self.signatures
             .lock()
             .expect("signatures mutex poisoned")
-            .html(&id)
-    }
-
-    /// Creates a signature and returns the row for it (the minted id included), so a host can
-    /// select what it just created without re-pulling the whole snapshot. Signals
-    /// [`Surface::Settings`].
-    // `async` with no inner `await` is intentional: every command method shares one async shape
-    // so `dispatch` and the FFI adapter drive them uniformly. `unused_async_trait_impl` fires on
-    // inherent methods too, whenever the body ends in a value.
-    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
-    pub async fn create_signature(
-        &self,
-        name: String,
-        body_html: String,
-        body_plain: String,
-    ) -> SignatureRow {
-        let id = mint_signature_id();
-        self.signatures
-            .lock()
-            .expect("signatures mutex poisoned")
-            .create(id.clone(), stored(name.clone(), &body_html, body_plain));
-        log::info!("signatures: created one signature");
-        self.observer.surface_changed(Surface::Settings);
-        SignatureRow {
-            id: id.as_str().to_owned(),
-            name,
-        }
-    }
-
-    /// Replaces a signature's name and body. Returns whether the id named one; an unknown id is
-    /// a no-op rather than a silent create. Signals [`Surface::Settings`].
-    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
-    pub async fn update_signature(
-        &self,
-        id: &str,
-        name: String,
-        body_html: String,
-        body_plain: String,
-    ) -> bool {
-        let Some(id) = SignatureId::new(id) else {
-            return false;
-        };
-        let updated = self
-            .signatures
-            .lock()
-            .expect("signatures mutex poisoned")
-            .update(&id, stored(name, &body_html, body_plain));
-        if updated {
-            self.observer.surface_changed(Surface::Settings);
-        }
-        updated
-    }
-
-    /// Deletes a signature and clears it from every account that used it. Returns whether the id
-    /// named one. Signals [`Surface::Settings`].
-    #[allow(clippy::unused_async, clippy::unused_async_trait_impl)]
-    pub async fn delete_signature(&self, id: &str) -> bool {
-        let Some(id) = SignatureId::new(id) else {
-            return false;
-        };
-        let deleted = self
-            .signatures
-            .lock()
-            .expect("signatures mutex poisoned")
-            .delete(&id);
-        if deleted {
-            log::info!("signatures: deleted one signature");
-            self.observer.surface_changed(Surface::Settings);
-        }
-        deleted
+            .library
+            .get(&id)
+            .map(|entry| entry.body_html.clone())
     }
 
     /// Assigns (or clears, with `None`) which signature `account` uses in one slot, then signals
-    /// [`Surface::Settings`]. An id naming nothing in the library clears the slot instead of
-    /// storing a pointer that resolves to nothing.
-    #[allow(clippy::unused_async)]
-    pub async fn set_account_signature(
+    /// [`Surface::Signatures`]. Applied before it returns and written behind it; an id naming
+    /// nothing in the library clears the slot instead of storing a pointer that resolves to
+    /// nothing.
+    pub fn assign_signature(
         &self,
         account: &str,
         slot: SignatureSlotKind,
         signature: Option<String>,
     ) {
-        let mut guard = self.signatures.lock().expect("signatures mutex poisoned");
-        let signature = signature
-            .and_then(SignatureId::new)
-            .filter(|id| guard.library.entries.contains_key(id));
-        guard.assign(account, to_slot(slot), signature);
-        drop(guard);
-        self.observer.surface_changed(Surface::Settings);
+        self.signatures
+            .lock()
+            .expect("signatures mutex poisoned")
+            .assign(account, to_slot(slot), signature.and_then(SignatureId::new));
+        self.observer.surface_changed(Surface::Signatures);
     }
 
     /// The signature a composer should open with for `account` in `slot`; its id and both
@@ -384,9 +291,19 @@ impl<P: Provider> App<P> {
     /// Drops an account's signature assignment; called from account removal, so a re-add starts
     /// with no signature rather than a pointer the user thought removal had cleared.
     pub(crate) fn remove_account_signature(&self, account: &str) {
-        let account = account.to_owned();
-        self.prefs.edit(move |prefs| {
-            prefs.remove_account_signature(&account);
-        });
+        self.signatures
+            .lock()
+            .expect("signatures mutex poisoned")
+            .forget_account(account);
+        self.observer.surface_changed(Surface::Signatures);
+    }
+
+    /// The library's file, for the settings writers' notice, retry and closing wait.
+    pub(crate) fn signature_library_file(&self) -> SignaturesFile {
+        self.signatures
+            .lock()
+            .expect("signatures mutex poisoned")
+            .file
+            .clone()
     }
 }

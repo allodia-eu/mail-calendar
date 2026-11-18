@@ -57,8 +57,10 @@ where its platform puts it. Two platforms showing the same moment show the same 
   account is a notice with an id of its own, which a dismiss aimed at the earlier one leaves
   standing.
 - **A setting that could not be saved still applies**, until the app closes; so the notice is
-  Degraded. Its Retry writes every change still waiting rather than refreshing a screen, and is
-  marked failed when that write fails too. Any later change writes them as well.
+  Degraded. A signature library that could not be written is this notice too: to the person it is
+  a setting ([`signatures.md`](signatures.md), "Storage"). Its Retry writes every change still
+  waiting, to either file, rather than refreshing a screen, and is marked failed when that write
+  fails too. Any later change writes them as well.
 - **A failed remedy belongs to the action that failed.** When a notice comes to offer another
   action (an outage that was unreachable is now refused), it has not failed yet.
 - **The Allodia notice is Degraded**: mail, calendar and contacts all work without the account.

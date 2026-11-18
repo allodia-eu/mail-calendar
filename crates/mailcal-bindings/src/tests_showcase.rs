@@ -371,7 +371,7 @@ fn showcase_seeds_a_signature_per_account_in_both_slots() {
         ShowcaseLocale::En,
     );
 
-    let snapshot = app.signatures();
+    let snapshot = app.signatures_page();
     assert_eq!(
         snapshot.signatures.len(),
         2,
@@ -388,10 +388,12 @@ fn showcase_seeds_a_signature_per_account_in_both_slots() {
     for account in &snapshot.accounts {
         let new_message = account
             .new_message
+            .selected
             .as_ref()
             .unwrap_or_else(|| panic!("{} has no new-message signature", account.email));
         let reply_forward = account
             .reply_forward
+            .selected
             .as_ref()
             .unwrap_or_else(|| panic!("{} has no reply/forward signature", account.email));
         assert_eq!(new_message, reply_forward, "both slots take the same one");

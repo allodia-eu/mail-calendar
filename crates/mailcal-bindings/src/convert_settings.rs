@@ -4,23 +4,19 @@
 //! file stays under the 500-line limit; both map the product-core's `mailcal_viewmodel` types to
 //! the UniFFI-exported twins the generated Swift/Kotlin/C# see.
 
-use mailcal_app::SignatureBody as AppSignatureBody;
 use mailcal_viewmodel::{
-    AccountSignatureRow as AppAccountSignatureRow, AccountSyncRow as AppAccountSyncRow,
-    DefaultMailAppOutcome as AppDefaultMailAppOutcome,
+    AccountSyncRow as AppAccountSyncRow, DefaultMailAppOutcome as AppDefaultMailAppOutcome,
     DefaultMailAppSupport as AppDefaultMailAppSupport, QuoteSettings as AppQuoteSettings,
-    QuoteStyleKind as AppQuoteStyleKind, SignatureRow as AppSignatureRow,
-    SignatureSlotKind as AppSignatureSlotKind, SignaturesSnapshot as AppSignatures,
-    SwipeActionKind as AppSwipeActionKind, SwipeDirection as AppSwipeDirection,
-    SwipeSettings as AppSwipeSettings, SyncFolderRow as AppSyncFolderRow,
-    SyncSettingsSnapshot as AppSyncSettings, SyncStrategyKind as AppSyncStrategyKind,
-    TimeZoneSnapshot as AppTimeZoneSnapshot, ViewMode as AppViewMode,
+    QuoteStyleKind as AppQuoteStyleKind, SwipeActionKind as AppSwipeActionKind,
+    SwipeDirection as AppSwipeDirection, SwipeSettings as AppSwipeSettings,
+    SyncFolderRow as AppSyncFolderRow, SyncSettingsSnapshot as AppSyncSettings,
+    SyncStrategyKind as AppSyncStrategyKind, TimeZoneSnapshot as AppTimeZoneSnapshot,
+    ViewMode as AppViewMode,
 };
 
 use crate::{
-    AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, FolderRole,
-    QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow, SignatureSlotKind,
-    SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
+    AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, FolderRole, QuoteSettings,
+    QuoteStyleKind, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
     SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot, ViewMode,
 };
 
@@ -73,62 +69,6 @@ impl From<AppQuoteSettings> for QuoteSettings {
         Self {
             style: settings.style.into(),
             per_message: settings.per_message,
-        }
-    }
-}
-
-impl From<AppSignatureRow> for SignatureRow {
-    fn from(row: AppSignatureRow) -> Self {
-        Self {
-            id: row.id,
-            name: row.name,
-        }
-    }
-}
-
-impl From<SignatureSlotKind> for AppSignatureSlotKind {
-    fn from(slot: SignatureSlotKind) -> Self {
-        match slot {
-            SignatureSlotKind::NewMessage => Self::NewMessage,
-            SignatureSlotKind::ReplyForward => Self::ReplyForward,
-        }
-    }
-}
-
-impl From<AppAccountSignatureRow> for AccountSignatureRow {
-    fn from(row: AppAccountSignatureRow) -> Self {
-        Self {
-            account_id: row.account_id,
-            email: row.email,
-            new_message: row.new_message,
-            reply_forward: row.reply_forward,
-        }
-    }
-}
-
-impl From<AppSignatures> for SignaturesSnapshot {
-    fn from(snapshot: AppSignatures) -> Self {
-        Self {
-            signatures: snapshot
-                .signatures
-                .into_iter()
-                .map(SignatureRow::from)
-                .collect(),
-            accounts: snapshot
-                .accounts
-                .into_iter()
-                .map(AccountSignatureRow::from)
-                .collect(),
-        }
-    }
-}
-
-impl From<AppSignatureBody> for SignatureBody {
-    fn from(body: AppSignatureBody) -> Self {
-        Self {
-            id: body.id,
-            body_html: body.body_html,
-            body_plain: body.body_plain,
         }
     }
 }

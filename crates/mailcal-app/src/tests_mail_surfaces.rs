@@ -40,7 +40,6 @@ async fn an_account_without_mail_is_in_no_mail_surface() {
 
     let signatures: Vec<String> = app
         .signatures()
-        .await
         .accounts
         .into_iter()
         .map(|row| row.account_id)

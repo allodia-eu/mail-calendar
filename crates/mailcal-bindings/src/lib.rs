@@ -143,6 +143,7 @@ mod records_event_detail;
 mod records_folders;
 mod records_notices;
 mod records_outbox;
+mod records_signatures;
 mod records_video_meeting;
 mod retry;
 pub mod sync_state;
@@ -244,6 +245,7 @@ pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
     InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope, SelectedRow,
+    SignatureIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -251,9 +253,8 @@ pub use records::{
     MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
     ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
-        AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
-        McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
-        SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
+        AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, McpAccountRow, McpSettings,
+        QuoteSettings, QuoteStyleKind, SwipeActionKind, SwipeDirection, SwipeSettings,
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
@@ -299,6 +300,7 @@ pub use records_recurrence::{
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
+pub use records_signatures::*;
 pub use records_video_meeting::{
     EditorMeeting, MeetingAccount, MeetingChange, MeetingDefault, MeetingOption, MeetingWords,
 };
@@ -326,9 +328,7 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
-/// A shared registry of each connected account's re-connection state; see
-/// [`account_registry`], which explains why this is a type with three methods rather than the
-/// open `HashMap` it replaced.
+/// A shared registry of each connected account's re-connection state ([`account_registry`]).
 type SharedRegistry = Arc<account_registry::AccountRegistry>;
 
 /// One account the app drives, with its providers boxed behind the [`Provider`] trait so

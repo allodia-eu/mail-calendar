@@ -111,7 +111,14 @@ impl<P: Provider> App<P> {
             display_settings: Mutex::new(DisplaySettingsState::new(prefs.clone())),
             send_settings: Mutex::new(SendSettingsState::new(prefs.clone())),
             swipe_settings: Mutex::new(SwipeSettingsState::new(prefs.clone())),
-            signatures: Mutex::new(SignatureState::new(signatures_path.clone(), prefs.clone())),
+            signatures: Mutex::new(SignatureState::new(
+                signatures_path.clone(),
+                prefs.clone(),
+                {
+                    let observer = Arc::clone(&observer);
+                    move || observer.surface_changed(Surface::Notices)
+                },
+            )),
             mcp_settings: Mutex::new(McpSettingsState::new(prefs.clone())),
             sync_settings: Mutex::new(SyncSettingsState::new(prefs.clone())),
             notify_marks: Mutex::new(NotifyMarksState::new(prefs.clone())),

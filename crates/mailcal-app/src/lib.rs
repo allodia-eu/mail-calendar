@@ -163,8 +163,10 @@ pub use reference::{EventRef, FolderRef, MessageRef, QueuedRef, RowRef, ThreadRe
 use row_cache::CachedRows;
 use scope::Scope;
 use send_settings::SendSettingsState;
-pub use signatures::SignatureBody;
 use signatures::SignatureState;
+pub use signatures::{
+    SIGNATURE_IMAGE_LIMIT_BYTES, SignatureBody, SignatureChange, signature_image, signature_name,
+};
 use surfaced::{Surfaced, SurfacedMap};
 use swipe_settings::SwipeSettingsState;
 use sync_progress::SyncProgressState;
@@ -272,9 +274,7 @@ pub struct App<P> {
     /// [`Surface::Settings`] and read by the host to bind its message-row swipe gestures.
     swipe_settings: Mutex<SwipeSettingsState>,
     /// The user's signature library and each account's two assignments
-    /// ([`signatures`](crate::signatures)), surfaced via [`Surface::Settings`] and read by the
-    /// host to seed a composer. The library lives in its own `signatures.toml`: a signature
-    /// carries its images inline, and a preference write rewrites the whole file.
+    /// ([`signatures`](crate::signatures)), surfaced via [`Surface::Signatures`].
     signatures: Mutex<SignatureState>,
     /// The persisted local-MCP (AI assistant access) decisions: whether the server is on, which
     /// accounts it exposes, and the two send controls. Surfaced via [`Surface::Settings`]; the

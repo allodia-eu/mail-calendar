@@ -9,7 +9,7 @@ use std::{
 
 use mailcal_account::{Appearance, TimeFormat, WeekStart, load_preferences, save_preferences};
 
-use super::{PreferencesFile, lock};
+use super::PreferencesFile;
 
 fn scratch(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("mailcal-preferences-file-{name}"));
@@ -149,7 +149,7 @@ fn a_bounded_wait_returns_once_written_or_at_its_limit() {
     assert_eq!(load_preferences(&path).appearance, Appearance::Light);
 
     // A disk that does not answer: the writer cannot take the file while this holds it.
-    let held = lock(&file.0.as_ref().unwrap().0.io);
+    let held = file.hold_disk();
     file.edit(|prefs| prefs.appearance = Appearance::Dark);
     let started = Instant::now();
     assert!(!file.settle_within(Duration::from_millis(100)));

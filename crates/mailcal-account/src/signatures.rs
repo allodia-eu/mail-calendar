@@ -214,6 +214,9 @@ pub fn load_signatures(path: impl AsRef<Path>) -> Signatures {
 
 /// Writes the signature library to `path` as TOML, creating parent directories as needed.
 ///
+/// Written beside it and renamed over it, as the preferences are: a file cut short reads as an
+/// empty library, and the next save built on that read would write every signature away.
+///
 /// # Errors
 ///
 /// Returns an [`io::Error`] if the parent directory or file cannot be written (a TOML
@@ -221,10 +224,7 @@ pub fn load_signatures(path: impl AsRef<Path>) -> Signatures {
 pub fn save_signatures(path: impl AsRef<Path>, signatures: &Signatures) -> io::Result<()> {
     let body = toml::to_string(signatures)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    if let Some(parent) = path.as_ref().parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, body)
+    crate::preferences::replace_file(path.as_ref(), &body)
 }
 
 #[cfg(test)]

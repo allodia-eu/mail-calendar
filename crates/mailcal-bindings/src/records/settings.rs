@@ -40,64 +40,6 @@ pub struct QuoteSettings {
     pub per_message: bool,
 }
 
-/// One signature in the user's library (from [`crate::MailcalApp::signatures`]); metadata only.
-/// A body is fetched one at a time with [`crate::MailcalApp::signature_html`], so a list of ten
-/// signatures does not carry ten logos across the FFI to draw ten names.
-#[derive(uniffi::Record)]
-pub struct SignatureRow {
-    /// The signature's opaque id; what an assignment and a body fetch name it by.
-    pub id: String,
-    /// The user's name for it ("Work", "Personal").
-    pub name: String,
-}
-
-/// Which of an account's two signature slots is meant: the argument to
-/// [`crate::MailcalApp::set_account_signature`] and [`crate::MailcalApp::resolve_signature`].
-#[derive(uniffi::Enum)]
-pub enum SignatureSlotKind {
-    /// The signature a brand-new message opens with.
-    NewMessage,
-    /// The signature a reply or a forward opens with; one slot for both, as in Outlook.
-    ReplyForward,
-}
-
-/// One account's signature assignment in the settings screen. A `None` slot means **no
-/// signature** there; both `None` is how a user turns signatures off for that account.
-#[derive(uniffi::Record)]
-pub struct AccountSignatureRow {
-    /// The account's id (passed back to `set_account_signature`).
-    pub account_id: String,
-    /// The account's email address (display label).
-    pub email: String,
-    /// The signature id used for new messages, or `None`.
-    pub new_message: Option<String>,
-    /// The signature id used for replies and forwards, or `None`.
-    pub reply_forward: Option<String>,
-}
-
-/// The signatures surface (pulled after a `Surface::Settings` signal): the library in the user's
-/// order, plus one row per configured account.
-#[derive(uniffi::Record)]
-pub struct SignaturesSnapshot {
-    /// The library, in display order.
-    pub signatures: Vec<SignatureRow>,
-    /// One row per configured account.
-    pub accounts: Vec<AccountSignatureRow>,
-}
-
-/// A signature resolved for a composer (from [`crate::MailcalApp::resolve_signature`] /
-/// [`crate::MailcalApp::signature_body`]): both bodies, so the host seeds the editor and the core
-/// has the text/plain rendering to send alongside it.
-#[derive(uniffi::Record)]
-pub struct SignatureBody {
-    /// The signature's id, so a host can show which one its picker has selected.
-    pub id: String,
-    /// The HTML fragment to seed into the editor.
-    pub body_html: String,
-    /// The plain-text rendering that accompanies it.
-    pub body_plain: String,
-}
-
 /// What a swipe across a message row does (from [`crate::MailcalApp::swipe_settings`]). The two
 /// directions are configured independently in the settings screen.
 #[derive(uniffi::Enum)]

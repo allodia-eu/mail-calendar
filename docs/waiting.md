@@ -128,6 +128,14 @@ it came to is the card's `outcome`, kept through every read while the page is on
 forgotten when the page sends `LeaveSubscription` on leaving, and a payment page it handed back
 its `checkout_page`, opened once per id. Buying from a phone's own store stays the client's, since no Rust can call StoreKit
 or Play.
+Settings → Signatures is the core's too (`MailcalApp::signatures_page`, read again on
+`Surface::Signatures` and `Surface::Settings`; [`signatures.md`](signatures.md), "Changing the
+library"). A save or a deletion is a `SignatureIntent` that runs off the host's thread until the
+library's file is written, one at a time, holding every control on the page and running its own;
+an editor on a new signature saves under the page's `new_id`, so a second press saves the same
+signature. The editor's Save is held besides while `signature_name_refusal` refuses the name
+typed, and what a save came to is the page's `outcome`, told once by its serial. A slot's picker is
+an assignment applied before `dispatch` returns.
 The page's `notice` carries an id that grows with each one, so a client says each notice once. A removal's notice is the
 accounts list's (`MailcalApp::accounts_notice`), since the page goes with the account.
 
@@ -165,6 +173,7 @@ record, not a state the client keeps.
 | The Allodia account's sign-in and sign-out: drawn from `allodia_card`, run by the core as `AllodiaIntent`s, the sign-in as its one browser sign-in | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A preference: changed as a `PreferenceIntent`, drawn from the core's value with no copy kept, a failed save the `SettingsNotSaved` notice, written before the app closes | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Settings → Signatures: drawn from `signatures_page`, Save and Delete as `SignatureIntent`s running until written, a double press on Save saving once, a failed write the `SettingsNotSaved` notice | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ## Enforcement
 
@@ -244,6 +253,14 @@ record, not a state the client keeps.
   `PreferenceIntent` through `dispatch`: read back before it returns, on disk once the host says
   it is closing, a failed save raised as a notice whose Try again writes it, and one that fails
   again saying so.
+- [`tests_signature_work.rs`](../crates/mailcal-app/src/tests_signature_work.rs) pins the
+  signature library's changes: a new signature saved twice being one, a change asked for while
+  another runs waiting and the same one dropped, a refusal with its reason, and a library that
+  could not be written said and written by a retry;
+  [`signatures_page_tests.rs`](../crates/mailcal-bindings/src/signatures_page_tests.rs) pins the
+  page held while one runs and its own control running, and
+  [`app_signatures_tests.rs`](../crates/mailcal-bindings/src/app_signatures_tests.rs) drives a
+  double press, a refusal, a deletion and a failed write through `dispatch`.
 - [`toggle_tests.rs`](../crates/mailcal-bindings/src/account_registry/toggle_tests.rs) pins the
   one decision `set_use` and the page share: the last use, a missing server, colleagues and shared
   mailboxes, a grant that lacks a use, and the page drawn from a real registry.
