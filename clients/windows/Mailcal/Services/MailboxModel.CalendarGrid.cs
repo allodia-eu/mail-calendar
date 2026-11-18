@@ -106,6 +106,11 @@ public sealed partial class MailboxModel
     /// rule 6).</summary>
     internal CalendarGroup[] CalendarGroups() => _app?.CalendarGroups() ?? [];
 
+    /// <summary>The calendars a new event can be put on, under their accounts, and whether each
+    /// group is headed by its account's address; the default is each row's <c>IsDefault</c>. Null
+    /// without a core.</summary>
+    internal NewEventCalendars? NewEventCalendars() => _app?.NewEventCalendars();
+
     /// <summary>The calendar pane beside the grid <paramref name="query"/> describes: an in-memory
     /// read, like the grid's page.</summary>
     internal CalendarPane? CalendarPane(CalendarPaneQuery query) => _app?.CalendarPane(query);
@@ -150,17 +155,18 @@ public sealed partial class MailboxModel
     /// <summary>The persisted display settings: week start, 12/24h, horizon, shape.</summary>
     internal DisplaySettings? CalendarDisplaySettings() => _app?.DisplaySettings();
 
-    /// <summary>The person's Jitsi server, or null while none is set (docs/conferencing.md,
-    /// rule 13).</summary>
-    internal string? JitsiServer() => _app?.JitsiServer();
+    /// <summary>Settings → Videoconferencing: the stored Jitsi server, the text last refused and
+    /// each account's default meeting (docs/conferencing.md, rules 10 and 13). Null without a
+    /// core.</summary>
+    internal VideoconferencingPage? Videoconferencing() => _app?.VideoconferencingPage();
 
-    /// <summary>Stores the Jitsi server, or forgets it for blank text; false, changing nothing, for
-    /// an address the core refuses or when no core is open.</summary>
-    internal bool SetJitsiServer(string server) => _app?.SetJitsiServer(server) ?? false;
-
-    /// <summary>Every account whose calendars offer a video meeting, with the one its new events
-    /// take (docs/conferencing.md, rule 10).</summary>
-    internal MeetingDefault[] MeetingDefaults() => _app?.MeetingDefaults() ?? [];
+    /// <summary>Sends the Jitsi field's text as it stands; the core stores, ignores or refuses it
+    /// before this returns, and <see cref="Videoconferencing"/> says which.</summary>
+    internal void SetJitsiServer(string server)
+    {
+        Log.Info("cal: set jitsi server");
+        DispatchPreference(new PreferenceIntent.SetJitsiServer(server));
+    }
 
     /// <summary>Chooses the video meeting <paramref name="account"/>'s new events take once they
     /// have an invitee, or none for null. The core signals the calendar surface.</summary>

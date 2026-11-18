@@ -1,7 +1,7 @@
 // Settings → Videoconferencing (docs/settings.md slot 4): the accounts that make video meetings,
 // while there are any, then the person's Jitsi server (docs/conferencing.md, rule 13). The server
-// is empty until they fill it, and checked by the core before it is stored, so an address it
-// refuses is said here and nothing changes. Once one is stored, every calendar whose provider
+// is empty until they fill it; the field sends its text and the core's page says what came of it,
+// stored in its tidied form or refused as typed. Once one is stored, every calendar whose provider
 // writes a meeting offers Jitsi in the editor. Last, while any account offers a meeting, the one
 // each account's new events take once they have an invitee (rule 10), drawn again when the
 // calendars change what is on offer.
@@ -38,24 +38,31 @@ public sealed partial class SettingsDialog
     private readonly Dictionary<string, ComboBox> _meetingDefaultPickers = [];
     private bool _meetingDefaultMoving;
 
+    // The page last read, which the Jitsi field's refusal line follows as the person types.
+    private VideoconferencingPage? _videoconferencing;
+    private TextBox? _jitsiBox;
+    private TextBlock? _jitsiRefused;
+
     private UIElement BuildVideoconferencing()
     {
         _meetingAccounts = new StackPanel();
         _meetingAccountsDrawn = null;
         _meetingDefaults = new StackPanel();
         _meetingDefaultsDrawn = null;
+        _videoconferencing = _model.Videoconferencing();
+        var jitsi = JitsiServerGroup();
         RefreshMeetingAccounts();
         return new StackPanel
         {
             Spacing = 20,
-            Children = { _meetingAccounts, JitsiServerGroup(), _meetingDefaults },
+            Children = { _meetingAccounts, jitsi, _meetingDefaults },
         };
     }
 
     /// <summary>Draws the accounts that make meetings again, when what they show has changed.</summary>
     private void RefreshMeetingAccounts()
     {
-        RefreshMeetingDefaults();
+        RefreshVideoconferencingPage();
         if (_meetingAccounts is not { } host)
         {
             return;
@@ -126,29 +133,39 @@ public sealed partial class SettingsDialog
         return button;
     }
 
-    /// <summary>What each account's calendars offer comes from the calendar rows, so a calendar
-    /// signal can bring the default group in or change it while Videoconferencing is open.</summary>
+    /// <summary>The calendars a new event can go on and what each account's calendars offer come
+    /// from the calendar rows, so a calendar signal redraws Calendar's default list and
+    /// Videoconferencing's page while either is shown.</summary>
     private void OnCalendarChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(MailboxModel.CalendarVersion)
-            && !_rebuilding
-            && CurrentCategory() == "videoconferencing")
+        if (e.PropertyName != nameof(MailboxModel.CalendarVersion) || _rebuilding)
         {
-            RefreshMeetingDefaults();
+            return;
+        }
+        switch (CurrentCategory())
+        {
+            case "calendar":
+                RefreshDefaultCalendars();
+                break;
+            case "videoconferencing":
+                RefreshVideoconferencingPage();
+                break;
         }
     }
 
-    /// <summary>Draws the default per account again, when what the core lists has changed.</summary>
-    private void RefreshMeetingDefaults()
+    /// <summary>Reads the page again: the Jitsi field's refusal line follows it, never the text in
+    /// the field, and the default per account is drawn again when what the core lists has
+    /// changed.</summary>
+    private void RefreshVideoconferencingPage()
     {
         if (_meetingDefaults is not { } host)
         {
             return;
         }
-        var rows = _model.MeetingDefaults();
-        var drawn = string.Join('\n', rows.Select(row =>
-            $"{row.Account}\t{row.AccountAddress}\t"
-            + string.Join('\t', row.Choices.Select(choice => $"{choice.Id}|{choice.Name}|{choice.Through}"))));
+        _videoconferencing = _model.Videoconferencing();
+        FollowJitsiRefusal();
+        var rows = _videoconferencing?.Defaults ?? [];
+        var drawn = SettingsCalendarPages.MeetingDefaultsFingerprint(rows);
         if (drawn == _meetingDefaultsDrawn)
         {
             foreach (var row in rows)
@@ -261,7 +278,7 @@ public sealed partial class SettingsDialog
     {
         var box = new TextBox
         {
-            Text = _model.JitsiServer() ?? string.Empty,
+            Text = _videoconferencing?.JitsiServer ?? string.Empty,
             PlaceholderText = "https://meet.example.org",
             MinWidth = 320,
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -277,27 +294,23 @@ public sealed partial class SettingsDialog
             Visibility = Visibility.Collapsed,
         };
         AutomationProperties.SetAutomationId(refused, "JitsiServerRefused");
+        _jitsiBox = box;
+        _jitsiRefused = refused;
+        FollowJitsiRefusal();
 
         // Sent on Enter or on losing focus, never per keystroke: a half-typed address is one the
-        // core refuses. The stored form (its trailing '/' dropped) is what the field shows after.
+        // core refuses. The core has decided before the dispatch returns, and text it did not
+        // refuse is replaced by the stored form (its trailing '/' dropped, or empty).
         void Store()
         {
-            if (box.Text == (_model.JitsiServer() ?? string.Empty))
+            _model.SetJitsiServer(box.Text);
+            RefreshVideoconferencingPage();
+            if (!SettingsCalendarPages.JitsiRefused(box.Text, _videoconferencing))
             {
-                return;
-            }
-            if (_model.SetJitsiServer(box.Text))
-            {
-                box.Text = _model.JitsiServer() ?? string.Empty;
-                // A stored or forgotten server changes what every account offers.
-                RefreshMeetingDefaults();
-            }
-            else
-            {
-                refused.Visibility = Visibility.Visible;
+                box.Text = _videoconferencing?.JitsiServer ?? string.Empty;
             }
         }
-        box.TextChanged += (_, _) => refused.Visibility = Visibility.Collapsed;
+        box.TextChanged += (_, _) => FollowJitsiRefusal();
         box.LostFocus += (_, _) => Store();
         box.KeyDown += (_, args) =>
         {
@@ -310,5 +323,16 @@ public sealed partial class SettingsDialog
 
         var field = new StackPanel { Spacing = 4, Children = { box, refused } };
         return Group(L10n.SettingsJitsiServer(), L10n.SettingsJitsiServerHint(), field);
+    }
+
+    /// <summary>Shows the refusal line while the field holds the text the core last refused.</summary>
+    private void FollowJitsiRefusal()
+    {
+        if (_jitsiBox is { } box && _jitsiRefused is { } refused)
+        {
+            refused.Visibility = SettingsCalendarPages.JitsiRefused(box.Text, _videoconferencing)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
     }
 }

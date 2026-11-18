@@ -235,6 +235,9 @@
          page change that redrew the calendar held the UI thread through the press. -->
     <Compile Include="..\Mailcal\Services\CalendarSettingsRules.cs" Link="Services\CalendarSettingsRules.cs" />
     <Compile Include="..\Mailcal\Services\MeetingAccountLabels.cs" Link="Services\MeetingAccountLabels.cs" />
+    <!-- When the Jitsi field says its address was refused, and which signals leave Settings →
+         Calendar's default list and Videoconferencing's defaults as drawn. -->
+    <Compile Include="..\Mailcal\Services\SettingsCalendarPages.cs" Link="Services\SettingsCalendarPages.cs" />
     <!-- An account's browser sign-in, which the core holds (docs/waiting.md): the redirect each
          kind starts with, the browser opened once per attempt, a redirect handed to the core
          rather than to a setup flow, and the line its section waits with. A redirect routed to the
