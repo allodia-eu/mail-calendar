@@ -64,11 +64,4 @@ impl<P: Provider> App<P> {
         open.importance = importance;
         ComposerImportance::of(open.importance, open.opened_importance)
     }
-
-    /// What a save or the send of `composition` carries: normal for a message written in no
-    /// composer, such as an assistant's.
-    pub(crate) fn composition_importance(&self, composition: Option<&CompositionId>) -> Importance {
-        self.joined(composition, |open| open.importance)
-            .unwrap_or_default()
-    }
 }

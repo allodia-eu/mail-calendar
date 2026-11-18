@@ -6,9 +6,9 @@
 //! Every save and the send read it there, so no client passes one.
 
 use engine_api::Importance;
-use mailcal_app::{ComposerImportance as AppComposerImportance, CompositionId};
+use mailcal_app::ComposerImportance as AppComposerImportance;
 
-use crate::{MailcalApp, MailcalError};
+use crate::{MailcalApp, MailcalError, drafts::composition_id};
 
 /// The importance a message's sender gave it (RFC 2156 `Importance`). Normal is what a message
 /// that states none is.
@@ -99,9 +99,4 @@ impl MailcalApp {
             .set_composer_importance(&composition_id(composition)?, importance.into())
             .into())
     }
-}
-
-fn composition_id(value: String) -> Result<CompositionId, MailcalError> {
-    CompositionId::new(value)
-        .ok_or_else(|| MailcalError::Engine("composition id is blank".to_owned()))
 }

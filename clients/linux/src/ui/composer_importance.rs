@@ -5,7 +5,7 @@
 //! it there, and every save and the send take it from there. So nothing here is sent anywhere, and
 //! a composer moved into a window of its own opens with the importance the one it left had.
 
-use std::{rc::Rc, sync::Arc};
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
 use adw::prelude::*;
 use gtk::{gio, glib};
@@ -35,14 +35,19 @@ pub(crate) struct ImportanceControl {
     composition: String,
     button: gtk::MenuButton,
     action: gio::SimpleAction,
+    /// The core's last answer, `(selected, changed)`. The importance moves only through `set`,
+    /// which answers with the picker as it then stands.
+    answered: Cell<(MessageImportance, bool)>,
 }
 
 impl ImportanceControl {
     pub(crate) fn new(store: Arc<dyn ImportanceStore>, composition: &str) -> Rc<Self> {
         let picker = store.read(composition);
-        let selected = picker
+        let (selected, changed) = picker
             .as_ref()
-            .map_or(MessageImportance::Normal, |p| p.selected);
+            .map_or((MessageImportance::Normal, false), |p| {
+                (p.selected, p.changed)
+            });
         let action = gio::SimpleAction::new_stateful(
             "choose",
             Some(glib::VariantTy::STRING),
@@ -53,6 +58,7 @@ impl ImportanceControl {
             composition: composition.to_owned(),
             button: gtk::MenuButton::new(),
             action,
+            answered: Cell::new((selected, changed)),
         });
         let options = picker.map_or_else(Vec::new, |picker| picker.options);
         control.build(&options);
@@ -67,16 +73,12 @@ impl ImportanceControl {
     /// Whether the importance differs from what the composer opened with: its half of "was
     /// anything written", beside the files'.
     pub(crate) fn changed(&self) -> bool {
-        self.store
-            .read(&self.composition)
-            .is_some_and(|picker| picker.changed)
+        self.answered.get().1
     }
 
     /// What the message goes out with now, for the autosave timer to notice a pick.
     pub(crate) fn selected(&self) -> MessageImportance {
-        self.store
-            .read(&self.composition)
-            .map_or(MessageImportance::Normal, |picker| picker.selected)
+        self.answered.get().0
     }
 
     fn build(self: &Rc<Self>, options: &[MessageImportance]) {
@@ -105,11 +107,11 @@ impl ImportanceControl {
             let Some(importance) = target.and_then(glib::Variant::str).and_then(from_token) else {
                 return;
             };
-            let selected = control
-                .store
-                .set(&control.composition, importance)
-                .map_or(MessageImportance::Normal, |picker| picker.selected);
-            control.show(selected);
+            let Some(picker) = control.store.set(&control.composition, importance) else {
+                return;
+            };
+            control.answered.set((picker.selected, picker.changed));
+            control.show(picker.selected);
         });
     }
 

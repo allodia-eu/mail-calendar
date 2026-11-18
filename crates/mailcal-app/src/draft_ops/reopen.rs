@@ -121,15 +121,19 @@ impl<P: Provider> App<P> {
     }
 
     /// Puts on a draft built for `composition` what its composer could not hold: the conversation
-    /// the message belongs to.
-    pub(crate) fn with_threading(
+    /// the message belongs to, and the importance it goes out with (normal for a message written
+    /// in no composer, such as an assistant's).
+    pub(crate) fn with_composition(
         &self,
         composition: Option<&CompositionId>,
         draft: Draft,
     ) -> Draft {
-        let threading = self
-            .joined(composition, |open| open.threading.clone())
-            .flatten();
+        let (threading, importance) = self
+            .joined(composition, |open| {
+                (open.threading.clone(), open.importance)
+            })
+            .unwrap_or_default();
+        let draft = draft.with_importance(importance);
         match threading {
             Some(Threading {
                 in_reply_to: Some(parent),

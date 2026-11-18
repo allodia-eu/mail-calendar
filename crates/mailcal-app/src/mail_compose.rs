@@ -79,10 +79,8 @@ impl<P: Provider> App<P> {
             self.fail_send().await;
             return;
         };
-        // A reply moved back out of the Outbox stays a reply.
-        let draft = self
-            .with_threading(composition.as_ref(), draft)
-            .with_importance(self.composition_importance(composition.as_ref()));
+        // A reply moved back out of the Outbox stays a reply, and keeps its importance.
+        let draft = self.with_composition(composition.as_ref(), draft);
         self.send_draft(&account, &draft, composition.as_ref())
             .await;
     }

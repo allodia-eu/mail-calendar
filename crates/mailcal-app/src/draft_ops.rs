@@ -144,9 +144,7 @@ impl<P: Provider> App<P> {
         ) else {
             return self.fail_draft(composition, "the draft could not be rendered");
         };
-        let draft = self
-            .with_threading(Some(composition), draft)
-            .with_importance(self.composition_importance(Some(composition)));
+        let draft = self.with_composition(Some(composition), draft);
 
         // Nothing changed since the last save, so there is nothing to write. Still "saved":
         // what the user asked to keep is on the server (`docs/drafts.md`).

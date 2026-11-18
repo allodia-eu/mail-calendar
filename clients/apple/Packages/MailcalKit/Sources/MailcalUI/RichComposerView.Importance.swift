@@ -41,10 +41,7 @@ extension RichComposeView {
                 }
                 .pickerStyle(.inline)
             } label: {
-                Label(
-                    L10n.compose_importance_label(),
-                    systemImage: picker.selected == .low ? "arrow.down" : "exclamationmark"
-                )
+                Label(L10n.compose_importance_label(), systemImage: composerImportanceSymbol(picker.selected))
                 .composerBarItem()
             }
             .accessibilityValue(importanceLabel(picker.selected))
@@ -55,6 +52,17 @@ extension RichComposeView {
             .controlSize(.small)
             .fixedSize()
             #endif
+        }
+    }
+
+    /// The list row's glyph for a raised or lowered message, so the bar shows what is in force;
+    /// at normal, which a row marks with nothing, a neutral one that still reads as the control
+    /// where the bar draws icons only.
+    private func composerImportanceSymbol(_ importance: MessageImportance) -> String {
+        switch importance {
+        case .high: "exclamationmark"
+        case .low: "arrow.down"
+        case .normal: "arrow.up.arrow.down"
         }
     }
 

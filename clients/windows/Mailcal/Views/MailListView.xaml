@@ -218,11 +218,15 @@
                                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <!-- Named, so the message's button announces its importance
+                                             (docs/importance.md, rule 2). -->
                                         <FontIcon Glyph="&#xE8C9;" FontSize="12"
                                                   Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                                  AutomationProperties.Name="{x:Bind l10n:L10n.A11yImportanceHigh(), Mode=OneTime}"
                                                   Visibility="{x:Bind ImportanceHighVisibility, Mode=OneTime}" />
                                         <FontIcon Glyph="&#xE74B;" FontSize="12"
                                                   Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                  AutomationProperties.Name="{x:Bind l10n:L10n.A11yImportanceLow(), Mode=OneTime}"
                                                   Visibility="{x:Bind ImportanceLowVisibility, Mode=OneTime}" />
                                         <FontIcon Glyph="&#xE7C1;" FontSize="12"
                                                   Foreground="{ThemeResource SystemFillColorCautionBrush}"

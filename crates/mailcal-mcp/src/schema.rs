@@ -264,8 +264,30 @@ pub struct MessageSummary {
     pub flagged: bool,
     /// Whether it has an attachment.
     pub has_attachment: bool,
-    /// The importance its sender stated: `high`, `normal` or `low`.
-    pub importance: String,
+    /// The importance its sender stated.
+    pub importance: ImportanceOut,
+}
+
+/// The importance a message's sender stated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ImportanceOut {
+    /// Raised.
+    High,
+    /// Stated as normal, or not stated.
+    Normal,
+    /// Lowered.
+    Low,
+}
+
+impl From<mailcal_viewmodel::Importance> for ImportanceOut {
+    fn from(importance: mailcal_viewmodel::Importance) -> Self {
+        match importance {
+            mailcal_viewmodel::Importance::High => Self::High,
+            mailcal_viewmodel::Importance::Normal => Self::Normal,
+            mailcal_viewmodel::Importance::Low => Self::Low,
+        }
+    }
 }
 
 /// A page of message summaries.
@@ -308,8 +330,8 @@ pub struct MessageOut {
     pub unread: bool,
     /// Whether it is flagged.
     pub flagged: bool,
-    /// The importance its sender stated: `high`, `normal` or `low`.
-    pub importance: String,
+    /// The importance its sender stated.
+    pub importance: ImportanceOut,
     /// The names of its attachments. Names only: no bytes cross this boundary.
     pub attachments: Vec<String>,
     /// The body as plain text, wrapped in an `<untrusted-message-content>` fence. See

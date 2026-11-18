@@ -22,11 +22,16 @@ public sealed partial class ReadingView
             MessageImportance.Low => L10n.ReadingImportanceLow(),
             _ => string.Empty,
         };
-        // The glyph a list row draws for the same importance: the exclamation mark, or the arrow.
-        ImportanceBanner.IconSource = new FontIconSource
+        var open = importance is MessageImportance.High or MessageImportance.Low;
+        if (open)
         {
-            Glyph = importance == MessageImportance.Low ? "" : "",
-        };
-        ImportanceBanner.IsOpen = importance is MessageImportance.High or MessageImportance.Low;
+            // The glyph a list row draws for the same importance: the exclamation mark, or the
+            // arrow.
+            ImportanceBanner.IconSource = new FontIconSource
+            {
+                Glyph = importance == MessageImportance.Low ? "\uE74B" : "\uE8C9",
+            };
+        }
+        ImportanceBanner.IsOpen = open;
     }
 }

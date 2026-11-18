@@ -27,7 +27,12 @@ public sealed partial class ComposerView
         }
         _importance = importance;
         ImportanceButton.Visibility = Visibility.Visible;
-        ImportanceIcon.Glyph = importance.Selected == MessageImportance.Low ? "" : "";
+        // The glyph a list row draws for what is in force, and none for normal, which a row
+        // marks with nothing either.
+        ImportanceIcon.Visibility = importance.Selected == MessageImportance.Normal
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+        ImportanceIcon.Glyph = importance.Selected == MessageImportance.Low ? "\uE74B" : "\uE8C9";
         AutomationProperties.SetItemStatus(ImportanceButton, ImportanceLabel(importance.Selected));
         ImportanceMenu.Items.Clear();
         foreach (var option in importance.Options)

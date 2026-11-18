@@ -184,7 +184,7 @@ fn messages_out(page: MessagePage) -> MessagesOut {
                 unread: row.unread,
                 flagged: row.flagged,
                 has_attachment: row.has_attachment,
-                importance: row.importance.as_str().to_owned(),
+                importance: row.importance.into(),
             })
             .collect(),
         total: page.total,
@@ -208,7 +208,7 @@ fn message_out(detail: MessageDetail) -> MessageOut {
         date: detail.date,
         unread: detail.unread,
         flagged: detail.flagged,
-        importance: detail.importance.as_str().to_owned(),
+        importance: detail.importance.into(),
         attachments: detail.attachment_names,
         // The one place a body crosses this boundary, and the one place the fence goes on.
         body: policy::fence(&detail.body_text),

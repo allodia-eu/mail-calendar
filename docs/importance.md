@@ -13,18 +13,21 @@ a menu, and words them.
 | Header | Defined by | Read | Written |
 |---|---|---|---|
 | `Importance: high \| normal \| low` | RFC 2156 §5.3, registered by RFC 4021 §2.1.52 | first | for high and low |
-| `X-Priority: 1 … 5` | none; what Thunderbird and Apple Mail write alone | when `Importance` is absent or unreadable: 1 and 2 are high, 3 normal, 4 and 5 low | `1 (Highest)` and `5 (Lowest)` beside `Importance`, as Outlook writes it |
+| `X-MSMail-Priority: High \| Normal \| Low` | none; what some Outlook-era senders write alone | when `Importance` is absent | never |
+| `X-Priority: 1 … 5` | none; what Thunderbird and Apple Mail write alone | when neither of the above is present: 1 and 2 are high, 3 normal, 4 and 5 low | `1 (Highest)` and `5 (Lowest)` beside `Importance`, as Outlook writes it |
 | `Priority: urgent \| normal \| non-urgent` | RFC 2156 §5.2 | never | never |
 
-A message with neither header is **normal**: that is what their absence means, not a value the
-app invents. RFC 2156's `Priority` is the delivery priority a mail server acts on, a different
+The first header present decides, as Exchange decides it: one present but unreadable makes the
+message normal rather than handing over to the next, and a repeated header counts by its last
+occurrence. The engine owns the rule (`Importance::from_headers`). A message with none of them is
+**normal**: that is what their absence means, not a value the app invents. RFC 2156's `Priority` is the delivery priority a mail server acts on, a different
 property, so it is neither read as importance nor written.
 
 ## The rules
 
 | # | Rule | Why |
 |---|---|---|
-| 1 | **The engine reads it on every transport**: the two headers over IMAP, JMAP (as `header:` properties) and Gmail, and the message's `importance` property over Microsoft Graph, which Exchange fills from the same headers. It is part of the message's content and of the list's stored row. | A row has to draw it without opening the message. |
+| 1 | **The engine reads it on every transport**: the headers over IMAP, JMAP (as `header:` properties) and Gmail, and the message's `importance` property over Microsoft Graph, which Exchange fills from the same headers. It is part of the message's content and of the list's stored row. | A row has to draw it without opening the message. |
 | 2 | **A list row draws a mark for high and for low, and nothing for normal**: a red exclamation mark for high, a down arrow for low, before the flag ([`icons.md`](icons.md)). The mark is announced to assistive technology. | Outlook's arrangement, and the one people know. Low is drawn too: it is the sender saying "this can wait". |
 | 3 | **A conversation row is high when any of its messages is, and low only when every one is.** The core decides it (`ThreadRow.importance`); each expanded message carries its own. | An urgent message must not hide behind the replies to it. |
 | 4 | **An open message carries a banner for high and for low**: "This message was sent with high importance." under the header, from `ReadingSnapshot.importance_banner`, and none when that is absent. It has no button. | There is nothing to do about a sender's importance except know it. |
@@ -48,11 +51,11 @@ property, so it is neither read as importance nor written.
 
 | Platform | Row mark | Banner | Picker | Where |
 |---|---|---|---|---|
-| macOS | `exclamationmark` red, `arrow.down` blue | under the action row, above the files | a menu in the action row beside Signature | `ImportanceViews.swift`, `RichComposerView.Importance.swift` |
+| macOS | `exclamationmark` red, `arrow.down` blue | under the action row, above the files | a menu in the action row beside Signature, its glyph the row mark in force, `arrow.up.arrow.down` at normal | `ImportanceViews.swift`, `RichComposerView.Importance.swift` |
 | iOS/iPadOS | as macOS | in the scrolling header, under the recipients | a menu in the action bar beside Signature | as macOS |
-| Windows | `E8C9` Important red, `E74B` Down in the accent colour | an `InfoBar` under the action row | a `DropDownButton` beside Signature, radio items | `MailListView.xaml`, `ReadingView.Importance.cs`, `ComposerView.Importance.cs` |
+| Windows | `E8C9` Important red, `E74B` Down in the accent colour | an `InfoBar` under the action row | a `DropDownButton` beside Signature, radio items, its glyph the row mark in force and none at normal | `MailListView.xaml`, `ReadingView.Importance.cs`, `ComposerView.Importance.cs` |
 | Android | `ic_priority_high` red, `ic_arrow_downward` | under the recipients | Importance in the app bar's overflow, opening a menu | `MessageImportanceViews.kt`, `ComposerImportance.kt` |
-| Linux | `mail-mark-important-symbolic` red, `go-down-symbolic` dimmed | an `AdwBanner` under the header | a `GtkMenuButton` beside Signature, radio items | `ui/mailbox.rs`, `ui/reading/importance.rs`, `ui/composer_importance.rs` |
+| Linux | `mail-mark-important-symbolic` red, `go-down-symbolic` dimmed | an `AdwBanner` under the header | a `GtkMenuButton` beside Signature, radio items, its glyph the row mark in force and none at normal | `ui/mailbox.rs`, `ui/reading/importance.rs`, `ui/composer_importance.rs` |
 
 ## Enforcement
 

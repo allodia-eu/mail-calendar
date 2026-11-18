@@ -225,6 +225,7 @@ struct RichComposeView: View {
         // they cannot remove (docs/composer-security.md, Gate 12).
         _showsCcBcc = State(initialValue: revealsCcBcc(cc: initialCc, bcc: initialBcc))
         _subject = State(initialValue: initialSubject)
+        let openedImportance = importance?.read(composition)
         openingHeaders = DraftHeaders(
             to: seededRecipientField(initialTo),
             cc: seededRecipientField(initialCc),
@@ -242,7 +243,6 @@ struct RichComposeView: View {
         fileVerbs = files
         _files = State(initialValue: files.read(composition))
         importanceVerbs = importance
-        let openedImportance = importance?.read(composition)
         _importance = State(initialValue: openedImportance)
         _composerError = State(initialValue: initialError)
     }
