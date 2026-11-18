@@ -153,4 +153,13 @@ class CalendarBlockPaintTest {
         assertEquals(null, labels.held(0, step = 10, lines = 3, withTime = true))
         assertEquals(null, labels.held(0, step = 11, lines = 2, withTime = true))
     }
+
+    @Test
+    fun the_week_number_is_the_one_the_core_gives_the_first_day() {
+        // A number no date rule here would produce, so a client-side ISO calculation cannot pass.
+        val days = gridWeekDays().mapIndexed { index, day -> day.copy(week = (90 + index).toUInt()) }
+        val paint = gridPage(days = days)
+            .toPaint(ctx, THEME, dark = false, use24Hour = true, locale = Locale.UK)
+        assertEquals(90, paint.weekNumber)
+    }
 }

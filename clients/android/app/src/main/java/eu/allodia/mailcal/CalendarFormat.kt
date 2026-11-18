@@ -9,7 +9,6 @@ package eu.allodia.mailcal
 
 import java.time.LocalDate
 import java.time.format.TextStyle
-import java.time.temporal.WeekFields
 import java.util.Locale
 
 /** The core hands day columns back as `YYYY-MM-DD`; parse without a formatter (ISO is the default). */
@@ -18,10 +17,6 @@ internal fun parseIsoDate(iso: String): LocalDate = LocalDate.parse(iso)
 /** The abbreviated weekday for a column heading: "Mon", "ma". */
 internal fun weekdayShort(date: LocalDate, locale: Locale): String =
     date.dayOfWeek.getDisplayName(TextStyle.SHORT, locale)
-
-/** The ISO-8601 week number, the "WK 28" a Dutch or German user expects to see. */
-internal fun isoWeekNumber(date: LocalDate): Int =
-    date.get(WeekFields.ISO.weekOfWeekBasedYear())
 
 /**
  * The title over the grid: the month (and year) the shown days fall in.

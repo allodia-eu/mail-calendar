@@ -59,10 +59,10 @@ class SettingsDefaultCalendarTest {
         // place rather than a choice that silently does nothing.
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendars = listOf(
+                calendarGroups = groupsOf(listOf(
                     calendar("a", "work", "Work", isDefault = true),
                     calendar("a", "holidays", "Holidays", canWrite = false),
-                ),
+                )),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
@@ -74,10 +74,10 @@ class SettingsDefaultCalendarTest {
     fun the_row_the_core_marked_is_the_one_that_reads_as_chosen() {
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendars = listOf(
+                calendarGroups = groupsOf(listOf(
                     calendar("a", "work", "Work"),
                     calendar("a", "private", "Private", isDefault = true),
-                ),
+                )),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
@@ -95,10 +95,10 @@ class SettingsDefaultCalendarTest {
         var picked: Pair<String?, String?>? = null
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendars = listOf(
+                calendarGroups = groupsOf(listOf(
                     calendar("a@imap.example.com", "work", "Work", isDefault = true),
                     calendar("b@graph.example.com", "private", "Private"),
-                ),
+                )),
                 onSetDefaultCalendar = { account, calendar -> picked = account to calendar },
             )
         }
@@ -112,11 +112,11 @@ class SettingsDefaultCalendarTest {
         // belongs above the group, once, and as the address rather than the id.
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendars = listOf(
+                calendarGroups = groupsOf(listOf(
                     calendar("a@imap.example.com", "work", "Work", isDefault = true),
                     calendar("b@graph.example.com", "agenda", "Agenda"),
                     calendar("b@graph.example.com", "todoist", "Todoist"),
-                ),
+                )),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
@@ -135,7 +135,7 @@ class SettingsDefaultCalendarTest {
         // the heading would be a line of noise above the only group.
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendars = listOf(calendar("a@imap.example.com", "work", "Work", isDefault = true)),
+                calendarGroups = groupsOf(listOf(calendar("a@imap.example.com", "work", "Work", isDefault = true))),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
@@ -147,7 +147,7 @@ class SettingsDefaultCalendarTest {
     fun no_writable_calendar_says_so_instead_of_offering_an_empty_list() {
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendars = listOf(calendar("a", "holidays", "Holidays", canWrite = false)),
+                calendarGroups = groupsOf(listOf(calendar("a", "holidays", "Holidays", canWrite = false))),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }

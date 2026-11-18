@@ -44,6 +44,7 @@ class EventInviteesScreenTest {
             EventEditorScreen(
                 editor = editor,
                 calendars = emptyList(),
+                calendarGroups = emptyList(),
                 onCancel = {},
                 onCreate = {},
                 onUpdate = {},

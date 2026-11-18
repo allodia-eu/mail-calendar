@@ -14,7 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.Appearance
-import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.WeekStart
@@ -116,11 +116,11 @@ internal fun horizonChoices(display: DisplaySettings): List<Int> =
  */
 @Composable
 internal fun DefaultCalendarSettingsRows(
-    calendars: List<CalendarRow>,
+    calendarGroups: List<CalendarGroup>,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
 ) {
     val ctx = LocalContext.current
-    val writable = calendars.filter { it.canWrite }
+    val writable = writableGroups(calendarGroups)
     if (writable.isEmpty()) {
         Text(
             text = L10n.settings_default_calendar_none(ctx),
@@ -129,24 +129,23 @@ internal fun DefaultCalendarSettingsRows(
         )
         return
     }
-    // Grouped by account, the same shape the calendar manager uses, a calendar id is unique only
-    // within its account, so the account has to be on screen somewhere. Once per group rather than
-    // once per row, and by the account's address rather than its id: repeating a label beside every
+    // The core's groups, the same the calendar manager draws: a calendar id is unique only within
+    // its account, so the account has to be on screen somewhere. Once per group rather than once
+    // per row, and by the account's address rather than its id: repeating a label beside every
     // calendar wrapped each row over three lines and buried the name the user is choosing between.
     //
     // A single account states itself, the rows are its calendars and there is nothing to tell apart
     // so the header only earns its place when there is more than one.
-    val byAccount = writable.groupBy { it.account }
-    byAccount.forEach { (account, rows) ->
-        if (byAccount.size > 1) {
+    writable.forEach { group ->
+        if (writable.size > 1) {
             Text(
-                text = rows.firstOrNull()?.accountAddress ?: account,
+                text = group.address,
                 modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
             )
         }
-        rows.forEach { calendar ->
+        group.calendars.forEach { calendar ->
             StrategyRow(label = calendar.name, selected = calendar.isDefault) {
                 onSetDefaultCalendar(calendar.account, calendar.id)
             }

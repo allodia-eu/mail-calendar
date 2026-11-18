@@ -110,7 +110,7 @@ class SettingsNoticeTest {
                 onSetAppearance = {},
                 onSetWeekStart = {},
                 onSetVisibleHours = {},
-                calendars = emptyList(),
+                calendarGroups = emptyList(),
                 onSetDefaultCalendar = { _, _ -> },
                 jitsiServer = { null },
                 onSetJitsiServer = { true },

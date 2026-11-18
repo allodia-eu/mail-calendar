@@ -48,7 +48,7 @@ import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.Appearance
-import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.MeetingDefault
 import uniffi.mailcal_bindings.QuoteSettings
@@ -74,9 +74,9 @@ internal fun SettingsScreen(
     onSetAppearance: (Appearance) -> Unit,
     onSetWeekStart: (WeekStart) -> Unit,
     onSetVisibleHours: (Int) -> Unit,
-    // Calendar, which calendar a new event is filed on. The rows carry `isDefault`, already
-    // resolved by the core against what exists, so there is no fallback rule on this side.
-    calendars: List<CalendarRow>,
+    // Calendar, which calendar a new event is filed on: the core's groups, whose rows carry
+    // `isDefault` already resolved against what exists, so there is no fallback rule on this side.
+    calendarGroups: List<CalendarGroup>,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
     // Videoconferencing, the person's Jitsi server: read when the row opens, and stored by the
     // core, which answers `false` for an address it will not keep.
@@ -213,7 +213,7 @@ internal fun SettingsScreen(
                     onSetAppearance = onSetAppearance,
                     onSetWeekStart = onSetWeekStart,
                     onSetVisibleHours = onSetVisibleHours,
-                    calendars = calendars,
+                    calendarGroups = calendarGroups,
                     onSetDefaultCalendar = onSetDefaultCalendar,
                     jitsiServer = jitsiServer,
                     onSetJitsiServer = onSetJitsiServer,

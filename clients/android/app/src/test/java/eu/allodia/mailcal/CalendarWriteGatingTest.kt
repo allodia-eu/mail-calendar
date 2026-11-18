@@ -96,6 +96,7 @@ class CalendarWriteGatingTest {
                     pageFor = { _, _ -> page },
                     monthFor = { month },
                     weekStartFor = { it.with(DayOfWeek.MONDAY) },
+                    calendarGroupsFor = { groupsOf(calendars) },
                     display = DisplaySettings(
                         WeekStart.MONDAY,
                         TimeFormat.TWENTY_FOUR_HOUR,

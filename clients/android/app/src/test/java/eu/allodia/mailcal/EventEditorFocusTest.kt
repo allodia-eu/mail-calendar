@@ -84,6 +84,7 @@ class EventEditorFocusTest {
             EventEditorScreen(
                 editor = editor,
                 calendars = CALENDARS,
+                calendarGroups = groupsOf(CALENDARS),
                 onCancel = {},
                 onCreate = {},
                 onUpdate = {},
