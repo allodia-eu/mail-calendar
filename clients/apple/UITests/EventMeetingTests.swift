@@ -10,35 +10,30 @@ import XCTest
 final class EventMeetingTests: XCTestCase {
     /// The detail of an event with a meeting offers Join, under the service's name, with the
     /// meeting ID beside it.
-    func testAMeetingOpensWithJoin() {
-        let app = ShowcaseApp.launch(["MAILCAL_CALENDAR": "1"])
-        showAgenda(app)
+    func testAMeetingOpensWithJoin() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_CALENDAR": "1"])
+        try showAgenda(app)
 
-        let sync = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH %@", "Design sync"))
-            .firstMatch
-        XCTAssertTrue(sync.waitForExistence(timeout: ShowcaseApp.timeout), "the agenda did not list the design sync")
-        XCTAssertTrue(
-            sync.value as? String == "Video meeting",
-            "the agenda row did not say the event has a video meeting"
+        let sync = try app.wait(.textLike("Design sync"), "the agenda did not list the design sync")
+        XCTAssertEqual(
+            sync.value, "Video meeting", "the agenda row did not say the event has a video meeting"
         )
-        ShowcaseApp.tap(sync)
+        try app.tap(sync)
 
+        try app.wait(.id("event-join"), "the detail offered no Join")
         XCTAssertTrue(
-            app.buttons["event-join"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the detail offered no Join"
+            try app.exists(.text("Microsoft Teams")), "the meeting is not headed by its service"
         )
-        XCTAssertTrue(app.staticTexts["Microsoft Teams"].exists, "the meeting is not headed by its service")
-        XCTAssertTrue(app.staticTexts["990 000 000 001"].exists, "the meeting ID is missing")
+        XCTAssertTrue(try app.exists(.text("990 000 000 001")), "the meeting ID is missing")
     }
 
     /// Switches the calendar to the Agenda: a segment of the view picker where there is room for
     /// one, and otherwise an item in the toolbar's More actions menu.
-    private func showAgenda(_ app: XCUIApplication) {
-        let segment = app.buttons["Agenda"]
-        if !segment.waitForExistence(timeout: ShowcaseApp.timeout) {
-            ShowcaseApp.tap(app.buttons["More actions"])
+    private func showAgenda(_ app: App) throws {
+        try app.wait(.button("More actions"), "the calendar did not come up")
+        if try !app.exists(.button("Agenda")) {
+            try app.press(.button("More actions"))
         }
-        ShowcaseApp.tap(app.buttons["Agenda"])
+        try app.press(.button("Agenda"))
     }
 }

@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# The Apple UI suite: XCUITest against the running app, on a simulator or on a physical
-# iPhone/iPad. The tests are in clients/apple/UITests; what each one is for is in its own header.
+# The Apple UI suite: XCUITest against the running app on a simulator. The tests are in
+# clients/apple/UITests; what each one is for is in its own header.
 #
-# This is the only gate in the repository that can drive a **touch gesture** on Apple, and the only
-# one that can read the iOS navigation bar at all: `idb` reports the top bar as one unlabelled
-# group (.agents/skills/debug-app), so Compose, More, Select, Send and Cancel are out of its reach.
-# It does not replace idb. idb answers questions about an app that is already in a state someone
-# cares about, in about a second and with no code; this relaunches the app and runs a script, which
-# is what makes it repeatable and what makes it useless for exploring.
+# Each test finds, reads and presses through the app's test agent (docs/test-agent.md), over the
+# socket the simulator shares with the Mac, and uses XCUITest for what the agent cannot give: the
+# launch, real keys and chords, and a touch or gesture whose landing place is the question. This is
+# the only gate in the repository that can drive a **touch gesture** on Apple. It does not replace
+# `control.sh iphone agent`, which answers questions about an app that is already in a state someone
+# cares about, in milliseconds and with no code; this relaunches the app and runs a script, which is
+# what makes it repeatable and what makes it useless for exploring.
 #
 #   Scripts/test-ui.sh                      # the booted iPhone simulator (boots one if none is)
 #   Scripts/test-ui.sh --simulator "iPhone 17 Pro"
-#   Scripts/test-ui.sh --device             # the connected iPhone/iPad
 #   Scripts/test-ui.sh --only NavigationBarTests   # one class, or one test
-#   Scripts/test-ui.sh --no-core            # skip the Rust rebuild (a device still gets its slice)
-#   Scripts/test-ui.sh --with-kit           # MailcalKitTests too, in the same run on the same device
+#   Scripts/test-ui.sh --no-core            # skip the Rust rebuild
+#   Scripts/test-ui.sh --with-kit           # MailcalKitTests too, in the same run on the same simulator
 #   Scripts/test-ui.sh --build-only         # build the app and both test bundles; boot nothing
 #
 # `--with-kit` is the cheap way to run MailcalKit's suite on iOS: the scheme's build has already
@@ -22,16 +22,11 @@
 # derived-data directory of its own.
 #
 # Every test but one drives the in-memory showcase dataset, so it needs no Docker harness, no stored
-# account and no network. That is what lets the device leg run the same suite: the harness is
-# loopback-only and a device cannot reach it (scripts/dev/device.sh). The one is
-# `AccountPageTests`, which drives the harness's linked accounts on a simulator and skips, saying
-# why, on a device or without `scripts/dev/harness.sh up`.
+# account and no network. The one is `AccountPageTests`, which drives the harness's linked accounts
+# and skips, saying why, without `scripts/dev/harness.sh up`.
 #
-# ⚠️ A physical device needs Settings -> Privacy & Security -> Developer Mode on, as every device
-# build does. It also has a **Settings -> Developer -> Enable UI Automation** switch that nothing
-# else here uses; it was on for the runs this was written against, so whether the suite would fail
-# without it is untested. If a device run installs and then cannot attach, that is the first switch
-# to look at.
+# Simulators only: the agent's socket is on the Mac, and an app on a physical device cannot reach
+# it. Background delivery and notifications on a device are scripts/dev/device.sh's.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)" # clients/apple
@@ -43,7 +38,6 @@ PROJECT="$HERE/AllodiaMail.xcodeproj"
 DERIVED_DATA="${DERIVED_DATA:-$HERE/build/DerivedData}"
 TARGET=AllodiaMailUITests
 BUILD_CORE=1
-ON_DEVICE=0
 SIMULATOR="${SIMULATOR:-}"
 ONLY=()
 WITH_KIT=0
@@ -51,50 +45,29 @@ BUILD_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --device) ON_DEVICE=1 ;;
     --simulator) SIMULATOR="${2:-}"; shift ;;
     --only) ONLY+=("${2:?--only needs a test class or class/method}"); shift ;;
     --no-core) BUILD_CORE=0 ;;
     --with-kit) WITH_KIT=1 ;;
     --build-only) BUILD_ONLY=1 ;;
-    -h | --help) sed -n '2,32p' "$0"; exit 0 ;;
-    *) die "unknown option '$1' (want: --device, --simulator <name>, --only <test>, --no-core," \
-      "--with-kit, --build-only)" ;;
+    -h | --help) sed -n '2,29p' "$0"; exit 0 ;;
+    *) die "unknown option '$1' (want: --simulator <name>, --only <test>, --no-core, --with-kit," \
+      "--build-only)" ;;
   esac
   shift
 done
 
-is_macos || die "the Apple UI suite needs macOS (Xcode + a simulator or a connected device)"
+is_macos || die "the Apple UI suite needs macOS (Xcode + a simulator)"
 
-if [[ "$ON_DEVICE" -eq 1 ]]; then
-  UDID="$(device_udid)" || die "no physical iOS device found: connect one, or set MAILCAL_DEVICE=<udid>"
-  TEAM="$(signing_team)" || die "no signing team: set DEVELOPMENT_TEAM=<id> (or add an Apple Development identity in Xcode)"
-  require_dev_mode "$UDID"
-  info "device: $UDID ($(device_name "$UDID")), team $TEAM"
-  # The device slice of the core, which build-core.sh skips only when asked to.
-  CORE_ARGS=()
-  # ⚠️ `--no-core` cannot mean "skip it" when the slice a device needs is not there. A
-  # simulator-only core (`build-core.sh --no-device`, which CI and the gate build) leaves the
-  # xcframework without `ios-arm64`, and the build then fails with four copies of "no library for
-  # this platform was found", named against MailcalUI and the app rather than the missing slice.
-  # scripts/dev/device.sh builds it in the same case.
-  if [[ "$BUILD_CORE" -eq 0 && ! -d "$HERE/Packages/MailcalKit/artifacts/Mailcal.xcframework/ios-arm64" ]]; then
-    info "the core has no device slice; building it despite --no-core"
-    BUILD_CORE=1
-  fi
+if [[ -n "$SIMULATOR" ]]; then
+  UDID="$(sim_udid_by_name "$SIMULATOR")" || die "no available simulator named '$SIMULATOR'"
 else
-  if [[ -n "$SIMULATOR" ]]; then
-    UDID="$(sim_udid_by_name "$SIMULATOR")" || die "no available simulator named '$SIMULATOR'"
-  else
-    UDID="$(booted_sim_udid iphone)" || UDID="$(first_iphone_sim)" ||
-      die "no iPhone simulator available; pass --simulator <name>"
-  fi
-  TEAM=""
-  CORE_ARGS=(--no-device)
+  UDID="$(booted_sim_udid iphone)" || UDID="$(first_iphone_sim)" ||
+    die "no iPhone simulator available; pass --simulator <name>"
 fi
 
 if [[ "$BUILD_CORE" -eq 1 ]]; then
-  "$HERE/Scripts/build-core.sh" "${CORE_ARGS[@]}"
+  "$HERE/Scripts/build-core.sh" --no-device
 else
   "$HERE/Scripts/composer-resource.sh"
 fi
@@ -119,7 +92,6 @@ ARGS=(
   -destination "id=$UDID" -configuration Debug
   -derivedDataPath "$DERIVED_DATA" COMPILER_INDEX_STORE_ENABLE=NO
 )
-[[ -n "$TEAM" ]] && ARGS+=(DEVELOPMENT_TEAM="$TEAM")
 TEST_ARGS=(-collect-test-diagnostics never)
 if [[ "${#ONLY[@]}" -gt 0 ]]; then
   for test in "${ONLY[@]}"; do TEST_ARGS+=(-only-testing:"$TARGET/$test"); done
@@ -136,35 +108,33 @@ info "building $TARGET"
 xcodebuild build-for-testing "${ARGS[@]}"
 [[ "$BUILD_ONLY" -eq 1 ]] && exit 0
 
-if [[ "$ON_DEVICE" -eq 0 ]]; then
-  # The keyboard switch below, compiled before the boot rather than by `xcrun swift` after it,
-  # when the new device's daemons hold a runner's three cores: there the step took 143s, against
-  # 3s to compile beforehand and 45s to run, which is the device finishing its boot. Kept in the
-  # build directory by the source's hash, so CI's cache of that directory carries it forward.
-  KEYBOARD_TOOL="$HERE/build/tools/sim-keyboard-$(shasum -a 256 "$ROOT/scripts/dev/sim-keyboard.swift" | cut -c1-16)"
-  if [[ ! -x "$KEYBOARD_TOOL" ]]; then
-    t0=$SECONDS
-    mkdir -p "$(dirname "$KEYBOARD_TOOL")"
-    xcrun swiftc -o "$KEYBOARD_TOOL" "$ROOT/scripts/dev/sim-keyboard.swift"
-    info "keyboard switch compiled in $((SECONDS - t0))s"
-  fi
-
-  info "simulator: $UDID (booting it if it is not already)"
+# The keyboard switch below, compiled before the boot rather than by `xcrun swift` after it,
+# when the new device's daemons hold a runner's three cores: there the step took 143s, against
+# 3s to compile beforehand and 45s to run, which is the device finishing its boot. Kept in the
+# build directory by the source's hash, so CI's cache of that directory carries it forward.
+KEYBOARD_TOOL="$HERE/build/tools/sim-keyboard-$(shasum -a 256 "$ROOT/scripts/dev/sim-keyboard.swift" | cut -c1-16)"
+if [[ ! -x "$KEYBOARD_TOOL" ]]; then
   t0=$SECONDS
-  xcrun simctl bootstatus "$UDID" -b >/dev/null
-  info "simulator ready after $((SECONDS - t0))s"
-  t0=$SECONDS
-  # The on-screen keyboard up, as on a phone: a simulated hardware keyboard keeps it down, and a
-  # simulator last driven by `idb ui text` or a Mac key press simulates one, so the suite would
-  # pass over a button the keyboard covers on every real iPhone.
-  "$KEYBOARD_TOOL" "$UDID" off >/dev/null ||
-    echo "warning: could not switch the simulated hardware keyboard off; tests run as the simulator is" >&2
-  info "hardware keyboard off after $((SECONDS - t0))s"
-  # The harness's certificate, for the one class that drives the harness rather than the
-  # showcase (UITests/AccountPageTests.swift). xcodebuild hands a `TEST_RUNNER_` variable to the
-  # runner without its prefix, and the runner passes it on to the app it launches.
-  export TEST_RUNNER_MAILCAL_EXTRA_CA="$HARNESS_CA"
+  mkdir -p "$(dirname "$KEYBOARD_TOOL")"
+  xcrun swiftc -o "$KEYBOARD_TOOL" "$ROOT/scripts/dev/sim-keyboard.swift"
+  info "keyboard switch compiled in $((SECONDS - t0))s"
 fi
+
+info "simulator: $UDID (booting it if it is not already)"
+t0=$SECONDS
+xcrun simctl bootstatus "$UDID" -b >/dev/null
+info "simulator ready after $((SECONDS - t0))s"
+t0=$SECONDS
+# The on-screen keyboard up, as on a phone: a simulated hardware keyboard keeps it down, and a
+# simulator last driven by `idb ui text` or a Mac key press simulates one, so the suite would
+# pass over a button the keyboard covers on every real iPhone.
+"$KEYBOARD_TOOL" "$UDID" off >/dev/null ||
+  echo "warning: could not switch the simulated hardware keyboard off; tests run as the simulator is" >&2
+info "hardware keyboard off after $((SECONDS - t0))s"
+# The harness's certificate, for the one class that drives the harness rather than the
+# showcase (UITests/AccountPageTests.swift). xcodebuild hands a `TEST_RUNNER_` variable to the
+# runner without its prefix, and the runner passes it on to the app it launches.
+export TEST_RUNNER_MAILCAL_EXTRA_CA="$HARNESS_CA"
 
 info "running $TARGET $([[ "${#ONLY[@]}" -gt 0 ]] && printf '%s ' "${ONLY[@]}" || printf '(every test)')"
 exec xcodebuild test-without-building "${ARGS[@]}" "${TEST_ARGS[@]}"

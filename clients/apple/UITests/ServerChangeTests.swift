@@ -11,54 +11,51 @@ import XCTest
 
 @MainActor
 final class ServerChangeTests: XCTestCase {
-    func testReviewAsksAndNotNowLeavesTheCalendarPaused() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SERVER_CHANGE": "1"])
-        showCalendarNotice(app)
-        let review = app.buttons["Review"]
-        let title = app.staticTexts["Your calendar server has changed"]
+    private let title = Filter.text("Your calendar server has changed")
 
-        ShowcaseApp.tap(review)
-        XCTAssertTrue(title.waitForExistence(timeout: ShowcaseApp.timeout), "Review asked nothing")
-        XCTAssertTrue(app.staticTexts["Before: example.com"].exists, "the old site is not named")
-        XCTAssertTrue(app.staticTexts["Now: example.net"].exists, "the new site is not named")
+    func testReviewAsksAndNotNowLeavesTheCalendarPaused() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SERVER_CHANGE": "1"])
+        try showCalendarNotice(app)
 
-        ShowcaseApp.tap(app.buttons["Not now"])
-        XCTAssertTrue(title.waitForNonExistence(timeout: ShowcaseApp.timeout), "Not now kept it open")
-        XCTAssertTrue(review.exists, "Not now lifted the pause")
+        try app.press(.button("Review"))
+        try app.wait(title, "Review asked nothing")
+        XCTAssertTrue(try app.exists(.text("Before: example.com")), "the old site is not named")
+        XCTAssertTrue(try app.exists(.text("Now: example.net")), "the new site is not named")
+
+        try app.press(.button("Not now"))
+        try app.waitGone(title, timeout: ShowcaseApp.timeout, "Not now kept it open")
+        XCTAssertTrue(try app.exists(.button("Review")), "Not now lifted the pause")
     }
 
-    func testARefusedAllowSaysSoAndKeepsTheQuestionOpen() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SERVER_CHANGE": "1"])
-        showCalendarNotice(app)
-        ShowcaseApp.tap(app.buttons["Review"])
-        let title = app.staticTexts["Your calendar server has changed"]
-        XCTAssertTrue(title.waitForExistence(timeout: ShowcaseApp.timeout), "Review asked nothing")
+    func testARefusedAllowSaysSoAndKeepsTheQuestionOpen() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SERVER_CHANGE": "1"])
+        try showCalendarNotice(app)
+        try app.press(.button("Review"))
+        try app.wait(title, "Review asked nothing")
 
-        ShowcaseApp.tap(app.buttons["Allow new server"])
-        let refused = app.staticTexts[
-            "The new server couldn’t be reached, so nothing was changed. Please try again later."
-        ]
-        XCTAssertTrue(
-            refused.waitForExistence(timeout: ShowcaseApp.timeout), "the refusal was not said"
+        try app.press(.button("Allow new server"))
+        let refused = try app.wait(
+            .text("The new server couldn’t be reached, so nothing was changed. Please try again later."),
+            "the refusal was not said"
         )
         // Said is not seen: on a phone the sheet opens at half height, where a line at the foot of
-        // the scrolled text sits under the buttons. `isHittable` passes a line cut in half, so the
-        // frames are compared instead.
+        // the scrolled text sits under the buttons. So the frames are compared.
+        let notNow = try app.wait(.button("Not now"))
         XCTAssertLessThanOrEqual(
-            refused.frame.maxY, app.buttons["Not now"].frame.minY,
+            refused.frame?.maxY ?? .infinity, notNow.frame?.minY ?? 0,
             "the refusal is hidden behind the buttons"
         )
-        XCTAssertTrue(title.exists, "a refused allow closed the question")
+        XCTAssertTrue(try app.exists(title), "a refused allow closed the question")
     }
 
     /// Brings the paused calendar's notice, and with it "Review", on screen (docs/notices.md).
     ///
     /// The iPad draws the notice as a card at the top of the sidebar, its button on it. The iPhone
     /// draws one row under the bar, and the button is in the sheet that row opens.
-    private func showCalendarNotice(_ app: XCUIApplication) {
-        ShowcaseApp.tap(app.buttons["Calendar"])
+    private func showCalendarNotice(_ app: App) throws {
+        try app.press(.button("Calendar"))
         if UIDevice.current.userInterfaceIdiom != .pad {
-            ShowcaseApp.tap(app.buttons["notice"])
+            try app.press(.id("notice"))
         }
     }
 }

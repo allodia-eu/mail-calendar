@@ -12,57 +12,48 @@ import XCTest
 
 @MainActor
 final class AccountSetupBackTests: XCTestCase {
+    private let address = Filter.text("you@example.com").role("AXTextField")
+    private let back = Filter.id("setup-back")
+
     /// A later add, landing on the found card for the showcase's trusted domain.
-    func testFoundCardGoesBackToTheAddress() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "setup-detected"])
+    func testFoundCardGoesBackToTheAddress() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "setup-detected"])
+        try app.wait(.text("We found your settings"), "detection did not land on the found card")
         XCTAssertTrue(
-            app.staticTexts["We found your settings"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "detection did not land on the found card"
-        )
-        XCTAssertTrue(
-            app.buttons["Cancel"].exists,
+            try app.exists(.button("Cancel")),
             "a later add's found card needs the Cancel the other two steps carry"
         )
-        ShowcaseApp.tap(app.buttons["setup-back"])
-        assertOnAddressStep(app, holding: "eva@northwind.example")
+        try app.press(back)
+        try assertOnAddressStep(app, holding: "eva@northwind.example")
     }
 
     /// A later add, landing on the manual form because the domain published nothing.
-    func testManualFormGoesBackToTheAddress() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "setup-manual"])
-        ShowcaseApp.tap(app.buttons["setup-back"])
-        assertOnAddressStep(app, holding: "eva.jansen@example.com")
+    func testManualFormGoesBackToTheAddress() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "setup-manual"])
+        try app.press(back)
+        try assertOnAddressStep(app, holding: "eva.jansen@example.com")
     }
 
     /// The first run, which has no Cancel and so, before Back, no way off the manual form at all.
-    func testFirstRunManualFormGoesBackToTheAddress() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "add-account"])
-        let address = "someone@example.com"
-        let field = app.textFields["you@example.com"]
-        ShowcaseApp.tap(field)
-        field.typeText(address)
-        ShowcaseApp.tap(app.buttons["Set up manually"])
-        ShowcaseApp.tap(app.buttons["setup-back"])
-        assertOnAddressStep(app, holding: address)
+    func testFirstRunManualFormGoesBackToTheAddress() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "add-account"])
+        let typed = "someone@example.com"
+        try app.fill(address, typed)
+        try app.press(.button("Set up manually"))
+        try app.press(back)
+        try assertOnAddressStep(app, holding: typed)
     }
 
     private func assertOnAddressStep(
-        _ app: XCUIApplication,
-        holding address: String,
+        _ app: App,
+        holding typed: String,
         file: StaticString = #filePath,
         line: UInt = #line
-    ) {
-        let field = app.textFields["you@example.com"]
-        XCTAssertTrue(
-            field.waitForExistence(timeout: ShowcaseApp.timeout),
-            "Back did not return to the address step", file: file, line: line
-        )
-        XCTAssertEqual(
-            field.value as? String, address,
-            "going back must keep the address", file: file, line: line
-        )
+    ) throws {
+        let field = try app.wait(address, "Back did not return to the address step")
+        XCTAssertEqual(field.value, typed, "going back must keep the address", file: file, line: line)
         XCTAssertFalse(
-            app.buttons["setup-back"].exists,
+            try app.exists(back),
             "the address step is the first step and has nothing to go back to", file: file, line: line
         )
     }

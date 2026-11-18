@@ -2,8 +2,9 @@
 //
 // The meeting-day preview under them lays out the whole day and slides it up behind a clip, and a
 // SwiftUI clip crops only the drawing. Whether anything of the hidden hours still sits over the
-// buttons is a question about live hit testing, which only a running screen answers: the
-// accessibility tree reports the button under the point either way.
+// buttons is a question about live hit testing, which only a real touch answers: the
+// accessibility tree reports the button under the point either way, and the agent's press never
+// goes through hit testing at all.
 //
 // The showcase invitation is the fixture because its day has events before the preview's span
 // (09:30 and 11:00 against a 14:30 meeting), which is the shape that puts a block above the grid.
@@ -12,9 +13,9 @@ import XCTest
 
 @MainActor
 final class InvitationAnswerTests: XCTestCase {
-    func testTheAnswerButtonsTakeAPressAwayFromTheirLabel() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.openMessage(containing: "kickoff", in: app)
+    func testTheAnswerButtonsTakeAPressAwayFromTheirLabel() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.openMessage(containing: "kickoff", in: app)
 
         // Each answer differs from the one before, so each press has to move the line. Decline is
         // left out: a declined meeting leaves the calendar, and the preview under test with it.
@@ -23,19 +24,12 @@ final class InvitationAnswerTests: XCTestCase {
             ("Accept this invitation", "You accepted"),
         ]
         for (name, line) in presses {
-            let button = app.buttons[name]
-            XCTAssertTrue(button.waitForExistence(timeout: ShowcaseApp.timeout), "no '\(name)'")
-            let hittable = XCTNSPredicateExpectation(
-                predicate: NSPredicate(format: "isHittable == true"), object: button
-            )
-            XCTAssertEqual(XCTWaiter().wait(for: [hittable], timeout: ShowcaseApp.timeout), .completed)
+            let button = try app.wait(.button(name), "no '\(name)'")
+            try app.settle()
             // Near the trailing edge, off the word: the part of the button a block above the
             // preview covers and the label does not.
-            button.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).tap()
-            XCTAssertTrue(
-                app.staticTexts[line].waitForExistence(timeout: ShowcaseApp.timeout),
-                "'\(name)' did not take a press near its trailing edge"
-            )
+            try app.point(button, at: CGVector(dx: 0.92, dy: 0.5)).tap()
+            try app.wait(.text(line), "'\(name)' did not take a press near its trailing edge")
         }
     }
 }

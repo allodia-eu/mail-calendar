@@ -13,22 +13,26 @@ import XCTest
 
 @MainActor
 final class MessageSelectionTests: XCTestCase {
-    func testSelectModeBringsTheBarAndSelectAllPicksEveryRow() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
-        XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout), "no rows")
+    private let rows = Filter().type("UICollectionViewCell").has(.role("AXStaticText"))
+    private let trash = Filter.button("Delete")
 
-        ShowcaseApp.tap(app.buttons["Select"])
-        let trash = app.buttons["Delete"]
-        XCTAssertTrue(trash.waitForExistence(timeout: 5), "the bar did not come with the mode")
-        XCTAssertFalse(trash.isEnabled, "the bar acts with nothing selected")
+    func testSelectModeBringsTheBarAndSelectAllPicksEveryRow() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
+        try app.wait(rows, "no rows")
 
-        ShowcaseApp.tap(app.buttons["Select all"])
-        XCTAssertTrue(trash.isEnabled, "Select all picked nothing")
+        try app.press(.button("Select"))
+        XCTAssertFalse(
+            try app.wait(trash, timeout: 5, "the bar did not come with the mode").enabled,
+            "the bar acts with nothing selected"
+        )
+
+        try app.press(.button("Select all"))
+        XCTAssertTrue(try app.wait(trash).enabled, "Select all picked nothing")
         XCTAssertGreaterThan(selectedRows(in: app), 1, "the rows do not report themselves selected")
 
-        ShowcaseApp.tap(app.buttons["Done"])
-        XCTAssertTrue(gone(trash), "the bar outlived the mode")
+        try app.press(.button("Done"))
+        try app.waitGone(trash, "the bar outlived the mode")
         XCTAssertEqual(selectedRows(in: app), 0, "leaving the mode kept the selection")
     }
 
@@ -37,41 +41,48 @@ final class MessageSelectionTests: XCTestCase {
     ///
     /// ⚠️ The first chord also tells the simulator a keyboard is attached, and is not delivered as
     /// one. The chord outside the mode is that first one, and asserts that it selects nothing.
-    func testCommandAInSelectModePicksEveryRow() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
-        XCTAssertTrue(app.cells.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout), "no rows")
+    func testCommandAInSelectModePicksEveryRow() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
+        try app.wait(rows, "no rows")
 
-        app.typeKey("a", modifierFlags: .command)
-        XCTAssertFalse(app.buttons["Done"].exists, "⌘A outside the mode entered it")
+        app.input.typeKey("a", modifierFlags: .command)
+        try app.settle()
+        XCTAssertFalse(try app.exists(.button("Done")), "⌘A outside the mode entered it")
 
-        ShowcaseApp.tap(app.buttons["Select"])
-        app.typeKey("a", modifierFlags: .command)
+        try app.press(.button("Select"))
+        try app.wait(trash, timeout: 5, "the bar did not come with the mode")
+        app.input.typeKey("a", modifierFlags: .command)
 
-        XCTAssertTrue(app.buttons["Delete"].isEnabled, "⌘A picked nothing")
+        XCTAssertTrue(
+            try app.appears(trash.enabled(true), timeout: 5), "⌘A picked nothing"
+        )
         XCTAssertGreaterThan(selectedRows(in: app), 1, "⌘A picked one row at most")
     }
 
     /// The reason the chord is bound where it is: a field the user is typing in keeps it. On the
     /// iPad the mode, and so the bar's ⌘A, is on as well; the iPhone never shows the two together,
     /// since the mode hides the search field and a search hides the toolbar's Select.
-    func testCommandAInTheSearchFieldStaysTheFields() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
+    func testCommandAInTheSearchFieldStaysTheFields() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
         ShowcaseApp.attachHardwareKeyboard(app)
         if UIDevice.current.userInterfaceIdiom == .pad {
-            ShowcaseApp.tap(app.buttons["Select"])
+            try app.press(.button("Select"))
         }
-        let field = app.searchFields["Search mail"]
-        ShowcaseApp.tap(field)
-        field.typeText("lunch")
+        // Typed with the keyboard, because the chord under test is what the keyboard sends.
+        let field = try app.wait(.text("Search mail").role("AXSearchField"))
+        try app.tap(field)
+        app.input.typeText("lunch")
 
-        app.typeKey("a", modifierFlags: .command)
-        field.typeText("x")
+        app.input.typeKey("a", modifierFlags: .command)
+        app.input.typeText("x")
+        try app.settle()
 
-        XCTAssertEqual(field.value as? String, "x", "⌘A did not select the field's text")
-        let trash = app.buttons["Delete"]
-        XCTAssertFalse(trash.exists && trash.isEnabled, "⌘A in the search field selected mail")
+        XCTAssertEqual(try app.read(field).value, "x", "⌘A did not select the field's text")
+        XCTAssertFalse(
+            try app.query(trash).contains(where: \.enabled), "⌘A in the search field selected mail"
+        )
     }
 
     /// A tap opens a row by selecting it, so Back has to let go of the row: otherwise the same
@@ -80,25 +91,22 @@ final class MessageSelectionTests: XCTestCase {
         try XCTSkipIf(
             UIDevice.current.userInterfaceIdiom == .pad, "the iPad reads beside the list, with no Back"
         )
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.openMessage(containing: "Your June usage report", in: app)
-        let reply = app.buttons["Reply"]
-        XCTAssertTrue(reply.waitForExistence(timeout: ShowcaseApp.timeout), "the row did not open")
+        let app = try ShowcaseApp.launch()
+        let reply = Filter.button("Reply")
+        try ShowcaseApp.openMessage(containing: "Your June usage report", in: app)
+        try app.wait(reply, "the row did not open")
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(gone(reply), "Back did not return to the list")
+        try ShowcaseApp.back(app)
+        try app.waitGone(reply, "Back did not return to the list")
 
-        ShowcaseApp.openMessage(containing: "Your June usage report", in: app)
-        XCTAssertTrue(reply.waitForExistence(timeout: ShowcaseApp.timeout), "the row did not open again")
+        try ShowcaseApp.openMessage(containing: "Your June usage report", in: app)
+        try app.wait(reply, "the row did not open again")
     }
 
-    private func selectedRows(in app: XCUIApplication) -> Int {
-        app.cells.matching(NSPredicate(format: "isSelected == true")).count
-    }
-
-    private func gone(_ element: XCUIElement) -> Bool {
-        let gone = NSPredicate(format: "exists == false OR isHittable == false")
-        let expectation = XCTNSPredicateExpectation(predicate: gone, object: element)
-        return XCTWaiter().wait(for: [expectation], timeout: 5) == .completed
+    /// How many rows report themselves selected. Asked of XCUITest: a cell is a container rather
+    /// than an element of its own, and the accessibility runtime is what gives a container's
+    /// selection to assistive technology.
+    private func selectedRows(in app: App) -> Int {
+        app.input.cells.matching(NSPredicate(format: "isSelected == true")).count
     }
 }

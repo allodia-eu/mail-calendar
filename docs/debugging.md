@@ -757,28 +757,25 @@ entry would point at.
 ### Apple: the other half, for assertions rather than exploration
 
 `control.sh` drives an app that is **already running**, in about a second and with no code, which is
-what makes it the loop to reach for while working something out. Two things it cannot do: hold a
-**gesture**, and read the iOS **navigation bar** (idb reports the top bar as one unlabelled group,
-and stops identically in Apple's own Settings app).
+what makes it the loop to reach for while working something out. What it cannot do is hold a
+**gesture**, and its idb half cannot read the iOS **navigation bar** (idb reports the top bar as one
+unlabelled group, and stops identically in Apple's own Settings app), which its agent half can.
 
-[`clients/apple/Scripts/test-ui.sh`](../clients/apple/Scripts/test-ui.sh) is the other half.
-XCUITest queries the same accessibility hierarchy **in-process**, so it gets the bar in full, and it
-can pinch. It relaunches the app and runs a compiled script, which is what makes it repeatable and
-what makes it useless for exploring; the two do not compete for the same job.
+[`clients/apple/Scripts/test-ui.sh`](../clients/apple/Scripts/test-ui.sh) is the other half. Its
+tests find, read and press through the same test agent `control.sh iphone agent` speaks, and use
+XCUITest for the launch, real keys and chords, and a touch or gesture whose landing place is the
+question, aimed at the frame the agent reported. It relaunches the app and runs a compiled script,
+which is what makes it repeatable and what makes it useless for exploring; the two do not compete
+for the same job.
 
 ```sh
 clients/apple/Scripts/test-ui.sh                           # the booted iPhone simulator
-clients/apple/Scripts/test-ui.sh --device                  # the connected iPhone/iPad
 clients/apple/Scripts/test-ui.sh --only CalendarPinchTests # one class, or one test
 ```
 
-Every test drives the in-memory showcase dataset, so none of it wants the harness, an account or a
-network, and that is what lets the device leg run the *same* suite rather than a subset: the harness
-is loopback-only and a device cannot reach it (§6). Verified on an iPhone 13 Pro (iOS 18.7) and on
-the iPhone 18 Pro simulator (iOS 27.0); a device wants Developer Mode, like every device build.
-**Settings → Developer → Enable UI Automation** was on for those runs and is the first switch to
-check if a device run installs and then cannot attach, but nothing here has established that it is
-required.
+Every test but `AccountPageTests` drives the in-memory showcase dataset, so none of it wants the
+harness, an account or a network. It runs on a simulator only: the agent's socket is on the Mac, and
+a physical device cannot reach it.
 
 ### Correction: WinUI touch **can** be synthesized (2026-07-13)
 

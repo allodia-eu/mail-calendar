@@ -10,50 +10,43 @@ import XCTest
 
 @MainActor
 final class NextcloudSignInTests: XCTestCase {
-    func testTheFoundCardLeadsWithNextcloudAndPutsThePasswordBehindIt() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "add-account"])
-        let field = app.textFields["you@example.com"]
-        XCTAssertTrue(field.waitForExistence(timeout: ShowcaseApp.timeout))
-        ShowcaseApp.tap(field)
-        field.typeText("eva@nextcloud.example")
-        ShowcaseApp.tap(app.buttons["Continue"])
+    private let signIn = Filter.button("Sign in with Nextcloud")
+    private let password = Filter.text("Password").role("AXTextField")
+    private let usePassword = Filter.button("Use a password instead")
 
-        let signIn = app.buttons["Sign in with Nextcloud"]
+    func testTheFoundCardLeadsWithNextcloudAndPutsThePasswordBehindIt() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "add-account"])
+        try detect("eva@nextcloud.example", in: app)
+
+        try app.wait(signIn, "a Nextcloud server's card did not offer its sign-in")
+        let explained = "This server runs Nextcloud."
         XCTAssertTrue(
-            signIn.waitForExistence(timeout: ShowcaseApp.timeout),
-            "a Nextcloud server's card did not offer its sign-in"
-        )
-        XCTAssertTrue(
-            app.staticTexts.matching(
-                NSPredicate(format: "label BEGINSWITH 'This server runs Nextcloud.'")
-            ).firstMatch.exists,
+            try app.query(.textLike(explained)).contains { $0.label.hasPrefix(explained) },
             "the line explaining the sign-in is missing"
         )
-        let password = app.secureTextFields["Password"]
-        XCTAssertFalse(password.exists, "the password was drawn beside a sign-in that leads")
-        XCTAssertFalse(app.buttons["Connect"].exists, "Connect was offered with no password field")
-
-        ShowcaseApp.tap(app.buttons["Use a password instead"])
-        XCTAssertTrue(
-            password.waitForExistence(timeout: ShowcaseApp.timeout),
-            "Use a password instead drew no password field"
+        XCTAssertFalse(
+            try app.exists(password), "the password was drawn beside a sign-in that leads"
         )
-        XCTAssertTrue(signIn.exists, "the sign-in went away once a password was chosen")
-        XCTAssertFalse(app.buttons["Use a password instead"].exists)
+        XCTAssertFalse(
+            try app.exists(.button("Connect")), "Connect was offered with no password field"
+        )
+
+        try app.press(usePassword)
+        try app.wait(password, "Use a password instead drew no password field")
+        XCTAssertTrue(try app.exists(signIn), "the sign-in went away once a password was chosen")
+        XCTAssertFalse(try app.exists(usePassword))
     }
 
     /// The same detection without Nextcloud stays the password card.
-    func testAnotherCalendarServersCardOffersNoNextcloudSignIn() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "add-account"])
-        let field = app.textFields["you@example.com"]
-        XCTAssertTrue(field.waitForExistence(timeout: ShowcaseApp.timeout))
-        ShowcaseApp.tap(field)
-        field.typeText("eva@cloud.example")
-        ShowcaseApp.tap(app.buttons["Continue"])
-        XCTAssertTrue(
-            app.secureTextFields["Password"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the calendar-and-contacts card drew no password field"
-        )
-        XCTAssertFalse(app.buttons["Sign in with Nextcloud"].exists)
+    func testAnotherCalendarServersCardOffersNoNextcloudSignIn() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "add-account"])
+        try detect("eva@cloud.example", in: app)
+        try app.wait(password, "the calendar-and-contacts card drew no password field")
+        XCTAssertFalse(try app.exists(signIn))
+    }
+
+    private func detect(_ address: String, in app: App) throws {
+        try app.fill(.text("you@example.com").role("AXTextField"), address)
+        try app.press(.button("Continue"))
     }
 }

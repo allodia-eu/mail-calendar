@@ -4,8 +4,7 @@
 // suggest linking, and a change on its page answers nothing a person would see.
 //
 // So this is the one class here that needs the local harness (`scripts/dev/harness.sh up`) and the
-// certificate `test-ui.sh` hands the runner. Without either it skips and says why, and on a
-// physical device it always skips: the harness is loopback-only.
+// certificate `test-ui.sh` hands the runner. Without either it skips and says why.
 //
 // `stalwart-linked` connects its three canned accounts afresh on every launch, so the switch-off
 // and the removal below are gone by the next run.
@@ -16,89 +15,82 @@ import XCTest
 
 @MainActor
 final class AccountPageTests: XCTestCase {
+    private let addAccount = Filter.id("settings-add-account")
+
     func testUsesLinksAndRemovalOnAnAccountsPage() throws {
         let app = try launchOnTheLinkedHarness()
-        openAccounts(app)
+        try openAccounts(app)
 
         // Alice's mailbox: her calendar account is suggested for both slots, and Link takes it.
-        openPage(app, kind: "IMAP")
-        let links = app.buttons.matching(NSPredicate(format: "label == 'Link'"))
-        XCTAssertTrue(links.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout))
-        XCTAssertEqual(links.count, 2, "a suggestion under each slot")
+        try openPage(app, kind: "IMAP")
+        let link = Filter.button("Link")
+        // The page is a lazy list: a row is built only once it is scrolled to.
+        try reveal(link, in: app)
+        XCTAssertEqual(try app.waitAll(link).count, 2, "a suggestion under each slot")
         XCTAssertTrue(
-            app.staticTexts["Suggested: alice@test.local (CalDAV/CardDAV)"].exists,
+            try app.exists(.text("Suggested: alice@test.local (CalDAV/CardDAV)")),
             "the suggestion is not alice's calendar account"
         )
-        reveal(links.firstMatch, in: app).tap()
+        try app.activate(try reveal(link, in: app))
         // A filled slot is no longer a picker: the use's row says where it comes from.
-        let linked = app.buttons.matching(NSPredicate(
-            format: "label BEGINSWITH 'Calendar' AND label CONTAINS %@",
-            "From alice@test.local (CalDAV/CardDAV)"))
+        let from = "From alice@test.local (CalDAV/CardDAV)"
         XCTAssertTrue(
-            linked.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout),
+            try wait(until: {
+                try app.query(.textLike(from).role("AXButton")).contains { $0.label.hasPrefix("Calendar") }
+            }),
             "Link did not pick alice's calendar account"
         )
         XCTAssertTrue(
-            wait(until: { links.count == 1 }), "the suggestion stayed after it was linked"
+            try wait(until: { try app.query(link).count == 1 }),
+            "the suggestion stayed after it was linked"
         )
-        back(app)
+        try back(app)
 
         // Alice's calendar account: switching Contacts off asks first.
-        openPage(app, kind: "CalDAV/CardDAV")
-        let contacts = app.switches["Contacts"]
-        XCTAssertTrue(contacts.waitForExistence(timeout: ShowcaseApp.timeout))
-        XCTAssertEqual(contacts.value as? String, "1")
-        let question = app.alerts["Switch off Contacts?"]
-        flip(contacts, in: app)
-        XCTAssertTrue(question.waitForExistence(timeout: ShowcaseApp.timeout), "nothing was asked")
-        question.buttons["Cancel"].tap()
-        XCTAssertTrue(question.waitForNonExistence(timeout: ShowcaseApp.timeout))
-        XCTAssertEqual(contacts.value as? String, "1", "Cancel switched Contacts off")
+        try openPage(app, kind: "CalDAV/CardDAV")
+        let contacts = Filter.text("Contacts").role("AXSwitch")
+        XCTAssertEqual(try reveal(contacts, in: app).active, true)
+        let question = Filter.text("Switch off Contacts?")
+        try switchOff(contacts, asking: question, in: app)
+        try app.press(.button("Cancel"))
+        try app.waitGone(question, timeout: ShowcaseApp.timeout)
+        XCTAssertEqual(try app.wait(contacts).active, true, "Cancel switched Contacts off")
 
-        flip(contacts, in: app)
-        XCTAssertTrue(question.waitForExistence(timeout: ShowcaseApp.timeout))
-        question.buttons["Switch off"].tap()
+        try switchOff(contacts, asking: question, in: app)
+        try app.press(.button("Switch off"))
         XCTAssertTrue(
-            wait(until: { contacts.value as? String == "0" }), "Switch off left Contacts on"
+            try wait(until: { try app.wait(contacts).active == false }), "Switch off left Contacts on"
         )
         // Calendar is now the account's last use, so it is held, and the page says why.
-        let calendar = app.switches["Calendar"]
-        XCTAssertEqual(calendar.value as? String, "1")
-        XCTAssertTrue(wait(until: { !calendar.isEnabled }), "the last use can be switched off")
+        let calendar = Filter.text("Calendar").role("AXSwitch")
+        XCTAssertEqual(try app.wait(calendar).active, true)
         XCTAssertTrue(
-            app.staticTexts["An account is used for at least one of these. Remove it instead."]
-                .exists,
+            try wait(until: { try !app.wait(calendar).enabled }), "the last use can be switched off"
+        )
+        XCTAssertTrue(
+            try app.exists(.text("An account is used for at least one of these. Remove it instead.")),
             "the held switch does not say why"
         )
 
         // Removing it asks, names the mailbox that loses its link, and returns to the list.
-        reveal(app.buttons["Remove account…"], in: app).tap()
-        let removal = app.alerts["Remove account?"]
-        XCTAssertTrue(removal.waitForExistence(timeout: ShowcaseApp.timeout), "nothing was asked")
-        let unlinks = NSPredicate(
-            format: "label CONTAINS %@", "It is also unlinked from alice@test.local (IMAP).")
+        try app.activate(try reveal(.button("Remove account…"), in: app))
+        try app.wait(.text("Remove account?"), "nothing was asked")
         XCTAssertTrue(
-            removal.staticTexts.matching(unlinks).firstMatch.exists,
+            try app.exists(.textLike("It is also unlinked from alice@test.local (IMAP).")),
             "the removal does not name the account that loses its link"
         )
-        removal.buttons["Remove"].tap()
+        try app.press(.button("Remove"))
+        try app.wait(addAccount, "the removal did not return to the list")
         XCTAssertTrue(
-            app.buttons["settings-add-account"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the removal did not return to the list"
-        )
-        XCTAssertTrue(
-            wait(until: { !self.row(app, kind: "CalDAV/CardDAV").exists }),
+            try wait(until: { try self.row(app, kind: "CalDAV/CardDAV") == nil }),
             "the removed account is still listed"
         )
-        XCTAssertTrue(row(app, kind: "IMAP").exists, "the mailbox went with it")
+        XCTAssertNotNil(try row(app, kind: "IMAP"), "the mailbox went with it")
     }
 
     // MARK: Getting there
 
-    private func launchOnTheLinkedHarness() throws -> XCUIApplication {
-        #if !targetEnvironment(simulator)
-        throw XCTSkip("the harness is loopback-only, so a device cannot reach it")
-        #else
+    private func launchOnTheLinkedHarness() throws -> App {
         guard let ca = ProcessInfo.processInfo.environment["MAILCAL_EXTRA_CA"] else {
             throw XCTSkip(
                 "no harness certificate: run this through clients/apple/Scripts/test-ui.sh")
@@ -106,110 +98,117 @@ final class AccountPageTests: XCTestCase {
         for port: UInt16 in [12993, 28080] where !Self.listening(on: port) {
             throw XCTSkip("the harness is not up on port \(port): scripts/dev/harness.sh up")
         }
-        let app = XCUIApplication()
-        app.launchArguments = ["-AppleLanguages", "(en)"]
-        app.launchEnvironment = ["MAILCAL_DEV_ACCOUNT": "stalwart-linked", "MAILCAL_EXTRA_CA": ca]
-        app.launch()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: ShowcaseApp.timeout))
+        let app = try ShowcaseApp.launch(
+            ["MAILCAL_DEV_ACCOUNT": "stalwart-linked", "MAILCAL_EXTRA_CA": ca], args: [])
+        // A simulator that has never opened this store starts on the welcome screen, which is not
+        // what this tests.
+        try app.settle()
+        if try app.exists(.button("Get started")) {
+            try app.press(.button("Get started"))
+        }
         return app
-        #endif
     }
 
     /// Settings → Accounts, from the mailbox, whichever Settings screen the app restores.
-    private func openAccounts(_ app: XCUIApplication) {
-        ShowcaseApp.showMailbox(app)
-        // The Settings stack's back button is in the tree under the same name, over Folders.
-        let settings = app.buttons
-            .matching(NSPredicate(format: "label == 'Settings' AND identifier != 'BackButton'"))
-            .firstMatch
-        // Settings opens on the screen it was last left on, which may be deeper than Accounts.
-        let add = app.buttons["settings-add-account"]
-        let back = app.buttons["BackButton"]
-        // The iPhone hub's row reads its summary after the name; the iPad sidebar's is a text.
-        let categories = app.descendants(matching: .any).matching(NSPredicate(
-            format: "(elementType == %d AND label BEGINSWITH 'Accounts') OR label == 'Accounts'",
-            XCUIElement.ElementType.button.rawValue))
+    private func openAccounts(_ app: App) throws {
+        try ShowcaseApp.showMailbox(app)
         if UIDevice.current.userInterfaceIdiom != .pad {
-            ShowcaseApp.tap(app.buttons["Folders"])
-            // ⚠️ The tab bar stays in the tree over the drawer's Settings row, so the row never
-            // reads as hittable and is tapped where it is drawn, once the drawer is in.
-            XCTAssertTrue(
-                wait(until: { settings.frame.minX >= 0 }), "the folder drawer did not open"
-            )
-            sleep(1)
-            settings.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        } else {
+            try app.press(.button("Folders"))
+        } else if try !app.appears(.button("Settings"), timeout: 3) {
             // In portrait the split view starts with its sidebar, and Settings in it, hidden.
-            if !settings.waitForExistence(timeout: 3) {
-                ShowcaseApp.tap(app.buttons.matching(NSPredicate(
-                    format: "identifier == 'ToggleSidebar' OR label == 'Show Sidebar'")).firstMatch)
-            }
-            ShowcaseApp.tap(settings)
+            let toggles = try app.query(.id("ToggleSidebar")) + app.query(.button("Show Sidebar"))
+            try app.activate(try XCTUnwrap(toggles.first, "no way to show the sidebar"))
         }
-        XCTAssertTrue(
-            app.buttons["Done"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "Settings did not open"
-        )
-        // The hub draws its rows lazily, so Accounts is in the tree only once scrolled to.
+        // The Settings stack's back button is in the tree under the same name.
+        let settings = try app.waitAll(.button("Settings"), "the folder list has no Settings")
+            .first { $0.id != "BackButton" }
+        try app.activate(try XCTUnwrap(settings, "the folder list has no Settings"))
+        try app.wait(.button("Done"), "Settings did not open")
+
+        // Settings opens on the screen it was last left on, which may be deeper than Accounts, and
+        // the hub draws its rows lazily, so Accounts is there only once scrolled to.
         let deadline = Date().addingTimeInterval(ShowcaseApp.timeout)
-        while !add.waitForExistence(timeout: 1), Date() < deadline {
-            if back.exists, back.label != "Settings" {
-                back.tap()
-            } else if let row = categories.allElementsBoundByIndex.first(where: \.isHittable) {
-                row.tap()
+        while try !app.appears(addAccount, timeout: 1), Date() < deadline {
+            if let back = try app.query(.id("BackButton")).first, back.label != "Settings" {
+                try app.tap(back)
+            } else if let row = try accountsCategory(app) {
+                try app.tap(row)
             } else {
-                app.swipeUp()
+                app.input.swipeUp()
             }
         }
-        XCTAssertTrue(add.exists, "Settings → Accounts did not open")
+        try app.wait(addAccount, timeout: 1, "Settings → Accounts did not open")
+    }
+
+    /// The Accounts category: the iPhone hub's row reads its summary after the name, the iPad
+    /// sidebar's is the name alone.
+    private func accountsCategory(_ app: App) throws -> Element? {
+        try app.query(.textLike("Accounts")).first {
+            $0.label == "Accounts" || ($0.role == "AXButton" && $0.label.hasPrefix("Accounts"))
+        }
     }
 
     /// Alice's account of `kind` on the Accounts list: her two share an address.
-    private func row(_ app: XCUIApplication, kind: String) -> XCUIElement {
-        app.buttons.matching(identifier: "settings-account-alice@test.local")
-            .matching(NSPredicate(format: "label CONTAINS %@", ", \(kind) ·")).firstMatch
+    private func row(_ app: App, kind: String) throws -> Element? {
+        try app.query(.id("settings-account-alice@test.local"))
+            .first { $0.label.contains(", \(kind) ·") }
     }
 
-    private func openPage(_ app: XCUIApplication, kind: String) {
-        ShowcaseApp.tap(row(app, kind: kind))
-    }
-
-    private func back(_ app: XCUIApplication) {
-        ShowcaseApp.tap(app.buttons["BackButton"])
+    private func openPage(_ app: App, kind: String) throws {
+        var found: Element?
         XCTAssertTrue(
-            app.buttons["settings-add-account"].waitForExistence(timeout: ShowcaseApp.timeout)
+            try wait(until: {
+                found = try self.row(app, kind: kind)
+                return found != nil
+            }),
+            "alice's \(kind) account is not listed"
         )
+        try app.activate(try XCTUnwrap(found))
+        // Until the push has finished, the page it came from is still drawn beside it.
+        try app.settle()
+    }
+
+    private func back(_ app: App) throws {
+        try ShowcaseApp.back(app)
+        try app.wait(addAccount)
     }
 
     // MARK: Helpers
 
-    /// Taps the switch itself: the row around it carries the label, and a tap on its middle lands
-    /// on the text.
-    private func flip(_ toggle: XCUIElement, in app: XCUIApplication) {
-        reveal(toggle.switches.firstMatch, in: app).tap()
+    /// Flips the switch off and waits for the question it asks first.
+    ///
+    /// Flipped again when nothing is asked: SwiftUI drops an alert asked for while the last one is
+    /// still leaving, and nothing on screen says when that has finished. The switch stays on until
+    /// the question is answered, so a second flip asks the same question rather than a different
+    /// one.
+    private func switchOff(_ toggle: Filter, asking question: Filter, in app: App) throws {
+        for _ in 0..<3 {
+            try app.toggle(try reveal(toggle, in: app), to: false)
+            if try app.appears(question, timeout: 3) { return }
+        }
+        try app.wait(question, timeout: 1, "nothing was asked")
     }
 
-    /// Scrolls the page until `element` can be tapped.
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication) -> XCUIElement {
-        XCTAssertTrue(
-            element.waitForExistence(timeout: ShowcaseApp.timeout), "never appeared: \(element)"
-        )
-        for _ in 0..<8 where !element.isHittable {
-            app.swipeUp()
+    /// The element `filter` matches, scrolling the page until it is drawn.
+    @discardableResult
+    private func reveal(_ filter: Filter, in app: App) throws -> Element {
+        for _ in 0..<8 {
+            if let element = try app.query(filter).first { return element }
+            app.input.swipeUp()
+            try app.settle()
         }
-        XCTAssertTrue(element.isHittable, "could not scroll to: \(element)")
-        return element
+        return try app.wait(filter, timeout: 1, "could not scroll to \(filter)")
     }
 
     private func wait(
-        until condition: () -> Bool, for seconds: TimeInterval = ShowcaseApp.timeout
-    ) -> Bool {
+        until condition: () throws -> Bool, for seconds: TimeInterval = ShowcaseApp.timeout
+    ) throws -> Bool {
         let deadline = Date().addingTimeInterval(seconds)
         while Date() < deadline {
-            if condition() { return true }
+            if try condition() { return true }
             RunLoop.current.run(until: Date().addingTimeInterval(0.25))
         }
-        return condition()
+        return try condition()
     }
 
     /// Whether something on this Mac accepts a connection on `port`: a simulator shares its

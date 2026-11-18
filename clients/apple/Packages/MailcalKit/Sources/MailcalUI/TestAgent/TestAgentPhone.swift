@@ -65,14 +65,25 @@ enum AgentPlatform {
         if !(object is UIWindow), object.isAccessibilityElement { return [] }
         if object.accessibilityElementsHidden { return [] }
         if let elements = object.accessibilityElements, !elements.isEmpty {
-            return elements.compactMap { $0 as? NSObject }
+            return modal(elements.compactMap { $0 as? NSObject })
         }
         let count = object.accessibilityElementCount()
         if count != NSNotFound, count > 0 {
-            return (0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject }
+            return modal((0..<count).compactMap { object.accessibilityElement(at: $0) as? NSObject })
         }
         guard let view = object as? UIView else { return [] }
-        return view.subviews.filter { !$0.isHidden && $0.alpha > 0.01 }
+        return modal(view.subviews.filter { !$0.isHidden && $0.alpha > 0.01 })
+    }
+
+    /// Siblings from the first modal one onwards: a modal view hides what is behind it from
+    /// VoiceOver, so the screen a sheet or a cover was presented over is out of reach until it
+    /// closes. What is drawn over it stays: a sheet's dimming view is the modal one, and the sheet
+    /// is its next sibling.
+    private static func modal(_ siblings: [NSObject]) -> [NSObject] {
+        guard let first = siblings.firstIndex(where: \.accessibilityViewIsModal) else {
+            return siblings
+        }
+        return Array(siblings[first...])
     }
 
     static func role(of object: NSObject) -> String {
@@ -92,13 +103,24 @@ enum AgentPlatform {
         return object.isAccessibilityElement ? "AXElement" : "AXGroup"
     }
 
+    /// Its label; for a text field with none, the placeholder, which is what VoiceOver reads there.
     static func texts(of object: NSObject) -> [String] {
-        [object.accessibilityLabel].compactMap { $0 }.filter { !$0.isEmpty }
+        if let label = object.accessibilityLabel, !label.isEmpty { return [label] }
+        if let field = object as? UITextField, let placeholder = field.placeholder,
+           !placeholder.isEmpty {
+            return [placeholder]
+        }
+        return []
     }
 
+    /// Asked by selector: SwiftUI's elements answer it without declaring
+    /// `UIAccessibilityIdentification`, so a cast to the protocol misses every one of them.
     static func identifier(of object: NSObject) -> String? {
-        let id = (object as? UIAccessibilityIdentification)?.accessibilityIdentifier
-        return id?.isEmpty == false ? id : nil
+        let selector = NSSelectorFromString("accessibilityIdentifier")
+        guard object.responds(to: selector),
+              let id = object.perform(selector)?.takeUnretainedValue() as? String, !id.isEmpty
+        else { return nil }
+        return id
     }
 
     /// iOS has no tooltip; the hint is the help VoiceOver reads after a pause.

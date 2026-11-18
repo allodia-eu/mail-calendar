@@ -6,24 +6,31 @@ import XCTest
 
 @MainActor
 final class AccountSetupKindPickerTests: XCTestCase {
-    func testTheLongestKindKeepsItsLabelOnOneLine() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "setup-manual"])
-        let menu = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Account type'")).firstMatch
-        XCTAssertTrue(menu.waitForExistence(timeout: ShowcaseApp.timeout), "no account type menu")
-        ShowcaseApp.tap(menu)
-        let dav = app.buttons["Calendar and contacts (CalDAV/CardDAV)"]
-        XCTAssertTrue(dav.waitForExistence(timeout: ShowcaseApp.timeout), "the menu did not open")
-        ShowcaseApp.tap(dav)
+    func testTheLongestKindKeepsItsLabelOnOneLine() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "setup-manual"])
+        // The menu's label reads its current kind after "Account type".
+        let menus = try app.waitAll(.textLike("Account type").role("AXButton"), "no account type menu")
+        let menu = try XCTUnwrap(
+            menus.first { $0.label.hasPrefix("Account type") }, "no account type menu"
+        )
+        // The form is a sheet, and a menu opened while the sheet is still coming up closes again.
+        try app.settle()
+        try app.activate(menu)
+        try app.press(
+            .button("Calendar and contacts (CalDAV/CardDAV)"), "the menu did not open"
+        )
 
-        let label = app.staticTexts["Account type"]
-        XCTAssertTrue(label.waitForExistence(timeout: ShowcaseApp.timeout), "the label went missing")
-        let note = app.staticTexts.matching(
-            NSPredicate(format: "label BEGINSWITH 'For a server that holds your calendar'")
-        ).firstMatch
-        XCTAssertTrue(note.exists, "the calendar-and-contacts form did not open")
+        let label = try app.wait(.text("Account type").role("AXStaticText"), "the label went missing")
+        let notes = try app.query(.textLike("For a server that holds your calendar"))
+        let note = try XCTUnwrap(
+            notes.first { $0.label.hasPrefix("For a server that holds your calendar") },
+            "the calendar-and-contacts form did not open"
+        )
+        let labelFrame = try XCTUnwrap(label.frame, "the label has no frame")
+        let noteFrame = try XCTUnwrap(note.frame, "the note has no frame")
         // One line of text, not a column of letters.
-        XCTAssertGreaterThan(label.frame.width, label.frame.height, "the label wrapped")
+        XCTAssertGreaterThan(labelFrame.width, labelFrame.height, "the label wrapped")
         // The menu follows the label and the form follows the menu, with no gap between them.
-        XCTAssertLessThan(note.frame.minY - label.frame.maxY, 120, "a gap opened above the form")
+        XCTAssertLessThan(noteFrame.minY - labelFrame.maxY, 120, "a gap opened above the form")
     }
 }
