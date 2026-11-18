@@ -292,10 +292,13 @@ window.setComposerScheme = (scheme) => setScheme(doc.documentElement, scheme);
 ///
 /// The `data:image/` check is the same one `safePreviewUrl` makes: a `data:text/html` here would be
 /// an executable document, and the alt text is set as a property so it cannot carry markup into the
-/// attribute.
+/// attribute. A media type is matched without regard to case, as the core's picture rule matches
+/// it, and stored lower case.
 window.insertSignatureImage = (image) => {
   const data = (image ? parsed<Record<string, unknown>>(image) : {}) ?? {};
-  const url = String(data.data_url ?? "");
+  const given = String(data.data_url ?? "");
+  const head = given.indexOf(",");
+  const url = head < 0 ? given : given.slice(0, head).toLowerCase() + given.slice(head);
   if (!url.startsWith("data:image/") || safePreviewUrl(url) === "") return;
   const node = doc.createElement("img");
   node.src = url;
