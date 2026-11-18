@@ -153,3 +153,42 @@ async fn a_pressed_day_seats_each_layout() {
         }
     );
 }
+
+#[tokio::test]
+async fn a_hidden_calendar_leaves_the_agenda_as_it_leaves_the_grid() {
+    use engine_core::{ids::CalendarId, membership::Memberships};
+
+    let on = |calendar: &str, key: &str| {
+        let mut event = crate::tests_fakes::event_from_today(key, 1, 9, 30);
+        event.calendars = Memberships::of_one(CalendarId::try_from(calendar).unwrap());
+        event
+    };
+    let provider = CalendarFake::on_dav(
+        &[("home", "h-1"), ("work", "w-1")],
+        vec![on("home", "evt-home"), on("work", "evt-work")],
+    );
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(vec![calendar_account("acct", provider)], &surfaces);
+    app.dispatch(Intent::RefreshCalendar).await;
+    let keys = |app: &crate::App<CalendarFake>| {
+        let mut keys: Vec<String> = app
+            .calendar_list()
+            .events
+            .into_iter()
+            .map(|row| row.key)
+            .collect();
+        keys.sort();
+        keys
+    };
+    assert_eq!(keys(&app), ["evt-home", "evt-work"]);
+
+    app.set_calendar_visible("acct", "work", false).await;
+    assert_eq!(
+        keys(&app),
+        ["evt-home"],
+        "the hidden calendar's event stayed in the agenda"
+    );
+
+    app.set_calendar_visible("acct", "work", true).await;
+    assert_eq!(keys(&app), ["evt-home", "evt-work"]);
+}
