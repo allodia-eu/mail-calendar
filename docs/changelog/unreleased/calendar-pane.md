@@ -1,6 +1,6 @@
 # The calendar has a pane of its own
 
-Platforms: macos, ios, linux
+Platforms: macos, ios, windows, linux
 Bump: minor
 
 > On a desktop, and on a tablet at full width, the pane beside the calendar shows a mini month and
