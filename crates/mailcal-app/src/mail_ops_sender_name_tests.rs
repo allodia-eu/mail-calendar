@@ -50,9 +50,11 @@ fn app_with_prefs(
     (Arc::new(app), outbox)
 }
 
-/// A fresh preferences file of its own, so one test's writes cannot reach another's.
+/// A fresh preferences file of its own, so one test's writes cannot reach another's, nor the
+/// same test's in another checkout running at once.
 fn scratch_prefs(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-sender-name-{name}"));
+    let dir =
+        std::env::temp_dir().join(format!("mailcal-sender-name-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let path = dir.join("preferences.toml");
     save_preferences(&path, &Preferences::default()).unwrap();
@@ -181,6 +183,8 @@ async fn removing_an_account_forgets_the_name_it_sent_under() {
 
     app.remove_account(&AccountId::try_from("acct-1").unwrap())
         .await;
+    // Both changes are saved behind the caller; the file says so only once they are written.
+    app.settle_preferences();
 
     assert_eq!(
         mailcal_account::load_preferences(&path).sender_name_of("acct-1"),

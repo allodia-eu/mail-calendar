@@ -163,6 +163,7 @@ async fn nothing_is_sent_and_no_id_is_minted_before_consent() {
         sink.batches.lock().unwrap().is_empty(),
         "an unasked user must produce no telemetry at all"
     );
+    app.settle_preferences();
     assert_eq!(
         load_preferences(&path).analytics_install_id,
         None,
@@ -185,6 +186,7 @@ async fn declining_is_remembered_and_sends_nothing() {
     app.report_app_opened();
     app.dispatch(Intent::RefreshCalendar).await;
     assert!(sink.batches.lock().unwrap().is_empty());
+    app.settle_preferences();
     assert_eq!(load_preferences(&path).analytics_install_id, None);
 }
 

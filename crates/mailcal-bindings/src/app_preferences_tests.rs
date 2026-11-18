@@ -29,6 +29,9 @@ fn app(name: &str) -> (Arc<MailcalApp>, PathBuf, mpsc::Receiver<Surface>) {
         ))),
     )
     .expect("the app boots");
+    // A first launch saves the display zone behind the caller; written before a test stages
+    // its own file beside it, or the two race.
+    app.app.settle_preferences();
     (app, dir, rx)
 }
 
