@@ -92,6 +92,13 @@ leg_calendar() {
   ui_press text=Agenda role=button
   ui_wait type=GtkMenuButton text=Agenda
 
+  # The agenda leaves a hidden calendar out too, and has it back once it is shown again.
+  ui_wait text=Workshop role=button timeoutMs=45000
+  ui_press text="$default_calendar" role=checkbox
+  ui_gone text=Workshop role=button
+  ui_press text="$default_calendar" role=checkbox
+  ui_wait text=Workshop role=button timeoutMs=45000
+
   # Mail takes the column back for the folder tree.
   ui_press text=Mail role=toggle-button
   ui_wait id=message-list
