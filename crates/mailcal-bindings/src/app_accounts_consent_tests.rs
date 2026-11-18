@@ -1,8 +1,3 @@
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use std::sync::{Arc, mpsc};
 
 use super::{OAuthAccount, PendingConsent, Provider, same_address};
@@ -110,6 +105,10 @@ fn completing_for_a_removed_account_is_refused_before_any_exchange() {
 /// Signing in again uses the token the sign-in minted. Refreshing it at once instead asks
 /// Microsoft for the grant before its consent has propagated, which answers the old, narrower
 /// grant, so a withheld calendar stayed withheld until the next launch.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn signing_in_again_uses_the_token_the_sign_in_minted_rather_than_refreshing() {
     let entry = microsoft_entry();

@@ -1,11 +1,6 @@
 //! Binding-level boot recovery tests. These lock the host-facing guarantee that every native
 //! client constructor using `new_accounts` runs the shared engine startup lease recovery.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use std::{
     fs,
     sync::Mutex,
@@ -84,6 +79,10 @@ impl Provider for BlockingMailboxProvider {
 impl engine_api::MailboxWrites for BlockingMailboxProvider {}
 impl CalendarWrites for BlockingMailboxProvider {}
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 #[test]
 fn new_accounts_abandons_interrupted_sync_leases_on_boot() {
     let data_dir = temp_data_dir("boot-recovery");

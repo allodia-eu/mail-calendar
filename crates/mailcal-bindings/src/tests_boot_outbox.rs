@@ -6,11 +6,6 @@
 //! minutes into the next run, which is what each assertion tells apart. A child of
 //! [`super`], reusing its boot fakes.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use std::sync::Arc;
 
 use engine_api::{Draft, EmailAddress, MessageIdHeader, PendingOpState};
@@ -50,6 +45,10 @@ impl Provider for StuckSubmitProvider {
 impl engine_api::MailboxWrites for StuckSubmitProvider {}
 impl CalendarWrites for StuckSubmitProvider {}
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// Sends from a process that then ends, boots the app over its store, and answers what the
 /// Outbox holds afterwards.
 fn state_after_boot(name: &str, after_hand_over: bool) -> PendingOpState {

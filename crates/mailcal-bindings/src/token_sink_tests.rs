@@ -1,8 +1,3 @@
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use std::sync::{Arc, Mutex};
 
 use engine_api::AccountId;
@@ -83,6 +78,10 @@ fn sink(registry: &SharedRegistry, store: Arc<dyn AccountCredentialStore>) -> Bi
 /// The path a rotated JMAP refresh token has to survive to outlive the process. It had no
 /// test at all, which is how a host that never registered its store went unnoticed until a
 /// ratcheting server revoked a real account's grant.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_rotated_jmap_token_reaches_the_host_store_as_the_new_config() {
     let (id, registry) = oauth_jmap_account();
@@ -110,6 +109,10 @@ async fn a_rotated_jmap_token_reaches_the_host_store_as_the_new_config() {
 /// pair used to come apart: the registry always advanced, the store only if the host had
 /// got round to registering one, which is precisely why the loss was invisible until the
 /// following launch.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn the_registry_and_the_store_advance_together() {
     let (id, registry) = oauth_jmap_account();
@@ -147,6 +150,10 @@ async fn the_registry_and_the_store_advance_together() {
 /// A rotation rewrites the whole stored document, so everything the account's config says
 /// about the account beyond its token (its pinned id, what it is used for, its links, the
 /// scopes it was granted) must come through the rewrite untouched.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_rotation_keeps_everything_the_config_says_about_the_account() {
     let shape = mailcal_account::AccountShape::read(concat!(
@@ -210,6 +217,10 @@ async fn a_rotation_keeps_everything_the_config_says_about_the_account() {
     );
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn every_provider_family_re_persists_through_the_one_host_store() {
     let microsoft = MicrosoftConfig {
@@ -288,6 +299,10 @@ async fn every_provider_family_re_persists_through_the_one_host_store() {
 
 /// A JMAP account authenticated with a pasted secret has no grant to rotate; the sink must
 /// leave it alone rather than writing a config with an `oauth` section it never had.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_stored_secret_jmap_account_is_left_untouched() {
     let config = JmapAccountConfig {

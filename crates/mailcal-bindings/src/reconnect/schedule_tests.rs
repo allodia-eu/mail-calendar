@@ -1,11 +1,6 @@
 //! The launch order, on a paused clock: a dial and a catch-up are timers, and the log says what
 //! happened in which order.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use std::{
     sync::{
         Arc, Mutex,
@@ -100,6 +95,10 @@ fn at(events: &[String], event: &str) -> usize {
         .unwrap_or_else(|| panic!("{event} never happened: {events:?}"))
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test(start_paused = true)]
 async fn the_calendar_runs_once_every_dial_has_landed_and_not_after_the_catch_ups() {
     // `fast` connects at once and has a long catch-up (a body prefetch); `slow` takes a while to
@@ -115,6 +114,10 @@ async fn the_calendar_runs_once_every_dial_has_landed_and_not_after_the_catch_up
     );
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test(start_paused = true)]
 async fn an_account_catches_up_as_soon_as_its_own_dial_lands() {
     // A server that takes long to answer holds back no other account's mail.
@@ -125,6 +128,10 @@ async fn an_account_catches_up_as_soon_as_its_own_dial_lands() {
     );
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test(start_paused = true)]
 async fn dials_and_catch_ups_each_go_three_at_a_time() {
     let accounts = (0..6).map(|_| account("any", 10, 100)).collect::<Vec<_>>();
@@ -133,6 +140,10 @@ async fn dials_and_catch_ups_each_go_three_at_a_time() {
     assert_eq!(catch_ups, crate::account_registry::MAX_CONCURRENT_DIALS);
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test(start_paused = true)]
 async fn a_long_catch_up_never_holds_back_a_later_accounts_dial_or_the_calendar() {
     // Five accounts, more than one pool holds: the first three connect at once and download for
@@ -154,6 +165,10 @@ async fn a_long_catch_up_never_holds_back_a_later_accounts_dial_or_the_calendar(
     );
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test(start_paused = true)]
 async fn an_account_that_does_not_connect_has_no_catch_up_and_still_counts_as_dialled() {
     let refused = Account {
@@ -166,6 +181,10 @@ async fn an_account_that_does_not_connect_has_no_catch_up_and_still_counts_as_di
     assert!(at(&events, "calendar") < at(&events, "caught up ok"));
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test(start_paused = true)]
 async fn with_nothing_to_dial_the_calendar_still_runs() {
     let (events, ..) = run(Vec::new()).await;

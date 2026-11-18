@@ -1,11 +1,6 @@
 //! The watch backoff, its log scope and logging rule, and the refresher that keeps a watch
 //! from waiting on its own refreshes.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use super::*;
 
 #[test]
@@ -18,6 +13,10 @@ fn a_watch_log_scope_does_not_expose_the_account_address() {
     assert!(!scope.contains('@'));
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn changes_during_a_refresh_cost_one_more_refresh_and_never_wait_for_it() {
     let runs = Arc::new(std::sync::atomic::AtomicUsize::new(0));

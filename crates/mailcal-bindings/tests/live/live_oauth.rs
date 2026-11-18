@@ -4,9 +4,6 @@
 //! Both tests run against the harness's sign-in server (`stalwart-oauth` in
 //! `docker/stalwart/docker-compose.yml`), where alice signs in with her harness password.
 
-// A test drives a runtime of its own from the test thread, never a host's.
-#![allow(clippy::disallowed_methods)]
-
 use std::sync::{Arc, Mutex, mpsc};
 
 use mailcal_bindings::{
@@ -95,6 +92,10 @@ pub fn param(url: &url::Url, name: &str) -> String {
     value.into_owned()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// Signs in on the login page as the user would, and returns the redirect the browser would then
 /// follow back to the app at `redirect_uri`.
 ///

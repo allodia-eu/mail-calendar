@@ -8,9 +8,6 @@
 //! withdraws its own. Remote wipe is the stand-in's (`src/nextcloud_wipe_tests.rs`): marking a
 //! password for wipe takes a web session and the server's own token id.
 
-// A test drives a runtime of its own from the test thread, never a host's.
-#![allow(clippy::disallowed_methods)]
-
 #[allow(
     dead_code,
     reason = "its OAuth login page helpers serve the OAuth suites"
@@ -124,6 +121,10 @@ fn stored_password(store: &RecordingStore, typed: &str) -> (String, String) {
     )
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// The status of a depth-0 `PROPFIND` of the DAV root with `credentials`.
 fn dav_status(base: &str, credentials: &(String, String)) -> u16 {
     runtime().block_on(async {
@@ -151,6 +152,10 @@ fn eventually_refused(base: &str, credentials: &(String, String), what: &str) {
     }
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// What a person does in the browser: open the login page, sign in, grant access.
 fn grant_in_the_browser(login_url: &str, user: &str, password: &str) {
     let login = url::Url::parse(login_url).unwrap();

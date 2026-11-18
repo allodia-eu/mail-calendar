@@ -1,11 +1,6 @@
 //! The granted scopes a refresh names: recorded over the stored set when they moved, and never
 //! written when they did not.
 
-#![expect(
-    clippy::disallowed_methods,
-    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
-)]
-
 use std::sync::{Arc, Mutex};
 
 use engine_api::AccountId;
@@ -101,6 +96,10 @@ fn stored_scopes(store: &Store) -> Vec<Option<Vec<String>>> {
 
 /// Consent withdrawn at the provider: the next refresh names less, and the stored set follows it
 /// down rather than going on claiming the calendar.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_narrower_grant_replaces_the_stored_one() {
     let (id, sink, store) = google_account(Some(&[
@@ -118,6 +117,10 @@ async fn a_narrower_grant_replaces_the_stored_one() {
 }
 
 /// An account stored before granted scopes were recorded learns them at its first refresh.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn an_account_stored_without_granted_scopes_records_the_first_it_is_told() {
     let (id, sink, store) = google_account(None);
@@ -133,6 +136,10 @@ async fn an_account_stored_without_granted_scopes_records_the_first_it_is_told()
 
 /// Almost every refresh names what is already stored, and a write per refresh is a keychain
 /// prompt on some hosts. The order a server lists them in is not a change.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn an_unchanged_grant_is_not_written_in_any_order() {
     let (id, sink, store) = google_account(Some(&["a", "b"]));
@@ -144,6 +151,10 @@ async fn an_unchanged_grant_is_not_written_in_any_order() {
 
 /// A refresh token rotated later in the session writes the newest granted set with it, because
 /// both live in the one registry entry.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_later_rotation_keeps_the_recorded_grant() {
     let (id, sink, store) = google_account(Some(&["a", "b"]));
@@ -170,6 +181,10 @@ fn count_reopens(sink: &BindingTokenSink) -> Arc<std::sync::atomic::AtomicUsize>
 /// A grant widened outside this app's own sign-in (an administrator's consent, or a consent that
 /// propagated after the sign-in) opens a use the old one withheld; the account's calendar and
 /// contacts are dialled again at once rather than at the next launch.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_refresh_that_opens_a_withheld_use_has_it_dialled_again() {
     let (id, sink, _store) = google_account(Some(&["https://mail.google.com/"]));
@@ -190,6 +205,10 @@ async fn a_refresh_that_opens_a_withheld_use_has_it_dialled_again() {
 }
 
 /// A narrower grant, or a wider one that opens nothing the account is used for, dials nothing.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_refresh_that_opens_nothing_dials_nothing() {
     let both = [
