@@ -40,6 +40,9 @@ use super::{
 };
 use crate::l10n;
 
+/// The reading spinner's side, in pixels, centred in the body area whatever its size.
+const LOADING_SPINNER_SIZE: i32 = 32;
+
 /// What the invitation card needs from the rest of the app to localise a meeting's times, and what
 /// its respond row reports.
 ///
@@ -156,8 +159,12 @@ impl ReadingPane {
         reading_canvas::install_styles();
         let body_stack = gtk::Stack::new();
         body_stack.set_vexpand(true);
+        // A spinner is drawn as large as it is allocated, and a stack page fills the body area.
         let spinner = gtk::Spinner::new();
         spinner.set_spinning(true);
+        spinner.set_size_request(LOADING_SPINNER_SIZE, LOADING_SPINNER_SIZE);
+        spinner.set_halign(gtk::Align::Center);
+        spinner.set_valign(gtk::Align::Center);
         body_stack.add_named(&spinner, Some("loading"));
         // An open the core has not yet called slow: no spinner, no words. A stored body arrives
         // in milliseconds, and drawing one on every open flickers instead of reassuring. The page
