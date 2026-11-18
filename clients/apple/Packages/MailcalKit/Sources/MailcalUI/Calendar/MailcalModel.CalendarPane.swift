@@ -29,7 +29,13 @@ extension MailboxModel {
         preference(.setCalendarGroupExpanded(account: account, expanded: expanded))
     }
 
-    /// Every calendar under its account, in the core's order: what the phone's manager and a
-    /// calendar picker group by.
+    /// Every calendar under its account, in the core's order: what the phone's manager groups by.
     func calendarGroups() -> [CalendarGroup] { app?.calendarGroups() ?? [] }
+
+    /// The calendars a new event can be put on, under their accounts: Settings' default calendar
+    /// and the editor's calendar picker. Read from a body, so it is re-pulled on a calendar signal.
+    func newEventCalendars() -> NewEventCalendars {
+        _ = calendarVersion
+        return app?.newEventCalendars() ?? NewEventCalendars(groups: [], named: false)
+    }
 }
