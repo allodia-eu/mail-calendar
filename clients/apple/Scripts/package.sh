@@ -758,6 +758,9 @@ if [[ "$FLOW" == ios-app-store ]]; then
   # code at all, which `codesign --verify --deep --strict` passed straight over. The mirror of
   # Flow B's assert_relay_present: on iOS the relay must be ABSENT, since only macOS hosts a server.
   "$HERE/Scripts/check-nested-bundles.sh" "$APP" --forbid "$MAILCAL_MCP_RELAY_NAME"
+  # What App Store Connect checks next, on upload (ITMS-91053): every executable bundle declares
+  # the required-reason APIs its binary imports.
+  "$HERE/Scripts/check-privacy-manifests.sh" "$APP"
   assert_symbols_kept "$APP"
 
   APP_AUTH="$(first_authority "$APP")"
@@ -1043,6 +1046,9 @@ $(echo "$DIST_CANDIDATES" | sed 's/^/         /')
   # (ITMS-90207 / ITMS-90036, see check-nested-bundles.sh). No --forbid here: on macOS the relay
   # belongs in the payload, and assert_relay_present already insists on it.
   "$HERE/Scripts/check-nested-bundles.sh" "$APP"
+  # What App Store Connect checks next, on upload (ITMS-91053): every executable bundle declares
+  # the required-reason APIs its binary imports.
+  "$HERE/Scripts/check-privacy-manifests.sh" "$APP"
   assert_symbols_kept "$APP"
 
   codesign --verify --deep --strict --verbose=2 "$APP" || fail "codesign --verify failed on the signed app."

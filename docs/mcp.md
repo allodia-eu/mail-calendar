@@ -437,6 +437,10 @@ MCP boundary too. Every message-carrying result echoes both back.
 | `create_draft` | `account` · **`to`**[] · `cc`[] · `bcc`[] · **`subject`** · **`body_text`** · `reply_to` | — |
 | `send_message` | as `create_draft`, minus `reply_to` | `destructive`, `openWorld`; **gated** |
 
+A message summary and `get_message` both carry the `importance` its sender stated (`high`,
+`normal` or `low`). Nothing an assistant writes sets one: a draft and a send go out normal
+([`importance.md`](importance.md), rule 9).
+
 ### Cut, and why
 
 - **`add_account`**: cut permanently. An autodetect result that is not trusted **must** be shown

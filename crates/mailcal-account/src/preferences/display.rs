@@ -145,6 +145,22 @@ pub fn clamp_visible_hours(hours: u8) -> u8 {
     hours.clamp(MIN_VISIBLE_HOURS, MAX_VISIBLE_HOURS)
 }
 
+/// The horizons Settings offers, in hours. A pinch can leave the grid between two of them.
+const VISIBLE_HOURS_STOPS: [u8; 5] = [6, 8, 12, 16, 24];
+
+/// What Settings offers for the calendar's horizon, narrowest first: the stops, and `current` among
+/// them where a pinch left it between two, so the choice on screen is always the one the grid
+/// shows.
+#[must_use]
+pub fn visible_hours_choices(current: u8) -> Vec<u8> {
+    let current = clamp_visible_hours(current);
+    let mut choices = VISIBLE_HOURS_STOPS.to_vec();
+    if let Err(at) = choices.binary_search(&current) {
+        choices.insert(at, current);
+    }
+    choices
+}
+
 /// The serde default for [`Preferences::calendar_visible_hours`]: the field is a `u8`, whose own
 /// `Default` is **zero**, and a zero-hour day would divide the grid by nothing.
 pub(super) fn default_visible_hours() -> u8 {

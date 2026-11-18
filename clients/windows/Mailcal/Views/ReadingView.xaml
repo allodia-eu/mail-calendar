@@ -181,6 +181,15 @@
                            AutomationProperties.AutomationId="ReadingExportError"
                            Style="{StaticResource CaptionTextBlockStyle}"
                            Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                <!-- The sender's importance, when it is not normal (docs/importance.md): the
+                     platform's own banner, with nothing to dismiss and nothing to press. -->
+                <InfoBar x:Name="ImportanceBanner" IsOpen="False" IsClosable="False"
+                         Severity="Informational"
+                         AutomationProperties.AutomationId="ReadingImportance">
+                    <InfoBar.IconSource>
+                        <FontIconSource Glyph="&#xE8C9;" />
+                    </InfoBar.IconSource>
+                </InfoBar>
             </StackPanel>
 
             <!-- The meeting-invitation card, above everything the sender wrote. Its content is

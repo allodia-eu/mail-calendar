@@ -105,6 +105,8 @@ pub struct MessageDetail {
     pub unread: bool,
     /// Whether the message is flagged.
     pub flagged: bool,
+    /// The importance its sender stated (`docs/importance.md`).
+    pub importance: engine_api::Importance,
     /// The body as plain text: the message's own `text/plain` part when it has one, else the
     /// text extracted from its sanitised HTML. Empty when the message has no body at all.
     pub body_text: String,
@@ -163,6 +165,7 @@ impl<P: Provider> App<P> {
                 .map_or_else(String::new, format_instant),
             unread: !original.has_system_keyword(SystemKeyword::Seen),
             flagged: original.has_system_keyword(SystemKeyword::Flagged),
+            importance: original.envelope.importance,
             body_text,
             attachment_names: snapshot
                 .attachments

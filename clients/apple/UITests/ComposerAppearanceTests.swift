@@ -13,31 +13,32 @@ import XCTest
 
 @MainActor
 final class ComposerAppearanceTests: XCTestCase {
-    func testTheHeaderIsDarkInADarkApp() {
-        let brightness = headerBrightness(appearance: "dark")
+    func testTheHeaderIsDarkInADarkApp() throws {
+        let brightness = try headerBrightness(appearance: "dark")
         XCTAssertLessThan(brightness, 0.3, "the header is drawn on a light background in a dark app")
     }
 
-    func testTheHeaderIsLightInALightApp() {
-        let brightness = headerBrightness(appearance: "light")
+    func testTheHeaderIsLightInALightApp() throws {
+        let brightness = try headerBrightness(appearance: "light")
         XCTAssertGreaterThan(brightness, 0.7, "the header is drawn on a dark background in a light app")
     }
 
     /// How bright the background is behind the Subject field, from 0 (black) to 1 (white): read
     /// at the field's trailing end, where a placeholder never reaches.
-    private func headerBrightness(appearance: String) -> CGFloat {
-        let app = ShowcaseApp.launch(["MAILCAL_APPEARANCE": appearance])
-        ShowcaseApp.showMailbox(app)
-        ShowcaseApp.tap(app.buttons["New Mail"])
-        let subject = app.textFields["Subject"]
-        XCTAssertTrue(subject.waitForExistence(timeout: ShowcaseApp.timeout), "no Subject field")
-        // The page applies its touch layout once it has loaded; give it that long.
+    private func headerBrightness(appearance: String) throws -> CGFloat {
+        let app = try ShowcaseApp.launch(["MAILCAL_APPEARANCE": appearance])
+        try ShowcaseApp.showMailbox(app)
+        try app.press(.button("New Mail"))
+        let subject = try app.wait(.text("Subject").role("AXTextField"), "no Subject field")
+        // The page is web content, which only XCUITest sees. It applies its touch layout once it
+        // has loaded, and nothing on screen says when that was; give it that long.
         XCTAssertTrue(
-            app.webViews.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout),
+            app.input.webViews.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout),
             "the composer drew no editor"
         )
         Thread.sleep(forTimeInterval: 2)
-        let point = CGPoint(x: subject.frame.maxX - 12, y: subject.frame.midY)
+        let frame = try XCTUnwrap(try app.read(subject).frame, "the Subject field has no frame")
+        let point = CGPoint(x: frame.maxX - 12, y: frame.midY)
         return Self.brightness(at: point, of: XCUIScreen.main.screenshot().image)
     }
 

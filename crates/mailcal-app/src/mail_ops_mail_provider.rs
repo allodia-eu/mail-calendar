@@ -333,7 +333,7 @@ pub(super) fn app_and_logs(provider: ThreadProvider) -> (Arc<App<ThreadProvider>
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), logs)
 }

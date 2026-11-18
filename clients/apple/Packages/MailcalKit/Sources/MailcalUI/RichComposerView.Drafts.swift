@@ -144,7 +144,10 @@ extension RichComposeView {
 
     /// What the header fields hold now, in the shape they opened in.
     var currentHeaders: DraftHeaders {
-        DraftHeaders(to: to, cc: cc, bcc: bcc, subject: subject, filesChanged: files.changed)
+        DraftHeaders(
+            to: to, cc: cc, bcc: bcc, subject: subject, filesChanged: files.changed,
+            importance: importance?.selected, importanceChanged: importance?.changed ?? false
+        )
     }
 
     /// Whether anything was written in this composer: a header that differs from what it opened

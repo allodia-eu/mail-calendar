@@ -1,0 +1,17 @@
+<!-- Material Symbols "priority_high". A message sent with high importance: the list row's mark and
+     the reading view's banner, matching macOS/iOS (SF Symbol "exclamationmark").
+     Vendored from google/material-design-icons; the Compose `Icon` supplies the real colour, so
+     the fillColor here is only a placeholder. The upstream SVG draws in a `0 -960 960 960`
+     viewBox, so the group translates it down by its own height and the path data is upstream's,
+     verbatim. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="960"
+    android:viewportHeight="960">
+  <group android:translateY="960">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M480-120q-33 0-56.5-23.5T400-200q0-33 23.5-56.5T480-280q33 0 56.5 23.5T560-200q0 33-23.5 56.5T480-120Zm-80-240v-480h160v480H400Z"/>
+  </group>
+</vector>

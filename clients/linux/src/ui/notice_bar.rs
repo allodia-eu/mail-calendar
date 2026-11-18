@@ -51,7 +51,15 @@ pub(super) struct NoticeBar {
     shown: Rc<RefCell<Option<Notice>>>,
     drawn: Option<Drawn>,
     announced: Announcements,
+    /// Whether a new notice is announced: not by a second bar over the window's, which has.
+    announces: bool,
     sender: relm4::Sender<AppInput>,
+}
+
+impl std::fmt::Debug for NoticeBar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NoticeBar").finish_non_exhaustive()
+    }
 }
 
 impl NoticeBar {
@@ -117,7 +125,16 @@ impl NoticeBar {
             shown,
             drawn: None,
             announced: Announcements::default(),
+            announces: true,
             sender: sender.clone(),
+        }
+    }
+
+    /// A bar drawing a notice the window's own bar has already announced.
+    pub(super) fn quiet(sender: &relm4::Sender<AppInput>) -> Self {
+        Self {
+            announces: false,
+            ..Self::new(sender)
         }
     }
 
@@ -133,10 +150,11 @@ impl NoticeBar {
         if self.drawn.as_ref() == Some(&drawn) {
             return;
         }
-        if self
-            .drawn
-            .as_ref()
-            .is_none_or(|before| before.notices != drawn.notices)
+        if self.announces
+            && self
+                .drawn
+                .as_ref()
+                .is_none_or(|before| before.notices != drawn.notices)
         {
             self.announce(notices);
         }

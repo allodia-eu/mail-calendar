@@ -230,7 +230,9 @@ describe("one step", () => {
     const image = e.editor.querySelector("#i")!;
     const doc = e.editor.ownerDocument;
     doc.dispatchEvent(new e.view.Event("pointerdown") as never);
-    for (let width = 101; width <= 400; width += 1) {
+    // Each step is its own observer delivery. Windows rounds a timer up to its clock tick (about
+    // 15 ms), so a few hundred of them outrun the test's time limit on a loaded machine.
+    for (let width = 101; width <= 140; width += 1) {
       image.setAttribute("width", String(width));
       await settled();
     }
@@ -238,7 +240,7 @@ describe("one step", () => {
     e.history.undo();
     expect(image.getAttribute("width")).toBe("100");
     e.history.redo();
-    expect(image.getAttribute("width")).toBe("400");
+    expect(image.getAttribute("width")).toBe("140");
   });
 
   test("is not the editor's placeholder or accessible name changing", async () => {

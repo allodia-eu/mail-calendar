@@ -149,9 +149,10 @@ versa.
   2004 (`10.0.19041`). **Visual Studio 2026** (or its Build Tools) provides both.
 - **`uniffi-bindgen-cs`** needs **no install**, it's vendored as the `mailcal-bindgen-cs`
   binshim crate and the scripts run it via `cargo run -p mailcal-bindgen-cs`, so the generator's
-  version is pinned in `Cargo.lock` (the tag tracks the core's UniFFI 0.31, a generator built
-  against a different UniFFI can't read the cdylib's metadata). It's excluded from the workspace
-  `default-members`, so a bare `cargo build` and non-Windows hosts never compile it.
+  version is pinned in `Cargo.lock` (the tag names the UniFFI release it builds against, which
+  the workspace pins exactly, and a generator built against a different UniFFI can't read the
+  cdylib's metadata). It's excluded from the workspace `default-members`, so a bare `cargo build`
+  and non-Windows hosts never compile it.
 - **`winapp`** 0.7 or later, only for driving the app by hand: `winget install Microsoft.WinAppCLI`.
   The presses [`winapp.ps1`](winapp.ps1) makes go through it; the UI suites send their own input.
 
@@ -168,14 +169,21 @@ The dev loop above is **unpackaged**, loose files, no MSIX, no signing, which is
 ./package.ps1                    # dual-arch (x64 + arm64) Store .msixupload, Release
 ./package.ps1 -Channel Direct    # the same build as a .msixbundle we host ourselves
 ./package.ps1 -Version 1.2.0.0   # stamp the package version
+./build-native.ps1 -Arch arm64   # the Rust half alone, one arch, for a runner of its own
+./package.ps1 -PrebuiltNative    # package what build-native.ps1 left in target/, compiling nothing
 ```
+
+A release builds each arch's Rust half on its own runner, natively, and packages both in a third job:
+`build-native.ps1` leaves `mailcal_bindings.dll` and `mailcal-mcp.exe` under
+`target/<triple>/release/`, which are the only native files the package reads, and `-PrebuiltNative`
+packages them as found after checking that they link the CRT statically.
 
 Windows is shipped **twice**, and the second channel is the subject of
 [`docs/windows-channels.md`](../../docs/windows-channels.md): same build of the app, a different
 package, because a package outside the Store must carry the subject of the certificate that signed
 it. Read that before touching either path. The rest of this section is the Store's.
 
-`package.ps1` builds both Rust cdylibs, regenerates the bindings, then drives **MSBuild**'s MSIX
+`package.ps1` builds both Rust cdylibs (or takes them prebuilt), regenerates the bindings, then drives **MSBuild**'s MSIX
 packaging targets to emit an **unsigned `.msixupload`**. You **upload that to Partner Center
 (the Allodia account); Microsoft signs it on ingestion**, so no code-signing certificate is
 needed and there's no SmartScreen prompt for users. Submitting to the Store *also* makes the app
@@ -315,7 +323,9 @@ remove the old package first (MSIX blocks reinstalling the same `1.0.0.0` with c
   or `-Channel Direct` → an unsigned `.msixbundle` plus the staged Windows App Runtime, for the
   download we host ([`docs/windows-channels.md`](../../docs/windows-channels.md));
   `-Sign` instead builds a self-signed, installable sideload set for on-device testing.
-- `rust-crt.ps1`, dot-sourced by both scripts: links the cdylib's C runtime statically and asserts
+- `build-native.ps1`, the cdylib and the MCP relay per arch in release, which `package.ps1` runs
+  unless `-PrebuiltNative` says they are already built.
+- `rust-crt.ps1`, dot-sourced by these scripts: links the cdylib's C runtime statically and asserts
   the shipped DLL imports none. See "The Rust cdylib links the C runtime statically" above.
 - `windows-app-runtime.ps1`, dot-sourced by `package.ps1` and `install-windows-app-runtime.ps1`:
   which Windows App Runtime the restore resolved, and what registered on this machine serves it.

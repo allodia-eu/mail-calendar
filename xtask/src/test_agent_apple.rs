@@ -9,6 +9,9 @@
 //! * every line of the app that names the agent (`TestAgent.`, the shim's `mailcal_agent_`) is
 //!   inside `#if DEBUG` too;
 //! * `MAILCAL_TEST_AGENT`, the switch that starts it, is read in the agent alone.
+//!
+//! The UI test bundle (`clients/apple/UITests/`) is not checked: it is a separate target that
+//! launches the app with the switch set, and no build of the app contains it.
 
 use std::path::Path;
 
@@ -17,6 +20,7 @@ use crate::{git, report::Report, test_agent::debug_regions};
 const AGENT_DIR: &str = "clients/apple/Packages/MailcalKit/Sources/MailcalUI/TestAgent/";
 const SHIM_DIR: &str = "clients/apple/Packages/MailcalKit/Sources/MailcalAgentShim/";
 const ENTRY: &str = "clients/apple/Packages/MailcalKit/Sources/MailcalUI/TestAgent/TestAgent.swift";
+const UI_TESTS: &str = "clients/apple/UITests/";
 const SWITCH: &str = "MAILCAL_TEST_AGENT";
 const NAMES: [&str; 2] = ["TestAgent.", "mailcal_agent_"];
 
@@ -30,6 +34,7 @@ pub(crate) fn check(root: &Path, report: &mut Report) -> Result<usize, String> {
     let files: Vec<String> = git::listed(root, &["clients/apple"])?
         .into_iter()
         .filter(|name| matches!(crate::prose::extension(name), "swift" | "c" | "h"))
+        .filter(|name| !name.starts_with(UI_TESTS))
         .collect();
     if !files.iter().any(|name| name == ENTRY) {
         return Err(format!("no {ENTRY}: did the Apple test agent move?"));

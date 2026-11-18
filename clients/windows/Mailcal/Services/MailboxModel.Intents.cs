@@ -15,6 +15,17 @@ public sealed partial class MailboxModel
     /// <summary>Sync the account's mail and refresh the snapshot.</summary>
     public void Refresh() => _app?.Dispatch(new Intent.RefreshMail());
 
+    /// <summary>Changes one preference. The core holds the new value before this returns and saves
+    /// it behind; what is drawn from it is redrawn on the Settings signal that follows, and a save
+    /// that fails is the core's notice, never a value kept here.</summary>
+    private void DispatchPreference(PreferenceIntent intent) =>
+        _app?.Dispatch(new Intent.Preferences(intent));
+
+    /// <summary>Writes the preferences still waiting to be saved, for at most a second, on this
+    /// thread: the app is closing, and what follows may be the process ending. Nothing without a
+    /// core.</summary>
+    public void FinishSavingSettings() => _app?.FinishSavingSettings();
+
     /// <summary>Switch the list between flat and threaded.</summary>
     public void SetMode(ViewModeKind mode) =>
         _app?.Dispatch(new Intent.SetViewMode(mode == ViewModeKind.Threaded ? ViewMode.Threaded : ViewMode.Flat));

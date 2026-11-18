@@ -9,44 +9,37 @@ import XCTest
 
 @MainActor
 final class QuestionNoticeTests: XCTestCase {
-    func testEachQuestionIsANoticeAnsweredByItsOwnButtons() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_QUESTIONS": "1"])
-        ShowcaseApp.showMailbox(app)
-        let notice = app.buttons["notice"]
-        XCTAssertTrue(
-            notice.waitForExistence(timeout: ShowcaseApp.timeout), "the mailbox shows no notice"
-        )
+    func testEachQuestionIsANoticeAnsweredByItsOwnButtons() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_QUESTIONS": "1"])
+        try ShowcaseApp.showMailbox(app)
+        let notice = try app.wait(.id("notice"), "the mailbox shows no notice")
         XCTAssertTrue(
             notice.label.contains("Quarterly figures"),
             "the mailbox's first notice is not the missing Sent copy: \(notice.label)"
         )
 
-        ShowcaseApp.tap(notice)
+        try app.activate(notice)
+        try app.wait(.button("Save to Sent"), "the copy's notice offers no Save to Sent")
         XCTAssertTrue(
-            app.buttons["Save to Sent"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the copy's notice offers no Save to Sent"
+            try app.exists(.button("Send the email")), "the reply's notice offers no Send the email"
         )
-        XCTAssertTrue(app.buttons["Send the email"].exists, "the reply's notice offers no Send the email")
 
         // The sheet opens at half height, so the third notice is drawn once the first two are
         // answered and it moves up.
-        ShowcaseApp.tap(app.buttons["Not now"])
-        XCTAssertTrue(
-            app.buttons["Save to Sent"].waitForNonExistence(timeout: ShowcaseApp.timeout),
+        try app.press(.button("Not now"))
+        try app.waitGone(
+            .button("Save to Sent"), timeout: ShowcaseApp.timeout,
             "Not now left the copy's notice standing"
         )
-        ShowcaseApp.tap(app.buttons["Don’t send"])
-        XCTAssertTrue(
-            app.buttons["Send the email"].waitForNonExistence(timeout: ShowcaseApp.timeout),
+        try app.press(.button("Don’t send"))
+        try app.waitGone(
+            .button("Send the email"), timeout: ShowcaseApp.timeout,
             "Don't send left the reply's notice standing"
         )
-        XCTAssertTrue(
-            app.buttons["Update"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the time zone's notice offers no Update"
-        )
-        ShowcaseApp.tap(app.buttons["Keep current"])
-        XCTAssertTrue(
-            app.buttons["Update"].waitForNonExistence(timeout: ShowcaseApp.timeout),
+        try app.wait(.button("Update"), "the time zone's notice offers no Update")
+        try app.press(.button("Keep current"))
+        try app.waitGone(
+            .button("Update"), timeout: ShowcaseApp.timeout,
             "Keep current left the time zone's notice standing"
         )
     }

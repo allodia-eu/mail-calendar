@@ -85,7 +85,12 @@ Five consequences are worth knowing before they surprise someone:
   its place. Opening one over another would close the first, and a share nobody has written in
   closes without a draft, taking its files with it.
 - **Opening the app is best effort.** A share whose doorbell went unanswered is still in the box,
-  and is picked up the next time the user brings the app forward, rather than lost.
+  and is picked up the next time the user brings the app forward, rather than lost. Neither
+  platform rings it through `NSExtensionContext.open`, which asks the sharing app to open the URL:
+  Finder does not, and iOS honours it for a Today widget alone. macOS asks LaunchServices; iOS asks
+  the extension's own `UIApplication`, which Apple does not document for an extension. So when iOS
+  refuses, the extension says where the share is waiting (`share_ready_title`,
+  `share_ready_body`) rather than closing as if it had gone somewhere.
 - **Where the box is depends on what the build was signed with.** iOS and the Mac App Store build
   use an **App Group**, the only place a sandboxed app and a sandboxed extension can both write.
   Every other macOS build uses a **directory under the user's home**, reached by a sandbox

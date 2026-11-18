@@ -121,7 +121,7 @@ pub use preferences::{
     MessageSizeLimit, POLL_INTERVALS, Preferences, QuoteStyle, ReplyFallback, SYNC_DEPTHS,
     SwipeAction, SyncDepth, SyncStrategy, TimeFormat, WeekStart, cap_push_folders,
     clamp_visible_hours, effective, load_preferences, preferences_path, sanitize_sender_name,
-    save_preferences, snap_poll_interval,
+    save_preferences, snap_poll_interval, visible_hours_choices,
 };
 use provider_caldav::{CalDavConfig, CalDavProvider};
 pub use recurrence_shape::{

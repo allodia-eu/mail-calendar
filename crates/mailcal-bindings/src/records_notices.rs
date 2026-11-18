@@ -130,6 +130,9 @@ pub enum NoticeKind {
         /// The device's new zone, an IANA id.
         zone: String,
     },
+    /// A change to the settings could not be saved: it holds until the app closes. Try again
+    /// writes it.
+    SettingsNotSaved,
     /// The server refused a change to the account's folders.
     FolderChangeRefused {
         /// The folder's name as the person last saw it, or the name asked for on a create.

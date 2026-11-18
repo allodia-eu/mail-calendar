@@ -38,6 +38,13 @@ internal object NoticeRules {
         notices.firstOrNull { belongs(it, screen) }
 
     /**
+     * The notice at the top of Settings (rule 2): the first that stands everywhere, leaving out one
+     * about the account whose page is open ([page]), because the page lists it.
+     */
+    fun inSettings(notices: List<Notice>, page: String?): Notice? =
+        notices.firstOrNull { it.screens == NoticeScreens.EVERYWHERE && (page == null || it.account != page) }
+
+    /**
      * How many notices besides the card's are in force, which its Issues entry counts. None while
      * the screen has no card: an account's notices are on its row then.
      */

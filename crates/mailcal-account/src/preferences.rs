@@ -29,6 +29,7 @@ pub use behavior::{MessageGrouping, QuoteStyle, SwipeAction};
 pub use display::{
     Appearance, CalendarLayout, CalendarPrefs, DEFAULT_VISIBLE_HOURS, DefaultCalendar,
     MAX_VISIBLE_HOURS, MIN_VISIBLE_HOURS, TimeFormat, WeekStart, clamp_visible_hours,
+    visible_hours_choices,
 };
 pub use file::{load_preferences, preferences_path, save_preferences};
 pub use reply_fallback::ReplyFallback;

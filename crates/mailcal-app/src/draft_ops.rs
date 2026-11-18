@@ -29,6 +29,7 @@ use crate::{
 
 mod digest;
 mod from_outbox;
+pub(crate) mod importance;
 pub(crate) mod moved;
 mod open;
 mod reopen;
@@ -143,7 +144,7 @@ impl<P: Provider> App<P> {
         ) else {
             return self.fail_draft(composition, "the draft could not be rendered");
         };
-        let draft = self.with_threading(Some(composition), draft);
+        let draft = self.with_composition(Some(composition), draft);
 
         // Nothing changed since the last save, so there is nothing to write. Still "saved":
         // what the user asked to keep is on the server (`docs/drafts.md`).

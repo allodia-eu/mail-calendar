@@ -426,6 +426,54 @@ submitting the build for review, product steps in App Store Connect. Apple's app
 macOS/iOS/iPadOS, so the drafted copy, the **4+** age rating, and the App Privacy labels already live
 in [`docs/store-listing.md`](../../docs/store-listing.md) and apply to iOS unchanged.
 
+### Privacy manifests
+
+Every executable bundle carries a `PrivacyInfo.xcprivacy`, and App Store Connect rejects an iOS
+upload whose binary uses a "required reason" API its bundle does not declare (**ITMS-91053**). The
+check reads the **binary**, and the Rust core is linked into it statically, so a dependency bump can
+change what has to be declared without any Swift moving. macOS is not named in Apple's requirement;
+the Mac bundles carry the same files because they hold the same code.
+
+| Bundle | Source | Declares |
+|---|---|---|
+| The app | `App/PrivacyInfo.xcprivacy` (a resource of the app target) | UserDefaults, FileTimestamp, DiskSpace, and the collected data types |
+| Share Extension | `ShareExtension/PrivacyInfo.xcprivacy` | FileTimestamp |
+| MCP relay (macOS) | `McpHelper/PrivacyInfo.xcprivacy`, copied in by the relay phase in `project.yml` | FileTimestamp |
+
+Each reason, and the code it answers for:
+
+- **UserDefaults, `CA92.1`**: the client's own preferences (`AppPrefs`, `@SceneStorage`, the split
+  view's autosave, the Allodia sync state), in the app's own domain. Nothing shares defaults through
+  the App Group.
+- **FileTimestamp, `C617.1`**: `stat` and `fstat` on files in the app's container and App Group
+  container: SQLite and the Rust standard library on the store, the log's size before it rotates,
+  and the drop box's sweep by modification date (`ShareBox.swift`), which is the Share Extension's
+  only use. The relay's `fstat` comes from the Rust standard library over its own pipes and socket.
+- **FileTimestamp, `3B52.1`**: the core reads the size of a file the person picked to attach or
+  embed (`composer_files.rs`, `composer_file_list.rs`, `composer_image.rs`).
+- **DiskSpace, `E174.1`**: no code of ours asks how much space is free. The bundled SQLite calls
+  `statfs` and `fstatfs` on a database before writing to it, to learn whether the volume is
+  read-only and which filesystem it is, and so how it may lock and write the file. No approved
+  reason names that probe, and `E174.1`, a check made before writing files, is the nearest to what
+  it does.
+
+No boot-time or active-keyboard API is imported; `ContinuousClock` and `CACurrentMediaTime` do not
+reach `mach_absolute_time` from our binary.
+
+**Collected data types** answer [`docs/privacy-policy.md`](../../docs/privacy-policy.md): the
+Allodia account's email address, name, user id and mail-account list (§3, the list as Other Data)
+and its subscription (§10, Purchase History), all linked and App Functionality; and the consented
+analytics rows exactly as [`docs/analytics.md`](../../docs/analytics.md) → "The store privacy
+declarations" answers them, not linked and Analytics. A build with no Allodia account or analytics
+endpoint carries the same file: declaring more than a build collects is allowed, less is not.
+
+[`Scripts/check-privacy-manifests.sh`](Scripts/check-privacy-manifests.sh) is the local twin of
+ITMS-91053, run by `package.sh` in Flows B, C and E after the payload-shape check. For each
+executable bundle it reads the import and selector names the binary carries and fails on a missing
+manifest, a category used but not declared, or a reason Apple does not list for that category (or
+reserves for third-party SDKs). When it fails, find the caller before choosing a reason: `otool -tV`
+on the executable and the function above the `symbol stub for: _<name>` line names it.
+
 ### Files
 
 - `project.yml`, the XcodeGen manifest (targets, signing, Info.plist, Release production settings).
@@ -438,6 +486,7 @@ in [`docs/store-listing.md`](../../docs/store-listing.md) and apply to iOS uncha
   carries the measurement that forced the split).
 - `ShareExtension/`, the Share Extension: what puts the app in the OS's own share sheet
   ([`docs/os-integration.md`](../../docs/os-integration.md)). It draws nothing and links no core.
+- `McpHelper/`, the macOS MCP relay bundle's privacy manifest ("Privacy manifests", above).
 - `Packages/MailcalKit/`, the shared Swift package (`MailcalUI` + `MailcalShareBox`, the drop box a
   share is handed over in, + the generated `MailcalBindings`).
 - `Scripts/`

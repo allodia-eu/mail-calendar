@@ -128,6 +128,7 @@ private struct AccountPageScreen: View {
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .settingsNotice(model, openAccount: id)
             .navigationTitle(entry.address)
             .navigationBarTitleDisplayMode(.inline)
         }

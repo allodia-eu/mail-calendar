@@ -59,6 +59,7 @@ async-stream = { workspace = true }
 # (`pause`/`advance`) so the send-status auto-clear tests advance virtual time
 # deterministically instead of sleeping 2.5s.
 tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

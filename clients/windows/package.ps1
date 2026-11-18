@@ -9,6 +9,7 @@
 #   ./package.ps1 -Channel Direct      # Release .msixbundle (unsigned) for our own downloads
 #   ./package.ps1 -Version 1.2.0.0     # stamp the package version (pins either path)
 #   ./package.ps1 -Sign                # self-signed, installable sideload set, on-device testing
+#   ./package.ps1 -PrebuiltNative      # package the Rust half that build-native.ps1 built elsewhere
 #
 # -Channel Direct is the download we host ourselves (docs/windows-channels.md). It is a DIFFERENT
 # package: Windows matches a sideloaded package's Publisher against the subject of the certificate
@@ -38,7 +39,9 @@ param(
   [string] $Version,
   [ValidateSet('Store', 'Direct')] [string] $Channel = 'Store',
   [ValidateSet('StoreUpload', 'SideloadOnly', 'CI')] [string] $PackageMode = 'StoreUpload',
-  [switch] $Sign
+  [switch] $Sign,
+  # Package the native files already at target/<triple>/release/ rather than building them.
+  [switch] $PrebuiltNative
 )
 $ErrorActionPreference = 'Stop'
 
@@ -109,39 +112,32 @@ foreach ($sub in 'bin', 'obj', 'AppPackages', 'BundleArtifacts') {
 }
 Write-Host "==> Cleaned prior build outputs (bin, obj, AppPackages, BundleArtifacts)" -ForegroundColor DarkGray
 
-# 1. Build the Rust cdylib for BOTH arches in release, the bundle ships both, and the csproj
-#    resolves each arch's DLL per $(Platform) (target/<triple>/release/mailcal_bindings.dll).
-#    One cargo invocation with two --target flags (stable since 1.64), NOT two parallel cargo
-#    processes: a single job scheduler overlaps one arch's serial tail (linking, leaf crates)
-#    with the other's parallel work and compiles host build-deps/proc-macros once, whereas two
-#    processes oversubscribe the cores, duplicate host work, and fight over the target-dir lock.
+# 1. The Rust half for BOTH arches in release: the bundle ships both, and the csproj resolves each
+#    arch's cdylib and relay per $(Platform) under target/<triple>/release/. build-native.ps1
+#    builds them. -PrebuiltNative instead takes the two files per arch already at those paths, put
+#    there by a job that built each arch on its own runner, and compiles nothing; they are checked
+#    for the static CRT here either way.
 $triples = @('x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc')
+if ($PrebuiltNative) {
+  foreach ($triple in $triples) {
+    foreach ($file in 'mailcal_bindings.dll', 'mailcal-mcp.exe') {
+      $path = Join-Path $root "target/$triple/release/$file"
+      if (-not (Test-Path $path)) {
+        throw "-PrebuiltNative, but $path is missing: put both files of every arch back at target/<triple>/release/ (build-native.ps1 makes them)"
+      }
+      Assert-StaticCrt $path
+    }
+  }
+  Write-Host "==> Using the prebuilt cdylibs and relays for both arches; they link the CRT statically" -ForegroundColor Cyan
+}
+else {
+  & (Join-Path $here 'build-native.ps1') -Arch x64, arm64
+}
+
 # From this checkout's root, as build-and-run.ps1 says why: cargo builds the workspace it finds
 # there, and rustup and cargo read rust-toolchain.toml and .cargo/config.toml from it too.
 Push-Location $root
 try {
-foreach ($triple in $triples) {
-  rustup target add $triple | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "rustup target add $triple failed" }
-}
-#    The MCP stdio relay (docs/mcp.md) is built in the same invocation, per arch: it is a separate
-#    executable an MCP client spawns, it ships at each package's root, and the App Execution Alias
-#    in Package.appxmanifest points at it by name.
-Write-Host "==> Building the Rust cdylib + MCP relay for both arches ($($triples -join ', '), release)" -ForegroundColor Cyan
-$targetArgs = $triples | ForEach-Object { '--target', $_ }
-#    The Allodia sign-in, when this build was given the registration that turns it on -- derived
-#    from that registration rather than asked for separately, so the two halves cannot disagree
-#    (core-features.ps1, BUILDING.md). Nothing is added in a build from source.
-. (Join-Path $here 'core-features.ps1')
-$featureArgs = Get-CoreCargoFeatures -Root $root
-& cargo build -p mailcal-ffi -p mailcal-mcp-shim --release @targetArgs @featureArgs
-if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
-foreach ($triple in $triples) {
-  Assert-StaticCrt (Join-Path $root "target/$triple/release/mailcal_bindings.dll")
-  Assert-StaticCrt (Join-Path $root "target/$triple/release/mailcal-mcp.exe")
-}
-Write-Host "==> Both cdylibs and both relays link the CRT statically (no VCRUNTIME140 import)" -ForegroundColor DarkGray
-
 # 2. Generate the C# bindings (arch-independent, either arch's cdylib yields the same C#) via
 #    the vendored binshim crate (cargo run), so the generator is Cargo.lock-pinned, not a
 #    separately `cargo install`ed binary.

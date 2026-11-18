@@ -66,6 +66,10 @@ icons! {
     MARK_UNREAD = "mail-unread-symbolic";
     FLAG = "starred-symbolic";
     UNFLAG = "non-starred-symbolic";
+    /// The importance a row and the composer's picker show (docs/importance.md): Adwaita's own
+    /// exclamation mark for high, and a down arrow for low.
+    IMPORTANCE_HIGH = "mail-mark-important-symbolic";
+    IMPORTANCE_LOW = "go-down-symbolic";
     DELETE_PERMANENTLY = "edit-delete-symbolic";
     SYNC = "view-refresh-symbolic";
     MORE = "view-more-symbolic";

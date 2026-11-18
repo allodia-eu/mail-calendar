@@ -177,23 +177,25 @@ extension MailboxModel {
         app?.quoteSettings() ?? quoteSettings
     }
 
-    /// Sets and persists the default reply/forward quote style, updating the mirror at once so
-    /// the settings picker reflects the choice without waiting for the `Surface::Settings` signal.
+    /// Sends one preference change. It takes effect in the core before this returns and is saved
+    /// behind it; what the model holds of it follows on the `Surface::Settings` signal, and a save
+    /// that fails is the core's notice, not a value kept here.
+    func preference(_ intent: PreferenceIntent) {
+        app?.dispatch(intent: .preferences(intent: intent))
+    }
+
+    /// Sets the default reply/forward quote style.
     func setQuoteStyle(_ style: QuoteStyleKind) {
-        quoteSettings = QuoteSettings(style: style, perMessage: quoteSettings.perMessage)
-        app?.setQuoteStyle(style: style)
+        preference(.setQuoteStyle(style: style))
     }
 
     /// Records the usage-statistics decision, and it *is* a decision either way: passing `false`
     /// stores a decline, which is what stops us asking again. Opting in mints the install id;
     /// opting out clears it and asks the backend to erase what it holds (GDPR Art. 17).
     ///
-    /// The mirror is updated from the core's own answer rather than from `enabled`, so the UI can
-    /// never disagree with what was actually persisted. The core raises no `Surface::Settings` for
-    /// this, so without the mirror the toggle would snap back until the next launch.
+    /// `analyticsConsent` follows on the `Surface::Settings` signal the decision raises.
     func setAnalyticsConsent(_ enabled: Bool) {
-        app?.setAnalyticsConsent(enabled: enabled)
-        analyticsConsent = app?.analyticsConsent()
+        preference(.setAnalyticsConsent(enabled: enabled))
     }
 
     /// The literal JSON the core would put on the wire, for the "see exactly what we send" panel.
@@ -201,18 +203,16 @@ extension MailboxModel {
         app?.analyticsPayloadPreview() ?? ""
     }
 
-    /// Sets and persists whether the composer offers a per-message quote-style override. Off by
-    /// default: an ordinary reply just uses the default style above and shows no picker.
+    /// Sets whether the composer offers a per-message quote-style override; without one, a reply
+    /// uses the default style above and shows no picker.
     func setQuoteStylePerMessage(_ perMessage: Bool) {
-        quoteSettings = QuoteSettings(style: quoteSettings.style, perMessage: perMessage)
-        app?.setQuoteStylePerMessage(perMessage: perMessage)
+        preference(.setQuoteStylePerMessage(perMessage: perMessage))
     }
 
-    /// Sets and persists the app-level default send account (`nil` clears it, restoring "the
-    /// first configured account"), updating the mirror at once as `setQuoteStyle` does.
+    /// Sets the app-level default send account (`nil` clears it, restoring "the first configured
+    /// account").
     func setDefaultSendAccount(_ id: String?) {
-        defaultSendAccount = id
-        app?.setDefaultSendAccount(account: id)
+        preference(.setDefaultSendAccount(account: id))
     }
 
     /// Sets and persists the diagnostics "include more detail" choice: ON logs the core's
@@ -225,13 +225,9 @@ extension MailboxModel {
         app?.setLogLevel(level: DiagnosticsPrefs.coreLogLevel)
     }
 
-    /// Sets and persists what one swipe direction does. The two directions are independent.
+    /// Sets what one swipe direction does. The two directions are independent.
     func setSwipeAction(_ direction: SwipeDirection, _ action: SwipeActionKind) {
-        switch direction {
-        case .left: swipeSettings.left = action
-        case .right: swipeSettings.right = action
-        }
-        app?.setSwipeAction(direction: direction, action: action)
+        preference(.setSwipeAction(direction: direction, action: action))
     }
 
     /// The account the composer's From dropdown opens on, resolved against the accounts that

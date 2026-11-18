@@ -110,6 +110,8 @@ extension ContentView {
             // Entering the background is the moment to line up the next background mail sync
             // (docs/background-sync.md); iOS decides when to actually run it.
             scheduleBackgroundRefresh()
+            // The system may end a phone app it has put in the background without asking.
+            model.app?.finishSavingSettings()
             #endif
         case .inactive:
             logAppleLifecycle("scene inactive")

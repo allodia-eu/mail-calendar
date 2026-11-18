@@ -107,15 +107,29 @@ public sealed class ServerChangePromptTests(ServerChangeShowcaseApp showcase) : 
             ?? throw new InvalidOperationException("the question has no Allow (#ServerChangeAllow)"));
         var refused = Catalog.English("server_changed_failed");
         Assert.True(App.Eventually(
-            () => app.Agent.Find(new Filter { Id = "ServerChangeError", Under = root }) is { } error && Says(app, error, refused),
+            Redrawn(() => app.Agent.Find(new Filter { Id = "ServerChangeError", Under = root }) is { } error && Says(app, error, refused)),
             TimeSpan.FromSeconds(10)),
             "a refused Allow says nothing was changed, where it was asked");
         Assert.True(app.Agent.Find(new Filter { Id = "ServerChangeAllow", Type = "Button", Under = root }) is not null, "and the question stays open to be answered again");
         Assert.True(App.Eventually(
-            () => app.Agent.Find(new Filter { Id = "ServerChangeNotNow", Type = "Button", Under = root }) is { } notNow && app.Agent.Read(notNow).Focused,
+            Redrawn(() => app.Agent.Find(new Filter { Id = "ServerChangeNotNow", Type = "Button", Under = root }) is { } notNow && app.Agent.Read(notNow).Focused),
             TimeSpan.FromSeconds(5)),
             "the question drawn again gives \"Not now\" the focus, so the next Return declines");
     }
+
+    /// <summary>The refusal draws the question again, so an element found in one drawing can be gone
+    /// by the time it is read; that reads as "not yet" and is asked again.</summary>
+    private static Func<bool> Redrawn(Func<bool> condition) => () =>
+    {
+        try
+        {
+            return condition();
+        }
+        catch (AgentRefusal e) when (e.Code == "gone")
+        {
+            return false;
+        }
+    };
 
     [OfflineFact]
     public void ARefusedAllowInTheDialogIsSaidThereAndEnterIsStillNotNow() => Case(nameof(ARefusedAllowInTheDialogIsSaidThereAndEnterIsStillNotNow), (app, _) =>

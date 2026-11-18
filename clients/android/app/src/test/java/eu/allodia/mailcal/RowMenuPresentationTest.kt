@@ -142,6 +142,7 @@ class RowMenuPresentationTest {
         outgoing = false,
         draft = draft,
         hasAttachment = false,
+        importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
     )
 
     private fun thread(latestKey: String, messages: List<ThreadMessage>) = ThreadRow(
@@ -156,6 +157,7 @@ class RowMenuPresentationTest {
         unreadCount = 0u,
         flagged = false,
         hasAttachment = false,
+        importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
         preview = "",
         messages = messages,
     )

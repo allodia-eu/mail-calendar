@@ -8,6 +8,13 @@ import UIKit
 extension AgentPlatform {
     static func activate(_ object: NSObject) throws -> [String: Any] {
         if object.accessibilityActivate() { return ["how": "activated"] }
+        // A control whose press opens a menu: sending its actions opens nothing, and only a touch
+        // presents the menu.
+        if let control = object as? UIControl, control.showsMenuAsPrimaryAction {
+            throw AgentFailure(
+                "the control opens a menu, which only a touch presents", "not-activatable"
+            ).with("element", AgentTree.describe(object))
+        }
         // VoiceOver taps a control that does not activate itself; its own action is that tap's.
         if let control = object as? UIControl {
             let event: UIControl.Event = control.allControlEvents.contains(.primaryActionTriggered)

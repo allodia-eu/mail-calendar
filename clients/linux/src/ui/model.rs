@@ -57,6 +57,7 @@ pub(super) fn blank_avatar() -> Avatar {
 
 pub(super) fn empty_reading() -> ReadingSnapshot {
     ReadingSnapshot {
+        importance_banner: None,
         key: String::new(),
         subject: String::new(),
         from: String::new(),
@@ -227,6 +228,7 @@ mod tests {
 
     fn empty_reading(key: &str) -> ReadingSnapshot {
         ReadingSnapshot {
+            importance_banner: None,
             avatar: crate::ui::model::blank_avatar(),
             key: key.to_owned(),
             subject: String::new(),
@@ -248,6 +250,7 @@ mod tests {
     fn flat_and_thread_rows_open_their_representative_message() {
         let flat = SnapshotRow::Flat {
             row: FlatRow {
+                importance: mailcal_bindings::MessageImportance::Normal,
                 avatar: crate::ui::model::blank_avatar(),
                 account: "account-a".to_owned(),
                 key: "message-a".to_owned(),
@@ -263,6 +266,7 @@ mod tests {
         };
         let thread = SnapshotRow::Thread {
             row: ThreadRow {
+                importance: mailcal_bindings::MessageImportance::Normal,
                 avatar: crate::ui::model::blank_avatar(),
                 account: "account-b".to_owned(),
                 thread_id: "thread-b".to_owned(),

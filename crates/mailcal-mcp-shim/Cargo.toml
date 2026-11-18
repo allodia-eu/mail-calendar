@@ -44,9 +44,14 @@ tokio = { workspace = true, features = ["rt", "net", "io-util", "sync", "time", 
 
 # Neutral, because cargo cannot take a bin name from the brand: each client installs it under
 # MAILCAL_MCP_RELAY_NAME instead (docs/branding.md).
+#
+# Undocumented, because rustdoc names a crate's pages after its target: this bin's go to
+# `target/doc/mailcal_mcp`, where the `mailcal-mcp` library's do, and two rustdoc runs writing one
+# directory at once delete each other's files and fail the build now and then.
 [[bin]]
 name = "mailcal-mcp"
 path = "src/main.rs"
+doc = false
 
 [lints]
 workspace = true

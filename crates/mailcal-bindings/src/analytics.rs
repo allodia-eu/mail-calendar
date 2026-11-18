@@ -21,8 +21,6 @@
 //! for device facts at arbitrary later moments. A plain record is smaller, dumber, and
 //! auditable: whatever the host passes at boot is all we will ever have.
 
-use std::path::PathBuf;
-
 use mailcal_app::Telemetry;
 use mailcal_telemetry::{HttpTelemetrySink, RelayConfig};
 
@@ -58,18 +56,18 @@ fn relay_config() -> Option<RelayConfig> {
 /// Analytics failing to initialise must never stop the app from starting.
 ///
 /// Must be called from inside the app's tokio runtime (the sink spawns its delivery worker).
-pub(crate) fn build_telemetry(prefs_path: PathBuf, device: DeviceInfo) -> Telemetry {
+pub(crate) fn build_telemetry(device: DeviceInfo) -> Telemetry {
     let Some(config) = relay_config() else {
         log::info!("analytics: no relay endpoint in this build, nothing will be sent");
-        return Telemetry::unsent(Some(prefs_path), device.into());
+        return Telemetry::unsent(device.into());
     };
     match HttpTelemetrySink::new(config) {
-        Ok(sink) => Telemetry::new(Some(prefs_path.clone()), device.into(), Box::new(sink)),
+        Ok(sink) => Telemetry::new(device.into(), Box::new(sink)),
         Err(err) => {
             log::warn!(
                 "analytics: could not build the telemetry sink ({err}), nothing will be sent"
             );
-            Telemetry::unsent(Some(prefs_path), device.into())
+            Telemetry::unsent(device.into())
         }
     }
 }
@@ -235,16 +233,6 @@ impl MailcalApp {
     /// before account setup, and before the OS notification prompt so two asks don't stack.
     pub fn analytics_consent(&self) -> AnalyticsConsent {
         self.app.analytics_consent().into()
-    }
-
-    /// Records the user's analytics decision. **Default off**; call this with `true` only from a
-    /// deliberate, affirmative action (a switch the user moved, a button they pressed), never
-    /// from a pre-checked box, an implied consent, or acceptance of terms.
-    ///
-    /// Opting in mints the install id. Opting out clears it and asks the backend to erase
-    /// everything held under it (GDPR Art. 17).
-    pub fn set_analytics_consent(&self, enabled: bool) {
-        self.app.set_analytics_consent(enabled);
     }
 
     /// The **exact JSON** this install would send, pretty-printed.

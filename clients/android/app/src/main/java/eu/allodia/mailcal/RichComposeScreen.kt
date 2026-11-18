@@ -74,6 +74,9 @@ internal fun RichComposeMessageDialog(
     // The core verbs this composer keeps its message on the server with, or null to turn draft
     // saving off (a screenshot run, a test).
     drafts: ComposerDrafts? = null,
+    // The composition's importance, as the core holds it (`docs/importance.md`), or null to leave
+    // the picker out (a test).
+    importance: ComposerImportanceStore? = null,
 ) {
     val ctx = LocalContext.current
     val density = LocalDensity.current
@@ -124,6 +127,9 @@ internal fun RichComposeMessageDialog(
     // The core's last answer about the composition's files: what it opened holding (a forward's
     // originals, a stored draft's own, a share's), then whatever each add or remove answered.
     var fileTiles by remember { mutableStateOf(files?.current() ?: NO_COMPOSER_FILES) }
+    // The core's last answer about the composition's importance, as it opened, then as each pick
+    // answered.
+    var importancePicker by remember { mutableStateOf(importance?.current()) }
     val attach = { staged: List<ComposerFileAttachment> ->
         if (staged.isNotEmpty()) {
             files?.add(staged)?.let { fileTiles = it }
@@ -157,7 +163,10 @@ internal fun RichComposeMessageDialog(
     // The effect's first run is the fields opening with their pre-fill, which is not a change: a
     // reopened draft's first save always writes, so counting it would save a draft another client
     // stored over with nothing typed.
-    val draftHeaders = listOf(to, cc, bcc, subject, fileTiles.tiles.joinToString(",") { it.id })
+    val draftHeaders = listOf(
+        to, cc, bcc, subject, fileTiles.tiles.joinToString(",") { it.id },
+        importancePicker?.selected?.name.orEmpty(),
+    )
     var headersOpened by remember { mutableStateOf(false) }
     LaunchedEffect(draftHeaders) {
         if (headersOpened) draftChanges += 1 else headersOpened = true
@@ -241,7 +250,7 @@ internal fun RichComposeMessageDialog(
         headersEdited = {
             composerHeadersEdited(
                 to, seededTo, cc, seededCc, bcc, seededBcc, subject, opening.subject,
-                fileTiles.changed,
+                fileTiles.changed || importancePicker?.changed == true,
             )
         },
         readDocument = { answer ->
@@ -304,6 +313,13 @@ internal fun RichComposeMessageDialog(
                                     )
                                 }
                             },
+                        importanceMenu = importancePicker?.let { picker ->
+                            { expanded, onExpand ->
+                                ComposerImportanceMenu(picker, expanded, onExpand) { chosen ->
+                                    importance?.set(chosen)?.let { importancePicker = it }
+                                }
+                            }
+                        },
                         onSaveDraft = (exits::save).takeIf { drafts != null },
                         onDiscard = (exits::discard).takeIf { drafts != null },
                         sendEnabled = to.isNotBlank() && from != null,

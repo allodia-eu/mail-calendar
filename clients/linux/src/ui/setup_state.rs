@@ -413,7 +413,7 @@ impl SetupState {
     pub(super) fn connect_failed(&mut self, failure: super::setup_model::ConnectFailure) {
         self.phase = Phase::Form;
         self.error = failure.message;
-        self.certificate = failure.certificate;
+        self.certificate = failure.certificate.map(|certificate| *certificate);
         self.existing = failure.existing;
         self.report();
     }

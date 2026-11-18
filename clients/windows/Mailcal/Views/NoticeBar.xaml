@@ -2,7 +2,8 @@
 <!--
   The window's one notice bar (docs/notices.md): the first notice that belongs to the screen on
   show, its action or a question's two answers, and every other notice behind a single "more"
-  button. Never a second bar.
+  button. Never a second bar in the window; Settings, whose overlay hides this one, draws its own
+  at its top (InitInSettings).
 
   Drawn from code (NoticeBar.xaml.cs) rather than bound, because what it shows is a choice made
   over the whole list on each snapshot and each change of screen, and its flyout is rebuilt from

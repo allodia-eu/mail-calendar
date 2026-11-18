@@ -129,6 +129,10 @@ pub struct DisplaySettings {
     /// How many hours of the day the calendar grid shows at once: the horizon a pinch zooms in
     /// and out of. Already clamped by the core, so a client may divide by it without checking.
     pub visible_hours: u8,
+    /// What Settings offers for the horizon, narrowest first: the same stops on every platform,
+    /// and `visible_hours` among them where a pinch left the grid between two, so the choice on
+    /// screen is the one the grid shows.
+    pub visible_hours_choices: Vec<u8>,
     /// The shape the grid opens in, restored from the last session.
     pub layout: CalendarLayout,
 }

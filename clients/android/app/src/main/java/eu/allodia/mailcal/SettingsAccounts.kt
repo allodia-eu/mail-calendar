@@ -51,7 +51,8 @@ import uniffi.mailcal_bindings.AccountPage as CoreAccountPage
  */
 internal class AccountsSettingsUi(
     val state: AccountsUiState,
-    // Every notice in force, of which the page draws its account's at its top (docs/notices.md).
+    // Every notice in force (docs/notices.md): the page draws its account's at its top, and
+    // Settings the first that stands everywhere above whichever category is open.
     val notices: List<Notice> = emptyList(),
     val noticeHandlers: NoticeHandlers = NoticeHandlers(),
     val standardPort: ((MailServerKind, ConnectionSecurity) -> Int)? = null,

@@ -114,6 +114,7 @@ class ConversationRowMenuTest {
         unreadCount = 0u,
         flagged = flagged,
         hasAttachment = false,
+        importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
         preview = "",
         messages = emptyList(),
     )

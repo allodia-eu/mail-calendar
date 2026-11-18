@@ -47,7 +47,7 @@ fn empty_app() -> SharedApp {
         Arc::new(DebouncedObserver::new(ObserverBridge {
             foreign: Box::new(ChannelObserver { tx }),
         })),
-        Telemetry::off(None),
+        Telemetry::off(),
     ))
 }
 

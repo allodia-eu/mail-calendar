@@ -240,7 +240,12 @@ impl CalendarModel {
         } else if mode == CalendarMode::Month {
             self.focus = month_start(self.focus);
         }
-        app.set_calendar_layout(mode.layout());
+        crate::ui::preference::set(
+            app,
+            mailcal_bindings::PreferenceIntent::SetCalendarLayout {
+                layout: mode.layout(),
+            },
+        );
         self.refresh(app);
     }
 
@@ -273,7 +278,12 @@ impl CalendarModel {
         self.focus = date;
         self.mode = CalendarMode::Day;
         self.all_day_expanded = false;
-        app.set_calendar_layout(CalendarLayout::Day);
+        crate::ui::preference::set(
+            app,
+            mailcal_bindings::PreferenceIntent::SetCalendarLayout {
+                layout: CalendarLayout::Day,
+            },
+        );
         self.refresh(app);
     }
 

@@ -76,16 +76,13 @@ extension MailboxModel {
             return
         }
         // A settings signal only updates the settings surfaces (the timezone prompt, the accounts
-        // and the page open, and the app-level composing/swipe preferences); it doesn't change the
-        // mailbox/calendar projection.
+        // and the page open, and the preferences); it doesn't change the mailbox/calendar
+        // projection.
         if case .settings = surface {
             timezone = app?.timezoneSettings()
-            quoteSettings = app?.quoteSettings() ?? QuoteSettings(style: .indented, perMessage: false)
-            defaultSendAccount = app?.defaultSendAccount()
-            swipeSettings = app?.swipeSettings() ?? SwipeSettings(left: .delete, right: .delete)
+            if let app { reloadPreferences(app) }
             signatures = app?.signatures() ?? SignaturesSnapshot(signatures: [], accounts: [])
             mcpSettings = app?.mcpSettings()
-            if let settings = app?.displaySettings() { displaySettings = settings }
             refreshAccountsSnapshot()
             return
         }
@@ -161,5 +158,20 @@ extension MailboxModel {
         #endif
         // Counts only in the log; content renders on screen, not in stdout.
         print("[Mailcal] rendered \(rows.count) rows (\(mode))")
+    }
+
+    /// Reads back every preference the model draws from. `repaint` paints the window in the
+    /// stored appearance when it moved since the last read; the first read leaves the painting
+    /// `AppearanceMode` settled at launch, which a debug override may have chosen.
+    func reloadPreferences(_ app: MailcalApp, repaint: Bool = true) {
+        let display = app.displaySettings()
+        if repaint, display.appearance != displaySettings.appearance {
+            appearance = display.appearance
+        }
+        displaySettings = display
+        quoteSettings = app.quoteSettings()
+        defaultSendAccount = app.defaultSendAccount()
+        swipeSettings = app.swipeSettings()
+        analyticsConsent = app.analyticsConsent()
     }
 }

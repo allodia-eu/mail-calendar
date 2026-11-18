@@ -22,6 +22,10 @@ struct DraftHeaders: Equatable {
     /// Whether the core's file list differs from what the composer opened holding
     /// (`ComposerFiles.changed`).
     let filesChanged: Bool
+    /// What the message goes out with, so a pick restarts the autosave interval.
+    var importance: MessageImportance?
+    /// Whether that differs from what the composer opened with (`ComposerImportance.changed`).
+    var importanceChanged = false
 }
 
 extension View {

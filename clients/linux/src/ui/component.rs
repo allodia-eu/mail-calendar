@@ -90,6 +90,16 @@ impl SimpleComponent for AppWindow {
     fn update_view(&self, widgets: &mut Self::Widgets, _sender: ComponentSender<Self>) {
         widgets.render(self);
     }
+
+    /// The app is quitting: a change to the settings still being written is written first
+    /// (`docs/waiting.md`, rule 7).
+    fn shutdown(&mut self, _widgets: &mut Self::Widgets, _output: relm4::Sender<()>) {
+        if let Self::Open(model) = self
+            && let Some(app) = &model.app
+        {
+            app.finish_saving_settings();
+        }
+    }
 }
 
 impl AppModel {

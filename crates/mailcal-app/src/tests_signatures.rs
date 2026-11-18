@@ -105,6 +105,8 @@ async fn the_library_and_the_assignments_survive_a_relaunch() {
             Some(row.id.clone()),
         )
         .await;
+        // Closed as a host closes it: what is still being saved is written first.
+        app.settle_preferences();
         row.id
     };
 
@@ -148,6 +150,7 @@ async fn the_signature_library_is_not_written_into_the_preferences_file() {
     )
     .await;
 
+    app.settle_preferences();
     let prefs = std::fs::read_to_string(&path).expect("preferences written");
     assert!(!prefs.contains("a-very-recognisable-body"), "{prefs}");
     let library = std::fs::read_to_string(path.parent().unwrap().join("signatures.toml"))
