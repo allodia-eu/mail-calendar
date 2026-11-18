@@ -380,7 +380,7 @@ fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::Applic
     ));
     state.connect_failed(super::setup_model::ConnectFailure {
         message: Some("certificate not verified".to_owned()),
-        certificate: Some(mailcal_bindings::RejectedCertificate {
+        certificate: Some(Box::new(mailcal_bindings::RejectedCertificate {
             server_name: "imap.example.test".to_owned(),
             sha256: "AB:CD:EF".to_owned(),
             subject_common_name: Some("imap.example.test".to_owned()),
@@ -389,7 +389,7 @@ fn a_refused_certificate_holds_connect_until_it_is_accepted(window: &adw::Applic
             issuer_organisation: Some("Example Ltd".to_owned()),
             not_before: None,
             not_after: None,
-        }),
+        })),
         existing: None,
     });
     setup.render(&state, window, &sender);

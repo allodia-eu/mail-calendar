@@ -178,12 +178,6 @@ impl MailcalApp {
             .map(Into::into)
             .collect()
     }
-
-    /// Stores `account`'s default video meeting, one of its `MeetingDefault::choices` ids, or
-    /// none for `None`. The calendar surface is signalled, and the rows carry the new default.
-    pub fn set_default_meeting(&self, account: String, choice: Option<String>) {
-        self.app.set_default_meeting(&account, choice.as_deref());
-    }
 }
 
 #[cfg(test)]

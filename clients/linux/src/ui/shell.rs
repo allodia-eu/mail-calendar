@@ -423,6 +423,10 @@ impl AppWidgets {
             model.preferences.clone(),
             self.sender.clone(),
         );
+        self.settings.show_notice(
+            &model.notices.notices,
+            model.settings.render_state().account,
+        );
         // Dismiss the required welcome window before presenting required account setup. Both
         // reject user close requests, so this ordering is part of the modal-lifecycle contract.
         self.welcome.render(

@@ -1,5 +1,6 @@
-// The window's one notice bar (docs/notices.md). Which notice it draws and how many stand behind
-// it is NoticeRules; this half turns that into an InfoBar, a flyout and an announcement.
+// The window's one notice bar (docs/notices.md), and the one at the top of Settings. Which notice
+// it draws and how many stand behind it is NoticeRules; this half turns that into an InfoBar, a
+// flyout and an announcement.
 
 using System.ComponentModel;
 using Allodia.Mailcal.Services;
@@ -20,6 +21,11 @@ public sealed partial class NoticeBar : UserControl
     private MailboxModel? _model;
     private Notice? _shown;
     private readonly NoticeAnnouncements _announced = new();
+    private SettingsPlace? _settings;
+
+    /// <summary>Where the bar at the top of Settings is: which account's page is open, and how a
+    /// request for an account's page is met inside the dialog.</summary>
+    private sealed record SettingsPlace(Func<string?> AccountPage, Action<string?> OpenAccountPage);
 
     /// <summary>Initialises the control.</summary>
     public NoticeBar() => InitializeComponent();
@@ -30,6 +36,21 @@ public sealed partial class NoticeBar : UserControl
         _model = model;
         model.NoticesChanged += OnNoticesChanged;
         model.PropertyChanged += OnModelChanged;
+        Draw();
+    }
+
+    /// <summary>
+    /// Draws <paramref name="model"/>'s first notice for every screen at the top of Settings
+    /// (rule 2), with no "more" entry: the rest stay behind the window's. The dialog calls
+    /// <see cref="Draw"/> when the notices or the open account page change, and the window's bar
+    /// has already announced each notice once.
+    /// </summary>
+    internal void InitInSettings(MailboxModel model, Func<string?> accountPage, Action<string?> openAccountPage)
+    {
+        _model = model;
+        _settings = new SettingsPlace(accountPage, openAccountPage);
+        AutomationProperties.SetAutomationId(Bar, "SettingsNotice");
+        Bar.Margin = new Thickness(0, 0, 0, 12);
         Draw();
     }
 
@@ -47,7 +68,8 @@ public sealed partial class NoticeBar : UserControl
         }
     }
 
-    private void Draw()
+    /// <summary>Draws the notice that belongs here now, or nothing.</summary>
+    internal void Draw()
     {
         if (_model is null)
         {
@@ -55,7 +77,9 @@ public sealed partial class NoticeBar : UserControl
         }
         var notices = _model.Notices;
         var screen = NoticeRules.ScreenOf(_model.Destination);
-        _shown = NoticeRules.Prominent(notices, screen);
+        _shown = _settings is { } settings
+            ? NoticeRules.InSettings(notices, settings.AccountPage())
+            : NoticeRules.Prominent(notices, screen);
         if (_shown is not { } notice)
         {
             Bar.IsOpen = false;
@@ -93,7 +117,7 @@ public sealed partial class NoticeBar : UserControl
             AnswerRunning.Visibility = notice.Running ? Visibility.Visible : Visibility.Collapsed;
         }
         Answers.Visibility = question ? Visibility.Visible : Visibility.Collapsed;
-        var more = NoticeRules.More(notices, screen);
+        var more = _settings is null ? NoticeRules.More(notices, screen) : 0;
         MoreButton.Content = L10n.NoticesMore(more);
         MoreButton.Visibility = more > 0 ? Visibility.Visible : Visibility.Collapsed;
         Bar.Visibility = Visibility.Visible;
@@ -146,10 +170,16 @@ public sealed partial class NoticeBar : UserControl
 
     private void Run(Func<Notice, NoticeAction?> which)
     {
-        if (_shown is { } notice && which(notice) is { } action)
+        if (_shown is not { } notice || which(notice) is not { } action)
         {
-            _model?.RunNoticeAction(notice, action);
+            return;
         }
+        if (_settings is { } settings && NoticeRules.OpensAccountPage(action))
+        {
+            settings.OpenAccountPage(notice.Account);
+            return;
+        }
+        _model?.RunNoticeAction(notice, action);
     }
 
     private void OnClose(InfoBar sender, object args)

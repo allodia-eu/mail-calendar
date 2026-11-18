@@ -90,7 +90,7 @@ fn two_account_app(messages: Vec<Message>) -> (Arc<App<ThreadProvider>>, Outboxe
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), outboxes)
 }

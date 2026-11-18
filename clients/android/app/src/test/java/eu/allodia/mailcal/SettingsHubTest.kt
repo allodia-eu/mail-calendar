@@ -90,6 +90,7 @@ class SettingsHubTest {
                     Appearance.SYSTEM,
                     true,
                     12u,
+                    byteArrayOf(6, 8, 12, 16, 24),
                     CalendarLayout.WEEK,
                 ),
                 onSetTimeFormat = {},

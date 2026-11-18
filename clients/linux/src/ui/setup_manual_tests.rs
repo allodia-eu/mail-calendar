@@ -266,7 +266,7 @@ pub(super) fn a_refusal_is_answered_in_the_form_it_came_from(window: &adw::Appli
     // And it is refused for a certificate.
     state.connect_failed(crate::ui::setup_model::ConnectFailure {
         message: Some("certificate not verified".to_owned()),
-        certificate: Some(mailcal_bindings::RejectedCertificate {
+        certificate: Some(Box::new(mailcal_bindings::RejectedCertificate {
             server_name: "127.0.0.1".to_owned(),
             sha256: "AB:CD:EF".to_owned(),
             subject_common_name: Some("127.0.0.1".to_owned()),
@@ -275,7 +275,7 @@ pub(super) fn a_refusal_is_answered_in_the_form_it_came_from(window: &adw::Appli
             issuer_organisation: Some("Proton AG".to_owned()),
             not_before: None,
             not_after: None,
-        }),
+        })),
         existing: None,
     });
     setup.render(&state, window, &sender);

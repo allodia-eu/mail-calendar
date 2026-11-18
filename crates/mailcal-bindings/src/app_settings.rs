@@ -6,8 +6,8 @@
 //! crate-wide.
 
 use crate::{
-    DefaultMailAppOutcome, DefaultMailAppSupport, LogLevel, MailcalApp, SwipeActionKind,
-    SwipeDirection, SwipeSettings, SyncSettingsSnapshot, SyncStrategyKind, ViewMode, logging,
+    DefaultMailAppOutcome, DefaultMailAppSupport, LogLevel, MailcalApp, SwipeSettings,
+    SyncSettingsSnapshot, SyncStrategyKind, ViewMode, logging,
 };
 
 #[uniffi::export]
@@ -40,26 +40,12 @@ impl MailcalApp {
         self.app.default_send_account()
     }
 
-    /// Sets and persists the default send account (`None` clears it, restoring "the first
-    /// configured account"), then signals `Surface::Settings`.
-    pub fn set_default_send_account(&self, account: Option<String>) {
-        self.runtime
-            .block_on(|| self.app.set_default_send_account(account));
-    }
-
     /// The per-direction swipe actions (pulled after a `Surface::Settings` signal); what a
     /// leftward and a rightward swipe across a message row do. A host binds its row gestures to
     /// these and renders them in the settings screen. Both default to `Delete`.
     #[must_use]
     pub fn swipe_settings(&self) -> SwipeSettings {
         self.app.swipe_settings().into()
-    }
-
-    /// Sets and persists what one swipe direction does, then signals `Surface::Settings`. The two
-    /// directions are configured independently.
-    pub fn set_swipe_action(&self, direction: SwipeDirection, action: SwipeActionKind) {
-        self.runtime
-            .block_on(|| self.app.set_swipe_action(direction.into(), action.into()));
     }
 
     /// Sets the global log ceiling at runtime: a host toggling on `debug`/`trace` for a

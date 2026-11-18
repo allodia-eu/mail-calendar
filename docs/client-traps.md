@@ -63,7 +63,7 @@ that same file.
   working. Apply it to the row
   ([`sidebarRowHighlight`](../clients/apple/Packages/MailcalKit/Sources/MailcalUI/Mailcal.Sidebar.swift)),
   and check a nested row on screen rather than a flat one: no suite sees this, `swift build` and
-  the XCUITest classes included.
+  the UI suite included.
 - **A SwiftUI `.clipped()` crops the drawing, not the hit testing.** A view slid out of its frame
   with `.offset` and clipped is invisible there and still takes every press, and the accessibility
   tree goes on reporting whatever is drawn underneath, so a dump, `isHittable` and a screenshot all
@@ -145,7 +145,7 @@ that same file.
   repaints once and then ignores the host for as long as the modal stays open. ContentView's
   `windowScheme` is the value to hand over: it already carries both cases. macOS needs none of
   this; a sheet shares the presenter's window and follows it live. Neither half is visible to
-  `swift test`, nor to anything the UI suite asserts on today: XCUITest matches on the accessibility
+  `swift test`, nor to anything the UI suite asserts on today: it matches on the accessibility
   hierarchy, which carries no colour, so a modal on the wrong scheme satisfies every query in
   [`../clients/apple/UITests`](../clients/apple/UITests). Reaching it there would mean comparing
   pixels in a screenshot, and nothing does. Prove it on a simulator whose own appearance is the
@@ -461,6 +461,24 @@ that same file.
   rule itself is `DefaultMailApp.WhenToAsk`
   ([`DefaultMailApp.cs`](../clients/windows/Mailcal/Services/DefaultMailApp.cs)), WinUI-free so
   `Mailcal.Tests` can state it; nothing that links WinUI can be unit-tested here at all.
+- **The Windows App SDK's `ApplicationLanguages.PrimaryLanguageOverride` refuses the empty
+  string**, in both build shapes, although `Windows.Globalization`'s override takes it as "none".
+  The SDK's setter checks for a well-formed language tag before anything else. Called from `App`'s
+  constructor, the refusal ends the process inside `Application.Start` with 0xC000027B in
+  `Microsoft.UI.Xaml.dll`, and the log stops at the session marker, because the crash handler is
+  wired a line later. It hides because "follow the system" is the one value no gate stores: every
+  UI suite launch and every showcase pins English, so only a fresh install meets it.
+  `SystemLanguageTests` is the launch that does
+  ([`LanguageStore.cs`](../clients/windows/Mailcal/Services/LanguageStore.cs) says what is set
+  instead).
+- **A packaged Windows build raises no notification unless its manifest declares the activator.**
+  `AppNotificationManager.Register()` in a packaged process looks for the COM server the package
+  declares with the runtime's activation argument and throws `E_FAIL` ("No COM servers are
+  registered for this app") when there is none; an unpackaged one registers that server itself at
+  runtime. Every UI suite runs unpackaged, so the only sign is a `notifications: could not register
+  (COMException 0x80004005)` line in a packaged build's log. The declaration is in
+  [`Package.appxmanifest`](../clients/windows/Mailcal/Package.appxmanifest), and
+  `test_msix_manifest` holds it there.
 
 - **A WinUI window that handles its own `Closed` or `AppWindow.Closing` is never collected.** The
   handler is a delegate the native window holds with an ordinary COM reference, and it refers back

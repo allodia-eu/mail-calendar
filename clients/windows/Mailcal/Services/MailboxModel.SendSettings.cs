@@ -6,6 +6,7 @@
 
 using System.Linq;
 using Allodia.Mailcal.ViewModels;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
@@ -20,10 +21,11 @@ public sealed partial class MailboxModel
     public string? DefaultSendAccount => _app?.DefaultSendAccount();
 
     /// <summary>
-    /// Sets and persists the app-level default send account (<c>null</c> clears it, restoring
-    /// "the first configured account").
+    /// Changes the app-level default send account (<c>null</c> clears it, restoring "the first
+    /// configured account").
     /// </summary>
-    public void SetDefaultSendAccount(string? accountId) => _app?.SetDefaultSendAccount(accountId);
+    public void SetDefaultSendAccount(string? accountId) =>
+        DispatchPreference(new PreferenceIntent.SetDefaultSendAccount(accountId));
 
     /// <summary>
     /// The account the composer's From dropdown opens on, resolved against the configured

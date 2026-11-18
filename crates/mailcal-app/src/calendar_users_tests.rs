@@ -82,7 +82,7 @@ fn app(calendar: Option<CalendarServer>) -> Arc<App<CalendarServer>> {
         },
         None,
         Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     ))
 }
 

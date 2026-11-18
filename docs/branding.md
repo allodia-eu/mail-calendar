@@ -126,7 +126,7 @@ of the app's own, and on two platforms that directory is not given to the app by
 |---|---|---|
 | **macOS** (outside the Mac App Store) | `~/.local/share/<name>`, a debug build `<name>-dev-*`, the share box `<name>-share` | `MAILCAL_DATA_DIR_NAME` |
 | **Linux** (unpackaged) | `$XDG_DATA_HOME/<name>` | `MAILCAL_DATA_DIR_NAME` |
-| **Windows** (packaged too: the app writes there unvirtualized) | `%LOCALAPPDATA%\<path>` | `MAILCAL_WINDOWS_DATA_DIR`, `/` between segments |
+| **Windows** (a package's view of it; on a fresh machine Windows keeps it in the package's sandbox, [`windows-channels.md`](windows-channels.md)) | `%LOCALAPPDATA%\<path>` | `MAILCAL_WINDOWS_DATA_DIR`, `/` between segments |
 
 Two brands with the same value on one machine open one store, and each then finds the other's
 accounts with no credentials to go with them. So a publisher states its own, and like the app id it

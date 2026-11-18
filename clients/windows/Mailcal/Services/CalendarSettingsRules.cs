@@ -13,7 +13,8 @@ namespace Allodia.Mailcal.Services;
 internal static class CalendarSettingsRules
 {
     /// <summary>The settings the agenda and the grid are drawn with: the zone and clock the
-    /// events are formatted in, the display settings the grid applies, and each calendar's name,
+    /// events are formatted in, the display settings the grid applies (the reading views' message
+    /// background among them, which redraws on the same bump), and each calendar's name,
     /// colour, visibility and rights, which decide what is shown and whether a new event can be
     /// made.</summary>
     internal static string Fingerprint(

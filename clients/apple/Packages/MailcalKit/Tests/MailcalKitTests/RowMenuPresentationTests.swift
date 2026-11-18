@@ -21,7 +21,7 @@ import Testing
     private func message(_ key: String) -> ThreadMessage {
         ThreadMessage(
             account: "acct-1", key: key, from: "sender", avatar: avatar(), date: "2026-10-30",
-            preview: "", unread: false, outgoing: false, draft: false, hasAttachment: false
+            preview: "", unread: false, outgoing: false, draft: false, hasAttachment: false, importance: .normal
         )
     }
 
@@ -29,7 +29,7 @@ import Testing
         ThreadRow(
             account: "acct-1", threadId: id, latestKey: "\(id)-1", subject: "Conversation",
             latestFrom: "sender", avatar: avatar(), latestDate: "2026-10-30", messageCount: 2,
-            unreadCount: 0, hasAttachment: false, preview: "",
+            unreadCount: 0, hasAttachment: false, importance: .normal, preview: "",
             messages: [message("\(id)-2"), message("\(id)-1")]
         )
     }
@@ -37,7 +37,7 @@ import Testing
     private func flat(_ key: String) -> SnapshotRow {
         .flat(row: FlatRow(
             account: "acct-1", key: key, subject: "Subject", from: "sender", avatar: avatar(),
-            date: "2026-10-30", unread: false, flagged: false, hasAttachment: false, preview: ""
+            date: "2026-10-30", unread: false, flagged: false, hasAttachment: false, importance: .normal, preview: ""
         ))
     }
 

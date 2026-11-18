@@ -270,7 +270,7 @@ public sealed partial class CalendarView : UserControl
     private void OnZoomSettled(CalendarMode mode, int hours)
     {
         _pager.SetZoom(mode);
-        Model?.SetCalendarVisibleHours(hours);
+        Model?.SetCalendarVisibleHours((byte)hours);
         Model?.SetCalendarLayout(mode.ToLayout());
     }
 

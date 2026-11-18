@@ -25,7 +25,12 @@ pub(super) fn section(ctx: &PageContext) -> adw::PreferencesGroup {
     let app = ctx.app.clone();
     background.add(&switch(
         ctx.app.display_settings().dark_message_background,
-        move |dark| app.set_dark_message_background(dark),
+        move |dark| {
+            crate::ui::preference::set(
+                &app,
+                mailcal_bindings::PreferenceIntent::SetDarkMessageBackground { dark },
+            );
+        },
     ));
     background
 }

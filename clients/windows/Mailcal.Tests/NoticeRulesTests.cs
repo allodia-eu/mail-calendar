@@ -75,6 +75,47 @@ public class NoticeRulesTests
     }
 
     [Fact]
+    public void Settings_draws_the_first_notice_that_belongs_everywhere_in_the_cores_order()
+    {
+        Notice[] notices =
+        [
+            Make("mail", nameof(NoticeScreens.Mail), nameof(NoticeSeverity.Blocked)),
+            Make("expired", nameof(NoticeScreens.Everywhere), nameof(NoticeSeverity.Blocked), account: "a"),
+            Make("unsaved", nameof(NoticeScreens.Everywhere)),
+        ];
+
+        // A notice for one screen is the window's, whatever its rank.
+        Assert.Equal("expired", NoticeRules.InSettings(notices, accountPage: null)?.Id);
+        // Another account's page leaves it in place.
+        Assert.Equal("expired", NoticeRules.InSettings(notices, accountPage: "b")?.Id);
+        Assert.Null(NoticeRules.InSettings([notices[0]], accountPage: null));
+        Assert.Null(NoticeRules.InSettings([], accountPage: null));
+    }
+
+    [Fact]
+    public void On_an_accounts_page_Settings_leaves_out_what_the_page_lists()
+    {
+        Notice[] notices =
+        [
+            Make("expired", nameof(NoticeScreens.Everywhere), nameof(NoticeSeverity.Blocked), account: "a"),
+            Make("unsaved", nameof(NoticeScreens.Everywhere)),
+        ];
+
+        Assert.Equal("unsaved", NoticeRules.InSettings(notices, accountPage: "a")?.Id);
+        Assert.Null(NoticeRules.InSettings([notices[0]], accountPage: "a"));
+    }
+
+    [Theory]
+    [InlineData(nameof(NoticeAction.OpenAccountSettings), true)]
+    [InlineData(nameof(NoticeAction.Review), true)]
+    [InlineData(nameof(NoticeAction.Retry), false)]
+    [InlineData(nameof(NoticeAction.SignInAgain), false)]
+    [InlineData(nameof(NoticeAction.SignInToAllodia), false)]
+    [InlineData(nameof(NoticeAction.UseDeviceTimeZone), false)]
+    public void Inside_Settings_only_an_action_that_opens_a_dialog_opens_the_accounts_page_instead(string action, bool opens) =>
+        Assert.Equal(opens, NoticeRules.OpensAccountPage(Enum.Parse<NoticeAction>(action)));
+
+    [Fact]
     public void More_counts_every_other_notice_in_force_whatever_screen_it_belongs_to()
     {
         Notice[] notices =

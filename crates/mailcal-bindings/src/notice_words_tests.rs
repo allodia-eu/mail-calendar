@@ -55,6 +55,7 @@ fn every_kind() -> Vec<NoticeKind> {
             NoticeKind::CalendarReauth,
             NoticeKind::Unreachable,
             NoticeKind::Offline,
+            NoticeKind::SettingsNotSaved,
             NoticeKind::AllodiaSignInEnded {
                 address: "me@allodia.example".to_owned(),
             },
@@ -133,7 +134,7 @@ fn every_notice_message_in_the_catalog_is_one_the_core_names() {
 }
 
 #[test]
-fn an_outage_and_the_reply_question_have_a_detail_and_each_problem_its_own() {
+fn an_outage_the_reply_question_and_an_unsaved_setting_have_a_detail_and_each_problem_its_own() {
     let details: BTreeSet<String> = every_kind()
         .iter()
         .filter_map(detail)
@@ -141,10 +142,12 @@ fn an_outage_and_the_reply_question_have_a_detail_and_each_problem_its_own() {
         .collect();
     assert_eq!(
         details.len(),
-        11,
-        "five problems for each of two uses, and where a reply's next time is chosen"
+        12,
+        "five problems for each of two uses, where a reply's next time is chosen, and how long \
+         an unsaved setting holds"
     );
     assert!(details.contains("notice_detail_reply_not_delivered"));
+    assert!(details.contains("notice_detail_settings_not_saved"));
     assert_eq!(detail(&NoticeKind::SignInExpired), None);
 }
 

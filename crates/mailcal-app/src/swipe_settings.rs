@@ -2,36 +2,30 @@
 //! row does (Trash, Archive, or Star). A persisted app-level preference the host reads to bind
 //! its swipe gestures and shows in app settings. Like the quote-style and display-zone settings
 //! ([`crate::quote_settings`], [`crate::timezone`]) it lives in the shared preferences file; this
-//! small state holds the loaded values and writes them back read-modify-write so the sibling
-//! preferences are preserved. A second `impl App` block keeps `lib.rs` under the 500-line limit.
-
-use std::path::PathBuf;
+//! small state holds the loaded values.
 
 use engine_api::Provider;
-use mailcal_account::{SwipeAction, load_preferences, save_preferences};
+use mailcal_account::SwipeAction;
 use mailcal_viewmodel::{SwipeActionKind, SwipeDirection, SwipeSettings};
 
-use crate::{App, Surface};
+use crate::{App, Surface, preferences_file::PreferencesFile};
 
 /// The loaded per-direction swipe actions and where to persist them.
 pub(crate) struct SwipeSettingsState {
     left: SwipeAction,
     right: SwipeAction,
-    prefs_path: Option<PathBuf>,
+    prefs: PreferencesFile,
 }
 
 impl SwipeSettingsState {
     /// Loads the persisted actions from the preferences file (both Delete when absent or
     /// unreadable: the behaviour before the setting existed).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map(load_preferences)
-            .unwrap_or_default();
+    pub(crate) fn new(prefs: PreferencesFile) -> Self {
+        let stored = prefs.load();
         Self {
-            left: prefs.swipe_left,
-            right: prefs.swipe_right,
-            prefs_path,
+            left: stored.swipe_left,
+            right: stored.swipe_right,
+            prefs,
         }
     }
 
@@ -39,19 +33,17 @@ impl SwipeSettingsState {
         (self.left, self.right)
     }
 
-    /// Stores one direction's action and persists it. Read-modify-write so the sibling
-    /// display-zone / sync-depth / quote-style / per-account preferences survive.
+    /// Stores one direction's action and persists it.
     fn set(&mut self, direction: SwipeDirection, action: SwipeAction) {
         match direction {
             SwipeDirection::Left => self.left = action,
             SwipeDirection::Right => self.right = action,
         }
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.swipe_left = self.left;
-            prefs.swipe_right = self.right;
-            let _ = save_preferences(path, &prefs);
-        }
+        let (left, right) = (self.left, self.right);
+        self.prefs.edit(move |prefs| {
+            prefs.swipe_left = left;
+            prefs.swipe_right = right;
+        });
     }
 }
 
@@ -106,26 +98,23 @@ fn to_action(kind: SwipeActionKind) -> SwipeAction {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_account::{MessageGrouping, SwipeAction, load_preferences, save_preferences};
+    use mailcal_account::{MessageGrouping, SwipeAction, load_preferences};
     use mailcal_viewmodel::SwipeDirection;
 
     use super::SwipeSettingsState;
+    use crate::preferences_file::ScratchPreferences;
 
     #[test]
     fn each_direction_persists_independently_without_clobbering_siblings() {
-        let dir = std::env::temp_dir().join("mailcal-swipe-actions-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
         // Seed a sibling preference the swipe write must preserve.
-        let seeded = mailcal_account::Preferences {
+        let scratch = ScratchPreferences::seeded(&mailcal_account::Preferences {
             display_timezone: Some("Europe/Amsterdam".to_owned()),
             message_grouping: MessageGrouping::Flat,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
+        });
 
         // Both default to Delete, then each direction is set on its own.
-        let mut state = SwipeSettingsState::new(Some(path.clone()));
+        let mut state = SwipeSettingsState::new(scratch.open());
         assert_eq!(state.get(), (SwipeAction::Delete, SwipeAction::Delete));
         state.set(SwipeDirection::Left, SwipeAction::Archive);
         // Setting Left leaves Right alone.
@@ -134,15 +123,14 @@ mod tests {
 
         // A fresh state reads back both persisted choices, and the siblings survived.
         assert_eq!(
-            SwipeSettingsState::new(Some(path.clone())).get(),
+            SwipeSettingsState::new(scratch.open()).get(),
             (SwipeAction::Archive, SwipeAction::Star)
         );
-        let on_disk = load_preferences(&path);
+        let on_disk = load_preferences(scratch.path());
         assert_eq!(
             on_disk.display_timezone.as_deref(),
             Some("Europe/Amsterdam")
         );
         assert_eq!(on_disk.message_grouping, MessageGrouping::Flat);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

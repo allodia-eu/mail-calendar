@@ -242,7 +242,7 @@ pub(super) fn app_with_sources(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }
 
@@ -260,6 +260,7 @@ pub(super) fn snapshot_from(address: &str) -> MailboxListSnapshot {
             unread: true,
             flagged: false,
             has_attachment: false,
+            importance: engine_api::Importance::Normal,
             preview: String::new(),
             kind: mailcal_viewmodel::MessageKind::Received,
             folders: Vec::new(),

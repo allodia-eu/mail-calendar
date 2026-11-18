@@ -9,7 +9,7 @@
 //! what lets a save carry them: a reply saved before it was ever sent is still a reply, and still
 //! one when it is resumed (`docs/drafts.md`).
 
-use engine_api::{AccountId, MessageIdHeader, Provider};
+use engine_api::{AccountId, Importance, MessageIdHeader, Provider};
 
 use super::{moved::ComposerState, reopen::Opening};
 use crate::{
@@ -296,6 +296,9 @@ fn blank(account: AccountId, message_id: MessageIdHeader) -> Opening {
         attachments: Vec::new(),
         attachments_failed: false,
         seeds_signature: true,
+        // A reply or forward starts normal, whatever the original said: its importance is its
+        // sender's word about that message, not about this one.
+        importance: Importance::Normal,
     }
 }
 

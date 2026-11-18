@@ -39,6 +39,15 @@ pub(super) fn prominent(notices: &[Notice], screen: NoticeScreens) -> Option<&No
     notices.iter().find(|notice| belongs(notice, screen))
 }
 
+/// The notice drawn at the top of Settings: the first, in the core's order, that is drawn on every
+/// screen, leaving out one about the account whose page is open, which lists it (rule 2).
+pub(super) fn in_settings<'a>(notices: &'a [Notice], account: Option<&str>) -> Option<&'a Notice> {
+    notices.iter().find(|notice| {
+        notice.screens == NoticeScreens::Everywhere
+            && (account.is_none() || notice.account.as_deref() != account)
+    })
+}
+
 /// How many notices besides the banner's are in force, which the Issues button counts. None while
 /// the screen has no banner: an account's notices are on its row then.
 pub(super) fn more(notices: &[Notice], screen: NoticeScreens) -> usize {

@@ -63,7 +63,9 @@ internal sealed partial class App
     /// the notice would find it gone (docs/notices.md rule 9).</summary>
     private List<Element> Dialogs(Filter close)
     {
-        var notices = Agent.FindAll(Filter.ById("NoticeBar")).Concat(Agent.FindAll(Filter.ById("AccountNotice")))
+        var notices = Agent.FindAll(Filter.ById("NoticeBar"))
+            .Concat(Agent.FindAll(Filter.ById("SettingsNotice")))
+            .Concat(Agent.FindAll(Filter.ById("AccountNotice")))
             .SelectMany(bar => Agent.FindAll(close with { Under = bar }))
             .Select(Spot)
             .ToHashSet();

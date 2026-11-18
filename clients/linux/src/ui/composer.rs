@@ -21,6 +21,7 @@ use super::{
     composer_fields::{ComposerFields, connect_save_draft, connect_send, read_document},
     composer_file_tiles::{ComposerFileStore, FileTiles},
     composer_header::{RecipientRows, add_from_row, entry_row, from_picker, recipient_rows},
+    composer_importance::{ImportanceControl, ImportanceStore},
     composer_labels::editor_labels,
     composer_layout::ComposerColumn,
     composer_model::{ComposeContext, attribution_script, body_seed_script, compose_title},
@@ -233,6 +234,15 @@ impl ComposerPane {
         if let Some(control) = &signature {
             actions.append(control.widget());
         }
+        let importance = app.map(|app| {
+            ImportanceControl::new(
+                Arc::clone(app) as Arc<dyn ImportanceStore>,
+                &request.composition,
+            )
+        });
+        if let Some(control) = &importance {
+            actions.append(control.widget());
+        }
         let quote_style = QuoteStylePicker::for_composer(request.has_quote, app, web.widget());
         if let Some(picker) = &quote_style {
             actions.append(picker.widget());
@@ -274,6 +284,7 @@ impl ComposerPane {
             bcc,
             subject,
             files,
+            importance,
         };
         let guard = Rc::new(DraftGuard::new(
             web.widget().clone(),

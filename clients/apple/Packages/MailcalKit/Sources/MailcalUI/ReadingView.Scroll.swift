@@ -7,6 +7,7 @@
 // (docs/reading-zoom.md records the same limit for fitting a message to the pane).
 
 #if os(iOS)
+import MailcalBindings
 import SwiftUI
 
 extension ReadingView {
@@ -24,6 +25,7 @@ extension ReadingView {
         VStack(spacing: 0) {
             identityHeader
             recipientsHeader
+            ImportanceBanner(importance: bodySnapshot?.importanceBanner)
             attachmentBar
             invitationCard
             if remoteImagesOffered {

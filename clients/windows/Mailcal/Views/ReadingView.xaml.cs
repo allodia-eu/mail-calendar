@@ -456,10 +456,11 @@ public sealed partial class ReadingView : UserControl
 
     private void StopHandoverGrace() => _handoverTimer?.Stop();
 
-    // Set the To/Cc/Bcc header rows from the body snapshot (each collapses when empty); pass
-    // null while loading / when nothing is selected to collapse them all.
+    // Set the To/Cc/Bcc header rows and the importance banner from the body snapshot (each
+    // collapses when empty); pass null while loading / when nothing is selected to collapse them all.
     private void SetRecipients(ReadingBody? body)
     {
+        SetImportance(body);
         SetRecipientRow(ToText, L10n.ComposeTo(), body?.To);
         SetRecipientRow(CcText, L10n.ComposeCc(), body?.Cc);
         SetRecipientRow(BccText, L10n.ComposeBcc(), body?.Bcc);

@@ -145,9 +145,13 @@ public sealed class SettingsJmapSecretTests(SetupHarnessApp harness) : IClassFix
         WaitSignInExpired(app);
         var dialog = GiveSecret(app, flow, "not-the-password");
         var failed = Catalog.Everywhere("settings_account_change_failed_title");
-        Assert.True(app.Agent.FindAll(new Filter { Type = "Text", Under = dialog }).Any(text => failed.Contains(text.Name)),
-            "a secret the server refuses is said, rather than taken as signed in");
-        Assert.True(app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog }) is not null, "and the field stays, since the account still needs one");
+        // GiveSecret returns on either outcome, and a page drawn again while the change runs has no
+        // field for a moment, so the outcome this case expects is waited for rather than read once.
+        Assert.True(App.Eventually(
+            () => app.Agent.FindAll(new Filter { Type = "Text", Under = dialog }).Any(text => failed.Contains(text.Name)),
+            TimeSpan.FromSeconds(30)), "a secret the server refuses is said, rather than taken as signed in");
+        Assert.True(App.Eventually(() => app.Agent.Find(new Filter { Id = "AccountPassword", Under = dialog }) is not null, TimeSpan.FromSeconds(5)),
+            "and the field stays, since the account still needs one");
         Harness.SetPassword("alice", Seeded);
         GiveSecret(app, flow, Seeded);
         AssertSignedIn(app, flow, "the seeded secret is the one the server holds again");

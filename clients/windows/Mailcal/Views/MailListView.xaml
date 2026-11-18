@@ -71,8 +71,15 @@
                                TextTrimming="CharacterEllipsis" MaxLines="1" />
                 </StackPanel>
 
-                <!-- Flag then paperclip, matching the macOS row order; each collapses when absent. -->
+                <!-- Importance, flag then paperclip, matching the macOS row order; each collapses
+                     when absent (docs/importance.md). -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                    <FontIcon Glyph="&#xE8C9;" FontSize="14"
+                              Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                              Visibility="{x:Bind ImportanceHighVisibility, Mode=OneWay}" />
+                    <FontIcon Glyph="&#xE74B;" FontSize="14"
+                              Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                              Visibility="{x:Bind ImportanceLowVisibility, Mode=OneWay}" />
                     <FontIcon Glyph="&#xE7C1;" FontSize="14"
                               Foreground="{ThemeResource SystemFillColorCautionBrush}"
                               Visibility="{x:Bind FlagVisibility, Mode=OneWay}" />
@@ -141,6 +148,12 @@
                     <!-- The flag while any message on it is flagged, which is when its menu offers
                          Clear flag; then the paperclip when any message has an attachment. -->
                     <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <FontIcon Glyph="&#xE8C9;" FontSize="14"
+                                  Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                  Visibility="{x:Bind ImportanceHighVisibility, Mode=OneWay}" />
+                        <FontIcon Glyph="&#xE74B;" FontSize="14"
+                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                  Visibility="{x:Bind ImportanceLowVisibility, Mode=OneWay}" />
                         <FontIcon Glyph="&#xE7C1;" FontSize="14"
                                   Foreground="{ThemeResource SystemFillColorCautionBrush}"
                                   Visibility="{x:Bind FlagVisibility, Mode=OneWay}" />
@@ -205,6 +218,16 @@
                                                    TextTrimming="CharacterEllipsis" MaxLines="1" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                                        <!-- Named, so the message's button announces its importance
+                                             (docs/importance.md, rule 2). -->
+                                        <FontIcon Glyph="&#xE8C9;" FontSize="12"
+                                                  Foreground="{ThemeResource SystemFillColorCriticalBrush}"
+                                                  AutomationProperties.Name="{x:Bind l10n:L10n.A11yImportanceHigh(), Mode=OneTime}"
+                                                  Visibility="{x:Bind ImportanceHighVisibility, Mode=OneTime}" />
+                                        <FontIcon Glyph="&#xE74B;" FontSize="12"
+                                                  Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}"
+                                                  AutomationProperties.Name="{x:Bind l10n:L10n.A11yImportanceLow(), Mode=OneTime}"
+                                                  Visibility="{x:Bind ImportanceLowVisibility, Mode=OneTime}" />
                                         <FontIcon Glyph="&#xE7C1;" FontSize="12"
                                                   Foreground="{ThemeResource SystemFillColorCautionBrush}"
                                                   Visibility="{x:Bind FlagVisibility, Mode=OneTime}" />

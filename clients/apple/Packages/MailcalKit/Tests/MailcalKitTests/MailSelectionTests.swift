@@ -34,7 +34,7 @@ import Testing
                 date: "2026-07-20",
                 unread: unread,
                 flagged: flagged,
-                hasAttachment: false,
+                hasAttachment: false, importance: .normal,
                 preview: ""
             )
         )
@@ -43,7 +43,7 @@ import Testing
     private func member(_ key: String, unread: Bool = false) -> ThreadMessage {
         ThreadMessage(
             account: "acct-1", key: key, from: "sender", avatar: avatar(), date: "2026-07-20",
-            preview: "", unread: unread, outgoing: false, draft: false, hasAttachment: false
+            preview: "", unread: unread, outgoing: false, draft: false, hasAttachment: false, importance: .normal
         )
     }
 
@@ -60,7 +60,7 @@ import Testing
                 latestDate: "2026-07-20",
                 messageCount: 3,
                 unreadCount: unreadCount,
-                hasAttachment: false,
+                hasAttachment: false, importance: .normal,
                 preview: "",
                 messages: messages
         )

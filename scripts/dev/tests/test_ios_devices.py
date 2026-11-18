@@ -135,8 +135,8 @@ class OneDeviceDetail(unittest.TestCase):
     The case this exists for: these were read with a sed over the listing `devicectl` prints for a
     person, and Xcode 27 reformatted it, `developerModeStatus: enabled` becoming
     `• Developer Mode Status: Enabled (1)`. Every such read began answering the empty string, so
-    `test-ui.sh --device` refused a phone whose Developer Mode was on and told its owner to go and
-    switch on the thing they had already switched on.
+    the Developer Mode precondition refused a phone whose Developer Mode was on and told its owner
+    to go and switch on the thing they had already switched on.
     """
 
     def test_developer_mode_is_read_from_the_properties_dictionary(self):

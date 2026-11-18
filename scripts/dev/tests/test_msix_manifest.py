@@ -15,14 +15,16 @@ import sys
 import unittest
 import xml.dom.minidom
 from pathlib import Path
+from xml.etree import ElementTree
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "dev"))
 
 import brand  # noqa: E402
-from msix_manifest import ManifestError, rebrand  # noqa: E402
+from msix_manifest import ManifestError, rebrand, toast_activator_clsid  # noqa: E402
 
 MANIFEST = REPO_ROOT / "clients" / "windows" / "Mailcal" / "Package.appxmanifest"
+PROJECT = REPO_ROOT / "clients" / "windows" / "Mailcal" / "Mailcal.csproj"
 
 NEUTRAL = {
     "MAILCAL_APP_ID": "org.mailcal.client",
@@ -191,6 +193,69 @@ class DirectChannelIdentity(unittest.TestCase):
     def test_an_unknown_channel_is_refused(self) -> None:
         with self.assertRaises(ManifestError):
             rebrand(self.committed, NEUTRAL, BRANDED, "beta")
+
+
+APPX = "{http://schemas.microsoft.com/appx/manifest/foundation/windows10}"
+DESKTOP = "{http://schemas.microsoft.com/appx/manifest/desktop/windows10}"
+COM = "{http://schemas.microsoft.com/appx/manifest/com/windows10}"
+
+
+def _activator(text: str) -> tuple[str, list]:
+    """The toast activator CLSID the manifest declares, and every COM exe server it declares."""
+    root = ElementTree.fromstring(text)
+    activations = root.findall(".//%sToastNotificationActivation" % DESKTOP)
+    if len(activations) != 1:
+        raise AssertionError("expected one ToastNotificationActivation, found %d" % len(activations))
+    return activations[0].get("ToastActivatorCLSID"), root.findall(".//%sExeServer" % COM)
+
+
+class NotificationActivator(unittest.TestCase):
+    """What a packaged build needs before `AppNotificationManager.Register()` succeeds.
+
+    A packaged app registers against the COM server its manifest declares with the runtime's own
+    activation argument, and fails with E_FAIL when there is none, so a manifest without one ships a
+    build that raises no notification at all. Nothing else sees it: the UI suites run the
+    unpackaged build, which registers its server at runtime.
+    """
+
+    def setUp(self) -> None:
+        self.committed = MANIFEST.read_text(encoding="utf-8")
+
+    def assert_declares_its_activator(self, text: str, identity: str) -> None:
+        clsid, servers = _activator(text)
+        self.assertEqual(clsid, toast_activator_clsid(identity))
+        notifying = [s for s in servers if s.get("Arguments") == "----AppNotificationActivated:"]
+        self.assertEqual(len(notifying), 1, "no COM server carries the runtime's activation argument")
+        self.assertEqual(
+            [c.get("Id") for c in notifying[0].findall("%sClass" % COM)],
+            [clsid],
+            "the COM server and the toast activation name different classes",
+        )
+
+    def test_the_committed_manifest_declares_the_activator_for_its_own_identity(self) -> None:
+        self.assert_declares_its_activator(self.committed, NEUTRAL["MAILCAL_MSIX_IDENTITY_NAME"])
+
+    def test_the_server_is_the_app_the_package_launches(self) -> None:
+        """The shell starts this file when a toast is clicked with the app closed."""
+        _, servers = _activator(self.committed)
+        self.assertEqual(servers[0].get("Executable"), PROJECT.stem + ".exe")
+        application = ElementTree.fromstring(self.committed).find(".//%sApplication" % APPX)
+        self.assertEqual(application.get("Executable"), "$targetnametoken$.exe")
+
+    def test_each_channel_declares_the_activator_for_its_own_identity(self) -> None:
+        for channel, key in (
+            ("store", "MAILCAL_MSIX_IDENTITY_NAME"),
+            ("direct", "MAILCAL_MSIX_DIRECT_IDENTITY_NAME"),
+        ):
+            with self.subTest(channel=channel):
+                rewritten = rebrand(self.committed, NEUTRAL, BRANDED, channel)
+                self.assert_declares_its_activator(rewritten, BRANDED[key])
+
+    def test_the_store_and_direct_packages_do_not_share_an_activator(self) -> None:
+        """Both can be installed at once, and a click is routed by this id."""
+        store, _ = _activator(rebrand(self.committed, NEUTRAL, BRANDED, "store"))
+        direct, _ = _activator(rebrand(self.committed, NEUTRAL, BRANDED, "direct"))
+        self.assertNotEqual(store, direct)
 
 
 if __name__ == "__main__":

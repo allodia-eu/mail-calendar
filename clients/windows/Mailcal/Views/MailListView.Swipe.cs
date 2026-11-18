@@ -112,11 +112,10 @@ public sealed partial class MailListView
     // travels, so dragging LEFT (SwipeDirection.Left) uncovers the RIGHT edge, and vice versa.
     private void RebuildSwipeItems()
     {
-        if (Model is null)
+        if (Model?.SwipeActions is not { } settings)
         {
             return;
         }
-        var settings = Model.SwipeActions;
         _rightItems = SwipeItemsFor(settings.Left);   // finger travels left  -> right edge
         _leftItems = SwipeItemsFor(settings.Right);   // finger travels right -> left edge
 

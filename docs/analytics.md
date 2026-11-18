@@ -177,7 +177,7 @@ and a what's-new, show them as separate steps with the consent first, alone.
 | Device facts | `ProcessInfo` + `UIDevice.userInterfaceIdiom`; laptop/desktop from **whether there is an internal battery** (`IOKit.ps`); **no model string is read at all** | `Environment.OSVersion` (build ≥ 22000 → `11`); no model read at all | `Build.VERSION.RELEASE` + `smallestScreenWidthDp` ≥ 600 → tablet; **no** `Build.MODEL` | ✅ `/etc/os-release` `VERSION_ID`; fixed desktop class; **no model string is read** |
 | Reported at | `MailcalApp.newAccounts` / `newBackgroundWorker` | `MailcalApp.NewAccounts` | `MailcalApp.newAccounts` / `newBackgroundWorker` | ✅ `MailcalApp::new_accounts` |
 | Welcome / consent screen | ✅ `WelcomeView.swift` (shared macOS + iOS + iPadOS) | ✅ `Views/WelcomeView.xaml` | ✅ `WelcomeScreen.kt` | ✅ `ui/welcome.rs`, ahead of setup |
-| Settings → Privacy toggle | ✅ `AnalyticsSettings.swift`, mounted by `SettingsView` (macOS) and `SyncSettingsView` (iOS) | ✅ `Dialogs/SettingsDialog.Privacy.cs` | ✅ `AnalyticsConsentUi.kt`, mounted by `SettingsScreen.kt` | ✅ `ui/settings/pages.rs` |
+| Settings → Privacy toggle | ✅ `AnalyticsSettings.swift`, mounted by `SettingsCategoryDetail` (every Apple platform) | ✅ `Dialogs/SettingsDialog.Privacy.cs` | ✅ `AnalyticsConsentUi.kt`, mounted by `SettingsScreen.kt` | ✅ `ui/settings/pages.rs` |
 | Payload preview panel | ✅ `AnalyticsPayloadPanel` (shared by both surfaces) | ✅ inline reveal (a nested `ContentDialog` is not allowed) | ✅ `AnalyticsPayloadPanel` | ✅ modal, shared core JSON |
 | Launch reported | ✅ `reportAppOpened()` in `MailcalModel.connect` | ✅ `ReportAppOpened()` in `ConnectAsync` | ✅ `reportAppOpened()` in `connect()` | ✅ after stored or first-run choice |
 | Consent storage | core `preferences.toml` (shared, no per-client store) | same | same | same |
@@ -340,5 +340,7 @@ This contract is binding via [`../AGENTS.md`](../AGENTS.md). When you change ana
 4. A new platform ships the consent screen, the Settings toggle, and the payload preview **before**
    it ships to users; any shortfall goes under "Known gaps" with a follow-up, never left silent.
 5. **A new data *category* re-opens the store declarations** ("The store privacy declarations"
-   above): Apple's App Privacy, Play's Data Safety, Partner Center. Update them in the same change
+   above): Apple's App Privacy, Play's Data Safety, Partner Center, and the collected data types in
+   the Apple app's privacy manifest (`clients/apple/App/PrivacyInfo.xcprivacy`, which ships in the
+   build and so moves in the change itself). Update them in the same change
    and land the edit **before** the build that widens the payload, not after.

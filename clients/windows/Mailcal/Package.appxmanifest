@@ -15,6 +15,8 @@
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+  xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10"
   IgnorableNamespaces="uap uap5 rescap">
 
   <Identity
@@ -137,6 +139,30 @@
             <uap5:ExecutionAlias Alias="mailcal-mcp.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
+
+        <!-- New-mail notifications (docs/background-sync.md). A packaged app's
+             AppNotificationManager.Register() looks for the COM server this package declares with
+             the runtime's own activation argument, character for character as below, and refuses
+             (E_FAIL, "No COM servers are registered for this app") when there is none, so without
+             these two entries a packaged build raises no toast at all. The shell starts that
+             server, Mailcal.exe with those arguments, when a toast is clicked while the app is not
+             running. The unpackaged build registers the same thing at runtime, which is why its UI
+             suites never see this.
+
+             The CLSID is one per package identity, derived from Identity/@Name
+             (msix_manifest.toast_activator_clsid), because a click is routed by CLSID and the
+             Store and direct packages can be installed side by side; package.ps1 writes the
+             branded one in. Both attributes carry the same value. -->
+        <desktop:Extension Category="windows.toastNotificationActivation">
+          <desktop:ToastNotificationActivation ToastActivatorCLSID="01995BF2-8DC0-53CA-A5EF-6FB15F88B150" />
+        </desktop:Extension>
+        <com:Extension Category="windows.comServer">
+          <com:ComServer>
+            <com:ExeServer Executable="Mailcal.exe" Arguments="----AppNotificationActivated:" DisplayName="New-mail notifications">
+              <com:Class Id="01995BF2-8DC0-53CA-A5EF-6FB15F88B150" DisplayName="New-mail notifications" />
+            </com:ExeServer>
+          </com:ComServer>
+        </com:Extension>
       </Extensions>
     </Application>
   </Applications>

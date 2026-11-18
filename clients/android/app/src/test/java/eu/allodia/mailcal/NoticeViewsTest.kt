@@ -125,6 +125,25 @@ class NoticeViewsTest {
     }
 
     @Test
+    fun `settings that could not be saved stand on every screen, and Try again runs it`() {
+        val notSaved = skipped.copy(
+            id = "settings",
+            kind = NoticeKind.SettingsNotSaved,
+            title = NoticeText("notice_settings_not_saved", emptyMap()),
+            detail = NoticeText("notice_detail_settings_not_saved", emptyMap()),
+            screens = NoticeScreens.EVERYWHERE,
+            action = NoticeAction.RETRY,
+            actionLabel = NoticeText("notice_action_retry", emptyMap()),
+            dismissible = false,
+        )
+        area(listOf(notSaved), NoticeScreens.CALENDAR)
+
+        compose.onNodeWithText(L10n.notice_settings_not_saved(ctx)).assertIsDisplayed()
+        compose.onNodeWithText(L10n.notice_action_retry(ctx)).performClick()
+        assertEquals(listOf("settings"), run)
+    }
+
+    @Test
     fun `an event can be closed`() {
         area(listOf(skipped))
 

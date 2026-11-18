@@ -212,6 +212,7 @@ mod tests {
     fn row(subject: &str) -> SnapshotRow {
         SnapshotRow::Flat {
             row: FlatRow {
+                importance: mailcal_bindings::MessageImportance::Normal,
                 avatar: crate::ui::model::blank_avatar(),
                 account: "fixture".to_owned(),
                 key: subject.to_owned(),

@@ -11,7 +11,9 @@
 
 use std::sync::Arc;
 
-use engine_api::{AccountId, Draft, InlinePart, MessageIdHeader, Provider, ProviderKey};
+use engine_api::{
+    AccountId, Draft, Importance, InlinePart, MessageIdHeader, Provider, ProviderKey,
+};
 
 use super::{Composition, Threading};
 use crate::{
@@ -44,6 +46,9 @@ pub(super) struct Opening {
     pub(super) attachments: Vec<StagedAttachment>,
     pub(super) attachments_failed: bool,
     pub(super) seeds_signature: bool,
+    /// The importance it goes out with until the user picks another: a stored message's own, and
+    /// normal for anything new.
+    pub(super) importance: Importance,
 }
 
 impl<P: Provider> App<P> {
@@ -73,6 +78,7 @@ impl<P: Provider> App<P> {
             attachments,
             attachments_failed,
             seeds_signature,
+            importance,
         } = opening;
         let body_html = html
             .filter(|html| !html.trim().is_empty())
@@ -91,6 +97,8 @@ impl<P: Provider> App<P> {
                 threading,
                 pictures: Arc::from(pictures),
                 kind,
+                importance,
+                opened_importance: importance,
                 ..Composition::new(account.clone(), message_id)
             },
         );
@@ -113,15 +121,19 @@ impl<P: Provider> App<P> {
     }
 
     /// Puts on a draft built for `composition` what its composer could not hold: the conversation
-    /// the message belongs to.
-    pub(crate) fn with_threading(
+    /// the message belongs to, and the importance it goes out with (normal for a message written
+    /// in no composer, such as an assistant's).
+    pub(crate) fn with_composition(
         &self,
         composition: Option<&CompositionId>,
         draft: Draft,
     ) -> Draft {
-        let threading = self
-            .joined(composition, |open| open.threading.clone())
-            .flatten();
+        let (threading, importance) = self
+            .joined(composition, |open| {
+                (open.threading.clone(), open.importance)
+            })
+            .unwrap_or_default();
+        let draft = draft.with_importance(importance);
         match threading {
             Some(Threading {
                 in_reply_to: Some(parent),

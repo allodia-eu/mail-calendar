@@ -17,6 +17,7 @@ fn snapshot(folder: &str) -> MailboxListSnapshot {
     let rows = (0..100)
         .map(|index| SnapshotRow::Flat {
             row: FlatRow {
+                importance: mailcal_bindings::MessageImportance::Normal,
                 account: "fixture".to_owned(),
                 key: format!("{folder}-{index}"),
                 subject: format!("{folder} {index}"),

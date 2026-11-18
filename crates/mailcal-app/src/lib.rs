@@ -14,7 +14,6 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
-    path::PathBuf,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64},
@@ -91,6 +90,7 @@ mod mail_compose_signature;
 mod mail_ops;
 mod mcp_settings;
 mod message_size;
+mod preferences_file;
 mod prefetch;
 mod protocol;
 mod query;
@@ -142,7 +142,7 @@ pub use contacts_write::ContactTarget;
 pub use display_settings::DisplaySettings;
 use display_settings::DisplaySettingsState;
 use draft_ops::DraftState;
-pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE, moved::*};
+pub use draft_ops::{ComposeOrigin, ComposePrefill, DRAFT_AUTOSAVE_IDLE, importance::*, moved::*};
 pub use helpers::{export_file_name, forward_subject, reply_subject};
 pub use invitations_fallback::ReplyPrompt;
 pub use invitations_rsvp::InvitationResponse;
@@ -244,9 +244,8 @@ pub struct App<P> {
     /// Standing, like `unfiled_copy`: nothing else holds the message once it has left the outbox.
     compose_request: Mutex<Option<compose_request::ComposeOpening>>,
     view_mode: Mutex<ViewMode>,
-    /// The preferences-file path (shared with the sub-settings states), or `None` for the
-    /// in-memory demo/tests. Used to persist the message-list grouping across launches.
-    prefs_path: Option<PathBuf>,
+    /// The preferences file, shared with every settings state; written behind the caller.
+    prefs: preferences_file::PreferencesFile,
     /// The visible mailbox-list window size (rows from the top). Starts at [`PAGE`], grows by
     /// [`PAGE`] on [`Intent::ShowMore`], and resets to [`PAGE`] on any navigation that changes
     /// the list: so a folder switch always opens at the first page, and scrolling loads more.

@@ -1,0 +1,13 @@
+From: Carol Example <carol@example.org>
+To: Alice Tester <alice@test.local>
+Subject: Contract needs your signature today
+Date: Mon, 12 Jan 2026 09:05:00 +0000
+Message-ID: <importance-high-0020@test.local>
+Importance: High
+X-Priority: 1 (Highest)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Sent with high importance, as Outlook writes it: the standard Importance header with
+X-Priority beside it. The list row marks it and the reading view says so in a banner
+(docs/importance.md).

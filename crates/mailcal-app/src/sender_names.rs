@@ -11,26 +11,24 @@
 //! provider allows it, a copy kept in step for the account's other clients
 //! (`docs/sending.md`).
 
-use std::path::PathBuf;
-
 use engine_api::{EmailAddress, Provider};
-use mailcal_account::{Preferences, load_preferences, save_preferences};
+use mailcal_account::Preferences;
 
-use crate::{App, Surface};
+use crate::{App, Surface, preferences_file::PreferencesFile};
 
 /// The loaded per-account sender names and where to persist them.
 pub(crate) struct SenderNameState {
     prefs: Preferences,
-    prefs_path: Option<PathBuf>,
+    file: PreferencesFile,
 }
 
 impl SenderNameState {
     /// Loads the persisted names (none, when the file is absent or unreadable).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map_or_else(Preferences::default, load_preferences);
-        Self { prefs, prefs_path }
+    pub(crate) fn new(file: PreferencesFile) -> Self {
+        Self {
+            prefs: file.load(),
+            file,
+        }
     }
 
     /// The name `account` sends under, or `None` when nobody has set one.
@@ -56,16 +54,12 @@ impl SenderNameState {
         }
     }
 
-    /// Writes the names back, read-modify-write against what is on disk right now, so a
-    /// concurrent write to an unrelated preference is not clobbered by our in-memory copy.
+    /// Writes the names back; only these, so an unrelated preference written meanwhile is not
+    /// clobbered by this in-memory copy.
     fn persist(&self) {
-        if let Some(path) = &self.prefs_path {
-            let mut on_disk = load_preferences(path);
-            on_disk
-                .account_sender_names
-                .clone_from(&self.prefs.account_sender_names);
-            let _ = save_preferences(path, &on_disk);
-        }
+        let names = self.prefs.account_sender_names.clone();
+        self.file
+            .edit(move |on_disk| on_disk.account_sender_names.clone_from(&names));
     }
 }
 

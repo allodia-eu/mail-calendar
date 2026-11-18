@@ -59,6 +59,7 @@ struct SettingsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .answersScrollBy()
+                .settingsNotice(model, openAccount: selection == .accounts ? model.accountPage : nil)
             }
         }
         .frame(width: 720, height: 520)

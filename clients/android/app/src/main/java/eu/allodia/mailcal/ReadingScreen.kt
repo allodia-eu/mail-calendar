@@ -311,6 +311,8 @@ internal fun ReadingScreen(
             RecipientHeader(snapshot.to, snapshot.cc, snapshot.bcc)
         }
         val body = reading?.takeIf { it.key == message.key }
+        // The sender's importance, under the header it qualifies (docs/importance.md).
+        ImportanceBanner(body?.importanceBanner)
         // The meeting-invitation card, above everything the sender wrote. Present only when the
         // core's two-condition RSVP gate says this message is one (docs/invitations.md), a
         // published `.ics` keeps its attachment chip and gets no card.

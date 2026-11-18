@@ -8,7 +8,7 @@
 // All three are persisted in the **core**, not here: three clients disagreeing about which day a week
 // starts on silently shifts every column of the grid (docs/calendar.md §3), and the clock must read
 // the same in mail and calendar. This file only draws the pickers; the core owns the values, the
-// defaults (Monday, 24-hour, 12h horizon) and the clamps. Each pick writes back through the model,
+// defaults, the clamps and the horizons offered. Each pick writes back through the model,
 // the core re-signals Settings + Calendar, and the calendar re-applies (CalendarView reacts to
 // MailboxModel.DisplaySettingsVersion).
 using System.Globalization;
@@ -22,11 +22,6 @@ namespace Allodia.Mailcal.Dialogs;
 
 public sealed partial class SettingsDialog
 {
-    // The horizons the picker offers, in hours of the day, the same short list Android shows, between
-    // the core's clamp of 4 and 24. The pinch gesture is the fine-grained control; a slider here would
-    // just be a worse version of it.
-    private static readonly int[] CalendarHorizons = [6, 8, 12, 16, 24];
-
     private UIElement BuildCalendar()
     {
         if (_model.CalendarDisplaySettings() is not { } display)
@@ -54,10 +49,11 @@ public sealed partial class SettingsDialog
         panel.Children.Add(Group(L10n.SettingsWeekStartHeading(), L10n.SettingsWeekStartDescription(), weekStack));
 
         // The default horizon, the same number a settled pinch lands on, so the two controls are one
-        // setting rather than two that drift apart.
+        // setting rather than two that drift apart. The core lists the choices, the one a pinch left
+        // between two stops included.
         var horizon = "horizon";
         var horizonStack = new StackPanel { Spacing = 4 };
-        foreach (var hours in CalendarHorizons)
+        foreach (var hours in display.VisibleHoursChoices)
         {
             horizonStack.Children.Add(Radio(
                 L10n.SettingsHorizonHours(hours.ToString(CultureInfo.InvariantCulture)),

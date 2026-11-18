@@ -4,27 +4,28 @@
 // drops the `mso-list` style Word marks its list paragraphs with, so the bundle alone would paste
 // each item as a line starting with "·". The composer's web view reads the clipboard's HTML itself
 // (`EditorWebViewTouch.swift`). Only this suite can see that: the bundle's own tests never meet
-// WebKit, and the rewrite happens on the way into the page.
+// WebKit, and the rewrite happens on the way into the page. The page and the edit menu over it are
+// out of the agent's reach, so both are driven and read through XCUITest.
 
 import UIKit
 import XCTest
 
 @MainActor
 final class ComposerPasteTests: XCTestCase {
-    func testAListPastedFromWordIsAList() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
-        ShowcaseApp.tap(app.buttons["New Mail"])
-        let web = app.webViews.firstMatch
-        XCTAssertTrue(web.waitForExistence(timeout: ShowcaseApp.timeout), "the composer drew no editor")
+    func testAListPastedFromWordIsAList() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
+        try app.press(.button("New Mail"))
+        try app.wait(Filter().type("WKWebView"), "the composer drew no editor")
+        let web = app.input.webViews.firstMatch
 
         UIPasteboard.general.setItems([[
             "public.html": Data(Self.wordList.utf8),
             "public.utf8-plain-text": "Apples\nPears",
         ]])
-        let body = web.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.55))
+        let body = try ShowcaseApp.composerBody(app)
         body.tap()
-        choose("Paste", in: app, at: body)
+        choose("Paste", in: app.input, at: body)
 
         let apples = web.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", "Apples"))
         XCTAssertTrue(apples.firstMatch.waitForExistence(timeout: 5), "nothing was pasted")
