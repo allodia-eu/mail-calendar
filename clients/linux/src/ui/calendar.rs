@@ -13,7 +13,6 @@ mod editor;
 pub(super) mod editor_meeting;
 mod grid;
 pub(super) mod invitees_editor;
-mod manager;
 mod meeting;
 pub(super) mod meeting_row;
 mod model;
@@ -22,6 +21,10 @@ mod pane;
 mod reference;
 mod repeat;
 mod repeat_editor;
+mod side_pane;
+mod side_pane_list;
+mod side_pane_menu;
+mod side_pane_month;
 mod views;
 
 pub(crate) use drag::CreateSlot;
@@ -30,6 +33,7 @@ pub(crate) use editor::EventForm;
 pub(crate) use grid::{labels_widget_tests, widget_tests};
 pub(crate) use model::{CalendarMode, CalendarModel, EventIdentity};
 pub(crate) use pane::CalendarPane;
+pub(crate) use side_pane::{CalendarSide, PaneInput};
 
 #[cfg(test)]
 #[path = "calendar/detail_widget_tests.rs"]
@@ -37,6 +41,9 @@ pub(crate) mod detail_tests;
 #[cfg(test)]
 #[path = "calendar/dialogs_series_widget_tests.rs"]
 pub(crate) mod dialog_tests;
+#[cfg(test)]
+#[path = "calendar/side_pane_widget_tests.rs"]
+pub(crate) mod side_pane_widget_tests;
 #[cfg(test)]
 #[path = "calendar/views_widget_tests.rs"]
 pub(crate) mod views_tests;

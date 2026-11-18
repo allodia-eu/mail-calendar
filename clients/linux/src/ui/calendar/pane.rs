@@ -11,8 +11,8 @@ use super::{
     detail::DetailView,
     dialogs,
     grid::GridSurface,
-    manager::CalendarManager,
     model::{CalendarDialog, CalendarMode, CalendarModel},
+    side_pane::{CalendarSide, SidePane},
     views::{self, AgendaDrawn, MonthDrawn},
 };
 use crate::{l10n, ui::icons};
@@ -25,7 +25,8 @@ pub(crate) struct CalendarPane {
     today: gtk::Button,
     next: gtk::Button,
     new_event: gtk::Button,
-    manager: CalendarManager,
+    /// The pane beside the grid, which the shell places in the folder pane's column.
+    side: SidePane,
     status: gtk::Box,
     status_spinner: gtk::Spinner,
     status_label: gtk::Label,
@@ -89,11 +90,6 @@ impl CalendarPane {
         let input = sender.clone();
         new_event.connect_clicked(move |_| input.emit(AppInput::BeginNewEvent));
         header.pack_end(&new_event);
-        let manage = gtk::Button::with_label(l10n::calendar_manage());
-        manage.update_property(&[AccessibleProperty::Label(l10n::calendar_manage())]);
-        let input = sender.clone();
-        manage.connect_clicked(move |_| input.emit(AppInput::ManageCalendars));
-        header.pack_end(&manage);
         root.add_top_bar(&header);
 
         let grid = GridSurface::new(sender.clone());
@@ -124,7 +120,7 @@ impl CalendarPane {
             today,
             next,
             new_event,
-            manager: CalendarManager::default(),
+            side: SidePane::new(&sender),
             status,
             status_spinner,
             status_label,
@@ -150,11 +146,18 @@ impl CalendarPane {
         self.grid.opened();
     }
 
-    pub(crate) fn render_manager(&mut self, generation: u64, app: Option<&Arc<MailcalApp>>) {
-        self.manager.render(generation, &self.parent, app);
+    /// The calendar pane, for the folder pane's column.
+    pub(crate) fn side(&self) -> &gtk::Box {
+        self.side.widget()
     }
 
-    pub(crate) fn render(&mut self, model: &CalendarModel, app: Option<&Arc<MailcalApp>>) {
+    pub(crate) fn render(
+        &mut self,
+        model: &CalendarModel,
+        side: &CalendarSide,
+        app: Option<&Arc<MailcalApp>>,
+    ) {
+        self.side.render(side);
         self.title.set_title(&model.period_title());
         self.title.set_subtitle(&model.agenda.timezone);
         self.mode.set_label(mode_label(model.mode));

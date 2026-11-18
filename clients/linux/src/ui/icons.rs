@@ -82,6 +82,9 @@ icons! {
     /// The mark in the corner of an occurrence of a repeating event on the grid
     /// (docs/calendar.md §4): Adwaita's repeat arrows, the same artwork its media players use.
     REPEATS = "media-playlist-repeat-symbolic";
+    /// A calendar the calendar pane cannot write: GNOME's own read-only padlock
+    /// (docs/calendar-pane.md, rule 8).
+    READ_ONLY = "changes-prevent-symbolic";
 
     // General controls.
     ADD = "list-add-symbolic";

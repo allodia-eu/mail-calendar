@@ -58,12 +58,17 @@ impl AppModel {
                 self.sync_bar = sync_line::sync_bar(&progress);
                 self.sync_status = sync_line::sync_status(&progress, &self.snapshot.accounts);
             }
-            Surface::Calendar => self.calendar.refresh(&app),
+            Surface::Calendar => {
+                self.calendar.refresh(&app);
+                self.calendar_side.pull(&app, &self.calendar);
+            }
             Surface::Contacts => self.contacts.refresh(&app),
             Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
             Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
             Surface::Settings => {
                 self.calendar.refresh_settings(&app);
+                // The week start moves the mini month's columns.
+                self.calendar_side.pull(&app, &self.calendar);
                 self.settings.signalled();
                 // After the signal's redraw, so a notice it raises is drawn rather than skipped.
                 self.account_work_signalled();

@@ -73,54 +73,47 @@ pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
 }
 
 fn default_calendar(ctx: &PageContext) -> adw::PreferencesGroup {
-    let group = group(
+    let picker = group(
         l10n::settings_default_calendar_heading(),
         l10n::settings_default_calendar_description(),
     );
-    let calendars = ctx
+    // The core's grouping, so the picker lists accounts in the order the calendar pane does.
+    let groups = ctx
         .app
-        .calendars()
+        .calendar_groups()
         .into_iter()
-        .filter(|calendar| calendar.can_write)
+        .map(|mut account| {
+            account.calendars.retain(|calendar| calendar.can_write);
+            account
+        })
+        .filter(|account| !account.calendars.is_empty())
         .collect::<Vec<_>>();
-    if calendars.is_empty() {
-        group.add(
+    if groups.is_empty() {
+        picker.add(
             &adw::ActionRow::builder()
                 .title(l10n::settings_default_calendar_none())
                 .use_markup(false)
                 .build(),
         );
-        return group;
+        return picker;
     }
-    let mut calendars_by_account = std::collections::BTreeMap::<&str, Vec<&CalendarRow>>::new();
-    for calendar in &calendars {
-        calendars_by_account
-            .entry(&calendar.account)
-            .or_default()
-            .push(calendar);
-    }
-    let multiple_accounts = calendars_by_account.len() > 1;
+    let multiple_accounts = groups.len() > 1;
     let mut check_group: Option<gtk::CheckButton> = None;
-    for (account_id, calendars) in calendars_by_account {
+    for account in &groups {
         if multiple_accounts {
-            // The core's address for the account: one used only for its calendar is in no mail
-            // list to look it up in.
-            let account = calendars
-                .first()
-                .map_or(account_id, |calendar| calendar.account_address.as_str());
             let heading = adw::ActionRow::builder()
-                .title(account)
+                .title(&account.address)
                 .sensitive(false)
                 .use_markup(false)
                 .build();
             heading.add_css_class("property");
-            group.add(&heading);
+            picker.add(&heading);
         }
-        for calendar in calendars {
-            group.add(&default_calendar_row(ctx, calendar, &mut check_group));
+        for calendar in &account.calendars {
+            picker.add(&default_calendar_row(ctx, calendar, &mut check_group));
         }
     }
-    group
+    picker
 }
 
 fn default_calendar_row(

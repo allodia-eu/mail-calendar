@@ -56,7 +56,7 @@ impl CalendarMode {
         }
     }
 
-    const fn layout(self) -> CalendarLayout {
+    pub(super) const fn layout(self) -> CalendarLayout {
         match self {
             Self::Day => CalendarLayout::Day,
             Self::ThreeDay => CalendarLayout::ThreeDay,
