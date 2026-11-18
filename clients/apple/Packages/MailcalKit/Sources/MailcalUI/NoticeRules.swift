@@ -21,6 +21,12 @@ enum NoticeRules {
         notices.filter { belongs($0, on: destination) }
     }
 
+    /// The notice Settings draws at its top, above whichever category is open: the first that
+    /// belongs everywhere, leaving out one about `openAccount`, whose page lists it (rules 2 and 6).
+    static func settings(_ notices: [Notice], openAccount: String?) -> Notice? {
+        notices.first { $0.screens == .everywhere && (openAccount == nil || $0.account != openAccount) }
+    }
+
     /// Every notice about `account`, whatever its screen, in the core's order: the first marks
     /// the account's row, and all of them head its Settings page (rule 6).
     static func about(_ account: String, in notices: [Notice]) -> [Notice] {

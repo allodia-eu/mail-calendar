@@ -13,7 +13,7 @@
 
 use mailcal_account::{
     Appearance as AppAppearance, CalendarLayout as AppCalendarLayout, TimeFormat as AppTimeFormat,
-    WeekStart as AppWeekStart, load_preferences, preferences_path,
+    WeekStart as AppWeekStart, load_preferences, preferences_path, visible_hours_choices,
 };
 use mailcal_app::DisplaySettings as AppDisplaySettings;
 
@@ -42,50 +42,6 @@ impl MailcalApp {
     pub fn display_settings(&self) -> DisplaySettings {
         self.app.display_settings().into()
     }
-
-    /// Sets the first day of the calendar week, and persists it.
-    pub fn set_week_start(&self, start: WeekStart) {
-        self.runtime
-            .block_on(|| self.app.set_week_start(start.into()));
-    }
-
-    /// Sets the 12/24-hour clock (for mail and calendar alike) and persists it.
-    pub fn set_time_format(&self, format: TimeFormat) {
-        self.runtime
-            .block_on(|| self.app.set_time_format(format.into()));
-    }
-
-    /// Sets whether the app paints light, dark, or however the host is set, and persists it.
-    pub fn set_appearance(&self, appearance: Appearance) {
-        self.runtime
-            .block_on(|| self.app.set_appearance(appearance.into()));
-    }
-
-    /// Sets whether a message is drawn on a dark background while the app is dark, and persists
-    /// it. The reading pane's sun/moon toggle and Settings → Reading both call this; a client
-    /// re-renders the open message on the `Surface::Settings` signal that follows.
-    pub fn set_dark_message_background(&self, dark: bool) {
-        self.runtime
-            .block_on(|| self.app.set_dark_message_background(dark));
-    }
-
-    /// Sets the calendar's default horizon (how many hours the grid shows at once) and persists it.
-    ///
-    /// Clamped by the core, so a pinch that runs off the end of its gesture, which is normal, not
-    /// exceptional; cannot leave the grid dividing the day by zero.
-    pub fn set_calendar_visible_hours(&self, hours: u8) {
-        self.runtime
-            .block_on(|| self.app.set_calendar_visible_hours(hours));
-    }
-
-    /// Remembers the shape the calendar is being read in, so it opens that way next time.
-    ///
-    /// The other half of the horizon: between them, a pinch down to a single day is fully restored
-    /// on the next launch: the same columns, over the same hours.
-    pub fn set_calendar_layout(&self, layout: CalendarLayout) {
-        self.runtime
-            .block_on(|| self.app.set_calendar_layout(layout.into()));
-    }
 }
 
 impl From<AppDisplaySettings> for DisplaySettings {
@@ -96,6 +52,7 @@ impl From<AppDisplaySettings> for DisplaySettings {
             appearance: settings.appearance.into(),
             dark_message_background: settings.dark_message_background,
             visible_hours: settings.visible_hours,
+            visible_hours_choices: visible_hours_choices(settings.visible_hours),
             layout: settings.layout.into(),
         }
     }

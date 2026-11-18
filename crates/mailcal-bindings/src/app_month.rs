@@ -7,7 +7,6 @@
 //! The manager's writes (show/hide a calendar, override its colour) are applied at page-read time,
 //! so an unticked calendar disappears from the grid immediately, with no sync and no network.
 
-use mailcal_account::DefaultCalendar;
 use mailcal_app::MonthPage as AppMonthPage;
 use mailcal_viewmodel::calendar::{
     color::{PALETTE, event_swatch},
@@ -34,46 +33,12 @@ impl MailcalApp {
         page.into()
     }
 
-    /// Shows or hides one calendar's events, and persists the choice.
-    ///
-    /// Keyed on account **and** calendar: a calendar id is unique only within its account, so two
-    /// accounts can each have a `work` calendar and hiding one must not hide the other.
-    pub fn set_calendar_visible(&self, account: String, calendar: String, visible: bool) {
-        self.runtime
-            .block_on(|| self.app.set_calendar_visible(&account, &calendar, visible));
-    }
-
-    /// Overrides one calendar's colour, or clears the override (`None`) back to the server's.
-    ///
-    /// The hex is **not trusted**: the core snaps it to the nearest palette entry, so a client
-    /// cannot introduce an off-palette colour; including Allodia Orange, which is reserved for
-    /// actions.
-    pub fn set_calendar_color(&self, account: String, calendar: String, hex: Option<String>) {
-        self.runtime
-            .block_on(|| self.app.set_calendar_color(&account, &calendar, hex));
-    }
-
     /// Every calendar, with the user's decisions applied; what Settings lists.
     ///
     /// A synchronous, in-memory read of the same cache a page is drawn from; no store, no network.
     /// Exactly one row has `is_default` set whenever any calendar can take a write.
     pub fn calendars(&self) -> Vec<CalendarRow> {
         self.app.calendars().into_iter().map(Into::into).collect()
-    }
-
-    /// Chooses the calendar new events are filed on unless the user picks another in the editor.
-    ///
-    /// Passing `None` for either half clears the choice, which is **not** the same as naming a
-    /// calendar: it returns to "whichever writable calendar comes first", so an account connected
-    /// later can become the default on its own. The choice is not trusted to still be valid; the
-    /// core resolves it against the calendars that exist every time it builds the list, and
-    /// `CalendarRow::is_default` is the answer.
-    pub fn set_default_calendar(&self, account: Option<String>, calendar: Option<String>) {
-        let choice = account
-            .zip(calendar)
-            .map(|(account, calendar)| DefaultCalendar { account, calendar });
-        self.runtime
-            .block_on(|| self.app.set_default_calendar(choice));
     }
 }
 

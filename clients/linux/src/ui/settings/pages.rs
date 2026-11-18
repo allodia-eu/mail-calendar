@@ -5,11 +5,12 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    CalendarRow, Intent, QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMode, WeekStart,
+    CalendarRow, Intent, PreferenceIntent, QuoteStyleKind, SwipeActionKind, SwipeDirection,
+    ViewMode, WeekStart,
 };
 
 use super::{PageContext, choice, dialog_box, group, page_box};
-use crate::l10n;
+use crate::{l10n, ui::preference};
 
 pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_calendar());
@@ -33,11 +34,12 @@ pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
     );
     let app = ctx.app.clone();
     picker.connect_selected_notify(move |picker| {
-        app.set_week_start(if picker.selected() == 0 {
+        let start = if picker.selected() == 0 {
             WeekStart::Monday
         } else {
             WeekStart::Sunday
-        });
+        };
+        preference::set(&app, PreferenceIntent::SetWeekStart { start });
     });
     week.add(&row);
     content.append(&week);
@@ -46,7 +48,8 @@ pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
         l10n::settings_horizon_heading(),
         l10n::settings_horizon_description(),
     );
-    let hours = [6_u8, 8, 10, 12, 16, 24];
+    // The core's choices hold the horizon in force, wherever a pinch left it.
+    let hours = display.visible_hours_choices;
     let labels = hours
         .iter()
         .map(|hours| l10n::settings_horizon_hours(&hours.to_string()))
@@ -56,12 +59,12 @@ pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
         .iter()
         .position(|hours| *hours == display.visible_hours)
         .and_then(|index| u32::try_from(index).ok())
-        .unwrap_or(3);
+        .unwrap_or_default();
     let (row, picker) = choice(l10n::settings_horizon_heading(), &label_refs, selected);
     let app = ctx.app.clone();
     picker.connect_selected_notify(move |picker| {
-        if let Some(hours) = hours.get(picker.selected() as usize) {
-            app.set_calendar_visible_hours(*hours);
+        if let Some(&hours) = hours.get(picker.selected() as usize) {
+            preference::set(&app, PreferenceIntent::SetCalendarVisibleHours { hours });
         }
     });
     horizon.add(&row);
@@ -143,7 +146,13 @@ fn default_calendar_row(
     let id = calendar.id.clone();
     selected.connect_toggled(move |choice| {
         if choice.is_active() {
-            app.set_default_calendar(Some(account.clone()), Some(id.clone()));
+            preference::set(
+                &app,
+                PreferenceIntent::SetDefaultCalendar {
+                    account: Some(account.clone()),
+                    calendar: Some(id.clone()),
+                },
+            );
         }
     });
     row.add_prefix(&selected);
@@ -157,15 +166,16 @@ pub(super) fn reading(ctx: &PageContext) -> gtk::Box {
         l10n::settings_grouping_heading(),
         l10n::settings_grouping_description(),
     );
+    // Threaded first, the default, as every platform lists it.
     let selected = match ctx.app.view_mode() {
-        ViewMode::Flat => 0,
-        ViewMode::Threaded => 1,
+        ViewMode::Threaded => 0,
+        ViewMode::Flat => 1,
     };
     let (row, picker) = choice(
         l10n::settings_grouping_heading(),
         &[
-            l10n::settings_grouping_flat(),
             l10n::settings_grouping_threaded(),
+            l10n::settings_grouping_flat(),
         ],
         selected,
     );
@@ -173,9 +183,9 @@ pub(super) fn reading(ctx: &PageContext) -> gtk::Box {
     picker.connect_selected_notify(move |picker| {
         app.dispatch(Intent::SetViewMode {
             mode: if picker.selected() == 0 {
-                ViewMode::Flat
-            } else {
                 ViewMode::Threaded
+            } else {
+                ViewMode::Flat
             },
         });
     });
@@ -224,21 +234,28 @@ pub(super) fn composing(ctx: &PageContext) -> gtk::Box {
     );
     let app = ctx.app.clone();
     picker.connect_selected_notify(move |picker| {
-        app.set_quote_style(if picker.selected() == 0 {
+        let style = if picker.selected() == 0 {
             QuoteStyleKind::Indented
         } else {
             QuoteStyleKind::LineAndHeader
-        });
+        };
+        preference::set(&app, PreferenceIntent::SetQuoteStyle { style });
     });
     quote.add(&row);
     let per_message = adw::SwitchRow::builder()
-        .title(l10n::quote_style_label())
-        .subtitle(l10n::settings_composing_description())
+        .title(l10n::settings_quote_per_message_heading())
+        .subtitle(l10n::settings_quote_per_message_description())
         .active(settings.per_message)
         .use_markup(false)
         .build();
     let app = ctx.app.clone();
-    per_message.connect_active_notify(move |row| app.set_quote_style_per_message(row.is_active()));
+    per_message.connect_active_notify(move |row| {
+        let per_message = row.is_active();
+        preference::set(
+            &app,
+            PreferenceIntent::SetQuoteStylePerMessage { per_message },
+        );
+    });
     quote.add(&per_message);
     content.append(&quote);
 
@@ -263,11 +280,10 @@ pub(super) fn composing(ctx: &PageContext) -> gtk::Box {
     let app = ctx.app.clone();
     let accounts = snapshot.accounts;
     picker.connect_selected_notify(move |picker| {
-        app.set_default_send_account(
-            accounts
-                .get(picker.selected() as usize)
-                .map(|account| account.id.clone()),
-        );
+        let account = accounts
+            .get(picker.selected() as usize)
+            .map(|account| account.id.clone());
+        preference::set(&app, PreferenceIntent::SetDefaultSendAccount { account });
     });
     send.add(&row);
     content.append(&send);
@@ -306,7 +322,10 @@ pub(super) fn privacy(ctx: &PageContext) -> gtk::Box {
         .use_markup(false)
         .build();
     let app = ctx.app.clone();
-    row.connect_active_notify(move |row| app.set_analytics_consent(row.is_active()));
+    row.connect_active_notify(move |row| {
+        let enabled = row.is_active();
+        preference::set(&app, PreferenceIntent::SetAnalyticsConsent { enabled });
+    });
     group.add(&row);
     let preview = adw::ActionRow::builder()
         .title(l10n::welcome_analytics_preview())
@@ -381,14 +400,12 @@ fn swipe_row(
             2 => SwipeActionKind::Star,
             _ => SwipeActionKind::Delete,
         };
-        app.set_swipe_action(
-            if left {
-                SwipeDirection::Left
-            } else {
-                SwipeDirection::Right
-            },
-            action,
-        );
+        let direction = if left {
+            SwipeDirection::Left
+        } else {
+            SwipeDirection::Right
+        };
+        preference::set(&app, PreferenceIntent::SetSwipeAction { direction, action });
     });
     row
 }

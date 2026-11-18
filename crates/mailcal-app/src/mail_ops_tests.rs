@@ -19,6 +19,8 @@ use super::{
 mod compose_move_tests;
 #[path = "compose_open_tests.rs"]
 mod compose_open_tests;
+#[path = "draft_importance_tests.rs"]
+mod draft_importance_tests;
 #[path = "draft_interop_tests.rs"]
 mod draft_interop_tests;
 #[path = "draft_ops_leave_tests.rs"]
@@ -111,7 +113,7 @@ fn submit_app() -> (Arc<App<SubmitProvider>>, Arc<Mutex<Vec<Draft>>>) {
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), submissions)
 }
@@ -128,7 +130,7 @@ fn submit_app_counting() -> (Arc<App<SubmitProvider>>, Arc<SendSignals>) {
         },
         None,
         Arc::new(CountingObserver(Arc::clone(&signals))),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     (Arc::new(app), signals)
 }
@@ -144,7 +146,7 @@ fn app_over(provider: SubmitProvider) -> Arc<App<SubmitProvider>> {
         },
         None,
         std::sync::Arc::new(SilentObserver),
-        Telemetry::off(None),
+        Telemetry::off(),
     );
     Arc::new(app)
 }

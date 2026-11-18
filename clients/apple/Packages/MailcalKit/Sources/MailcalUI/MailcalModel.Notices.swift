@@ -23,6 +23,11 @@ extension MailboxModel {
         NoticeRules.shown(notices ?? [], on: destination)
     }
 
+    /// The notice at the top of Settings, with `openAccount`'s page open, if any.
+    func settingsNotice(openAccount: String?) -> Notice? {
+        NoticeRules.settings(notices ?? [], openAccount: openAccount)
+    }
+
     /// Every notice about `account`, in the core's order.
     func notices(about account: String) -> [Notice] {
         NoticeRules.about(account, in: notices ?? [])

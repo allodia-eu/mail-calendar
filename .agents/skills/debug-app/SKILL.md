@@ -257,6 +257,13 @@ folded away under the title, comes back only that way), a held tap, a keystroke 
 stay with `macos-ax.swift` and idb below, as does asking the accessibility API from outside, the
 judge of what VoiceOver gets. A physical device has no agent: it cannot reach a socket on the Mac.
 
+⚠️ **On macOS, the agent's `screenshot` is not what the screen shows.** The app draws its own views
+into the PNG, and that drawing leaves out vibrancy: the text of a sidebar `List`, the Settings
+sheet's included, and of the title bar's items (New Mail) comes out dark grey on a dark window,
+which reads as text stuck in the light scheme. Judge a colour or a contrast from
+`scripts/dev/screenshot.sh macos` (or `screencapture -x -R x,y,w,h` over the window), which
+captures the screen.
+
 **On macOS, for what the agent cannot do, drive by label, never by pixel.** `find` resolves a label
 to coordinates that pipe straight into `tap`, so a flow survives a layout change:
 
@@ -294,13 +301,24 @@ scripts/dev/control.sh iphone probe 400 89      # -> AXButton [395,84] Compose
 scripts/dev/control.sh iphone tap 400 89
 ```
 
-The limit is idb's, not the app's: XCUITest queries the same hierarchy **in-process** and gets the
-bar in full, `NavigationBar 'All Inboxes'` with a labelled `Button` per item and the search field
-under it. So an assertion that needs the bar, or needs a **gesture** (idb has neither pinch nor
-rotate), belongs in `clients/apple/Scripts/test-ui.sh`, not here. The two do not overlap much: this
-loop's whole point is asking an app that is *already* in a state someone cares about, in about a
-second and with no code, and XCUITest relaunches the app and runs a compiled script, which is what
-makes it repeatable and what makes it useless for exploring.
+The limit is idb's, not the app's: the test agent (`control.sh iphone agent dump`) asks the app
+from inside and gets the bar in full, a labelled button per item and the search field under it. An
+assertion, or anything that needs a **gesture** (idb has neither pinch nor rotate), belongs in
+`clients/apple/Scripts/test-ui.sh`, not here. That suite finds and presses through the same agent
+and keeps XCUITest for the launch, real keys and gestures; it relaunches the app and runs a compiled
+script, which is what makes it repeatable and what makes it useless for exploring.
+
+**A UI test that waits can be read while it waits.** The app the suite launches listens on
+`~/Library/Caches/mailcal-agent/uitests-<the simulator's UDID, first 8 characters>.sock`, so while a
+test sits in a `wait` that is about to time out, the agent shows what the test is looking at:
+
+```
+python3 scripts/dev/agent.py --socket ~/Library/Caches/mailcal-agent/uitests-E6E1FD65.sock dump
+```
+
+Start the run in the background, wait for the test's `started` line in its log, and dump a few
+seconds into the wait. A refusal names what was near, but only the dump shows the screen a lookup
+went wrong on: a sheet nobody expected, or a menu that has already closed.
 
 **Assert VoiceOver reachability, not pixels: this is what a screenshot cannot do.** A container
 that sets `.accessibilityLabel` on `.accessibilityElement(children: .contain)` stays expanded on

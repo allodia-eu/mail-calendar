@@ -181,6 +181,7 @@ struct ReadingView: View {
             identityHeader
             recipientsHeader
             actionToolbar
+            ImportanceBanner(importance: bodySnapshot?.importanceBanner)
             attachmentBar
             scrollingInvitationCard
             Divider()

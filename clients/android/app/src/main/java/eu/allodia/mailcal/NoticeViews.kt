@@ -78,6 +78,16 @@ internal fun NoticeArea(notices: List<Notice>, screen: NoticeScreens, handlers: 
 }
 
 /**
+ * The notice at the top of Settings, in the screens' card. Settings covers the screen whose Issues
+ * entry holds the rest, so this card offers none.
+ */
+@Composable
+internal fun SettingsNotice(notices: List<Notice>, page: String?, handlers: NoticeHandlers) {
+    val notice = NoticeRules.inSettings(notices, page) ?: return
+    NoticeCard(notice, more = 0, handlers, Modifier.padding(vertical = 6.dp)) {}
+}
+
+/**
  * Says each newly raised notice to assistive technology once (rule 12): a polite live region,
  * which is how Android announces now that a view's own announcement is deprecated. [text] is what
  * arrived with the last change, and empty otherwise, so a notice that goes and comes back changes
@@ -94,7 +104,13 @@ internal fun NoticeAnnouncer(text: String) {
 }
 
 @Composable
-private fun NoticeCard(notice: Notice, more: Int, handlers: NoticeHandlers, onShowIssues: () -> Unit) {
+private fun NoticeCard(
+    notice: Notice,
+    more: Int,
+    handlers: NoticeHandlers,
+    margin: Modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+    onShowIssues: () -> Unit,
+) {
     val ctx = LocalContext.current
     val border = if (notice.severity == NoticeSeverity.BLOCKED) {
         MaterialTheme.colorScheme.error
@@ -102,7 +118,7 @@ private fun NoticeCard(notice: Notice, more: Int, handlers: NoticeHandlers, onSh
         MaterialTheme.colorScheme.outlineVariant
     }
     OutlinedCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).testTag("notice-card"),
+        modifier = Modifier.fillMaxWidth().then(margin).testTag("notice-card"),
         border = BorderStroke(1.dp, border),
         colors = CardDefaults.outlinedCardColors(),
     ) {

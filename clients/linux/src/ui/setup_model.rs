@@ -287,7 +287,7 @@ pub(crate) struct ImapSubmission {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct ConnectFailure {
     pub(super) message: Option<String>,
-    pub(super) certificate: Option<RejectedCertificate>,
+    pub(super) certificate: Option<Box<RejectedCertificate>>,
     pub(super) existing: Option<super::setup_already_set_up::ExistingAccount>,
 }
 

@@ -208,7 +208,7 @@ final class PlatformFilePicker: NSObject, UIDocumentPickerDelegate {
 
 /// The view controller a modal must be presented *from*, the top of the key window's presentation
 /// chain, never the root. See `topOfPresentationChain` for why the difference is load-bearing.
-@MainActor private func topPresentedViewController() -> UIViewController? {
+@MainActor func topPresentedViewController() -> UIViewController? {
     guard let root = UIApplication.shared.connectedScenes
         .compactMap({ $0 as? UIWindowScene })
         .flatMap(\.windows)

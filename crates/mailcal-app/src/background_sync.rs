@@ -14,13 +14,15 @@
 //! the mark and reports nothing, so enabling the feature never notifies the existing inbox.
 //! This same entry point is what a future push handler will call (`docs/background-sync.md`).
 
-use std::{collections::BTreeMap, path::PathBuf, time::Duration};
+use std::{collections::BTreeMap, time::Duration};
 
 use engine_api::{MailListRow, UtcDateTime};
-use mailcal_account::{load_preferences, save_preferences};
 use time::OffsetDateTime;
 
-use crate::{App, Event, Feature, snapshot::is_outgoing, sync::RefreshProgress};
+use crate::{
+    App, Event, Feature, preferences_file::PreferencesFile, snapshot::is_outgoing,
+    sync::RefreshProgress,
+};
 
 /// How many message previews one account contributes to the result, at most. A host raises one
 /// notification per preview, then a summary for any messages beyond this cap;
@@ -317,7 +319,7 @@ fn now_utc() -> UtcDateTime {
 /// [`SyncSettingsState`](crate::sync_settings); RFC3339 on disk, parsed to [`UtcDateTime`] here.
 pub(crate) struct NotifyMarksState {
     marks: BTreeMap<String, UtcDateTime>,
-    prefs_path: Option<PathBuf>,
+    prefs: PreferencesFile,
     /// When this state was built, which is when the core was: the floor a desktop cached scan
     /// reports above. It lives beside the marks because it is the same bookkeeping, one instant
     /// per session rather than one per account.
@@ -327,17 +329,16 @@ pub(crate) struct NotifyMarksState {
 impl NotifyMarksState {
     /// Loads the stored marks from the preferences file (dropping any that fail to parse; a
     /// corrupt entry simply re-seeds that account on the next pass).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let marks = prefs_path
-            .as_ref()
-            .map(|path| load_preferences(path).notify_marks)
-            .unwrap_or_default()
+    pub(crate) fn new(prefs: PreferencesFile) -> Self {
+        let marks = prefs
+            .load()
+            .notify_marks
             .into_iter()
             .filter_map(|(id, raw)| raw.parse::<UtcDateTime>().ok().map(|mark| (id, mark)))
             .collect();
         Self {
             marks,
-            prefs_path,
+            prefs,
             session_start: now_utc(),
         }
     }
@@ -352,22 +353,19 @@ impl NotifyMarksState {
         self.marks.insert(id.to_owned(), mark);
     }
 
-    /// Writes every in-memory mark to the preferences file; read-modify-write, so the sibling
-    /// display-zone / sync / quote preferences in the same file are preserved. Best-effort (a
-    /// write failure only means the marks aren't persisted; the in-memory values still hold this
-    /// session). Call once per pass, not per account, so a multi-account pass rewrites the file
-    /// once.
+    /// Writes every in-memory mark to the preferences file, and waits for the write: a pass can
+    /// be the last thing its process does, and a mark that never reached the disk notifies the
+    /// same mail again. A failed write keeps the marks for this session. Call once per pass, not
+    /// per account, so a multi-account pass rewrites the file once.
     fn persist(&self) {
-        let Some(path) = &self.prefs_path else {
-            return;
-        };
-        let mut prefs = load_preferences(path);
-        prefs.notify_marks = self
+        let marks: BTreeMap<String, String> = self
             .marks
             .iter()
             .map(|(id, mark)| (id.clone(), mark.to_string()))
             .collect();
-        let _ = save_preferences(path, &prefs);
+        self.prefs
+            .edit(move |prefs| prefs.notify_marks.clone_from(&marks));
+        self.prefs.settle();
     }
 }
 

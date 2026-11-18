@@ -429,7 +429,9 @@ async fn message_grouping_defaults_to_threaded_and_persists_across_a_relaunch() 
     app.dispatch(Intent::SetViewMode(ViewMode::Flat)).await;
     assert!(surfaces.lock().unwrap().contains(&Surface::Settings));
 
-    // A relaunch (a new app over the same preferences file) reads the stored Flat grouping.
+    // A relaunch (a new app over the same preferences file, once the first has closed as a host
+    // closes it) reads the stored Flat grouping.
+    app.settle_preferences();
     let relaunched = app_with_prefs(
         vec![account("acct", FakeProvider::new())],
         path.clone(),

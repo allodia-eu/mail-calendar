@@ -11,9 +11,8 @@ use mailcal_app::{CompositionId, Intent as AppIntent, ReaderId as AppReaderId};
 
 use crate::{
     AccountProvider, CalendarSnapshot, CalendarWriteStatus, ComposeOpening, ConnectionInfo,
-    ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, QuoteStyleKind,
-    ReadingSnapshot, SendStatus, SyncProgressSnapshot, TimeZoneSnapshot,
-    composer_file_list::staged_files,
+    ContactWriteStatus, Intent, MailboxListSnapshot, MailcalApp, QuoteSettings, ReadingSnapshot,
+    SendStatus, SyncProgressSnapshot, TimeZoneSnapshot, composer_file_list::staged_files,
 };
 
 #[uniffi::export]
@@ -64,6 +63,10 @@ impl MailcalApp {
                 self.runtime
                     .spawn(async move { app.network_returned().await });
             }
+            return;
+        }
+        if let Intent::Preferences { intent } = intent {
+            self.dispatch_preference(intent);
             return;
         }
         if let Intent::Notices { intent } = intent {
@@ -202,20 +205,6 @@ impl MailcalApp {
     /// client must not show a style picker in the composer.
     pub fn quote_settings(&self) -> QuoteSettings {
         self.app.quote_settings().into()
-    }
-
-    /// Sets and persists the default reply/forward quote style, then signals
-    /// `Surface::Settings`. Fire-and-forget beyond the persisted change.
-    pub fn set_quote_style(&self, style: QuoteStyleKind) {
-        self.runtime
-            .block_on(|| self.app.set_default_quote_style(style.into()));
-    }
-
-    /// Sets and persists whether the composer offers a per-message quote-style override, then
-    /// signals `Surface::Settings`. Fire-and-forget beyond the persisted change.
-    pub fn set_quote_style_per_message(&self, per_message: bool) {
-        self.runtime
-            .block_on(|| self.app.set_quote_style_per_message(per_message));
     }
 
     /// The current outgoing-send status (pulled after a `Surface::Sending` signal): the

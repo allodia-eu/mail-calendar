@@ -12,12 +12,11 @@
 //! showcase, and every test run with no sink at all, so the core stays network-free and
 //! offline-testable.
 
-use std::{collections::BTreeMap, path::PathBuf, sync::Mutex};
+use std::{collections::BTreeMap, sync::Mutex};
 
 use engine_api::{AccountId, Provider, UtcDateTime};
-use mailcal_account::{load_preferences, save_preferences};
 
-use crate::{App, EventIntent, Intent};
+use crate::{App, EventIntent, Intent, Surface, preferences_file::PreferencesFile};
 
 mod event;
 mod payload;
@@ -72,21 +71,18 @@ pub(crate) struct TelemetryState {
     consent: Option<bool>,
     install_id: Option<String>,
     notice_version: Option<u32>,
-    prefs_path: Option<PathBuf>,
+    file: PreferencesFile,
 }
 
 impl TelemetryState {
     /// Loads the stored decision (unasked, with no install id, when absent or unreadable).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map(load_preferences)
-            .unwrap_or_default();
+    pub(crate) fn new(file: PreferencesFile) -> Self {
+        let prefs = file.load();
         Self {
             consent: prefs.analytics_consent,
             install_id: prefs.analytics_install_id,
             notice_version: prefs.analytics_notice_version,
-            prefs_path,
+            file,
         }
     }
 
@@ -98,7 +94,7 @@ impl TelemetryState {
         // and nothing can be sent, so there is nothing to consent to *and* nowhere to record an
         // answer: a consent screen here could never be dismissed for good, and would reappear on
         // every launch. Report the question as settled, and settled **off**.
-        if self.prefs_path.is_none() {
+        if !self.file.is_stored() {
             return AnalyticsConsent {
                 asked: true,
                 enabled: false,
@@ -137,53 +133,37 @@ impl TelemetryState {
         let withdrawn = (!enabled).then(|| self.install_id.take()).flatten();
         self.consent = Some(enabled);
         self.notice_version = Some(NOTICE_VERSION);
-        if enabled {
+        // GDPR Art. 7(1): a controller must be able to *demonstrate* that consent was given,
+        // which means recording when. Withdrawal erases the moment too; there is no live consent
+        // to demonstrate. Held only in the file; there is no in-memory reader.
+        let consented_at = if enabled {
             self.install_id = Some(mint_install_id());
-            self.consented_at_now();
+            Some(now_rfc3339())
         } else {
             self.install_id = None;
-        }
-        self.persist();
-        withdrawn
-    }
-
-    /// Stamps the moment of consent. GDPR Art. 7(1): a controller must be able to *demonstrate*
-    /// that consent was given, which means recording when.
-    fn consented_at_now(&mut self) {
-        // Held only until `persist` writes it; there is no in-memory reader.
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.analytics_consented_at = Some(now_rfc3339());
-            let _ = save_preferences(path, &prefs);
-        }
-    }
-
-    /// Writes the decision back read-modify-write, so the sibling display-zone / sync-depth /
-    /// quote-style / swipe preferences survive.
-    fn persist(&self) {
-        let Some(path) = &self.prefs_path else {
-            return;
+            None
         };
-        let mut prefs = load_preferences(path);
-        prefs.analytics_consent = self.consent;
-        prefs.analytics_install_id.clone_from(&self.install_id);
-        prefs.analytics_notice_version = self.notice_version;
-        if self.consent != Some(true) {
-            // Withdrawal erases the timestamp too; there is no live consent to demonstrate.
-            prefs.analytics_consented_at = None;
-        }
-        let _ = save_preferences(path, &prefs);
+        let (consent, install_id, notice_version) =
+            (self.consent, self.install_id.clone(), self.notice_version);
+        self.file.edit(move |prefs| {
+            prefs.analytics_consent = consent;
+            prefs.analytics_install_id.clone_from(&install_id);
+            prefs.analytics_notice_version = notice_version;
+            prefs.analytics_consented_at.clone_from(&consented_at);
+        });
+        withdrawn
     }
 }
 
 /// Everything the analytics feature needs, grouped so `App` grows one field rather than four.
 ///
 /// [`Telemetry::off`] is the no-sink shape, nothing is ever built or sent. Whether it still puts
-/// the consent screen up depends on the path it is given, and the two cases are deliberate:
-/// `off(Some(path))` is a **real build with no relay baked in** (every local build), which asks and
-/// records the answer so the screen can be exercised end to end; `off(None)` is the **demo and the
-/// showcase**, which have no store at all, so the question is settled off and no screen appears;
-/// otherwise it would reappear on every launch and no UI automation could get past it.
+/// the consent screen up depends on whether the app keeps a preferences file, and the two cases are
+/// deliberate: with one it asks and records the answer, so the screen can be exercised end to end;
+/// without one (the **demo and the showcase**, which have no store at all) the question is settled
+/// off and no screen appears, since it would otherwise reappear on every launch and no UI
+/// automation could get past it. The decision is kept in the app's preferences file, bound when the
+/// app is built.
 pub struct Telemetry {
     state: Mutex<TelemetryState>,
     sink: Option<Box<dyn TelemetrySink>>,
@@ -207,15 +187,11 @@ impl core::fmt::Debug for Telemetry {
 }
 
 impl Telemetry {
-    /// The live shape: a host-reported device, a sink, and consent persisted at `prefs_path`.
+    /// The live shape: a host-reported device and a sink.
     #[must_use]
-    pub fn new(
-        prefs_path: Option<PathBuf>,
-        device: DeviceInfo,
-        sink: Box<dyn TelemetrySink>,
-    ) -> Self {
+    pub fn new(device: DeviceInfo, sink: Box<dyn TelemetrySink>) -> Self {
         Self {
-            state: Mutex::new(TelemetryState::new(prefs_path)),
+            state: Mutex::new(TelemetryState::new(PreferencesFile::default())),
             sink: Some(sink),
             device: Some(device),
             accounts: Mutex::new(BTreeMap::new()),
@@ -231,9 +207,9 @@ impl Telemetry {
     /// showed a hollow one (`os_version: "0"`, `device_class: "unknown"`) would be lying to the
     /// user on the very screen whose entire purpose is not to. It simply has nowhere to send it.
     #[must_use]
-    pub fn unsent(prefs_path: Option<PathBuf>, device: DeviceInfo) -> Self {
+    pub fn unsent(device: DeviceInfo) -> Self {
         Self {
-            state: Mutex::new(TelemetryState::new(prefs_path)),
+            state: Mutex::new(TelemetryState::new(PreferencesFile::default())),
             sink: None,
             device: Some(device),
             accounts: Mutex::new(BTreeMap::new()),
@@ -243,13 +219,20 @@ impl Telemetry {
     /// Analytics disabled outright: no device, no sink, nothing ever sent. The demo, the
     /// showcase, and every test.
     #[must_use]
-    pub fn off(prefs_path: Option<PathBuf>) -> Self {
+    pub fn off() -> Self {
         Self {
-            state: Mutex::new(TelemetryState::new(prefs_path)),
+            state: Mutex::new(TelemetryState::new(PreferencesFile::default())),
             sink: None,
             device: None,
             accounts: Mutex::new(BTreeMap::new()),
         }
+    }
+}
+
+impl Telemetry {
+    /// Keeps the decision in the app's preferences file, reading what it holds.
+    pub(crate) fn bind(&self, file: PreferencesFile) {
+        *self.state.lock().expect("telemetry mutex poisoned") = TelemetryState::new(file);
     }
 }
 
@@ -270,18 +253,27 @@ impl<P: Provider> App<P> {
     ///
     /// Opting in mints the install id. Opting out clears it **and** asks the backend to erase
     /// everything held under it (GDPR Art. 17), which is possible precisely *because* the id is
-    /// stable. Either way the decision is persisted, so we ask exactly once.
+    /// stable. Either way the decision is persisted, so we ask exactly once. Repeating the
+    /// decision in force changes nothing: it neither mints a new id nor asks for an erasure.
+    /// Signals [`Surface::Settings`].
     pub fn set_analytics_consent(&self, enabled: bool) {
-        let withdrawn = self
-            .telemetry
-            .state
-            .lock()
-            .expect("telemetry mutex poisoned")
-            .set(enabled);
+        let withdrawn = {
+            let mut state = self
+                .telemetry
+                .state
+                .lock()
+                .expect("telemetry mutex poisoned");
+            let held = state.consent();
+            if held.asked && held.enabled == enabled {
+                return;
+            }
+            state.set(enabled)
+        };
         if let (Some(id), Some(sink)) = (withdrawn, self.telemetry.sink.as_ref()) {
             sink.erase(id);
         }
         log::info!("analytics consent set: enabled={enabled}");
+        self.observer.surface_changed(Surface::Settings);
         if enabled {
             // The session in which consent was given is a real session: count it now, or it
             // stays invisible until the next launch (the boot-time report already no-op'd).
@@ -341,11 +333,7 @@ impl<P: Provider> App<P> {
         // Read the persisted settings straight from the preferences file: these are exactly the
         // values whose drift from the defaults we want to learn about, and reading them here
         // needs no accessor on each settings state.
-        let prefs = self
-            .prefs_path
-            .as_ref()
-            .map(load_preferences)
-            .unwrap_or_default();
+        let prefs = self.prefs.load();
         self.track(Event::SettingsSnapshot {
             grouping: prefs.message_grouping,
             quote_style: prefs.quote_style,

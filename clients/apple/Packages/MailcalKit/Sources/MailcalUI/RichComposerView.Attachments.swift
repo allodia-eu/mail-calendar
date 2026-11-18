@@ -3,6 +3,8 @@
 
 #if os(macOS)
 import AppKit
+#else
+import PhotosUI
 #endif
 import Foundation
 import MailcalBindings
@@ -132,4 +134,34 @@ extension RichComposeView {
         PlatformFilePicker.present { urls in attach(urls) }
         #endif
     }
+
+    #if os(iOS)
+    /// Attaches pictures and films from the photo library. One that could not be copied (a
+    /// picture the device could not download, say) is named in the composer's notice line rather
+    /// than left out without a word.
+    func choosePhotos() {
+        let attach = attachFiles
+        let error = $composerError
+        PlatformPhotoPicker.present(filter: .any(of: [.images, .videos]), limit: 0) { pick in
+            if !pick.files.isEmpty { attach(pick.files) }
+            if let notice = pick.failureNotice { error.wrappedValue = notice }
+        }
+    }
+    #endif
 }
+
+#if os(iOS)
+extension PhotoPick {
+    /// What the composer says when a chosen item could not be copied, or `nil` when all were.
+    ///
+    /// The share sheet's wording, because it is the same event: files the user chose that did not
+    /// arrive.
+    var failureNotice: String? {
+        guard !failed.isEmpty else { return nil }
+        let named = failed.filter { !$0.isEmpty }
+        guard named.count == failed.count else { return L10n.compose_image_failed() }
+        return L10n.compose_share_attachments_failed(
+            files: ListFormatter.localizedString(byJoining: named))
+    }
+}
+#endif

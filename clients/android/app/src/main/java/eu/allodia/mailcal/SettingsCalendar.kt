@@ -3,7 +3,7 @@
 //
 // All of them are persisted in the **core**, not here, three clients disagreeing about which day a
 // week starts on silently shifts every column of the grid. This file only draws the pickers; the
-// core owns the values, the defaults (Monday, 24-hour) and the clamps.
+// core owns the values, the defaults (Monday, 24-hour), the horizons offered and the clamps.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.padding
@@ -18,11 +18,6 @@ import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.WeekStart
-
-// The horizons the picker offers, in hours of the day. Between the core's clamp of 4 and 24, a
-// short list of sensible stops, because the pinch gesture is the fine-grained control and a slider
-// here would just be a worse version of it.
-private val HORIZON_CHOICES = listOf(6, 8, 12, 16, 24)
 
 /** How times are shown, in mail and calendar alike. */
 @Composable
@@ -88,7 +83,7 @@ internal fun WeekStartSettingsRows(
  * How much of the day the grid shows at once.
  *
  * The same number the pinch gesture settles on, so the two controls are one setting rather than two
- * that drift apart.
+ * that drift apart. The stops are the core's, and include the horizon a pinch left between two.
  */
 @Composable
 internal fun CalendarHorizonSettingsRows(
@@ -96,13 +91,17 @@ internal fun CalendarHorizonSettingsRows(
     onSetVisibleHours: (Int) -> Unit,
 ) {
     val ctx = LocalContext.current
-    HORIZON_CHOICES.forEach { hours ->
+    horizonChoices(display).forEach { hours ->
         StrategyRow(
             label = L10n.settings_horizon_hours(ctx, hours.toString()),
             selected = display.visibleHours.toInt() == hours,
         ) { onSetVisibleHours(hours) }
     }
 }
+
+/** The horizons Settings offers, in hours, narrowest first, as the core lists them. */
+internal fun horizonChoices(display: DisplaySettings): List<Int> =
+    display.visibleHoursChoices.map { it.toUByte().toInt() }
 
 /**
  * Which calendar a new event is filed on, and so which colour a slot drawn on the grid wears.

@@ -42,6 +42,7 @@ mod shared_stores;
 mod signature_editor;
 pub(super) mod signatures;
 mod state;
+mod top_notice;
 pub(super) mod videoconferencing;
 
 pub(super) use give_way::PaneComposer;
@@ -148,6 +149,8 @@ pub(super) struct SettingsWindow {
     /// The switch's question and the form for a sign-in of its own, raised over this window or,
     /// while it is closed, over the main one.
     prompts: super::separate_sign_in_view::Prompts,
+    /// The banner above every category.
+    top_notice: Option<super::notice_bar::NoticeBar>,
 }
 
 impl SettingsWindow {
@@ -296,7 +299,7 @@ impl SettingsWindow {
             .then(|| self.toasts.clone())
             .flatten()
             .unwrap_or_else(adw::ToastOverlay::new);
-        toasts.set_child(Some(&navigation));
+        toasts.set_child(Some(&self.under_notice(&navigation, &ctx.sender)));
         window.set_child(Some(&toasts));
         if let Some((offset, scroll)) =
             offset.zip(pages.visible_child().and_downcast::<gtk::ScrolledWindow>())

@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using Allodia.Mailcal.Calendar;
 using Microsoft.UI.Xaml;
+using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.ViewModels;
 
@@ -65,6 +66,17 @@ public sealed class ThreadMessageItem
 
     /// <summary>Whether the message has a non-inline attachment.</summary>
     public bool HasAttachment { get; init; }
+
+    /// <summary>The importance its sender stated (docs/importance.md).</summary>
+    internal MessageImportance Importance { get; init; } = MessageImportance.Normal;
+
+    /// <summary>Show the red exclamation mark only on a high-importance message.</summary>
+    public Visibility ImportanceHighVisibility =>
+        Importance == MessageImportance.High ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>Show the down arrow only on a low-importance message.</summary>
+    public Visibility ImportanceLowVisibility =>
+        Importance == MessageImportance.Low ? Visibility.Visible : Visibility.Collapsed;
 
     /// <summary>Show the unread accent dot only on unread messages.</summary>
     public Visibility UnreadVisibility => Unread ? Visibility.Visible : Visibility.Collapsed;

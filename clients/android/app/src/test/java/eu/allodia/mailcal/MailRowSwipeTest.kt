@@ -49,6 +49,7 @@ private fun flatRow() = FlatRow(
     unread = false,
     flagged = false,
     hasAttachment = false,
+    importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
     preview = "",
 )
 

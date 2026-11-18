@@ -59,7 +59,10 @@ pub(super) fn general(ctx: &PageContext) -> gtk::Box {
     let app = ctx.app.clone();
     picker.connect_selected_notify(move |picker| {
         let chosen = appearance::chosen(picker.selected());
-        app.set_appearance(chosen);
+        crate::ui::preference::set(
+            &app,
+            mailcal_bindings::PreferenceIntent::SetAppearance { appearance: chosen },
+        );
         // The core signals Settings alone for this; it computes nothing from the appearance; so
         // repainting is this page's job.
         appearance::apply(chosen);
@@ -107,11 +110,15 @@ pub(super) fn general(ctx: &PageContext) -> gtk::Box {
     );
     let app = ctx.app.clone();
     picker.connect_selected_notify(move |picker| {
-        app.set_time_format(if picker.selected() == 0 {
+        let format = if picker.selected() == 0 {
             TimeFormat::TwentyFourHour
         } else {
             TimeFormat::TwelveHour
-        });
+        };
+        crate::ui::preference::set(
+            &app,
+            mailcal_bindings::PreferenceIntent::SetTimeFormat { format },
+        );
     });
     clock.add(&row);
     content.append(&clock);

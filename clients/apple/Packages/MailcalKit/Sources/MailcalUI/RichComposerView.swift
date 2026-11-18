@@ -118,6 +118,11 @@ struct RichComposeView: View {
     @State var files: ComposerFiles
     /// The core verbs the files go through.
     let fileVerbs: ComposerFileVerbs
+    /// The composition's importance as the core last answered with it, or `nil` without a core
+    /// (RichComposerView.Importance.swift).
+    @State var importance: ComposerImportance?
+    /// The core verbs the importance goes through.
+    let importanceVerbs: ComposerImportanceVerbs?
     /// Whether the To field takes the caret when the composer appears, the other half of
     /// `opensInBody`, so exactly one of the two is focused.
     private let focusesTo: Bool
@@ -157,6 +162,9 @@ struct RichComposeView: View {
         drafts: ComposerDrafts? = nil,
         /// The core verbs this composer's files go through (`docs/composer-layout.md`, rule 3).
         files: ComposerFileVerbs,
+        /// The core verbs this composer's importance goes through (`docs/importance.md`), or `nil`
+        /// to leave the picker out.
+        importance: ComposerImportanceVerbs? = nil,
         /// What a composer moved from another view brings besides its fields and files
         /// (`ComposeOpening.moved`): it opens on that document and nothing else is seeded.
         moved: MovedComposer? = nil,
@@ -217,12 +225,15 @@ struct RichComposeView: View {
         // they cannot remove (docs/composer-security.md, Gate 12).
         _showsCcBcc = State(initialValue: revealsCcBcc(cc: initialCc, bcc: initialBcc))
         _subject = State(initialValue: initialSubject)
+        let openedImportance = importance?.read(composition)
         openingHeaders = DraftHeaders(
             to: seededRecipientField(initialTo),
             cc: seededRecipientField(initialCc),
             bcc: seededRecipientField(initialBcc),
             subject: initialSubject,
-            filesChanged: false
+            filesChanged: false,
+            importance: openedImportance?.selected,
+            importanceChanged: false
         )
         _composition = State(initialValue: composition)
         // What its save last came to: a moved composer's is the one it left's, and any other's is
@@ -231,6 +242,8 @@ struct RichComposeView: View {
         _quoteStyle = State(initialValue: movedQuoteStyle ?? quoteStyle)
         fileVerbs = files
         _files = State(initialValue: files.read(composition))
+        importanceVerbs = importance
+        _importance = State(initialValue: openedImportance)
         _composerError = State(initialValue: initialError)
     }
 

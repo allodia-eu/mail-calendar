@@ -393,3 +393,40 @@ pub(crate) fn the_overflow_offers_the_export_named_after_the_subject_on_screen()
         format!("{}.eml", l10n::mail_no_subject())
     );
 }
+
+/// The loading page fills the body area, and a spinner is drawn as large as it is allocated, so
+/// one handed the whole page grows to fill a full-screen reading pane.
+pub(crate) fn the_reading_spinner_keeps_its_size_in_a_large_body_area() {
+    let window = adw::ApplicationWindow::builder().build();
+    let (sender, _receiver) = relm4::channel::<super::super::AppInput>();
+    let pane = ReadingPane::new(&window, sender.clone(), ReadingSource::Pane);
+    let clock = InvitationClock {
+        zone: "Europe/Amsterdam",
+        use_24_hour: true,
+        write_status: CalendarWriteStatus::Idle,
+        generation: 1,
+    };
+    let mut state = crate::ui::model::ReadingState::new(crate::ui::model::empty_reading());
+    state.snapshot.key = "slow".to_owned();
+    state.snapshot.pending = true;
+    state.open(opened("slow"));
+    pane.render(&state, None, false, clock, &sender);
+    assert_eq!(
+        pane.body_stack.visible_child_name().as_deref(),
+        Some("loading")
+    );
+
+    let stack = &pane.body_stack;
+    stack.measure(gtk::Orientation::Horizontal, -1);
+    stack.measure(gtk::Orientation::Vertical, 1600);
+    stack.size_allocate(&gtk::Allocation::new(0, 0, 1600, 1200), -1);
+    let side = super::LOADING_SPINNER_SIZE;
+    assert_eq!((pane.spinner.width(), pane.spinner.height()), (side, side));
+    // Centred on the page, not pinned to a corner of it: as much room before it as after it.
+    let bounds = pane
+        .spinner
+        .compute_bounds(stack)
+        .expect("the spinner sits in the stack");
+    assert_eq!(2.0f32.mul_add(bounds.x(), bounds.width()), 1600.0);
+    assert_eq!(2.0f32.mul_add(bounds.y(), bounds.height()), 1200.0);
+}

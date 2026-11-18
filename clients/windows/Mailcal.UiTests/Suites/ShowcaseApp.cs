@@ -40,6 +40,13 @@ public sealed class FirstRunApp : HarnessApp
     protected override bool FirstRun => true;
 }
 
+/// <summary>The first run with no language stored, as a fresh install has: the app follows the
+/// system's. Every other launch pins English, so this is the one that reaches that default.</summary>
+public sealed class SystemLanguageFirstRunApp : UiApp
+{
+    private protected override App Launch() => App.LaunchOnFirstRun(Env, language: null);
+}
+
 /// <summary>
 /// A case that needs no server: on the showcase, or on a first run. It needs a Debug build and
 /// nothing else, so it skips, saying why, only without one: CI builds one before it runs these.

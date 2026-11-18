@@ -247,9 +247,9 @@ public sealed partial class SettingsDialog
         public override string ToString() => Label;
     }
 
-    /// <summary>Opens <paramref name="accountId"/>'s page in Accounts, with the category list
-    /// following.</summary>
-    private void OpenAccountFromOtherCategory(string accountId)
+    /// <summary>Opens <paramref name="accountId"/>'s page in Accounts, or the list without one,
+    /// with the category list following.</summary>
+    private void OpenAccountFromOtherCategory(string? accountId)
     {
         _rebuilding = true;
         _categories.SelectedIndex = Array.FindIndex(Categories(), entry => entry.Tag == "accounts");

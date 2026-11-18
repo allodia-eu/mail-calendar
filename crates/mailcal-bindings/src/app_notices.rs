@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::{
     FolderNotice, Intent, MailcalApp, NoticeIntent, NoticeScreens, NoticesSnapshot,
-    notices::{Dismissal, NoticeFacts, raise},
+    notices::{Dismissal, NoticeFacts, SETTINGS_NOT_SAVED, raise},
 };
 
 #[uniffi::export]
@@ -37,6 +37,7 @@ impl MailcalApp {
             address: &address,
             questions: &questions,
             signing_in: signing_in.as_deref(),
+            settings_not_saved: self.app.preferences_not_saved(),
         };
         let raised = raise(&facts);
         // A pause ending, or a lookup replacing the question, reaches every client as this
@@ -116,6 +117,10 @@ impl MailcalApp {
                     return;
                 }
                 drop(book);
+                if id == SETTINGS_NOT_SAVED {
+                    self.retry_preferences_save();
+                    return;
+                }
                 let screens = shown.notices.iter().find(|n| n.id == id).map(|n| n.screens);
                 // The refresh of the notice's screen is what dials the account again; the dial
                 // settles the retry when it ends (`settle_notice_retries`).

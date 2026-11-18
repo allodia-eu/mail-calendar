@@ -43,6 +43,9 @@ internal fun ComposerTopBar(
     // button, or null when signatures are off for this composer or the user has written none: with
     // an empty library the menu would offer nothing but "None", a control that cannot do anything.
     signatureMenu: (@Composable (expanded: Boolean, onExpand: (Boolean) -> Unit) -> Unit)?,
+    // The importance menu, opened from the overflow's Importance item and hanging from the same
+    // button, or null without a core to ask (docs/importance.md).
+    importanceMenu: (@Composable (expanded: Boolean, onExpand: (Boolean) -> Unit) -> Unit)? = null,
     // Saving the draft, or null when this composer keeps none. Never disabled: a draft is
     // unfinished by definition, so there is no state this refuses, and pressing it on an unchanged
     // message reaches no server (`docs/drafts.md`).
@@ -76,8 +79,10 @@ internal fun ComposerTopBar(
                     contentDescription = L10n.action_send(ctx),
                 )
             }
-            if (onSaveDraft != null || signatureMenu != null || onDiscard != null) {
-                ComposerOverflow(signatureMenu, onSaveDraft, onDiscard)
+            if (onSaveDraft != null || signatureMenu != null || importanceMenu != null ||
+                onDiscard != null
+            ) {
+                ComposerOverflow(signatureMenu, importanceMenu, onSaveDraft, onDiscard)
             }
         },
     )
@@ -86,12 +91,14 @@ internal fun ComposerTopBar(
 @Composable
 private fun ComposerOverflow(
     signatureMenu: (@Composable (expanded: Boolean, onExpand: (Boolean) -> Unit) -> Unit)?,
+    importanceMenu: (@Composable (expanded: Boolean, onExpand: (Boolean) -> Unit) -> Unit)?,
     onSaveDraft: (() -> Unit)?,
     onDiscard: (() -> Unit)?,
 ) {
     val ctx = LocalContext.current
     var open by remember { mutableStateOf(false) }
     var signaturesOpen by remember { mutableStateOf(false) }
+    var importanceOpen by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }, modifier = Modifier.testTag(COMPOSER_OVERFLOW_TAG)) {
             Icon(
@@ -112,6 +119,12 @@ private fun ComposerOverflow(
                     signaturesOpen = true
                 }
             }
+            if (importanceMenu != null) {
+                OverflowItem(L10n.compose_importance_label(ctx), R.drawable.ic_priority_high) {
+                    open = false
+                    importanceOpen = true
+                }
+            }
             // Last, apart from the actions that keep what was written.
             if (onDiscard != null) {
                 OverflowItem(L10n.action_discard(ctx), R.drawable.ic_delete) {
@@ -121,6 +134,7 @@ private fun ComposerOverflow(
             }
         }
         signatureMenu?.invoke(signaturesOpen) { signaturesOpen = it }
+        importanceMenu?.invoke(importanceOpen) { importanceOpen = it }
     }
 }
 

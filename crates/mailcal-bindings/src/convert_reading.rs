@@ -28,6 +28,7 @@ impl From<AppReading> for ReadingSnapshot {
                 .map(AttachmentRow::from)
                 .collect(),
             invitation: snapshot.invitation.map(Into::into),
+            importance_banner: snapshot.importance_banner.map(Into::into),
             pending: snapshot.pending,
         }
     }

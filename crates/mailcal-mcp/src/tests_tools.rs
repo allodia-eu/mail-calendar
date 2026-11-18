@@ -54,6 +54,10 @@ async fn a_listing_carries_no_message_bodies() {
         !rendered.contains("body") && !rendered.contains("preview"),
         "no body or preview text reached the listing: {rendered}",
     );
+    assert_eq!(
+        listed["messages"][0]["importance"], "high",
+        "the sender's importance is part of the summary"
+    );
 
     let searched = call(&ctx, "search_messages", json!({"query": "report"}))
         .await

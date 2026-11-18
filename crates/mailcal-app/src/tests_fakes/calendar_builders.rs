@@ -59,7 +59,7 @@ pub(crate) fn calendar_app_on(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }
 

@@ -14,6 +14,7 @@ use webkit6::prelude::WebViewExt;
 use super::{
     AppInput,
     composer_file_tiles::FileTiles,
+    composer_importance::ImportanceControl,
     composer_model::{ComposeContext, ComposerSubmission},
     recipients::RecipientField,
 };
@@ -32,11 +33,13 @@ pub(crate) struct ComposerFields {
     pub(crate) subject: gtk::Entry,
     /// The message's files, which the core holds: every save and the send read them there.
     pub(crate) files: Rc<FileTiles>,
+    /// The message's importance, which the core holds too; `None` without a core to ask.
+    pub(crate) importance: Option<Rc<ImportanceControl>>,
 }
 
 /// The header as one value, so one comparison covers every field rather than one per field. The
 /// files are their ids, so taking one off and adding another is a change too.
-pub(crate) type HeaderFingerprint = (String, String, String, String, Vec<String>);
+pub(crate) type HeaderFingerprint = (String, String, String, String, Vec<String>, String);
 
 impl ComposerFields {
     /// What the composer's header holds, for the autosave timer to compare against the last tick.
@@ -56,7 +59,20 @@ impl ComposerFields {
                 .into_iter()
                 .map(|tile| tile.id)
                 .collect(),
+            self.importance
+                .as_ref()
+                .map_or("", |control| {
+                    super::composer_importance::label(control.selected())
+                })
+                .to_owned(),
         )
+    }
+
+    /// Whether the importance differs from what the composer opened with.
+    pub(crate) fn importance_changed(&self) -> bool {
+        self.importance
+            .as_ref()
+            .is_some_and(|control| control.changed())
     }
 
     /// The account the From picker is showing, which is the one the send goes out as.

@@ -70,89 +70,34 @@ extension MailboxModel {
     var calendarLayout: CalendarLayout { displaySettings.layout }
 
     func setWeekStart(_ start: WeekStart) {
-        displaySettings = DisplaySettings(
-            weekStart: start,
-            timeFormat: displaySettings.timeFormat,
-            appearance: displaySettings.appearance,
-            darkMessageBackground: displaySettings.darkMessageBackground,
-            visibleHours: displaySettings.visibleHours,
-            layout: displaySettings.layout
-        )
-        app?.setWeekStart(start: start)
+        preference(.setWeekStart(start: start))
     }
 
     func setTimeFormat(_ format: TimeFormat) {
-        displaySettings = DisplaySettings(
-            weekStart: displaySettings.weekStart,
-            timeFormat: format,
-            appearance: displaySettings.appearance,
-            darkMessageBackground: displaySettings.darkMessageBackground,
-            visibleHours: displaySettings.visibleHours,
-            layout: displaySettings.layout
-        )
-        app?.setTimeFormat(format: format)
+        preference(.setTimeFormat(format: format))
     }
 
-    /// Sets the app's light/dark appearance, repainting now and persisting the choice.
-    ///
-    /// The repaint is explicit because the core signals only `Surface::Settings` for this, it
-    /// computes nothing from the appearance, so there is no snapshot for one to ride in on.
+    /// Sets the app's light/dark appearance. The window repaints when the signal brings the stored
+    /// choice back (`MailcalModel.Reload.swift`).
     func setAppearance(_ appearance: Appearance) {
-        displaySettings = DisplaySettings(
-            weekStart: displaySettings.weekStart,
-            timeFormat: displaySettings.timeFormat,
-            appearance: appearance,
-            darkMessageBackground: displaySettings.darkMessageBackground,
-            visibleHours: displaySettings.visibleHours,
-            layout: displaySettings.layout
-        )
-        self.appearance = appearance
-        app?.setAppearance(appearance: appearance)
+        preference(.setAppearance(appearance: appearance))
     }
 
     /// Sets whether messages are drawn on a dark background while the app is dark: the reading
     /// pane's sun/moon button and Settings → Reading both call this (`docs/reading-dark-mode.md`).
-    ///
-    /// Applied here as well as in the core so the open message re-renders on this press rather
-    /// than on the `Surface::Settings` pull that follows it.
     func setDarkMessageBackground(_ dark: Bool) {
-        displaySettings = DisplaySettings(
-            weekStart: displaySettings.weekStart,
-            timeFormat: displaySettings.timeFormat,
-            appearance: displaySettings.appearance,
-            darkMessageBackground: dark,
-            visibleHours: displaySettings.visibleHours,
-            layout: displaySettings.layout
-        )
-        app?.setDarkMessageBackground(dark: dark)
+        preference(.setDarkMessageBackground(dark: dark))
     }
 
     /// Remembers the shape the calendar is being read in, so it opens that way next time, and opens
     /// the same way on the phone, because the core is what remembers it.
     func setCalendarLayout(_ layout: CalendarLayout) {
-        guard layout != displaySettings.layout else { return }
-        displaySettings = DisplaySettings(
-            weekStart: displaySettings.weekStart,
-            timeFormat: displaySettings.timeFormat,
-            appearance: displaySettings.appearance,
-            darkMessageBackground: displaySettings.darkMessageBackground,
-            visibleHours: displaySettings.visibleHours,
-            layout: layout
-        )
-        app?.setCalendarLayout(layout: layout)
+        preference(.setCalendarLayout(layout: layout))
     }
 
-    func setVisibleHours(_ hours: Int) {
-        let clamped = UInt8(hours.clamped(to: Int(minVisibleHours)...Int(maxVisibleHours)))
-        displaySettings = DisplaySettings(
-            weekStart: displaySettings.weekStart,
-            timeFormat: displaySettings.timeFormat,
-            appearance: displaySettings.appearance,
-            darkMessageBackground: displaySettings.darkMessageBackground,
-            visibleHours: clamped,
-            layout: displaySettings.layout
-        )
-        app?.setCalendarVisibleHours(hours: clamped)
+    /// Sets the calendar's default horizon. The core clamps it.
+    func setVisibleHours(_ hours: UInt8) {
+        preference(.setCalendarVisibleHours(hours: hours))
     }
 
     /// Every calendar the core knows, in its order, with the one a new event is filed on marked.
@@ -161,7 +106,7 @@ extension MailboxModel {
     /// Chooses the calendar a new event is filed on. The core signals the calendar surface, so
     /// the list and the grid redraw from its answer.
     func setDefaultCalendar(account: String, calendar: String) {
-        app?.setDefaultCalendar(account: account, calendar: calendar)
+        preference(.setDefaultCalendar(account: account, calendar: calendar))
     }
 
     /// Every account whose calendars offer a video meeting, with the one its new events take.
@@ -169,7 +114,7 @@ extension MailboxModel {
 
     /// Chooses the video meeting `account`'s new events take once they have an invitee.
     func setDefaultMeeting(account: String, choice: String?) {
-        app?.setDefaultMeeting(account: account, choice: choice)
+        preference(.setDefaultMeeting(account: account, choice: choice))
     }
 
     // MARK: - The calendar manager
@@ -177,11 +122,11 @@ extension MailboxModel {
     /// Shows or hides one calendar's events. Applied at page-read time, so the grid redraws at once:
     /// no sync, no network.
     func setCalendarVisible(_ account: String, _ calendar: String, _ visible: Bool) {
-        app?.setCalendarVisible(account: account, calendar: calendar, visible: visible)
+        preference(.setCalendarVisible(account: account, calendar: calendar, visible: visible))
     }
 
     /// Overrides one calendar's colour, or clears the override back to the server's.
     func setCalendarColor(_ account: String, _ calendar: String, _ hex: String?) {
-        app?.setCalendarColor(account: account, calendar: calendar, hex: hex)
+        preference(.setCalendarColor(account: account, calendar: calendar, hex: hex))
     }
 }

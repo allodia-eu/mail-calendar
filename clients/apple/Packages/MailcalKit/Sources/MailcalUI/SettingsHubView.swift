@@ -72,6 +72,7 @@ struct SettingsHubView: View {
                         .padding(20)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .settingsNotice(model, openAccount: nil)
                 .navigationTitle(category.title)
                 .navigationBarTitleDisplayMode(.inline)
             }
@@ -106,6 +107,7 @@ struct SettingsHubView: View {
                         .padding(20)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .settingsNotice(model, openAccount: nil)
                 .navigationTitle((selection ?? .general).title)
                 .navigationBarTitleDisplayMode(.inline)
             }

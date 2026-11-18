@@ -229,7 +229,7 @@ because a checker that guesses at prose cries wolf and gets skipped.
 
 | Aspect | Apple · `FileLog.swift` | Windows · `Services/Log.cs` | Android · `FileLog.kt` | Linux · `logger.rs` |
 |---|---|---|---|---|
-| Sink file | macOS: `~/.local/share/mailcal/mailcal.log` (+ `.1..3`); iOS/iPadOS: app Application Support `mailcal/mailcal.log` (+ `.1..3`). `mailcal/` is the brand's data directory ([`branding.md`](branding.md)) | `%LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log` (+ `.1..3`), under the brand's `MAILCAL_WINDOWS_DATA_DIR` | `<filesDir>/logs/app.log` (+ `.1..3`) | `$XDG_DATA_HOME/mailcal/mailcal.log` (fallback `~/.local/share`; + `.1..3`); snap: `$SNAP_USER_COMMON/.local/share/mailcal/mailcal.log`, the directory every revision shares |
+| Sink file | macOS: `~/.local/share/mailcal/mailcal.log` (+ `.1..3`); iOS/iPadOS: app Application Support `mailcal/mailcal.log` (+ `.1..3`). `mailcal/` is the brand's data directory ([`branding.md`](branding.md)) | `%LOCALAPPDATA%\Allodia\MailCalendar\logs\app.log` (+ `.1..3`), under the brand's `MAILCAL_WINDOWS_DATA_DIR`; a package on a machine without that folder: the same path under `%LOCALAPPDATA%\Packages\<package family>\LocalCache\Local\` ([`windows-channels.md`](windows-channels.md)) | `<filesDir>/logs/app.log` (+ `.1..3`) | `$XDG_DATA_HOME/mailcal/mailcal.log` (fallback `~/.local/share`; + `.1..3`); snap: `$SNAP_USER_COMMON/.local/share/mailcal/mailcal.log`, the directory every revision shares |
 | Line format | `<ts> <LEVEL> [target] msg` (local, ms) | `<ts ±offset> [level] msg` (core lines carry `[target]` in msg) | `<ts> <LEVEL> [target] msg` (local, ms) | `<ts ±offset> <LEVEL> [target] msg` (local, ms) |
 | Rotation | 1 MB × 3 backups (~4 MB), pre-write | 1 MB × 3 backups (~4 MB), pre-write | 1 MB × 3 backups (~4 MB), pre-write | ✅ 1 MB × 3 backups (~4 MB), pre-write |
 | Default level | `INFO` unless the Diagnostics toggle is on (`DiagnosticsPrefs.swift`) | `Info` via `DiagnosticsLog.ResolveLevel` (`MailboxModel.Accounts.cs`) | `INFO` unless the Diagnostics toggle is on (`DiagnosticsPrefs.kt`) | ✅ `INFO` unless the host preference is on |
@@ -504,9 +504,10 @@ the log" feature this contract exists to enable. The surface is the same everywh
   `clients/windows/package.ps1 -Sign`, install the bundle with `Add-AppxPackage`, launch, and read
   the newest session line. On 2026-08-01 (Windows 11 arm64) that gave
   `--- session start (0.2.2 package 0.2.9709.16017, Arm64, Microsoft Windows 10.0.26200) ---`, whose
-  second number matches `Get-AppxPackage`'s `Version` exactly, and it landed in the **unvirtualized**
-  `%LOCALAPPDATA%\Allodia\MailCalendar`, so a packaged and an unpackaged run share one file and one
-  copy path rather than the log splitting into a per-package `LocalCache`. The read fails soft by
+  second number matches `Get-AppxPackage`'s `Version` exactly. Read the log where that install
+  keeps it: on a machine that already has `%LOCALAPPDATA%\Allodia\MailCalendar`, as every
+  developer's does, that folder; otherwise the package's `LocalCache`
+  ([`windows-channels.md`](windows-channels.md)). The read fails soft by
   construction (an unexpected failure leaves the assembly version in place), so the cost of the gap
   is a support log that names one version instead of two, never a failed launch.
 - **Android ad-hoc native warnings are Logcat-only.** The **core stream** (the bulk and most

@@ -290,7 +290,7 @@ pub(crate) fn sent_composition(
 ///
 /// Refused rather than defaulted: a blank id would merge every composer's draft into one
 /// record, and each save would then supersede a different composer's stored copy.
-fn composition_id(value: String) -> Result<CompositionId, MailcalError> {
+pub(crate) fn composition_id(value: String) -> Result<CompositionId, MailcalError> {
     CompositionId::new(value)
         .ok_or_else(|| MailcalError::Engine("composition id is blank".to_owned()))
 }

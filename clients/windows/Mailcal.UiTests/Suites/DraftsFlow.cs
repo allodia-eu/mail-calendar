@@ -136,12 +136,14 @@ internal sealed class DraftsFlow(App app)
     {
         app.CloseExtraWindows();
         app.CloseComposer();
-        if (WaitDraftRow(subject, absent: true, timeoutSec: 5))
+        if (!WaitDraftRow(subject, absent: true, timeoutSec: 5))
         {
-            return;
+            OpenStoredDraft(subject);
+            app.CloseComposer();
         }
-        OpenStoredDraft(subject);
-        app.CloseComposer();
+        // Looking for it opened Drafts, and the shared reset does not move the list: the next case
+        // starts where a launch does, in the Inbox.
+        app.OpenFolder("Inbox");
     }
 
     /// <summary>Stores a draft as another client would, straight into Drafts over JMAP: an HTML body

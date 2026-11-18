@@ -22,6 +22,7 @@ fn pull(book: &mut NoticeBook, questions: &Questions) -> Vec<Notice> {
         address: &address,
         questions,
         signing_in: None,
+        settings_not_saved: false,
     };
     book.snapshot(raise(&facts)).notices
 }
@@ -148,6 +149,7 @@ fn a_notice_that_is_not_a_question_has_one_answer() {
         address: &address,
         questions: &Questions::default(),
         signing_in: None,
+        settings_not_saved: false,
     };
     let notices = NoticeBook::default().snapshot(raise(&facts)).notices;
     assert_eq!(notices[0].second_action, None);

@@ -117,7 +117,7 @@ pub(super) fn app(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }
 
@@ -134,7 +134,7 @@ pub(super) fn app_with_prefs(
         accounts,
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),
-            prefs_path: Some(prefs_path.clone()),
+            prefs_path: Some(prefs_path),
         },
         None,
         Arc::new(RecordingObserver {
@@ -143,7 +143,7 @@ pub(super) fn app_with_prefs(
         // The analytics consent decision lives in the same preferences file, so hand telemetry
         // the same path: a test can then prove a consent choice survives a relaunch. Still
         // `off` (no device, no sink) so nothing is ever built or sent from a test.
-        Telemetry::off(Some(prefs_path)),
+        Telemetry::off(),
     )
 }
 
@@ -165,7 +165,7 @@ pub(super) fn app_with_connector<C: MailboxConnector<FakeProvider> + 'static>(
         Arc::new(RecordingObserver {
             surfaces: Arc::clone(surfaces),
         }),
-        Telemetry::off(None),
+        Telemetry::off(),
     )
 }
 

@@ -26,6 +26,7 @@ pub(super) fn message(
     outgoing: bool,
 ) -> ThreadMessage {
     ThreadMessage {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: crate::ui::model::blank_avatar(),
         account: "fixture".to_owned(),
         key: key.to_owned(),
@@ -44,6 +45,7 @@ pub(super) fn thread(subject: &str, messages: Vec<ThreadMessage>) -> ThreadRow {
     let unread_count = u32::try_from(messages.iter().filter(|message| message.unread).count())
         .expect("a fixture thread is small");
     ThreadRow {
+        importance: mailcal_bindings::MessageImportance::Normal,
         avatar: crate::ui::model::blank_avatar(),
         account: "fixture".to_owned(),
         thread_id: "thread-1".to_owned(),
@@ -78,6 +80,7 @@ pub(super) fn snapshot(rows: Vec<SnapshotRow>) -> MailboxListSnapshot {
 fn flat(subject: &str, from: &str, unread: bool) -> SnapshotRow {
     SnapshotRow::Flat {
         row: FlatRow {
+            importance: mailcal_bindings::MessageImportance::Normal,
             avatar: crate::ui::model::blank_avatar(),
             account: "fixture".to_owned(),
             key: subject.to_owned(),
@@ -254,6 +257,7 @@ pub(super) fn every_mail_row_formats_its_timestamp() {
     let message_raw = "2000-03-04T09:05:00Z";
     let single = SnapshotRow::Flat {
         row: FlatRow {
+            importance: mailcal_bindings::MessageImportance::Normal,
             avatar: crate::ui::model::blank_avatar(),
             account: "fixture".to_owned(),
             key: "single".to_owned(),

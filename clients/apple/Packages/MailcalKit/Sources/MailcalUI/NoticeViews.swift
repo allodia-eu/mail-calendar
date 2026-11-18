@@ -1,6 +1,6 @@
 // How the core's notices are drawn (docs/notices.md): a card at the top of the sidebar on the Mac
 // and the iPad, one row under the bar on iPhone, and every other notice in one Issues list behind
-// either. Never a stack.
+// either; Settings draws the first that belongs everywhere at its top. Never a stack.
 
 import MailcalBindings
 import SwiftUI
@@ -131,6 +131,41 @@ struct NoticeCard: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .accessibilityIdentifier("notice")
+        }
+    }
+}
+
+/// The top of Settings, which hides the window's notice: the first notice that belongs everywhere,
+/// above whichever category is open and out of its scroll, so a setting changed far down a page
+/// is said to have failed in sight of it. The rest stay behind the window's Issues entry (rule 2).
+struct SettingsNotice: View {
+    var model: MailboxModel
+    /// The account whose page is open, which lists that account's notices itself.
+    let openAccount: String?
+
+    var body: some View {
+        if let notice = model.settingsNotice(openAccount: openAccount) {
+            // The floor is what keeps the Mac's Settings sheet whole: its split view asks this for
+            // a size at next to no width, the notice's text, fixed vertically, answers one word a
+            // line, and the page grows past the sheet's fixed height, pushing its header and
+            // sidebar out of the window.
+            GroupBox {
+                NoticeEntry(model: model, notice: notice)
+                    .frame(minWidth: 240, maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+            }
+            .padding([.horizontal, .top], 20)
+            .accessibilityIdentifier("settings-notice")
+        }
+    }
+}
+
+extension View {
+    /// This Settings page with the notice above it.
+    func settingsNotice(_ model: MailboxModel, openAccount: String?) -> some View {
+        VStack(spacing: 0) {
+            SettingsNotice(model: model, openAccount: openAccount)
+            self
         }
     }
 }

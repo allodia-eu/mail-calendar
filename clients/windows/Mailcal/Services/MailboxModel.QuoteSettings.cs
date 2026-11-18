@@ -27,11 +27,13 @@ public sealed partial class MailboxModel
         }
     }
 
-    /// <summary>Sets and persists the default reply/forward quote style.</summary>
-    public void SetQuoteStyleChoice(QuoteStyleChoice style) => _app?.SetQuoteStyle(Kind(style));
+    /// <summary>Changes the default reply/forward quote style.</summary>
+    public void SetQuoteStyleChoice(QuoteStyleChoice style) =>
+        DispatchPreference(new PreferenceIntent.SetQuoteStyle(Kind(style)));
 
-    /// <summary>Sets and persists whether the composer offers a per-message style override.</summary>
-    public void SetQuoteStylePerMessage(bool perMessage) => _app?.SetQuoteStylePerMessage(perMessage);
+    /// <summary>Changes whether the composer offers a per-message style override.</summary>
+    public void SetQuoteStylePerMessage(bool perMessage) =>
+        DispatchPreference(new PreferenceIntent.SetQuoteStylePerMessage(perMessage));
 
     private static QuoteStyleChoice Choice(QuoteStyleKind kind) =>
         kind == QuoteStyleKind.LineAndHeader ? QuoteStyleChoice.LineAndHeader : QuoteStyleChoice.Indented;

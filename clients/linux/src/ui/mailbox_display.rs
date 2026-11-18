@@ -1,7 +1,8 @@
 //! Pure rendering keys for mailbox rows.
 
 use mailcal_bindings::{
-    FlatRow, MailboxListSnapshot, QueuedRow, SnapshotRow, ThreadMessage, ThreadRow,
+    FlatRow, MailboxListSnapshot, MessageImportance, QueuedRow, SnapshotRow, ThreadMessage,
+    ThreadRow,
 };
 
 use super::{
@@ -52,6 +53,7 @@ pub(super) struct DisplayRow {
     pub(super) unread: bool,
     pub(super) flagged: bool,
     pub(super) has_attachment: bool,
+    pub(super) importance: MessageImportance,
     pub(super) count: u32,
     pub(super) messages: Vec<DisplayMessage>,
     pub(super) clock: MailClock,
@@ -73,6 +75,7 @@ pub(super) struct DisplayMessage {
     pub(super) outgoing: bool,
     pub(super) draft: bool,
     pub(super) has_attachment: bool,
+    pub(super) importance: MessageImportance,
 }
 
 impl Row for DisplayRow {
@@ -99,6 +102,7 @@ pub(super) fn flat_display(row: &FlatRow, clock: &MailClock) -> DisplayRow {
         unread: row.unread,
         flagged: row.flagged,
         has_attachment: row.has_attachment,
+        importance: row.importance,
         count: 1,
         messages: Vec::new(),
         clock: clock.clone(),
@@ -116,6 +120,7 @@ pub(super) fn thread_display(row: &ThreadRow, clock: &MailClock) -> DisplayRow {
         unread: row.unread_count > 0,
         flagged: row.flagged,
         has_attachment: row.has_attachment,
+        importance: row.importance,
         count: row.message_count,
         messages: row.messages.iter().map(message_display).collect(),
         clock: clock.clone(),
@@ -134,6 +139,7 @@ pub(super) fn message_display(message: &ThreadMessage) -> DisplayMessage {
         outgoing: message.outgoing,
         draft: message.draft,
         has_attachment: message.has_attachment,
+        importance: message.importance,
     }
 }
 

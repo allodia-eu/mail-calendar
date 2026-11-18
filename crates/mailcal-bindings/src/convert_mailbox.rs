@@ -76,6 +76,7 @@ impl From<AppFlatRow> for FlatRow {
             flagged: row.flagged,
             draft: row.kind == mailcal_viewmodel::MessageKind::Draft,
             has_attachment: row.has_attachment,
+            importance: row.importance.into(),
             preview: row.preview,
         }
     }
@@ -95,6 +96,7 @@ impl From<AppThreadRow> for ThreadRow {
             unread_count: row.unread_count,
             flagged: row.flagged,
             has_attachment: row.has_attachment,
+            importance: row.importance.into(),
             preview: row.preview,
             messages: row.messages.into_iter().map(ThreadMessage::from).collect(),
         }
@@ -115,6 +117,7 @@ impl From<AppThreadMessage> for ThreadMessage {
             outgoing: message.kind == mailcal_viewmodel::MessageKind::Sent,
             draft: message.kind == mailcal_viewmodel::MessageKind::Draft,
             has_attachment: message.has_attachment,
+            importance: message.importance.into(),
         }
     }
 }

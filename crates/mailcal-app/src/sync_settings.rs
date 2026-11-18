@@ -9,17 +9,17 @@
 //! job; it reads this snapshot to decide what to run; this module only owns the
 //! **configuration** and its defaulting.
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 use engine_api::{AccountId, Mailbox, MailboxRole, Provider};
 use mailcal_account::{
     AccountSyncSettings, EffectiveSync, MAX_PUSH_FOLDERS, MESSAGE_SIZE_LIMITS_MB, MessageSizeLimit,
     POLL_INTERVALS, SYNC_DEPTHS, SyncDepth, SyncStrategy, cap_push_folders, effective,
-    load_preferences, save_preferences, snap_poll_interval,
+    snap_poll_interval,
 };
 use mailcal_viewmodel::{EmptyReason, SyncSettingsSnapshot, SyncStrategyKind};
 
-use crate::{App, Surface, sync::sync_window};
+use crate::{App, Surface, preferences_file::PreferencesFile, sync::sync_window};
 
 #[path = "sync_settings_row.rs"]
 mod row;
@@ -37,19 +37,15 @@ pub struct DepthChange {
 /// push/poll default, resolved against the live `IDLE` capability when a snapshot is built.
 pub(crate) struct SyncSettingsState {
     stored: BTreeMap<String, AccountSyncSettings>,
-    prefs_path: Option<PathBuf>,
+    file: PreferencesFile,
 }
 
 impl SyncSettingsState {
     /// Loads the stored per-account settings from the preferences file (if any).
-    pub(crate) fn new(prefs_path: Option<PathBuf>) -> Self {
-        let prefs = prefs_path
-            .as_ref()
-            .map(load_preferences)
-            .unwrap_or_default();
+    pub(crate) fn new(file: PreferencesFile) -> Self {
         Self {
-            stored: prefs.accounts,
-            prefs_path,
+            stored: file.load().accounts,
+            file,
         }
     }
 
@@ -77,26 +73,23 @@ impl SyncSettingsState {
             .and_then(|entry| entry.message_size_limit)
     }
 
-    /// Inserts/updates one account's settings and persists. Read-modify-write so the
-    /// sibling display-zone / grouping / quote-style preferences in the same file are preserved.
+    /// Inserts/updates one account's settings and persists.
     fn set_entry(&mut self, id: &str, entry: AccountSyncSettings) {
         self.stored.insert(id.to_owned(), entry);
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.accounts = self.stored.clone();
-            let _ = save_preferences(path, &prefs);
-        }
+        self.persist();
     }
 
     /// Removes one account's stored settings and persists, so a later re-add starts from the
     /// product defaults instead of resurrecting stale per-account choices.
     fn remove_entry(&mut self, id: &str) {
         self.stored.remove(id);
-        if let Some(path) = &self.prefs_path {
-            let mut prefs = load_preferences(path);
-            prefs.accounts = self.stored.clone();
-            let _ = save_preferences(path, &prefs);
-        }
+        self.persist();
+    }
+
+    fn persist(&self) {
+        let stored = self.stored.clone();
+        self.file
+            .edit(move |prefs| prefs.accounts.clone_from(&stored));
     }
 }
 

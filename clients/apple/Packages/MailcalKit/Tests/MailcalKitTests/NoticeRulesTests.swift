@@ -55,6 +55,20 @@ import Testing
         #expect(NoticeRules.about("c", in: ranked).isEmpty)
     }
 
+    @Test func settingsDrawsTheFirstEverywhereNoticeLeavingOutTheOpenAccountsOwn() {
+        let ranked = [
+            notice("a-mail", .mail, account: "a"),
+            notice("a-everywhere", .everywhere, account: "a"),
+            notice("not-saved", .everywhere, kind: .settingsNotSaved),
+        ]
+        #expect(NoticeRules.settings(ranked, openAccount: nil)?.id == "a-everywhere")
+        #expect(NoticeRules.settings(ranked, openAccount: "b")?.id == "a-everywhere")
+        #expect(NoticeRules.settings(ranked, openAccount: "a")?.id == "not-saved",
+                "the account's page lists its own notices")
+        #expect(NoticeRules.settings([notice("mail", .mail)], openAccount: nil) == nil,
+                "a notice for one screen stays on that screen")
+    }
+
     @Test func anAccountRowSaysTheFewWordsOrHowManyThereAre() {
         let one = [notice("a-mail", .mail, account: "a")]
         #expect(NoticeRules.rowLabel(one) == L10n.notice_mark_signin_expired())

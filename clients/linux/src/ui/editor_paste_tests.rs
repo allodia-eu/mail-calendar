@@ -196,7 +196,7 @@ pub(in crate::ui) mod widget_tests {
         let read = glib::MainContext::default()
             .block_on(read_clipboard(&clipboard, HTML))
             .expect("the HTML reads back off the clipboard");
-        assert_eq!(mailcal_bindings::composer_clipboard_html(read), markup);
+        assert_eq!(mailcal_bindings::composer_clipboard_html(&read), markup);
     }
 
     /// **A file manager's Copy puts no pixels on the clipboard at all.** Copying a picture out of

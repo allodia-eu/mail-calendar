@@ -192,9 +192,11 @@ impl<P: Provider> App<P> {
     /// preferences file at all (the demo and the tests), which is the default everywhere else
     /// too.
     pub(crate) fn reply_fallback_for(&self, account: &AccountId) -> ReplyFallback {
-        self.prefs_path.as_ref().map_or(ReplyFallback::Ask, |path| {
-            mailcal_account::load_preferences(path).reply_fallback(account.as_str())
-        })
+        if self.prefs.is_stored() {
+            self.prefs.load().reply_fallback(account.as_str())
+        } else {
+            ReplyFallback::Ask
+        }
     }
 
     /// Turns the outcome into what the caller of an RSVP returns, and raises the prompt when
@@ -370,12 +372,9 @@ impl<P: Provider> App<P> {
 
     /// Records what the user decided, so the same server does not ask again on every meeting.
     pub(crate) fn remember_reply_fallback(&self, account: &AccountId, choice: ReplyFallback) {
-        let Some(path) = &self.prefs_path else {
-            return;
-        };
-        let mut prefs = mailcal_account::load_preferences(path);
-        prefs.set_reply_fallback(account.as_str(), choice);
-        let _ = mailcal_account::save_preferences(path, &prefs);
+        let account = account.as_str().to_owned();
+        self.prefs
+            .edit(move |prefs| prefs.set_reply_fallback(&account, choice));
     }
 }
 

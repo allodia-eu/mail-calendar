@@ -1,40 +1,35 @@
 // The notice row sits under the navigation bar it shares the screen with, never over it.
 //
 // On iPhone an inset outside a tab's navigation stack does not move that stack's bar down, so a
-// row on the app's root draws over the bar and its buttons (`Mailcal.Banners.swift`). The offline
-// notice stands for every notice, being the one a launch hook can raise (docs/notices.md).
+// row on the app's root draws over the bar and its buttons (`Mailcal.Banners.swift`). An upright
+// iPad, its sidebar hidden, draws the same row. The offline notice stands for every notice, being
+// the one a launch hook can raise (docs/notices.md).
 //
 // It also leaves the mailbox's large title drawn (`bannerBackground`).
 //
-// ⚠️ Measured by frames and pixels, not by `isHittable`: XCUITest answers that a button under the
-// banner is hittable, and that a title the banner hides is there.
+// ⚠️ Measured by frames and pixels: the accessibility tree reports a button under the banner as on
+// screen, and a title the banner hides as there.
 
 import XCTest
 
 @MainActor
 final class BannerPlacementTests: XCTestCase {
-    func testTheBannerSitsBelowTheBarsButtons() {
-        let app = ShowcaseApp.launch(["MAILCAL_OFFLINE": "1"])
-        ShowcaseApp.showMailbox(app)
-        let banner = app.buttons["notice"]
-        XCTAssertTrue(
-            banner.waitForExistence(timeout: ShowcaseApp.timeout),
-            "the offline notice did not come up"
-        )
+    func testTheBannerSitsBelowTheBarsButtons() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_OFFLINE": "1"])
+        try ShowcaseApp.showMailbox(app)
+        let banner = try app.wait(.id("notice"), "the offline notice did not come up")
         XCTAssertTrue(banner.label.contains("offline"), "the notice is not the offline one: \(banner.label)")
-        assertBelow(banner, ["Folders", "New Mail"], in: app)
+        try assertBelow(banner, [ShowcaseApp.folders, "New Mail"], in: app)
         // The large title stays drawn. Read off the screen, because the accessibility tree reports
-        // the title present and hittable whether it is drawn or not.
-        let title = app.navigationBars.staticTexts["Inbox"]
-        XCTAssertTrue(title.exists, "the mailbox has no large title")
-        XCTAssertTrue(drawsText(in: title.frame), "the banner hides the mailbox's large title")
-
-        ShowcaseApp.tap(app.buttons["Calendar"])
+        // the title present whether it is drawn or not.
+        let title = try app.wait(.text("Inbox").role("AXHeading"), "the mailbox has no large title")
         XCTAssertTrue(
-            app.buttons["New Event"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "the calendar did not come up"
+            drawsText(in: title.frame ?? .zero), "the banner hides the mailbox's large title"
         )
-        assertBelow(banner, ["New Event", "More actions"], in: app)
+
+        try ShowcaseApp.tab("Calendar", in: app)
+        try app.wait(.button("New Event"), "the calendar did not come up")
+        try assertBelow(try app.wait(.id("notice")), ["New Event", "More actions"], in: app)
     }
 
     /// Whether the screen shows anything inside `frame` (in points): text spans a wide range of
@@ -67,15 +62,15 @@ final class BannerPlacementTests: XCTestCase {
     }
 
     private func assertBelow(
-        _ banner: XCUIElement, _ buttons: [String], in app: XCUIApplication,
+        _ banner: Element, _ buttons: [String], in app: App,
         file: StaticString = #filePath, line: UInt = #line
-    ) {
+    ) throws {
+        let top = try XCTUnwrap(banner.frame, "the banner has no frame", file: file, line: line)
         for name in buttons {
-            let button = app.buttons[name]
-            XCTAssertTrue(button.exists, "no \(name) on the bar", file: file, line: line)
+            let button = try app.query(.button(name)).first
+            let frame = try XCTUnwrap(button?.frame, "no \(name) on the bar", file: file, line: line)
             XCTAssertGreaterThanOrEqual(
-                banner.frame.minY, button.frame.maxY,
-                "the banner is drawn over \(name)", file: file, line: line
+                top.minY, frame.maxY, "the banner is drawn over \(name)", file: file, line: line
             )
         }
     }

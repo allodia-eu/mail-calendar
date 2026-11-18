@@ -168,6 +168,7 @@ internal fun SettingsScreen(
                 Text(L10n.settings_title(ctx), style = MaterialTheme.typography.titleLarge)
                 TextButton(onClick = onBack) { Text(L10n.action_done(ctx)) }
             }
+            SettingsNotice(accountsUi.notices, page = null, accountsUi.noticeHandlers)
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Spacer(modifier = Modifier.height(4.dp))
                 SettingsCategory.shown(allodia.available).forEach { category ->
@@ -198,6 +199,7 @@ internal fun SettingsScreen(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
             }
+            SettingsNotice(accountsUi.notices, accountPage?.id, accountsUi.noticeHandlers)
             // Each page starts at its top: an account's page is not the list scrolled further.
             val detailScroll = androidx.compose.runtime.key(current, accountPage?.id) { rememberScrollState() }
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(detailScroll)) {

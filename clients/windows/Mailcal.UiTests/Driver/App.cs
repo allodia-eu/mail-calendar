@@ -43,7 +43,11 @@ internal sealed partial class App : IDisposable
     /// (clear-dev-namespace.ps1 says why both), because a first run is defined by there being
     /// nothing in it.
     /// </summary>
-    internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null) => Launch(env, Dataset.FirstRun);
+    /// <param name="env">The launch's switches.</param>
+    /// <param name="language">The stored language choice, or <c>null</c> for none, which is what a
+    /// fresh install has and what the app reads as "follow the system".</param>
+    internal static App LaunchOnFirstRun(IReadOnlyDictionary<string, string>? env = null, string? language = "en") =>
+        Launch(env, Dataset.FirstRun, language: language);
 
     /// <summary>Launches the newest Debug build on the in-memory showcase dataset and waits until it
     /// is showing its screen (App.Showcase.cs).</summary>
@@ -64,7 +68,7 @@ internal sealed partial class App : IDisposable
         return app;
     }
 
-    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset, bool keepStore = false)
+    private static App Launch(IReadOnlyDictionary<string, string>? env, Dataset dataset, bool keepStore = false, string? language = "en")
     {
         Stop();
         if (dataset == Dataset.FirstRun && !keepStore)
@@ -76,13 +80,14 @@ internal sealed partial class App : IDisposable
             AssertShowcaseDriver();
         }
         var (environment, pipe) = LaunchEnvironment(env, dataset);
-        PrepareStore(environment);
+        PrepareStore(environment, language);
         // Through the shell, so the app inherits none of this process's handles: a child holding the
         // suites' output open keeps whatever reads it waiting after the last case.
         var launchedAt = DateTimeOffset.Now;
         Process? process = null;
         WithEnvironment(environment, () => process = Process.Start(new ProcessStartInfo(Exe()) { UseShellExecute = true }));
-        var app = new App(process ?? throw new InvalidOperationException("the app did not start"), Agent.Connect(pipe, TimeSpan.FromSeconds(60)))
+        var started = process ?? throw new InvalidOperationException("the app did not start");
+        var app = new App(started, ConnectAgent(started, pipe))
         {
             _environment = environment,
         };
@@ -122,99 +127,6 @@ internal sealed partial class App : IDisposable
             throw new InvalidOperationException("the activation started no app within 30 s");
         }
         return new App(process!, Agent.Connect(pipe, TimeSpan.FromSeconds(60)));
-    }
-
-    /// <summary>The environment a launch is made with, and the pipe its agent listens on.</summary>
-    private static (Dictionary<string, string?> Environment, string Pipe) LaunchEnvironment(IReadOnlyDictionary<string, string>? env, Dataset dataset)
-    {
-        var pipe = $"mailcal-uitests-{Environment.ProcessId}-{++_launches}";
-        var environment = new Dictionary<string, string?>
-        {
-            ["MAILCAL_OPEN_FIRST"] = null,
-            ["MAILCAL_CALENDAR"] = null,
-            ["MAILCAL_SWIPE"] = null,
-            ["MAILCAL_SHOWCASE"] = null,
-            ["MAILCAL_SHOWCASE_SCREEN"] = null,
-            ["MAILCAL_APPEARANCE"] = null,
-            ["MAILCAL_FAKE_REPLY_DELIVERY"] = null,
-            ["MAILCAL_FAKE_SYNC_HINT"] = null,
-            ["MAILCAL_FAKE_SYNC_PAUSED"] = null,
-            ["MAILCAL_FAKE_SYNC_PROGRESS"] = null,
-            ["MAILCAL_RELEASE_PROBE"] = null,
-            ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = null,
-            ["MAILCAL_DEV_ACCOUNT"] = dataset switch
-            {
-                Dataset.FirstRun => "first-run",
-                Dataset.Showcase => null,
-                _ => Environment.GetEnvironmentVariable("MAILCAL_DEV_ACCOUNT") ?? "stalwart",
-            },
-            ["MAILCAL_EXTRA_CA"] = dataset == Dataset.Showcase ? null : HarnessCa.For(Repo),
-            ["MAILCAL_TEST_AGENT"] = pipe,
-            // Nothing a case presses opens a browser or another app: a sign-in is completed with the
-            // requests its page makes (NextcloudBrowser), so a tab would be left behind and nothing more.
-            ["MAILCAL_NO_EXTERNAL_OPEN"] = "1",
-        };
-        if (dataset == Dataset.Showcase)
-        {
-            foreach (var (name, value) in ShowcaseDefaults)
-            {
-                environment[name] = value;
-            }
-        }
-        foreach (var (name, value) in env ?? new Dictionary<string, string>())
-        {
-            environment[name] = value;
-        }
-        return (environment, pipe);
-    }
-
-    private static int _launches;
-
-    /// <summary>
-    /// Puts a harness store's preferences where the cases expect them. The showcase pins both
-    /// through <c>MAILCAL_SHOWCASE</c> and persists neither.
-    /// <list type="bullet">
-    /// <item>The language is English, which the cases' copy is read in (<see cref="Catalog.English"/>).
-    /// Left at "system", the app follows the host's display language, so on a Dutch Windows every
-    /// case that reads a sentence fails.</item>
-    /// <item>The window placement is forgotten, so the window opens at the app's own default size.
-    /// The app reopens where it was closed, so a window left maximised by one launch, a case or the
-    /// developer would size every later one, and a case that needs a narrow reading pane cannot
-    /// reach it in a full-screen window.</item>
-    /// </list>
-    /// </summary>
-    private static void PrepareStore(Dictionary<string, string?> environment)
-    {
-        if (environment["MAILCAL_DEV_ACCOUNT"] is not { } devAccount)
-        {
-            return;
-        }
-        var store = DataDir.Store(devAccount);
-        Directory.CreateDirectory(store);
-        File.WriteAllText(Path.Combine(store, "language.txt"), "en");
-        File.Delete(Path.Combine(store, "window.txt"));
-    }
-
-    /// <summary>Runs <paramref name="start"/> with <paramref name="environment"/> set in this
-    /// process, which the shell and COM hand to what they start, and puts the old values back.</summary>
-    private static void WithEnvironment(Dictionary<string, string?> environment, Action start)
-    {
-        var saved = environment.Keys.ToDictionary(name => name, Environment.GetEnvironmentVariable);
-        try
-        {
-            foreach (var (name, value) in environment)
-            {
-                Environment.SetEnvironmentVariable(name, value);
-            }
-            start();
-        }
-        finally
-        {
-            foreach (var (name, value) in saved)
-            {
-                Environment.SetEnvironmentVariable(name, value);
-            }
-        }
     }
 
     /// <summary>

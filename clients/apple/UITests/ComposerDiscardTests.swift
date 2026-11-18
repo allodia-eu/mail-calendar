@@ -11,34 +11,27 @@ import XCTest
 
 @MainActor
 final class ComposerDiscardTests: XCTestCase {
-    func testDiscardingAWrittenMessageClosesTheComposer() {
-        let app = ShowcaseApp.launch()
-        ShowcaseApp.showMailbox(app)
-        ShowcaseApp.tap(app.buttons["New Mail"])
-        let subject = app.textFields["Subject"]
-        XCTAssertTrue(subject.waitForExistence(timeout: ShowcaseApp.timeout), "no composer")
-        ShowcaseApp.tap(subject)
-        subject.typeText("Lunch on Friday")
+    func testDiscardingAWrittenMessageClosesTheComposer() throws {
+        let app = try ShowcaseApp.launch()
+        try ShowcaseApp.showMailbox(app)
+        try app.press(.button("New Mail"))
+        let subject = Filter.text("Subject").role("AXTextField")
+        try app.fill(subject, "Lunch on Friday")
 
         // The iPad's page sheet leaves the mailbox's own More beside it; the composer's is the one
         // across the sheet's width.
-        let sheet = subject.frame
-        let more = app.buttons.matching(identifier: "More actions").allElementsBoundByIndex
-            .first { $0.frame.midX > sheet.minX && $0.frame.midX < sheet.maxX + 120 }
-        XCTAssertNotNil(more, "the composer has no More")
-        if let more { ShowcaseApp.tap(more) }
-        ShowcaseApp.tap(app.buttons["Discard"])
-        let confirm = app.alerts.buttons["Discard"]
-        XCTAssertTrue(
-            confirm.waitForExistence(timeout: ShowcaseApp.timeout),
-            "a written message was discarded without asking"
+        let sheet = try app.wait(subject).frame ?? .null
+        let more = try app.query(.button("More actions"))
+            .first { ($0.frame?.midX ?? -1) > sheet.minX && ($0.frame?.midX ?? -1) < sheet.maxX + 120 }
+        let composerMore = try XCTUnwrap(more, "the composer has no More")
+        try app.activate(composerMore)
+        try app.press(.button("Discard"))
+        // The alert's Discard, which stands alone once the menu that held the first has gone.
+        try app.press(
+            .button("Discard"), "a written message was discarded without asking"
         )
-        confirm.tap()
 
-        XCTAssertTrue(
-            app.buttons["New Mail"].waitForExistence(timeout: ShowcaseApp.timeout),
-            "Discard did not close the composer"
-        )
-        XCTAssertFalse(subject.exists, "the composer is still open behind the mailbox")
+        try app.wait(.button("New Mail"), "Discard did not close the composer")
+        try app.waitGone(subject, "the composer is still open behind the mailbox")
     }
 }

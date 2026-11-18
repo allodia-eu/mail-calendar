@@ -73,6 +73,7 @@ public sealed partial class ComposerView : UserControl
         // core holds them (ComposerView.Files.cs). Drawn here rather than in the loaded handler so
         // the tiles are there on the first render.
         ShowFiles(model.ComposerFilesOf(request.Composition));
+        ShowImportance(model.ComposerImportanceOf(request.Composition));
         // A forward whose files could not be read opens saying so. Silence here would be a
         // message the user sends believing the original had nothing attached.
         if (request.AttachmentsFailed)
@@ -187,7 +188,8 @@ public sealed partial class ComposerView : UserControl
     internal async Task<bool> IsDirtyAsync()
     {
         // A composer moved from another view was written in there, whatever it opened holding here.
-        if (_request?.Moved?.Written == true || _headersDirty || _files?.Changed == true)
+        if (_request?.Moved?.Written == true || _headersDirty || _files?.Changed == true
+            || _importance?.Changed == true)
         {
             return true;
         }

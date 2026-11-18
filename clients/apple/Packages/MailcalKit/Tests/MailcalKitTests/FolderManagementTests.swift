@@ -174,7 +174,7 @@ import Testing
         return SelectionKey(.flat(row: FlatRow(
             account: account, key: key, subject: "Subject", from: "sender",
             avatar: Avatar(initials: "S", light: swatch, dark: swatch, imagePath: nil),
-            date: "2026-07-20", unread: false, flagged: false, hasAttachment: false, preview: ""
+            date: "2026-07-20", unread: false, flagged: false, hasAttachment: false, importance: .normal, preview: ""
         )))
     }
 

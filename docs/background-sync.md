@@ -63,8 +63,9 @@ pass exists precisely to report mail that arrived while nobody was looking.
   advances the mark to the newest inbound message the pass **saw**, reported or not, so nothing is
   ever reported twice and mail withheld by the session floor above is not announced by a later pass
   either. The mark is
-  stored in the shared `preferences.toml` (`notify_marks`, RFC3339), read-modify-write like the
-  other settings.
+  stored in the shared `preferences.toml` (`notify_marks`, RFC3339) through the one writer every
+  setting goes through, and a pass waits for that write before it returns, because its process
+  may end straight after.
 - **Three things, in one order: who, what, and how it begins.** The sender is the notification's
   title; the subject and the **body snippet** follow it, in that order, in whatever text slots the
   platform gives. The snippet is the same one the list row shows, so a notification and its row

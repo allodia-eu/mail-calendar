@@ -41,6 +41,7 @@ private fun flatRow(account: String = ACCOUNT, key: String = KEY): SnapshotRow =
             unread = false,
             flagged = false,
             hasAttachment = false,
+            importance = uniffi.mailcal_bindings.MessageImportance.NORMAL,
             preview = "",
         ),
     )

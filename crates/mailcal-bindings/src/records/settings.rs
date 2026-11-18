@@ -110,8 +110,8 @@ pub enum SwipeActionKind {
     Star,
 }
 
-/// Which swipe a [`SwipeActionKind`] is bound to: the argument to
-/// [`crate::MailcalApp::set_swipe_action`].
+/// Which swipe a [`SwipeActionKind`] is bound to, as
+/// [`PreferenceIntent::SetSwipeAction`](crate::PreferenceIntent::SetSwipeAction) names it.
 #[derive(uniffi::Enum)]
 pub enum SwipeDirection {
     /// Swiping the row leftwards (toward the start edge).

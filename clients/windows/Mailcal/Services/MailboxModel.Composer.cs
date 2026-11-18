@@ -85,6 +85,30 @@ public sealed partial class MailboxModel
     internal ComposerFiles? RemoveComposerFile(string composition, string file) =>
         Files("remove", app => app.RemoveComposerFile(composition, file));
 
+    /// <summary>The importance picker <paramref name="composition"/>'s composer draws
+    /// (docs/importance.md), or <c>null</c> when the core cannot say. A lock and a lookup in the
+    /// core, with nothing that waits, so it is asked on the UI thread.</summary>
+    internal ComposerImportance? ComposerImportanceOf(string composition) =>
+        Importance("read", app => app.ComposerImportance(composition));
+
+    /// <summary>Sets what <paramref name="composition"/>'s message goes out with, and answers with
+    /// the picker as it now stands.</summary>
+    internal ComposerImportance? SetComposerImportance(string composition, MessageImportance importance) =>
+        Importance("set", app => app.SetComposerImportance(composition, importance));
+
+    private ComposerImportance? Importance(string verb, Func<MailcalApp, ComposerImportance> call)
+    {
+        try
+        {
+            return _app is null ? null : call(_app);
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"composer: could not {verb} the composer's importance ({ex.GetType().Name})");
+            return null;
+        }
+    }
+
     private ComposerFiles? Files(string verb, Func<MailcalApp, ComposerFiles> call)
     {
         if (_app is null)

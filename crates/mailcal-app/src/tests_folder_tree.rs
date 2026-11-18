@@ -151,6 +151,8 @@ async fn a_shut_folder_is_still_shut_after_a_relaunch() {
             expanded: false,
         })
         .await;
+        // Closed as a host closes it: what is still being saved is written first.
+        app.settle_preferences();
     }
 
     let app = app_with_prefs(
