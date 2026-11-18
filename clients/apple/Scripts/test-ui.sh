@@ -16,10 +16,16 @@
 #   Scripts/test-ui.sh --no-core            # skip the Rust rebuild
 #   Scripts/test-ui.sh --with-kit           # MailcalKitTests too, in the same run on the same simulator
 #   Scripts/test-ui.sh --build-only         # build the app and both test bundles; boot nothing
+#   Scripts/test-ui.sh --parallel 3         # classes spread over three clones of the simulator
 #
 # `--with-kit` is the cheap way to run MailcalKit's suite on iOS: the scheme's build has already
 # compiled MailcalUI for this destination, where `test-kit.sh --ios` compiles it again into a
 # derived-data directory of its own.
+#
+# `--parallel` pays only where cores are spare. Each worker is a clone of the simulator, a full iOS
+# with its own system services, which macOS schedules on the efficiency cores, and a copy of the
+# device's data (4 to 5 GB for one in daily use). On an eight-core Mac two workers took as long as
+# one, and three saved a tenth of the time and made a timing test fail.
 #
 # Every test but one drives the in-memory showcase dataset, so it needs no Docker harness, no stored
 # account and no network. The one is `AccountPageTests`, which drives the harness's linked accounts
@@ -42,6 +48,7 @@ SIMULATOR="${SIMULATOR:-}"
 ONLY=()
 WITH_KIT=0
 BUILD_ONLY=0
+WORKERS=1
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -50,9 +57,11 @@ while [[ $# -gt 0 ]]; do
     --no-core) BUILD_CORE=0 ;;
     --with-kit) WITH_KIT=1 ;;
     --build-only) BUILD_ONLY=1 ;;
-    -h | --help) sed -n '2,29p' "$0"; exit 0 ;;
+    --parallel) WORKERS="${2:?--parallel needs a number of workers}"; shift
+      [[ "$WORKERS" =~ ^[1-9][0-9]*$ ]] || die "--parallel needs a number of workers, not '$WORKERS'" ;;
+    -h | --help) sed -n '2,35p' "$0"; exit 0 ;;
     *) die "unknown option '$1' (want: --simulator <name>, --only <test>, --no-core, --with-kit," \
-      "--build-only)" ;;
+      "--build-only, --parallel <workers>)" ;;
   esac
   shift
 done
@@ -99,6 +108,11 @@ else
   TEST_ARGS+=(-only-testing:"$TARGET")
 fi
 [[ "$WITH_KIT" -eq 1 ]] && TEST_ARGS+=(-only-testing:MailcalKitTests)
+if [[ "$WORKERS" -gt 1 ]]; then
+  TEST_ARGS+=(-parallel-testing-enabled YES -parallel-testing-worker-count "$WORKERS")
+else
+  TEST_ARGS+=(-parallel-testing-enabled NO)
+fi
 
 # Built before the simulator boots, never while it does. A booting simulator takes a three-core
 # runner for itself: booted first, as one `xcodebuild test` needs, it put ten minutes on GitHub's
