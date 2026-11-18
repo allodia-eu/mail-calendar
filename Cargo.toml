@@ -312,8 +312,11 @@ provider-jmap = { git = "https://github.com/allodia-eu/email-calendar-sync-engin
 # draft-2020-12 `inputSchema` per tool; deriving it from the same struct the handler deserializes
 # is what stops a client sending exactly what a tool documented and getting a parse error.
 schemars = { version = "1", features = ["preserve_order"] }
-# UniFFI generates the Kotlin/Swift bindings over the app.
-uniffi = "0.31"
+# UniFFI generates the Kotlin/Swift bindings over the app. Exact, because the C# generator
+# (`crates/mailcal-bindgen-cs`) shares this lockfile and so this `uniffi_bindgen`: a patch release
+# can move a dependency the generator's tag does not accept, and `cargo update` would then break C#
+# binding generation. Both move together, in one PR, once the generator has a tag for the target.
+uniffi = "=0.32.0"
 async-trait = "0.1"
 # A lightweight logging facade: the core emits `log::{info,debug,…}!` records with no
 # knowledge of where they go, and the bindings install a bridge that forwards them to the

@@ -92,7 +92,7 @@ pub(super) fn refusal(
             certificate,
         } => ConnectFailure {
             message: Some(reason),
-            certificate: offers_exception.then_some(certificate),
+            certificate: offers_exception.then_some(*certificate),
             existing: None,
         },
         other => ConnectFailure {

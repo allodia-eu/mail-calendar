@@ -20,5 +20,12 @@ path = "src/main.rs"
 [dependencies]
 # Pinned to the core's UniFFI: a generator built against a different UniFFI can't read the
 # cdylib's metadata. This tag and the workspace's `uniffi` move together, never one alone; the
-# generator's tag names the UniFFI release it can read, and it trails upstream by months.
-uniffi-bindgen-cs = { git = "https://github.com/NordSecurity/uniffi-bindgen-cs", tag = "v0.11.0+v0.31.0" }
+# generator's tag names the UniFFI release it builds against, and it trails upstream by months.
+#
+# ⚠️ `Cargo.lock` points `uniffi_bindgen`'s `toml` at 0.9, by hand. The generator asks for
+# `toml <0.10` and hands its values to `uniffi_bindgen`, which accepts `>=0.9, <2` and so resolves
+# to the 1.x this workspace uses; the two `toml::Value`s then differ and the generator does not
+# compile. A bare `cargo update` re-resolves that edge; restore it by editing the `toml` line under
+# `name = "uniffi_bindgen"` in `Cargo.lock`. It stops mattering once the generator's `toml` range
+# matches `uniffi_bindgen`'s.
+uniffi-bindgen-cs = { git = "https://github.com/NordSecurity/uniffi-bindgen-cs", tag = "v0.12.0+v0.32.0" }

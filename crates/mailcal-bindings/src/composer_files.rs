@@ -59,8 +59,8 @@ pub fn composer_image_data_url_from_bytes(bytes: &[u8]) -> Result<String, Mailca
 /// whatever encoding the app that put it there wrote it in (`mailcal_composer::clipboard_html`).
 #[uniffi::export]
 #[must_use]
-pub fn composer_clipboard_html(bytes: Vec<u8>) -> String {
-    mailcal_composer::clipboard_html(&bytes)
+pub fn composer_clipboard_html(bytes: &[u8]) -> String {
+    mailcal_composer::clipboard_html(bytes)
 }
 
 /// A host-selected file to attach to a rich composer submission.
