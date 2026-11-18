@@ -18,7 +18,7 @@ final class NavigationBarTests: XCTestCase {
     /// There is no overflow menu here, and its absence is the design rather than a gap: syncing
     /// was the only thing behind it, and on a phone that is the pull the list already answers.
     /// The reading view's own row is where an overflow belongs (`docs/reading-actions.md`), and
-    /// `ReadingActionRowTests` is what holds it there.
+    /// MailcalKit's `ReadingActionRowLayoutTests` is what holds it there.
     func testMailboxBarItemsAreReachableByName() throws {
         let app = try ShowcaseApp.launch()
         try ShowcaseApp.showMailbox(app)

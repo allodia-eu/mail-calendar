@@ -1,41 +1,13 @@
-// The action row above an open message (`docs/reading-actions.md`).
+// The action row above an open message (`docs/reading-actions.md`): what its overflow reaches.
 //
-// The contract fixes an order, and an order is a fact about the screen: reply, reply-all and
-// forward at the start, archive and delete at the end, the overflow button last of all. Nothing
-// below the UI can observe it.
+// The row's order, and the sun/moon button a dark app adds to it, are facts about one screen's
+// layout, held without a launch by MailcalKit's `ReadingActionRowLayoutTests`. What is left here
+// needs the running app: a sheet another process draws.
 
 import XCTest
 
 @MainActor
 final class ReadingActionRowTests: XCTestCase {
-    /// The row's order, measured left to right.
-    ///
-    /// Which of archive and delete comes first is each platform's own, so the assertion is on the
-    /// three groups and on the overflow being last, exactly as the contract states it.
-    func testActionRowOrder() throws {
-        let app = try ShowcaseApp.launch()
-        try ShowcaseApp.openFirstMessage(app)
-        try app.wait(.button("Reply"), "no message was opened, so there is no action row to measure")
-
-        let expected = ["Reply", "Reply all", "Forward", "Archive", "Delete", "More actions"]
-        let order = try ShowcaseApp.leftToRight(expected, in: app)
-
-        // Counted before anything is sliced out of it: a short array under a subscript is a trap
-        // that takes the whole test runner down, not a failed assertion.
-        guard order.count == expected.count else {
-            return XCTFail("the action row drew \(order.count) of \(expected.count): \(order)")
-        }
-        XCTAssertEqual(
-            Array(order.prefix(3)), ["Reply", "Reply all", "Forward"],
-            "the row does not open with reply, reply-all and forward"
-        )
-        XCTAssertEqual(
-            Set(order[3 ... 4]), ["Archive", "Delete"],
-            "archive and delete are not the pair before the overflow"
-        )
-        XCTAssertEqual(order.last, "More actions", "the overflow button is not last of all")
-    }
-
     /// Print, behind the overflow, reaches the system's print sheet.
     ///
     /// The page is laid out in a web view nobody sees, so the one thing a reader can observe is the

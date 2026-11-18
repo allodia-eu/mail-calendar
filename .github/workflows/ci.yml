@@ -690,13 +690,16 @@ jobs:
       # phone composer's header taking its own taps and leaving the rest to the message, and
       # drawn on the app's own background in a dark app (docs/composer-layout.md, rules 2 and 5),
       # which nothing below the UI can see, the
-      # action row's order and the header that scrolls out from under it
+      # action row's print sheet and the header that scrolls out from under it
       # (docs/reading-actions.md), the calendar pinch (docs/calendar.md), which is also the
       # regression test for a gesture that reached the iOS grid not at all, Settings as the one
       # place a later account is added (docs/settings.md), and the question a server found on
       # another site asks before anything is sent to it (docs/account-autodetect.md rule 14), and
       # each tab's own notice with its button (docs/notices.md rules 2 and 11). The
-      # rest run from `clients/apple/Scripts/test-ui.sh` on a developer's machine;
+      # rest run from `clients/apple/Scripts/test-ui.sh` on a developer's machine. A fact about
+      # one screen's layout costs no launch: MailcalKit's suite hosts the view in a window of its
+      # own (`HostedScreen`) and runs here with `--with-kit`, which is where the action row's
+      # order and its sun/moon button are held;
       # `ComposerPresentationTests` is the slowest class in the bundle by some way. Add a `--only`
       # below to move one in.
       - name: Build + test the iOS app (showcase dataset)
