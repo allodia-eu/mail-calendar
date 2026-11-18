@@ -19,11 +19,11 @@ import XCTest
 final class ComposerUndoTests: XCTestCase {
     func testTheChordsStepTheBodysHistory() throws {
         let (app, web) = try openComposer()
-        typeTwoRuns(into: web, in: app)
+        try typeTwoRuns(into: web, in: app)
 
-        app.input.typeKey("z", modifierFlags: .command)
         XCTAssertTrue(
-            text("beta", in: web).waitForNonExistence(timeout: 5), "⌘Z did not take back the second run"
+            try app.chord("z", .command) { !text("beta", in: web).exists },
+            "⌘Z did not take back the second run"
         )
         XCTAssertTrue(text("alpha", in: web).exists, "⌘Z took back more than the second run")
 
@@ -39,8 +39,10 @@ final class ComposerUndoTests: XCTestCase {
         type("bob@example.test,", in: app)
         try app.wait(pill("bob@example.test"), timeout: 5, "no pill")
 
-        app.input.typeKey("z", modifierFlags: .command)
-        try app.waitGone(pill("bob@example.test"), "⌘Z left the address a pill")
+        XCTAssertTrue(
+            try app.chord("z", .command) { try !app.exists(pill("bob@example.test")) },
+            "⌘Z left the address a pill"
+        )
         XCTAssertEqual(try app.wait(to).value, "bob@example.test")
 
         app.input.typeKey("z", modifierFlags: [.command, .shift])
@@ -57,8 +59,10 @@ final class ComposerUndoTests: XCTestCase {
         try app.waitGone(pill("bob@example.test"), "the pill was not removed")
 
         // Removing it put the caret back in the field, where the chord is heard.
-        app.input.typeKey("z", modifierFlags: .command)
-        try app.wait(pill("bob@example.test"), timeout: 5, "⌘Z did not bring the address back")
+        XCTAssertTrue(
+            try app.chord("z", .command) { try app.exists(pill("bob@example.test")) },
+            "⌘Z did not bring the address back"
+        )
     }
 
     private let to = Filter.text("To").role("AXTextField")
@@ -80,8 +84,8 @@ final class ComposerUndoTests: XCTestCase {
 
     /// Two runs of typing in the body, a pause apart, so each is a step of its own
     /// (`TYPING_PAUSE_MS`).
-    private func typeTwoRuns(into web: XCUIElement, in app: App) {
-        web.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.55)).tap()
+    private func typeTwoRuns(into web: XCUIElement, in app: App) throws {
+        try ShowcaseApp.composerBody(app).tap()
         app.input.typeText("alpha")
         XCTAssertTrue(text("alpha", in: web).waitForExistence(timeout: 5), "nothing was typed")
         Thread.sleep(forTimeInterval: 1.5)

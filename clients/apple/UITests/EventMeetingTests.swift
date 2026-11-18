@@ -27,13 +27,23 @@ final class EventMeetingTests: XCTestCase {
         XCTAssertTrue(try app.exists(.text("990 000 000 001")), "the meeting ID is missing")
     }
 
-    /// Switches the calendar to the Agenda: a segment of the view picker where there is room for
-    /// one, and otherwise an item in the toolbar's More actions menu.
+    /// Switches the calendar to the Agenda: a segment of the view picker where all six fit; an
+    /// item of the picker as a menu, named for the view on show, on an upright iPad beside its
+    /// sidebar; and on a phone an item in the toolbar's More actions menu.
     private func showAgenda(_ app: App) throws {
-        try app.wait(.button("More actions"), "the calendar did not come up")
-        if try !app.exists(.button("Agenda")) {
-            try app.press(.button("More actions"))
+        // New Event, the calendar's own: the reading pane beside the mailbox has a More actions
+        // too, and the launch shows the mailbox before the hook brings the calendar.
+        try app.wait(.button("New Event"), "the calendar did not come up")
+        // Which shape the picker took is read once the arriving calendar has stopped moving.
+        try app.settle()
+        if try app.exists(.button("Agenda")) {
+            try app.press(.button("Agenda"))
+            return
         }
-        try app.press(.button("Agenda"))
+        // By its start: the match is in any case, and "Design review, …" is an event.
+        let picker = try app.query(.textLike("View, ").role("AXButton"))
+            .first { $0.label.hasPrefix("View, ") }
+        let menu = try picker ?? app.wait(.button("More actions"))
+        try app.choose(.button("Agenda"), from: menu)
     }
 }

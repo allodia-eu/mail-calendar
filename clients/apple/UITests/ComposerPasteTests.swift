@@ -23,7 +23,7 @@ final class ComposerPasteTests: XCTestCase {
             "public.html": Data(Self.wordList.utf8),
             "public.utf8-plain-text": "Apples\nPears",
         ]])
-        let body = web.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.55))
+        let body = try ShowcaseApp.composerBody(app)
         body.tap()
         choose("Paste", in: app.input, at: body)
 

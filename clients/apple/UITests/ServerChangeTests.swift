@@ -6,7 +6,6 @@
 // the notice to the sheet is real. A showcase account has no servers to change, so the core
 // refuses the allow, and that refusal is what proves the button reached it.
 
-import UIKit
 import XCTest
 
 @MainActor
@@ -50,12 +49,10 @@ final class ServerChangeTests: XCTestCase {
 
     /// Brings the paused calendar's notice, and with it "Review", on screen (docs/notices.md).
     ///
-    /// The iPad draws the notice as a card at the top of the sidebar, its button on it. The iPhone
-    /// draws one row under the bar, and the button is in the sheet that row opens.
+    /// The iPhone, and an upright iPad with its sidebar hidden, draw one row under the bar, and the
+    /// button is in the sheet that row opens.
     private func showCalendarNotice(_ app: App) throws {
-        try app.press(.button("Calendar"))
-        if UIDevice.current.userInterfaceIdiom != .pad {
-            try app.press(.id("notice"))
-        }
+        try ShowcaseApp.tab("Calendar", in: app)
+        try app.press(.id("notice"))
     }
 }
