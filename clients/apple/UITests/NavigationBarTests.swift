@@ -36,7 +36,7 @@ final class NavigationBarTests: XCTestCase {
     /// with the list. Calendar stands for the bar, being a tab and nothing else on either screen.
     func testAnOpenMessageHidesTheTabBarAndBackBringsItBack() throws {
         try XCTSkipIf(
-            UIDevice.current.userInterfaceIdiom == .pad,
+            ShowcaseApp.pad,
             "the iPad has no tab bar, and reads beside the list with no Back"
         )
         let app = try ShowcaseApp.launch()

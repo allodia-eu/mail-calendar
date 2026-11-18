@@ -38,9 +38,9 @@ enum AgentWait {
         }
     }
 
-    /// Waits until neither the accessibility tree nor the core has changed for `quietMs`, and
-    /// nothing on screen is moving (`AgentMotion`). Answers `settled: false` at the cap rather than
-    /// failing: an app that keeps changing never settles, and the caller decides whether that
+    /// Waits until neither the accessibility tree nor the core has changed for `quietMs`, and on
+    /// iOS nothing on screen is moving (`AgentMotion`). Answers `settled: false` at the cap rather
+    /// than failing: an app that keeps changing never settles, and the caller decides whether that
     /// matters.
     static func settle(_ args: inout AgentArgs) async throws -> [String: Any] {
         let quietMs = try args.count("quietMs") ?? 300
@@ -54,7 +54,7 @@ enum AgentWait {
             try await Task.sleep(for: poll)
             await AgentPlatform.awaken()
             let now = fingerprint()
-            if now != last || AgentMotion.moving() {
+            if now != last || moving() {
                 last = now
                 stillSince = clock.now
             } else if milliseconds(since: stillSince) >= quietMs {
@@ -62,10 +62,20 @@ enum AgentWait {
             }
             if milliseconds(since: started) >= capMs {
                 var reply: [String: Any] = ["ms": milliseconds(since: started), "settled": false]
+                #if os(iOS)
                 if let motion = AgentMotion.motion() { reply["moving"] = motion }
+                #endif
                 return reply
             }
         }
+    }
+
+    private static func moving() -> Bool {
+        #if os(iOS)
+        AgentMotion.moving()
+        #else
+        false
+        #endif
     }
 
     /// What is on screen and how far the core has got: every showing element's line, without its

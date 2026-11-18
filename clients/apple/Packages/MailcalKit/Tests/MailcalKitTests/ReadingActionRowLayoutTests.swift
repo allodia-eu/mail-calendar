@@ -1,5 +1,5 @@
-// The action row above an open message on a phone, as it is drawn (`docs/reading-actions.md`,
-// `docs/reading-dark-mode.md`).
+// The action row above an open message, as it is drawn on a phone and in an iPad's reading pane
+// (`docs/reading-actions.md`, `docs/reading-dark-mode.md`).
 //
 // Facts about the screen: the row's order; the sun/moon button only in a dark app, opening the
 // trailing group; and a seventh button still leaving the row inside the screen, because a row wider
@@ -24,8 +24,23 @@ import Testing
         imagePath: nil
     )
 
-    /// The reading view of a plain message, on a phone, in `scheme`.
-    private func screen(_ scheme: ColorScheme, model: MailboxModel = MailboxModel()) -> HostedScreen {
+    /// The two widths the row is drawn at: a phone's, compact and icon-only, and an upright iPad's
+    /// reading pane beside the list, regular, where the row keeps its labels while they fit.
+    nonisolated static let widths: [Width] = [
+        Width(compact: true, size: CGSize(width: 393, height: 852)),
+        Width(compact: false, size: CGSize(width: 448, height: 1_100)),
+    ]
+
+    struct Width: CustomTestStringConvertible, Sendable {
+        let compact: Bool
+        let size: CGSize
+        var testDescription: String { compact ? "phone" : "iPad reading pane" }
+    }
+
+    /// The reading view of a plain message at `width`, in `scheme`.
+    private func screen(
+        _ scheme: ColorScheme, _ width: Width, model: MailboxModel = MailboxModel()
+    ) -> HostedScreen {
         model.reading = ReadingSnapshot(
             key: "m1", from: "Bob Tester <bob@example.test>", avatar: Self.avatar,
             to: "Alice <alice@example.test>", cc: "", bcc: "", html: nil, plain: "Body.",
@@ -41,15 +56,16 @@ import Testing
                 model: model, message: message,
                 onReply: {}, onReplyAll: {}, onForward: {}, onArchive: {}, onDelete: {}
             ),
-            scheme: scheme
+            size: width.size, scheme: scheme, compact: width.compact
         )
     }
 
     /// Which of archive and delete comes first is each platform's own, so the assertion is on the
     /// three groups and on the overflow being last, exactly as the contract states it.
-    @Test func theRowOpensWithTheRepliesAndEndsWithTheOverflow() throws {
+    @Test(arguments: widths)
+    func theRowOpensWithTheRepliesAndEndsWithTheOverflow(_ width: Width) throws {
         let expected = ["Reply", "Reply all", "Forward", "Archive", "Delete", "More actions"]
-        let screen = screen(.light)
+        let screen = screen(.light, width)
         let order = screen.leftToRight(expected)
 
         try #require(
@@ -61,18 +77,21 @@ import Testing
     }
 
     /// A light app has nothing to switch, so the row draws no button for it.
-    @Test func aLightAppDrawsNoSunOrMoon() {
-        let screen = screen(.light)
+    @Test(arguments: widths)
+    func aLightAppDrawsNoSunOrMoon(_ width: Width) throws {
+        let screen = screen(.light, width)
+        try #require(!screen.elements("Reply").isEmpty, "no action row among:\n\(screen.dump())")
         #expect(screen.elements(toLight).isEmpty)
         #expect(screen.elements(toDark).isEmpty)
     }
 
     /// In a dark app the button opens the trailing group, every button of the row is wholly on the
     /// screen and a finger wide, and a press turns the sun into the moon.
-    @Test func aDarkAppDrawsTheButtonBeforeArchiveAndKeepsTheRowOnScreen() throws {
+    @Test(arguments: widths)
+    func aDarkAppDrawsTheButtonBeforeArchiveAndKeepsTheRowOnScreen(_ width: Width) throws {
         let model = MailboxModel()
         model.setDarkMessageBackground(true)
-        let screen = screen(.dark, model: model)
+        let screen = screen(.dark, width, model: model)
         let row = ["Reply", "Reply all", "Forward", toLight, "Archive", "Delete", "More actions"]
         let order = screen.leftToRight(row)
         try #require(order.count == row.count, "the action row drew \(order) of:\n\(screen.dump())")

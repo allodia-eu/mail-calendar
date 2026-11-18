@@ -94,7 +94,7 @@ final class App {
     /// Once the screen is still, as a person waits: a menu opened while a sheet is still coming up
     /// is closed again by SwiftUI, and an element found while it slid in is not where it was.
     func activate(_ element: Element) throws {
-        try settle(quietMs: Self.beforeActing)
+        try settle(quietMs: Self.beforeActing, capMs: Self.capBeforeActing)
         let element = try current(element)
         do {
             try agent.call("activate", ["h": element.h])
@@ -159,8 +159,15 @@ final class App {
     }
 
     /// Returns once neither the screen nor the core has changed for `quietMs`.
-    func settle(quietMs: Int = 300) throws {
-        try agent.call("settle", ["quietMs": quietMs])
+    ///
+    /// A screen that never settles costs the whole cap, so one that did not is said in the log,
+    /// with what the agent saw still moving.
+    func settle(quietMs: Int = 300, capMs: Int = 10_000) throws {
+        let reply = try agent.call("settle", ["quietMs": quietMs, "capMs": capMs])
+        if reply["settled"] as? Bool == false {
+            let moving = reply["moving"] as? String ?? "the tree kept changing"
+            print("settle gave up after \(reply["ms"] ?? capMs) ms: \(moving)")
+        }
     }
 
     /// The tree as the agent reads it, one element a line: for a failure message.
@@ -184,18 +191,20 @@ final class App {
     /// A finger on the element, once the screen has stopped moving: a frame read mid-animation aims
     /// the touch where the element was.
     func tap(_ element: Element, at offset: CGVector = CGVector(dx: 0.5, dy: 0.5)) throws {
-        try settle(quietMs: Self.beforeActing)
+        try settle(quietMs: Self.beforeActing, capMs: Self.capBeforeActing)
         try point(current(element), at: offset).tap()
     }
 
     func longPress(_ element: Element, duration: TimeInterval = 1.2) throws {
-        try settle(quietMs: Self.beforeActing)
+        try settle(quietMs: Self.beforeActing, capMs: Self.capBeforeActing)
         try point(current(element)).press(forDuration: duration)
     }
 
     /// How long the screen has to have been still before an action. Short, because `settle` also
     /// waits out anything still moving; a read that follows a change asks for the full default.
     private static let beforeActing = 100
+    /// How long an action waits for a screen that keeps moving before it acts anyway.
+    private static let capBeforeActing = 3_000
 
     /// Sends a chord from the keyboard, and returns whether `arrived` came to hold.
     ///
@@ -242,7 +251,8 @@ final class App {
     private func elements(_ reply: [String: Any], _ filter: Filter) -> [Element] {
         (reply["elements"] as? [[String: Any]] ?? []).enumerated().map { index, fields in
             var element = Element(fields)
-            element.found = filter.index(index)
+            // A filter that already names a position keeps it: its one match is that position.
+            element.found = filter.fields["index"] == nil ? filter.index(index) : filter
             return element
         }
     }

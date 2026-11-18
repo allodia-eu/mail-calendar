@@ -37,6 +37,11 @@ final class HostedScreen {
         settle()
     }
 
+    /// Off screen again once the test is done with it, so no later test finds it on the scene.
+    isolated deinit {
+        window.isHidden = true
+    }
+
     /// Lets SwiftUI lay out, measure and lay out again, as a frame or two on screen would.
     func settle() {
         for _ in 0..<10 {
