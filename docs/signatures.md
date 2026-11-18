@@ -73,8 +73,10 @@ save itself acts on, so the two cannot disagree. A client words the answer.
   and Apple Mail all show. SVG is refused: it is a document that can carry scripts and outside
   references, and is not shown reliably. The limit is there because a signature rides in **every**
   message the account sends, and base64 adds a third on top while it is stored.
-  - An editor asks it of a picked file **before reading it**, and of a pasted picture before
-    inserting it, so the person is told at once. Each file picker offers only the three types.
+  - An editor asks it of a picked file **before reading it**, so the person is told at once, and
+    each file picker offers only the three types. A pasted picture is asked before it is inserted
+    where the host reads the clipboard itself (Linux); elsewhere the shared editor inserts it, and
+    the save below judges it.
   - The save asks it again of every `data:` picture in the body, judged by its **bytes** as well as
     the type it claims, because a file can say it is a PNG and be something else.
   - On iPhone and iPad, a picture from the photo library arrives as a JPEG: the picker asks for the
