@@ -308,6 +308,18 @@ assertion, or anything that needs a **gesture** (idb has neither pinch nor rotat
 and keeps XCUITest for the launch, real keys and gestures; it relaunches the app and runs a compiled
 script, which is what makes it repeatable and what makes it useless for exploring.
 
+**A UI test that waits can be read while it waits.** The app the suite launches listens on
+`~/Library/Caches/mailcal-agent/uitests-<the simulator's UDID, first 8 characters>.sock`, so while a
+test sits in a `wait` that is about to time out, the agent shows what the test is looking at:
+
+```
+python3 scripts/dev/agent.py --socket ~/Library/Caches/mailcal-agent/uitests-E6E1FD65.sock dump
+```
+
+Start the run in the background, wait for the test's `started` line in its log, and dump a few
+seconds into the wait. A refusal names what was near, but only the dump shows the screen a lookup
+went wrong on: a sheet nobody expected, or a menu that has already closed.
+
 **Assert VoiceOver reachability, not pixels: this is what a screenshot cannot do.** A container
 that sets `.accessibilityLabel` on `.accessibilityElement(children: .contain)` stays expanded on
 macOS but **collapses into one node on iOS**, so every control inside becomes unreachable while

@@ -480,12 +480,13 @@ were broken right now, would this tell me?*
   `-enable-batch-mode` compiles in isolated batches and fails with `cannot find 'X' in scope`. Verify
   Apple with `clients/apple/Scripts/build-and-run.sh --macos --no-run` (add `--iphone`).
 - **And a build is not the screen.** `clients/apple/Scripts/test-ui.sh` is the XCUITest suite
-  (`clients/apple/UITests`), on a simulator or with `--device` on a connected iPhone. It is the only
-  Apple gate that can drive a **gesture**, or read the iOS **navigation bar** at all, which `idb`
-  reports as one unlabelled group. It needs a simulator, so the workspace gate leaves it out, and CI
-  runs only the classes [`ci.yml`](.github/workflows/ci.yml) names, and never on a pull request,
-  which compiles the suite and boots nothing. Run it before pushing anything
-  that changes what an Apple screen presents.
+  (`clients/apple/UITests`), on a simulator only, driven through the app's test agent. It is the
+  only Apple gate that can drive a **gesture**. It needs a simulator, so the workspace gate leaves
+  it out, and CI runs only the classes [`ci.yml`](.github/workflows/ci.yml) names, on an iPhone
+  simulator, and never on a pull request, which compiles the suite and boots nothing. Run it before
+  pushing anything that changes what an Apple screen presents, **on an iPhone and on an iPad
+  simulator** (`--simulator "iPad Pro 11-inch (M5)"`): nothing else checks the iPad's own layout,
+  its sidebar for a tab bar, its reading pane beside the list and its taller sheets.
 - **A `#![cfg(unix)]` test file reports `running 0 tests ... ok` on Windows**, which reads exactly
   like a pass. Any `cfg(windows)` / `cfg(unix)` branch needs a test *per branch*, and a
   cross-platform test count is not coverage: read the per-file `running N tests` lines.
