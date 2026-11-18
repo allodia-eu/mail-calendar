@@ -35,6 +35,7 @@ mod calendar_colors;
 mod calendar_detail;
 mod calendar_drag_ops;
 mod calendar_ops;
+pub mod calendar_pane;
 mod calendar_prefs;
 mod calendar_refresh;
 mod calendar_scope;

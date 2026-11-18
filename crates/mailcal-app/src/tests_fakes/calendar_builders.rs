@@ -63,6 +63,28 @@ pub(crate) fn calendar_app_on(
     )
 }
 
+/// A calendar app whose preferences persist to `prefs_path`, so a test can prove a choice
+/// survives a relaunch: a second app over the same path.
+pub(crate) fn calendar_app_with_prefs(
+    accounts: Vec<Account<CalendarFake>>,
+    prefs_path: std::path::PathBuf,
+    surfaces: &Arc<Mutex<Vec<Surface>>>,
+) -> App<CalendarFake> {
+    App::new(
+        Engine::open_in_memory().unwrap(),
+        accounts,
+        TimeZoneInit {
+            device_zone: TimeZoneId::utc(),
+            prefs_path: Some(prefs_path),
+        },
+        None,
+        Arc::new(RecordingObserver {
+            surfaces: Arc::clone(surfaces),
+        }),
+        Telemetry::off(),
+    )
+}
+
 /// A **patchable** stored event: one carrying the `raw_ical` an update patches and the
 /// `ETag` that guards it: a recurring, alarmed, zoned event with an `X-` property, i.e.
 /// everything the six-property create builder would delete if an update went through it.

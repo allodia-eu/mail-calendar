@@ -24,6 +24,7 @@ pub mod grid;
 pub mod meeting;
 pub mod month;
 pub mod packing;
+pub mod pane;
 
 // The agenda is what this module started as; keep its types reachable at the original
 // path so every existing caller (and the FFI) still resolves.

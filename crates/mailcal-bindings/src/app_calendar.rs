@@ -180,7 +180,10 @@ impl From<AppCalendarPage> for CalendarPage {
 
 impl From<AppGridDay> for GridDay {
     fn from(day: AppGridDay) -> Self {
-        Self { date: day.date }
+        Self {
+            date: day.date,
+            week: day.week,
+        }
     }
 }
 

@@ -17,7 +17,7 @@
 use engine_api::{CalendarDate, LocalDateTime, TimeZoneId, UtcDateTime, to_local};
 
 use super::{
-    days::{day_number, from_civil},
+    days::{day_number, from_civil, iso_week},
     packing::{self, Span},
 };
 use crate::invitation::ResponseStatus;
@@ -99,6 +99,8 @@ pub struct Occurrence {
 pub struct GridDay {
     /// The local calendar date this column shows, `YYYY-MM-DD`.
     pub date: String,
+    /// The ISO 8601 week number the date falls in.
+    pub week: u32,
 }
 
 /// A block drawn inside the grid: one day's worth of one occurrence.
@@ -247,6 +249,7 @@ pub fn build<'a>(
             .iter()
             .map(|date| GridDay {
                 date: date.to_string(),
+                week: iso_week(day_number(*date)),
             })
             .collect(),
         timed: columnize(timed),

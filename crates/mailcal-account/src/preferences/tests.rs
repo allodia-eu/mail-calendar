@@ -93,6 +93,7 @@ fn save_then_load_round_trips_the_preferences() {
             "me@imap.example.com".to_owned(),
             BTreeSet::from(["Archive".to_owned()]),
         )]),
+        collapsed_calendar_groups: BTreeSet::from(["me@imap.example.com".to_owned()]),
     };
     // Saving creates the nested parent dirs and the load reads the values back.
     save_preferences(&path, &prefs).unwrap();

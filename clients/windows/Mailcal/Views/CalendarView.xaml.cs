@@ -458,7 +458,10 @@ public sealed partial class CalendarView : UserControl
         var days = new GridDay[CalendarUnits.DaysInWeek];
         for (var i = 0; i < days.Length; i++)
         {
-            days[i] = new GridDay(from.AddDays(i).ToString("yyyy-MM-dd"));
+            var day = from.AddDays(i);
+            days[i] = new GridDay(
+                day.ToString("yyyy-MM-dd"),
+                (uint)System.Globalization.ISOWeek.GetWeekOfYear(day.ToDateTime(TimeOnly.MinValue)));
         }
         return new CalendarPage(days, [], [], 0, "UTC", [], false);
     }

@@ -15,6 +15,7 @@ use crate::signatures::{AccountSignatureAssignment, SignatureId, SignatureSlot};
 
 // The reading/composing choices: message grouping, quote style, swipe actions.
 mod behavior;
+mod calendar_pane;
 mod display;
 // Which accounts have their sidebar folder tree shut, and its accessors.
 mod file;
@@ -282,6 +283,11 @@ pub struct Preferences {
     /// [`Preferences::folder_expanded`].
     #[serde(default)]
     pub collapsed_folders: BTreeMap<String, BTreeSet<String>>,
+    /// The accounts whose group of calendars is **shut** in the calendar pane, by account id;
+    /// stored inverted for the reason `collapsed_accounts` is. Read it through
+    /// [`Preferences::calendar_group_expanded`].
+    #[serde(default)]
+    pub collapsed_calendar_groups: BTreeSet<String>,
 }
 
 /// The `serde` default for a flag that is on unless the user turns it off.
@@ -328,6 +334,7 @@ impl Default for Preferences {
             collapsed_accounts: BTreeSet::new(),
             unified_collapsed: false,
             collapsed_folders: BTreeMap::new(),
+            collapsed_calendar_groups: BTreeSet::new(),
         }
     }
 }
