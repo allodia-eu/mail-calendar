@@ -71,8 +71,8 @@ public sealed class FolderPaneTests(ShowcaseApp showcase)
         app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300), floor: TimeSpan.FromMilliseconds(400));
     }
 
-    /// <summary>A case on the mailbox. A suite before this one can leave the calendar or contacts on
-    /// screen, which shuts every tree in the pane, and each case here reads the pane the mail draws.</summary>
+    /// <summary>A case on the mailbox. A suite before this one can leave the calendar on screen, whose
+    /// pane stands in the tree's place, and each case here reads the pane the mail draws.</summary>
     private void Case(string name, Action<App> body, Action<App>? cleanup = null) =>
         showcase.Case(name, app =>
         {

@@ -9,8 +9,8 @@
 // all-day inclusive↔exclusive conversion, lives in the pure EventEditorState (Calendar/, unit-tested
 // in Mailcal.Tests). This file is the WinUI chrome that binds to it: it mutates the shared state and,
 // on Save, leaves it to the caller (CalendarView) to dispatch CreateEvent / UpdateEvent from
-// state.CreateArgs() / state.UpdateArgs(). Built imperatively in code-behind, like CalendarManagerDialog,
-// so there is no client-side state to drift and the tree is deterministic.
+// state.CreateArgs() / state.UpdateArgs(). Built imperatively in code-behind, like SettingsDialog, so
+// there is no client-side state to drift and the tree is deterministic.
 using System;
 using System.Globalization;
 using System.Linq;

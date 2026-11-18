@@ -389,6 +389,10 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarMark.cs" Link="ViewModels\SidebarMark.cs" />
+    <!-- The calendar pane's paged month and the rules that draw the mini month
+         (docs/calendar-pane.md). WinUI-free and L10n-free, the words arrive as parameters. It reads
+         the generated pane records, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\ViewModels\CalendarPaneModel.cs" Link="ViewModels\CalendarPaneModel.cs" />
     <!-- Which of the core's notices is drawn where (docs/notices.md): the bar's notice for the
          screen on show, how many stand behind it, each account's mark, and what is announced once.
          Silent when wrong: a notice drawn on a screen it does not belong to, or one read aloud on

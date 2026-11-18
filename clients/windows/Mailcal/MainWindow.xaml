@@ -370,6 +370,12 @@
                 </views:SidebarItemTemplateSelector>
             </NavigationView.MenuItemTemplateSelector>
 
+            <!-- The calendar pane, in the menu's place while the calendar is showing and above the
+                 destinations (MainWindow.CalendarPane.cs sizes it and hides the menu). -->
+            <NavigationView.PaneFooter>
+                <views:CalendarPane x:Name="CalendarPaneView" Visibility="Collapsed" />
+            </NavigationView.PaneFooter>
+
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

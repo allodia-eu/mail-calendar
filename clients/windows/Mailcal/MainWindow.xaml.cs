@@ -79,6 +79,7 @@ public sealed partial class MainWindow : Window
                 ? Model.SelectedAccount ?? (Model.Accounts.Count == 1 ? Model.Accounts[0].Id : null)
                 : null);
         CalendarDetail.Init(Model);
+        InitCalendarPane();
         ContactsDetail.Init(Model);
         NoticeStrip.Init(Model);
         // A notice names its account's page, or, for a use paused for a server on another site,

@@ -51,6 +51,7 @@ public sealed class ImapSignInTests(HarnessApp harness)
 
     private static Element OpenSetup(App app)
     {
+        app.ShowMail();
         app.Agent.Invoke(app.Agent.Find(Filter.ById("NavAddAccount", "ListItem"))
             ?? throw new InvalidOperationException("the sidebar has no Add account row (#NavAddAccount) to open the form with"));
         return app.Agent.Wait(Filter.ById("DetectEmail", "Edit"), TimeSpan.FromSeconds(10))

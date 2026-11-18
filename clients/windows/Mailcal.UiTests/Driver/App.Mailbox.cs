@@ -40,10 +40,29 @@ internal sealed partial class App
         return Agent.Find(list) ?? throw new InvalidOperationException("the message list (#RowsList) is not on screen");
     }
 
-    /// <summary>All Accounts' Inbox row, its group opened first because the calendar leaves the
-    /// group's tree closed; null where the pane draws no such row.</summary>
+    /// <summary>
+    /// Mail back on screen when the calendar is showing: its pane stands in the folder tree's
+    /// place, and the Mail destination returns to the list as it was left. Contacts keeps the tree,
+    /// so nothing is done there.
+    /// </summary>
+    internal void ShowMail()
+    {
+        var pane = Filter.ById("CalendarPaneMonthTitle") with { Window = Mailbox.Hwnd };
+        if (Agent.Find(pane) is null)
+        {
+            return;
+        }
+        Agent.Invoke(Agent.Find(Filter.ById("NavMail") with { Window = Mailbox.Hwnd })
+            ?? throw new InvalidOperationException("the calendar is showing and there is no Mail destination beside it"));
+        Agent.WaitGone(pane, Patience);
+        Agent.Settle();
+    }
+
+    /// <summary>All Accounts' Inbox row, its group opened first in case it was left shut; null where
+    /// the pane draws no such row.</summary>
     internal Element? UnifiedInboxRow()
     {
+        ShowMail();
         if (Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = Mailbox.Hwnd }) is not { } all)
         {
             return null;
@@ -105,10 +124,10 @@ internal sealed partial class App
     /// </summary>
     internal void OpenFolder(string folder)
     {
+        ShowMail();
         var account = Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = Mailbox.Hwnd })
             ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
-        // A launch lists the account before its folders arrive from the server, and the calendar
-        // leaves the account's tree closed.
+        // A launch lists the account before its folders arrive from the server.
         Agent.Expand(account);
         var row = Agent.Wait(Filter.Named(folder, "ListItem") with { Under = account }, Patience)
             ?? throw new InvalidOperationException($"{Harness.Alice} shows no {folder} row; is its tree open?");
