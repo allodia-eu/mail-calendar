@@ -18,7 +18,7 @@ final class NavigationBarTests: XCTestCase {
     /// There is no overflow menu here, and its absence is the design rather than a gap: syncing
     /// was the only thing behind it, and on a phone that is the pull the list already answers.
     /// The reading view's own row is where an overflow belongs (`docs/reading-actions.md`), and
-    /// `ReadingActionRowTests` is what holds it there.
+    /// MailcalKit's `ReadingActionRowLayoutTests` is what holds it there.
     func testMailboxBarItemsAreReachableByName() throws {
         let app = try ShowcaseApp.launch()
         try ShowcaseApp.showMailbox(app)
@@ -36,7 +36,7 @@ final class NavigationBarTests: XCTestCase {
     /// with the list. Calendar stands for the bar, being a tab and nothing else on either screen.
     func testAnOpenMessageHidesTheTabBarAndBackBringsItBack() throws {
         try XCTSkipIf(
-            UIDevice.current.userInterfaceIdiom == .pad,
+            ShowcaseApp.pad,
             "the iPad has no tab bar, and reads beside the list with no Back"
         )
         let app = try ShowcaseApp.launch()

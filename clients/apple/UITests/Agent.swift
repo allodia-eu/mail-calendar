@@ -133,8 +133,18 @@ final class Agent {
         if fd >= 0 { close(fd) }
     }
 
+    /// The longest any request waits for its answer: past every `wait` and `settle` a test asks
+    /// for, so only an app that stopped answering reaches it.
+    static let answerTimeout = 120
+
     /// Connects once the app is listening, which it starts doing as it launches.
     func connect(timeout: TimeInterval) throws {
+        // The app refuses a path that does not fit a socket's address, so nothing would ever answer.
+        guard path.utf8.count < MemoryLayout.size(ofValue: sockaddr_un().sun_path) else {
+            throw AgentRefusal(
+                verb: "connect", code: "no-app",
+                reply: ["error": "\(path) is too long for a socket's address"])
+        }
         let deadline = Date().addingTimeInterval(timeout)
         var last = ""
         while Date() < deadline {
@@ -177,7 +187,6 @@ final class Agent {
     }
 
     private func receive(verb: String) throws -> [String: Any] {
-        var buffer = [UInt8](repeating: 0, count: 64 * 1024)
         while true {
             if let newline = pending.firstIndex(of: UInt8(ascii: "\n")) {
                 let line = Data(pending[..<newline])
@@ -188,10 +197,17 @@ final class Agent {
             }
             let count = read(fd, &buffer, buffer.count)
             if count < 0 && errno == EINTR { continue }
+            if count < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) {
+                throw AgentRefusal(
+                    verb: verb, code: "no-answer",
+                    reply: ["error": "the app did not answer within \(Self.answerTimeout) s"])
+            }
             guard count > 0 else { throw hungUp(verb) }
             pending.append(contentsOf: buffer[0..<count])
         }
     }
+
+    private var buffer = [UInt8](repeating: 0, count: 64 * 1024)
 
     private func hungUp(_ verb: String) -> AgentRefusal {
         AgentRefusal(verb: verb, code: "hung-up", reply: ["error": "the app went before it answered"])
@@ -207,6 +223,9 @@ final class Agent {
         guard fd >= 0 else { throw POSIXError(.EBADF) }
         var on: Int32 = 1
         setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        // A hung app fails the test that asked, rather than holding the whole run.
+        var answer = timeval(tv_sec: answerTimeout, tv_usec: 0)
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &answer, socklen_t(MemoryLayout<timeval>.size))
         let connected = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 Darwin.connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))

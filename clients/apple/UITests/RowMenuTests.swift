@@ -42,7 +42,7 @@ final class RowMenuTests: XCTestCase {
     /// them away again, so a conversation the user has left does not stay open behind them.
     func testLeavingAConversationFoldsItAway() throws {
         try XCTSkipIf(
-            UIDevice.current.userInterfaceIdiom == .pad, "the iPad reads beside the list, with no Back"
+            ShowcaseApp.pad, "the iPad reads beside the list, with no Back"
         )
         let app = try ShowcaseApp.launch()
         try ShowcaseApp.openMessage(containing: conversation, in: app)

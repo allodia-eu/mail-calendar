@@ -67,7 +67,7 @@ final class MessageSelectionTests: XCTestCase {
         let app = try ShowcaseApp.launch()
         try ShowcaseApp.showMailbox(app)
         ShowcaseApp.attachHardwareKeyboard(app)
-        if UIDevice.current.userInterfaceIdiom == .pad {
+        if ShowcaseApp.pad {
             try app.press(.button("Select"))
         }
         // Typed with the keyboard, because the chord under test is what the keyboard sends.
@@ -96,7 +96,7 @@ final class MessageSelectionTests: XCTestCase {
     /// tap changes nothing and the message it names never opens again.
     func testARowOpensAgainAfterBack() throws {
         try XCTSkipIf(
-            UIDevice.current.userInterfaceIdiom == .pad, "the iPad reads beside the list, with no Back"
+            ShowcaseApp.pad, "the iPad reads beside the list, with no Back"
         )
         let app = try ShowcaseApp.launch()
         let reply = Filter.button("Reply")

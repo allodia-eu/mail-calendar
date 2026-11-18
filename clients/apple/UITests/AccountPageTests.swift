@@ -10,7 +10,6 @@
 // and the removal below are gone by the next run.
 
 import Darwin
-import UIKit
 import XCTest
 
 @MainActor
@@ -114,8 +113,8 @@ final class AccountPageTests: XCTestCase {
     /// Settings → Accounts, from the mailbox, whichever Settings screen the app restores.
     private func openAccounts(_ app: App) throws {
         try ShowcaseApp.showMailbox(app)
-        if UIDevice.current.userInterfaceIdiom != .pad {
-            try app.press(.button("Folders"))
+        if !ShowcaseApp.pad {
+            try app.press(.button(ShowcaseApp.folders))
         } else if try !app.appears(.button("Settings"), timeout: 3) {
             // In portrait the split view starts with its sidebar, and Settings in it, hidden.
             let toggles = try app.query(.id("ToggleSidebar")) + app.query(.button("Show Sidebar"))

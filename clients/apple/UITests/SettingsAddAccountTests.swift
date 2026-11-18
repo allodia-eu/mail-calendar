@@ -34,8 +34,8 @@ final class SettingsAddAccountTests: XCTestCase {
         try ShowcaseApp.showMailbox(app)
         // The folder list is lazy, so its last row exists only once it has been scrolled to: on
         // iPhone that means opening the drawer first.
-        if UIDevice.current.userInterfaceIdiom != .pad {
-            try app.press(.button("Folders"))
+        if !ShowcaseApp.pad {
+            try app.press(.button(ShowcaseApp.folders))
         }
         // The folder list is the leftmost list on screen: the drawer, or the iPad's sidebar.
         let lists = try app.waitAll(Filter().type("UICollectionView"), "no folder list")

@@ -22,7 +22,7 @@ final class ReadingPaneMoveOnTests: XCTestCase {
 
     func testArchivingMovesThePaneOnAsAClickOnTheNextRowWould() throws {
         try XCTSkipIf(
-            UIDevice.current.userInterfaceIdiom != .pad, "a phone goes back to the list instead"
+            !ShowcaseApp.pad, "a phone goes back to the list instead"
         )
         let app = try ShowcaseApp.launch()
         try ShowcaseApp.openMessage(containing: archived, in: app)
