@@ -13,8 +13,8 @@ import XCTest
 
 @MainActor
 final class SettingsPreferencesTests: XCTestCase {
-    func testTheDefaultZoomShowsANewStopAtOnceAndOnReturn() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"])
+    func testTheDefaultZoomShowsANewStopAtOnceAndOnReturn() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"]).input
         openCategory("Calendar", in: app)
         let zoom = app.pickerWheels.element(boundBy: 1)
         XCTAssertTrue(zoom.waitForExistence(timeout: ShowcaseApp.timeout))
@@ -32,8 +32,8 @@ final class SettingsPreferencesTests: XCTestCase {
         )
     }
 
-    func testTheDarkBackgroundToggleShowsAChangeAtOnceAndOnReturn() {
-        let app = ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"])
+    func testTheDarkBackgroundToggleShowsAChangeAtOnceAndOnReturn() throws {
+        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"]).input
         openCategory("Reading", in: app)
         let toggle = darkBackgroundSwitch(in: app)
         let before = toggle.value as? String
@@ -60,13 +60,13 @@ final class SettingsPreferencesTests: XCTestCase {
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "\(name), "))
             .firstMatch
         for _ in 0..<3 where !(row.exists && row.isHittable) { app.swipeUp() }
-        ShowcaseApp.tap(row)
+        tap(row)
         XCTAssertTrue(app.navigationBars[name].waitForExistence(timeout: ShowcaseApp.timeout))
     }
 
     /// Goes back to the hub and opens the category again.
     private func reopen(_ name: String, in app: XCUIApplication) {
-        ShowcaseApp.tap(app.navigationBars[name].buttons["Settings"])
+        tap(app.navigationBars[name].buttons["Settings"])
         openCategory(name, in: app)
     }
 
@@ -76,6 +76,20 @@ final class SettingsPreferencesTests: XCTestCase {
         XCTAssertTrue(row.waitForExistence(timeout: ShowcaseApp.timeout))
         for _ in 0..<3 where !row.switches.firstMatch.isHittable { app.swipeUp() }
         return row
+    }
+
+    /// Taps `element` once it is on screen and reachable: a row below the fold exists before a
+    /// finger can land on it.
+    private func tap(_ element: XCUIElement) {
+        XCTAssertTrue(element.waitForExistence(timeout: ShowcaseApp.timeout), "never appeared: \(element)")
+        let reachable = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"), object: element
+        )
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [reachable], timeout: ShowcaseApp.timeout), .completed,
+            "never became reachable: \(element)"
+        )
+        element.tap()
     }
 
     /// Waits for `element` to read `value`. A control that does not redraw reads the old value
