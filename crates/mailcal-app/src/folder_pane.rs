@@ -228,46 +228,29 @@ impl<P: Provider> App<P> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
-    use mailcal_account::{Preferences, QuoteStyle, load_preferences, save_preferences};
+    use mailcal_account::{QuoteStyle, load_preferences, save_preferences};
 
     use super::FolderPaneState;
-
-    /// A fresh preferences file of its own, so one test's writes cannot reach another's.
-    fn scratch_prefs(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("mailcal-folder-pane-{name}"));
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        save_preferences(&path, &Preferences::default()).unwrap();
-        path
-    }
+    use crate::preferences_file::{PreferencesFile, ScratchPreferences};
 
     #[test]
     fn an_account_nobody_shut_is_expanded() {
         // `bool::default()` is `false`, so storing the expanded accounts instead of the
         // collapsed ones would have shipped every tree shut; exactly the bug this replaces.
-        assert!(
-            FolderPaneState::new(crate::preferences_file::PreferencesFile::default())
-                .expanded("acct-1")
-        );
+        assert!(FolderPaneState::new(PreferencesFile::default()).expanded("acct-1"));
     }
 
     #[test]
     fn shutting_a_tree_survives_a_reload_and_leaves_the_others_open() {
-        let path = scratch_prefs("reload");
+        let scratch = ScratchPreferences::new();
 
-        let mut state = FolderPaneState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = FolderPaneState::new(scratch.open());
         assert!(state.set("acct-1", false));
         assert!(!state.expanded("acct-1"));
         assert!(state.expanded("acct-2"));
 
         // A fresh launch reads the same answer back off disk.
-        let reloaded = FolderPaneState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
-        );
+        let reloaded = FolderPaneState::new(scratch.open());
         assert!(!reloaded.expanded("acct-1"));
         assert!(reloaded.expanded("acct-2"));
     }
@@ -276,30 +259,21 @@ mod tests {
     fn the_all_accounts_group_opens_expanded_and_its_shut_state_survives_a_reload() {
         // `bool::default()` is `false` here too, and shut is the one default that would hide
         // the group's own Inbox row: the only route to the unified list.
-        assert!(
-            FolderPaneState::new(crate::preferences_file::PreferencesFile::default()).unified()
-        );
-        let path = scratch_prefs("unified");
+        assert!(FolderPaneState::new(PreferencesFile::default()).unified());
+        let scratch = ScratchPreferences::new();
 
-        let mut state = FolderPaneState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = FolderPaneState::new(scratch.open());
         assert!(state.set_unified(false));
         assert!(!state.unified());
         // Shutting the group leaves every account's own tree alone.
         assert!(state.expanded("acct-1"));
 
-        assert!(
-            !FolderPaneState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path)
-            ))
-            .unified()
-        );
+        assert!(!FolderPaneState::new(scratch.open()).unified());
     }
 
     #[test]
     fn re_asserting_the_current_state_changes_nothing() {
-        let mut state = FolderPaneState::new(crate::preferences_file::PreferencesFile::default());
+        let mut state = FolderPaneState::new(PreferencesFile::default());
         // Already expanded: no write, no snapshot rebuild.
         assert!(!state.set("acct-1", true));
         assert!(state.set("acct-1", false));
@@ -311,19 +285,17 @@ mod tests {
 
     #[test]
     fn persisting_preserves_the_sibling_preferences_in_the_file() {
-        let path = scratch_prefs("siblings");
-        let mut on_disk = load_preferences(&path);
+        let scratch = ScratchPreferences::new();
+        let mut on_disk = load_preferences(scratch.path());
         on_disk.quote_style = QuoteStyle::LineAndHeader;
-        save_preferences(&path, &on_disk).unwrap();
+        save_preferences(scratch.path(), &on_disk).unwrap();
 
-        let mut state = FolderPaneState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = FolderPaneState::new(scratch.open());
         state.set("acct-1", false);
 
         state.set_unified(false);
 
-        let after = load_preferences(&path);
+        let after = load_preferences(scratch.path());
         assert_eq!(after.quote_style, QuoteStyle::LineAndHeader);
         assert!(after.collapsed_accounts.contains("acct-1"));
         assert!(after.unified_collapsed);
@@ -331,15 +303,17 @@ mod tests {
 
     #[test]
     fn removing_an_account_forgets_that_its_tree_was_shut() {
-        let path = scratch_prefs("removal");
-        let mut state = FolderPaneState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let scratch = ScratchPreferences::new();
+        let mut state = FolderPaneState::new(scratch.open());
         state.set("acct-1", false);
 
         state.remove_account("acct-1");
 
         assert!(state.expanded("acct-1"));
-        assert!(load_preferences(&path).collapsed_accounts.is_empty());
+        assert!(
+            load_preferences(scratch.path())
+                .collapsed_accounts
+                .is_empty()
+        );
     }
 }

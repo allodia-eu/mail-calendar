@@ -80,15 +80,6 @@ impl PreferencesFile {
         Self::start(path, Box::new(on_failure), false)
     }
 
-    /// The file at `path` for a test that reads the disk straight after a change: every edit
-    /// waits for its write.
-    #[cfg(test)]
-    pub(crate) fn writing_through(path: Option<PathBuf>) -> Self {
-        path.map_or_else(Self::default, |path| {
-            Self::start(path, Box::new(|| {}), true)
-        })
-    }
-
     fn start(path: PathBuf, on_failure: Box<dyn Fn() + Send + Sync>, settle_each: bool) -> Self {
         let shared = Arc::new(Shared {
             path,
@@ -305,6 +296,12 @@ impl<P: Provider> App<P> {
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().expect("preferences mutex poisoned")
 }
+
+#[cfg(test)]
+#[path = "preferences_file_scratch.rs"]
+mod scratch;
+#[cfg(test)]
+pub(crate) use scratch::ScratchPreferences;
 
 #[cfg(test)]
 #[path = "preferences_file_tests.rs"]

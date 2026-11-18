@@ -106,46 +106,36 @@ fn to_style(kind: QuoteStyleKind) -> QuoteStyle {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_account::{MessageGrouping, QuoteStyle, load_preferences, save_preferences};
+    use mailcal_account::{MessageGrouping, QuoteStyle, load_preferences};
     use mailcal_viewmodel::QuoteStyleKind;
 
     use super::QuoteSettingsState;
+    use crate::preferences_file::ScratchPreferences;
 
     /// A preferences file with a sibling setting the quote-style writes must preserve.
-    fn seeded(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        let seeded = mailcal_account::Preferences {
+    fn seeded() -> ScratchPreferences {
+        ScratchPreferences::seeded(&mailcal_account::Preferences {
             display_timezone: Some("Europe/Amsterdam".to_owned()),
             message_grouping: MessageGrouping::Flat,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
-        path
+        })
     }
 
     #[test]
     fn set_persists_and_reloads_without_clobbering_sibling_preferences() {
-        let path = seeded("mailcal-quote-style-test");
+        let scratch = seeded();
 
         // The default loads (an indented quote), then a set persists the other style.
-        let mut state = QuoteSettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = QuoteSettingsState::new(scratch.open());
         assert_eq!(state.get().style, QuoteStyleKind::Indented);
         state.set_style(QuoteStyle::LineAndHeader);
 
         // A fresh state reads back the persisted choice, and the sibling prefs survived.
         assert_eq!(
-            QuoteSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path.clone())
-            ))
-            .get()
-            .style,
+            QuoteSettingsState::new(scratch.open()).get().style,
             QuoteStyleKind::LineAndHeader
         );
-        let on_disk = load_preferences(&path);
+        let on_disk = load_preferences(scratch.path());
         assert_eq!(on_disk.quote_style, QuoteStyle::LineAndHeader);
         assert_eq!(
             on_disk.display_timezone.as_deref(),
@@ -156,29 +146,23 @@ mod tests {
 
     #[test]
     fn the_per_message_override_is_off_by_default_and_persists_independently_of_the_style() {
-        let path = seeded("mailcal-quote-per-message-test");
+        let scratch = seeded();
 
         // Off by default: the composer shows no picker until the user opts in.
-        let mut state = QuoteSettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = QuoteSettingsState::new(scratch.open());
         assert!(!state.get().per_message);
 
         // Turning it on persists, and leaves the chosen style alone.
         state.set_style(QuoteStyle::LineAndHeader);
         state.set_per_message(true);
-        let reloaded = QuoteSettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let reloaded = QuoteSettingsState::new(scratch.open());
         assert!(reloaded.get().per_message);
         assert_eq!(reloaded.get().style, QuoteStyleKind::LineAndHeader);
 
         // And turning it back off leaves the style alone too: the two are independent.
-        let mut state = QuoteSettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = QuoteSettingsState::new(scratch.open());
         state.set_per_message(false);
-        let on_disk = load_preferences(&path);
+        let on_disk = load_preferences(scratch.path());
         assert!(!on_disk.quote_style_per_message);
         assert_eq!(on_disk.quote_style, QuoteStyle::LineAndHeader);
     }

@@ -216,16 +216,16 @@ impl<P: Provider> App<P> {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_account::{QuoteStyle, load_preferences, save_preferences};
+    use mailcal_account::{QuoteStyle, load_preferences};
 
     use super::CalendarPrefsState;
+    use crate::preferences_file::{PreferencesFile, ScratchPreferences};
 
     #[test]
     fn a_calendar_nobody_touched_is_visible_in_its_server_colour() {
         // The default matters more than it looks: `bool::default()` is `false`, so getting this
         // wrong would hide every calendar the user has never opened the manager for, all of them.
-        let prefs = CalendarPrefsState::new(crate::preferences_file::PreferencesFile::default())
-            .get("acct-1", "work");
+        let prefs = CalendarPrefsState::new(PreferencesFile::default()).get("acct-1", "work");
         assert!(prefs.visible);
         assert_eq!(prefs.color, None);
     }
@@ -235,14 +235,9 @@ mod tests {
         // The bug this keying exists to prevent: a calendar id is unique only WITHIN its account,
         // so a flat map would let hiding one account's `work` hide the other's too;
         // silently, and only for the user who happens to have two.
-        let dir = std::env::temp_dir().join("mailcal-calendar-prefs-scope-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
+        let scratch = ScratchPreferences::new();
 
-        let mut state = CalendarPrefsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
-        );
+        let mut state = CalendarPrefsState::new(scratch.open());
         let mut hidden = state.get("acct-1", "work");
         hidden.visible = false;
         state.set("acct-1", "work", hidden);
@@ -259,14 +254,9 @@ mod tests {
         // The persisted-colour bug: a colour override (and a hidden calendar) survived removing the
         // account, so a re-add inherited it instead of the fresh distinct-hue default. Removal must
         // clear the account's decisions, and leave another account's alone.
-        let dir = std::env::temp_dir().join("mailcal-calendar-prefs-remove-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
+        let scratch = ScratchPreferences::new();
 
-        let mut state = CalendarPrefsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = CalendarPrefsState::new(scratch.open());
         let mut gone = state.get("gone", "work");
         gone.visible = false;
         gone.color = Some("#3f8f55".to_owned());
@@ -282,11 +272,9 @@ mod tests {
         assert!(after.visible);
         assert_eq!(after.color, None);
         assert_eq!(
-            CalendarPrefsState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path)
-            ))
-            .get("gone", "work")
-            .color,
+            CalendarPrefsState::new(scratch.open())
+                .get("gone", "work")
+                .color,
             None
         );
         // The other account is untouched.
@@ -295,14 +283,9 @@ mod tests {
 
     #[test]
     fn removing_an_account_clears_its_default_meeting_and_every_one_made_through_it() {
-        let dir = std::env::temp_dir().join("mailcal-calendar-prefs-remove-meeting-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        save_preferences(&path, &mailcal_account::Preferences::default()).unwrap();
+        let scratch = ScratchPreferences::new();
 
-        let mut state = CalendarPrefsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = CalendarPrefsState::new(scratch.open());
         state.set_default_meeting("gone", Some("jitsi".to_owned()));
         state.set_default_meeting("home", Some("account:teams:gone".to_owned()));
         // An account whose id ends where the removed one's does is another account.
@@ -311,9 +294,7 @@ mod tests {
 
         state.remove_account("gone");
 
-        let reloaded = CalendarPrefsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
-        );
+        let reloaded = CalendarPrefsState::new(scratch.open());
         for read in [&state, &reloaded] {
             assert_eq!(read.default_meeting("gone"), None);
             assert_eq!(read.default_meeting("home"), None);
@@ -324,31 +305,23 @@ mod tests {
 
     #[test]
     fn decisions_persist_and_reload_without_clobbering_siblings() {
-        let dir = std::env::temp_dir().join("mailcal-calendar-prefs-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        let seeded = mailcal_account::Preferences {
+        let scratch = ScratchPreferences::seeded(&mailcal_account::Preferences {
             quote_style: QuoteStyle::LineAndHeader,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
+        });
 
-        let mut state = CalendarPrefsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = CalendarPrefsState::new(scratch.open());
         let mut prefs = state.get("acct-1", "work");
         prefs.visible = false;
         prefs.color = Some("#3f8f55".to_owned());
         state.set("acct-1", "work", prefs);
 
-        let reloaded = CalendarPrefsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let reloaded = CalendarPrefsState::new(scratch.open());
         let back = reloaded.get("acct-1", "work");
         assert!(!back.visible);
         assert_eq!(back.color.as_deref(), Some("#3f8f55"));
         assert_eq!(
-            load_preferences(&path).quote_style,
+            load_preferences(scratch.path()).quote_style,
             QuoteStyle::LineAndHeader
         );
     }

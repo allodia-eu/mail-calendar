@@ -205,17 +205,16 @@ mod tests {
     use mailcal_account::{
         Appearance, CalendarLayout, DEFAULT_VISIBLE_HOURS, MAX_VISIBLE_HOURS, MIN_VISIBLE_HOURS,
         MessageGrouping, QuoteStyle, TimeFormat, WeekStart, clamp_visible_hours, load_preferences,
-        save_preferences,
     };
 
     use super::DisplaySettingsState;
+    use crate::preferences_file::{PreferencesFile, ScratchPreferences};
 
     #[test]
     fn the_product_defaults_are_european_and_do_not_depend_on_the_device() {
         // Europe is where this product's users are. A user who never opens settings must get a
         // Monday-start week and a 24-hour clock: not whatever their phone's locale implies.
-        let settings =
-            DisplaySettingsState::new(crate::preferences_file::PreferencesFile::default()).get();
+        let settings = DisplaySettingsState::new(PreferencesFile::default()).get();
         assert_eq!(settings.week_start, WeekStart::Monday);
         assert_eq!(settings.time_format, TimeFormat::TwentyFourHour);
         assert_eq!(settings.visible_hours, DEFAULT_VISIBLE_HOURS);
@@ -237,43 +236,31 @@ mod tests {
         assert_eq!(clamp_visible_hours(8), 8);
 
         // And a preferences file carrying a junk value still yields a usable grid.
-        let dir = std::env::temp_dir().join("mailcal-display-clamp-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        let seeded = mailcal_account::Preferences {
+        let scratch = ScratchPreferences::seeded(&mailcal_account::Preferences {
             calendar_visible_hours: 0,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
+        });
         assert_eq!(
-            DisplaySettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path)
-            ))
-            .get()
-            .visible_hours,
+            DisplaySettingsState::new(scratch.open())
+                .get()
+                .visible_hours,
             MIN_VISIBLE_HOURS
         );
     }
 
     #[test]
     fn each_setting_persists_without_clobbering_its_siblings() {
-        let dir = std::env::temp_dir().join("mailcal-display-settings-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
         // Seed unrelated preferences the display writes must preserve.
-        let seeded = mailcal_account::Preferences {
+        let scratch = ScratchPreferences::seeded(&mailcal_account::Preferences {
             display_timezone: Some("Europe/Amsterdam".to_owned()),
             message_grouping: MessageGrouping::Flat,
             quote_style: QuoteStyle::LineAndHeader,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
+        });
 
         // A file written before these settings existed carries none of the fields; it must still
         // read back as the product defaults, not as serde's zero/false.
-        let mut state = DisplaySettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = DisplaySettingsState::new(scratch.open());
         assert_eq!(state.get().week_start, WeekStart::Monday);
         assert_eq!(state.get().time_format, TimeFormat::TwentyFourHour);
         assert_eq!(state.get().appearance, Appearance::System);
@@ -292,10 +279,7 @@ mod tests {
         state.choose_layout(CalendarLayout::ThreeDay);
 
         // A fresh state reads back all three, and the siblings survived every write.
-        let reloaded = DisplaySettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        )
-        .get();
+        let reloaded = DisplaySettingsState::new(scratch.open()).get();
         assert_eq!(reloaded.week_start, WeekStart::Sunday);
         assert_eq!(reloaded.time_format, TimeFormat::TwelveHour);
         assert_eq!(reloaded.appearance, Appearance::Dark);
@@ -305,7 +289,7 @@ mod tests {
         // pinch down to three days over eight hours comes back exactly as it was left.
         assert_eq!(reloaded.layout, CalendarLayout::ThreeDay);
 
-        let on_disk = load_preferences(&path);
+        let on_disk = load_preferences(scratch.path());
         assert_eq!(
             on_disk.display_timezone.as_deref(),
             Some("Europe/Amsterdam")
@@ -318,29 +302,21 @@ mod tests {
     fn a_phone_opens_on_three_days_and_anything_else_on_the_week() {
         // A product decision (docs/calendar.md §8): seven columns leave a phone too little room to
         // read a title in, so a phone that has not been told otherwise opens on three days.
-        let mut phone =
-            DisplaySettingsState::new(crate::preferences_file::PreferencesFile::default());
+        let mut phone = DisplaySettingsState::new(PreferencesFile::default());
         phone.adopt_device_default(true);
         assert_eq!(phone.get().layout, CalendarLayout::ThreeDay);
-        let mut desktop =
-            DisplaySettingsState::new(crate::preferences_file::PreferencesFile::default());
+        let mut desktop = DisplaySettingsState::new(PreferencesFile::default());
         desktop.adopt_device_default(false);
         assert_eq!(desktop.get().layout, CalendarLayout::Week);
     }
 
     #[test]
     fn a_shape_the_user_chose_wins_over_the_phones_default() {
-        let dir = std::env::temp_dir().join("mailcal-display-phone-chosen-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
+        let scratch = ScratchPreferences::empty();
         // Week is what this state already shows, and picking it is still a choice.
-        let mut chosen = DisplaySettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut chosen = DisplaySettingsState::new(scratch.open());
         chosen.choose_layout(CalendarLayout::Week);
-        let mut reopened = DisplaySettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path)),
-        );
+        let mut reopened = DisplaySettingsState::new(scratch.open());
         reopened.adopt_device_default(true);
         assert_eq!(reopened.get().layout, CalendarLayout::Week);
     }
@@ -350,18 +326,14 @@ mod tests {
         // Saving another setting must not persist the default as if the user had picked it: the
         // same install moved to a tablet's class, or a later change to the default, would then be
         // overruled by a choice nobody made.
-        let dir = std::env::temp_dir().join("mailcal-display-phone-default-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
-        let mut phone = DisplaySettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let scratch = ScratchPreferences::empty();
+        let mut phone = DisplaySettingsState::new(scratch.open());
         phone.adopt_device_default(true);
         phone.update(|settings| settings.time_format = TimeFormat::TwelveHour);
-        assert_eq!(load_preferences(&path).calendar_layout, None);
+        assert_eq!(load_preferences(scratch.path()).calendar_layout, None);
         phone.choose_layout(CalendarLayout::Day);
         assert_eq!(
-            load_preferences(&path).calendar_layout,
+            load_preferences(scratch.path()).calendar_layout,
             Some(CalendarLayout::Day)
         );
     }

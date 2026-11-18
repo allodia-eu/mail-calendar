@@ -71,60 +71,44 @@ impl<P: Provider> App<P> {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_account::{QuoteStyle, load_preferences, save_preferences};
+    use mailcal_account::{QuoteStyle, load_preferences};
 
     use super::SendSettingsState;
+    use crate::preferences_file::{PreferencesFile, ScratchPreferences};
 
     #[test]
     fn set_persists_and_reloads_without_clobbering_sibling_preferences() {
-        let dir = std::env::temp_dir().join("mailcal-default-send-account-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
         // Seed a sibling preference the send-account write must preserve.
-        let seeded = mailcal_account::Preferences {
+        let scratch = ScratchPreferences::seeded(&mailcal_account::Preferences {
             quote_style: QuoteStyle::LineAndHeader,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
+        });
 
         // No default until one is chosen, then a set persists it.
-        let mut state = SendSettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = SendSettingsState::new(scratch.open());
         assert_eq!(state.get(), None);
         state.set(Some("acct-2".to_owned()));
 
         // A fresh state reads back the persisted choice, and the sibling pref survived.
         assert_eq!(
-            SendSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path.clone())
-            ))
-            .get()
-            .as_deref(),
+            SendSettingsState::new(scratch.open()).get().as_deref(),
             Some("acct-2")
         );
         assert_eq!(
-            load_preferences(&path).quote_style,
+            load_preferences(scratch.path()).quote_style,
             QuoteStyle::LineAndHeader
         );
 
         // Clearing it restores "derive the account", and persists that too.
         state.set(None);
-        assert_eq!(
-            SendSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path.clone())
-            ))
-            .get(),
-            None
-        );
-        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(SendSettingsState::new(scratch.open()).get(), None);
     }
 
     #[test]
     fn a_blank_account_id_is_stored_as_no_default() {
         // A host that hands back an empty selection means "no default", not an account whose id
         // is the empty string (which could never match a configured account).
-        let mut state = SendSettingsState::new(crate::preferences_file::PreferencesFile::default());
+        let mut state = SendSettingsState::new(PreferencesFile::default());
         state.set(Some("   ".to_owned()));
         assert_eq!(state.get(), None);
     }

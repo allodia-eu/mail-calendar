@@ -98,28 +98,23 @@ fn to_action(kind: SwipeActionKind) -> SwipeAction {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_account::{MessageGrouping, SwipeAction, load_preferences, save_preferences};
+    use mailcal_account::{MessageGrouping, SwipeAction, load_preferences};
     use mailcal_viewmodel::SwipeDirection;
 
     use super::SwipeSettingsState;
+    use crate::preferences_file::ScratchPreferences;
 
     #[test]
     fn each_direction_persists_independently_without_clobbering_siblings() {
-        let dir = std::env::temp_dir().join("mailcal-swipe-actions-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = dir.join("preferences.toml");
         // Seed a sibling preference the swipe write must preserve.
-        let seeded = mailcal_account::Preferences {
+        let scratch = ScratchPreferences::seeded(&mailcal_account::Preferences {
             display_timezone: Some("Europe/Amsterdam".to_owned()),
             message_grouping: MessageGrouping::Flat,
             ..Default::default()
-        };
-        save_preferences(&path, &seeded).unwrap();
+        });
 
         // Both default to Delete, then each direction is set on its own.
-        let mut state = SwipeSettingsState::new(
-            crate::preferences_file::PreferencesFile::writing_through(Some(path.clone())),
-        );
+        let mut state = SwipeSettingsState::new(scratch.open());
         assert_eq!(state.get(), (SwipeAction::Delete, SwipeAction::Delete));
         state.set(SwipeDirection::Left, SwipeAction::Archive);
         // Setting Left leaves Right alone.
@@ -128,18 +123,14 @@ mod tests {
 
         // A fresh state reads back both persisted choices, and the siblings survived.
         assert_eq!(
-            SwipeSettingsState::new(crate::preferences_file::PreferencesFile::writing_through(
-                Some(path.clone())
-            ))
-            .get(),
+            SwipeSettingsState::new(scratch.open()).get(),
             (SwipeAction::Archive, SwipeAction::Star)
         );
-        let on_disk = load_preferences(&path);
+        let on_disk = load_preferences(scratch.path());
         assert_eq!(
             on_disk.display_timezone.as_deref(),
             Some("Europe/Amsterdam")
         );
         assert_eq!(on_disk.message_grouping, MessageGrouping::Flat);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }
