@@ -59,6 +59,8 @@ impl AppModel {
                 self.sync_status = sync_line::sync_status(&progress, &self.snapshot.accounts);
             }
             Surface::Calendar => {
+                // What the calendars offer is what Settings' default calendar and meetings list.
+                self.calendar_settings_read = self.calendar_settings_read.wrapping_add(1);
                 self.calendar.refresh(&app);
                 self.calendar_side.pull(&app, &self.calendar);
             }
@@ -68,6 +70,7 @@ impl AppModel {
             Surface::Settings => {
                 // An account added or removed changes the signature slots listed.
                 self.signatures_read = self.signatures_read.wrapping_add(1);
+                self.calendar_settings_read = self.calendar_settings_read.wrapping_add(1);
                 self.calendar.refresh_settings(&app);
                 // The week start moves the mini month's columns.
                 self.calendar_side.pull(&app, &self.calendar);

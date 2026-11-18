@@ -1,11 +1,14 @@
 use mailcal_bindings::{
-    CalendarColor, CalendarRow, EventRecurrence, RecurrenceEnd, RecurrenceFrequency,
-    SimpleRecurrence, Swatch,
+    CalendarColor, CalendarGroup, CalendarRow, EventRecurrence, NewEventCalendars, RecurrenceEnd,
+    RecurrenceFrequency, SimpleRecurrence, Swatch,
 };
 use time::{Date, Month};
 
 use super::{CalendarDialog, CalendarMode, CalendarModel};
-use crate::ui::calendar::{date::period_title, editor::EventDetails};
+use crate::ui::calendar::{
+    date::period_title,
+    editor::{EventDetails, new_event_choices},
+};
 
 #[test]
 fn narrow_zoom_keeps_three_day_navigation_contiguous() {
@@ -41,21 +44,17 @@ fn period_title_names_every_visible_month_and_year() {
     assert!(model.period_title().contains(&period_title(first, last)));
 }
 
-#[test]
-fn a_calendar_is_named_by_its_accounts_address_even_when_the_account_has_no_mail() {
+fn calendar(account: &str, address: &str, id: &str) -> CalendarRow {
     let swatch = Swatch {
         background: "#000000".to_owned(),
         text: "#ffffff".to_owned(),
         border: "#000000".to_owned(),
     };
-    let today = Date::from_calendar_date(2026, Month::July, 20).unwrap();
-    let mut model = CalendarModel::empty(today);
-    // An account used only for its calendar is in no mail list: its id is not a name.
-    model.page.calendars = vec![CalendarRow {
-        account: "dennis@dav:nextcloud.example.org".to_owned(),
-        account_address: "info@example.org".to_owned(),
-        id: "personal".to_owned(),
-        name: "Personal".to_owned(),
+    CalendarRow {
+        account: account.to_owned(),
+        account_address: address.to_owned(),
+        id: id.to_owned(),
+        name: id.to_owned(),
         color: CalendarColor {
             hex: "#000000".to_owned(),
             light: swatch.clone(),
@@ -66,19 +65,73 @@ fn a_calendar_is_named_by_its_accounts_address_even_when_the_account_has_no_mail
         can_invite: true,
         meeting_choices: Vec::new(),
         default_meeting: None,
-        is_default: true,
-    }];
+        is_default: false,
+    }
+}
+
+fn offered(groups: Vec<(&str, &str, Vec<CalendarRow>)>, named: bool) -> NewEventCalendars {
+    NewEventCalendars {
+        groups: groups
+            .into_iter()
+            .map(|(account, address, calendars)| CalendarGroup {
+                account: account.to_owned(),
+                address: address.to_owned(),
+                expanded: true,
+                calendars,
+            })
+            .collect(),
+        named,
+    }
+}
+
+fn create_labels(model: &mut CalendarModel) -> Vec<String> {
     model.begin_create();
-    let Some(CalendarDialog::Editor(editor)) = model.dialog else {
+    let Some(CalendarDialog::Editor(editor)) = model.dialog.take() else {
         panic!("expected the editor");
     };
+    editor
+        .choices
+        .iter()
+        .map(|choice| choice.label.clone())
+        .collect()
+}
+
+#[test]
+fn a_new_events_calendars_are_the_cores_and_name_the_account_only_when_it_says_to() {
+    let today = Date::from_calendar_date(2026, Month::July, 20).unwrap();
+    let mut model = CalendarModel::empty(today);
+    assert!(!model.can_create());
+    // An account used only for its calendar is in no mail list: its id is not a name.
+    let nextcloud = "dennis@dav:nextcloud.example.org";
+    model.new_event = new_event_choices(offered(
+        vec![(
+            nextcloud,
+            "info@example.org",
+            vec![calendar(nextcloud, "info@example.org", "Personal")],
+        )],
+        false,
+    ));
+    assert!(model.can_create());
+    assert_eq!(create_labels(&mut model), ["Personal"]);
+
+    model.new_event = new_event_choices(offered(
+        vec![
+            (
+                nextcloud,
+                "info@example.org",
+                vec![calendar(nextcloud, "info@example.org", "Personal")],
+            ),
+            (
+                "work",
+                "me@work.test",
+                vec![calendar("work", "me@work.test", "Team")],
+            ),
+        ],
+        true,
+    ));
     assert_eq!(
-        editor
-            .choices
-            .iter()
-            .map(|choice| choice.label.as_str())
-            .collect::<Vec<_>>(),
-        ["info@example.org · Personal"]
+        create_labels(&mut model),
+        ["info@example.org · Personal", "me@work.test · Team"]
     );
 }
 

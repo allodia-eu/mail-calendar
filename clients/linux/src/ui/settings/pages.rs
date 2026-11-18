@@ -5,16 +5,19 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    CalendarRow, Intent, PreferenceIntent, QuoteStyleKind, SwipeActionKind, SwipeDirection,
-    ViewMode, WeekStart,
+    Intent, PreferenceIntent, QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMode, WeekStart,
 };
 
 use super::{PageContext, choice, dialog_box, group, page_box};
+
+// A child of this module rather than of `settings.rs`, which is at its line limit.
+#[path = "default_calendar.rs"]
+mod default_calendar;
 use crate::{l10n, ui::preference};
 
 pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_calendar());
-    content.append(&default_calendar(ctx));
+    content.append(&default_calendar::default_calendar(ctx));
     let display = ctx.app.display_settings();
     let week = group(
         l10n::settings_week_start_heading(),
@@ -70,87 +73,6 @@ pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
     horizon.add(&row);
     content.append(&horizon);
     content
-}
-
-fn default_calendar(ctx: &PageContext) -> adw::PreferencesGroup {
-    let picker = group(
-        l10n::settings_default_calendar_heading(),
-        l10n::settings_default_calendar_description(),
-    );
-    // The core's grouping, so the picker lists accounts in the order the calendar pane does.
-    let groups = ctx
-        .app
-        .calendar_groups()
-        .into_iter()
-        .map(|mut account| {
-            account.calendars.retain(|calendar| calendar.can_write);
-            account
-        })
-        .filter(|account| !account.calendars.is_empty())
-        .collect::<Vec<_>>();
-    if groups.is_empty() {
-        picker.add(
-            &adw::ActionRow::builder()
-                .title(l10n::settings_default_calendar_none())
-                .use_markup(false)
-                .build(),
-        );
-        return picker;
-    }
-    let multiple_accounts = groups.len() > 1;
-    let mut check_group: Option<gtk::CheckButton> = None;
-    for account in &groups {
-        if multiple_accounts {
-            let heading = adw::ActionRow::builder()
-                .title(&account.address)
-                .sensitive(false)
-                .use_markup(false)
-                .build();
-            heading.add_css_class("property");
-            picker.add(&heading);
-        }
-        for calendar in &account.calendars {
-            picker.add(&default_calendar_row(ctx, calendar, &mut check_group));
-        }
-    }
-    picker
-}
-
-fn default_calendar_row(
-    ctx: &PageContext,
-    calendar: &CalendarRow,
-    check_group: &mut Option<gtk::CheckButton>,
-) -> adw::ActionRow {
-    let row = adw::ActionRow::builder()
-        .title(&calendar.name)
-        .use_markup(false)
-        .build();
-    let selected = gtk::CheckButton::builder()
-        .active(calendar.is_default)
-        .valign(gtk::Align::Center)
-        .build();
-    if let Some(first) = check_group {
-        selected.set_group(Some(first));
-    } else {
-        *check_group = Some(selected.clone());
-    }
-    let app = ctx.app.clone();
-    let account = calendar.account.clone();
-    let id = calendar.id.clone();
-    selected.connect_toggled(move |choice| {
-        if choice.is_active() {
-            preference::set(
-                &app,
-                PreferenceIntent::SetDefaultCalendar {
-                    account: Some(account.clone()),
-                    calendar: Some(id.clone()),
-                },
-            );
-        }
-    });
-    row.add_prefix(&selected);
-    row.set_activatable_widget(Some(&selected));
-    row
 }
 
 pub(super) fn reading(ctx: &PageContext) -> gtk::Box {

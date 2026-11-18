@@ -2,8 +2,8 @@
 
 use mailcal_bindings::{
     EditorMeeting, EventAttendee, EventConference, EventDetail, EventIntent, EventRecurrence,
-    Intent, MeetingInvitee, MeetingInviteePatch, MeetingOption, RecurrenceChange, RepeatDraft,
-    RepeatSummary, meeting_invitee_patch, repeat_change_of,
+    Intent, MeetingInvitee, MeetingInviteePatch, MeetingOption, NewEventCalendars,
+    RecurrenceChange, RepeatDraft, RepeatSummary, meeting_invitee_patch, repeat_change_of,
 };
 use time::{Duration, PrimitiveDateTime, Time};
 
@@ -29,6 +29,31 @@ pub(super) struct CalendarChoice {
     /// The one of them a new event here takes once it has an invitee: the core's
     /// `CalendarRow::default_meeting`.
     pub(super) default_meeting: Option<String>,
+}
+
+/// The core's calendars for a new event as the create form lists them, each labelled with its
+/// account's address only while the core names the accounts.
+pub(super) fn new_event_choices(offered: NewEventCalendars) -> Vec<CalendarChoice> {
+    let named = offered.named;
+    offered
+        .groups
+        .into_iter()
+        .flat_map(|group| group.calendars)
+        .map(|calendar| CalendarChoice {
+            label: if named {
+                format!("{} · {}", calendar.account_address, calendar.name)
+            } else {
+                calendar.name.clone()
+            },
+            address: calendar.account_address,
+            account: calendar.account,
+            id: calendar.id,
+            is_default: calendar.is_default,
+            can_invite: calendar.can_invite,
+            meeting_choices: calendar.meeting_choices,
+            default_meeting: calendar.default_meeting,
+        })
+        .collect()
 }
 
 /// One stored event, reduced to the fields the Linux detail/editor needs.

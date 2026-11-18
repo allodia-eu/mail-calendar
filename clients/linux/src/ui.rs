@@ -252,6 +252,9 @@ pub(crate) struct AppModel {
     /// `Surface::Settings`), so the page, an editor open on it and each composer's picker read it
     /// again once for each.
     signatures_read: u64,
+    /// Counts the signals Settings' calendar pages follow (`Surface::Calendar` and
+    /// `Surface::Settings`), so each part drawn from the calendars reads its record once for each.
+    calendar_settings_read: u64,
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeContext>,
     composer_generation: u64,
