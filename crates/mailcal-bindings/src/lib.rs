@@ -453,8 +453,6 @@ impl MailcalApp {
     }
 }
 
-/// Joins one diagnostic channel's account-prefixed messages into a single newline-separated
-/// string for a host to surface, or `None` when the channel is empty.
 #[cfg(test)]
 mod tests;
 
