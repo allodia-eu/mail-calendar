@@ -6,14 +6,10 @@
 use engine_api::Importance;
 use mailcal_composer::{Block, ComposerDocument, Paragraph};
 
-use super::mail_fake::{ThreadProvider, app_and_logs, dispatch_until, rich_stored_draft};
+use super::mail_fake::{
+    ThreadProvider, app_and_logs, dispatch_until, rich_stored_draft, staging_dir,
+};
 use crate::{CompositionId, DraftsIntent, Intent, MessageRef, SendStatus};
-
-fn staging_dir(name: &str) -> String {
-    let dir = std::env::temp_dir().join(format!("mailcal-importance-staging-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir.to_string_lossy().into_owned()
-}
 
 fn empty_document() -> ComposerDocument {
     ComposerDocument {
@@ -55,13 +51,14 @@ fn send(composition: &CompositionId) -> Intent {
 
 #[tokio::test]
 async fn a_new_composer_opens_normal_and_offers_every_importance_highest_first() {
+    let scratch = tempfile::TempDir::new().unwrap();
     let (app, _logs) = app_and_logs(ThreadProvider::with(Vec::new()));
     let new = composition("new");
     app.open_composer(
         new.clone(),
         crate::ComposeOrigin::New { account: None },
         None,
-        &staging_dir("importance-new"),
+        &staging_dir(&scratch, "importance-new"),
     )
     .await
     .expect("a new message opens");
@@ -78,13 +75,14 @@ async fn a_new_composer_opens_normal_and_offers_every_importance_highest_first()
 /// What the user picks is what the server stores and what the recipient gets.
 #[tokio::test(start_paused = true)]
 async fn the_picked_importance_is_saved_and_sent() {
+    let scratch = tempfile::TempDir::new().unwrap();
     let (app, logs) = app_and_logs(ThreadProvider::with(Vec::new()));
     let new = composition("urgent");
     app.open_composer(
         new.clone(),
         crate::ComposeOrigin::New { account: None },
         None,
-        &staging_dir("importance-sent"),
+        &staging_dir(&scratch, "importance-sent"),
     )
     .await
     .expect("a new message opens");
@@ -108,13 +106,14 @@ async fn the_picked_importance_is_saved_and_sent() {
 /// A changed importance is a change to the draft, so the save after it writes.
 #[tokio::test]
 async fn changing_only_the_importance_saves_again() {
+    let scratch = tempfile::TempDir::new().unwrap();
     let (app, logs) = app_and_logs(ThreadProvider::with(Vec::new()));
     let new = composition("lowered");
     app.open_composer(
         new.clone(),
         crate::ComposeOrigin::New { account: None },
         None,
-        &staging_dir("importance-resave"),
+        &staging_dir(&scratch, "importance-resave"),
     )
     .await
     .expect("a new message opens");
@@ -131,6 +130,7 @@ async fn changing_only_the_importance_saves_again() {
 /// A stored draft reopens with the importance it was saved with, and saves it again.
 #[tokio::test]
 async fn a_resumed_draft_keeps_its_importance() {
+    let scratch = tempfile::TempDir::new().unwrap();
     let mut stored = rich_stored_draft("rich-1");
     stored.envelope.importance = Importance::High;
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![stored]));
@@ -142,7 +142,7 @@ async fn a_resumed_draft_keeps_its_importance() {
             message: MessageRef::from_parts("acct-1", "rich-1".to_owned()).unwrap(),
         },
         None,
-        &staging_dir("importance-resumed"),
+        &staging_dir(&scratch, "importance-resumed"),
     )
     .await
     .expect("the draft resumes");
