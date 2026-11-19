@@ -1,5 +1,6 @@
-//! The assistant's queue: one piece of work at a time, the same work asked twice started once,
-//! stopping what waits and what runs, and the engine read through the host's runtime.
+//! The assistant's queue: one run per key, a draft never behind learning, the same work asked
+//! twice started once, stopping what waits and what runs, and the engine read through the host's
+//! runtime.
 
 use std::sync::{
     Arc, Mutex,
@@ -32,7 +33,7 @@ fn noting(
 }
 
 #[test]
-fn work_runs_one_at_a_time_and_the_same_work_asked_twice_runs_once() {
+fn the_same_work_asked_twice_runs_once() {
     let fixture = Fixture::new(BuildKind::Development);
     let ran = Arc::new(Mutex::new(Vec::new()));
     let app = &fixture.app;
@@ -46,34 +47,109 @@ fn work_runs_one_at_a_time_and_the_same_work_asked_twice_runs_once() {
         app.queue_ai_work(noting(AiWorkKey::Learning, "learn again", &ran)),
         AiQueued::Duplicate
     );
-    assert_eq!(
-        app.queue_ai_work(noting(drafting("c1"), "draft", &ran)),
-        AiQueued::Waiting
-    );
-    assert!(fixture.signalled(Surface::ReplyDraft));
-    assert_eq!(app.ai_work(), [AiWorkKey::Learning, drafting("c1")]);
     assert!(app.ai_work_running(&AiWorkKey::Learning));
-    assert!(!app.ai_work_running(&drafting("c1")));
 
     app.run_ai_work();
-    assert_eq!(*ran.lock().unwrap(), ["learn", "draft"]);
+    assert_eq!(*ran.lock().unwrap(), ["learn"]);
     assert_eq!(app.ai_work(), []);
+}
+
+/// A draft starts while a learning run goes on, and two compositions draft side by side: a draft
+/// never waits minutes behind a run it has nothing to do with.
+#[test]
+fn a_draft_does_not_wait_behind_learning_or_another_draft() {
+    let fixture = Fixture::new(BuildKind::Development);
+    let app = &fixture.app;
+    let ran = Arc::new(Mutex::new(Vec::new()));
+
+    assert_eq!(
+        app.queue_ai_work(noting(AiWorkKey::Learning, "learn", &ran)),
+        AiQueued::Run
+    );
+    assert_eq!(
+        app.queue_ai_work(noting(drafting("c1"), "draft c1", &ran)),
+        AiQueued::Run
+    );
+    assert!(fixture.signalled(Surface::ReplyDraft));
+    assert_eq!(
+        app.queue_ai_work(noting(drafting("c2"), "draft c2", &ran)),
+        AiQueued::Run
+    );
+    assert_eq!(
+        app.queue_ai_work(noting(drafting("c1"), "c1 again", &ran)),
+        AiQueued::Duplicate
+    );
+    assert_eq!(
+        app.ai_work(),
+        [AiWorkKey::Learning, drafting("c1"), drafting("c2")]
+    );
+    assert!(app.ai_work_running(&drafting("c1")));
+    assert!(app.ai_work_running(&drafting("c2")));
+
+    // Each `Run` is one runner's.
+    for _ in 0..3 {
+        app.run_ai_work();
+    }
+    assert_eq!(*ran.lock().unwrap(), ["learn", "draft c1", "draft c2"]);
+    assert_eq!(app.ai_work(), []);
+}
+
+/// A run that blocks does not hold up a draft queued beside it.
+#[test]
+fn a_draft_runs_to_its_end_while_a_learning_run_is_still_going() {
+    let fixture = Arc::new(Fixture::new(BuildKind::Development));
+    let (release, wait_for_release) = channel::<()>();
+    let (started, wait_for_start) = channel::<()>();
+    let learning = AiWork::new(AiWorkKey::Learning, move |_, _| {
+        started.send(()).unwrap();
+        wait_for_release.recv().unwrap();
+    });
+    assert_eq!(fixture.app.queue_ai_work(learning), AiQueued::Run);
+    let learner = {
+        let fixture = Arc::clone(&fixture);
+        std::thread::spawn(move || fixture.app.run_ai_work())
+    };
+    wait_for_start.recv().unwrap();
+    let ran = Arc::new(Mutex::new(Vec::new()));
+    fixture
+        .app
+        .run_ai_work_now(noting(drafting("c1"), "draft", &ran));
+
+    assert_eq!(*ran.lock().unwrap(), ["draft"]);
+    assert_eq!(fixture.app.ai_work(), [AiWorkKey::Learning]);
+    release.send(()).unwrap();
+    learner.join().unwrap();
+    assert_eq!(fixture.app.ai_work(), []);
 }
 
 #[test]
 fn stopping_work_that_waits_takes_it_out_of_the_queue() {
-    let fixture = Fixture::new(BuildKind::Development);
+    let fixture = Arc::new(Fixture::new(BuildKind::Development));
+    let (release, wait_for_release) = channel::<()>();
+    let first = AiWork::new(drafting("c1"), move |_, _| {
+        wait_for_release.recv().unwrap();
+    });
+    assert_eq!(fixture.app.queue_ai_work(first), AiQueued::Run);
+    let runner = {
+        let fixture = Arc::clone(&fixture);
+        std::thread::spawn(move || fixture.app.run_ai_work())
+    };
     let ran = Arc::new(Mutex::new(Vec::new()));
     let app = &fixture.app;
-    app.queue_ai_work(noting(AiWorkKey::Learning, "learn", &ran));
-    app.queue_ai_work(noting(drafting("c1"), "draft", &ran));
+    assert!(app.cancel_ai_work(&drafting("c1")));
+    assert_eq!(
+        app.queue_ai_work(noting(drafting("c1"), "again", &ran)),
+        AiQueued::Waiting
+    );
     fixture.forget_surfaces();
 
     assert!(app.cancel_ai_work(&drafting("c1")));
     assert!(fixture.signalled(Surface::ReplyDraft));
     assert!(!app.cancel_ai_work(&drafting("c2")));
-    app.run_ai_work();
-    assert_eq!(*ran.lock().unwrap(), ["learn"]);
+    release.send(()).unwrap();
+    runner.join().unwrap();
+    assert!(ran.lock().unwrap().is_empty());
+    assert_eq!(app.ai_work(), []);
 }
 
 /// Work that runs, told to stop: its request in flight is abandoned and the work reads that it
