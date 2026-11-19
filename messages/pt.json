@@ -911,6 +911,8 @@
 	"settings_subscription_refused_not_found": "Não há nenhuma subscrição para alterar.",
 
 	"settings_advanced_reset_description": "Apagar o correio guardado localmente e transferir tudo de novo a partir do servidor. Os envios em fila são mantidos.",
+	"settings_advanced_reset_done": "A base de dados local foi reposta e o seu correio foi transferido de novo.",
+	"settings_advanced_reset_failed": "Não foi possível repor a base de dados local, por isso o correio neste dispositivo não mudou. O registo de diagnóstico indica o motivo.",
 
 	"settings_mcp_heading": "Acesso para assistentes de IA",
 	"settings_mcp_description": "Permita que um assistente de IA neste computador leia o seu correio e atue sobre ele, através do Model Context Protocol. Está desativado a menos que o ative, alcança apenas as contas que assinalar e nada nos é enviado.",
@@ -918,6 +920,8 @@
 	"settings_mcp_status_running": "Em execução · à espera que um cliente se ligue",
 	"settings_mcp_status_off": "Desativado",
 	"settings_mcp_status_unavailable": "Ativado, mas sem escutar: consulte o registo de diagnóstico",
+	"settings_mcp_status_starting": "A iniciar…",
+	"settings_mcp_status_another_instance": "Ativado, mas outra instância de {app_name} já está a servir os assistentes",
 	"settings_mcp_accounts_heading": "Contas que um assistente pode usar",
 	"settings_mcp_accounts_description": "Nenhuma, para começar. Assinale uma conta para permitir que um assistente leia e trate do correio dessa conta.",
 	"settings_mcp_accounts_empty": "Ainda não partilha nenhuma conta, por isso um assistente vê uma caixa de correio vazia.",

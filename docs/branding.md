@@ -91,8 +91,7 @@ this repository's in every build: it is where the code is fixed.
 
 The local MCP server introduces itself by the brand too ([`mcp.md`](mcp.md)): its `title` is
 `MAILCAL_APP_NAME`, and its machine name is `MAILCAL_MCP_SERVER_NAME`, which `mailcal-mcp` compiles
-in and `mailcal-l10n` emits beside the app id (`Brand.mcpServerName`, `Brand.McpServerName`,
-`l10n::MCP_SERVER_NAME`) for the config key each desktop client writes. A user types that name
+in and keys the configuration it builds for a client to copy by. A user types that name
 into their own configuration, so like the app id it does not change once shipped. The client name a
 provider's consent screen shows when the app registers itself for OAuth is `MAILCAL_APP_NAME` as
 well.

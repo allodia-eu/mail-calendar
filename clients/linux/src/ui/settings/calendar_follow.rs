@@ -1,10 +1,11 @@
-//! The pages drawn from what the calendars offer (Settings → Calendar's default calendar, Settings
-//! → Videoconferencing) follow the core's calendar and settings signals in place.
+//! The pages drawn from records the core changes on its own follow its calendar and settings
+//! signals in place: Settings → Calendar's default calendar and Settings → Videoconferencing,
+//! from what the calendars offer, and Settings → Advanced, from the assistant server and the reset.
 //!
 //! Each redraws only the part of its page whose record changed, so a check or picker the person
 //! just used keeps its focus and the Jitsi field keeps what is being typed. The window's own
-//! settings signal rebuilds Accounts alone, so without this these pages would show what the
-//! calendars offered when the window was built.
+//! settings signal rebuilds Accounts alone, so without this these pages would show what they
+//! read when the window was built.
 
 use std::{
     cell::{Cell, RefCell},
@@ -43,13 +44,13 @@ impl Followers {
 }
 
 impl SettingsWindow {
-    /// Brings the pages drawn from the calendars to the core's records, once for each read the
-    /// model counted.
+    /// Brings the pages that follow the core to its records, once for each read the model
+    /// counted.
     pub(in crate::ui) fn follow_calendar(&self, read: u64) {
-        if self.calendar.read.replace(read) == read {
+        if self.follow.read.replace(read) == read {
             return;
         }
-        let redraws = self.calendar.redraws.borrow().clone();
+        let redraws = self.follow.redraws.borrow().clone();
         for redraw in redraws {
             redraw();
         }

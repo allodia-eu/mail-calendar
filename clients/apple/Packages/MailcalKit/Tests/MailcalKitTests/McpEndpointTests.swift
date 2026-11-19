@@ -1,10 +1,6 @@
-// The MCP endpoint and the config snippet a user pastes into their assistant (docs/mcp.md).
-// Pure logic, no SwiftUI.
-//
-// The snippet is the one artefact in this feature whose failure is *silent*: a malformed one
-// looks right in the panel, copies fine, and only fails inside the assistant's own config parser
-// where the user has no way to tell whose fault it is. So it gets a test rather than a
-// once-through-the-UI click.
+// Where the local MCP server listens on this Mac and the relay it names to the core
+// (docs/mcp.md). Pure logic, no SwiftUI. The configuration snippet built from these is the core's,
+// tested in `mailcal-mcp`.
 
 import Foundation
 import MailcalBindings
@@ -13,58 +9,6 @@ import Testing
 @testable import MailcalUI
 
 struct McpEndpointTests {
-    @Test func theSnippetIsValidJsonEvenThoughTheAppPathContainsASpace() throws {
-        // THE reason this is built with JSONEncoder and not string concatenation. The relay lives
-        // at "/Applications/Allodia Mail.app/Contents/MacOS/allodia-mcp", hand-built JSON would
-        // emit that space raw inside a quoted value and, more to the point, would sooner or later
-        // meet a home directory with a quote or a backslash in it.
-        let snippet = McpEndpoint.configurationSnippet(
-            endpoint: "/Users/some one/.local/share/mailcal/mcp.sock"
-        )
-        let parsed = try JSONSerialization.jsonObject(
-            with: Data(snippet.utf8)
-        ) as? [String: Any]
-        let servers = try #require(parsed?["mcpServers"] as? [String: Any])
-        let entry = try #require(servers[McpEndpoint.configurationKey] as? [String: Any])
-        #expect(entry["command"] is String)
-        #expect(
-            entry["args"] as? [String] == [
-                "--endpoint", "/Users/some one/.local/share/mailcal/mcp.sock",
-            ],
-            "the endpoint round-trips verbatim, spaces and all"
-        )
-    }
-
-    @Test func theSnippetKeepsSlashesReadableRatherThanEscapingThem() {
-        // `\/` is valid JSON but a path full of it reads as a mistake, and a user pasting it into
-        // a config file has no way to know it is fine. `.withoutEscapingSlashes` is deliberate.
-        let snippet = McpEndpoint.configurationSnippet(endpoint: "/tmp/mcp.sock")
-        #expect(!snippet.contains("\\/"))
-        #expect(snippet.contains("/tmp/mcp.sock"))
-    }
-
-    @Test func theConfigurationKeyIsPortableAcrossClients() throws {
-        // Claude Code accepts only letters, numbers, hyphens and underscores in a server name,
-        // and SKIPS a Claude Desktop server whose name contains a space when importing it. A key
-        // with spaces renders beautifully in one client and silently breaks the others, so this
-        // pins the character set rather than trusting whoever next edits the snippet to recall it.
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789-_")
-        #expect(
-            McpEndpoint.configurationKey.unicodeScalars.allSatisfy(allowed.contains),
-            "\(McpEndpoint.configurationKey) is not portable, use [a-z0-9-_] only"
-        )
-
-        // And it is the same identifier the protocol advertises as `serverInfo.name`. Two names
-        // for one server is how a support answer stops matching what the user sees.
-        // Both come from `MAILCAL_MCP_SERVER_NAME` (docs/branding.md).
-        #expect(McpEndpoint.configurationKey == Brand.mcpServerName)
-
-        let snippet = McpEndpoint.configurationSnippet(endpoint: "/tmp/mcp.sock")
-        let parsed = try JSONSerialization.jsonObject(with: Data(snippet.utf8)) as? [String: Any]
-        let servers = try #require(parsed?["mcpServers"] as? [String: Any])
-        #expect(Array(servers.keys) == [McpEndpoint.configurationKey])
-    }
-
     @Test func theSandboxedBuildPutsTheSocketInTheGroupContainer() {
         // The branch a test bundle can NEVER take by running: this suite is not sandboxed, so
         // `path(dataDirName:)` always resolves to the real home here and the Store build's only
@@ -166,6 +110,17 @@ struct McpEndpointTests {
         // client connects is worse than none. This is what excludes mobile by construction: the
         // core is simply never told where to listen.
         #expect(McpEndpoint.path(dataDirName: "mailcal") == nil)
+        #endif
+    }
+
+    @Test func theHostNamesTheRelayBesideTheEndpoint() throws {
+        #if os(macOS)
+        let host = try #require(McpEndpoint.host(dataDirName: "mailcal-dev"))
+        #expect(host.endpoint == McpEndpoint.path(dataDirName: "mailcal-dev"))
+        #expect(host.relayCommand.hasSuffix(Brand.mcpRelayName))
+        #expect(host.relayArgs.isEmpty, "the core adds the endpoint itself")
+        #else
+        #expect(McpEndpoint.host(dataDirName: "mailcal") == nil)
         #endif
     }
 }

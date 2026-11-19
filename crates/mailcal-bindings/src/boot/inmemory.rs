@@ -74,13 +74,7 @@ pub(crate) fn build_demo(
     // A real server object, so the type is uniform across every build, but one that is never
     // given an endpoint, and therefore cannot listen whatever a setting says.
     let agent_ui: crate::agent_ui::AgentUiSlot = Arc::new(Mutex::new(None));
-    let mcp = Arc::new(mailcal_mcp::McpServer::new(
-        Arc::new(crate::mcp::AppBackend::new(
-            Arc::clone(&app),
-            Arc::clone(&agent_ui),
-        )),
-        runtime.handle().clone(),
-    ));
+    let mcp = crate::mcp::server(&app, &agent_ui, runtime.handle());
     let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
@@ -89,7 +83,7 @@ pub(crate) fn build_demo(
         registry,
         background,
         mcp,
-        mcp_endpoint: Mutex::new(None),
+        mcp_host: Mutex::new(None),
         agent_ui,
         // A bundled-fixture app signs in to nothing.
         #[cfg(feature = "allodia-license")]
@@ -318,13 +312,7 @@ fn finish_showcase(
     // A real server object, so the type is uniform across every build, but one that is never
     // given an endpoint, and therefore cannot listen whatever a setting says.
     let agent_ui: crate::agent_ui::AgentUiSlot = Arc::new(Mutex::new(None));
-    let mcp = Arc::new(mailcal_mcp::McpServer::new(
-        Arc::new(crate::mcp::AppBackend::new(
-            Arc::clone(&app),
-            Arc::clone(&agent_ui),
-        )),
-        runtime.handle().clone(),
-    ));
+    let mcp = crate::mcp::server(&app, &agent_ui, runtime.handle());
     let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
@@ -333,7 +321,7 @@ fn finish_showcase(
         registry,
         background,
         mcp,
-        mcp_endpoint: Mutex::new(None),
+        mcp_host: Mutex::new(None),
         agent_ui,
         // A bundled-fixture app signs in to nothing.
         #[cfg(feature = "allodia-license")]

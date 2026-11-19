@@ -58,12 +58,6 @@ fn render_brand_file(namespace: &str, brand: &Brand) -> String {
          \x20   public const string AppId = \"{id}\";\n\
          \n\
          \x20   /// <summary>\n\
-         \x20   /// The key an MCP client files the local server under, and the server's own\n\
-         \x20   /// <c>serverInfo.name</c>.\n\
-         \x20   /// </summary>\n\
-         \x20   public const string McpServerName = \"{mcp}\";\n\
-         \n\
-         \x20   /// <summary>\n\
          \x20   /// The command the MCP relay is installed as: the App Execution Alias a packaged\n\
          \x20   /// build registers, without its <c>.exe</c>.\n\
          \x20   /// </summary>\n\
@@ -76,7 +70,6 @@ fn render_brand_file(namespace: &str, brand: &Brand) -> String {
          \x20   public const string WindowsDataDir = \"{data}\";\n\
          }}\n",
         id = brand.id,
-        mcp = brand.mcp_server_name,
         relay = brand.mcp_relay_name,
         data = brand.windows_data_dir
     )

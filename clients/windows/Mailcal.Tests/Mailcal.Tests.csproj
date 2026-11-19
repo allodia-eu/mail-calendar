@@ -145,11 +145,14 @@
     <Compile Include="..\Mailcal\Services\DevSchemeOwnership.cs" Link="Services\DevSchemeOwnership.cs" />
     <Compile Include="..\Mailcal\Services\WebViewInspection.cs" Link="Services\WebViewInspection.cs" />
     <!-- Where the MCP server listens and what an assistant is told to spawn (docs/mcp.md). Every
-         value in it has to match something outside the file, the pipe name the core binds, the
-         alias the app manifest registers, the config key the protocol advertises, and all three
-         fail silently. WinUI-free on purpose; "am I packaged" arrives as a parameter, like
-         OAuthScheme.For(bool). -->
+         value in it has to match something outside the file, the pipe name the core binds and the
+         alias the app manifest registers, and both fail silently. WinUI-free on purpose; "am I
+         packaged" arrives as a parameter, like OAuthScheme.For(bool). -->
     <Compile Include="..\Mailcal\Services\McpEndpoint.cs" Link="Services\McpEndpoint.cs" />
+    <!-- Settings → Advanced as the core decides it: the words for the assistant server's status
+         and a reset's outcome, and which signals redraw a part of the page rather than move its
+         switches in place. -->
+    <Compile Include="..\Mailcal\Services\AdvancedPageRules.cs" Link="Services\AdvancedPageRules.cs" />
     <!-- How far back a search looked, as the list header states it (docs/search.md). It maps the
          core's SearchHorizon onto one of two sentences; both words arrive as parameters, so the
          rule is reachable here while L10n.cs stays out of this assembly. The failure it catches is

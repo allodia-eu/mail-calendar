@@ -363,6 +363,15 @@ pub enum Intent {
         /// Which change.
         intent: super::SignatureIntent,
     },
+    /// A change to what AI assistants may do ([`McpIntent`](super::McpIntent)).
+    Mcp {
+        /// Which change.
+        intent: super::McpIntent,
+    },
+    /// Settings → Advanced's reset of the local database, once the person confirmed it: every
+    /// account's cache is cleared (the outbox is kept), mail downloaded again and the file
+    /// compacted. One at a time; `advanced_page()` says it is running and what it came to.
+    ResetDatabase,
     /// Something the person did to a notice (`docs/notices.md`).
     Notices {
         /// What they did.

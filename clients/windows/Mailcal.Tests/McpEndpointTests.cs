@@ -1,16 +1,13 @@
-// The agent (MCP) endpoint's Windows shape (docs/mcp.md): the pipe name each build claims, the
-// relay command an MCP client is told to spawn, and the config snippet it is told to paste.
+// The agent (MCP) endpoint's Windows shape (docs/mcp.md): the pipe name each build claims and the
+// relay command an MCP client is told to spawn. The snippet built from them is the core's, and its
+// tests are in crates/mailcal-mcp.
 //
-// Every one of these fails SILENTLY in the app. A pipe name that drifts from the OAuth scheme means
-// the dev build and the Store build fight over one endpoint, and the loser's server simply never
-// listens. A snippet built by string concatenation emits a Windows path's backslashes raw, so the
-// config file looks right and the client reports a parse error on a line rather than a cause. And a
-// config key with a character some client rewrites is a server that works in one assistant and is
-// skipped by the next. So each is pinned here rather than trusted.
+// Both fail SILENTLY in the app. A pipe name that drifts from the OAuth scheme means the dev build
+// and the Store build fight over one endpoint, and the loser's server simply never listens. A relay
+// command naming a path inside WindowsApps is a configuration that looks right and is refused. So
+// each is pinned here rather than trusted.
 
 using System.IO;
-using System.Linq;
-using System.Text.Json;
 using Allodia.Mailcal.Services;
 using Xunit;
 
@@ -37,51 +34,6 @@ public class McpEndpointTests
         Assert.NotEqual(McpEndpoint.PipeName(packaged: true), McpEndpoint.PipeName(packaged: false));
         Assert.StartsWith(OAuthScheme.Packaged, McpEndpoint.PipeName(packaged: true).Split('\\')[^1], StringComparison.Ordinal);
         Assert.StartsWith(OAuthScheme.Unpackaged, McpEndpoint.PipeName(packaged: false).Split('\\')[^1], StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void The_snippet_is_valid_json_with_a_windows_path_and_a_pipe_name()
-    {
-        // THE finding this test encodes: both values are backslash-heavy, and a hand-built JSON
-        // string would emit them raw. `\p` is not a valid JSON escape, so the file the user pasted
-        // fails to parse, after they have restarted their assistant and are looking at it.
-        var relay = @"C:\Program Files\Some App With Spaces\mailcal-mcp.exe";
-        var endpoint = McpEndpoint.PipeName(packaged: true);
-
-        var snippet = McpEndpoint.ConfigurationSnippet(endpoint, relay);
-
-        using var parsed = JsonDocument.Parse(snippet);
-        var entry = parsed.RootElement
-            .GetProperty("mcpServers")
-            .GetProperty(McpEndpoint.ConfigurationKey);
-        Assert.Equal(relay, entry.GetProperty("command").GetString());
-        var args = entry.GetProperty("args").EnumerateArray().Select(a => a.GetString()).ToArray();
-        Assert.Equal(new[] { "--endpoint", endpoint }, args);
-    }
-
-    [Fact]
-    public void The_snippet_names_exactly_one_server_under_a_portable_key()
-    {
-        // Letters, numbers, hyphens and underscores only. Claude Code accepts only [A-Za-z0-9_-] in
-        // a server name and SKIPS a Claude Desktop server whose name contains a space when
-        // importing it; where the name is embedded in a tool identifier, every other character is
-        // rewritten to `_`. A pretty key looks right in one client and quietly breaks the next.
-        Assert.All(
-            McpEndpoint.ConfigurationKey,
-            character => Assert.True(
-                char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character)
-                    || character is '-' or '_',
-                $"{McpEndpoint.ConfigurationKey} is not portable, use [a-z0-9-_] only"));
-        // And it is the same string the protocol advertises as `name`
-        // (crates/mailcal-mcp/src/branding.rs), one identifier, not two: both are
-        // MAILCAL_MCP_SERVER_NAME (docs/branding.md).
-        Assert.Equal(Brand.McpServerName, McpEndpoint.ConfigurationKey);
-
-        using var parsed = JsonDocument.Parse(
-            McpEndpoint.ConfigurationSnippet(@"\\.\pipe\x.mcp", McpEndpoint.RelayAlias));
-        var servers = parsed.RootElement.GetProperty("mcpServers").EnumerateObject().ToArray();
-        Assert.Single(servers);
-        Assert.Equal(McpEndpoint.ConfigurationKey, servers[0].Name);
     }
 
     [Fact]

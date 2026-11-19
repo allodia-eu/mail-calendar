@@ -2,12 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use mailcal_bindings::{AgentDraft, AgentHostUi, MailcalApp};
-use serde::Serialize;
+use mailcal_bindings::{AgentDraft, AgentHostUi, MailcalApp, McpHost};
 
 use super::AppInput;
 
-pub(super) const CONFIGURATION_KEY: &str = crate::l10n::MCP_SERVER_NAME;
 /// The command a package installs the relay as: the Flatpak command, the snap's app and the file
 /// a native package puts beside the app in `/usr/bin`.
 const RELAY_NAME: &str = crate::l10n::MCP_RELAY_NAME;
@@ -19,7 +17,12 @@ const FLATPAK_INFO_PATH: &str = "/.flatpak-info";
 pub(super) fn install(app: Option<&MailcalApp>, sender: relm4::Sender<AppInput>) {
     if let Some(app) = app {
         app.set_agent_host_ui(Box::new(AgentComposerBridge::new(sender)));
-        app.set_mcp_endpoint(Some(endpoint()));
+        let relay = relay_invocation();
+        app.set_mcp_host(Some(McpHost {
+            endpoint: endpoint(),
+            relay_command: relay.command,
+            relay_args: relay.args,
+        }));
     }
 }
 
@@ -168,41 +171,6 @@ fn unpackaged_invocation(directory: Option<&Path>) -> RelayInvocation {
     }
 }
 
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-struct ClientConfig {
-    mcp_servers: std::collections::BTreeMap<&'static str, ServerEntry>,
-}
-
-#[derive(Serialize)]
-struct ServerEntry {
-    command: String,
-    args: Vec<String>,
-}
-
-/// The MCP-client configuration the Settings panel offers to copy.
-pub(super) fn configuration_snippet(endpoint: &str) -> String {
-    configuration_snippet_for(endpoint, relay_invocation())
-}
-
-fn configuration_snippet_for(endpoint: &str, mut relay: RelayInvocation) -> String {
-    relay
-        .args
-        .extend(["--endpoint".to_owned(), endpoint.to_owned()]);
-    let config = ClientConfig {
-        mcp_servers: [(
-            CONFIGURATION_KEY,
-            ServerEntry {
-                command: relay.command,
-                args: relay.args,
-            },
-        )]
-        .into_iter()
-        .collect(),
-    };
-    serde_json::to_string_pretty(&config).unwrap_or_default()
-}
-
 /// Non-blocking hop from the server's connection task onto Relm4's UI input channel.
 #[derive(Clone, Debug)]
 pub(super) struct AgentComposerBridge {
@@ -226,11 +194,9 @@ mod tests {
     use std::{fs, path::Path};
 
     use gtk::glib::{KeyFile, KeyFileFlags};
-    use serde_json::Value;
 
     use super::{
-        BUILT_RELAY_FILE_NAME, CONFIGURATION_KEY, FlatpakContext, RELAY_NAME,
-        configuration_snippet_for, snap_invocation, unpackaged_invocation,
+        BUILT_RELAY_FILE_NAME, FlatpakContext, RELAY_NAME, snap_invocation, unpackaged_invocation,
         unqualified_flatpak_invocation,
     };
 
@@ -245,57 +211,36 @@ mod tests {
     }
 
     #[test]
-    fn configuration_key_is_portable() {
-        // It is the protocol's `serverInfo.name` by construction: both are
-        // `MAILCAL_MCP_SERVER_NAME` (docs/branding.md).
-        assert!(CONFIGURATION_KEY.bytes().all(|byte| {
-            byte.is_ascii_lowercase() || byte.is_ascii_digit() || b"-_".contains(&byte)
-        }));
-    }
-
-    #[test]
-    fn flatpak_snippet_enters_the_installed_app_before_running_the_relay() {
-        let snippet = configuration_snippet_for(
-            "/home/A Person/.var/app/eu.allodia.mailcal/data/mailcal/mcp.sock",
-            flatpak_invocation(
-                "[Application]\nname=eu.allodia.mailcal\n\
-                 [Instance]\napp-path=/home/A Person/.local/share/flatpak/app/eu.allodia.mailcal/files\nbranch=stable\narch=x86_64\n",
-                "/app/bin/mailcal",
-                "/home/A Person",
-            ),
+    fn a_flatpak_relay_enters_the_installed_app_before_it_runs() {
+        let invocation = flatpak_invocation(
+            "[Application]\nname=eu.allodia.mailcal\n\
+             [Instance]\napp-path=/home/A Person/.local/share/flatpak/app/eu.allodia.mailcal/files\nbranch=stable\narch=x86_64\n",
+            "/app/bin/mailcal",
+            "/home/A Person",
         );
-        let value: Value = serde_json::from_str(&snippet).expect("valid JSON");
-        let entry = &value["mcpServers"][CONFIGURATION_KEY];
-        assert_eq!(entry["command"], "flatpak");
+        assert_eq!(invocation.command, "flatpak");
         assert_eq!(
-            entry["args"],
-            serde_json::json!([
-                "run",
-                "--user",
+            invocation.args,
+            [
+                "run".to_owned(),
+                "--user".to_owned(),
                 format!("--command={RELAY_NAME}"),
-                "eu.allodia.mailcal/x86_64/stable",
-                "--endpoint",
-                "/home/A Person/.var/app/eu.allodia.mailcal/data/mailcal/mcp.sock"
-            ])
+                "eu.allodia.mailcal/x86_64/stable".to_owned(),
+            ]
         );
     }
 
     #[test]
-    fn sdk_snippet_does_not_leave_the_runtime_installation_ambiguous() {
-        let snippet = configuration_snippet_for(
-            "/tmp/mailcal/mcp.sock",
-            flatpak_invocation(
-                "[Runtime]\nname=org.gnome.Sdk\n\
-                 [Instance]\nruntime-path=/home/Developer/.local/share/flatpak/runtime/org.gnome.Sdk/files\nbranch=50\narch=x86_64\n",
-                "/home/Developer/project/target/flatpak-sdk/debug/mailcal-linux",
-                "/home/Developer",
-            ),
+    fn an_sdk_relay_does_not_leave_the_runtime_installation_ambiguous() {
+        let invocation = flatpak_invocation(
+            "[Runtime]\nname=org.gnome.Sdk\n\
+             [Instance]\nruntime-path=/home/Developer/.local/share/flatpak/runtime/org.gnome.Sdk/files\nbranch=50\narch=x86_64\n",
+            "/home/Developer/project/target/flatpak-sdk/debug/mailcal-linux",
+            "/home/Developer",
         );
-        let value: Value = serde_json::from_str(&snippet).expect("valid JSON");
-        let entry = &value["mcpServers"][CONFIGURATION_KEY];
         assert_eq!(
-            entry["args"],
-            serde_json::json!([
+            invocation.args,
+            [
                 "run",
                 "--user",
                 "--devel",
@@ -304,9 +249,8 @@ mod tests {
                 "--no-a11y-bus",
                 "--command=/home/Developer/project/target/flatpak-sdk/debug/mailcal-mcp",
                 "org.gnome.Sdk/x86_64/50",
-                "--endpoint",
-                "/tmp/mailcal/mcp.sock"
-            ])
+            ]
+            .map(str::to_owned)
         );
     }
 
@@ -334,24 +278,13 @@ mod tests {
     }
 
     #[test]
-    fn snap_snippet_names_the_relay_command_of_the_same_snap() {
-        let snippet = configuration_snippet_for(
-            "/home/A Person/snap/allodia-mail-calendar/common/.local/share/mailcal/mcp.sock",
-            snap_invocation("allodia-mail-calendar"),
-        );
-        let value: Value = serde_json::from_str(&snippet).expect("valid JSON");
-        let entry = &value["mcpServers"][CONFIGURATION_KEY];
+    fn a_snap_relay_is_the_command_of_the_same_snap() {
+        let invocation = snap_invocation("allodia-mail-calendar");
         assert_eq!(
-            entry["command"],
+            invocation.command,
             format!("/snap/bin/allodia-mail-calendar.{RELAY_NAME}")
         );
-        assert_eq!(
-            entry["args"],
-            serde_json::json!([
-                "--endpoint",
-                "/home/A Person/snap/allodia-mail-calendar/common/.local/share/mailcal/mcp.sock"
-            ])
-        );
+        assert_eq!(invocation.args, Vec::<String>::new());
     }
 
     fn relay_beside(test: &str, file_name: &str) -> (std::path::PathBuf, String) {

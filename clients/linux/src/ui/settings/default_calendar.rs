@@ -56,7 +56,7 @@ pub(super) fn default_calendar(ctx: &PageContext) -> gtk::Box {
         moving: Rc::new(Cell::new(false)),
     });
     view.follow();
-    ctx.calendar.add(move || view.follow());
+    ctx.follow.add(move || view.follow());
     holder
 }
 

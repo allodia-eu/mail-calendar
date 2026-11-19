@@ -147,6 +147,7 @@ internal fun MainActivity.connect(
                 activity.quoteSettings = connected.quoteSettings()
                 activity.swipeSettings = connected.swipeSettings()
                 activity.sendAccountSetting = connected.sendAccountSetting()
+                activity.advancedPage = connected.advancedPage()
                 activity.displaySettings = connected.displaySettings()
                 activity.signatures = connected.signaturesPage()
                 // Is the usage-statistics question settled? `asked == false` puts the welcome
@@ -239,6 +240,7 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.quoteSettings = connected.quoteSettings()
             activity.swipeSettings = connected.swipeSettings()
             activity.sendAccountSetting = connected.sendAccountSetting()
+            activity.advancedPage = connected.advancedPage()
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signaturesPage()
             activity.refreshAccountsSnapshot()

@@ -65,7 +65,7 @@ private val ABOUT = AboutInfo(
 class SettingsHubTest {
     @get:Rule val compose = createComposeRule()
 
-    /** How often the screen asked to leave settings entirely (Done, or confirming a reset). */
+    /** How often the screen asked to leave settings entirely. */
     private var closed = 0
     private var resets = 0
     private var diagnosticsOpened = 0
@@ -144,6 +144,7 @@ class SettingsHubTest {
                 allodiaDevices = allodiaDevices,
                 onAllodiaSetUp = {},
                 onOpenDiagnostics = { diagnosticsOpened++ },
+                advanced = ADVANCED_FREE,
                 onReset = { resets++ },
                 onBack = { closed++ },
                 initialCategory = initialCategory,
@@ -437,9 +438,9 @@ class SettingsHubTest {
         assertEquals(1, closed)
     }
 
-    /** The destructive reset stays behind its confirmation dialog after the hub rework. */
+    /** The destructive reset stays behind its confirmation dialog, and Settings stays open after. */
     @Test
-    fun resetting_still_takes_a_confirmation() {
+    fun resetting_takes_a_confirmation_and_stays_in_settings() {
         show()
         compose.onNodeWithText(L10n.settings_category_advanced(ctx())).performScrollTo().performClick()
         // The button, not the group heading that shares its label.
@@ -448,7 +449,8 @@ class SettingsHubTest {
 
         compose.onNodeWithText(L10n.reset_confirm(ctx())).performClick()
         assertEquals(1, resets)
-        assertEquals("a confirmed reset leaves settings", 1, closed)
+        assertEquals("a confirmed reset stays in settings", 0, closed)
+        compose.onNodeWithText(L10n.settings_advanced_reset_description(ctx())).assertIsDisplayed()
     }
 
     @Test

@@ -18,17 +18,22 @@
 //!
 //! That is the whole model, and every part of it is a safe call.
 
+use std::io::ErrorKind;
+
 use tokio::net::windows::named_pipe::ServerOptions;
 
 use super::spawn_connection;
-use crate::tools::ToolContext;
+use crate::{
+    status::{ListenerStatus, Refusal, Reporter},
+    tools::ToolContext,
+};
 
 /// Serves `name` forever, one pipe instance at a time.
 ///
 /// The named-pipe pattern differs from a socket's: each `ServerOptions::create` yields **one**
 /// instance, which is handed to a connecting client and then replaced. So the loop creates the
 /// next instance before serving the current one, and a client never finds the name unlistened.
-pub(super) async fn run(ctx: ToolContext, name: &str) {
+pub(super) async fn run(ctx: ToolContext, name: &str, status: &Reporter) -> Refusal {
     let mut server = match ServerOptions::new()
         .first_pipe_instance(true)
         .reject_remote_clients(true)
@@ -39,10 +44,17 @@ pub(super) async fn run(ctx: ToolContext, name: &str) {
             // With `first_pipe_instance`, this is how "another instance already owns the name"
             // surfaces; loudly, at startup, rather than as a silent takeover.
             log::warn!("mcp: could not create the pipe (another instance may own it): {err}");
-            return;
+            // `first_pipe_instance` answers a name some process already serves with access
+            // denied; anything else is the name itself.
+            return if err.kind() == ErrorKind::PermissionDenied {
+                Refusal::AnotherInstance
+            } else {
+                Refusal::Unavailable
+            };
         }
     };
     log::info!("mcp: listening for assistant connections");
+    status.report(ListenerStatus::Listening);
     loop {
         if let Err(err) = server.connect().await {
             log::warn!("mcp: pipe connect failed: {err}");
@@ -56,7 +68,7 @@ pub(super) async fn run(ctx: ToolContext, name: &str) {
             Ok(next) => next,
             Err(err) => {
                 log::warn!("mcp: could not create the next pipe instance: {err}");
-                return;
+                return Refusal::Unavailable;
             }
         };
         let connected = std::mem::replace(&mut server, next);
