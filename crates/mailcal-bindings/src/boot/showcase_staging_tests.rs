@@ -44,6 +44,10 @@ fn an_in_memory_boot_offers_the_assistant_only_when_asked() {
         assert!(!app.ai_offer(), "{name}: offered unasked");
         assert!(app.ai_endpoint_form().is_none(), "{name}");
         assert!(app.writing_style_page().is_none(), "{name}");
+        assert!(
+            app.app.writing_styles().is_empty(),
+            "{name}: nothing staged unasked"
+        );
 
         super::offer_ai(&app);
 
@@ -56,7 +60,11 @@ fn an_in_memory_boot_offers_the_assistant_only_when_asked() {
 #[test]
 fn the_offered_assistant_sends_nothing() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let host = BindingsAiHost::offline(runtime.handle().clone(), Arc::new(NoStoredCredentials));
+    let host = BindingsAiHost::offline(
+        runtime.handle().clone(),
+        Arc::new(NoStoredCredentials),
+        super::ai::transport,
+    );
     let sent = host.transport(AiCancel::default()).post_json(HttpRequest {
         url: "https://models.example.eu/v1/chat/completions",
         bearer: None,
@@ -65,6 +73,6 @@ fn the_offered_assistant_sends_nothing() {
     });
     assert!(
         sent.is_err(),
-        "an offline host answers every request as no answer"
+        "an offline host answers every request but the staged draft as no answer"
     );
 }

@@ -727,11 +727,20 @@ MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
 # Every platform, showcase (either dataset) and the demo only: the writing assistant offered
-# (docs/ai.md rule 5), so the own endpoint's form under Settings → Advanced and Settings → Writing
-# style can be driven. Reads in the CORE, like the three above. Without it an in-memory boot offers
-# the feature to nobody, which keeps it out of the store captures. Nothing it would send leaves the
-# device: every request answers as unreachable, and a key typed is refused, since these boots keep
-# none. The Writing style page has no learned style to show.
+# (docs/ai.md rule 5), so the own endpoint's form under Settings → Advanced, Settings → Writing
+# style and Draft a reply can be driven. Reads in the CORE, like the three above. Without it an
+# in-memory boot offers the feature to nobody and stages nothing, which keeps it out of the store
+# captures. On a boot with an account it also stages, for the first account:
+#   - two learned styles: "Work", its reveal shown, so its row opens the detail, and the style the
+#     account drafts in; "Newly learned", its reveal not shown, so its row opens the reveal, with
+#     every page in English and Dutch and German holding greetings and sign-offs alone;
+#   - an own endpoint on this device, http://localhost:11434/v1, model `showcase-canned`, declared
+#     EU-native, so Learn and Draft are offered.
+# Nothing leaves the device. A draft asked of `showcase-canned` gets a canned reply with a summary
+# and one checklist item of each kind (a [delivery date] gap, a file to attach, a task), so Draft a
+# reply reaches Drafted once the editor reports the draft in; save the form with any other model
+# and Draft ends in Failed, unreachable. Learning always fails as unreachable, and a key typed is
+# refused, since these boots keep none.
 MAILCAL_OFFER_AI=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the
