@@ -13,6 +13,8 @@ use super::{PageContext, choice, dialog_box, group, page_box};
 // A child of this module rather than of `settings.rs`, which is at its line limit.
 #[path = "default_calendar.rs"]
 mod default_calendar;
+#[path = "reset.rs"]
+mod reset;
 #[path = "send_account.rs"]
 mod send_account;
 use crate::{l10n, ui::preference};
@@ -242,28 +244,13 @@ pub(super) fn privacy(ctx: &PageContext) -> gtk::Box {
     content
 }
 
+/// Settings → Advanced: AI assistant access first, on a host with an endpoint, then the reset.
 pub(super) fn advanced(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_advanced());
-    let group = group(
-        l10n::action_reset_database(),
-        l10n::settings_advanced_reset_description(),
-    );
-    let row = adw::ActionRow::builder()
-        .title(l10n::action_reset_database())
-        .subtitle(l10n::settings_advanced_reset_description())
-        .use_markup(false)
-        .build();
-    let button = gtk::Button::with_label(l10n::action_reset_database());
-    button.add_css_class("destructive-action");
-    let parent = ctx.window.clone();
-    let app = ctx.app.clone();
-    button.connect_clicked(move |_| confirm_reset(&parent, app.clone()));
-    row.add_suffix(&button);
-    group.add(&row);
-    content.append(&group);
     if let Some(mcp) = super::mcp::section(ctx) {
         content.append(&mcp);
     }
+    content.append(&reset::group_following(ctx));
     content
 }
 
@@ -303,30 +290,6 @@ fn swipe_row(
         preference::set(&app, PreferenceIntent::SetSwipeAction { direction, action });
     });
     row
-}
-
-fn confirm_reset(parent: &gtk::Window, app: std::sync::Arc<mailcal_bindings::MailcalApp>) {
-    let dialog = confirm_window(parent, l10n::reset_title(), l10n::reset_message());
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
-    actions.set_halign(gtk::Align::End);
-    let cancel = gtk::Button::with_label(l10n::action_cancel());
-    let window = dialog.clone();
-    cancel.connect_clicked(move |_| window.close());
-    actions.append(&cancel);
-    let reset = gtk::Button::with_label(l10n::reset_confirm());
-    reset.add_css_class("destructive-action");
-    let window = dialog.clone();
-    reset.connect_clicked(move |_| {
-        app.reset();
-        window.close();
-    });
-    actions.append(&reset);
-    dialog
-        .child()
-        .and_downcast::<gtk::Box>()
-        .expect("confirmation content")
-        .append(&actions);
-    dialog.present();
 }
 
 pub(super) fn confirm_window(parent: &gtk::Window, title: &str, message: &str) -> gtk::Window {
