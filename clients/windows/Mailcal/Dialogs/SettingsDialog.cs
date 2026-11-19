@@ -69,6 +69,9 @@ public sealed partial class SettingsDialog : ContentDialog
         Closed += (_, _) => LeavingAllodiaSubscription();
         model.SignaturesChanged += OnSignaturesChanged;
         Closed += (_, _) => model.SignaturesChanged -= OnSignaturesChanged;
+        _aiEndpointOutcomes = new AiEndpointOutcomes(model.AiEndpointForm());
+        model.AiEndpointChanged += OnAiEndpointChanged;
+        Closed += (_, _) => model.AiEndpointChanged -= OnAiEndpointChanged;
         model.OtherDevicesChanged += OnOtherDevices;
         Closed += (_, _) => model.OtherDevicesChanged -= OnOtherDevices;
         model.RemovalFailed += OnRemovalFailed;
@@ -389,6 +392,12 @@ public sealed partial class SettingsDialog : ContentDialog
         if (McpSection() is { } mcp)
         {
             panel.Children.Add(mcp);
+        }
+        // The own AI endpoint (SettingsDialog.AiEndpoint.cs), drawn only while the writing
+        // assistant is offered.
+        if (AiEndpointGroup() is { } aiEndpoint)
+        {
+            panel.Children.Add(aiEndpoint);
         }
         panel.Children.Add(ResetDatabaseGroup());
         return panel;

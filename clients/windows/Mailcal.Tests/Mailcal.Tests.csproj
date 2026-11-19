@@ -357,6 +357,10 @@
          parameters; it reads the generated SignaturesPage, so it needs the bindings below. -->
     <Compile Include="..\Mailcal\Services\SignatureEditorRules.cs" Link="Services\SignatureEditorRules.cs" />
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
+    <!-- The own AI endpoint form's half of Settings → Advanced (docs/ai.md rules 6 and 7): the
+         words beside each field, Save as drawn, the key a save sends and the outcome said once.
+         WinUI-free and L10n-free; it reads the generated AiEndpointForm, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\Services\AiEndpointRules.cs" Link="Services\AiEndpointRules.cs" />
     <!-- What a flow hands the flow host and the footer it draws from it (docs/ai.md, "The flow
          host"). WinUI-free; it carries the generated ControlState, so it needs the bindings. -->
     <Compile Include="..\Mailcal\Services\FlowFrame.cs" Link="Services\FlowFrame.cs" />

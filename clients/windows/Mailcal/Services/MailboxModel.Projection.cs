@@ -62,6 +62,12 @@ public sealed partial class MailboxModel
             RaiseSignaturesChanged();
             return;
         }
+        // A change to the own endpoint started, waited or ended: only its form reads it again.
+        if (changed == Surface.AiEndpoint)
+        {
+            RaiseAiEndpointChanged();
+            return;
+        }
         // A change on an account's page started, waited or ended, or a server answered what the
         // page asked: only what draws the accounts and their pages reads it again. What a change
         // stores raises Surface.Settings besides.
@@ -238,6 +244,8 @@ public sealed partial class MailboxModel
             RaiseAccountsChanged();
             // An account added or removed moves Settings → Signatures' rows.
             RaiseSignaturesChanged();
+            // Whether the assistant is offered, and so whether the form is drawn at all.
+            RaiseAiEndpointChanged();
         }
 
         // The derived mail count/name labels may have changed with the collections.
