@@ -2,9 +2,12 @@
 //! twice started once, stopping what waits and what runs, and the engine read through the host's
 //! runtime.
 
-use std::sync::{
-    Arc, Mutex,
-    mpsc::{Receiver, channel},
+use std::{
+    sync::{
+        Arc, Mutex,
+        mpsc::{Receiver, channel},
+    },
+    time::Duration,
 };
 
 use mailcal_ai::{
@@ -119,6 +122,36 @@ fn a_draft_runs_to_its_end_while_a_learning_run_is_still_going() {
     assert_eq!(fixture.app.ai_work(), [AiWorkKey::Learning]);
     release.send(()).unwrap();
     learner.join().unwrap();
+    assert_eq!(fixture.app.ai_work(), []);
+}
+
+/// Work run now runs on this thread even while another runner has yet to take the work it was
+/// started for, which may be waiting on this thread.
+#[test]
+fn work_run_now_is_its_own_while_another_runner_has_yet_to_take_its_work() {
+    let fixture = Fixture::new(BuildKind::Development);
+    let ran = Arc::new(Mutex::new(Vec::new()));
+    let (release, wait_for_release) = channel::<()>();
+    let learned = Arc::clone(&ran);
+    let learning = AiWork::new(AiWorkKey::Learning, move |_, _| {
+        let released = wait_for_release
+            .recv_timeout(Duration::from_secs(5))
+            .is_ok();
+        learned.lock().unwrap().push(if released {
+            "learn"
+        } else {
+            "learn, never released"
+        });
+    });
+    assert_eq!(fixture.app.queue_ai_work(learning), AiQueued::Run);
+
+    fixture
+        .app
+        .run_ai_work_now(noting(drafting("c1"), "draft", &ran));
+    assert_eq!(*ran.lock().unwrap(), ["draft"]);
+    release.send(()).unwrap();
+    fixture.app.run_ai_work();
+    assert_eq!(*ran.lock().unwrap(), ["draft", "learn"]);
     assert_eq!(fixture.app.ai_work(), []);
 }
 

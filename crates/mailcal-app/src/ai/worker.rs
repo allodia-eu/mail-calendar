@@ -219,10 +219,18 @@ impl<P: Provider> App<P> {
     /// Runs one piece of work [`App::queue_ai_work`] started, then the work under the same key
     /// that waited for it, each to its end. Not for a UI thread.
     pub fn run_ai_work(&self) {
+        self.run_started(|started| started.pop_front());
+    }
+
+    /// Runs the started work `take` takes, then the work under its key that waited for it.
+    fn run_started(
+        &self,
+        take: impl FnOnce(&mut VecDeque<(AiWork<P>, AiCancel)>) -> Option<(AiWork<P>, AiCancel)>,
+    ) {
         let Some(host) = self.ai.ports().host.clone() else {
             return;
         };
-        let mut next = self.ai_queue().started.pop_front();
+        let mut next = take(&mut self.ai_queue().started);
         while let Some((work, cancel)) = next {
             let key = work.key.clone();
             let run = AiRun {
@@ -236,10 +244,15 @@ impl<P: Provider> App<P> {
     }
 
     /// Queues `work` and runs it on this thread: for tests and for a host with a thread to spare.
-    /// Not for a UI thread.
+    /// Not for a UI thread. Takes this work rather than whichever started first, since another
+    /// runner may not have taken its own yet, and that work may wait on this thread's caller.
     pub fn run_ai_work_now(&self, work: AiWork<P>) {
+        let key = work.key.clone();
         if self.queue_ai_work(work) == AiQueued::Run {
-            self.run_ai_work();
+            self.run_started(|started| {
+                let at = started.iter().position(|(work, _)| work.key == key)?;
+                started.remove(at)
+            });
         }
     }
 

@@ -207,6 +207,7 @@ async fn stop_abandons_the_draft_and_its_answer_is_dropped() {
         move || app.run_ai_work()
     });
     while relay.seen.lock().unwrap().is_empty() {
+        assert!(!runner.is_finished(), "the draft ended before it asked");
         tokio::task::yield_now().await;
     }
 
