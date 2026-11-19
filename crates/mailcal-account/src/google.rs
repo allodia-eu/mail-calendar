@@ -136,6 +136,9 @@ impl RefreshingGmailProvider {
                 // Gmail submits assembled RFC 5322 bytes, and so the `method=` parameter an
                 // iMIP body part needs (RFC 6047 §2.4) survives.
                 .with_scheduling_submission()
+                // Every delegate is built with the drafted-reply label's names, which is what makes
+                // Gmail keep a Sent copy's keyword; the receipt saying which it kept is forwarded.
+                .with_sent_copy_keywords()
                 // Forwarded below. Gmail's send-as settings are the account holder's to
                 // change, so the name is `Writable` rather than a directory's to hand down.
                 .with_sender_identities(IdentityControls::Writable),
@@ -182,7 +185,8 @@ impl RefreshingGmailProvider {
             &crate::user_agent(),
         )
         .map_err(ProviderError::from)?;
-        let mut gmail = GmailProvider::new(client);
+        let mut gmail =
+            GmailProvider::new(client).with_keyword_names(crate::drafted_reply_keyword_names());
         if reads && let Some(reader) = self.imap.reader().await? {
             gmail = gmail.with_imap(reader);
         }
@@ -327,6 +331,7 @@ mod tests {
         // writes" even though the delegate implements all of them.
         assert!(provider.connection_info().capabilities.mail_writes());
         assert!(provider.connection_info().capabilities.submission());
+        assert!(provider.connection_info().capabilities.sent_copy_keywords());
         // Same rule, one capability further along: this wrapper reports its own set and never
         // the delegate's, so an iMIP capability missing here is missing from the account no
         // matter what Gmail advertises.

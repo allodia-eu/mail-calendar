@@ -2233,6 +2233,7 @@ dependencies = [
  "futures",
  "log",
  "mailcal-autodetect",
+ "mailcal-jurisdiction",
  "mailcal-oauth",
  "mailcal-user-agent",
  "mailcal-viewmodel",

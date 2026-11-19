@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::signatures::{AccountSignatureAssignment, SignatureId, SignatureSlot};
 
+// Which writing style each account drafts in, the own endpoint, the jurisdiction mode.
+mod ai;
 // The reading/composing choices: message grouping, quote style, swipe actions.
 mod behavior;
 mod calendar_pane;
@@ -26,6 +28,7 @@ mod reply_fallback;
 mod sender_name;
 mod sync;
 
+pub use ai::{AiEndpoint, AiPreferences};
 pub use behavior::{MessageGrouping, QuoteStyle, SwipeAction};
 pub use display::{
     Appearance, CalendarLayout, CalendarPrefs, DEFAULT_VISIBLE_HOURS, DefaultCalendar,
@@ -194,19 +197,12 @@ pub struct Preferences {
     #[serde(default)]
     pub invitation_reply_fallback: BTreeMap<String, ReplyFallback>,
     /// Extra addresses that are also *this account's own*, keyed by account id: the account's
-    /// aliases (`docs/invitations.md` §"Identity is a set").
-    ///
-    /// An account has one primary identity, but mail arrives at more than one address: an
-    /// invitation sent to `info@example.com` on an account whose primary is `alice@example.com`
-    /// is still an invitation to **me**, and Outlook treats it as one. Matching an iTIP
-    /// `ATTENDEE` against a single identity silently answers "you are not invited to this",
-    /// which hides the RSVP the user is waiting for.
+    /// aliases (`docs/invitations.md` §"Identity is a set"). An invitation sent to
+    /// `info@example.com` on an account whose primary is `alice@example.com` is still an
+    /// invitation to **me**, and matching an iTIP `ATTENDEE` against one identity would hide it.
     ///
     /// This is the **persisted** half of the address set, and the only half the *calendar grid*
-    /// can use: a grid has no message to read delivery headers from. The reading view's card
-    /// additionally accepts the addresses a message was actually delivered to, which makes the
-    /// common alias case work with no configuration at all.
-    ///
+    /// can use; the reading view's card also accepts the addresses a message was delivered to.
     /// Read it through [`Preferences::account_aliases`], which returns an empty slice for an
     /// account nobody has configured. Works on every provider, including plain IMAP/CalDAV.
     #[serde(default)]
@@ -238,6 +234,9 @@ pub struct Preferences {
     /// smaller surface. Mirrors `analytics_notice_version`.
     #[serde(default)]
     pub mcp_notice_version: Option<u32>,
+    /// The writing assistant's settings (`docs/ai.md`): the `[ai]` table.
+    #[serde(default)]
+    pub ai: AiPreferences,
     /// The account ids an MCP client may see and act on.
     ///
     /// **Empty by default, and empty exposes nothing.** Turning the server on and granting
@@ -336,6 +335,7 @@ impl Default for Preferences {
             unified_collapsed: false,
             collapsed_folders: BTreeMap::new(),
             collapsed_calendar_groups: BTreeSet::new(),
+            ai: AiPreferences::default(),
         }
     }
 }

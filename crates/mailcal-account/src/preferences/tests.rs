@@ -93,6 +93,18 @@ fn save_then_load_round_trips_the_preferences() {
             BTreeSet::from(["Archive".to_owned()]),
         )]),
         collapsed_calendar_groups: BTreeSet::from(["me@imap.example.com".to_owned()]),
+        ai: crate::AiPreferences {
+            writing_styles: BTreeMap::from([(
+                "me@imap.example.com".to_owned(),
+                crate::WritingStyleId::new("s1").unwrap(),
+            )]),
+            endpoint: Some(crate::AiEndpoint {
+                base_url: "http://localhost:11434/v1".to_owned(),
+                model: "local".to_owned(),
+                declared: Some(mailcal_jurisdiction::Class::EuNative),
+            }),
+            jurisdiction: mailcal_jurisdiction::Mode::All,
+        },
     };
     // Saving creates the nested parent dirs and the load reads the values back.
     save_preferences(&path, &prefs).unwrap();
