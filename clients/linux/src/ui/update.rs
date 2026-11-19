@@ -298,6 +298,7 @@ impl AppModel {
             }
             // The Settings button names no category, so it reopens on the last one asked for.
             AppInput::OpenSettings => self.settings.open(None),
+            AppInput::OpenSettingsAt(category) => self.settings.open(Some(category)),
             AppInput::OpenAccountSetup => {
                 if self.can_open_account_setup() {
                     self.setup.open(false);

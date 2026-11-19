@@ -105,14 +105,16 @@ impl AppModel {
             // Settings → Writing style, its flows, and the own endpoint's form.
             Surface::WritingStyle => {
                 self.writing_style_read = self.writing_style_read.wrapping_add(1);
+                // A style learned meanwhile reaches an open composer.
+                self.reply_draft_read = self.reply_draft_read.wrapping_add(1);
                 self.follow_ai_offer(&app);
             }
             Surface::AiEndpoint => {
                 self.ai_endpoint_read = self.ai_endpoint_read.wrapping_add(1);
                 self.follow_ai_offer(&app);
             }
-            // Draft a reply: no screen of this client draws it yet.
-            Surface::ReplyDraft => {}
+            // An open composer's Draft a reply moved.
+            Surface::ReplyDraft => self.reply_draft_read = self.reply_draft_read.wrapping_add(1),
             // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
             // the stored sign-in.
             Surface::Allodia => self.allodia_signalled(),

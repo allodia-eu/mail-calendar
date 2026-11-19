@@ -104,6 +104,7 @@ impl fmt::Debug for AppInput {
             Self::WebViewUnavailable => "WebViewUnavailable",
             Self::ReadingBodyPainted => "ReadingBodyPainted",
             Self::OpenSettings => "OpenSettings",
+            Self::OpenSettingsAt(_) => "OpenSettingsAt",
             Self::OpenAccountSetup => "OpenAccountSetup",
             #[cfg(any(debug_assertions, feature = "dev-harness"))]
             Self::RestartAccountSetup => "RestartAccountSetup",

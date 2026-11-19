@@ -196,6 +196,9 @@ impl FlowHost {
     fn frame(self: &Rc<Self>, step: FlowStep) -> Frame {
         let toolbar = adw::ToolbarView::new();
         let header = adw::HeaderBar::new();
+        // One way out of a flow, its own at the start: the window's close stays with the window.
+        header.set_show_start_title_buttons(false);
+        header.set_show_end_title_buttons(false);
         let title = step
             .title_widget
             .unwrap_or_else(|| adw::WindowTitle::new(&step.title, "").upcast::<gtk::Widget>());

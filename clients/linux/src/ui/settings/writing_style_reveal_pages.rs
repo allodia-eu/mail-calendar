@@ -41,13 +41,13 @@ const REVEAL_CSS: &str = "
   padding: 4px 12px 4px 10px;
   background-color: alpha(currentColor, 0.08);
 }
-.mailcal-reveal-dot { border-radius: 999px; min-width: 8px; min-height: 8px; }
+.mailcal-reveal-dot { border-radius: 999px; min-width: 9px; min-height: 9px; }
 .mailcal-reveal-dot-0 { background-color: @accent_bg_color; }
-.mailcal-reveal-dot-1 { background-color: @purple_3; }
-.mailcal-reveal-dot-2 { background-color: @green_4; }
-.mailcal-reveal-dot-3 { background-color: @orange_3; }
-.mailcal-reveal-dot-4 { background-color: @red_3; }
-.mailcal-reveal-dot-5 { background-color: @yellow_5; }
+.mailcal-reveal-dot-1 { background-color: @purple_2; }
+.mailcal-reveal-dot-2 { background-color: @green_3; }
+.mailcal-reveal-dot-3 { background-color: @orange_2; }
+.mailcal-reveal-dot-4 { background-color: @red_2; }
+.mailcal-reveal-dot-5 { background-color: @yellow_4; }
 .mailcal-reveal-chip { border-radius: 999px; padding: 5px 14px; }
 .mailcal-reveal-avoid {
   background-color: alpha(currentColor, 0.06);

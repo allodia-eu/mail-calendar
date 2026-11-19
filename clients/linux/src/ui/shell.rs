@@ -381,6 +381,7 @@ impl AppWidgets {
             // composition's moved (`docs/drafts.md`).
             self.composer.show_draft_hint(model, ComposerHost::Pane);
             self.composer.follow_signatures(model.signatures_read);
+            self.composer.follow_reply_draft(model.reply_draft_read);
             // A navigation is waiting for this draft to be left. Issued from here because the
             // model renders behind a shared reference and cannot run the editor round trip itself.
             if let Some(generation) = model.draft_check {

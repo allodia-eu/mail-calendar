@@ -45,9 +45,14 @@ mod composer_pop_out;
 mod composer_prefill;
 mod composer_quote;
 mod composer_quote_style;
+mod composer_reply_draft;
+mod composer_reply_draft_input;
+mod composer_reply_draft_notes;
 mod composer_scheme;
+mod composer_seed;
 mod composer_share;
 mod composer_signature;
+mod confirm;
 mod connectivity;
 mod contacts;
 mod contacts_actions;
@@ -262,6 +267,9 @@ pub(crate) struct AppModel {
     /// `Surface::Settings`).
     writing_style_read: u64,
     ai_endpoint_read: u64,
+    /// Counts the signals an open composer's Draft a reply reads again on
+    /// (`Surface::ReplyDraft` and `Surface::WritingStyle`).
+    reply_draft_read: u64,
     /// Whether the core offered the writing assistant at the last read: Settings is drawn again
     /// when it moves, since the category and the form come and go with it.
     ai_offered: bool,

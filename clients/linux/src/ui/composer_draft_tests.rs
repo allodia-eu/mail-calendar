@@ -121,7 +121,7 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
         .expect("the column holds the composer");
     let order: Vec<gtk::Widget> =
         std::iter::successors(content.first_child(), gtk::Widget::next_sibling).collect();
-    assert_eq!(order.len(), 6, "{order:?}");
+    assert_eq!(order.len(), 7, "{order:?}");
     assert!(order[0].is::<gtk::Grid>(), "the header first");
     assert!(
         descendants::<gtk::Button>(&order[1])
@@ -130,14 +130,14 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
         "then the action row"
     );
     assert!(
-        order[2].is::<gtk::Label>() && order[3].is::<gtk::Label>(),
-        "then the notes"
+        order[2].is::<gtk::Label>() && order[3].is::<gtk::Label>() && order[4].is::<gtk::Box>(),
+        "then the notes, Draft a reply's last among them"
     );
     assert!(
-        !descendants::<gtk::FlowBox>(&order[4]).is_empty(),
+        !descendants::<gtk::FlowBox>(&order[5]).is_empty(),
         "then the files, under the line that counts them"
     );
-    let editors = descendants::<webkit6::WebView>(&order[5]);
+    let editors = descendants::<webkit6::WebView>(&order[6]);
     assert!(!editors.is_empty(), "and the message last");
     assert_eq!(content.margin_bottom(), 0, "with nothing under it");
     assert!(

@@ -773,6 +773,10 @@ MAILCAL_OFFER_AI=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 # the rest of the session, and nothing is persisted. Android has no env vars, so build-and-run.sh
 # turns it into the same intent extra the other hooks use.
 MAILCAL_APPEARANCE=dark scripts/dev/boot.sh macos
+
+# Linux: text at one and a half times its size, and animations off, the two desktop settings a
+# screen is checked at and that a private compositor gives no way to set. Debug builds only.
+MAILCAL_LARGE_TEXT=1 MAILCAL_REDUCED_MOTION=1 scripts/dev/boot.sh linux -- --headless
 ```
 
 `MAILCAL_APPEARANCE` exists because the setting it overrides is an **app-level** one
