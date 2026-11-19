@@ -164,7 +164,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     | `Review` | to `ChooseRange`, dropping a read under way | ends the flow, dropping a read under way |
     | `Learning` | none; Stop returns to `Review` | the run goes on, drawn on the page with its Stop ([`waiting.md`](waiting.md) rule 3) |
     | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
-    | `Learned` | none | the reveal counts as shown; the style keeps its default name |
+    | `Learned` | none | the reveal is left as its own Close leaves it (rule 15); the style keeps its default name |
 
     The record's `trail` names the stages before the current one, first to last, each where Back
     from the one after it goes, so a host that draws the flow as a navigation stack keys its path
@@ -202,7 +202,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     notes**, with Save. The four in between are per language, with a language control when there is
     more than one. Moving between the pages is a control of the record (`paging`), held while a
     change to the library runs, as Save and closing are. The reveal counts as shown once it is
-    left, by Save or by closing.
+    left, by Save or by closing. **Closing is one control**: over a reveal the host draws one
+    Close, from the reveal's `close`, and sends `CloseReveal`, whether the reveal follows learning
+    or was opened from a row. After learning, the flow's `close` is that control in the same state
+    and the flow's `Close` makes the same change, so either intent leaves the reveal once and the
+    flow ends when the reveal is written as shown.
 16. **An existing style opens its detail** (`writing_style_detail(style)`): the first page's facts,
     the reveal's sections as one page without paging, those the record lists (`sections`, left out
     by the rule the reveal leaves a page out by), the name, the notes and **Forget**. A blank

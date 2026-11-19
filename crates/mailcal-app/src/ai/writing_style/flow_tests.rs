@@ -197,7 +197,10 @@ fn closing_ends_the_flow_except_while_learning_and_marks_a_reveal_shown() {
         apply(&mut flows, LearningIntent::Close, &["a", "b"]),
         Start::RevealClosed(closed) if closed == id
     ));
-    assert!(flows.flow.is_none());
+    assert!(
+        flows.flow.is_some(),
+        "the flow ends once the reveal is written as shown"
+    );
 }
 
 #[test]

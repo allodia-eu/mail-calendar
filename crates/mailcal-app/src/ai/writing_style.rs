@@ -221,6 +221,8 @@ mod tests_flow;
 #[cfg(test)]
 mod tests_page;
 #[cfg(test)]
+mod tests_reveal_close;
+#[cfg(test)]
 mod tests_support;
 #[cfg(test)]
 mod tests_trail;

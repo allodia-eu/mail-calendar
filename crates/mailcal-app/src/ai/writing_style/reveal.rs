@@ -187,7 +187,7 @@ pub(super) fn sections(guide: &StyleGuide) -> Vec<RevealLanguage> {
 impl<P: Provider> App<P> {
     /// The controls of a style's surfaces while the library's changes `work` run: all held, the
     /// one that started a change of `kind` on `id` running.
-    fn style_controls(
+    pub(super) fn style_controls(
         &self,
         id: &WritingStyleId,
     ) -> impl Fn(WritingStyleChangeKind) -> StyleControl {

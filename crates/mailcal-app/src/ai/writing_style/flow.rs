@@ -119,7 +119,8 @@ pub(super) enum Start {
     Read(u64),
     /// Run the learning under this ticket.
     Learn(u64),
-    /// The reveal of this style was left by closing.
+    /// The reveal of this style is left by closing, as `WritingStyleChange::CloseReveal` leaves
+    /// it.
     RevealClosed(WritingStyleId),
 }
 
@@ -231,10 +232,9 @@ impl Flows {
                 flow.shown = false;
                 Start::Nothing
             }
-            (LearningIntent::Close, Stage::Learned(style)) => {
-                self.flow = None;
-                Start::RevealClosed(style)
-            }
+            // Leaving the reveal is one change whichever Close arrives; the flow ends when it is
+            // written, as it does for the reveal's own Close.
+            (LearningIntent::Close, Stage::Learned(style)) => Start::RevealClosed(style),
             (LearningIntent::Close, _) => {
                 self.flow = None;
                 Start::Nothing

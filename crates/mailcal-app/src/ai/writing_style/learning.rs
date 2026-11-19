@@ -13,7 +13,7 @@ use mailcal_ai::{
 };
 
 use super::{
-    PageRun, StyleControl, WritingStyleChange,
+    PageRun, StyleControl, WritingStyleChange, WritingStyleChangeKind,
     flow::{Flow, Flows, LearningIntent, LearningTrailStage, Review, Reviewed, Stage, Start},
     range::{LearnRange, LearnRanges, SentReach, learn_ranges, today},
 };
@@ -105,7 +105,8 @@ pub struct LearningView {
     pub learn: Option<StyleControl>,
     /// Stop, on `Learning`.
     pub stop: Option<StyleControl>,
-    /// Closing the host.
+    /// Closing the host. On `Learned` it is the reveal's `close`, the same control in the same
+    /// state, and either intent leaves the reveal the same way.
     pub close: StyleControl,
 }
 
@@ -249,9 +250,13 @@ impl<P: Provider> App<P> {
                     remedy: failure.remedy_control(true),
                 }
             }
-            Stage::Learned(style) => LearningStage::Learned {
-                style: style.clone(),
-            },
+            // The reveal is on screen: closing the host is the reveal's Close, drawn as it is.
+            Stage::Learned(style) => {
+                view.close = self.style_controls(style)(WritingStyleChangeKind::CloseReveal);
+                LearningStage::Learned {
+                    style: style.clone(),
+                }
+            }
         };
         view
     }

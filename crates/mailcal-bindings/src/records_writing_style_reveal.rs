@@ -41,7 +41,8 @@ pub struct WritingStyleReveal {
     /// Save, on the last page. A client holds it besides while `writing_style_name_refusal`
     /// refuses the name typed.
     pub save: ControlState,
-    /// Leaving the reveal without saving.
+    /// Leaving the reveal without saving (`WritingStyleIntent::CloseReveal`): the one Close a host
+    /// draws over a reveal, whether it follows learning or was opened from a row.
     pub close: ControlState,
     /// Moving between the pages, Back and Next and a swipe alike: held while a change to the
     /// library runs, as every control of the reveal is. Never running.

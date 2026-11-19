@@ -23,7 +23,9 @@ pub struct WritingStyleLearning {
     pub learn: Option<ControlState>,
     /// Stop, on `Learning`. The failure's remedy is on `Failed`.
     pub stop: Option<ControlState>,
-    /// Closing the host (`StyleLearningIntent::Close`).
+    /// Closing the host (`StyleLearningIntent::Close`). On `Learned` the reveal is on screen and
+    /// this is the reveal's `close` in the same state; `Close` then leaves the reveal as
+    /// `WritingStyleIntent::CloseReveal` does, and the flow ends once it is written as shown.
     pub close: ControlState,
 }
 
