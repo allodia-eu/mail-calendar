@@ -118,6 +118,8 @@ pub(crate) fn build_demo(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    super::showcase_staging::offer_ai_on_request(&mailcal, Some(("demo", "demo@allodia.local")));
     mailcal
 }
 
@@ -236,23 +238,13 @@ pub(crate) fn build_showcase(
         )
     });
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::pause_for_a_server_change(&app, &primary_identity);
-    }
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::ask_for_reconsent(&app, &primary_identity);
-    }
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_QUESTIONS").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::ask_the_questions(
-            &app,
-            &runtime,
-            &primary_identity,
-            &primary.identity,
-            &device_tz,
-        );
-    }
+    super::showcase_staging::stage_on_request(
+        &app,
+        &runtime,
+        &primary_identity,
+        &primary.identity,
+        &device_tz,
+    );
     let registered = [
         listed(
             &primary_identity,
@@ -304,6 +296,9 @@ fn finish_showcase(
     device_tz: TimeZoneId,
     registered: impl IntoIterator<Item = (String, ConnectedAccount)>,
 ) -> Arc<MailcalApp> {
+    let registered: Vec<_> = registered.into_iter().collect();
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    let first = registered.first().map(|(id, _)| id.clone());
     let registry = crate::account_registry::AccountRegistry::new();
     for (id, entry) in registered {
         // Nothing dials it, so the proof that it was written first is not needed.
@@ -362,6 +357,9 @@ fn finish_showcase(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    // A showcase account is named by its address.
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    super::showcase_staging::offer_ai_on_request(&mailcal, first.as_deref().map(|id| (id, id)));
     mailcal
 }
 

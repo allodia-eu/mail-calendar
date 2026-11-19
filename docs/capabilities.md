@@ -210,7 +210,8 @@ conversation read touches the messages received, and flagging it flags the newes
 **Unread mail is bold on the subject and the sender**, and on nothing else (not the preview line,
 the date or the badges), because bolding every line of an unread mailbox distinguishes nothing.
 
-Not yet in any client, and on the roadmap: AI features of our own. The jurisdiction gate they
-will pass is in the core (`mailcal-jurisdiction`), with nothing dispatching through it yet.
+Not yet in any client, and on the roadmap: a writing style learned from your sent mail, and
+replies drafted in it ([docs](docs/ai.md)). The core learns and drafts through the jurisdiction
+gate (`mailcal-jurisdiction`); no client draws either yet.
 
 > Keeping this matrix current is a hard rule: see [`AGENTS.md`](AGENTS.md).

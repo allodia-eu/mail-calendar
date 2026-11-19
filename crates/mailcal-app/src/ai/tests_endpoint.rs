@@ -2,7 +2,7 @@
 //! save refuses by, Save and Remove running until written, the key kept in the keystore and never
 //! drawn back, and a refusal or a failed write said on the form.
 
-use mailcal_ai::{Class, Mode};
+use mailcal_ai::{Class, Mode, Refused};
 
 use super::{
     AiEndpointAddressGap, AiEndpointChange, AiEndpointChangeKind, AiEndpointDeclarationGap,
@@ -11,12 +11,12 @@ use super::{
 };
 use crate::Surface;
 
-fn edit(address: &str, model: &str, declared: Option<Class>, key: Option<&str>) -> AiEndpointEdit {
+fn edit(address: &str, model: &str, declared: Option<Class>, key: &str) -> AiEndpointEdit {
     AiEndpointEdit {
         address: address.to_owned(),
         model: model.to_owned(),
         declared,
-        key: key.map(str::to_owned),
+        key: key.to_owned(),
     }
 }
 
@@ -37,6 +37,7 @@ fn every_field_is_judged_at_once() {
             address: Some(AiEndpointAddressGap::Missing),
             model_missing: true,
             declaration: Some(AiEndpointDeclarationGap::Missing),
+            kept_key: None,
         }
     );
     assert_eq!(
@@ -49,10 +50,8 @@ fn every_field_is_judged_at_once() {
         AiEndpointGaps {
             address: Some(AiEndpointAddressGap::NeedsHttps),
             model_missing: false,
-            declaration: Some(AiEndpointDeclarationGap::Refused {
-                mode: Mode::EuNative,
-                class: Class::EuHosted,
-            }),
+            declaration: Some(AiEndpointDeclarationGap::Refused(Refused::EuHosted)),
+            kept_key: None,
         }
     );
     assert_eq!(
@@ -71,12 +70,7 @@ fn every_field_is_judged_at_once() {
 #[test]
 fn a_save_refuses_what_the_form_said_and_keeps_the_edit_on_the_form() {
     let fixture = Fixture::new(BuildKind::Development);
-    let refused = edit(
-        "http://models.example.eu/v1",
-        "",
-        Some(Class::NonEu),
-        Some("sk"),
-    );
+    let refused = edit("http://models.example.eu/v1", "", Some(Class::NonEu), "sk");
     let predicted = fixture
         .app
         .ai_endpoint_gap(&refused.address, &refused.model, refused.declared);
@@ -93,7 +87,6 @@ fn a_save_refuses_what_the_form_said_and_keeps_the_edit_on_the_form() {
     assert_eq!(view.fields.address, "http://models.example.eu/v1");
     assert_eq!(view.fields.declared, Some(Class::NonEu));
     assert!(!view.stored);
-    assert_eq!(view.gaps, predicted);
     assert_eq!(
         fixture.host.seen.lock().unwrap().keys,
         [],
@@ -111,7 +104,7 @@ fn a_save_keeps_the_key_in_the_keystore_trimmed_and_never_draws_it_back() {
                 " https://models.example.eu/v1/ ",
                 " big-model ",
                 Some(Class::EuNative),
-                Some("  sk-secret  "),
+                "  sk-secret  ",
             )))
     );
     assert_eq!(fixture.app.ai_endpoint().work, [AiEndpointChangeKind::Save]);
@@ -125,7 +118,6 @@ fn a_save_keeps_the_key_in_the_keystore_trimmed_and_never_draws_it_back() {
     assert_eq!(view.fields.address, "https://models.example.eu/v1");
     assert_eq!(view.fields.model, "big-model");
     assert!(view.fields.key_kept);
-    assert!(view.gaps.is_empty());
     assert!(!format!("{view:?}").contains("sk-secret"));
     assert_eq!(
         fixture.host.seen.lock().unwrap().keys,
@@ -139,7 +131,7 @@ fn a_save_keeps_the_key_in_the_keystore_trimmed_and_never_draws_it_back() {
             "https://models.example.eu/v2",
             "big-model",
             Some(Class::EuNative),
-            None,
+            "",
         )));
     assert_eq!(fixture.host.seen.lock().unwrap().keys.len(), 1);
     assert!(fixture.app.ai_endpoint().fields.key_kept);
@@ -157,13 +149,94 @@ fn a_key_the_keystore_refused_is_said_and_nothing_changes() {
             "https://models.example.eu/v1",
             "m",
             Some(Class::EuNative),
-            Some("sk"),
+            "sk",
         )));
     assert_eq!(result(&fixture), AiEndpointResult::KeyNotStored);
     let view = fixture.app.ai_endpoint();
     assert!(!view.stored);
     assert_eq!(view.fields.address, "https://models.example.eu/v1");
     assert!(!view.fields.key_kept);
+}
+
+#[test]
+fn an_empty_key_writes_nothing_to_the_keystore() {
+    let fixture = Fixture::new(BuildKind::Development);
+    *fixture.host.refuse_keys.lock().unwrap() = true;
+    fixture
+        .app
+        .change_ai_endpoint_now(AiEndpointChange::Save(edit(
+            "https://models.example.eu/v1",
+            "m",
+            Some(Class::EuNative),
+            "  ",
+        )));
+    assert_eq!(
+        result(&fixture),
+        AiEndpointResult::Saved,
+        "a keystore that refuses everything is never asked"
+    );
+    assert!(!fixture.app.ai_endpoint().fields.key_kept);
+
+    *fixture.host.refuse_keys.lock().unwrap() = false;
+    fixture
+        .app
+        .change_ai_endpoint_now(AiEndpointChange::Save(edit(
+            "https://models.example.eu/v1",
+            "m",
+            Some(Class::EuNative),
+            "sk",
+        )));
+    fixture
+        .app
+        .change_ai_endpoint_now(AiEndpointChange::Save(edit(
+            "https://models.example.eu/v2",
+            "m",
+            Some(Class::EuNative),
+            "",
+        )));
+    assert_eq!(result(&fixture), AiEndpointResult::Saved);
+    assert!(
+        fixture.app.ai_endpoint().fields.key_kept,
+        "an empty field keeps the key"
+    );
+    assert_eq!(
+        fixture.host.seen.lock().unwrap().keys,
+        [Some("sk".to_owned())]
+    );
+}
+
+#[test]
+fn remove_is_offered_while_an_endpoint_or_a_key_is_stored() {
+    let fixture = Fixture::new(BuildKind::Development);
+    assert!(!fixture.app.ai_endpoint().removable, "nothing to remove");
+
+    fixture.app.restore_ai_endpoint_key(Some("sk".to_owned()));
+    assert!(fixture.app.ai_endpoint().removable, "a key alone");
+
+    fixture.app.change_ai_endpoint_now(AiEndpointChange::Remove);
+    assert!(!fixture.app.ai_endpoint().removable);
+
+    fixture
+        .app
+        .change_ai_endpoint_now(AiEndpointChange::Save(edit(
+            "https://models.example.eu/v1",
+            "m",
+            Some(Class::EuNative),
+            "",
+        )));
+    assert!(fixture.app.ai_endpoint().removable, "an endpoint alone");
+
+    assert!(
+        fixture
+            .app
+            .queue_ai_endpoint_change(AiEndpointChange::Remove)
+    );
+    assert!(
+        fixture.app.ai_endpoint().removable,
+        "offered while its removal runs"
+    );
+    fixture.app.run_ai_endpoint_changes();
+    assert!(!fixture.app.ai_endpoint().removable);
 }
 
 #[test]
@@ -175,7 +248,7 @@ fn remove_takes_the_key_out_with_the_endpoint() {
             "https://models.example.eu/v1",
             "m",
             Some(Class::EuNative),
-            Some("sk"),
+            "sk",
         )));
     fixture.app.change_ai_endpoint_now(AiEndpointChange::Remove);
     assert_eq!(result(&fixture), AiEndpointResult::Removed);
@@ -196,7 +269,7 @@ fn the_same_change_asked_twice_runs_once() {
         "https://models.example.eu/v1",
         "m",
         Some(Class::EuNative),
-        Some("sk"),
+        "sk",
     ));
     assert!(fixture.app.queue_ai_endpoint_change(change.clone()));
     assert!(!fixture.app.queue_ai_endpoint_change(change));
@@ -223,7 +296,7 @@ fn a_saved_endpoint_survives_a_relaunch_and_its_key_is_restored_from_the_keystor
             "https://models.example.eu/v1",
             "m",
             Some(Class::EuNative),
-            Some("sk"),
+            "sk",
         )));
     assert_eq!(result(&fixture), AiEndpointResult::Saved);
     let dir = fixture.dir.take().unwrap();
@@ -250,7 +323,7 @@ fn a_save_the_preferences_could_not_take_is_said_as_the_notice() {
             "https://models.example.eu/v1",
             "m",
             Some(Class::EuNative),
-            None,
+            "",
         )));
     assert_eq!(result(&fixture), AiEndpointResult::NotWritten);
     assert!(

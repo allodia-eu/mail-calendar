@@ -25,10 +25,15 @@ impl MailcalApp {
             .install_ai_host(Arc::new(host) as Arc<dyn AiHost>, build_kind());
     }
 
-    /// Queues a piece of the assistant's work, and runs the queue on a thread of its own when
-    /// nothing else was running. Returns at once.
+    /// Queues a piece of the assistant's work, and runs it on a thread of its own when it starts
+    /// now. Returns at once.
     pub(crate) fn queue_ai_work(&self, work: AiWork<Box<dyn Provider>>) -> AiQueued {
-        let queued = self.app.queue_ai_work(work);
+        self.start_ai_work(self.app.queue_ai_work(work))
+    }
+
+    /// Runs the work just queued on a thread of its own when `queued` says it starts now: every
+    /// piece of the assistant's work starts here. Returns `queued`.
+    pub(crate) fn start_ai_work(&self, queued: AiQueued) -> AiQueued {
         if queued == AiQueued::Run {
             let app = Arc::clone(&self.app);
             std::thread::spawn(move || app.run_ai_work());
@@ -41,6 +46,7 @@ impl MailcalApp {
         match intent {
             AiIntent::Endpoint { intent } => self.dispatch_ai_endpoint(intent),
             AiIntent::WritingStyle { intent } => self.dispatch_writing_style(intent),
+            AiIntent::ReplyDraft { intent } => self.dispatch_reply_draft(intent),
         }
     }
 
@@ -100,4 +106,8 @@ impl MailcalApp {
 
 #[cfg(test)]
 #[path = "app_ai_tests.rs"]
-mod tests;
+pub(crate) mod tests;
+
+#[cfg(test)]
+#[path = "app_ai_notice_tests.rs"]
+mod notice_tests;

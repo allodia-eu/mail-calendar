@@ -20,11 +20,12 @@ draft next time**. It is not necessarily the key that went in:
 |---|---|---|
 | IMAP | writes the new message, removes the old | the key |
 | JMAP | writes the new message, removes the old | the key |
-| Graph | writes the new message, removes the old | the key |
+| Graph | rewrites the draft in place; writes a new one and removes the old when the draft carries an iTIP part or was deleted elsewhere | nothing; the key when it writes a new one |
 | Gmail | updates the draft object in place | the `Message-ID` |
 
-So three of the four move the key, and the one that does not moves the header instead. There is
-no field that survives a save on all four, which is why the caller keeps what the save returned
+So the key moves on every re-save over IMAP and JMAP and on some over Graph, and Gmail, which
+keeps it, moves the header instead. There is no field that survives a save on all four, which is
+why the caller keeps what the save returned
 and passes it back as `replacing`. A caller that matched on the `Message-ID` would work
 everywhere except Gmail, and on Gmail it would store a second copy on every save.
 

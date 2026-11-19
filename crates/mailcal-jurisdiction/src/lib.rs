@@ -106,26 +106,79 @@ pub const fn classify(destination: &Destination) -> Class {
 /// Returns [`Refused`] when the mode does not admit the class. [`Class::Unknown`] passes only
 /// under [`Mode::All`]: a destination nobody has classified is not assumed to be anywhere.
 pub const fn gate(mode: Mode, class: Class) -> Result<(), Refused> {
-    let admitted = match mode {
-        Mode::All => true,
-        Mode::EuHosted => matches!(class, Class::EuNative | Class::EuHosted),
-        Mode::EuNative => matches!(class, Class::EuNative),
+    let limit = match mode {
+        Mode::All => return Ok(()),
+        Mode::EuHosted => Limit::EuHosted,
+        Mode::EuNative => Limit::EuNative,
     };
-    if admitted {
-        Ok(())
-    } else {
-        Err(Refused { mode, class })
+    match (class, limit) {
+        (Class::EuNative, _) | (Class::EuHosted, Limit::EuHosted) => Ok(()),
+        (Class::EuHosted, Limit::EuNative) => Err(Refused::EuHosted),
+        (Class::NonEu, mode) => Err(Refused::NonEu { mode }),
+        (Class::Unknown, mode) => Err(Refused::Unknown { mode }),
     }
 }
 
-/// A dispatch the gate stopped, and why: the mode in force and the class it did not admit. A
-/// client words its explanation from these two; the core carries no copy.
+/// A mode that refuses something: every mode but [`Mode::All`], which admits everything.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Limit {
+    /// [`Mode::EuHosted`].
+    EuHosted,
+    /// [`Mode::EuNative`].
+    EuNative,
+}
+
+impl Limit {
+    /// The mode it is.
+    #[must_use]
+    pub const fn mode(self) -> Mode {
+        match self {
+            Self::EuHosted => Mode::EuHosted,
+            Self::EuNative => Mode::EuNative,
+        }
+    }
+}
+
+/// A dispatch the gate stopped: the class it did not admit, with the mode in force where more
+/// than one mode refuses that class. Only what the gate can refuse is expressible: [`Mode::All`]
+/// refuses nothing, and no mode refuses [`Class::EuNative`]. A client words its explanation from
+/// this; the core carries no copy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Refused {
+pub enum Refused {
+    /// A destination in the EU run by a company based outside it, which only
+    /// [`Mode::EuNative`] refuses.
+    EuHosted,
+    /// A destination outside the EU.
+    NonEu {
+        /// The mode in force.
+        mode: Limit,
+    },
+    /// A destination nobody has classified.
+    Unknown {
+        /// The mode in force.
+        mode: Limit,
+    },
+}
+
+impl Refused {
     /// The mode in force.
-    pub mode: Mode,
-    /// The destination's class.
-    pub class: Class,
+    #[must_use]
+    pub const fn mode(self) -> Mode {
+        match self {
+            Self::EuHosted => Mode::EuNative,
+            Self::NonEu { mode } | Self::Unknown { mode } => mode.mode(),
+        }
+    }
+
+    /// The class the gate did not admit.
+    #[must_use]
+    pub const fn class(self) -> Class {
+        match self {
+            Self::EuHosted => Class::EuHosted,
+            Self::NonEu { .. } => Class::NonEu,
+            Self::Unknown { .. } => Class::Unknown,
+        }
+    }
 }
 
 impl fmt::Display for Refused {
@@ -133,8 +186,8 @@ impl fmt::Display for Refused {
         write!(
             f,
             "a {} destination is not admitted under {}",
-            self.class.label(),
-            self.mode.label()
+            self.class().label(),
+            self.mode().label()
         )
     }
 }

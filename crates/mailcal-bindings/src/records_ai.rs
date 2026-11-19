@@ -6,15 +6,27 @@ use mailcal_app::ai as core;
 
 use crate::ControlState;
 
-/// How far a request may reach. Read, never changed: no client offers to change it.
+/// A mode that refuses something: every mode but the one admitting anything, which refuses
+/// nothing. Read, never changed: no client offers to change the mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
-pub enum JurisdictionMode {
-    /// Anywhere, a destination nobody classified included.
-    All,
+pub enum JurisdictionLimit {
     /// Anywhere that processes in the EU, whoever runs it.
     EuHosted,
     /// Only what processes in the EU and is run from the EU.
     EuNative,
+}
+
+/// Why the gate refuses the own endpoint as declared: the class it does not admit, with the mode
+/// in force where more than one refuses it. Only a refusal the gate can give is expressible: no
+/// mode refuses an endpoint declared EU-native.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum JurisdictionRefusal {
+    /// Declared as run in the EU by a company based outside it, which only `EuNative` refuses.
+    EuHosted,
+    /// Declared as run outside the EU.
+    NonEu { mode: JurisdictionLimit },
+    /// Not declared.
+    Unknown { mode: JurisdictionLimit },
 }
 
 /// Where an own endpoint runs, as the person declared it.
@@ -39,10 +51,7 @@ pub enum AiFailure {
     /// The own endpoint refused its key.
     EndpointKeyRefused,
     /// The gate refuses the own endpoint as declared, under the mode in force.
-    Refused {
-        mode: JurisdictionMode,
-        class: JurisdictionClass,
-    },
+    Refused { refusal: JurisdictionRefusal },
     /// No own endpoint is set up and the relay cannot be asked.
     NowhereToSend,
     /// The destination could not be reached, or did not answer in time.
@@ -83,6 +92,26 @@ pub enum AiRemedy {
     ChooseStyle,
 }
 
+/// A failure's remedy as a surface draws it: which one, and its control, held while the surface
+/// it sits on holds its controls. It never runs: what it starts is drawn where it leads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct AiRemedyControl {
+    pub remedy: AiRemedy,
+    pub control: ControlState,
+}
+
+impl From<core::RemedyControl> for AiRemedyControl {
+    fn from(remedy: core::RemedyControl) -> Self {
+        Self {
+            remedy: remedy.remedy.into(),
+            control: ControlState {
+                enabled: remedy.enabled,
+                running: false,
+            },
+        }
+    }
+}
+
 /// The own endpoint's form under Settings → Advanced (`docs/ai.md` rules 6 and 7), a record an
 /// Advanced page embeds. Pulled after `Surface::AiEndpoint` and `Surface::Settings`.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -94,17 +123,17 @@ pub struct AiEndpointForm {
     pub model: String,
     /// Where it runs, drawn as the address is; `None` until declared.
     pub declared: Option<JurisdictionClass>,
-    /// Whether a key is kept. The key is never drawn back: the field says one is kept and stays
-    /// empty, and leaving it empty keeps it.
+    /// Whether a key is kept, which Remove takes out. The key is never drawn back: the field stays
+    /// empty, and what it says about the key kept is `AiEndpointGaps::kept_key`, asked of the
+    /// address as typed, since a save to another server takes the key out.
     pub key_kept: bool,
-    /// What a save of the fields drawn would refuse. As the person types, a client asks
-    /// [`crate::MailcalApp::ai_endpoint_gap`] of the fields typed and says each beside its field.
-    pub gaps: AiEndpointGaps,
-    /// Save: running while a save runs. A client holds it besides while `ai_endpoint_gap` names a
-    /// gap in the fields typed.
+    /// Save: running while a save runs. A client holds it besides while
+    /// [`crate::MailcalApp::ai_endpoint_gap`], which it asks of the fields as typed and says
+    /// beside each field, names a gap.
     pub save: ControlState,
-    /// Remove: offered while an endpoint is stored, running while a removal runs.
-    pub remove: ControlState,
+    /// Remove: `None` while there is nothing to remove, which is when neither an endpoint nor a
+    /// key is stored; running while a removal runs.
+    pub remove: Option<ControlState>,
     /// What the last change came to, until the next starts.
     pub outcome: Option<AiEndpointOutcome>,
 }
@@ -126,18 +155,29 @@ pub enum AiEndpointDeclarationGap {
     /// Nothing was declared.
     Missing,
     /// The gate refuses what was declared under the mode in force.
-    Refused {
-        mode: JurisdictionMode,
-        class: JurisdictionClass,
-    },
+    Refused { refusal: JurisdictionRefusal },
 }
 
-/// Every field's problem at once; a field without one has none here.
+/// What a save with the key field empty does to the key kept (`docs/ai.md` rule 7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiEndpointKeptKey {
+    /// It stays: the address as typed is on the stored endpoint's server.
+    Carried,
+    /// It is taken out: the address as typed is on another server, or none is stored. The key
+    /// field says none is kept for this address.
+    Dropped,
+}
+
+/// Every field's problem at once; a field without one has none here. Beside them, what the save
+/// would do to the key kept, which refuses nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
 pub struct AiEndpointGaps {
     pub address: Option<AiEndpointAddressGap>,
     pub model_missing: bool,
     pub declaration: Option<AiEndpointDeclarationGap>,
+    /// What a save with the key field empty does to the key kept, which the key field's hint
+    /// says; `None` while no key is kept.
+    pub kept_key: Option<AiEndpointKeptKey>,
 }
 
 /// Which change to the own endpoint.
@@ -172,12 +212,16 @@ pub struct AiEndpointOutcome {
     pub result: AiEndpointResult,
 }
 
-impl From<core::Mode> for JurisdictionMode {
-    fn from(mode: core::Mode) -> Self {
-        match mode {
-            core::Mode::All => Self::All,
-            core::Mode::EuHosted => Self::EuHosted,
-            core::Mode::EuNative => Self::EuNative,
+impl From<core::Refused> for JurisdictionRefusal {
+    fn from(refused: core::Refused) -> Self {
+        let limit = |mode| match mode {
+            core::Limit::EuHosted => JurisdictionLimit::EuHosted,
+            core::Limit::EuNative => JurisdictionLimit::EuNative,
+        };
+        match refused {
+            core::Refused::EuHosted => Self::EuHosted,
+            core::Refused::NonEu { mode } => Self::NonEu { mode: limit(mode) },
+            core::Refused::Unknown { mode } => Self::Unknown { mode: limit(mode) },
         }
     }
 }
@@ -210,9 +254,8 @@ impl From<core::AiFailure> for AiFailure {
         match failure {
             F::RelaySignIn => Self::RelaySignIn,
             F::EndpointKeyRefused => Self::EndpointKeyRefused,
-            F::Refused { mode, class } => Self::Refused {
-                mode: mode.into(),
-                class: class.into(),
+            F::Refused(refused) => Self::Refused {
+                refusal: refused.into(),
             },
             F::NowhereToSend => Self::NowhereToSend,
             F::Unreachable => Self::Unreachable,
@@ -257,19 +300,22 @@ impl From<core::AiEndpointGaps> for AiEndpointGaps {
             model_missing: gaps.model_missing,
             declaration: gaps.declaration.map(|gap| match gap {
                 core::AiEndpointDeclarationGap::Missing => AiEndpointDeclarationGap::Missing,
-                core::AiEndpointDeclarationGap::Refused { mode, class } => {
+                core::AiEndpointDeclarationGap::Refused(refused) => {
                     AiEndpointDeclarationGap::Refused {
-                        mode: mode.into(),
-                        class: class.into(),
+                        refusal: refused.into(),
                     }
                 }
+            }),
+            kept_key: gaps.kept_key.map(|kept| match kept {
+                core::AiEndpointKeptKey::Carried => AiEndpointKeptKey::Carried,
+                core::AiEndpointKeptKey::Dropped => AiEndpointKeptKey::Dropped,
             }),
         }
     }
 }
 
 /// The form for `view`: while a change runs or waits, both controls are held, and the one that
-/// started it runs (`docs/waiting.md`).
+/// started it runs (`docs/waiting.md`); Remove is drawn only while there is something to remove.
 pub(crate) fn endpoint_form(view: core::AiEndpointView) -> Option<AiEndpointForm> {
     if !view.offered {
         return None;
@@ -281,15 +327,14 @@ pub(crate) fn endpoint_form(view: core::AiEndpointView) -> Option<AiEndpointForm
         model: view.fields.model.clone(),
         declared: view.fields.declared.map(Into::into),
         key_kept: view.fields.key_kept,
-        gaps: view.gaps.into(),
         save: ControlState {
             enabled: !busy,
             running: runs(core::AiEndpointChangeKind::Save),
         },
-        remove: ControlState {
-            enabled: !busy && view.stored,
+        remove: view.removable.then(|| ControlState {
+            enabled: !busy,
             running: runs(core::AiEndpointChangeKind::Remove),
-        },
+        }),
         outcome: view.outcome.map(|outcome| AiEndpointOutcome {
             serial: outcome.serial,
             kind: match outcome.kind {

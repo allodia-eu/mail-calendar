@@ -91,6 +91,7 @@ impl<P: Provider> App<P> {
                 // It carries the signature it was written with.
                 seeds_signature: false,
                 importance: draft.importance,
+                answering: None,
             },
         );
         match self.put_draft(account, draft, None).await {

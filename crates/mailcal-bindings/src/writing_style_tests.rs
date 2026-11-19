@@ -11,17 +11,22 @@ use mailcal_account::StoredWritingStyle;
 use mailcal_ai::{Habit, LanguageCode, LanguageStyle, Provenance, StyleGuide};
 
 use crate::{
-    AiIntent, Intent, LogLevel, MailcalApp, StyleLearningIntent, WritingStyleIntent,
+    AiIntent, Intent, LogLevel, MailcalApp, StyleLearningIntent, Surface, WritingStyleIntent,
     WritingStyleLearnBlock, WritingStyleOpens, WritingStylePage, WritingStyleRefusal,
-    WritingStyleResult, WritingStyleRevealPage, WritingStyleSpan,
+    WritingStyleResult, WritingStyleRevealPage, WritingStyleSection, WritingStyleSpan,
     tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle},
     writing_style_name_refusal,
 };
 
 fn app(name: &str) -> Arc<MailcalApp> {
-    let (tx, _rx) = mpsc::channel();
+    observed(name).0
+}
+
+/// An app, with the surfaces it signals.
+fn observed(name: &str) -> (Arc<MailcalApp>, mpsc::Receiver<Surface>) {
+    let (tx, rx) = mpsc::channel();
     let dir = crate::tests::temp_data_dir(name);
-    MailcalApp::new_accounts(
+    let app = MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
         Box::new(NullLogger),
         LogLevel::Info,
@@ -33,7 +38,8 @@ fn app(name: &str) -> Arc<MailcalApp> {
             RecordingCredentialStore::default(),
         ))),
     )
-    .expect("the app boots")
+    .expect("the app boots");
+    (app, rx)
 }
 
 fn stored() -> StoredWritingStyle {
@@ -107,7 +113,7 @@ fn without_an_account_used_for_mail_learn_says_so_and_opens_nothing() {
 
 #[test]
 fn a_rename_runs_off_the_hosts_thread_and_a_blank_one_is_refused_by_the_rule_the_field_asks() {
-    let app = app("ws-rename");
+    let (app, rx) = observed("ws-rename");
     let id = app.app.add_writing_style(None, stored());
     assert_eq!(
         writing_style_name_refusal("  ".to_owned()),
@@ -140,6 +146,11 @@ fn a_rename_runs_off_the_hosts_thread_and_a_blank_one_is_refused_by_the_rule_the
     assert_eq!(page.outcome.unwrap().result, WritingStyleResult::Done);
     assert_eq!(page.styles[0].name, "Replies");
     assert_eq!(page.styles[0].opens, WritingStyleOpens::Reveal);
+    // The page's surface, which an open composer's Draft a reply is read again on too.
+    assert!(
+        rx.try_iter()
+            .any(|surface| matches!(surface, Surface::WritingStyle))
+    );
 }
 
 #[test]
@@ -157,6 +168,14 @@ fn closing_the_reveal_counts_it_as_shown_and_forget_empties_the_library() {
             WritingStyleRevealPage::Habits,
             WritingStyleRevealPage::Name
         ]
+    );
+    let detail = app
+        .writing_style_detail(id.as_str().to_owned())
+        .expect("a detail");
+    assert_eq!(
+        detail.sections,
+        [WritingStyleSection::Letter, WritingStyleSection::Habits],
+        "the detail leaves out what the reveal leaves out"
     );
     assert_eq!(reveal.facts.messages, 9);
     let letter = reveal.languages[0].letter.as_ref().unwrap();

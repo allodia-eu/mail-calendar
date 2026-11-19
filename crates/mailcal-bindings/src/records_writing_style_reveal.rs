@@ -43,6 +43,9 @@ pub struct WritingStyleReveal {
     pub save: ControlState,
     /// Leaving the reveal without saving.
     pub close: ControlState,
+    /// Moving between the pages, Back and Next and a swipe alike: held while a change to the
+    /// library runs, as every control of the reveal is. Never running.
+    pub paging: ControlState,
 }
 
 /// An existing style's detail (`MailcalApp::writing_style_detail`).
@@ -50,6 +53,9 @@ pub struct WritingStyleReveal {
 pub struct WritingStyleDetail {
     pub id: String,
     pub facts: WritingStyleFacts,
+    /// The sections drawn, in order: one no language has anything for is left out, by the rule
+    /// the reveal leaves its page out by. A language with nothing for a section drawn says so.
+    pub sections: Vec<WritingStyleSection>,
     /// The reveal's sections, per language, as one page without paging.
     pub languages: Vec<WritingStyleLanguage>,
     pub name: String,
@@ -63,6 +69,19 @@ pub struct WritingStyleDetail {
     pub forget: ControlState,
     /// The addresses of the accounts that draft in the style, which Forget's question names.
     pub drafting_accounts: Vec<String>,
+}
+
+/// A section of the detail, as the reveal's per-language pages are.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum WritingStyleSection {
+    /// A typical reply: each language's `letter`.
+    Letter,
+    /// Greetings and sign-offs: each language's `habits`.
+    Habits,
+    /// Tone and approach: each language's `cards`.
+    Voice,
+    /// Phrases used and avoided: each language's `phrases`.
+    Phrases,
 }
 
 /// A page of the reveal.
@@ -283,6 +302,7 @@ pub(crate) fn reveal(view: core::WritingStyleRevealView) -> WritingStyleReveal {
         notes: view.notes,
         save: control(view.save),
         close: control(view.close),
+        paging: control(view.paging),
     }
 }
 
@@ -291,6 +311,16 @@ pub(crate) fn detail(view: core::WritingStyleDetailView) -> WritingStyleDetail {
     WritingStyleDetail {
         id: view.id.as_str().to_owned(),
         facts: view.facts.into(),
+        sections: view
+            .sections
+            .into_iter()
+            .map(|section| match section {
+                vm::RevealSection::Letter => WritingStyleSection::Letter,
+                vm::RevealSection::Habits => WritingStyleSection::Habits,
+                vm::RevealSection::Voice => WritingStyleSection::Voice,
+                vm::RevealSection::Phrases => WritingStyleSection::Phrases,
+            })
+            .collect(),
         languages: view.languages.into_iter().map(language).collect(),
         name: view.name,
         notes: view.notes,

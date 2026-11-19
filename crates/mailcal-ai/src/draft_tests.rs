@@ -76,7 +76,7 @@ fn a_reply_is_drafted_in_the_language_it_answers_with_that_language_s_style() {
     .unwrap();
 
     assert_eq!(draft.language, "nl");
-    assert_eq!(draft.gaps, ["[dag]"]);
+    assert_eq!(draft.tasks, [DraftTask::new(TaskKind::FillIn, "[dag]")]);
     assert!(draft.text.starts_with("Hoi Anna"));
 
     let seen = seen.lock().unwrap();

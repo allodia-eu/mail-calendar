@@ -75,12 +75,7 @@ impl<P: Provider> App<P> {
                 Some(RelayStatus::SignedOut) | None => return Err(AiFailure::NowhereToSend),
             }
         };
-        admit(route.destination(), &self.ai_mode_source()).map_err(|refused| {
-            AiFailure::Refused {
-                mode: refused.mode,
-                class: refused.class,
-            }
-        })?;
+        admit(route.destination(), &self.ai_mode_source()).map_err(AiFailure::Refused)?;
         Ok(route)
     }
 

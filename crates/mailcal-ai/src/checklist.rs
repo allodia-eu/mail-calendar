@@ -1,9 +1,9 @@
 //! What a drafted reply comes with besides the reply: a short
 //! summary of what the message asks, and a checklist of what the person still has to do before
 //! sending. The reply's own placeholders are listed here, not by the model, so each item names the
-//! exact text a client looks for to tick it.
+//! exact text the editor looks for; whether each item is done is decided here too.
 
-use std::fmt;
+use std::{collections::BTreeSet, fmt};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -95,6 +95,48 @@ pub(crate) fn checklist(gaps: &[String], asked: Vec<AnsweredTask>) -> Vec<DraftT
         })
         .take(TASKS_CAP);
     fill_in.chain(listed).collect()
+}
+
+/// What decides whether an item is done, besides the item itself.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ChecklistProgress {
+    /// The gaps still in the reply, as the editor last reported them.
+    pub gaps_left: Vec<String>,
+    /// How many files were added to the message after the draft went in.
+    pub files_added: usize,
+    /// The items the person ticked, by their place in the list.
+    pub ticked: BTreeSet<usize>,
+}
+
+/// Whether each of `tasks` is done, in their order: a fill-in item while its gap is gone from the
+/// reply, so an undo that brings it back opens it again; an attach item once as many files have
+/// been added since the draft as there are attach items, since which file answers which item
+/// cannot be told, or once the person ticked it; anything else once the person ticked it. The card
+/// and the question Send asks both read this, so they cannot disagree.
+#[must_use]
+pub fn tasks_done(tasks: &[DraftTask], progress: &ChecklistProgress) -> Vec<bool> {
+    let attach = tasks
+        .iter()
+        .filter(|task| task.kind == TaskKind::Attach)
+        .count();
+    tasks
+        .iter()
+        .enumerate()
+        .map(|(at, task)| match task.kind {
+            TaskKind::FillIn => !progress.gaps_left.contains(&task.text),
+            TaskKind::Attach => progress.files_added >= attach || progress.ticked.contains(&at),
+            TaskKind::Do => progress.ticked.contains(&at),
+        })
+        .collect()
+}
+
+/// How many of `tasks` are not done ([`tasks_done`]).
+#[must_use]
+pub fn tasks_open(tasks: &[DraftTask], progress: &ChecklistProgress) -> usize {
+    tasks_done(tasks, progress)
+        .into_iter()
+        .filter(|done| !done)
+        .count()
 }
 
 /// The summary on one line, cut to [`SUMMARY_CHARS`].
