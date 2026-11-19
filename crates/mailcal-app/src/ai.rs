@@ -78,7 +78,7 @@ impl<P> AiState<P> {
         on_failure: impl Fn() + Clone + Send + Sync + 'static,
     ) -> Self {
         Self {
-            settings: Arc::new(Mutex::new(prefs.load().ai)),
+            settings: Arc::new(Mutex::new(*prefs.load().ai)),
             prefs,
             styles: Mutex::new(styles::StyleLibrary::new(dir, on_failure.clone())),
             drafted: Mutex::new(drafted::DraftedLog::new(dir, on_failure)),

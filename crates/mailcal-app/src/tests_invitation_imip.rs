@@ -40,6 +40,9 @@ struct Answered {
 }
 
 /// Boots an app over `provider`, syncs both sides, and answers.
+///
+/// Each dispatch is boxed: this future holds the whole `App` across its awaits, and the
+/// `large_futures` bound sits just under the two together.
 async fn answer(
     provider: InvitationFake,
     response: InvitationResponse,
@@ -52,15 +55,15 @@ async fn answer(
     let sends = provider.sends();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = invitation_app(provider, &surfaces);
-    app.dispatch(Intent::RefreshMail).await;
-    app.dispatch(Intent::RefreshCalendar).await;
-    app.dispatch(Intent::RespondToInvitation {
+    Box::pin(app.dispatch(Intent::RefreshMail)).await;
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
+    Box::pin(app.dispatch(Intent::RespondToInvitation {
         message: invite(),
         response,
         comment: comment.map(str::to_owned),
         notify_organizer: notify,
         reply_subject: reply_subject.map(str::to_owned),
-    })
+    }))
     .await;
     Answered {
         rsvps,

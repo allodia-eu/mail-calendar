@@ -235,8 +235,12 @@ pub struct Preferences {
     #[serde(default)]
     pub mcp_notice_version: Option<u32>,
     /// The writing assistant's settings (`docs/ai.md`): the `[ai]` table.
+    ///
+    /// Boxed because several of the app's states hold a whole `Preferences` by value, some of
+    /// them across an await, so every byte here is a byte in those states and their futures; the
+    /// table is read rarely and kept behind one pointer.
     #[serde(default)]
-    pub ai: AiPreferences,
+    pub ai: Box<AiPreferences>,
     /// The account ids an MCP client may see and act on.
     ///
     /// **Empty by default, and empty exposes nothing.** Turning the server on and granting
@@ -335,7 +339,7 @@ impl Default for Preferences {
             unified_collapsed: false,
             collapsed_folders: BTreeMap::new(),
             collapsed_calendar_groups: BTreeSet::new(),
-            ai: AiPreferences::default(),
+            ai: Box::default(),
         }
     }
 }
