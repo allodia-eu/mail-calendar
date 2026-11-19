@@ -180,6 +180,8 @@ async fn removing_an_account_forgets_the_name_it_sent_under() {
 
     app.remove_account(&AccountId::try_from("acct-1").unwrap())
         .await;
+    // Both changes are saved behind the caller; the file says so only once they are written.
+    app.settle_preferences();
 
     assert_eq!(
         mailcal_account::load_preferences(&path).sender_name_of("acct-1"),
