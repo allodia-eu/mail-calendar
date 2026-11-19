@@ -301,7 +301,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 ### Failures, and what a client decides
 
 27. **A failure and its remedy are decided once, in the core** (`AiFailure`, `AiRemedy`); a client
-    words them and never shows a server's sentence. Stop is not a failure. A remedy comes with its
+    words them and never shows a server's sentence. Stop is not a failure. Every failure, remedy,
+    refusal and endpoint gap has its message in the shared catalog (`ai_failure_*`, `ai_remedy_*`,
+    `ai_endpoint_gap_*`, a refusal of an undeclared endpoint `ai_failure_refused_undeclared`), and
+    a bindings test (`records_ai_words_tests.rs`) names the one for each variant, so no client
+    adds words of its own. A remedy comes with its
     control (`AiRemedyControl`), wherever it is drawn: held while the surface it sits on holds its
     controls (a change to the library, on the page; Draft, for the composer's Try again) and never
     running, since what it starts is drawn where it leads. A refusal by the gate names only what
