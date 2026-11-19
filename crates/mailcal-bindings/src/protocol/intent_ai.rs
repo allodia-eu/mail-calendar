@@ -1,13 +1,15 @@
 //! The writing assistant's half of the FFI intent surface (`docs/ai.md`), behind one `Intent::Ai`
 //! variant: a family per surface of the feature, each nested here.
 
-use crate::JurisdictionClass;
+use crate::{JurisdictionClass, WritingStyleIntent};
 
 /// A change to one of the writing assistant's surfaces.
 #[derive(uniffi::Enum)]
 pub enum AiIntent {
     /// A change to the own endpoint ([`AiEndpointIntent`]).
     Endpoint { intent: AiEndpointIntent },
+    /// A change on Settings → Writing style ([`WritingStyleIntent`]).
+    WritingStyle { intent: WritingStyleIntent },
 }
 
 /// A change to the own endpoint, from its form under Settings → Advanced. Each runs off the host's

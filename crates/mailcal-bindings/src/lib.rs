@@ -173,6 +173,7 @@ mod store_files;
 mod timezone;
 mod token_sink;
 mod use_outages;
+mod writing_style;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
@@ -248,7 +249,7 @@ pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AiEndpointIntent, AiIntent, AllodiaIntent, BulkAction, EventIntent,
     FolderIntent, Intent, InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent,
-    SearchScope, SelectedRow, SignatureIntent,
+    SearchScope, SelectedRow, SignatureIntent, StyleLearningIntent, WritingStyleIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -329,6 +330,7 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
+pub use writing_style::*;
 /// A shared registry of each connected account's re-connection state ([`account_registry`]).
 type SharedRegistry = Arc<account_registry::AccountRegistry>;
 
