@@ -45,7 +45,7 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             // a slot drawn on the grid wears. Read straight from the core (an
                             // in-memory cache read) rather than held in state: the signal below
                             // recomposes Settings, and the rows carry the resolved `isDefault`.
-                            calendars = remember(calendarVersion) { instance.calendars() },
+                            calendarGroups = remember(calendarVersion) { instance.calendarGroups() },
                             onSetDefaultCalendar = { account, calendar ->
                                 instance.setPreference(PreferenceIntent.SetDefaultCalendar(account, calendar))
                             },

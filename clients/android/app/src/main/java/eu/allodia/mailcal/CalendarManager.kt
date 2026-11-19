@@ -1,8 +1,8 @@
 // The calendar manager: which calendars are drawn, and in what colour.
 //
-// Grouped by account, because a calendar id is only unique within its account, two accounts can
-// each have a "Work", and showing them in one flat list would leave the user unable to tell which is
-// which. Every toggle and colour is persisted by the core and applied at page-read time, so the grid
+// Grouped by account, in the core's groups (`calendar_groups`), because a calendar id is only unique
+// within its account, two accounts can each have a "Work", and showing them in one flat list would
+// leave the user unable to tell which is which. Every toggle and colour is persisted by the core and applied at page-read time, so the grid
 // redraws immediately with no sync and no network.
 package eu.allodia.mailcal
 
@@ -45,12 +45,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.CalendarRow
 
 /** The manager screen: every account's calendars, each with a colour dot and a visibility tick. */
 @Composable
 internal fun CalendarManagerScreen(
-    calendars: List<CalendarRow>,
+    calendarGroups: List<CalendarGroup>,
     palette: List<String>,
     onSetVisible: (account: String, calendar: String, visible: Boolean) -> Unit,
     onSetColor: (account: String, calendar: String, hex: String?) -> Unit,
@@ -59,9 +60,6 @@ internal fun CalendarManagerScreen(
     val ctx = LocalContext.current
     // The calendar whose colour picker is open, or null.
     var picking by remember { mutableStateOf<CalendarRow?>(null) }
-    // Group by account, keeping each account's calendars in the order the core listed them (which is
-    // the order their fallback colours were assigned from).
-    val byAccount = remember(calendars) { calendars.groupBy { it.account } }
 
     // An OPAQUE surface: the manager is composed over the calendar, and without a background of its
     // own the grid shows straight through it, both drawn, both unreadable.
@@ -79,7 +77,7 @@ internal fun CalendarManagerScreen(
         }
         HorizontalDivider()
 
-        if (calendars.isEmpty()) {
+        if (calendarGroups.all { it.calendars.isEmpty() }) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -94,12 +92,12 @@ internal fun CalendarManagerScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
-                byAccount.forEach { (account, rows) ->
-                    item(key = "acct-$account") {
+                calendarGroups.forEach { group ->
+                    item(key = "acct-${group.account}") {
                         // Headed by the address, the one a person recognises; grouped by the id,
                         // which is what is unique.
                         Text(
-                            text = rows.firstOrNull()?.accountAddress ?: account,
+                            text = group.address,
                             modifier = Modifier.padding(
                                 start = 16.dp,
                                 end = 16.dp,
@@ -110,7 +108,7 @@ internal fun CalendarManagerScreen(
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
-                    items(rows, key = { "${it.account}:${it.id}" }) { calendar ->
+                    items(group.calendars, key = { "${it.account}:${it.id}" }) { calendar ->
                         CalendarManagerRow(
                             calendar = calendar,
                             onToggle = { visible ->

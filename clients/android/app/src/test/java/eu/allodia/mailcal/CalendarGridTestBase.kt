@@ -20,6 +20,7 @@ import org.robolectric.Shadows.shadowOf
 import uniffi.mailcal_bindings.AllDayBand
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarColor
+import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarPage
 import uniffi.mailcal_bindings.CalendarRow
@@ -77,7 +78,7 @@ internal val GRID_EMPTY_MONTH = MonthPage(
 
 /** The week 2026-07-06 (Mon) … 2026-07-12 (Sun), today is the last column. */
 internal fun gridWeekDays(): List<GridDay> =
-    (6..12).map { GridDay("2026-07-%02d".format(it)) }
+    (6..12).map { GridDay("2026-07-%02d".format(it), week = 28u) }
 
 /** The Monday of the week under test. The pager anchors its middle gridPage here. */
 internal val GRID_ANCHOR: LocalDate = LocalDate.of(2026, 7, 6)
@@ -92,7 +93,7 @@ internal val GRID_ANCHOR: LocalDate = LocalDate.of(2026, 7, 6)
  * app actually does: next week is not this week.
  */
 internal val GRID_NEIGHBOUR = CalendarPage(
-    days = (13..19).map { GridDay("2026-07-%02d".format(it)) },
+    days = (13..19).map { GridDay("2026-07-%02d".format(it), week = 29u) },
     timed = emptyList(),
     allDay = emptyList(),
     allDayLanes = 0u,
@@ -177,6 +178,7 @@ abstract class CalendarGridTestBase {
                     // replaces silently anchored the pager on *today* rather than on the Monday, so
                     // the middle page's anchor did not match the week the fixture describes.
                     weekStartFor = { it.with(DayOfWeek.MONDAY) },
+                    calendarGroupsFor = { groupsOf(fixture.calendars) },
                     display = GRID_DISPLAY,
                     calendarVersion = 0,
                     events = emptyList(),
@@ -201,3 +203,18 @@ abstract class CalendarGridTestBase {
         }
     }
 }
+
+/**
+ * [rows] as the core's `calendar_groups` hands them over: one open group per account, in the order
+ * the accounts first appear, each headed by its address. A fixture, not a rule: the grouping itself
+ * is the core's and tested there.
+ */
+internal fun groupsOf(rows: List<CalendarRow>): List<CalendarGroup> =
+    rows.groupBy { it.account }.map { (account, calendars) ->
+        CalendarGroup(
+            account = account,
+            address = calendars.first().accountAddress,
+            expanded = true,
+            calendars = calendars,
+        )
+    }

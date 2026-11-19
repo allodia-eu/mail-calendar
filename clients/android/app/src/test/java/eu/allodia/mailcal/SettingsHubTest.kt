@@ -93,7 +93,7 @@ class SettingsHubTest {
                 onSetAppearance = {},
                 onSetWeekStart = {},
                 onSetVisibleHours = {},
-            calendars = emptyList(),
+            calendarGroups = emptyList(),
             onSetDefaultCalendar = { _, _ -> },
                 jitsiServer = { jitsiServer },
                 onSetJitsiServer = { typed ->

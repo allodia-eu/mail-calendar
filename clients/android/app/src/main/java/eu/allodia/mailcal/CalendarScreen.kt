@@ -42,6 +42,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.Locale
 import kotlinx.coroutines.delay
+import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.CalendarPage
 import uniffi.mailcal_bindings.CalendarWriteStatus
@@ -72,6 +73,9 @@ internal fun CalendarScreen(
     // Where a week begins. The CORE owns this, it applies the user's week-start setting, so three
     // clients cannot disagree about which day a week starts on.
     weekStartFor: (LocalDate) -> LocalDate,
+    // Every calendar under its account, in the core's account order: what the manager and the
+    // editor's picker list (`calendar_groups`).
+    calendarGroupsFor: () -> List<CalendarGroup>,
     display: DisplaySettings,
     calendarVersion: Int,
     events: List<EventRow>,
@@ -225,6 +229,7 @@ internal fun CalendarScreen(
     // user's chosen calendar while it exists and can be written to, else the first writable one:
     // so there is no fallback rule here to drift from Settings' idea of the same thing.
     val defaultCalendarRow = remember(calendars) { calendars.firstOrNull { it.isDefault } }
+    val calendarGroups = remember(calendarVersion) { calendarGroupsFor() }
     val defaultCalendar = remember(defaultCalendarRow) {
         defaultCalendarRow?.choice()
     }
@@ -407,7 +412,7 @@ internal fun CalendarScreen(
 
     if (managing) {
         CalendarManagerScreen(
-            calendars = calendars,
+            calendarGroups = calendarGroups,
             palette = palette,
             onSetVisible = onSetCalendarVisible,
             onSetColor = onSetCalendarColor,
@@ -455,6 +460,7 @@ internal fun CalendarScreen(
         EventEditorScreen(
             editor = open,
             calendars = calendars,
+            calendarGroups = calendarGroups,
             onCancel = { editor = null },
             onCreate = {
                 onCreateEvent(it)
