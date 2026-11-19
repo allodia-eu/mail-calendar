@@ -16,8 +16,8 @@ private struct PendingSeriesSave {
 struct EventEditorView: View {
     @Binding var editor: EventEditorState
     let calendars: [CalendarRow]
-    /// The same calendars under their accounts, as the core groups them (`calendar_groups`).
-    let groups: [CalendarGroup]
+    /// The calendars a new event can be put on, under their accounts (`new_event_calendars`).
+    let offered: NewEventCalendars
     let onCancel: () -> Void
     let onCreate: (CreateArgs) -> Void
     let onUpdate: (UpdateArgs) -> Void
@@ -203,7 +203,7 @@ struct EventEditorView: View {
                 if editor.end < newStart { editor.end = newStart }
             }
             .sheet(isPresented: $picking) {
-                CalendarPickerView(groups: groups, selected: editor.calendar) { choice in
+                CalendarPickerView(offered: offered, selected: editor.calendar) { choice in
                     editor.calendar = choice
                     // A picked meeting the new calendar does not offer goes back to None (rule 9);
                     // a row nobody picked in follows the new calendar's default.
@@ -325,47 +325,25 @@ struct EventEditorView: View {
     }
 }
 
-/// The calendar picker, choose which calendar a new event lands in, grouped by account (a calendar
-/// id is only unique within its account) and filtered to the ones we can write to.
+/// The calendar picker: which calendar a new event lands in, from the core's writable calendars
+/// under their accounts (a calendar id is only unique within its account).
 struct CalendarPickerView: View {
-    let groups: [CalendarGroup]
+    let offered: NewEventCalendars
     let selected: CalendarChoice?
     let onPick: (CalendarChoice) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
 
-    /// The writable calendars of each group; an account with none is left out.
-    private var byAccount: [(account: String, address: String, rows: [CalendarRow])] {
-        groups.compactMap { group in
-            let rows = group.calendars.filter(\.canWrite)
-            return rows.isEmpty ? nil : (group.account, group.address, rows)
-        }
-    }
-
     var body: some View {
         NavigationStack {
             List {
-                ForEach(byAccount, id: \.account) { group in
-                    Section(group.address) {
-                        ForEach(group.rows, id: \.id) { calendar in
-                            Button {
-                                onPick(calendar.choice)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Circle()
-                                        .fill(parseHexColor(calendar.color.swatch(dark: scheme == .dark).background))
-                                        .frame(width: 16, height: 16)
-                                    Text(calendar.name).foregroundStyle(.primary)
-                                    Spacer()
-                                    if selected?.account == calendar.account && selected?.id == calendar.id {
-                                        Image(systemName: "checkmark").foregroundStyle(.tint)
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
+                ForEach(offered.groups, id: \.account) { group in
+                    // An account's address heads its calendars only while the core names them.
+                    if offered.named {
+                        Section(group.address) { rows(group) }
+                    } else {
+                        rows(group)
                     }
                 }
             }
@@ -378,6 +356,27 @@ struct CalendarPickerView: View {
         }
         // Same reason as the two sheets above, this one is nested inside the editor.
         .frame(minWidth: 340, minHeight: 320)
+    }
+
+    private func rows(_ group: CalendarGroup) -> some View {
+        ForEach(group.calendars, id: \.id) { calendar in
+            Button {
+                onPick(calendar.choice)
+            } label: {
+                HStack(spacing: 12) {
+                    Circle()
+                        .fill(parseHexColor(calendar.color.swatch(dark: scheme == .dark).background))
+                        .frame(width: 16, height: 16)
+                    Text(calendar.name).foregroundStyle(.primary)
+                    Spacer()
+                    if selected?.account == calendar.account && selected?.id == calendar.id {
+                        Image(systemName: "checkmark").foregroundStyle(.tint)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
     }
 }
 

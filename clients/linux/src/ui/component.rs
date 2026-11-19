@@ -203,6 +203,7 @@ impl AppModel {
             reading_window_seq: 0,
             reading_generation: 0,
             signatures_read: 0,
+            calendar_settings_read: 0,
             pending_mail_delete: None,
             composer: None,
             composer_generation: 0,

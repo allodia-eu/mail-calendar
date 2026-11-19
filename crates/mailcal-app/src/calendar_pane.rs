@@ -7,7 +7,9 @@
 
 use engine_api::{CalendarDate, Provider};
 use mailcal_account::CalendarLayout;
-use mailcal_viewmodel::calendar::pane::{self, CalendarGroup, MiniMonth, PaneView};
+use mailcal_viewmodel::calendar::pane::{
+    self, CalendarGroup, MiniMonth, NewEventCalendars, PaneView,
+};
 
 use crate::App;
 
@@ -105,6 +107,13 @@ impl<P: Provider> App<P> {
             .lock()
             .expect("calendar-prefs mutex poisoned");
         pane::groups(rows, |account| prefs.group_expanded(account))
+    }
+
+    /// The calendars a new event can be put on, under their accounts: Settings' default calendar
+    /// and every editor's calendar picker.
+    #[must_use]
+    pub fn new_event_calendars(&self) -> NewEventCalendars {
+        pane::new_event_calendars(self.calendar_groups())
     }
 
     /// Opens or shuts one account's group in the calendar pane, and persists it. Waits on nothing:

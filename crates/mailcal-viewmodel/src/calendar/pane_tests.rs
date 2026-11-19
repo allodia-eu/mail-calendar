@@ -218,3 +218,55 @@ fn a_group_reads_its_expansion_and_an_account_without_calendars_has_none() {
     assert!(!grouped[1].expanded);
     assert_eq!(groups(Vec::new(), |_| true), []);
 }
+
+fn read_only(account: &str, id: &str) -> CalendarRow {
+    CalendarRow {
+        can_write: false,
+        ..row(account, id)
+    }
+}
+
+#[test]
+fn a_new_event_is_offered_only_the_writable_calendars_and_an_account_without_one_is_left_out() {
+    let offered = new_event_calendars(groups(
+        vec![
+            row("work", "team"),
+            read_only("work", "holidays"),
+            read_only("shared", "rota"),
+            row("home", "family"),
+        ],
+        |_| true,
+    ));
+    let listed: Vec<(&str, Vec<&str>)> = offered
+        .groups
+        .iter()
+        .map(|group| {
+            (
+                group.account.as_str(),
+                group.calendars.iter().map(|c| c.id.as_str()).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        listed,
+        vec![("work", vec!["team"]), ("home", vec!["family"])]
+    );
+    assert!(offered.named);
+}
+
+#[test]
+fn one_account_with_writable_calendars_is_not_named_however_many_others_only_read() {
+    let offered = new_event_calendars(groups(
+        vec![
+            row("work", "team"),
+            row("work", "travel"),
+            read_only("shared", "rota"),
+        ],
+        |_| true,
+    ));
+    assert_eq!(offered.groups.len(), 1);
+    assert!(!offered.named);
+    let nothing = new_event_calendars(groups(vec![read_only("shared", "rota")], |_| true));
+    assert_eq!(nothing.groups, []);
+    assert!(!nothing.named);
+}

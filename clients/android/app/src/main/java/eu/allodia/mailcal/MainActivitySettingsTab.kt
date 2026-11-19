@@ -42,18 +42,24 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetWeekStart = { instance.setPreference(PreferenceIntent.SetWeekStart(it)) },
                             onSetVisibleHours = { instance.setPreference(PreferenceIntent.SetCalendarVisibleHours(it.toUByte())) },
                             // Calendar, which calendar a new event is filed on, and so the colour
-                            // a slot drawn on the grid wears. Read straight from the core (an
-                            // in-memory cache read) rather than held in state: the signal below
-                            // recomposes Settings, and the rows carry the resolved `isDefault`.
-                            calendarGroups = remember(calendarVersion) { instance.calendarGroups() },
+                            // a slot drawn on the grid wears. Read from the core's memory again on
+                            // CALENDAR and SETTINGS; the rows carry the resolved `isDefault`.
+                            newEventCalendars = remember(calendarVersion, settingsVersion) {
+                                instance.newEventCalendars()
+                            },
                             onSetDefaultCalendar = { account, calendar ->
                                 instance.setPreference(PreferenceIntent.SetDefaultCalendar(account, calendar))
                             },
-                            // Videoconferencing; once a server is stored, the calendar signal
-                            // redraws the editor's choices.
-                            jitsiServer = { instance.jitsiServer() },
-                            onSetJitsiServer = { instance.setJitsiServer(it) },
-                            meetingDefaults = remember(calendarVersion) { instance.meetingDefaults() },
+                            // Videoconferencing, the core's page, read again on the same two
+                            // signals. The Jitsi field is applied before dispatch returns, so the
+                            // page read after it is what the core made of the text.
+                            videoconferencing = remember(calendarVersion, settingsVersion) {
+                                instance.videoconferencingPage()
+                            },
+                            onSetJitsiServer = {
+                                instance.setPreference(PreferenceIntent.SetJitsiServer(it))
+                                instance.videoconferencingPage()
+                            },
                             onSetDefaultMeeting = { account, choice ->
                                 instance.setPreference(PreferenceIntent.SetDefaultMeeting(account, choice))
                             },

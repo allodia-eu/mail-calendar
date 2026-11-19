@@ -210,7 +210,7 @@ struct CalendarScreenView: View {
             EventEditorView(
                 editor: sheetItemBinding($editor, presented: presented),
                 calendars: currentCalendars(pager: pager, anchor: anchor),
-                groups: model.calendarGroups(),
+                offered: model.newEventCalendars(),
                 onCancel: { editor = nil },
                 onCreate: { model.createEvent($0); editor = nil },
                 onUpdate: { model.updateEvent($0); editor = nil },

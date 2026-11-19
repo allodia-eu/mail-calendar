@@ -13,7 +13,7 @@ use super::{
         today, today_in,
     },
     drag::CreateSlot,
-    editor::{CalendarChoice, EventDetails, EventEditor, EventForm},
+    editor::{CalendarChoice, EventDetails, EventEditor, EventForm, new_event_choices},
 };
 
 /// The six shapes selectable from the calendar header.
@@ -107,6 +107,8 @@ pub(crate) struct CalendarModel {
     pub(super) all_day_expanded: bool,
     pub(super) dialog: Option<CalendarDialog>,
     pub(super) dialog_generation: u64,
+    /// The calendars a new event can be put on, as the core offers them.
+    pub(super) new_event: Vec<CalendarChoice>,
 }
 
 impl CalendarModel {
@@ -150,6 +152,7 @@ impl CalendarModel {
             all_day_expanded: false,
             dialog: None,
             dialog_generation: 0,
+            new_event: new_event_choices(app.new_event_calendars()),
         }
     }
 
@@ -184,6 +187,7 @@ impl CalendarModel {
             all_day_expanded: false,
             dialog: None,
             dialog_generation: 0,
+            new_event: Vec::new(),
         }
     }
 
@@ -192,6 +196,7 @@ impl CalendarModel {
         self.page = app.calendar_range(self.week_anchor.to_string(), self.range_columns());
         self.month = app.month_page(self.focus.to_string());
         self.agenda = app.calendar_list();
+        self.new_event = new_event_choices(app.new_event_calendars());
         if let Some(CalendarDialog::Detail(detail)) = &mut self.dialog
             && let Some(fresh) = detail.reread(app)
         {
@@ -332,19 +337,11 @@ impl CalendarModel {
     }
 
     pub(super) fn can_create(&self) -> bool {
-        self.page
-            .calendars
-            .iter()
-            .any(|calendar| calendar.can_write)
-            || self
-                .month
-                .calendars
-                .iter()
-                .any(|calendar| calendar.can_write)
+        !self.new_event.is_empty()
     }
 
     pub(crate) fn begin_create(&mut self) {
-        let choices = self.calendar_choices(true);
+        let choices = self.new_event.clone();
         if choices.is_empty() {
             return;
         }
@@ -355,7 +352,7 @@ impl CalendarModel {
     }
 
     pub(crate) fn begin_create_at(&mut self, slot: CreateSlot) {
-        let choices = self.calendar_choices(true);
+        let choices = self.new_event.clone();
         if choices.is_empty() {
             return;
         }
@@ -385,7 +382,7 @@ impl CalendarModel {
         let Some(CalendarDialog::Detail(detail)) = self.dialog.clone() else {
             return;
         };
-        let choices = self.calendar_choices(false);
+        let choices = self.calendar_choices();
         self.open_dialog(CalendarDialog::Editor(EventEditor::edit(detail, choices)));
     }
 
@@ -453,14 +450,14 @@ impl CalendarModel {
             .map_or_else(|| calendar.to_owned(), |row| row.name.clone())
     }
 
-    /// The calendars an event can be put on, each named by its account's address as the core
-    /// gives it: an account used only for its calendar is in no mail list to look it up in.
-    fn calendar_choices(&self, writable_only: bool) -> Vec<CalendarChoice> {
+    /// The calendars an event being edited is listed among, each named by its account's address
+    /// as the core gives it: an account used only for its calendar is in no mail list to look it
+    /// up in.
+    fn calendar_choices(&self) -> Vec<CalendarChoice> {
         self.page
             .calendars
             .iter()
             .chain(self.month.calendars.iter())
-            .filter(|calendar| !writable_only || calendar.can_write)
             .fold(Vec::new(), |mut choices, calendar| {
                 if choices.iter().any(|choice: &CalendarChoice| {
                     choice.account == calendar.account && choice.id == calendar.id

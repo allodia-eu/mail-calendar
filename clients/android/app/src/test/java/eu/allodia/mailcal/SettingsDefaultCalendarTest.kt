@@ -1,10 +1,9 @@
 // The default-calendar picker: which calendars it offers, and which one it shows as chosen.
 //
-// The *rule*, the stored choice while it exists and can be written to, else the first writable
-// calendar, is the core's, and is tested there (`calendar_colors::default_calendar_tests`). What is
-// tested here is the half that lives on this side: a read-only calendar is never offered, the row
-// the core marked is the one that reads as selected, and a name that appears in two accounts is
-// qualified so the list does not offer the same word twice.
+// What is offered, which row is the default and whether accounts are named are the core's
+// (`new_event_calendars`) and tested there. What is tested here is the half that lives on this side:
+// the row the core marked reads as selected, a pick carries its account, and an account heading is
+// drawn exactly when the core names the accounts.
 package eu.allodia.mailcal
 
 import androidx.compose.ui.test.assert
@@ -23,17 +22,12 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.CalendarColor
 import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.Swatch
 
 private fun swatch() = Swatch(background = "#2f6fa8", text = "#ffffff", border = "#245782")
 
-private fun calendar(
-    account: String,
-    id: String,
-    name: String,
-    canWrite: Boolean = true,
-    isDefault: Boolean = false,
-) = CalendarRow(
+internal fun writableCalendar(account: String, id: String, name: String, isDefault: Boolean = false) = CalendarRow(
     account = account,
     // The address a person reads, distinct from the id the rows are grouped by.
     accountAddress = "${account.substringBefore('@')}@example.org",
@@ -41,9 +35,16 @@ private fun calendar(
     name = name,
     color = CalendarColor(hex = "#2f6fa8", light = swatch(), dark = swatch()),
     visible = true,
-    canWrite = canWrite,
+    canWrite = true,
     canInvite = false,
     isDefault = isDefault,
+)
+
+/** Two accounts' calendars, `a`'s Work the default. */
+internal val TWO_ACCOUNTS = listOf(
+    writableCalendar("a@imap.example.com", "work", "Work", isDefault = true),
+    writableCalendar("b@graph.example.com", "agenda", "Agenda"),
+    writableCalendar("b@graph.example.com", "todoist", "Todoist"),
 )
 
 @RunWith(RobolectricTestRunner::class)
@@ -53,31 +54,16 @@ class SettingsDefaultCalendarTest {
     private fun ctx() = RuntimeEnvironment.getApplication()
 
     @Test
-    fun a_read_only_calendar_is_never_offered() {
-        // Choosing one would produce a default that fails at save time, with the event already
-        // typed, the core refuses it too, and this is the affordance not existing in the first
-        // place rather than a choice that silently does nothing.
-        compose.setContent {
-            DefaultCalendarSettingsRows(
-                calendarGroups = groupsOf(listOf(
-                    calendar("a", "work", "Work", isDefault = true),
-                    calendar("a", "holidays", "Holidays", canWrite = false),
-                )),
-                onSetDefaultCalendar = { _, _ -> },
-            )
-        }
-        compose.onNodeWithText("Work").assertIsDisplayed()
-        compose.onNodeWithText("Holidays").assertDoesNotExist()
-    }
-
-    @Test
     fun the_row_the_core_marked_is_the_one_that_reads_as_chosen() {
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendarGroups = groupsOf(listOf(
-                    calendar("a", "work", "Work"),
-                    calendar("a", "private", "Private", isDefault = true),
-                )),
+                offered = offeredOf(
+                    listOf(
+                        writableCalendar("a", "work", "Work"),
+                        writableCalendar("a", "private", "Private", isDefault = true),
+                    ),
+                    named = false,
+                ),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
@@ -90,64 +76,53 @@ class SettingsDefaultCalendarTest {
     @Test
     fun picking_one_reports_its_account_as_well_as_its_id() {
         // A calendar id is unique only within its account, so the account has to travel with the
-        // pick or the core cannot tell two `work` calendars apart. The row shows only the name now,
-        // so the two rows below are told apart by the account heading above each.
+        // pick or the core cannot tell two `work` calendars apart.
         var picked: Pair<String?, String?>? = null
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendarGroups = groupsOf(listOf(
-                    calendar("a@imap.example.com", "work", "Work", isDefault = true),
-                    calendar("b@graph.example.com", "private", "Private"),
-                )),
+                offered = offeredOf(TWO_ACCOUNTS, named = true),
                 onSetDefaultCalendar = { account, calendar -> picked = account to calendar },
             )
         }
-        compose.onNodeWithText("Private").performClick()
-        assertEquals("b@graph.example.com" to "private", picked)
+        compose.onNodeWithText("Todoist").performClick()
+        assertEquals("b@graph.example.com" to "todoist", picked)
     }
 
     @Test
-    fun more_than_one_account_gets_a_heading_each_instead_of_a_suffix_per_row() {
-        // Repeating the account beside every calendar wrapped each row over three lines. It
-        // belongs above the group, once, and as the address rather than the id.
+    fun named_accounts_get_a_heading_each_by_their_address() {
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendarGroups = groupsOf(listOf(
-                    calendar("a@imap.example.com", "work", "Work", isDefault = true),
-                    calendar("b@graph.example.com", "agenda", "Agenda"),
-                    calendar("b@graph.example.com", "todoist", "Todoist"),
-                )),
+                offered = offeredOf(TWO_ACCOUNTS, named = true),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
-        // One heading per account, by its address, and the rows carry the bare calendar name.
         compose.onNodeWithText("a@example.org").assertIsDisplayed()
         compose.onNodeWithText("b@example.org").assertIsDisplayed()
         compose.onNodeWithText("b@graph.example.com").assertDoesNotExist()
         compose.onNodeWithText("Agenda").assertIsDisplayed()
         compose.onNodeWithText("Todoist").assertIsDisplayed()
-        compose.onNodeWithText("Agenda, b@example.org").assertDoesNotExist()
     }
 
     @Test
-    fun one_account_states_itself_and_needs_no_heading() {
-        // With a single account the rows are its calendars and there is nothing to tell apart, so
-        // the heading would be a line of noise above the only group.
+    fun accounts_the_core_does_not_name_get_no_heading() {
+        // Nothing is counted on this side: groups the core leaves unnamed are drawn without one.
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendarGroups = groupsOf(listOf(calendar("a@imap.example.com", "work", "Work", isDefault = true))),
+                offered = offeredOf(TWO_ACCOUNTS, named = false),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }
         compose.onNodeWithText("Work").assertIsDisplayed()
-        compose.onNodeWithText("a@imap.example.com").assertDoesNotExist()
+        compose.onNodeWithText("Agenda").assertIsDisplayed()
+        compose.onNodeWithText("a@example.org").assertDoesNotExist()
+        compose.onNodeWithText("b@example.org").assertDoesNotExist()
     }
 
     @Test
-    fun no_writable_calendar_says_so_instead_of_offering_an_empty_list() {
+    fun nowhere_to_put_a_new_event_says_so_instead_of_offering_an_empty_list() {
         compose.setContent {
             DefaultCalendarSettingsRows(
-                calendarGroups = groupsOf(listOf(calendar("a", "holidays", "Holidays", canWrite = false))),
+                offered = NewEventCalendars(groups = emptyList(), named = false),
                 onSetDefaultCalendar = { _, _ -> },
             )
         }

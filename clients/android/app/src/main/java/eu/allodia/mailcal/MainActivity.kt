@@ -196,6 +196,8 @@ class MainActivity : AppCompatActivity() {
     // (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Pulled on
     // connect and on every SETTINGS signal; null until the core exists, which holds the defaults.
     internal var displaySettings by mutableStateOf<DisplaySettings?>(null)
+    // Bumped on every SETTINGS signal: the Settings pages read from memory on a pull re-key on it.
+    internal var settingsVersion by mutableStateOf(0)
 
     // The appearance the app is PAINTED in. Its own state rather than a read of `displaySettings`,
     // because it is settled in onCreate, before the core exists, so the first frame is already

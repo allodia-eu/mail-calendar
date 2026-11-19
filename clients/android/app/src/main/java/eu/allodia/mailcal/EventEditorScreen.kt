@@ -54,8 +54,8 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
-import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.CalendarRow
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.RecipientMatch
 import uniffi.mailcal_bindings.SeriesEditWarning
 
@@ -63,8 +63,8 @@ import uniffi.mailcal_bindings.SeriesEditWarning
 internal fun EventEditorScreen(
     editor: EventEditorState,
     calendars: List<CalendarRow>,
-    /** What the calendar picker offers: the core's groups by account. */
-    calendarGroups: List<CalendarGroup>,
+    /** What the calendar picker offers: the core's `newEventCalendars`. */
+    newEventCalendars: NewEventCalendars,
     onCancel: () -> Unit,
     onCreate: (CreateArgs) -> Unit,
     onUpdate: (UpdateArgs) -> Unit,
@@ -274,7 +274,7 @@ internal fun EventEditorScreen(
 
     if (picking) {
         CalendarPickerSheet(
-            calendarGroups = calendarGroups,
+            offered = newEventCalendars,
             selected = editor.calendar,
             onPick = { choice ->
                 editor.calendar = choice

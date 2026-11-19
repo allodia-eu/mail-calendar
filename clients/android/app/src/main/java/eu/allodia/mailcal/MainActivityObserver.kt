@@ -52,6 +52,7 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             // raise this signal (docs/accounts.md rule 11).
             refreshAccountsSnapshot()
             refreshSeparate()
+            settingsVersion += 1
         }
         // A change on an account's page started, waited or ended, or a server answered what the
         // page asked: the page, the list and the questions it shares with other screens are read

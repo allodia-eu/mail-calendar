@@ -6,7 +6,7 @@ use mailcal_app::calendar_pane::CalendarPaneQuery as AppCalendarPaneQuery;
 
 use crate::{
     CalendarGroup, CalendarLayout, CalendarPane, CalendarPaneQuery, CalendarSeat, MailcalApp,
-    app_calendar::today,
+    NewEventCalendars, app_calendar::today,
 };
 
 #[uniffi::export]
@@ -41,5 +41,12 @@ impl MailcalApp {
             .into_iter()
             .map(Into::into)
             .collect()
+    }
+
+    /// The calendars a new event can be put on, under their accounts, and whether each account is
+    /// named: what Settings → Calendar offers as the default and what an editor's calendar picker
+    /// lists. Read from memory; a client reads it again on `Surface::Calendar`.
+    pub fn new_event_calendars(&self) -> NewEventCalendars {
+        self.app.new_event_calendars().into()
     }
 }

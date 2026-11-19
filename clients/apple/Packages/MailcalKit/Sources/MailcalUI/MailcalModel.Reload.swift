@@ -98,6 +98,7 @@ extension MailboxModel {
             // The agenda list is a snapshot; the GRID is a pull, so the version bump is what tells it
             // to re-read whatever page is on screen.
             events = app?.calendarList().events ?? []
+            if let app { videoconferencing = app.videoconferencingPage() }
             calendarVersion &+= 1
             return
         }
@@ -179,5 +180,6 @@ extension MailboxModel {
         defaultSendAccount = app.defaultSendAccount()
         swipeSettings = app.swipeSettings()
         analyticsConsent = app.analyticsConsent()
+        videoconferencing = app.videoconferencingPage()
     }
 }

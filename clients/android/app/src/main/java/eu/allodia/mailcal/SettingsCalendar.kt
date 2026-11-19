@@ -14,8 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.Appearance
-import uniffi.mailcal_bindings.CalendarGroup
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.WeekStart
 
@@ -106,22 +106,18 @@ internal fun horizonChoices(display: DisplaySettings): List<Int> =
 /**
  * Which calendar a new event is filed on, and so which colour a slot drawn on the grid wears.
  *
- * Lists only the calendars that can actually take a write: offering a read-only one would produce a
- * default that fails at save time, with the event already typed.
- *
- * The selection comes from the core's own [CalendarRow.isDefault], **not** from a rule repeated
- * here. The core resolves the stored choice against the calendars that exist, falling back when it
- * has been removed or has turned read-only, so this list and the calendar the editor opens on
- * cannot disagree, and neither can four clients.
+ * The core's `newEventCalendars`: only calendars that can take a write, an account heading only
+ * while it is [NewEventCalendars.named], and the selection its own `CalendarRow.isDefault`, resolved
+ * against the calendars that exist, so this list and the calendar the editor opens on cannot
+ * disagree.
  */
 @Composable
 internal fun DefaultCalendarSettingsRows(
-    calendarGroups: List<CalendarGroup>,
+    offered: NewEventCalendars,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
 ) {
     val ctx = LocalContext.current
-    val writable = writableGroups(calendarGroups)
-    if (writable.isEmpty()) {
+    if (offered.groups.isEmpty()) {
         Text(
             text = L10n.settings_default_calendar_none(ctx),
             style = MaterialTheme.typography.bodyMedium,
@@ -129,15 +125,8 @@ internal fun DefaultCalendarSettingsRows(
         )
         return
     }
-    // The core's groups, the same the calendar manager draws: a calendar id is unique only within
-    // its account, so the account has to be on screen somewhere. Once per group rather than once
-    // per row, and by the account's address rather than its id: repeating a label beside every
-    // calendar wrapped each row over three lines and buried the name the user is choosing between.
-    //
-    // A single account states itself, the rows are its calendars and there is nothing to tell apart
-    // so the header only earns its place when there is more than one.
-    writable.forEach { group ->
-        if (writable.size > 1) {
+    offered.groups.forEach { group ->
+        if (offered.named) {
             Text(
                 text = group.address,
                 modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),

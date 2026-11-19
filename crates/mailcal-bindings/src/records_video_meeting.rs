@@ -1,6 +1,6 @@
 //! The FFI half of the editor's video meeting (`docs/conferencing.md`, rules 9 to 15): what a
-//! calendar offers, what the editor opens showing, what a write asks for, and the Jitsi server
-//! Settings → Videoconferencing holds.
+//! calendar offers, what the editor opens showing, what a write asks for, and Settings →
+//! Videoconferencing's page.
 
 use engine_api::ConferenceText;
 use mailcal_account::{
@@ -8,6 +8,7 @@ use mailcal_account::{
 };
 use mailcal_viewmodel::calendar::{
     MeetingDefault as AppMeetingDefault, MeetingOption as AppMeetingOption,
+    VideoconferencingPage as AppVideoconferencingPage,
 };
 
 use crate::MailcalApp;
@@ -57,6 +58,30 @@ impl From<AppMeetingDefault> for MeetingDefault {
             account_address: default.account_address,
             choices: default.choices.into_iter().map(Into::into).collect(),
             chosen: default.chosen,
+        }
+    }
+}
+
+/// Settings → Videoconferencing past the accounts that make meetings (`AccountsSnapshot::
+/// meeting_accounts`): the person's Jitsi server and each account's default video meeting.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct VideoconferencingPage {
+    /// The Jitsi server as stored, which the field shows, or `None` until the person sets one.
+    pub jitsi_server: Option<String>,
+    /// The text last refused as the Jitsi server, exactly as it was sent, until the next is sent.
+    /// The field says the address was refused while it still holds this text.
+    pub jitsi_refused: Option<String>,
+    /// Every account whose calendars offer a video meeting, each with what they offer and the
+    /// one its new events take once they have an invitee; drawn only while there is one.
+    pub defaults: Vec<MeetingDefault>,
+}
+
+impl From<AppVideoconferencingPage> for VideoconferencingPage {
+    fn from(page: AppVideoconferencingPage) -> Self {
+        Self {
+            jitsi_server: page.jitsi_server,
+            jitsi_refused: page.jitsi_refused,
+            defaults: page.defaults.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -157,26 +182,11 @@ pub(crate) fn meeting_change(
 
 #[uniffi::export]
 impl MailcalApp {
-    /// The person's Jitsi server, or `None` until they set one.
-    pub fn jitsi_server(&self) -> Option<String> {
-        self.app.jitsi_server()
-    }
-
-    /// Stores the person's Jitsi server, or forgets it for `None` or blank text. Answers
-    /// `false`, changing nothing, for anything but an `https` address without a query or
-    /// fragment; the calendar rows offer Jitsi once one is stored.
-    pub fn set_jitsi_server(&self, server: Option<String>) -> bool {
-        self.app.set_jitsi_server(server.as_deref()).is_ok()
-    }
-
-    /// Every account whose calendars offer a video meeting, each with the meetings they offer
-    /// and the one its new events take once they have an invitee. Read from memory.
-    pub fn meeting_defaults(&self) -> Vec<MeetingDefault> {
-        self.app
-            .meeting_defaults()
-            .into_iter()
-            .map(Into::into)
-            .collect()
+    /// Settings → Videoconferencing's page, read from memory. A client reads it again on
+    /// `Surface::Calendar`, which every change to what the calendars offer raises, and on
+    /// `Surface::Settings`, which a refused Jitsi server raises.
+    pub fn videoconferencing_page(&self) -> VideoconferencingPage {
+        self.app.videoconferencing_page().into()
     }
 }
 

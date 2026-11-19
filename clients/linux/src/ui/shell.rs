@@ -429,6 +429,7 @@ impl AppWidgets {
             self.sender.clone(),
         );
         self.settings.follow_signatures(model.signatures_read);
+        self.settings.follow_calendar(model.calendar_settings_read);
         self.settings.show_notice(
             &model.notices.notices,
             model.settings.render_state().account,

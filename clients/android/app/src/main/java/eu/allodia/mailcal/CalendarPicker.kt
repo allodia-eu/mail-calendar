@@ -1,6 +1,6 @@
-// The calendar picker, a bottom sheet that chooses which calendar a new event lands in, in the
-// core's groups by account (a calendar id is only unique within its account) and filtered to the ones
-// we can write to.
+// The calendar picker, a bottom sheet that chooses which calendar a new event lands in: the core's
+// `newEventCalendars`, the writable calendars under their accounts (a calendar id is only unique
+// within its account), each account headed only while the core names them.
 // This is the app's first ModalBottomSheet, matching the "Agenda selecteren" sheet of the platform
 // calendar the user knows.
 package eu.allodia.mailcal
@@ -31,20 +31,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import uniffi.mailcal_bindings.CalendarGroup
+import uniffi.mailcal_bindings.NewEventCalendars
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CalendarPickerSheet(
-    calendarGroups: List<CalendarGroup>,
+    offered: NewEventCalendars,
     selected: CalendarChoice?,
     onPick: (CalendarChoice) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val dark = LocalAppDark.current
-    // Only writable calendars can take a new event.
-    val writable = writableGroups(calendarGroups)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Text(
@@ -53,14 +51,16 @@ internal fun CalendarPickerSheet(
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
         )
         LazyColumn(modifier = Modifier.navigationBarsPadding()) {
-            writable.forEach { group ->
-                item(key = "acct-${group.account}") {
-                    Text(
-                        text = group.address,
-                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 4.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
+            offered.groups.forEach { group ->
+                if (offered.named) {
+                    item(key = "acct-${group.account}") {
+                        Text(
+                            text = group.address,
+                            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 4.dp),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
                 items(group.calendars, key = { "${it.account}:${it.id}" }) { calendar ->
                     val chosen = selected?.account == calendar.account && selected.id == calendar.id
@@ -100,11 +100,3 @@ internal fun CalendarPickerSheet(
         }
     }
 }
-
-/**
- * The core's groups with only the calendars a new event can be put on; a group left with none is
- * dropped, so no heading stands over an empty list.
- */
-internal fun writableGroups(groups: List<CalendarGroup>): List<CalendarGroup> = groups
-    .map { group -> group.copy(calendars = group.calendars.filter { it.canWrite }) }
-    .filter { it.calendars.isNotEmpty() }
