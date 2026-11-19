@@ -835,6 +835,12 @@ which is what a hand expects. `CalendarFlickTests` pins that none is swallowed, 
 reverses immediately. What it deliberately no longer pins is that *n* flicks travel exactly *n* weeks:
 a coast carries as far as its speed is worth, which is the point.
 
+**A chevron is the one input that names a target**, the visible span from where the strip rests. A
+press while an earlier press is still sliding steps from that slide's landing, never from where the
+pixels have got to, so *n* quick presses travel *n* spans and rest on a day; a press during a coast
+steps from the day the coast is nearest. Apple adds to the animated value, which is the same rule;
+Windows pins it in `CalendarChevronTests`.
+
 ### On a desktop, the wheel is part of the pointer stream
 
 A phone has one input. A desktop has three, and **all three belong to the same owner**: this is the

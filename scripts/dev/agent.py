@@ -35,6 +35,7 @@ that hung up: a script that relaunches the app keeps the same process. Two codes
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import socket
@@ -219,7 +220,16 @@ def serve_lines(endpoint: str, source: TextIO, sink: TextIO, connect_ms: int = C
     return 0
 
 
+def speak_utf8() -> None:
+    """Writes this process's output as UTF-8. An element's name can be an icon font's glyph, which
+    a Windows console's code page cannot encode, and a reply that cannot be printed is a crash."""
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8")
+
+
 def main(argv: list[str]) -> int:
+    speak_utf8()
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
