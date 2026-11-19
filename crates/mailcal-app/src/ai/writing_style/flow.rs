@@ -70,6 +70,18 @@ pub(super) enum Stage {
     Learned(WritingStyleId),
 }
 
+/// A stage the flow can be taken back to, as a trail names it: an identifier a navigation path
+/// keys on, carrying none of the stage's data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LearningTrailStage {
+    /// `ChooseAccount`.
+    ChooseAccount,
+    /// `ChooseRange`.
+    ChooseRange,
+    /// `Review`.
+    Review,
+}
+
 /// What the review read, kept so the run sends exactly it and Stop returns to it.
 pub(super) struct Reviewed {
     pub(super) corpus: Corpus,
@@ -254,24 +266,58 @@ impl Flows {
 }
 
 impl Flow {
-    /// Goes back as the contract's table says.
-    fn back(&mut self) {
+    /// Where Back goes, as the contract's table says, or `None` where the stage has no Back.
+    fn back_to(&self) -> Option<LearningTrailStage> {
         let to_account = if self.asked_account {
-            Stage::ChooseAccount
+            LearningTrailStage::ChooseAccount
         } else {
-            Stage::ChooseRange
+            LearningTrailStage::ChooseRange
         };
-        self.stage = match &self.stage {
-            Stage::ChooseRange if self.asked_account => Stage::ChooseAccount,
-            Stage::Review(_) => Stage::ChooseRange,
+        Some(match &self.stage {
+            Stage::ChooseRange if self.asked_account => LearningTrailStage::ChooseAccount,
+            Stage::Review(_) => LearningTrailStage::ChooseRange,
             Stage::Failed(failure) => match failure.remedy() {
                 Some(AiRemedy::ChooseAccount) => to_account,
-                Some(AiRemedy::ChooseRange) => Stage::ChooseRange,
-                _ if self.reviewed.is_some() => self.review_stage(),
-                _ => Stage::ChooseRange,
+                Some(AiRemedy::ChooseRange) => LearningTrailStage::ChooseRange,
+                _ if self.reviewed.is_some() => LearningTrailStage::Review,
+                _ => LearningTrailStage::ChooseRange,
             },
-            _ => return,
+            _ => return None,
+        })
+    }
+
+    /// Goes back as the contract's table says.
+    fn back(&mut self) {
+        self.stage = match self.back_to() {
+            Some(LearningTrailStage::ChooseAccount) => Stage::ChooseAccount,
+            Some(LearningTrailStage::ChooseRange) => Stage::ChooseRange,
+            Some(LearningTrailStage::Review) => self.review_stage(),
+            None => return,
         };
+    }
+
+    /// The stages before the current one, first to last, each where Back from the one after it
+    /// goes: the path a navigation stack holds under the current stage. A stage without a Back
+    /// (`Learning`, `Learned`) stands on the review it was started from.
+    pub(super) fn trail(&self) -> Vec<LearningTrailStage> {
+        let before = match self.stage {
+            Stage::Learning { .. } | Stage::Learned(_) => Some(LearningTrailStage::Review),
+            _ => self.back_to(),
+        };
+        let mut trail = Vec::new();
+        if self.asked_account && before.is_some() {
+            trail.push(LearningTrailStage::ChooseAccount);
+        }
+        if matches!(
+            before,
+            Some(LearningTrailStage::ChooseRange | LearningTrailStage::Review)
+        ) {
+            trail.push(LearningTrailStage::ChooseRange);
+        }
+        if before == Some(LearningTrailStage::Review) {
+            trail.push(LearningTrailStage::Review);
+        }
+        trail
     }
 
     /// The review as it was read last, or the range to read one from.

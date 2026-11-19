@@ -44,7 +44,9 @@ pub enum LearnRange {
 /// The ranges offered for one account.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LearnRanges {
-    /// The presets, in the order they are offered.
+    /// The presets, in the order they are offered, the range of the person's own last with the
+    /// days it starts from: from the earliest day, or a year back when the device holds
+    /// everything, to today.
     pub presets: Vec<LearnRange>,
     /// The earliest day a range of the person's own may start on; `None` when the device holds
     /// everything.
@@ -85,6 +87,13 @@ pub fn learn_ranges(reach: SentReach, today: Date) -> LearnRanges {
     if earliest.is_none_or(|earliest| earliest < start_of_year) {
         presets.push(LearnRange::UntilEndOfLastYear);
     }
+    let a_year_back = today
+        .replace_year(today.year() - 1)
+        .unwrap_or_else(|_| today - time::Duration::days(365));
+    presets.push(LearnRange::Between {
+        since: earliest.unwrap_or(a_year_back),
+        until: today,
+    });
     LearnRanges {
         presets,
         earliest,
@@ -144,7 +153,16 @@ mod tests {
         let reach = SentReach::of(SyncDepth::default(), today);
         assert_eq!(reach, SentReach::Since(day(2026, Month::August, 19)));
         let ranges = learn_ranges(reach, today);
-        assert_eq!(ranges.presets, [LearnRange::Everything]);
+        assert_eq!(
+            ranges.presets,
+            [
+                LearnRange::Everything,
+                LearnRange::Between {
+                    since: day(2026, Month::August, 19),
+                    until: today
+                }
+            ]
+        );
         assert_eq!(ranges.earliest, Some(day(2026, Month::August, 19)));
     }
 
@@ -153,7 +171,7 @@ mod tests {
         let today = day(2026, Month::March, 2);
         let ranges = learn_ranges(SentReach::of(SyncDepth::default(), today), today);
         assert_eq!(
-            ranges.presets,
+            ranges.presets[..2],
             [LearnRange::Everything, LearnRange::UntilEndOfLastYear]
         );
         let all = learn_ranges(SentReach::Everything, today);
@@ -177,6 +195,28 @@ mod tests {
             day(2026, Month::October, 1)
         )));
         assert!(!ranges.admits(LearnRange::UntilEndOfLastYear));
+    }
+
+    /// A range of one's own is offered last, starting from a span the bounds admit, never a
+    /// single day.
+    #[test]
+    fn a_range_of_ones_own_is_offered_from_what_the_device_holds() {
+        let own = |ranges: &super::LearnRanges| match ranges.presets.last() {
+            Some(LearnRange::Between { since, until }) => (*since, *until),
+            other => panic!("a range of one's own last, not {other:?}"),
+        };
+        let today = day(2026, Month::November, 19);
+        let held = learn_ranges(SentReach::Since(day(2026, Month::August, 19)), today);
+        assert_eq!(own(&held), (day(2026, Month::August, 19), today));
+        let everything = learn_ranges(SentReach::Everything, today);
+        assert_eq!(own(&everything), (day(2025, Month::November, 19), today));
+        let leap = day(2028, Month::February, 29);
+        let from_leap = learn_ranges(SentReach::Everything, leap);
+        assert!(own(&from_leap).0 < leap);
+        for ranges in [held, everything, from_leap] {
+            let (since, until) = own(&ranges);
+            assert!(ranges.admits(LearnRange::Between { since, until }));
+        }
     }
 
     #[test]

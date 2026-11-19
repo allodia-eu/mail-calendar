@@ -13,6 +13,9 @@ use crate::{
     runtime::FfiRuntime,
 };
 
+#[path = "showcase_ai.rs"]
+mod ai;
+
 /// Whether the launch set `name` to anything.
 fn requested(name: &str) -> bool {
     std::env::var_os(name).is_some_and(|value| !value.is_empty())
@@ -38,21 +41,28 @@ pub(crate) fn stage_on_request<P: Provider>(
     }
 }
 
-/// `MAILCAL_OFFER_AI`: the writing assistant offered on an in-memory boot.
-pub(crate) fn offer_ai_on_request(mailcal: &MailcalApp) {
+/// `MAILCAL_OFFER_AI`: the writing assistant offered on an in-memory boot, with two learned
+/// styles and an own endpoint staged for `account` (its id and address) when the boot has one.
+pub(crate) fn offer_ai_on_request(mailcal: &MailcalApp, account: Option<(&str, &str)>) {
     if requested("MAILCAL_OFFER_AI") {
         offer_ai(mailcal);
+        if let Some((id, address)) = account {
+            ai::stage(mailcal.app.as_ref(), id, address);
+        }
     }
 }
 
 /// Installs the assistant's host, as a stored boot does, so the own endpoint's form and Settings
 /// → Writing style can be driven (`docs/ai.md` rule 5). Without it an in-memory boot offers the
-/// feature to nobody, which keeps it out of the store captures. The host sends nothing, since
-/// these boots reach nobody, and the keystore refuses a key, since they keep none.
+/// feature to nobody, which keeps it out of the store captures. The host reaches no network,
+/// since these boots reach nobody: a draft asked of the staged endpoint's model gets a canned
+/// reply and every other request answers as no answer (`ai::transport`). The keystore refuses
+/// a key, since these boots keep none.
 pub(crate) fn offer_ai(mailcal: &MailcalApp) {
     let host = BindingsAiHost::offline(
         mailcal.runtime.handle().clone(),
         Arc::clone(&mailcal.credential_store),
+        ai::transport,
     );
     mailcal
         .app

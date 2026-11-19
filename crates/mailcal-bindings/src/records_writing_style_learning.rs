@@ -5,24 +5,34 @@
 use mailcal_app::ai as core;
 
 use super::records::{control, failed};
-use crate::{AiFailure, AiRemedy, ControlState};
+use crate::{AiFailure, AiRemedyControl, ControlState};
 
 /// The learning flow, drawn in the flow host (pulled after `Surface::WritingStyle`); `None`
 /// while no host draws it.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct WritingStyleLearning {
     pub stage: StyleLearningStage,
+    /// The stages before `stage`, first to last, each where Back from the one after it goes: the
+    /// path a navigation stack holds under the stage on screen. `Learning` and `Learned` stand on
+    /// the review they were started from.
+    pub trail: Vec<StyleLearningTrailStage>,
     pub back: Option<ControlState>,
     /// Next, on `ChooseAccount` and `ChooseRange`.
     pub next: Option<ControlState>,
     /// Learn, on `Review`; pressing it is the consent.
     pub learn: Option<ControlState>,
-    /// Stop, on `Learning`.
+    /// Stop, on `Learning`. The failure's remedy is on `Failed`.
     pub stop: Option<ControlState>,
-    /// The failure's remedy, on `Failed` when it has one (`StyleLearningIntent::Remedy`).
-    pub remedy: Option<ControlState>,
     /// Closing the host (`StyleLearningIntent::Close`).
     pub close: ControlState,
+}
+
+/// A stage the flow can be taken back to, named without its data: what a navigation path keys on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleLearningTrailStage {
+    ChooseAccount,
+    ChooseRange,
+    Review,
 }
 
 /// One account the flow can learn from.
@@ -110,7 +120,8 @@ pub enum StyleLearningStage {
     },
     ChooseRange {
         email: String,
-        /// The presets that can be honoured, in order.
+        /// The presets that can be honoured, in order. The last is always `Between`, carrying
+        /// the days a range of the person's own starts from before they change them.
         presets: Vec<StyleLearnRange>,
         /// The first day a range of the person's own may start on; `None` when the device holds
         /// everything.
@@ -139,7 +150,8 @@ pub enum StyleLearningStage {
     },
     Failed {
         failure: AiFailure,
-        remedy: Option<AiRemedy>,
+        /// Its remedy (`StyleLearningIntent::Remedy` where it is a step of the flow).
+        remedy: Option<AiRemedyControl>,
     },
     /// The reveal of `style` follows in the same host.
     Learned { style: String },
@@ -277,8 +289,8 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
         core::LearningStage::Learning { done, total } => {
             StyleLearningStage::Learning { done, total }
         }
-        core::LearningStage::Failed { failure } => {
-            let (failure, remedy) = failed(failure);
+        core::LearningStage::Failed { failure, remedy } => {
+            let (failure, remedy) = failed(failure, remedy);
             StyleLearningStage::Failed { failure, remedy }
         }
         core::LearningStage::Learned { style } => StyleLearningStage::Learned {
@@ -287,11 +299,19 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
     };
     WritingStyleLearning {
         stage,
+        trail: view
+            .trail
+            .into_iter()
+            .map(|stage| match stage {
+                core::LearningTrailStage::ChooseAccount => StyleLearningTrailStage::ChooseAccount,
+                core::LearningTrailStage::ChooseRange => StyleLearningTrailStage::ChooseRange,
+                core::LearningTrailStage::Review => StyleLearningTrailStage::Review,
+            })
+            .collect(),
         back: view.back.map(control),
         next: view.next.map(control),
         learn: view.learn.map(control),
         stop: view.stop.map(control),
-        remedy: view.remedy.map(control),
         close: control(view.close),
     }
 }

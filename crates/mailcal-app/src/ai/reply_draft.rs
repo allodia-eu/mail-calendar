@@ -11,7 +11,7 @@ use engine_api::{AccountId, Provider};
 use mailcal_ai::{ChecklistProgress, DraftTask, TaskKind, tasks_done, tasks_open};
 use mailcal_composer::{LeadText, ReplyDraftReport};
 
-use super::{AiFailure, AiRemedy};
+use super::{AiFailure, AiRemedy, RemedyControl};
 use crate::{App, ComposeKind, CompositionId};
 
 /// What the core holds of one composition's drafted reply.
@@ -141,7 +141,7 @@ pub enum ReplyDraftState {
         /// Why.
         failure: AiFailure,
         /// What it offers.
-        remedy: Option<AiRemedy>,
+        remedy: Option<RemedyControl>,
     },
     /// It can draft.
     Ready,
@@ -158,9 +158,27 @@ pub enum ReplyDraftState {
     Failed {
         /// Why.
         failure: AiFailure,
-        /// What it offers.
-        remedy: Option<AiRemedy>,
+        /// What it offers: Try again is held with Draft.
+        remedy: Option<RemedyControl>,
     },
+}
+
+/// Why Draft cannot be pressed, and its remedy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReplyDraftHold {
+    /// Why.
+    pub failure: AiFailure,
+    /// What it offers, each opening what it names.
+    pub remedy: Option<RemedyControl>,
+}
+
+impl ReplyDraftHold {
+    const fn of(failure: AiFailure) -> Self {
+        Self {
+            failure,
+            remedy: failure.remedy_control(true),
+        }
+    }
 }
 
 /// The script that hands a draft to the editor, run once per `serial` in each editor.
@@ -193,7 +211,7 @@ pub struct ReplyDraftView {
     /// Stop, while a draft is made.
     pub stop: ReplyDraftControl,
     /// Why Draft cannot be pressed, said in the input in place of the field.
-    pub held_by: Option<AiFailure>,
+    pub held_by: Option<ReplyDraftHold>,
     /// What the instruction's line offers under it (rule 19).
     pub suggestions: Vec<ReplyDraftSuggestion>,
     /// The instruction the last draft was asked with.
@@ -340,9 +358,10 @@ fn held_view(held: &ReplyDraftHeld, files_added: &dyn Fn(u64) -> usize) -> HeldV
                 .collect(),
         }
     });
+    // Try again is held with Draft, which `HeldView::finish` decides.
     let failed = |failure: AiFailure| ReplyDraftState::Failed {
         failure,
-        remedy: failure.remedy(),
+        remedy: failure.remedy_control(true),
     };
     let state = match &held.phase {
         _ if held.busy() => Some(ReplyDraftState::Drafting),
@@ -366,10 +385,10 @@ fn held_view(held: &ReplyDraftHeld, files_added: &dyn Fn(u64) -> usize) -> HeldV
 
 impl HeldView {
     fn finish(self, unavailable: Option<AiFailure>) -> ReplyDraftView {
-        let state = self.state.unwrap_or_else(|| match unavailable {
+        let mut state = self.state.unwrap_or_else(|| match unavailable {
             Some(failure) => ReplyDraftState::Unavailable {
                 failure,
-                remedy: failure.remedy(),
+                remedy: failure.remedy_control(true),
             },
             None => ReplyDraftState::Ready,
         });
@@ -385,16 +404,28 @@ impl HeldView {
         } else {
             unavailable
         };
+        let draft = ReplyDraftControl {
+            enabled: !self.drafting && held_by.is_none(),
+            running: false,
+        };
+        if let ReplyDraftState::Failed {
+            remedy:
+                Some(RemedyControl {
+                    remedy: AiRemedy::TryAgain,
+                    enabled,
+                }),
+            ..
+        } = &mut state
+        {
+            *enabled = draft.enabled;
+        }
         ReplyDraftView {
             state,
             control: ReplyDraftControl {
                 enabled: !self.drafting && !gone,
                 running: self.drafting,
             },
-            draft: ReplyDraftControl {
-                enabled: !self.drafting && held_by.is_none(),
-                running: false,
-            },
+            draft,
             stop: if self.drafting {
                 ReplyDraftControl {
                     enabled: true,
@@ -403,7 +434,7 @@ impl HeldView {
             } else {
                 HELD
             },
-            held_by,
+            held_by: held_by.map(ReplyDraftHold::of),
             suggestions: REPLY_DRAFT_SUGGESTIONS.to_vec(),
             instruction: self.instruction,
             ask_before_replacing: self.ask_before_replacing,

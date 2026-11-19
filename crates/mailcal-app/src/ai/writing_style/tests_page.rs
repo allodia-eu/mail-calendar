@@ -10,7 +10,9 @@ use super::{
     LearnBlock, StyleOpens, WritingStyleChange, WritingStyleChangeKind, WritingStyleRefusal,
     WritingStyleResult, writing_style_name,
 };
-use crate::ai::{AiEntitlement, AiFailure, BuildKind, tests_support::Fixture};
+use crate::ai::{
+    AiEntitlement, AiFailure, AiRemedy, BuildKind, RemedyControl, tests_support::Fixture,
+};
 
 fn code(code: &str) -> LanguageCode {
     LanguageCode::new(code).unwrap()
@@ -74,7 +76,13 @@ fn learn_says_why_it_cannot_be_pressed() {
     let page = fixture.app.writing_style_page().unwrap();
     assert_eq!(
         page.learn_blocked,
-        Some(LearnBlock::CannotSend(AiFailure::NowhereToSend))
+        Some(LearnBlock::CannotSend {
+            failure: AiFailure::NowhereToSend,
+            remedy: Some(RemedyControl {
+                remedy: AiRemedy::OpenAiEndpoint,
+                enabled: true,
+            }),
+        })
     );
     assert!(!page.learn.enabled);
     assert_eq!(page.styles.len(), 0);
@@ -123,6 +131,21 @@ fn a_change_holds_the_page_and_runs_its_own_control() {
     assert!(page.accounts[0].picker.running);
     assert!(!page.styles[0].open.enabled);
     assert!(!page.learn.enabled);
+    assert!(
+        matches!(
+            page.learn_blocked,
+            Some(LearnBlock::CannotSend {
+                remedy: Some(RemedyControl { enabled: false, .. }),
+                ..
+            })
+        ),
+        "Learn's remedy is held with the page"
+    );
+    let reveal = app.writing_style_reveal(&id).unwrap();
+    assert!(
+        !reveal.paging.enabled && !reveal.paging.running,
+        "the reveal's pages are held with it"
+    );
     let detail = app.writing_style_detail(&id).unwrap();
     assert!(
         detail.forget.running,
@@ -261,5 +284,5 @@ fn the_reveal_leaves_out_what_was_not_noticed_and_orders_languages_by_messages()
     assert!(english.phrases.is_none());
     assert!(dutch.letter.is_none() && dutch.habits.is_none() && dutch.cards.is_empty());
     assert_eq!(dutch.phrases.as_ref().unwrap().used, ["Laat maar weten"]);
-    assert!(reveal.save.enabled && reveal.close.enabled);
+    assert!(reveal.save.enabled && reveal.close.enabled && reveal.paging.enabled);
 }

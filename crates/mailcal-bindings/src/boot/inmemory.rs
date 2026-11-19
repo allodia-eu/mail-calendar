@@ -119,7 +119,7 @@ pub(crate) fn build_demo(
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    super::showcase_staging::offer_ai_on_request(&mailcal);
+    super::showcase_staging::offer_ai_on_request(&mailcal, Some(("demo", "demo@allodia.local")));
     mailcal
 }
 
@@ -296,6 +296,9 @@ fn finish_showcase(
     device_tz: TimeZoneId,
     registered: impl IntoIterator<Item = (String, ConnectedAccount)>,
 ) -> Arc<MailcalApp> {
+    let registered: Vec<_> = registered.into_iter().collect();
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    let first = registered.first().map(|(id, _)| id.clone());
     let registry = crate::account_registry::AccountRegistry::new();
     for (id, entry) in registered {
         // Nothing dials it, so the proof that it was written first is not needed.
@@ -354,8 +357,9 @@ fn finish_showcase(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    // A showcase account is named by its address.
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    super::showcase_staging::offer_ai_on_request(&mailcal);
+    super::showcase_staging::offer_ai_on_request(&mailcal, first.as_deref().map(|id| (id, id)));
     mailcal
 }
 
