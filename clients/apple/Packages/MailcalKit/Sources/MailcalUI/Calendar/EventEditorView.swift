@@ -16,6 +16,8 @@ private struct PendingSeriesSave {
 struct EventEditorView: View {
     @Binding var editor: EventEditorState
     let calendars: [CalendarRow]
+    /// The same calendars under their accounts, as the core groups them (`calendar_groups`).
+    let groups: [CalendarGroup]
     let onCancel: () -> Void
     let onCreate: (CreateArgs) -> Void
     let onUpdate: (UpdateArgs) -> Void
@@ -201,7 +203,7 @@ struct EventEditorView: View {
                 if editor.end < newStart { editor.end = newStart }
             }
             .sheet(isPresented: $picking) {
-                CalendarPickerView(calendars: calendars, selected: editor.calendar) { choice in
+                CalendarPickerView(groups: groups, selected: editor.calendar) { choice in
                     editor.calendar = choice
                     // A picked meeting the new calendar does not offer goes back to None (rule 9);
                     // a row nobody picked in follows the new calendar's default.
@@ -326,28 +328,26 @@ struct EventEditorView: View {
 /// The calendar picker, choose which calendar a new event lands in, grouped by account (a calendar
 /// id is only unique within its account) and filtered to the ones we can write to.
 struct CalendarPickerView: View {
-    let calendars: [CalendarRow]
+    let groups: [CalendarGroup]
     let selected: CalendarChoice?
     let onPick: (CalendarChoice) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var scheme
 
-    private var byAccount: [(account: String, rows: [CalendarRow])] {
-        var order: [String] = []
-        var groups: [String: [CalendarRow]] = [:]
-        for row in calendars where row.canWrite {
-            if groups[row.account] == nil { order.append(row.account) }
-            groups[row.account, default: []].append(row)
+    /// The writable calendars of each group; an account with none is left out.
+    private var byAccount: [(account: String, address: String, rows: [CalendarRow])] {
+        groups.compactMap { group in
+            let rows = group.calendars.filter(\.canWrite)
+            return rows.isEmpty ? nil : (group.account, group.address, rows)
         }
-        return order.map { ($0, groups[$0] ?? []) }
     }
 
     var body: some View {
         NavigationStack {
             List {
                 ForEach(byAccount, id: \.account) { group in
-                    Section(group.rows.first?.accountAddress ?? group.account) {
+                    Section(group.address) {
                         ForEach(group.rows, id: \.id) { calendar in
                             Button {
                                 onPick(calendar.choice)

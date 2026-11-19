@@ -15,21 +15,16 @@ struct DefaultCalendarGroup: Equatable {
     let rows: [CalendarRow]
 }
 
-/// The calendars a new event can be filed on, grouped by account in the core's order. A calendar
-/// id is unique only within its account, so two accounts are two groups.
-func defaultCalendarGroups(_ calendars: [CalendarRow]) -> [DefaultCalendarGroup] {
-    var order: [String] = []
-    var groups: [String: [CalendarRow]] = [:]
-    for row in calendars where row.canWrite {
-        if groups[row.account] == nil { order.append(row.account) }
-        groups[row.account, default: []].append(row)
+/// The calendars a new event can be filed on, in the core's groups (`calendar_groups`) with the
+/// read-only ones left out. A calendar id is unique only within its account, so two accounts are two
+/// groups.
+func defaultCalendarGroups(_ groups: [CalendarGroup]) -> [DefaultCalendarGroup] {
+    let writable = groups.compactMap { group -> (address: String, rows: [CalendarRow])? in
+        let rows = group.calendars.filter(\.canWrite)
+        return rows.isEmpty ? nil : (group.address, rows)
     }
-    return order.map { account in
-        let rows = groups[account] ?? []
-        return DefaultCalendarGroup(
-            header: order.count > 1 ? rows.first?.accountAddress ?? account : nil,
-            rows: rows
-        )
+    return writable.map {
+        DefaultCalendarGroup(header: writable.count > 1 ? $0.address : nil, rows: $0.rows)
     }
 }
 
@@ -47,7 +42,7 @@ struct DefaultCalendarPicker: View {
         // The core signals the calendar surface when the default changes; reading the version
         // makes this view pull the list again.
         let _ = model.calendarVersion
-        let groups = defaultCalendarGroups(model.calendars())
+        let groups = defaultCalendarGroups(model.calendarGroups())
         if groups.isEmpty {
             Text(L10n.settings_default_calendar_none())
                 .foregroundStyle(.secondary)

@@ -127,7 +127,7 @@ extension ContentView {
     /// ``sidebarDestinations(showsCalendarAndContacts:)`` says what it answers.
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
         #if os(macOS)
-        sidebarTree
+        sidebarColumn(showsPane: showsCalendarAndContacts)
             // Above the accounts it is about, and out of the content column, so the list and its
             // actions bar never move (docs/notices.md).
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -152,7 +152,7 @@ extension ContentView {
             if hSize != .compact {
                 NoticeCard(model: model, destination: model.destination)
             }
-            sidebarTree
+            sidebarColumn(showsPane: showsCalendarAndContacts)
             sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
         }
         .sidebarTitle()
@@ -160,7 +160,7 @@ extension ContentView {
     }
 
     /// The accounts and their folders, as the pane's scrolling list.
-    private var sidebarTree: some View {
+    var sidebarTree: some View {
         List {
             Section {
                 outboxRow

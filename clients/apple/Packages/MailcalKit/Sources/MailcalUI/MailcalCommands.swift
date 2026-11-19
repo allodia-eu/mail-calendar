@@ -76,8 +76,10 @@ public struct MailcalCommands: Commands {
             #endif
             .disabled(calendar?.hasArrows != true)
             Divider()
-            Button(L10n.menu_manage_calendars()) { calendar?.onManage() }
-                .disabled(calendar == nil)
+            // Only where no pane lists the calendars: a phone, or an iPad at compact width.
+            if let onManage = calendar?.onManage {
+                Button(L10n.menu_manage_calendars(), action: onManage)
+            }
             // The surface in front decides what syncs, as its own Sync button does.
             Button(L10n.action_refresh()) {
                 if let calendar { calendar.onRefresh() } else { mail?.sync?() }

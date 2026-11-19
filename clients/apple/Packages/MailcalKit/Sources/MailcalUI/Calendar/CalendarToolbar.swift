@@ -102,7 +102,7 @@ struct CalendarToolbar: ToolbarContent {
                 modes.pickerStyle(.inline)
                 Divider()
             }
-            Button(L10n.calendar_manage(), action: state.onManage)
+            if let onManage = state.onManage { Button(L10n.calendar_manage(), action: onManage) }
             Button(L10n.action_refresh(), action: state.onRefresh)
         } label: {
             Label(L10n.a11y_more_actions(), systemImage: "ellipsis")
