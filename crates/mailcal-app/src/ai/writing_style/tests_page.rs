@@ -77,7 +77,7 @@ fn learn_says_why_it_cannot_be_pressed() {
         Some(LearnBlock::CannotSend(AiFailure::NowhereToSend))
     );
     assert!(!page.learn.enabled);
-    assert!(page.styles.is_empty());
+    assert_eq!(page.styles.len(), 0);
     assert!(
         page.accounts.is_empty(),
         "no slot pickers while the library is empty"
@@ -214,7 +214,7 @@ fn forget_is_asked_naming_the_accounts_that_draft_in_the_style() {
             style: None,
         });
     let detail = fixture.app.writing_style_detail(&id).unwrap();
-    assert!(detail.drafting_accounts.is_empty());
+    assert_eq!(detail.drafting_accounts.len(), 0);
 }
 
 #[test]

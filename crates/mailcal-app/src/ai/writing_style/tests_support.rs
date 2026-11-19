@@ -45,12 +45,15 @@ pub(super) enum Answer {
     Unavailable,
 }
 
+/// Where each request says it arrived, and what it waits on to go on.
+type Gate = (Sender<()>, Arc<Mutex<Receiver<()>>>);
+
 /// A host whose transport answers as [`Answer`] says, optionally waiting at each request until a
 /// test lets it go.
 pub(super) struct LearningHost {
     pub(super) answer: Mutex<Answer>,
     pub(super) asked: Mutex<u32>,
-    gate: Mutex<Option<(Sender<()>, Arc<Mutex<Receiver<()>>>)>>,
+    gate: Mutex<Option<Gate>>,
 }
 
 impl LearningHost {
