@@ -131,14 +131,28 @@ internal fun CalendarLayout.toMode(): CalendarMode = when (this) {
  * view switch or "back to today", never on a swipe, because a swipe is just a different page over
  * the same origin. [resetToken] changes whenever the origin moves, telling the screen to snap the
  * pager back to the middle so the new origin is what's on screen.
+ *
+ * [weekStartFor] is the **core's** `week_start_date`. Every grid origin is seated through it, so a
+ * week never begins on whatever day the shape before it was anchored on (docs/calendar.md section 3:
+ * a Wednesday under the first heading is the misalignment that section forbids). The week start is
+ * never derived here.
  */
-internal class CalendarPager(today: LocalDate, mode: CalendarMode = DEFAULT_CALENDAR_MODE) {
+internal class CalendarPager(
+    today: LocalDate,
+    mode: CalendarMode,
+    private val weekStartFor: (LocalDate) -> LocalDate,
+) {
     /** The shape being drawn. */
     var mode by mutableStateOf(mode)
         private set
 
-    /** The date page [CALENDAR_PAGE_ORIGIN] shows. */
-    var origin by mutableStateOf(today)
+    /**
+     * The date page [CALENDAR_PAGE_ORIGIN] shows: a week's first day, or for the month, a day in it.
+     *
+     * The month is seeded with today itself. Seeded with today's week start, a month opened in the
+     * first days of a month whose first week began in the one before would show that earlier month.
+     */
+    var origin by mutableStateOf(if (mode.isMonth) today else weekStartFor(today))
         private set
 
     /** Bumped whenever [origin] moves, so the screen re-centres the pager on it. */
@@ -166,10 +180,16 @@ internal class CalendarPager(today: LocalDate, mode: CalendarMode = DEFAULT_CALE
         }
     }
 
-    /** Switches shape, keeping the period the user is looking at. */
+    /**
+     * Switches shape, keeping the period the user is looking at.
+     *
+     * A grid is seated on the first day of the week holding the page's anchor. From the month that
+     * anchor is the 1st, which is rarely a week's first day.
+     */
     fun setMode(next: CalendarMode, currentPage: Int) {
         if (next == mode) return
-        origin = anchorFor(currentPage)
+        val anchor = anchorFor(currentPage)
+        origin = if (next.isGrid) weekStartFor(anchor) else anchor
         mode = next
         resetToken += 1
     }

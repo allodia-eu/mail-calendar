@@ -8,7 +8,9 @@
 // it was the design.
 package eu.allodia.mailcal
 
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,11 +21,18 @@ import org.junit.Test
 // The Monday opening the week that holds Sunday 2026-07-12.
 private val WEEK: LocalDate = LocalDate.of(2026, 7, 6)
 
+/**
+ * The core's `week_start_date` for a Monday-start locale, standing in for it here. Only a test
+ * computes a week start; the app always asks the core (docs/calendar.md section 3).
+ */
+internal fun mondayWeekStart(date: LocalDate): LocalDate =
+    date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+
 class CalendarPagerTest {
 
     @Test
     fun a_grid_page_is_a_whole_week_and_swiping_moves_a_whole_week() {
-        val pager = CalendarPager(WEEK, CalendarMode.THREE_DAY)
+        val pager = CalendarPager(WEEK, CalendarMode.THREE_DAY, ::mondayWeekStart)
         assertEquals(WEEK, pager.anchorFor(CALENDAR_PAGE_ORIGIN))
         assertEquals(WEEK.plusWeeks(1), pager.anchorFor(CALENDAR_PAGE_ORIGIN + 1))
         assertEquals(WEEK.minusWeeks(1), pager.anchorFor(CALENDAR_PAGE_ORIGIN - 1))
@@ -39,7 +48,7 @@ class CalendarPagerTest {
             CalendarMode.WORK_WEEK,
             CalendarMode.WEEK,
         )) {
-            val pager = CalendarPager(WEEK, mode)
+            val pager = CalendarPager(WEEK, mode, ::mondayWeekStart)
             assertEquals("$mode", WEEK, pager.anchorFor(CALENDAR_PAGE_ORIGIN))
             assertEquals("$mode", WEEK.plusWeeks(2), pager.anchorFor(CALENDAR_PAGE_ORIGIN + 2))
         }
@@ -50,7 +59,7 @@ class CalendarPagerTest {
         // THE regression. `setZoom` leaves the origin alone: after a pinch the user is looking at the
         // same week, with the columns a different width. `setMode` (a menu choice) is allowed to
         // re-origin; a pinch is not.
-        val pager = CalendarPager(WEEK, CalendarMode.THREE_DAY)
+        val pager = CalendarPager(WEEK, CalendarMode.THREE_DAY, ::mondayWeekStart)
         val paged = CALENDAR_PAGE_ORIGIN + 3
         val week = pager.anchorFor(paged)
 
@@ -66,7 +75,7 @@ class CalendarPagerTest {
     @Test
     fun a_zoom_never_re_centres_the_pager() {
         // Re-centring mid-gesture would yank the strip out from under the fingers driving it.
-        val pager = CalendarPager(WEEK, CalendarMode.THREE_DAY)
+        val pager = CalendarPager(WEEK, CalendarMode.THREE_DAY, ::mondayWeekStart)
         val token = pager.resetToken
         pager.setZoom(CalendarMode.WEEK)
         assertEquals(token, pager.resetToken)
@@ -75,7 +84,7 @@ class CalendarPagerTest {
     @Test
     fun a_zoom_cannot_turn_the_grid_into_a_month_or_an_agenda() {
         // Those are different layouts, not zoom levels, a pinch must not be able to reach them.
-        val pager = CalendarPager(WEEK, CalendarMode.WEEK)
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
         pager.setZoom(CalendarMode.MONTH)
         assertEquals(CalendarMode.WEEK, pager.mode)
         pager.setZoom(CalendarMode.AGENDA)
@@ -84,7 +93,7 @@ class CalendarPagerTest {
 
     @Test
     fun choosing_a_shape_from_the_menu_keeps_the_period_you_are_looking_at() {
-        val pager = CalendarPager(WEEK, CalendarMode.WEEK)
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
         val paged = CALENDAR_PAGE_ORIGIN + 3
         val week = pager.anchorFor(paged)
 
@@ -94,10 +103,47 @@ class CalendarPagerTest {
     }
 
     @Test
+    fun leaving_the_month_for_a_grid_seats_the_week_on_its_first_day() {
+        // A month page is anchored on the 1st, and July 2026 begins on a Wednesday. The week a
+        // menu choice seats from there is the one holding the 1st, from its first day
+        // (docs/calendar.md section 3): a Wednesday under the first heading is the misalignment that
+        // section forbids.
+        val holdingTheFirst = LocalDate.of(2026, 6, 29)
+        for (grid in listOf(CalendarMode.WEEK, CalendarMode.WORK_WEEK, CalendarMode.DAY)) {
+            val pager = CalendarPager(WEEK, CalendarMode.MONTH, ::mondayWeekStart)
+            pager.setMode(grid, CALENDAR_PAGE_ORIGIN)
+            assertEquals("$grid", holdingTheFirst, pager.origin)
+            assertEquals("$grid", holdingTheFirst, pager.anchorFor(CALENDAR_PAGE_ORIGIN))
+        }
+    }
+
+    @Test
+    fun leaving_the_agenda_after_the_month_seats_the_week_on_its_first_day() {
+        // The agenda keeps the anchor it was given, so a month, then the agenda, then a grid must
+        // still land on a week's first day.
+        val pager = CalendarPager(WEEK, CalendarMode.MONTH, ::mondayWeekStart)
+        pager.setMode(CalendarMode.AGENDA, CALENDAR_PAGE_ORIGIN)
+        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN)
+        assertEquals(LocalDate.of(2026, 6, 29), pager.origin)
+    }
+
+    @Test
+    fun a_calendar_opened_on_the_month_shows_todays_month() {
+        // Thursday 2 July 2026: its week began on Monday 29 June. Seeded with that week start, the
+        // month would open on June.
+        val today = LocalDate.of(2026, 7, 2)
+        val pager = CalendarPager(today, CalendarMode.MONTH, ::mondayWeekStart)
+        assertEquals(LocalDate.of(2026, 7, 1), pager.anchorFor(CALENDAR_PAGE_ORIGIN))
+        // And the grid is still seeded on the week start.
+        val grid = CalendarPager(today, CalendarMode.WEEK, ::mondayWeekStart)
+        assertEquals(LocalDate.of(2026, 6, 29), grid.origin)
+    }
+
+    @Test
     fun re_selecting_the_current_shape_does_nothing() {
         // Otherwise re-tapping "Week" would silently re-origin the strip on the page you had swiped
         // to, and the *next* "back to today" would be measured from there.
-        val pager = CalendarPager(WEEK, CalendarMode.WEEK)
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
         val token = pager.resetToken
         pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN + 3)
         assertEquals(token, pager.resetToken)
@@ -106,7 +152,7 @@ class CalendarPagerTest {
 
     @Test
     fun back_to_today_re_origins_and_re_centres() {
-        val pager = CalendarPager(WEEK, CalendarMode.WEEK)
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
         pager.setMode(CalendarMode.DAY, CALENDAR_PAGE_ORIGIN + 10)
         assertNotEquals(WEEK, pager.origin)
 
@@ -122,7 +168,7 @@ class CalendarPagerTest {
         // Paging must never dead-end. The core's rolling horizon runs out long before the strip does
         // and reports `isMaterialized = false` when it has, so the user hits an honest "loading",
         // never an edge.
-        val pager = CalendarPager(WEEK, CalendarMode.WEEK)
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
         val furthest = pager.anchorFor(CALENDAR_PAGE_COUNT - 1)
         assertTrue("should reach decades ahead, reached $furthest", furthest.year >= 2100)
     }
