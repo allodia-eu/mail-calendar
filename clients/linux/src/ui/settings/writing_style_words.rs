@@ -67,11 +67,16 @@ pub(super) fn declaration_gap(gap: AiEndpointDeclarationGap) -> &'static str {
             JurisdictionRefusal::EuHosted
             | JurisdictionRefusal::NonEu {
                 mode: JurisdictionLimit::EuNative,
+            }
+            | JurisdictionRefusal::Unknown {
+                mode: JurisdictionLimit::EuNative,
             } => l10n::ai_endpoint_gap_refused_eu_native(),
             JurisdictionRefusal::NonEu {
                 mode: JurisdictionLimit::EuHosted,
+            }
+            | JurisdictionRefusal::Unknown {
+                mode: JurisdictionLimit::EuHosted,
             } => l10n::ai_endpoint_gap_refused_eu_hosted(),
-            JurisdictionRefusal::Unknown { .. } => l10n::ai_endpoint_gap_where_missing(),
         },
     }
 }
