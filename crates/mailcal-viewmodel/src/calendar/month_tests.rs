@@ -188,3 +188,23 @@ fn a_chip_carries_whether_its_event_has_a_meeting() {
         .unwrap();
     assert!(chip.has_conference);
 }
+
+#[test]
+fn each_occurrence_is_placed_on_the_day_axis_once_however_many_cells_scan_it() {
+    // Placing one is a conversion through the display zone; done again for every cell it cost
+    // half a second a month page on a calendar of 1,600 occurrences.
+    let occurrences: Vec<Occurrence> = (1..=28)
+        .map(|day| {
+            timed(
+                "Standup",
+                &format!("2026-07-{day:02}T07:00:00Z"),
+                &format!("2026-07-{day:02}T07:15:00Z"),
+            )
+        })
+        .collect();
+    let before = super::PLACED.with(core::cell::Cell::get);
+    let grid = month("2026-07-15", &occurrences, true);
+    let placed = super::PLACED.with(core::cell::Cell::get) - before;
+    assert_eq!(placed, occurrences.len());
+    assert_eq!(titles(&grid, "2026-07-14"), vec!["Standup"]);
+}
