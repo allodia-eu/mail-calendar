@@ -386,7 +386,8 @@ No platform ships the feature yet, and one ships it only once every row is ✅ t
 against the harness's Sent Items and a canned endpoint, iPad and a production build signed in with
 and without `ai` included: no cell turns on the strength of shared code alone.
 
-Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
+Legend: ✅ shipped · 🚧 in progress, which is what a platform drawing a surface under early access is
+([`settings.md`](settings.md), Writing style) · ⬜ planned · — not applicable.
 
 ## Enforcement
 
