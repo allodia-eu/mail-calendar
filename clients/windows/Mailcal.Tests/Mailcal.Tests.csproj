@@ -357,6 +357,9 @@
          parameters; it reads the generated SignaturesPage, so it needs the bindings below. -->
     <Compile Include="..\Mailcal\Services\SignatureEditorRules.cs" Link="Services\SignatureEditorRules.cs" />
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
+    <!-- What a flow hands the flow host and the footer it draws from it (docs/ai.md, "The flow
+         host"). WinUI-free; it carries the generated ControlState, so it needs the bindings. -->
+    <Compile Include="..\Mailcal\Services\FlowFrame.cs" Link="Services\FlowFrame.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
     <!-- How the subscription section words what the core decided: who is charging, what a write

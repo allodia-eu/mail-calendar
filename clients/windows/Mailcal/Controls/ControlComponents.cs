@@ -44,11 +44,17 @@ internal static class ControlComponents
     }
 
     /// <summary>A button, drawn with <paramref name="style"/> when one is given.
-    /// <paramref name="click"/> runs only while it is enabled.</summary>
+    /// <paramref name="click"/> runs only while it is enabled. With <paramref name="maxWidth"/>,
+    /// a label wider than that wraps between words, never inside one.</summary>
     internal static StackPanel Button(
-        string label, ControlState control, string automationId, Action click, Style? style = null)
+        string label, ControlState control, string automationId, Action click, Style? style = null,
+        double? maxWidth = null)
     {
-        var button = new Button { Content = label, IsEnabled = control.Enabled };
+        object content = maxWidth is { } width
+            ? new TextBlock { Text = label, TextWrapping = TextWrapping.WrapWholeWords, MaxWidth = width, TextAlignment = TextAlignment.Center }
+            : label;
+        var button = new Button { Content = content, IsEnabled = control.Enabled };
+        AutomationProperties.SetName(button, label);
         if (style is not null)
         {
             button.Style = style;

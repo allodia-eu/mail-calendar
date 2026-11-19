@@ -376,6 +376,12 @@ public sealed partial class SettingsDialog : ContentDialog
 
     private UIElement BuildAdvanced()
     {
+#if DEBUG
+        if (FlowPreview() is { } preview)
+        {
+            return preview;
+        }
+#endif
         var panel = new StackPanel { Spacing = 20 };
         // AI assistant access (SettingsDialog.Mcp.cs) leads: it is the setting a user comes to this
         // category looking for, and putting the irreversible database reset first would make them
