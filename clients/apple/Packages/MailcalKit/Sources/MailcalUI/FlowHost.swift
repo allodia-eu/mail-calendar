@@ -124,8 +124,9 @@ struct FlowHost<Stage: Hashable, Page: View>: View {
     }
 
     private func stagePage(_ stage: Stage) -> some View {
+        // The stage's title is its page's heading, which wraps, rather than the bar's, which would
+        // cut a question short between Cancel and the primary.
         FlowPage(title: title(stage)) { page(stage) }
-            .navigationTitle(title(stage))
             .navigationBarTitleDisplayMode(.inline)
             // Without Back on the record, or held, the stack offers neither the button nor the
             // swipe.
@@ -134,6 +135,15 @@ struct FlowHost<Stage: Hashable, Page: View>: View {
                 if let progress { FlowDots(progress: progress).padding(.vertical, 8) }
             }
             .toolbar {
+                // A stage with Back and nothing pushed beneath it: Back is drawn first, where the
+                // back button would be.
+                if stage == trail.first, let back, back.control.enabled {
+                    ToolbarItem(placement: .navigation) {
+                        ControlButton(
+                            title: back.title, systemImage: "chevron.backward",
+                            control: back.control, action: back.action)
+                    }
+                }
                 ToolbarItem(placement: .cancellationAction) { FlowButton(cancel) }
                 if let primary {
                     ToolbarItem(placement: .confirmationAction) {
@@ -195,7 +205,6 @@ struct FlowPages<Page: View>: View {
             }
             .tabViewStyle(.page(indexDisplayMode: .always))
             .indexViewStyle(.page(backgroundDisplayMode: .always))
-            .navigationTitle(title(index))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { FlowButton(cancel) }
@@ -240,13 +249,10 @@ private struct FlowPage<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                #if os(macOS)
-                // iOS names the stage in the navigation bar.
                 Text(title)
-                    .font(.title.weight(.semibold))
+                    .font(FlowMetrics.title)
                     .accessibilityAddTraits(.isHeader)
                     .fixedSize(horizontal: false, vertical: true)
-                #endif
                 content
             }
             .padding(.horizontal, FlowMetrics.gutter)
@@ -254,6 +260,10 @@ private struct FlowPage<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .scrollBounceBehavior(.basedOnSize)
+        #if os(iOS)
+        // Grouped, so an inset group on the page stands out from it as it does in Settings.
+        .background(Color(uiColor: .systemGroupedBackground))
+        #endif
     }
 }
 
@@ -316,9 +326,12 @@ private struct FlowFooter: View {
         back.map { FlowButton($0).buttonStyle(.bordered) }
     }
 
+    /// The default button, unless it destroys something, which Return must not do by accident.
     private var primaryButton: (some View)? {
         primary.map {
-            FlowButton($0).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+            FlowButton($0)
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut($0.role == .destructive ? nil : .defaultAction)
         }
     }
 }
@@ -347,9 +360,11 @@ private enum FlowMetrics {
     #if os(macOS)
     static let gutter: CGFloat = 24
     static let top: CGFloat = 24
+    static let title = Font.title.weight(.semibold)
     #else
-    static let gutter: CGFloat = 18
-    static let top: CGFloat = 16
+    static let gutter: CGFloat = 20
+    static let top: CGFloat = 8
+    static let title = Font.title2.weight(.bold)
     #endif
 }
 

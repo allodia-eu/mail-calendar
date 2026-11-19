@@ -52,13 +52,18 @@ struct SettingsHubView: View {
             selection = .accounts
             path = [.accounts]
         }
+        // A remedy that names the own endpoint's form opens Advanced, where it is.
+        .onChange(of: model.writingStyle.endpointRequest) { _, _ in
+            selection = .advanced
+            path = [.advanced]
+        }
     }
 
     /// iPhone: a hub of category rows, each pushing its detail. Back (arrow and system) steps
     /// detail → hub; Done closes the sheet.
     private var iPhoneHub: some View {
         NavigationStack(path: $path) {
-            List(SettingsCategory.displayed) { category in
+            List(SettingsCategory.displayed(model)) { category in
                 NavigationLink(value: category) {
                     hubRow(category)
                 }
@@ -90,7 +95,7 @@ struct SettingsHubView: View {
     /// NavigationStack keeps the section title visible in the detail column.
     private var iPadSplit: some View {
         NavigationSplitView {
-            List(SettingsCategory.displayed, selection: $selection) { category in
+            List(SettingsCategory.displayed(model), selection: $selection) { category in
                 Label(category.title, systemImage: category.icon).tag(category)
             }
             .navigationTitle(L10n.settings_title())

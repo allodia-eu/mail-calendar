@@ -69,6 +69,11 @@ extension MailboxModel {
             signatures = app?.signaturesPage() ?? .empty
             return
         }
+        // Settings → Writing style: the library, a change to it, the learning flow and a run.
+        if case .writingStyle = surface {
+            reloadWritingStyle()
+            return
+        }
         // The own endpoint's form: a change to it starting or ending, and nothing else.
         if case .aiEndpoint = surface {
             aiEndpoint = app?.aiEndpointForm()
@@ -94,6 +99,7 @@ extension MailboxModel {
             if let app { reloadPreferences(app) }
             signatures = app?.signaturesPage() ?? .empty
             aiEndpoint = app?.aiEndpointForm()
+            writingStyle.page = app?.writingStylePage()
             mcpSettings = app?.mcpSettings()
             refreshAccountsSnapshot()
             return

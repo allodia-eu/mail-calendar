@@ -192,6 +192,8 @@ final class MailboxModel {
     var signatures = SignaturesPage.empty
     /// The own endpoint's form under Settings → Advanced (MailcalModel.Ai.swift).
     var aiEndpoint: AiEndpointForm?
+    /// Settings → Writing style and its flow (MailcalModel.WritingStyle.swift).
+    var writingStyle = WritingStyleState()
     /// The account whose "your name" step is open, or `nil` when none is.
     ///
     /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a

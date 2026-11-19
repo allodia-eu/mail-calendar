@@ -47,6 +47,7 @@ struct SettingsCategoryDetail: View {
         case .reading: readingDetail
         case .composing: composingDetail
         case .signatures: signaturesDetail
+        case .writingStyle: SettingsWritingStyle(model: model)
         case .notifications: notificationsDetail
         case .privacy: privacyDetail
         case .allodia: AllodiaAccountSettings(model: model)
@@ -227,7 +228,7 @@ struct SettingsCategoryDetail: View {
     // MARK: Advanced, AI assistant access (desktop), own AI endpoint, reset database (destructive)
     //
     // Each belongs to this category's character rather than its old one-line description:
-    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 11). The
+    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 12). The
     // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here, and
     // the endpoint form nothing while the writing assistant is not offered.
 

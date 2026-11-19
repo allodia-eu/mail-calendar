@@ -1,5 +1,5 @@
 // Settings → Accounts: every account, mail or not, from the core's one snapshot, each opening a
-// page of its own (docs/accounts.md rule 11, docs/settings.md row 9). On macOS the page replaces
+// page of its own (docs/accounts.md rule 11, docs/settings.md row 11). On macOS the page replaces
 // the list inside the detail panel, with a way back; on iOS and iPadOS it is pushed onto the
 // navigation stack the category already sits in.
 
@@ -43,7 +43,7 @@ struct AccountsSettingsView: View {
 
     private var list: some View {
         VStack(alignment: .leading, spacing: 20) {
-            // The only place a later account is added (docs/settings.md row 9). It closes
+            // The only place a later account is added (docs/settings.md row 11). It closes
             // Settings the way an offer below does, for the reason given there.
             Button(L10n.action_add_account()) {
                 model.setupError = nil
@@ -167,9 +167,13 @@ struct SettingsGroup<Content: View>: View {
     var body: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
-                Text(heading).font(.headline)
-                Text(description).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if !heading.isEmpty {
+                    Text(heading).font(.headline)
+                }
+                if !description.isEmpty {
+                    Text(description).font(.callout).foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 content().padding(.top, 2)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

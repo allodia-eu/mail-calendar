@@ -12,7 +12,7 @@ import SwiftUI
 /// gains per-account identity, etc. Declaration order is the display order everywhere.
 enum SettingsCategory: String, CaseIterable, Identifiable {
     case allodia, general, calendar, videoconferencing, reading, composing, signatures,
-         notifications, privacy, accounts, advanced, diagnostics, about
+         writingStyle, notifications, privacy, accounts, advanced, diagnostics, about
 
     var id: String { rawValue }
 
@@ -21,10 +21,16 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
     /// Allodia is the one that goes, and at runtime: a build carrying no registration has no
     /// Allodia sign-in at all, and the whole category goes rather than its contents, a row that
     /// opens an empty pane reads as a broken pane, and it is what every build from source shows.
-    static var displayed: [SettingsCategory] {
+    ///
+    /// Writing style goes too while the core does not offer the writing assistant, which is when
+    /// its page is `nil` (docs/ai.md rule 4).
+    @MainActor static func displayed(_ model: MailboxModel) -> [SettingsCategory] {
         var shown = allCases
         if !allodiaSignInAvailable() {
             shown.removeAll { $0 == .allodia }
+        }
+        if model.writingStyle.page == nil {
+            shown.removeAll { $0 == .writingStyle }
         }
         return shown
     }
@@ -40,6 +46,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .reading: return L10n.settings_category_reading()
         case .composing: return L10n.settings_category_composing()
         case .signatures: return L10n.settings_category_signatures()
+        case .writingStyle: return L10n.settings_category_writing_style()
         case .notifications: return L10n.settings_category_notifications()
         case .privacy: return L10n.settings_category_privacy()
         case .accounts: return L10n.settings_category_accounts()
@@ -61,6 +68,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .reading: return L10n.settings_category_reading_summary()
         case .composing: return L10n.settings_category_composing_summary()
         case .signatures: return L10n.settings_category_signatures_summary()
+        case .writingStyle: return L10n.settings_category_writing_style_summary()
         case .notifications: return L10n.settings_category_notifications_summary()
         case .privacy: return L10n.settings_category_privacy_summary()
         case .accounts: return L10n.settings_category_accounts_summary()
@@ -84,6 +92,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .reading: return "envelope.open"
         case .composing: return "square.and.pencil"
         case .signatures: return "signature"
+        case .writingStyle: return "text.quote"
         case .notifications: return "bell"
         case .privacy: return "hand.raised"
         case .accounts: return "tray.2"

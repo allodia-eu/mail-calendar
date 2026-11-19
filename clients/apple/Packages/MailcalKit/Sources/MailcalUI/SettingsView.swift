@@ -48,7 +48,7 @@ struct SettingsView: View {
             .padding()
             Divider()
             NavigationSplitView {
-                List(SettingsCategory.displayed, selection: $selection) { category in
+                List(SettingsCategory.displayed(model), selection: $selection) { category in
                     Label(category.title, systemImage: category.icon).tag(category)
                 }
                 .navigationSplitViewColumnWidth(200)
@@ -68,6 +68,8 @@ struct SettingsView: View {
         .onChange(of: model.accountPage) { _, page in
             if page != nil { selection = .accounts }
         }
+        // A remedy that names the own endpoint's form opens Advanced, where it is.
+        .onChange(of: model.writingStyle.endpointRequest) { _, _ in selection = .advanced }
     }
 }
 
