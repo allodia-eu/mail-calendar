@@ -1,9 +1,11 @@
-//! Guards the dev-account (local Stalwart harness) contract.
+//! Guards the dev-account (local Stalwart harness) contract, and the in-memory boots' staged
+//! launch hooks.
 //!
 //! `MAILCAL_DEV_ACCOUNT` swaps the developer's real mailbox for a throwaway loopback one, and its
 //! IMAP mode additionally teaches the core to trust a self-signed certificate. Both properties fail
 //! *silently* when they break: a drifted fixture just fails to log in, and a trust path that leaks
-//! into a shipped build looks like nothing at all.
+//! into a shipped build looks like nothing at all. The staged hooks fail the same way: one read in a
+//! shipped build changes what a store capture or a user sees, and nothing on screen says why.
 
 use std::path::Path;
 
@@ -58,6 +60,7 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
     harness_dials_the_same_listener(root, &mut report)?;
     switch_is_debug_only(root, &mut report)?;
     trust_anchor_excluded_from_release(root, &mut report);
+    staged_hooks_are_debug_only(root, &mut report)?;
 
     if report.failed() {
         report.emit();
@@ -65,7 +68,7 @@ pub(crate) fn run(root: &Path) -> Result<bool, String> {
     }
     println!(
         "OK: the dev-account contract holds (IMAP fixture in step, switch is debug-only, harness \
-         CA trust excluded from release)."
+         CA trust excluded from release, staged launch hooks debug-only)."
     );
     Ok(true)
 }
@@ -174,6 +177,47 @@ fn trust_anchor_excluded_from_release(root: &Path, report: &mut Report) {
             ));
         }
     }
+}
+
+/// The module that reads the in-memory boots' staged hooks, and its tests.
+const STAGING: &[&str] = &[
+    "crates/mailcal-bindings/src/boot/showcase_staging.rs",
+    "crates/mailcal-bindings/src/boot/showcase_staging_tests.rs",
+];
+
+/// The in-memory boots' staged hooks (`MAILCAL_SHOWCASE_REAUTH`, `MAILCAL_OFFER_AI` and the rest)
+/// are read only in the staging module, and `boot.rs` compiles that module into a development
+/// build alone, so a shipped binary has no reader for them whatever its environment holds.
+fn staged_hooks_are_debug_only(root: &Path, report: &mut Report) -> Result<(), String> {
+    let readers = git::grep(
+        root,
+        Kind::Extended,
+        r#""MAILCAL_(SHOWCASE_[A-Z_]+|OFFER_AI)""#,
+        &["crates"],
+    )?
+    .without(|line| STAGING.iter().any(|file| line.starts_with(file)));
+    for line in &readers.lines {
+        report.note(format!(
+            "a staged launch hook is read outside {}:\n    {line}",
+            STAGING[0]
+        ));
+    }
+    if !readers.is_empty() {
+        report.note(
+            "Read it in that module, which no release build compiles, so a shipped binary ignores \
+             the variable.",
+        );
+    }
+
+    let boot = "crates/mailcal-bindings/src/boot.rs";
+    let gated = "#[cfg(any(debug_assertions, feature = \"dev-harness\"))]\nmod showcase_staging;";
+    if !holds(root, boot, gated) {
+        report.note(format!(
+            "{boot} no longer compiles `mod showcase_staging` only under debug_assertions or \
+             dev-harness. A release build must not read the staged launch hooks."
+        ));
+    }
+    Ok(())
 }
 
 /// True when `file` exists and carries `needle`.
