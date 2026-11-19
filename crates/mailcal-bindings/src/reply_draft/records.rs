@@ -85,8 +85,10 @@ pub struct ReplyDraftItem {
     /// A gap exactly as the reply carries it, or the task in the interface's language.
     pub text: String,
     pub done: bool,
-    /// The person's tick: held for a gap, which follows the reply.
-    pub tick: ControlState,
+    /// The person's tick (`ReplyDraftIntent::Tick`). `None` for a gap, whose `done` follows the
+    /// reply: a client draws it as a state that cannot be pressed (an open or a done mark beside
+    /// the text), never as a disabled checkbox.
+    pub tick: Option<ControlState>,
 }
 
 impl fmt::Debug for ReplyDraftItem {
@@ -199,7 +201,7 @@ impl From<core::ReplyDraftState> for ReplyDraftState {
                         },
                         text: item.text,
                         done: item.done,
-                        tick: control(item.tick),
+                        tick: item.tick.map(control),
                     })
                     .collect(),
             },

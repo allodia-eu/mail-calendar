@@ -271,9 +271,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     `mailcal_ai::tasks_done`: a gap while its text is gone from the reply, open again when an undo
     brings it back; an attach item once as many files were added after the draft went in as there
     are attach items, since which file answers which item cannot be told, or once ticked; the rest
-    once the person ticks them (`ReplyDraftIntent::Tick`). A gap is never ticked by hand. After each
-    change above the signature and the quote the editor reports which of the draft's gaps are left,
-    by their place in its list, and the core re-derives the ticks from that, never on a timer.
+    once the person ticks them (`ReplyDraftIntent::Tick`). A gap is never ticked by hand: its item
+    has no `tick`, and a client draws its `done` as a state beside the text (an open or a done
+    mark that cannot be pressed), never as a disabled checkbox, which would read as unavailable
+    rather than as following the reply. After each change above the signature and the quote the
+    editor reports which of the draft's gaps are left, by their place in its list, and the core
+    re-derives the ticks from that, never on a timer.
 24. **Send asks once while the checklist has open items.** The record's `send_question` and
     `submit_composition` read the same function, so the two cannot disagree: while the question is
     due a client asks before it submits, and `submit_composition` refuses without sending.
@@ -305,10 +308,10 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     refusal and endpoint gap has its message in the shared catalog (`ai_failure_*`, `ai_remedy_*`,
     `ai_endpoint_gap_*`, a refusal of an undeclared endpoint `ai_failure_refused_undeclared`), and
     a bindings test (`records_ai_words_tests.rs`) names the one for each variant, so no client
-    adds words of its own. A remedy comes with its
-    control (`AiRemedyControl`), wherever it is drawn: held while the surface it sits on holds its
-    controls (a change to the library, on the page; Draft, for the composer's Try again) and never
-    running, since what it starts is drawn where it leads. A refusal by the gate names only what
+    adds words of its own. A remedy comes with its control (`AiRemedyControl`), wherever it is
+    drawn: held while the surface it sits on holds its controls (a change to the library, on the
+    page; Draft, for the composer's Try again) and never running, since what it starts is drawn
+    where it leads. A refusal by the gate names only what
     the gate can refuse: a mode that refuses something and a class it refuses, never `all` and
     never an endpoint declared EU-native.
 

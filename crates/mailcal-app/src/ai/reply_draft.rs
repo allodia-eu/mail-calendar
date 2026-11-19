@@ -120,8 +120,9 @@ pub struct ReplyDraftItem {
     pub text: String,
     /// Whether it is done ([`mailcal_ai::tasks_done`]).
     pub done: bool,
-    /// The person's tick: held for a gap, which follows the reply.
-    pub tick: ReplyDraftControl,
+    /// The person's tick; `None` for a gap, whose `done` follows the reply and is drawn as a
+    /// state, not as a control.
+    pub tick: Option<ReplyDraftControl>,
 }
 
 impl fmt::Debug for ReplyDraftItem {
@@ -351,10 +352,10 @@ fn held_view(held: &ReplyDraftHeld, files_added: &dyn Fn(u64) -> usize) -> HeldV
                     kind: task.kind,
                     text: task.text.clone(),
                     done,
-                    tick: ReplyDraftControl {
-                        enabled: task.kind != TaskKind::FillIn,
+                    tick: (task.kind != TaskKind::FillIn).then_some(ReplyDraftControl {
+                        enabled: true,
                         running: false,
-                    },
+                    }),
                 })
                 .collect(),
         }

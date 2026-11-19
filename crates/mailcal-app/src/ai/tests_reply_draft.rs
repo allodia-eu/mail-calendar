@@ -73,16 +73,17 @@ async fn a_draft_moves_from_ready_through_drafting_to_the_card() {
     assert_eq!(summary, "Anna asks whether Friday still works.");
     let kinds: Vec<_> = checklist
         .iter()
-        .map(|item| (item.kind, item.done, item.tick.enabled))
+        .map(|item| (item.kind, item.done, item.tick.map(|tick| tick.enabled)))
         .collect();
     assert_eq!(
         kinds,
         [
-            (TaskKind::FillIn, false, false),
-            (TaskKind::FillIn, false, false),
-            (TaskKind::Attach, false, true),
-            (TaskKind::Do, false, true),
-        ]
+            (TaskKind::FillIn, false, None),
+            (TaskKind::FillIn, false, None),
+            (TaskKind::Attach, false, Some(true)),
+            (TaskKind::Do, false, Some(true)),
+        ],
+        "a gap has no tick: the reply decides it"
     );
     // From now on the script only follows, for an editor opened later on the composition.
     assert!(
