@@ -6,8 +6,8 @@
 //! crate-wide.
 
 use crate::{
-    DefaultMailAppOutcome, DefaultMailAppSupport, LogLevel, MailcalApp, SwipeSettings,
-    SyncSettingsSnapshot, SyncStrategyKind, ViewMode, logging,
+    DefaultMailAppOutcome, DefaultMailAppSupport, LogLevel, MailcalApp, SendAccountSetting,
+    SwipeSettings, SyncSettingsSnapshot, SyncStrategyKind, ViewMode, logging,
 };
 
 #[uniffi::export]
@@ -27,17 +27,12 @@ impl MailcalApp {
         self.app.view_mode().into()
     }
 
-    /// The persisted **default send account**'s id (pulled after a `Surface::Settings` signal),
-    /// or `None` when the user hasn't chosen one. It decides which account a new message composes
-    /// from in the unified all-inboxes view (where no selected mailbox scopes the choice) and
-    /// is what the composer's From dropdown opens on there. Selecting one account's mailbox
-    /// outranks it, and the dropdown's own choice (`from`) outranks both.
-    ///
-    /// This is the **stored** id, which may name an account the user has since removed; the core
-    /// falls back to the first configured account when it no longer resolves.
+    /// Settings → Composing's default send account (pulled after a `Surface::Settings` signal,
+    /// which a change to the accounts raises too): nothing, one address, or a choice over every
+    /// account used for mail on the one a new message is written from. Read from memory.
     #[must_use]
-    pub fn default_send_account(&self) -> Option<String> {
-        self.app.default_send_account()
+    pub fn send_account_setting(&self) -> SendAccountSetting {
+        self.app.send_account_setting().into()
     }
 
     /// The per-direction swipe actions (pulled after a `Surface::Settings` signal); what a

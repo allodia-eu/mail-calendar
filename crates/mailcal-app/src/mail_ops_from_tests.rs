@@ -290,3 +290,7 @@ async fn a_forward_from_another_account_sends_through_that_accounts_outbox() {
         .collect();
     assert_eq!(references, vec!["root@remote", "parent@remote"]);
 }
+
+// Which account a new message takes when nothing names one, and Settings' record of it.
+#[path = "mail_ops_send_account_tests.rs"]
+mod send_account;

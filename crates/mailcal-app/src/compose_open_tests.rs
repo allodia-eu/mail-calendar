@@ -344,10 +344,11 @@ async fn a_prefilled_reply_whose_original_is_gone_opens_as_a_new_message() {
     );
 }
 
-/// An assistant may answer a message in one account from another: the prefill's account is the one
-/// the reply goes out from, while it stays in the original's conversation.
+/// A prefill naming an account that sends nothing, here one that is not configured, leaves the
+/// reply on the account holding the original; one that sends is taken
+/// (`mail_ops_send_account_tests`).
 #[tokio::test]
-async fn a_prefill_names_the_account_to_write_from() {
+async fn a_prefill_naming_an_account_that_sends_nothing_keeps_the_originals() {
     let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
@@ -368,7 +369,7 @@ async fn a_prefill_names_the_account_to_write_from() {
         .await
         .expect("the reply opens");
 
-    assert_eq!(opening.account, "acct-2");
+    assert_eq!(opening.account, "acct-1");
     assert_eq!(opening.kind, ComposeKind::Reply);
 }
 

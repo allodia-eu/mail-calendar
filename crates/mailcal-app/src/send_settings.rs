@@ -1,14 +1,14 @@
-//! The default send-account setting: which account a **new** message composes from when the
-//! unified all-inboxes view is showing and no single mailbox scopes the choice. A persisted
-//! app-level preference the host shows in settings and the composer's From dropdown opens on.
-//! Like the quote-style setting ([`crate::quote_settings`]) it lives in the shared preferences
-//! file; this small state holds the loaded value.
+//! Which account a new message is written from when nothing names one, and Settings → Composing's
+//! record of the stored choice behind it.
 //!
-//! It is only ever a *fallback*: selecting one account's mailbox composes from that account, and
-//! an explicit `from` on a submit intent (the composer's From dropdown) overrides both. See
-//! `App::compose_account` in `crate::mail_ops`, which resolves the chain.
+//! In order: the **selected** account (its mailbox is showing, so it scopes the choice), else the
+//! persisted **default send account**, else the first account. Only accounts used for mail are
+//! candidates (`docs/accounts.md`): one kept for its calendar or contacts alone sends nothing.
+//! The stored default lives in the shared preferences file; it may name an account since removed
+//! or no longer used for mail, which reads as the first one that is.
 
-use engine_api::Provider;
+use engine_api::{AccountId, Provider};
+use mailcal_viewmodel::{SendAccountOption, SendAccountSetting};
 
 use crate::{App, Surface, preferences_file::PreferencesFile};
 
@@ -41,13 +41,74 @@ impl SendSettingsState {
     }
 }
 
+/// The sender the stored default comes to among `senders`: the one it names, else the first.
+fn default_among<'a>(
+    senders: &'a [(AccountId, String)],
+    stored: Option<&str>,
+) -> Option<&'a (AccountId, String)> {
+    stored
+        .and_then(|stored| senders.iter().find(|(id, _)| id.as_str() == stored))
+        .or_else(|| senders.first())
+}
+
 impl<P: Provider> App<P> {
-    /// The persisted default send account's id (pulled after a [`Surface::Settings`] signal), or
-    /// `None` when the user has never chosen one. Note this is the **stored** choice, which may
-    /// name an account that has since been removed; `App::compose_account` validates it against
-    /// the configured set before using it.
+    /// The account a new message is written from when nothing names one. Read from memory, so
+    /// it never waits on the account list.
+    pub(crate) fn compose_account(&self) -> Option<AccountId> {
+        self.sender_or_default(None)
+    }
+
+    /// `account` when it is used for mail, else [`App::compose_account`]'s answer: what a
+    /// composer opens on when a host or an assistant may name an account.
+    pub(crate) fn sender_or_default(&self, account: Option<AccountId>) -> Option<AccountId> {
+        let senders = self.accounts.senders();
+        let sends = |account: &AccountId| senders.iter().any(|(id, _)| id == account);
+        let selected = self
+            .scope
+            .lock()
+            .expect("scope mutex poisoned")
+            .account()
+            .cloned();
+        if let Some(account) = account.filter(sends).or_else(|| selected.filter(sends)) {
+            return Some(account);
+        }
+        let stored = self.stored_send_account();
+        default_among(&senders, stored.as_deref()).map(|(id, _)| id.clone())
+    }
+
+    /// Whether `account` is used for mail, so a message can come from it.
+    pub(crate) fn is_sender(&self, account: &AccountId) -> bool {
+        self.accounts.senders().iter().any(|(id, _)| id == account)
+    }
+
+    /// Settings → Composing's default send account (pulled after a [`Surface::Settings`]
+    /// signal, which a change to the accounts raises too). Read from memory, so a UI thread may
+    /// ask it.
     #[must_use]
-    pub fn default_send_account(&self) -> Option<String> {
+    pub fn send_account_setting(&self) -> SendAccountSetting {
+        let senders = self.accounts.senders();
+        let stored = self.stored_send_account();
+        match senders.as_slice() {
+            [] => SendAccountSetting::NoAccount,
+            [(_, email)] => SendAccountSetting::Only {
+                email: email.clone(),
+            },
+            _ => SendAccountSetting::Choose {
+                selected: default_among(&senders, stored.as_deref())
+                    .map(|(id, _)| id.as_str().to_owned())
+                    .unwrap_or_default(),
+                accounts: senders
+                    .iter()
+                    .map(|(id, email)| SendAccountOption {
+                        id: id.as_str().to_owned(),
+                        email: email.clone(),
+                    })
+                    .collect(),
+            },
+        }
+    }
+
+    fn stored_send_account(&self) -> Option<String> {
         self.send_settings
             .lock()
             .expect("send-settings mutex poisoned")
@@ -55,7 +116,7 @@ impl<P: Provider> App<P> {
     }
 
     /// Sets and persists the default send account (`None` clears it, restoring "the first
-    /// configured account"), then signals [`Surface::Settings`] so the host re-pulls.
+    /// account used for mail"), then signals [`Surface::Settings`] so the host re-pulls.
     // `async` with no inner `await` is intentional: every dispatched command method shares one
     // async shape so `dispatch` and the FFI adapter drive them uniformly (this one just locks,
     // sets, and signals).

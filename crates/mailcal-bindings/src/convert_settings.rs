@@ -7,17 +7,18 @@
 use mailcal_viewmodel::{
     AccountSyncRow as AppAccountSyncRow, DefaultMailAppOutcome as AppDefaultMailAppOutcome,
     DefaultMailAppSupport as AppDefaultMailAppSupport, QuoteSettings as AppQuoteSettings,
-    QuoteStyleKind as AppQuoteStyleKind, SwipeActionKind as AppSwipeActionKind,
-    SwipeDirection as AppSwipeDirection, SwipeSettings as AppSwipeSettings,
-    SyncFolderRow as AppSyncFolderRow, SyncSettingsSnapshot as AppSyncSettings,
-    SyncStrategyKind as AppSyncStrategyKind, TimeZoneSnapshot as AppTimeZoneSnapshot,
-    ViewMode as AppViewMode,
+    QuoteStyleKind as AppQuoteStyleKind, SendAccountSetting as AppSendAccountSetting,
+    SwipeActionKind as AppSwipeActionKind, SwipeDirection as AppSwipeDirection,
+    SwipeSettings as AppSwipeSettings, SyncFolderRow as AppSyncFolderRow,
+    SyncSettingsSnapshot as AppSyncSettings, SyncStrategyKind as AppSyncStrategyKind,
+    TimeZoneSnapshot as AppTimeZoneSnapshot, ViewMode as AppViewMode,
 };
 
 use crate::{
     AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, FolderRole, QuoteSettings,
-    QuoteStyleKind, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
-    SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot, ViewMode,
+    QuoteStyleKind, SendAccountOption, SendAccountSetting, SwipeActionKind, SwipeDirection,
+    SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
+    ViewMode,
 };
 
 impl From<AppTimeZoneSnapshot> for TimeZoneSnapshot {
@@ -69,6 +70,25 @@ impl From<AppQuoteSettings> for QuoteSettings {
         Self {
             style: settings.style.into(),
             per_message: settings.per_message,
+        }
+    }
+}
+
+impl From<AppSendAccountSetting> for SendAccountSetting {
+    fn from(setting: AppSendAccountSetting) -> Self {
+        match setting {
+            AppSendAccountSetting::NoAccount => Self::NoAccount,
+            AppSendAccountSetting::Only { email } => Self::Only { email },
+            AppSendAccountSetting::Choose { accounts, selected } => Self::Choose {
+                accounts: accounts
+                    .into_iter()
+                    .map(|option| SendAccountOption {
+                        id: option.id,
+                        email: option.email,
+                    })
+                    .collect(),
+                selected,
+            },
         }
     }
 }

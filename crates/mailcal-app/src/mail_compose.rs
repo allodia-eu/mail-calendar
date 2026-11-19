@@ -1,8 +1,8 @@
 //! Rich-compose mail operations: the send every composer makes, plus the reply-recipient
 //! suggestion a reply opens with. A second `impl App` block (like `reading`/`calendar_ops`) so
 //! `mail_ops.rs` stays under the 500-line limit; it reuses the send and account helpers that live
-//! in `mail_ops.rs` (`send_draft`, `account_identity`, `compose_account`, `fail_send`,
-//! `find_message_in`).
+//! in `mail_ops.rs` (`send_draft`, `account_identity`, `fail_send`, `find_message_in`) and
+//! `compose_account` in `send_settings.rs`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -27,9 +27,9 @@ impl<P: Provider> App<P> {
     /// resulting rich draft through the durable outbox. `from` is the account the user picked in
     /// the composer's From dropdown; `None` sends from the account `composition` opened on, and
     /// derives one for a composition the core was never told of ([`App::compose_account`]: the
-    /// selected account, else the default send account, else the first). The `to`/`cc`/`bcc` fields
-    /// are the host's comma-separated recipient lists (see [`parse_addresses`]); Bcc recipients
-    /// are delivered but hidden by the engine.
+    /// selected account, else the default send account, else the first, each used for mail). The
+    /// `to`/`cc`/`bcc` fields are the host's comma-separated recipient lists (see
+    /// [`parse_addresses`]); Bcc recipients are delivered but hidden by the engine.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn submit_rich_mail(
         &self,
@@ -50,7 +50,7 @@ impl<P: Provider> App<P> {
         let account = match from.or(opened_on) {
             Some(account) => account,
             // No accounts configured at all, nothing to send from, and nothing to report.
-            None => match self.compose_account().await {
+            None => match self.compose_account() {
                 Some(account) => account,
                 None => return,
             },
