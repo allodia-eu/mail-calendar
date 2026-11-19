@@ -69,6 +69,11 @@ extension MailboxModel {
             signatures = app?.signaturesPage() ?? .empty
             return
         }
+        // Draft a reply in some composer, which the signal does not name: each reads its own.
+        if case .replyDraft = surface {
+            writingStyle.replyDraftVersion &+= 1
+            return
+        }
         // Settings → Writing style: the library, a change to it, the learning flow and a run.
         if case .writingStyle = surface {
             reloadWritingStyle()

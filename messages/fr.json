@@ -1387,6 +1387,7 @@
 	"learn_keyword_not_kept": "Le serveur de ce compte ne marque pas les réponses rédigées pour vous ; vos autres appareils ne peuvent donc pas les distinguer des vôtres.",
 	"reveal_nothing_in_language": "Rien de particulier dans cette langue.",
 	"composer_draft_reply": "Rédiger une réponse",
+	"a11y_composer_draft_reply_hint": "Rédige au-dessus du message cité une réponse dans votre style, que vous relisez et modifiez avant l’envoi.",
 	"composer_draft_intent_hint": "Que doit-elle dire ? (facultatif)",
 	"composer_draft_chip_yes": "Oui",
 	"composer_draft_chip_no": "Non",

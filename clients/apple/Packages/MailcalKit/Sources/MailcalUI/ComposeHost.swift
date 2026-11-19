@@ -21,6 +21,10 @@ struct ComposeHost: View {
     /// Moves the composer into a window of its own, answering whether it moved; `nil` where there
     /// is nowhere to move it: a phone, an iPad, and a composer already in a window.
     var popOut: ((ComposerState) async -> Bool)?
+    #if os(iOS)
+    /// Settings opened over the composer for a Draft a reply remedy, at that remedy's page.
+    @State private var remedySettings: SettingsCategory?
+    #endif
 
     /// The composer's recipient autosuggest.
     private var recipientSuggestions: (String) async -> [RecipientMatch] {
@@ -52,6 +56,29 @@ struct ComposeHost: View {
             status: { model.draftStatus($0) },
             isStored: { model.draftIsStored($0) },
             version: model.draftStatusVersion
+        )
+    }
+
+    /// Draft a reply's core verbs. A remedy the composer cannot take in place opens Settings at
+    /// its page with the composer kept: over the composer on a phone or a tablet, whose composer
+    /// is itself a sheet, and in the window's own Settings on a Mac, where it sits in the window.
+    private var replyDrafts: ComposerReplyDrafts {
+        ComposerReplyDrafts(
+            read: { model.composerReplyDraft($0, from: $1) },
+            change: { model.changeReplyDraft($0) },
+            report: { model.reportReplyDraft($0, $1) },
+            remedy: { remedy in
+                guard let category = settingsCategory(for: remedy) else {
+                    if remedy == .signInToAllodia { model.signInToAllodia() }
+                    return
+                }
+                #if os(iOS)
+                remedySettings = category
+                #else
+                model.settingsRequest = category
+                #endif
+            },
+            version: model.replyDraftSignals
         )
     }
 
@@ -95,10 +122,18 @@ struct ComposeHost: View {
                 set: { model.setComposerImportance($0, $1) }
             ),
             moved: opening.moved,
-            popOut: popOut
+            popOut: popOut,
+            replyDrafts: replyDrafts
         ) { submission in
             submitted(model.submitComposition(submission))
         } cancel: { dismiss() }
+        #if os(iOS)
+        .sheet(item: $remedySettings) { category in
+            SettingsHubView(
+                model: model, close: { remedySettings = nil },
+                removeAccount: { model.removeAccount($0) }, openOn: category)
+        }
+        #endif
     }
 
     /// Closes the composer when the submit was accepted, and answers what the editor asked: a

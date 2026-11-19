@@ -13,6 +13,9 @@ struct WritingStyleState {
     var learning: WritingStyleLearning?
     /// Bumped on every `Surface::WritingStyle`, so an open reveal or detail reads its record again.
     var version = 0
+    /// Bumped on every `Surface::ReplyDraft`, which names no composition: each open composer reads
+    /// its own Draft a reply again.
+    var replyDraftVersion = 0
     /// Bumped when a remedy asks for the own endpoint's form, which the Settings shells answer by
     /// opening Advanced.
     var endpointRequest = 0
@@ -55,6 +58,28 @@ extension MailboxModel {
         case .learn: learnStyle(.open)
         case .flow, .accountStyles: break
         }
+    }
+
+    /// What Draft a reply draws in `composition`'s composer sending from `from`, or `nil` while the
+    /// assistant is not offered or the composition is not a reply. Read from memory.
+    func composerReplyDraft(_ composition: String, from: String?) -> ComposerReplyDraft? {
+        app?.composerReplyDraft(composition: composition, from: from)
+    }
+
+    /// A change to a composer's Draft a reply, applied before it returns.
+    func changeReplyDraft(_ intent: ReplyDraftIntent) {
+        app?.dispatch(intent: .ai(intent: .replyDraft(intent: intent)))
+    }
+
+    /// A message `composition`'s editor posted on its host channel, every one of them: the core
+    /// takes its reply-draft report and leaves the rest.
+    func reportReplyDraft(_ composition: String, _ message: String) {
+        _ = app?.composerReplyDraftReport(composition: composition, message: message)
+    }
+
+    /// Both signals a composer's Draft a reply follows, as one value that moves with either.
+    var replyDraftSignals: Int {
+        writingStyle.version &+ writingStyle.replyDraftVersion
     }
 
     /// A change on the page, the reveal or the detail. Returns at once; what a library change came
