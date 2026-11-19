@@ -2272,6 +2272,7 @@ dependencies = [
  "mailcal-composer",
  "mailcal-viewmodel",
  "ring",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

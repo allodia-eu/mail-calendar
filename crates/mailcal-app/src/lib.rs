@@ -86,8 +86,6 @@ mod live_mailbox;
 mod mail_compose;
 mod mail_compose_quote;
 mod mail_compose_signature;
-// The per-account message-size cap: what this account keeps offline, and what a change to it
-// does to the mail already cached.
 mod mail_ops;
 mod mcp_settings;
 mod message_size;
@@ -101,6 +99,7 @@ mod reading;
 mod reading_trace;
 mod recipients;
 mod reference;
+mod reset;
 mod row_cache;
 mod scope;
 mod send_settings;
@@ -267,10 +266,10 @@ pub struct App<P> {
     /// calendar's default horizon; surfaced via [`Surface::Settings`]. The core owns them so the
     /// three clients cannot disagree about which day a week starts on.
     display_settings: Mutex<DisplaySettingsState>,
-    /// The persisted default send account, surfaced via [`Surface::Settings`]. Consulted by
-    /// [`App::compose_account`] only in the unified all-inboxes view, where no selected mailbox
-    /// scopes the choice; an explicit `from` on a submit intent overrides it.
+    /// The persisted default send account ([`send_settings`](crate::send_settings)).
     send_settings: Mutex<SendSettingsState>,
+    /// Settings → Advanced's reset: whether one runs, and what the last came to.
+    reset: Mutex<reset::ResetState>,
     /// The persisted per-direction swipe actions (Trash / Archive / Star), surfaced via
     /// [`Surface::Settings`] and read by the host to bind its message-row swipe gestures.
     swipe_settings: Mutex<SwipeSettingsState>,

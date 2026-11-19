@@ -21,14 +21,15 @@
 
 use std::sync::Arc;
 
-use crate::{backend::MailBackend, endpoint::Endpoint, tools::SharedConfig};
+use crate::{backend::MailBackend, endpoint::Endpoint, status::Reporter, tools::SharedConfig};
 
 #[cfg(all(unix, not(any(target_os = "ios", target_os = "android"))))]
 mod unix;
 #[cfg(windows)]
 mod windows;
 
-/// Runs the accept loop for `endpoint` until the task is aborted.
+/// Runs the accept loop for `endpoint` until the task is aborted, saying through `status` when
+/// it is listening and why it stopped.
 ///
 /// Never returns in the normal case. Returns early (permanently, for this configuration) when
 /// the endpoint cannot be bound, which is deliberate: a listener that retries a bind it will
@@ -36,20 +37,27 @@ mod windows;
 /// owns it, or the path is unusable) are both resolved by the user doing something, not by time
 /// passing.
 #[cfg(any(all(unix, not(any(target_os = "ios", target_os = "android"))), windows))]
-pub(crate) async fn run(backend: Arc<dyn MailBackend>, config: SharedConfig, endpoint: Endpoint) {
+pub(crate) async fn run(
+    backend: Arc<dyn MailBackend>,
+    config: SharedConfig,
+    endpoint: Endpoint,
+    status: Reporter,
+) {
     let ctx = crate::session::context(backend, config);
-    match endpoint {
+    let refusal = match endpoint {
         #[cfg(all(unix, not(any(target_os = "ios", target_os = "android"))))]
-        Endpoint::Unix(path) => unix::run(ctx, &path).await,
+        Endpoint::Unix(path) => unix::run(ctx, &path, &status).await,
         #[cfg(windows)]
-        Endpoint::Pipe(name) => windows::run(ctx, &name).await,
+        Endpoint::Pipe(name) => windows::run(ctx, &name, &status).await,
         // A pipe name on a Unix host, or a socket path on Windows: a host bug, not a user one.
         #[allow(unreachable_patterns)]
         other => {
             let _ = ctx;
             log::warn!("mcp: endpoint kind {other:?} is unsupported here: not listening");
+            crate::status::Refusal::Unavailable
         }
-    }
+    };
+    status.report(refusal.into());
 }
 
 /// The mobile build's `run`: there is no listener to start.
@@ -58,8 +66,10 @@ pub(crate) async fn run(
     _backend: Arc<dyn MailBackend>,
     _config: SharedConfig,
     _endpoint: Endpoint,
+    status: Reporter,
 ) {
     log::info!("mcp: this platform hosts no server: not listening");
+    status.report(crate::ListenerStatus::Unavailable);
 }
 
 /// Serves one accepted connection. Shared by both listeners so the session logic has exactly one

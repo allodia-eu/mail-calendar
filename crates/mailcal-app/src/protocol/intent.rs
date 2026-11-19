@@ -322,7 +322,7 @@ pub enum Intent {
     SetQuoteStylePerMessage(bool),
     /// Set the persisted **default send account**: the account a new message composes from in
     /// the unified all-inboxes view, where no selected mailbox scopes the choice. `None` clears
-    /// it (falling back to the first configured account); signals [`Surface::Settings`].
+    /// it (falling back to the first account used for mail); signals [`Surface::Settings`].
     SetDefaultSendAccount(Option<String>),
     /// Set the name one account's outgoing mail is sent under: the `Name` in
     /// `Name <address>`. An empty name clears it and the account sends as a bare address.
@@ -337,6 +337,11 @@ pub enum Intent {
         /// The name to send under; empty clears it.
         name: String,
     },
+    /// Settings → Advanced's reset: clears the local cache of every account (the outbox is
+    /// kept), downloads mail again and compacts the database. One at a time: asked again while
+    /// one runs, it is dropped. Signals [`Surface::Settings`] as it starts and as it ends, with
+    /// what it came to in [`App::reset_status`](crate::App::reset_status).
+    ResetDatabase,
     /// Set what one swipe direction does to a message row (Trash / Archive / Star). The two
     /// directions are configured independently; signals [`Surface::Settings`].
     SetSwipeAction {

@@ -320,16 +320,10 @@ pub(crate) fn build_accounts(
         runtime.handle().clone(),
     ));
     // The MCP server is built beside the background manager and on the same runtime, but starts
-    // STOPPED: it has no endpoint until a desktop host calls `set_mcp_endpoint`, and no accounts
+    // STOPPED: it has no endpoint until a desktop host calls `set_mcp_host`, and no accounts
     // until the user ticks one. A mobile host never calls either, so it never listens.
     let agent_ui: crate::agent_ui::AgentUiSlot = Arc::new(Mutex::new(None));
-    let mcp = Arc::new(mailcal_mcp::McpServer::new(
-        Arc::new(crate::mcp::AppBackend::new(
-            Arc::clone(&app),
-            Arc::clone(&agent_ui),
-        )),
-        runtime.handle().clone(),
-    ));
+    let mcp = crate::mcp::server(&app, &agent_ui, runtime.handle());
     let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
@@ -338,7 +332,7 @@ pub(crate) fn build_accounts(
         registry,
         background,
         mcp,
-        mcp_endpoint: Mutex::new(None),
+        mcp_host: Mutex::new(None),
         agent_ui,
         #[cfg(feature = "allodia-license")]
         allodia_tokens: crate::allodia_tokens::Tokens::default(),
