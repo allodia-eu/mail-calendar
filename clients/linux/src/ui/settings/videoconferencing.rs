@@ -1,4 +1,4 @@
-//! Settings → Videoconferencing (`docs/settings.md`, category 4): the accounts that make video
+//! Settings → Videoconferencing (`docs/settings.md`, Videoconferencing): the accounts that make video
 //! meetings, the person's Jitsi server (`docs/conferencing.md`, rule 13) and each account's
 //! default video meeting (rule 10).
 //!
