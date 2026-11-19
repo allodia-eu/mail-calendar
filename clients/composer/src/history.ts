@@ -51,6 +51,8 @@ interface Step {
   /// What the user typed that the editor turned into something else (the space after `- `), which
   /// an undo of this step leaves in place.
   typed?: string;
+  /// The mark `History.step` gave it, carried through each undo and redo.
+  tag?: string;
 }
 
 /// Whether there is a step to take back and one to put back.
@@ -78,6 +80,12 @@ export interface History {
   /// Runs a change that replaces the body: a draft reopened, a quote seeded. The history starts
   /// over after it, because nothing before it is in the message any more.
   restart<T>(change: () => T): T;
+  /// Runs a change the host asked for as one step of the user's own, marked `tag`: one undo takes
+  /// it out whole and one redo brings it back. An assistant's draft put into a reply.
+  step<T>(tag: string, change: () => T): T;
+  /// Whether the step marked `tag` is in the body: from its change until an undo takes it back,
+  /// and again after a redo. One taken back and then overtaken by a new change never returns.
+  applied(tag: string): boolean;
 }
 
 /// What a keystroke asks of the history, if anything: the platform's own chords (`docs/undo.md`
@@ -116,6 +124,8 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
   let listener: ((steps: Steps) => void) | null = null;
   /// What `listener` was last told.
   let told: Steps | null = null;
+  /// Whether each marked step is in the body.
+  const marks = new Map<string, boolean>();
 
   const observer = new view.MutationObserver((records) => record(records));
   observer.observe(editor, {
@@ -211,6 +221,7 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
       return false;
     }
     const undoing = from === undone;
+    if (step.tag) marks.set(step.tag, !undoing);
     select(undoing ? step.before : step.after);
     if (undoing && step.typed) inverse.push(...insertTyped(step.typed));
     const here = selection();
@@ -322,6 +333,22 @@ export function installHistory(editor: HTMLElement, now: () => number = Date.now
     },
     outside: (change) => unrecorded(change, false),
     restart: (change) => unrecorded(change, true),
+    step(tag, change) {
+      flush();
+      const before = undone.at(-1);
+      boundary = true;
+      pending = null;
+      const result = change();
+      flush();
+      const made = undone.at(-1);
+      if (made && made !== before) {
+        made.tag = tag;
+        marks.set(tag, true);
+      }
+      boundary = true;
+      return result;
+    },
+    applied: (tag) => marks.get(tag) ?? false,
   };
 
   /// Runs a host's change without filing it as a step; `forget` starts the history over after it.

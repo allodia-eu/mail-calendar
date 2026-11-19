@@ -19,8 +19,8 @@ mod reveal_records;
 
 pub use learning_records::{
     StyleLearnRange, StyleLearningAccount, StyleLearningDestination, StyleLearningLanguage,
-    StyleLearningReport, StyleLearningReview, StyleLearningStage, StyleSentReach,
-    WritingStyleLearning,
+    StyleLearningReport, StyleLearningReview, StyleLearningStage, StyleLearningTrailStage,
+    StyleSentReach, WritingStyleLearning,
 };
 pub use records::{
     WritingStyleChangeKind, WritingStyleEntry, WritingStyleLearnBlock, WritingStyleOpens,
@@ -31,7 +31,7 @@ pub use reveal_records::{
     WritingStyleCard, WritingStyleDetail, WritingStyleFacts, WritingStyleFrequency,
     WritingStyleHabit, WritingStyleHabits, WritingStyleLanguage, WritingStyleLetter,
     WritingStyleParagraph, WritingStylePhrases, WritingStyleReveal, WritingStyleRevealPage,
-    WritingStyleSpan, WritingStyleTopic,
+    WritingStyleSection, WritingStyleSpan, WritingStyleTopic,
 };
 
 fn style_id(id: String) -> Option<WritingStyleId> {

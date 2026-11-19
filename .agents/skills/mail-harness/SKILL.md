@@ -41,6 +41,11 @@ because a specific real message/provider behaviour triggers the bug. It's the sa
 - **Seed content:** threads, an attachment, flagged/read states, duplicate/missing Message-IDs,
   and calendar events (recurring + exceptions, attendees, all-day). `--bulk` adds a larger volume
   across dev-only folders (`Lists`, `Newsletters`, `Bulk`, `DeepThread`).
+- **Writing style:** eight of alice's own replies in `Sent Items` (English and Dutch, dated days
+  before the seed so a new account's sync window holds them) give learning something to read, and
+  `scripts/dev/ai-mock.py` is a canned model on `127.0.0.1:28434` to point the own endpoint at.
+  How to drive both: [`docs/debugging.md`](../../../docs/debugging.md) → "Learning a writing style
+  and drafting a reply against the harness".
 
 ## Usage notes
 

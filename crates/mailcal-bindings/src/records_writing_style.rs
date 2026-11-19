@@ -3,7 +3,7 @@
 
 use mailcal_app::ai as core;
 
-use crate::{AiFailure, AiRemedy, ControlState, WritingStyleFacts};
+use crate::{AiFailure, AiRemedyControl, ControlState, WritingStyleFacts};
 
 /// Settings → Writing style (pulled after `Surface::WritingStyle` and `Surface::Settings`).
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -59,10 +59,10 @@ pub enum WritingStyleLearnBlock {
     /// No account is used for mail.
     NoMailAccount,
     /// Nowhere to send, the gate refusing the endpoint as declared, or the Allodia sign-in to
-    /// renew.
+    /// renew. The remedy is held while a change to the library runs.
     CannotSend {
         failure: AiFailure,
-        remedy: Option<AiRemedy>,
+        remedy: Option<AiRemedyControl>,
     },
 }
 
@@ -76,10 +76,12 @@ pub enum WritingStyleRun {
         total: u32,
         stop: ControlState,
     },
-    /// It failed after its host was closed. Learn reopens the flow on the failure.
+    /// It failed after its host was closed. Learn reopens the flow on the failure, where a
+    /// remedy that is a step of the flow is taken; the remedy is held while a change to the
+    /// library runs.
     Failed {
         failure: AiFailure,
-        remedy: Option<AiRemedy>,
+        remedy: Option<AiRemedyControl>,
     },
 }
 
@@ -134,8 +136,11 @@ pub(super) fn control(control: core::StyleControl) -> ControlState {
     }
 }
 
-pub(super) fn failed(failure: core::AiFailure) -> (AiFailure, Option<AiRemedy>) {
-    (failure.into(), failure.remedy().map(Into::into))
+pub(super) fn failed(
+    failure: core::AiFailure,
+    remedy: Option<core::RemedyControl>,
+) -> (AiFailure, Option<AiRemedyControl>) {
+    (failure.into(), remedy.map(Into::into))
 }
 
 fn kind(kind: core::WritingStyleChangeKind) -> WritingStyleChangeKind {
@@ -188,8 +193,8 @@ pub(crate) fn page(view: core::WritingStylePageView) -> WritingStylePage {
         learn: control(view.learn),
         learn_blocked: view.learn_blocked.map(|block| match block {
             core::LearnBlock::NoMailAccount => WritingStyleLearnBlock::NoMailAccount,
-            core::LearnBlock::CannotSend(failure) => {
-                let (failure, remedy) = failed(failure);
+            core::LearnBlock::CannotSend { failure, remedy } => {
+                let (failure, remedy) = failed(failure, remedy);
                 WritingStyleLearnBlock::CannotSend { failure, remedy }
             }
         }),
@@ -199,8 +204,8 @@ pub(crate) fn page(view: core::WritingStylePageView) -> WritingStylePage {
                 total,
                 stop: control(stop),
             },
-            core::PageRun::Failed(failure) => {
-                let (failure, remedy) = failed(failure);
+            core::PageRun::Failed { failure, remedy } => {
+                let (failure, remedy) = failed(failure, remedy);
                 WritingStyleRun::Failed { failure, remedy }
             }
         }),

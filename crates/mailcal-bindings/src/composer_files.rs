@@ -111,7 +111,9 @@ impl MailcalApp {
     /// # Errors
     ///
     /// Returns [`MailcalError::Composer`] for an invalid document or a file that cannot be read,
-    /// or [`MailcalError::Engine`] if `composition` is blank or `from` is malformed.
+    /// and without sending while `composer_reply_draft`'s `send_question` is due, which a client
+    /// asks first (`docs/ai.md` rule 24); or [`MailcalError::Engine`] if `composition` is blank or
+    /// `from` is malformed.
     #[uniffi::method(default(from = None))]
     pub fn submit_composition(
         &self,
@@ -122,6 +124,14 @@ impl MailcalApp {
         from: Option<String>,
     ) -> Result<(), MailcalError> {
         let composition = sent_composition(Some(composition))?;
+        if composition
+            .as_ref()
+            .is_some_and(|composition| self.reply_draft_send_due(composition))
+        {
+            return Err(MailcalError::Composer(
+                "the drafted reply's checklist is to be asked about before sending".to_owned(),
+            ));
+        }
         let files = composition.as_ref().map_or_else(Vec::new, |composition| {
             self.composer_files.attachments(composition)
         });

@@ -14,12 +14,12 @@ use mailcal_ai::{
 
 use super::{
     PageRun, StyleControl, WritingStyleChange,
-    flow::{Flow, Flows, LearningIntent, Review, Reviewed, Stage, Start},
+    flow::{Flow, Flows, LearningIntent, LearningTrailStage, Review, Reviewed, Stage, Start},
     range::{LearnRange, LearnRanges, SentReach, learn_ranges, today},
 };
 use crate::{
     App, Surface,
-    ai::{AiFailure, AiRoute, AiRun, AiWork, AiWorkKey},
+    ai::{AiFailure, AiRoute, AiRun, AiWork, AiWorkKey, RemedyControl},
 };
 
 /// One account the flow can learn from.
@@ -77,8 +77,10 @@ pub enum LearningStage {
     },
     /// No style was learned.
     Failed {
-        /// Why; its remedy is `failure.remedy()`.
+        /// Why.
         failure: AiFailure,
+        /// Its remedy (`LearningIntent::Remedy` where it is a step of the flow).
+        remedy: Option<RemedyControl>,
     },
     /// A style was learned; the reveal follows in the same host.
     Learned {
@@ -92,6 +94,8 @@ pub enum LearningStage {
 pub struct LearningView {
     /// The stage.
     pub stage: LearningStage,
+    /// The stages before it, first to last, each where Back from the one after it goes.
+    pub trail: Vec<LearningTrailStage>,
     /// Back.
     pub back: Option<StyleControl>,
     /// Next, on `ChooseAccount` and `ChooseRange`.
@@ -100,8 +104,6 @@ pub struct LearningView {
     pub learn: Option<StyleControl>,
     /// Stop, on `Learning`.
     pub stop: Option<StyleControl>,
-    /// The failure's remedy, on `Failed` when it has one.
-    pub remedy: Option<StyleControl>,
     /// Closing the host.
     pub close: StyleControl,
 }
@@ -175,11 +177,11 @@ impl<P: Provider> App<P> {
             .map_or(SentReach::Everything, |(id, _)| self.sent_reach(id));
         let mut view = LearningView {
             stage: LearningStage::Learning { done: 0, total: 0 },
+            trail: flow.trail(),
             back: None,
             next: None,
             learn: None,
             stop: None,
-            remedy: None,
             close: StyleControl {
                 enabled: true,
                 running: false,
@@ -241,8 +243,10 @@ impl<P: Provider> App<P> {
             }
             Stage::Failed(failure) => {
                 view.back = Some(control(true));
-                view.remedy = failure.remedy().map(|_| control(true));
-                LearningStage::Failed { failure: *failure }
+                LearningStage::Failed {
+                    failure: *failure,
+                    remedy: failure.remedy_control(true),
+                }
             }
             Stage::Learned(style) => LearningStage::Learned {
                 style: style.clone(),
@@ -253,7 +257,8 @@ impl<P: Provider> App<P> {
 
     /// The run under way for the page to draw in Learn's place: its progress, or the failure it
     /// came to after its host was closed.
-    pub(super) fn learning_on_page(&self) -> Option<PageRun> {
+    /// Its remedy is held while `busy`, a change to the library running.
+    pub(super) fn learning_on_page(&self, busy: bool) -> Option<PageRun> {
         let flows = self.flows();
         let flow = flows.flow.as_ref()?;
         match flow.stage {
@@ -262,7 +267,10 @@ impl<P: Provider> App<P> {
                 total,
                 stop: StyleControl::of(false, false),
             }),
-            Stage::Failed(failure) if !flow.shown => Some(PageRun::Failed(failure)),
+            Stage::Failed(failure) if !flow.shown => Some(PageRun::Failed {
+                failure,
+                remedy: failure.remedy_control(!busy),
+            }),
             _ => None,
         }
     }

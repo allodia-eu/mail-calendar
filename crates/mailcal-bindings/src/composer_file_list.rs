@@ -224,6 +224,18 @@ impl ComposerFileLists {
         })
     }
 
+    /// Where `composition`'s list stands: the number its next file will be given.
+    pub(crate) fn mark(&self, composition: &CompositionId) -> u64 {
+        self.lock().get(composition).map_or(0, |list| list.next)
+    }
+
+    /// How many files on `composition`'s list were added since `mark` ([`Self::mark`]).
+    pub(crate) fn added_since(&self, composition: &CompositionId, mark: u64) -> usize {
+        self.lock().get(composition).map_or(0, |list| {
+            list.files.iter().filter(|file| file.id.0 >= mark).count()
+        })
+    }
+
     pub(crate) fn forget(&self, composition: &CompositionId) {
         self.lock().remove(composition);
     }

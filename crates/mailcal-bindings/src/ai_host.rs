@@ -75,6 +75,8 @@ pub(crate) const fn build_kind() -> BuildKind {
 pub(crate) struct BindingsAiHost {
     handle: tokio::runtime::Handle,
     credential_store: Arc<dyn AccountCredentialStore>,
+    /// The transport in place of the network, for an in-memory boot, which reaches nobody.
+    offline: Option<fn() -> Box<dyn HttpTransport>>,
 }
 
 impl BindingsAiHost {
@@ -85,12 +87,29 @@ impl BindingsAiHost {
         Self {
             handle,
             credential_store,
+            offline: None,
+        }
+    }
+
+    /// A host that reaches no network: every request goes to what `transport` makes.
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    pub(crate) fn offline(
+        handle: tokio::runtime::Handle,
+        credential_store: Arc<dyn AccountCredentialStore>,
+        transport: fn() -> Box<dyn HttpTransport>,
+    ) -> Self {
+        Self {
+            offline: Some(transport),
+            ..Self::new(handle, credential_store)
         }
     }
 }
 
 impl AiHost for BindingsAiHost {
     fn transport(&self, cancel: AiCancel) -> Box<dyn HttpTransport> {
+        if let Some(offline) = self.offline {
+            return offline();
+        }
         match AiTransport::new(self.handle.clone(), cancel) {
             Ok(transport) => Box::new(transport),
             Err(_) => {
