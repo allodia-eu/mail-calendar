@@ -322,6 +322,21 @@ append_in_turn "$MAIL_DIR/19-conversation-draft-3.eml" INBOX
 append_in_turn "$MAIL_DIR/19-conversation-draft-4.eml" Drafts
 imap_cmd Drafts "STORE * +FLAGS (\\Draft)" >/dev/null
 
+# Alice's own replies, in English and Dutch, so learning a writing style has something to read
+# (docs/ai.md); one quotes the message it answers and one carries a signature, for what learning
+# strips. Each fixture's `Date: -N days` is rewritten to N days before today, as the living week is
+# anchored on this Monday, so the mail stays inside a new account's sync window. After the
+# conversations above, whose clearing of Sent Items would take them, and without clearing again.
+log "appending alice's sent replies to Sent Items (writing style)"
+for f in "$SEED_DIR"/sent/*.eml; do
+  ago=$(sed -n 's/^Date: -\([0-9]*\) days$/\1/p' "$f")
+  when=$(LC_ALL=C date -u -d "-$ago days" '+%a, %d %b %Y 09:00:00 +0000')
+  dated=$(mktemp)
+  sed "s/^Date: -.*/Date: $when/" "$f" >"$dated"
+  imap_append "$dated" "Sent%20Items"
+  rm -f "$dated"
+done
+
 # The shared-mailbox fixture's second half (entrypoint.sh creates the group). Two stores alice
 # can open besides her own, differing on purpose in their rights: as a member of `support` she
 # holds every right on its folders, while bob grants her only lookup and read on his INBOX.

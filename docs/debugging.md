@@ -350,6 +350,31 @@ re-pointing the reverse back at the harness instead fails the next dial with `Un
 is still trusting the proxy). One thing it cannot do: make one folder of an *already-connected*
 account fail, because IMAP keeps its authenticated session (`docs/provider-oauth.md` → Known gaps).
 
+### Learning a writing style and drafting a reply against the harness
+
+Learning reads the account's Sent folder, so the seed appends eight of alice's own replies to her
+`Sent Items`, five in English and three in Dutch, one quoting the message it answers and one
+signed (`docker/stalwart/seed/sent/`). Each is dated a number of days before the seed day, so it
+stays inside a new account's sync window, and is appended after the row-menu conversations, so
+they are the newest rows in `Sent Items`; no harness expectation reads that folder's newest rows
+or its count. Every recipient is on `@test.local` and none is a harness account, so a reply to one
+that a run does send stays inside the container and lands in no seeded inbox.
+
+A model to send to is [`ai-mock.py`](../scripts/dev/ai-mock.py), a canned OpenAI-compatible
+endpoint on loopback only:
+
+```sh
+scripts/dev/ai-mock.py                      # http://127.0.0.1:28434/v1; --delay, --status, --key
+adb reverse tcp:28434 tcp:28434             # Android only: plain HTTP is admitted to this device alone
+```
+
+Set it up under Settings → Advanced → Own AI endpoint as `http://127.0.0.1:28434/v1`, any model,
+declared as run in the EU by a European company. A draft gets a reply with one `[date]` gap, a
+summary and a task of each other kind, in Dutch where the request asks for Dutch; learning gets one
+fixed description. `--delay` holds each answer so the progress states can be seen, `--status`
+answers every request with that status (402, 429, 500), and `--key` refuses any other bearer. It
+prints a line per request and never what the request carried.
+
 ## 3. Read logs in the background
 
 Run the log tail as a background job so records stream while you drive the app:
