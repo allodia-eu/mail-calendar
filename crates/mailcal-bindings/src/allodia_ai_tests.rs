@@ -17,6 +17,7 @@ use crate::{
     AllodiaGrantHealth, LogLevel, MailcalApp, Surface,
     ai_host::BindingsAiHost,
     allodia::StoredAccount,
+    app_ai::tests::every_ai_surface_signalled,
     tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle},
 };
 
@@ -161,18 +162,20 @@ fn a_production_build_offers_it_while_the_stored_answer_carries_ai() {
 
 #[test]
 fn an_answer_without_ai_takes_it_away_at_once() {
-    let (app, _) = app("ai-offer-withdrawn");
+    let (app, rx) = app("ai-offer-withdrawn");
     as_production(&app);
     sign_in(&app, Some(WITH_AI));
     app.allodia_entitlement
         .record(answer(&[Capability::Ai]), NOW);
     app.publish_ai_entitlement_at(NOW);
     assert!(app.ai_offer());
+    rx.try_iter().for_each(drop);
 
     app.allodia_entitlement
         .record(answer(&[Capability::AccountsSync]), NOW + 60);
     app.publish_ai_entitlement_at(NOW + 60);
     assert!(!app.ai_offer());
+    every_ai_surface_signalled(&rx);
     assert_eq!(app.app.ai_route(), Err(AiFailure::NotEntitled));
 }
 
@@ -190,10 +193,7 @@ fn signing_out_takes_the_offer_and_the_relay_with_it() {
     app.sign_out_of_allodia().expect("signed out");
 
     assert!(!app.ai_offer());
-    assert!(
-        rx.try_iter()
-            .any(|surface| matches!(surface, Surface::WritingStyle))
-    );
+    every_ai_surface_signalled(&rx);
 }
 
 /// A test build is a development build: offered to everyone, and the relay is where a request

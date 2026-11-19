@@ -70,6 +70,26 @@ fn save(app: &MailcalApp, address: &str, declared: JurisdictionClass, key: Optio
     });
 }
 
+/// Waits until every one of the assistant's records has been signalled: the page, the composer's
+/// Draft a reply, the endpoint's form and Settings, each pulled again on its own surface.
+pub(crate) fn every_ai_surface_signalled(rx: &mpsc::Receiver<Surface>) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let mut seen = [false; 4];
+    while seen.contains(&false) {
+        let left = deadline.saturating_duration_since(Instant::now());
+        let surface = rx
+            .recv_timeout(left)
+            .unwrap_or_else(|_| panic!("not every surface was signalled: {seen:?}"));
+        match surface {
+            Surface::Settings => seen[0] = true,
+            Surface::WritingStyle => seen[1] = true,
+            Surface::ReplyDraft => seen[2] = true,
+            Surface::AiEndpoint => seen[3] = true,
+            _ => {}
+        }
+    }
+}
+
 /// A test build is a development build, so the assistant is offered without an entitlement.
 #[test]
 fn a_development_build_offers_the_form_with_nothing_set_up() {
@@ -106,10 +126,8 @@ fn a_save_dispatched_keeps_the_key_in_the_keystore_and_says_so_on_the_form() {
     assert_eq!(persisted.len(), 1);
     assert_eq!(persisted[0].0, "ai-endpoint");
     assert!(persisted[0].1.contains("sk-test") && !persisted[0].1.contains(" sk-test "));
-    assert!(
-        rx.try_iter()
-            .any(|surface| matches!(surface, Surface::AiEndpoint))
-    );
+    // Where a request goes moved, so the page and every composer read theirs again too.
+    every_ai_surface_signalled(&rx);
 
     app.dispatch(Intent::Ai {
         intent: AiIntent::Endpoint {

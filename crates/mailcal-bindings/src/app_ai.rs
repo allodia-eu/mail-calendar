@@ -106,4 +106,4 @@ impl MailcalApp {
 
 #[cfg(test)]
 #[path = "app_ai_tests.rs"]
-mod tests;
+pub(crate) mod tests;
