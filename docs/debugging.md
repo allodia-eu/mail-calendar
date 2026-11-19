@@ -760,12 +760,17 @@ MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 #     account drafts in; "Newly learned", its reveal not shown, so its row opens the reveal, with
 #     every page in English and Dutch and German holding greetings and sign-offs alone;
 #   - an own endpoint on this device, http://localhost:11434/v1, model `showcase-canned`, declared
-#     EU-native, so Learn and Draft are offered.
+#     EU-native, so Learn and Draft are offered;
+#   - on the showcase, seven sent messages in its Sent folder long enough to learn from, four in
+#     English and three in Dutch, so the first account's review is Ready and Learn can be pressed.
+#     The second account's Sent folder stays empty, so its review is NothingUsable.
 # Nothing leaves the device. A draft asked of `showcase-canned` gets a canned reply with a summary
 # and one checklist item of each kind (a [delivery date] gap, a file to attach, a task), so Draft a
 # reply reaches Drafted once the editor reports the draft in; save the form with any other model
-# and Draft ends in Failed, unreachable. Learning always fails as unreachable, and a key typed is
-# refused, since these boots keep none.
+# and Draft ends in Failed, unreachable. Learning always fails as unreachable, so a run on the
+# first account passes through Learning to Failed with Try again; a key typed is refused, since
+# these boots keep none. Without the hook the showcase's mail is the seed unchanged, which a core
+# test holds, since the store captures come from it.
 MAILCAL_OFFER_AI=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the
