@@ -14,8 +14,7 @@ private func form(
 ) -> AiEndpointForm {
     AiEndpointForm(
         address: "http://localhost:11434/v1", model: "mistral", declared: .euNative,
-        keyKept: keyKept, gaps: noGaps, save: .free(), remove: .free(),
-        outcome: outcome)
+        keyKept: keyKept, save: .free(), remove: .free(), outcome: outcome)
 }
 
 private func outcome(_ serial: UInt64, _ result: AiEndpointResult) -> AiEndpointOutcome {
@@ -31,11 +30,14 @@ private func outcome(_ serial: UInt64, _ result: AiEndpointResult) -> AiEndpoint
         #expect(fields.key.isEmpty)
     }
 
-    @Test func anEmptyKeyFieldLeavesTheKeptKeyAndATypedOneReplacesIt() {
+    @Test func theKeyIsSentAsTyped() {
         var fields = AiEndpointFields(form(keyKept: true))
-        #expect(fields.keyToSend == nil)
+        guard case let .save(_, _, _, untouched) = fields.save else {
+            Issue.record("a save is sent as a save")
+            return
+        }
+        #expect(untouched.isEmpty, "an empty field, which leaves the kept key")
         fields.key = "sk-new"
-        #expect(fields.keyToSend == "sk-new")
         guard case let .save(address, model, declared, key) = fields.save else {
             Issue.record("a save is sent as a save")
             return

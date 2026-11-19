@@ -18,15 +18,10 @@ struct AiEndpointFields: Equatable {
         declared = form.declared
     }
 
-    /// The key a save sends: what was typed replaces the kept one, and an empty field leaves the
-    /// kept one as it is.
-    var keyToSend: String? {
-        key.isEmpty ? nil : key
-    }
-
-    /// The intent that saves these fields as typed; the core trims each.
+    /// The intent that saves these fields as typed; the core trims each. A typed key replaces the
+    /// kept one and an empty field leaves it; only Remove takes a key out.
     var save: AiEndpointIntent {
-        .save(address: address, model: model, declared: declared, key: keyToSend)
+        .save(address: address, model: model, declared: declared, key: key)
     }
 }
 

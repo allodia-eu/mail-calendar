@@ -36,7 +36,7 @@ private struct AiEndpointFormView: View {
     }
 
     var body: some View {
-        let gaps = model.aiEndpointGap(fields) ?? form.gaps
+        let gaps = model.aiEndpointGap(fields)
         // A form nobody has started on names no gap: Save is held, and three lines saying what is
         // missing would read as something gone wrong.
         let untouched = fields == AiEndpointFields(form) && fields.address.isEmpty
@@ -90,14 +90,16 @@ private struct AiEndpointFormView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("aiEndpoint.save")
-                    ControlButton(
-                        title: L10n.ai_endpoint_remove(), role: .destructive, control: form.remove
-                    ) {
-                        problem = nil
-                        model.removeAiEndpoint()
+                    if let remove = form.remove {
+                        ControlButton(
+                            title: L10n.ai_endpoint_remove(), role: .destructive, control: remove
+                        ) {
+                            problem = nil
+                            model.removeAiEndpoint()
+                        }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("aiEndpoint.remove")
                     }
-                    .buttonStyle(.bordered)
-                    .accessibilityIdentifier("aiEndpoint.remove")
                 }
             }
             .frame(maxWidth: 460, alignment: .leading)

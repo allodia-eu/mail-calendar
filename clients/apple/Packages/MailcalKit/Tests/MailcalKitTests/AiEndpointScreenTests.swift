@@ -1,6 +1,6 @@
 // The own endpoint's form as drawn (AiEndpointSettings.swift): nothing while the record is absent,
-// Save held while a gap is named, and a running Save holding the fields. Hosted in
-// a window of its own with a model holding the record, so no core is needed; the running app is
+// Remove only when offered, and a running Save holding the fields. Hosted in a window of its own
+// with a model holding the record, so no core is needed; a gap named is the core's answer, and so
 // `AiEndpointSettingsTests` in the UI suite.
 
 #if os(iOS) && DEBUG
@@ -11,8 +11,6 @@ import Testing
 @testable import MailcalUI
 
 @Suite @MainActor struct AiEndpointScreenTests {
-    private static let noGaps = AiEndpointGaps(address: nil, modelMissing: false, declaration: nil)
-
     private func screen(_ form: AiEndpointForm?) -> HostedScreen {
         let model = MailboxModel()
         model.aiEndpoint = form
@@ -21,10 +19,12 @@ import Testing
             AiEndpointSettings(model: model), size: CGSize(width: 393, height: 1400))
     }
 
-    private func form(gaps: AiEndpointGaps = noGaps, save: ControlState = .free()) -> AiEndpointForm {
+    private func form(
+        save: ControlState = .free(), remove: ControlState? = nil
+    ) -> AiEndpointForm {
         AiEndpointForm(
             address: "http://localhost:11434/v1", model: "mistral", declared: .euNative,
-            keyKept: false, gaps: gaps, save: save, remove: .free(false), outcome: nil)
+            keyKept: false, save: save, remove: remove, outcome: nil)
     }
 
     @Test func nothingIsDrawnWhileTheFeatureIsNotOffered() {
@@ -37,10 +37,10 @@ import Testing
         #expect(shown.elements("Save").first?.enabled == true, "\(shown.dump())")
     }
 
-    @Test func saveIsHeldWhileAGapIsNamed() {
-        let shown = screen(form(gaps: AiEndpointGaps(
-            address: .needsHttps, modelMissing: false, declaration: nil)))
-        #expect(shown.elements("Save").first?.enabled == false, "\(shown.dump())")
+    @Test func removeIsDrawnOnlyWhenTheRecordOffersIt() {
+        #expect(screen(form()).elements("Remove").isEmpty)
+        let stored = screen(form(remove: .free()))
+        #expect(stored.elements("Remove").first?.enabled == true, "\(stored.dump())")
     }
 
     /// The spinner beside Save is a SwiftUI `ProgressView`, which has no element in a test host;

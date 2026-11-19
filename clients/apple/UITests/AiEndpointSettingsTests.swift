@@ -1,6 +1,6 @@
 // The own AI endpoint's form under Settings → Advanced (`docs/ai.md` rules 4 to 7), in the running
-// app. A debug build offers the writing assistant to everyone, so the form is there without an
-// Allodia account. What a save refuses is asked of the core as the person types and Save is held
+// app. The showcase offers the writing assistant under `MAILCAL_OFFER_AI`, with a host that sends
+// nothing, so the form is there without an Allodia account. What a save refuses is asked of the core as the person types and Save is held
 // meanwhile; what a save came to is said once.
 //
 // The showcase core keeps no credential, so a key is refused there as a keystore would refuse it;
@@ -22,6 +22,7 @@ final class AiEndpointSettingsTests: XCTestCase {
     func testTheFormIsOfferedAndSaveIsHeldWhileAGapIsNamed() throws {
         let app = try openAdvanced()
         try app.wait(save.enabled(false), "Save was not held with every field empty")
+        XCTAssertFalse(try app.exists(remove), "Remove was drawn with nothing stored")
         XCTAssertFalse(
             try app.exists(.text("Say where the server runs.")),
             "a form nobody has started on names its gaps")
@@ -68,13 +69,14 @@ final class AiEndpointSettingsTests: XCTestCase {
             "the form said a key is kept when none is")
 
         try app.press(remove.enabled(true))
-        try app.wait(remove.enabled(false), "Remove stayed offered after the removal")
+        try app.waitGone(remove, timeout: ShowcaseApp.timeout, "Remove stayed after the removal")
         XCTAssertEqual(try app.wait(address).value ?? "", "", "the removed address is still drawn")
     }
 
     /// Settings → Advanced, scrolled to the form.
     private func openAdvanced() throws -> App {
-        let app = try ShowcaseApp.launch(["MAILCAL_SHOWCASE_SCREEN": "settings"])
+        let app = try ShowcaseApp.launch(
+            ["MAILCAL_SHOWCASE_SCREEN": "settings", "MAILCAL_OFFER_AI": "1"])
         try app.wait(.text("Settings").role("AXHeading"), "Settings did not open")
         var row = try advancedRow(app)
         for _ in 0..<4 where row == nil {
