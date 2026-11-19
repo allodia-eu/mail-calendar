@@ -25,13 +25,8 @@ pub(super) fn draw_hours(
     let foreground = theme_color(scene.dark, true);
     set_source(context, theme_color(scene.dark, false));
     let _ = context.paint();
-    if !scene.is_materialized {
-        set_source(context, foreground);
-        select_font(context, 15.0, cairo::FontWeight::Normal);
-        context.move_to(GUTTER + 24.0, 48.0);
-        let _ = context.show_text(l10n::calendar_loading_range());
-        return;
-    }
+    // A period still loading is drawn as any other, its grid and whatever it holds so far; the
+    // pill over the scroller says it is loading (`super::super::loading`).
     let geometry = scene.geometry(width);
     set_source(context, line_color(scene.dark));
     context.set_line_width(1.0);
@@ -61,9 +56,6 @@ pub(super) fn draw_header(
     let foreground = theme_color(scene.dark, true);
     set_source(context, theme_color(scene.dark, false));
     let _ = context.paint();
-    if !scene.is_materialized {
-        return;
-    }
     let geometry = scene.geometry(width);
     let height = scene.header_height();
     set_source(context, line_color(scene.dark));

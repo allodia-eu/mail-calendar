@@ -83,6 +83,37 @@ pub(crate) fn a_label_is_laid_out_once_per_page_however_often_it_is_drawn() {
     window.destroy();
 }
 
+/// A period still loading is drawn as any other, its events included, under the pill
+/// (`docs/calendar.md`, "Showing a period that is loading"). The surface used to paint words in
+/// place of the grid, so it laid out no label at all.
+pub(crate) fn a_page_still_loading_draws_its_grid_and_events() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let surface = GridSurface::new(sender);
+    let mut scene = GridScene::empty();
+    scene.days = vec![DayPaint {
+        date: time::Date::from_calendar_date(2026, time::Month::August, 27).unwrap(),
+        label: "Thu 27".to_owned(),
+        is_today: false,
+    }];
+    scene.events = vec![event("standup", "Daily standup", 0, 9 * 60, false)];
+    scene.hidden_per_day = vec![0];
+    scene.visible_hours = 24;
+    scene.is_materialized = false;
+    scene.timezone = "UTC".to_owned();
+    *surface.scene.borrow_mut() = scene;
+    let window = gtk::Window::new();
+    window.set_default_size(600, 1600);
+    window.set_child(Some(&surface.root));
+    window.present();
+    settle(|| surface.labels.borrow().len() == 1);
+    assert_eq!(
+        surface.labels.borrow().len(),
+        1,
+        "a page still loading drew no event: the grid was replaced by words"
+    );
+    window.destroy();
+}
+
 fn event(key: &str, title: &str, day: usize, start: u32, awaiting: bool) -> EventPaint {
     EventPaint {
         identity: EventIdentity {

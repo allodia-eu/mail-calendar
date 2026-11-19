@@ -12,6 +12,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onNodeWithTag
 import java.util.Locale
 import org.junit.Rule
 import org.junit.runner.RunWith
@@ -143,6 +145,27 @@ class MonthChipParticipationTest {
         compose.onNodeWithContentDescription("Quarterly planning, Awaiting your response")
             .assertExists()
         // The commitment beside it keeps its plain title, a hold is marked, everything else is not.
+        compose.onNodeWithContentDescription("Design review").assertExists()
+    }
+
+    @Test
+    fun a_month_still_loading_keeps_its_cells_under_the_pill() {
+        // A product decision (`docs/calendar.md`, "Showing a period that is loading"): the cells and
+        // what they hold so far stay, and the pill over them says the period is loading.
+        compose.setContent {
+            AppTheme {
+                CalendarMonthGrid(
+                    page = monthWith(listOf(chip("Design review", ResponseStatus.ACCEPTED)))
+                        .copy(isMaterialized = false),
+                    today = LocalDate.of(2026, 7, 15),
+                    locale = Locale.forLanguageTag("en-GB"),
+                    weekStartsMonday = true,
+                    onOpenEvent = { },
+                )
+            }
+        }
+        compose.onNodeWithTag(CALENDAR_LOADING_PILL).assertIsDisplayed()
+        compose.onNodeWithContentDescription("Loading this period…").assertExists()
         compose.onNodeWithContentDescription("Design review").assertExists()
     }
 }

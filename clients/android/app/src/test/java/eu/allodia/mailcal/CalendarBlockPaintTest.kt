@@ -39,7 +39,6 @@ private val THEME = SurfaceTheme(
     weekNumber = TextStyle.Default,
     allDay = TextStyle.Default,
     more = TextStyle.Default,
-    loading = TextStyle.Default,
     dragFill = Color.Blue,
     dragBorder = Color.Blue,
     pillFill = Color.Black,

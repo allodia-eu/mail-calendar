@@ -393,6 +393,36 @@ pub(crate) fn an_unchanged_page_keeps_its_hit_targets_and_a_new_one_replaces_the
     window.close();
 }
 
+/// The pill says a period is loading for as long as it is, and sits over the scroller rather
+/// than in the day it scrolls, so it is on screen at whatever hour the day opened
+/// (`docs/calendar.md`, "Showing a period that is loading").
+pub(crate) fn the_loading_pill_follows_the_page_and_stays_on_screen() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let surface = GridSurface::new(sender);
+    let window = gtk::Window::new();
+    window.set_default_size(900, 600);
+    window.set_child(Some(&surface.root));
+    window.present();
+    settle(|| surface.drawing.width() > 0);
+    assert!(
+        !surface.loading.widget().is_ancestor(&surface.scroller),
+        "the pill scrolls with the day, so a day opened at the morning hides it"
+    );
+    let mut model = CalendarModel::empty(
+        time::Date::from_calendar_date(2026, time::Month::October, 26).unwrap(),
+    );
+    surface.render(&model, false);
+    assert!(
+        surface.loading.is_shown(),
+        "a page still loading shows no pill"
+    );
+
+    model.page.is_materialized = true;
+    surface.render(&model, false);
+    assert!(!surface.loading.is_shown(), "the pill outlived the load");
+    window.close();
+}
+
 fn settle(ready: impl Fn() -> bool) {
     let context = gtk::glib::MainContext::default();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);

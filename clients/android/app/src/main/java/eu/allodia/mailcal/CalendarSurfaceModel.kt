@@ -276,7 +276,6 @@ internal data class SurfaceTheme(
     val weekNumber: TextStyle,
     val allDay: TextStyle,
     val more: TextStyle,
-    val loading: TextStyle,
     /**
      * The fill and border a **new** slot is drawn out in, the swatch of the calendar it would be
      * filed on, not the app's accent.

@@ -13,6 +13,7 @@ mod editor;
 pub(super) mod editor_meeting;
 mod grid;
 pub(super) mod invitees_editor;
+mod loading;
 mod meeting;
 pub(super) mod meeting_row;
 mod model;

@@ -164,6 +164,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         a_label_is_laid_out_once_per_page_however_often_it_is_drawn();
     crate::ui::calendar::widget_tests::
         an_unchanged_page_keeps_its_hit_targets_and_a_new_one_replaces_them();
+    crate::ui::calendar::widget_tests::the_loading_pill_follows_the_page_and_stays_on_screen();
+    crate::ui::calendar::labels_widget_tests::a_page_still_loading_draws_its_grid_and_events();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
     crate::ui::calendar::dialog_tests::the_editor_never_pre_empts_the_scope_question();
     crate::ui::calendar::side_pane_widget_tests::
@@ -178,6 +180,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         an_unchanged_agenda_keeps_its_rows_and_a_changed_one_is_drawn_again();
     crate::ui::calendar::views_tests::
         an_unchanged_month_keeps_its_cells_and_a_changed_one_is_drawn_again();
+    crate::ui::calendar::views_tests::a_month_still_loading_keeps_its_cells();
     crate::ui::calendar::detail_tests::maybe_leaves_the_detail_open_and_it_follows_the_store();
     crate::ui::calendar::detail_tests::decline_asks_before_it_answers_and_then_closes_the_detail();
     crate::ui::calendar::detail_tests::

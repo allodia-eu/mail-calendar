@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -80,33 +79,40 @@ internal fun CalendarMonthGrid(
     Column(modifier = modifier.fillMaxSize()) {
         MonthWeekdayHeader(locale = locale, weekStartsMonday = weekStartsMonday)
         HorizontalDivider()
-        if (!page.isMaterialized) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
         // Each week is an equal share of what's left, so the grid fills the screen exactly and never
-        // scrolls, a month you have to scroll is a month you cannot see.
-        Column(modifier = Modifier.fillMaxSize()) {
-            repeat(MONTH_WEEKS) { week ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                ) {
-                    for (column in 0 until 7) {
-                        val cell = page.cells[week * 7 + column]
-                        MonthDayCell(
-                            cell = cell,
-                            page = page,
-                            isToday = cell.date == today.toString(),
-                            dark = dark,
-                            onOpenEvent = onOpenEvent,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxSize(),
-                        )
+        // scrolls, a month you have to scroll is a month you cannot see. A month still loading keeps
+        // its cells under the pill (`docs/calendar.md`, "Showing a period that is loading").
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                repeat(MONTH_WEEKS) { week ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    ) {
+                        for (column in 0 until 7) {
+                            val cell = page.cells[week * 7 + column]
+                            MonthDayCell(
+                                cell = cell,
+                                page = page,
+                                isToday = cell.date == today.toString(),
+                                dark = dark,
+                                onOpenEvent = onOpenEvent,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxSize(),
+                            )
+                        }
                     }
+                    HorizontalDivider()
                 }
-                HorizontalDivider()
+            }
+            if (!page.isMaterialized) {
+                CalendarLoadingPill(
+                    L10n.calendar_loading_range(LocalContext.current),
+                    spoken = true,
+                    modifier = Modifier.align(Alignment.TopCenter).padding(top = 12.dp),
+                )
             }
         }
     }

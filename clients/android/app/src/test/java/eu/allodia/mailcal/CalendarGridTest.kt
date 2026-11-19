@@ -9,7 +9,9 @@ package eu.allodia.mailcal
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -64,5 +66,17 @@ class CalendarGridTest : CalendarGridTestBase() {
     fun a_materialized_empty_week_is_a_real_answer_and_says_nothing() {
         screen(gridPage(timed = emptyList()))
         compose.onAllNodesWithContentDescription("Loading this period…").assertCountEquals(0)
+        compose.onAllNodesWithTag(CALENDAR_LOADING_PILL).assertCountEquals(0)
+    }
+
+    @Test
+    fun a_week_still_loading_keeps_its_grid_under_the_pill() {
+        // A product decision (`docs/calendar.md`, "Showing a period that is loading"): the grid and
+        // what it holds so far stay, and the pill over them says the period is loading. The pill is
+        // silent, so the status is spoken once, by the surface's own node.
+        screen(gridPage(timed = listOf(gridBlock(day = 0)), isMaterialized = false))
+        compose.onNodeWithTag(CALENDAR_LOADING_PILL).assertIsDisplayed()
+        compose.onAllNodesWithContentDescription("Loading this period…").assertCountEquals(1)
+        spoken("Team standup").assertExists()
     }
 }
