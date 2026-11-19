@@ -17,6 +17,7 @@ mod intent_notices;
 mod intent_outbox;
 mod intent_preferences;
 mod intent_signatures;
+mod intent_writing_style;
 
 pub use intent::Intent;
 pub use intent_account_page::AccountPageIntent;
@@ -28,6 +29,7 @@ pub use intent_notices::NoticeIntent;
 pub use intent_outbox::OutboxIntent;
 pub use intent_preferences::PreferenceIntent;
 pub use intent_signatures::SignatureIntent;
+pub use intent_writing_style::{StyleLearningIntent, WritingStyleIntent};
 
 /// Which folders an active search covers: the host's scope filter.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]

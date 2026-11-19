@@ -106,9 +106,10 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    of the feature travels as `Intent::Ai`, one family per surface. It holds the
    library's rows (name, the address learned from, how many messages, when, which languages), a
    slot picker per account used for mail once the library holds a style, and **Learn**. A library
-   change runs one at a time until written, holds the page, runs its own control and says what it
-   came to as the page's `outcome` with a serial, as Signatures does; one not written is the
-   `SettingsNotSaved` notice ([`notices.md`](notices.md)).
+   change (a rename, the notes, a slot, Forget, leaving the reveal) runs one at a time until
+   written, holds the page, runs its own control and says what it came to as the page's
+   `outcome` with a serial, as Signatures does; one not written is the `SettingsNotSaved` notice
+   ([`notices.md`](notices.md)).
 9. **Learn says on the page why it cannot be pressed**: no account is used for mail, there is
    nowhere to send, the gate refuses the endpoint as declared, or the Allodia sign-in needs
    renewing, each with its one remedy (rule 27). While a run goes, the page draws it in Learn's
@@ -119,21 +120,29 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 
 11. **The flow is one record, `writing_style_learning()`, whose stage the core moves:**
     - `ChooseAccount`, only with more than one account used for mail, each named by its address.
-    - `ChooseRange`, from the core's presets (`LearnRange`): everything the account sent;
-      everything up to a date (the end of last year, to leave out mail written with an assistant's
-      help); or a range of the person's own within dates the core bounds. A client converts no
-      dates. A range reaching past what the device holds has the core read the older sent mail
-      from the server for the run.
+    - `ChooseRange`, from the core's presets (`learn_ranges`): everything the device holds;
+      everything up to the end of last year, to leave out mail written with an assistant's help;
+      or a range of the person's own within days the core bounds. Only what the device holds is
+      offered: the record says how far back that is (the account's sync depth), the end of last
+      year is offered only when the device holds mail from before this year, and a range of the
+      person's own starts no earlier. A day is a whole day in UTC, as a sync window's first day
+      is. A client converts no dates.
     - `Review`: the core reads the range and stops before anything leaves: `Reading`, then `Ready`
       (messages found, how many say enough to learn from per language, how many were left out in
       other languages, the dates read) or `NothingUsable`. It says what is sent where, naming the
-      relay or the endpoint's host, and names no price, which only the relay knows. **Pressing Learn
-      there is the consent**; nothing asks anywhere else.
+      relay or the endpoint's host, and names no price, which only the relay knows. It says how far
+      back the device holds the account's mail, and, for an account whose server keeps no
+      keyword, that only this device knows its drafted replies (rule 25). **Pressing Learn there
+      is the consent**; nothing asks anywhere else. Learn carries the default name the style is
+      stored under and the language the app is read in, both the client's, since the core has no
+      words or locale of its own.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
-    - `Failed { reason, remedy }`, with its one remedy (rule 27).
-    - `Learned { style }`: the style is in the library under a default name, and the reveal follows
-      in the same host.
+    - `Failed { failure, remedy }`, with its one remedy (rule 27). `Remedy` moves the flow for
+      `ChooseAccount` and `ChooseRange` as Back does, and `TryAgain` runs again what failed; for
+      the others a client opens what the remedy names.
+    - `Learned { style }`: the style is in the library under the default name, and the reveal
+      follows in the same host.
 12. **Back and closing do what the stage says.** Back, Next, Learn, Stop and Close are each a
     `ControlState` on the record; a client sends the intent.
 
@@ -143,11 +152,15 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     | `ChooseRange` | to `ChooseAccount`, where it was shown | ends the flow |
     | `Review` | to `ChooseRange`, dropping a read under way | ends the flow, dropping a read under way |
     | `Learning` | none; Stop returns to `Review` | the run goes on, drawn on the page with its Stop ([`waiting.md`](waiting.md) rule 3) |
-    | `Failed` | to the stage its remedy names, otherwise `Review` | ends the flow |
+    | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
     | `Learned` | none | the reveal counts as shown; the style keeps its default name |
 
-13. **One run at a time**, as queued work, on the one queue learning and drafting share. Opening the flow while one runs opens it on `Learning`;
-    an answer for a range or an account the person has since left is dropped by the core.
+13. **One run at a time**, as queued work, on the one queue learning and drafting share; the
+    review's read sends nothing and runs beside it. Opening the flow while one runs opens it on
+    `Learning`; an answer for a range or an account the person has since left is dropped by the
+    core. A run whose host was closed and that then learns leaves the flow, its style's row opening
+    the reveal; one that fails is drawn on the page in Learn's place, and Learn reopens the flow
+    on the failure.
 14. **Only the person's words are read**: each sent message cut to what its author wrote, without
     quote or signature, and calendar answers, automatic replies, repeats, anything under forty words
     of its own and every drafted reply (rule 25) left out.
@@ -157,7 +170,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 15. **The reveal shows a new style back once, in six pages the core composes**
     (`writing_style_reveal(style)`): which field is on which page, an empty one left out, the
     letter's line lengths, the first sentence and the languages are data; a client lays them out
-    and animates them, drawing every value final under reduced motion. The pages: **what was read**
+    and animates them, drawing every value final under reduced motion. A page no language has
+    anything for is left out, and a per-language page says so for a language with nothing for it.
+    A description without a heading of its own is headed by its first sentence, which ends at a
+    full stop, question mark, exclamation mark or ellipsis followed by the end or by a space and
+    anything but a lower-case letter. The pages: **what was read**
     (how many messages, from which address, since when, in which languages); **a typical reply** (a
     miniature letter in the person's usual length and shape, opening as they often do);
     **greetings and sign-offs**, each worded by its share ("mostly" for half or more, "often" for a
@@ -288,8 +305,7 @@ Learning and drafting **pass the jurisdiction gate**; neither is a carve-out
 ([`../AGENTS.md`](../AGENTS.md), "Non-negotiables"). The relay is `eu-native` by construction; an
 own endpoint is admitted as far as the person's declaration and the mode allow, an undeclared one
 only under `all`. A model on the person's own computer is declared like any other endpoint, so no
-local or air-gapped deployment is exempt. Older sent mail read for a range comes from the account's
-own server, which is not a dispatch of this feature.
+local or air-gapped deployment is exempt. Learning reads only the sent mail the device holds.
 
 ## Per-platform matrix
 
@@ -298,9 +314,9 @@ own server, which is not a dispatch of this feature.
 | The gate before anything is read or sent (rules 1 to 3) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Learning in the flow host, with Back, Stop and one remedy (11 to 14) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Learning in the flow host, with Back, Stop and one remedy (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The draft as one undo step, replacing asked first (21, 22) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The card, ticks from the editor's changes, asked once at Send (23, 24) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
