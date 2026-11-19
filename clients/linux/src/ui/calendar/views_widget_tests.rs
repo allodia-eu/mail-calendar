@@ -103,3 +103,19 @@ pub(crate) fn an_unchanged_month_keeps_its_cells_and_a_changed_one_is_drawn_agai
         "the month went on showing an event that had changed"
     );
 }
+
+/// A month still loading keeps its cells, under the pill the pane lays over it
+/// (`docs/calendar.md`, "Showing a period that is loading"). It used to draw one label in their
+/// place.
+pub(crate) fn a_month_still_loading_keeps_its_cells() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let grid = gtk::Grid::new();
+    let mut model = month_showing("Standup");
+    model.month.is_materialized = false;
+    render_month(&grid, &model, &sender, &mut None);
+    let cell = grid.child_at(0, 0).expect("the month drew nothing");
+    assert!(
+        cell.downcast_ref::<gtk::Label>().is_none(),
+        "a month still loading drew words in place of its days"
+    );
+}

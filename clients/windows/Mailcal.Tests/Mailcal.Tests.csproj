@@ -47,6 +47,7 @@
     <Compile Include="..\Mailcal\Calendar\CalendarSurfaceState.cs" Link="Calendar\CalendarSurfaceState.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarAnimation.cs" Link="Calendar\CalendarAnimation.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarSurfaceDriver.cs" Link="Calendar\CalendarSurfaceDriver.cs" />
+    <Compile Include="..\Mailcal\Calendar\CalendarLoading.cs" Link="Calendar\CalendarLoading.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarVelocity.cs" Link="Calendar\CalendarVelocity.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.cs" Link="Calendar\CalendarGestureOwner.cs" />
     <Compile Include="..\Mailcal\Calendar\CalendarGestureOwner.Wheel.cs" Link="Calendar\CalendarGestureOwner.Wheel.cs" />

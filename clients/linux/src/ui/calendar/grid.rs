@@ -8,7 +8,7 @@ use std::{
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
 
-use super::{super::AppInput, model::CalendarModel};
+use super::{super::AppInput, loading::LoadingPill, model::CalendarModel};
 use crate::l10n;
 
 mod create;
@@ -40,6 +40,8 @@ pub(super) struct GridSurface {
     drawing: gtk::DrawingArea,
     hits: gtk::Fixed,
     scene: Rc<RefCell<GridScene>>,
+    /// Shown over the hours while the page is not materialized.
+    loading: LoadingPill,
     /// The page's event labels, laid out as each is first drawn and cleared with the page.
     labels: Rc<RefCell<labels::Labels>>,
     /// Whether `render` has laid a page out yet: until it has, the empty scene is not a page.
@@ -62,8 +64,10 @@ impl GridSurface {
         scroller.set_hscrollbar_policy(gtk::PolicyType::Never);
         scroller.set_vexpand(true);
         scroller.set_child(Some(&overlay));
+        // Over the scroller, not inside it, so the pill stays on screen at any hour.
+        let (body, loading) = LoadingPill::over(&scroller, false);
         root.append(&header_overlay);
-        root.append(&scroller);
+        root.append(&body);
         scroller.update_property(&[AccessibleProperty::Label(l10n::nav_calendar())]);
 
         let scene = Rc::new(RefCell::new(GridScene::empty()));
@@ -175,6 +179,7 @@ impl GridSurface {
             drawing,
             hits,
             scene,
+            loading,
             labels,
             rendered: Cell::new(false),
             framing,
@@ -196,6 +201,7 @@ impl GridSurface {
         let adjustment = self.scroller.vadjustment();
         scene.set_viewport_top(adjustment.value());
         let header_height = pixel_size(scene.header_height().ceil());
+        self.loading.show(!scene.is_materialized);
         *self.scene.borrow_mut() = scene;
         // Labels are kept by each event's place in the page, so a new page lays them out afresh.
         self.labels.borrow_mut().clear();

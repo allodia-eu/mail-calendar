@@ -162,8 +162,9 @@ internal sealed partial class CalendarSurface
 
         if (!page.IsMaterialized)
         {
-            // A week the core has not answered for says so out loud. Rendering it as empty would be a
-            // lie that looks exactly like a real answer (§4).
+            // A week the core has not answered for says so out loud, once: the pill over the grid is
+            // silent, and the headings and whatever events the page holds are spoken after it, as
+            // they are drawn ("Showing a period that is loading").
             into.Add(new CalendarItemPeer(
                 _strings.Loading,
                 () =>
@@ -175,7 +176,6 @@ internal sealed partial class CalendarSurface
                 Scale,
                 peer,
                 AutomationControlType.Text));
-            return;
         }
 
         // The column headings. Without these a screen reader can hear every event on the grid and

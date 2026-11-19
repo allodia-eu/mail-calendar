@@ -17,6 +17,9 @@ import android.view.accessibility.AccessibilityManager
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -284,6 +287,21 @@ internal fun CalendarSurface(
             }
         }
 
+        // **`isMaterialized == false` does not mean "no events".** It means the engine has not looked
+        // this far yet, and a confidently empty week is a lie that looks exactly like a real answer.
+        // So the grid stays, and the pill says the period is loading, pinned below the banner where
+        // it is on screen at any hour (`docs/calendar.md`, "Showing a period that is loading").
+        if (!current.isMaterialized) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = GUTTER, top = with(density) { metrics.contentTop.toDp() } + 12.dp),
+                contentAlignment = Alignment.TopCenter,
+            ) {
+                CalendarLoadingPill(strings.loading, spoken = false)
+            }
+        }
+
         // A canvas speaks to nobody. The blocks keep their full spoken labels, §4 is not negotiable:
         // but the nodes that carry them are materialized ONLY when a screen reader is actually
         // listening: they cost layout, and a pinch would pay it sixty times a second for a service
@@ -365,7 +383,6 @@ private fun surfaceTheme(createSwatch: Swatch): SurfaceTheme {
             weekNumber = type.labelLarge.copy(color = colors.onSurfaceVariant),
             allDay = type.labelSmall.copy(color = colors.onSurfaceVariant),
             more = type.labelSmall.copy(color = colors.onSurfaceVariant),
-            loading = type.labelSmall.copy(color = colors.onSurfaceVariant),
             dragFill = parseHexColor(createSwatch.background),
             dragBorder = parseHexColor(createSwatch.border),
             pillFill = colors.inverseSurface,

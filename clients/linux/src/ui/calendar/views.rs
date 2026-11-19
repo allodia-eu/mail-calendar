@@ -145,13 +145,8 @@ pub(super) fn render_month(
         use_24_hour: model.use_24_hour,
         dark,
     });
+    // A month still loading keeps its cells; the pane's pill over them says it is loading.
     clear_grid(grid);
-    if !model.month.is_materialized {
-        let label = gtk::Label::new(Some(l10n::calendar_loading_range()));
-        label.set_margin_top(48);
-        grid.attach(&label, 0, 0, 7, 1);
-        return;
-    }
     for (index, cell) in model.month.cells.iter().enumerate() {
         let Ok(column) = i32::try_from(index % 7) else {
             continue;

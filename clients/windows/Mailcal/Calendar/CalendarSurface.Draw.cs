@@ -283,7 +283,6 @@ internal sealed partial class CalendarSurface
             _strip,
             m,
             _theme,
-            _strings,
             _text,
             scrollY: _state.ScrollY,
             contentTop: m.ContentTop,
@@ -305,6 +304,7 @@ internal sealed partial class CalendarSurface
 
         TrimPages();
         UpdatePeriodTitle(m);
+        UpdateLoadingPill(m);
     }
 
     /// <summary>Which column of <paramref name="page"/> is today, or <c>-1</c>, on every other week.</summary>
@@ -367,13 +367,48 @@ internal sealed partial class CalendarSurface
     /// grid is laid out or while a page is missing.</summary>
     private (DateOnly From, DateOnly To, int Count)? Visible(SurfaceMetrics m)
     {
+        if (VisibleDays(m) is not var (first, last))
+        {
+            return null;
+        }
+        return DateAt(first) is { } from && DateAt(last) is { } to ? (from, to, last - first + 1) : null;
+    }
+
+    /// <summary>The first and last days on screen, counted from the anchor week's first day;
+    /// <c>null</c> before the grid is laid out.</summary>
+    private (int First, int Last)? VisibleDays(SurfaceMetrics m)
+    {
         if (m.DayWidth <= 0f)
         {
             return null;
         }
         var first = (int)MathF.Floor(_state.StripX / m.DayWidth);
         var last = Math.Max((int)MathF.Floor((_state.StripX + m.DayViewport - 1f) / m.DayWidth), first);
-        return DateAt(first) is { } from && DateAt(last) is { } to ? (from, to, last - first + 1) : null;
+        return (first, last);
+    }
+
+    /// <summary>Tells the host to show, hide or move the loading pill, when any of that changed.</summary>
+    /// <remarks>
+    /// A page with no headings has not been pulled yet, which is not the core saying it has not
+    /// looked; only a page the core answered with <c>IsMaterialized == false</c> is loading.
+    /// </remarks>
+    private void UpdateLoadingPill(SurfaceMetrics m)
+    {
+        if (VisibleDays(m) is not var (first, last))
+        {
+            return;
+        }
+        var place = CalendarLoading.Place(
+            first,
+            last,
+            week => Page(_state.Week + week) is { IsMaterialized: false, Headings.Count: > 0 },
+            m);
+        if (place == LoadingPill)
+        {
+            return;
+        }
+        LoadingPill = place;
+        LoadingPillChanged?.Invoke();
     }
 
     /// <summary>Tells the host where the grid has come to rest, when that is somewhere new.</summary>

@@ -102,11 +102,8 @@ internal fun DrawScope.drawCalendarPage(
                 }
             }
         }
-        // **`isMaterialized == false` does not mean "no events".** It means the engine has not looked
-        // this far yet, and a confidently empty week is a lie that looks exactly like a real answer.
-        if (!page.isMaterialized) {
-            drawLoading(m, theme, strings, measurer, contentTop)
-        }
+        // A page that is not materialized is drawn as any other: the pill over the canvas says it is
+        // loading (`CalendarLoadingPill`).
     }
 }
 
@@ -310,36 +307,6 @@ private fun DrawScope.drawNowLine(
         color = theme.error,
         radius = NOW_DOT.toPx() / 2f,
         center = Offset(m.dayWidth * todayIndex, y),
-    )
-}
-
-// "Loading this period…", the honest answer for a week the engine has not expanded yet.
-private fun DrawScope.drawLoading(
-    m: SurfaceMetrics,
-    theme: SurfaceTheme,
-    strings: SurfaceStrings,
-    measurer: TextMeasurer,
-    contentTop: Float,
-) {
-    val line = measurer.line(strings.loading, theme.loading, m.dayViewport)
-    val height = line.size.height + 12.dp.toPx()
-    drawRect(
-        color = theme.surface,
-        topLeft = Offset(m.gutter, contentTop),
-        size = Size(m.dayViewport, height),
-    )
-    drawText(
-        line,
-        topLeft = Offset(
-            m.gutter + (m.dayViewport - line.size.width) / 2f,
-            contentTop + (height - line.size.height) / 2f,
-        ),
-    )
-    drawLine(
-        color = theme.primary,
-        start = Offset(m.gutter, contentTop + height),
-        end = Offset(m.width, contentTop + height),
-        strokeWidth = 2.dp.toPx(),
     )
 }
 

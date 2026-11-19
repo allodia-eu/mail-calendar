@@ -11,6 +11,7 @@ use super::{
     detail::DetailView,
     dialogs,
     grid::GridSurface,
+    loading::LoadingPill,
     model::{CalendarDialog, CalendarMode, CalendarModel},
     side_pane::{CalendarSide, SidePane},
     views::{self, AgendaDrawn, MonthDrawn},
@@ -37,6 +38,8 @@ pub(crate) struct CalendarPane {
     surfaces: gtk::Stack,
     grid: GridSurface,
     month: gtk::Grid,
+    /// Shown over the month while it is not materialized.
+    month_loading: LoadingPill,
     month_drawn: Option<MonthDrawn>,
     agenda: gtk::ListBox,
     agenda_drawn: Option<AgendaDrawn>,
@@ -111,7 +114,8 @@ impl CalendarPane {
         let surfaces = gtk::Stack::new();
         surfaces.set_transition_type(gtk::StackTransitionType::Crossfade);
         surfaces.add_named(&grid.root, Some("grid"));
-        surfaces.add_named(&month_scroll, Some("month"));
+        let (month_body, month_loading) = LoadingPill::over(&month_scroll, true);
+        surfaces.add_named(&month_body, Some("month"));
         surfaces.add_named(&agenda_scroll, Some("agenda"));
         root.set_content(Some(&surfaces));
 
@@ -131,6 +135,7 @@ impl CalendarPane {
             surfaces,
             grid,
             month,
+            month_loading,
             month_drawn: None,
             agenda,
             agenda_drawn: None,
@@ -177,6 +182,7 @@ impl CalendarPane {
         match model.mode {
             CalendarMode::Month => {
                 views::render_month(&self.month, model, &self.sender, &mut self.month_drawn);
+                self.month_loading.show(!model.month.is_materialized);
                 self.surfaces.set_visible_child_name("month");
             }
             CalendarMode::Agenda => {

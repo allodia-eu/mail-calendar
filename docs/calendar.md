@@ -317,6 +317,34 @@ question of how much room *this* screen has) but the **rule** is shared.
 **must** say so ("loading this period…") rather than render a confidently empty week, which is a
 lie that looks exactly like a real answer.
 
+#### Showing a period that is loading
+
+A cross-platform product decision, the same on every client: a period that is not materialized
+**keeps its grid, with a spinner over it**.
+
+- The grid is drawn as for any period: the day headings, the hour ruler, the hour lines and the
+  month's cells, and whatever events the page already holds. It is never replaced by a blank
+  surface or by words where the days would be.
+- A **spinner beside "loading this period…"** floats over the grid, centred near its top, and is
+  **pinned to what is on screen**, not to the scrolled content, so it is seen at whatever hour the
+  day opened. It lets presses through to the grid under it, and goes as soon as the page is
+  materialized.
+- The status is spoken once. Where the surface already speaks it (Linux's semantic overlay over
+  the week, Windows' spoken summary), the pill is not spoken again.
+- The agenda is a list with no grid to keep, so it says "loading this period…" in its list.
+
+Why: the spinner says the wait is active, where words alone read as a state, and the grid tells the
+reader where they are while it lasts. The decision came from Linux, which painted the whole week
+over and wrote the words at the top of the day: a week opened at the morning hours showed an empty
+black surface, and the words were found only by scrolling up to midnight.
+
+| Client | Where |
+|---|---|
+| Linux | `clients/linux/src/ui/calendar/loading.rs`, over the week's scroller and the month |
+| Android | `CalendarSurfaceDraw.kt`, the pill drawn over the grid at the top of the day viewport |
+| Windows | `CalendarLoadingPill.cs`, a XAML element over the time grid (`CalendarView`, placed by `CalendarLoading.cs`) and the month (`MonthGridView.cs`) |
+| Apple | `CalendarLoadingPill.swift`, over the week's hours in `CalendarGridView.swift` and over the month's cells in `CalendarMonthView.swift` |
+
 The core owes the client the same honesty, and it costs one rule in the cache: **the materialized
 window is claimed on evidence**: a calendar in the store, or an account set that is fully
 connected and has no calendar in it. A rebuild runs whether or not the sync in front of it reached

@@ -26,6 +26,10 @@ public sealed partial class CalendarView : UserControl
 {
     private readonly CalendarSurface _grid = new();
     private readonly MonthGridView _month = new();
+
+    // Over the drawn grid, not in it, so it stays on screen at any hour. Silent: the grid's spoken
+    // summary already says its week is loading.
+    private readonly CalendarLoadingPill _loading = new(L10n.CalendarLoadingRange(), spoken: false, "CalendarGridLoading");
     private CalendarPager _pager = new(DateOnly.FromDateTime(DateTime.Now));
 
     /// <summary>The month the month grid is showing, the 1st of it. The month is not the swipe-paged
@@ -58,6 +62,7 @@ public sealed partial class CalendarView : UserControl
     {
         this.InitializeComponent();
         GridHost.Children.Add(_grid);
+        GridHost.Children.Add(_loading);
         MonthHost.Children.Add(_month);
 
         // The automation id goes on the SURFACE, not on the host it sits in: a bare layout Grid
@@ -73,6 +78,12 @@ public sealed partial class CalendarView : UserControl
         AutomationProperties.SetAutomationId(_grid, "CalendarGrid");
 
         _grid.PeriodChanged = () => PeriodText.Text = _grid.PeriodTitle;
+        _grid.LoadingPillChanged = () =>
+        {
+            var place = _grid.LoadingPill;
+            _loading.Margin = new Thickness(place.Left, place.Top, 0, 0);
+            _loading.Show(place.Shown);
+        };
         _grid.ZoomSettled = OnZoomSettled;
         _grid.OpenEvent = OnOpenEvent;
         _month.DayPicked = OnMonthDayPicked;
@@ -314,6 +325,13 @@ public sealed partial class CalendarView : UserControl
         if (agenda)
         {
             return;
+        }
+
+        // The month titles the header itself, and the grid raises PeriodChanged only when its own title
+        // changes, so a grid returning to the days it last showed would leave the month's name over them.
+        if (grid && _grid.PeriodTitle.Length > 0)
+        {
+            PeriodText.Text = _grid.PeriodTitle;
         }
 
         // Spoken as what it does *here*: "next day" in the day zoom, "next 3 days", "next week", "next

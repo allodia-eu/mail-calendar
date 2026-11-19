@@ -16,7 +16,7 @@ use engine_api::{CalendarDate, TimeZoneId};
 
 use super::{
     days::{date_at, day_number, from_civil, weekday},
-    grid::{Occurrence, extent},
+    grid::{Extent, Occurrence, extent},
 };
 
 /// How many day cells a month page always has: six weeks of seven.
@@ -89,9 +89,6 @@ pub fn build<'a>(
     occurrences: impl IntoIterator<Item = &'a Occurrence>,
     zone: &TimeZoneId,
 ) -> MonthGrid {
-    // Collected once: the cells below each scan it, and a one-shot iterator cannot be read 42
-    // times. Still borrows, nothing here needs to own an occurrence.
-    let occurrences: Vec<&Occurrence> = occurrences.into_iter().collect();
     let first_of_month = from_civil(anchor.year(), anchor.month(), 1);
     let index = i64::from(weekday(first_of_month));
     // Monday-based indices, so a Sunday-start week is the same run rotated one day back.
@@ -101,6 +98,19 @@ pub fn build<'a>(
         (index + 1) % 7
     };
     let first_cell = first_of_month - offset;
+    let last_cell = first_cell + i64::try_from(MONTH_CELLS).unwrap_or(0) - 1;
+    // Each occurrence is placed on the day axis **once**, and only the ones that touch these six
+    // weeks are kept for the cells to scan. Placing it is a conversion through the display zone,
+    // and doing that again for every one of the 42 cells cost half a second a page on a calendar
+    // of 1,600 occurrences, on every week a client paged while it kept the month current.
+    let placed: Vec<(&Occurrence, Extent)> = occurrences
+        .into_iter()
+        .filter_map(|occurrence| {
+            let extent = place(occurrence, zone)?;
+            (extent.last_day >= first_cell && extent.first_day <= last_cell)
+                .then_some((occurrence, extent))
+        })
+        .collect();
 
     let cells = (0..MONTH_CELLS)
         .map(|step| {
@@ -109,7 +119,7 @@ pub fn build<'a>(
             MonthCell {
                 date: date.to_string(),
                 in_month: date.month() == anchor.month() && date.year() == anchor.year(),
-                chips: chips_on(day, &occurrences, zone),
+                chips: chips_on(day, &placed),
             }
         })
         .collect();
@@ -125,11 +135,10 @@ pub fn build<'a>(
 /// The day axis comes from the time grid's own [`extent`], so the two layouts cannot disagree about
 /// which day an event lands on; including the all-day rules (zoneless dates, exclusive midnight
 /// ends) that took two bugs to get right.
-fn chips_on(day: i64, occurrences: &[&Occurrence], zone: &TimeZoneId) -> Vec<MonthChip> {
-    let mut chips: Vec<MonthChip> = occurrences
+fn chips_on(day: i64, placed: &[(&Occurrence, Extent)]) -> Vec<MonthChip> {
+    let mut chips: Vec<MonthChip> = placed
         .iter()
-        .filter_map(|occurrence| {
-            let extent = extent(occurrence, zone)?;
+        .filter_map(|(occurrence, extent)| {
             if day < extent.first_day || day > extent.last_day {
                 return None;
             }
@@ -165,6 +174,19 @@ fn chips_on(day: i64, occurrences: &[&Occurrence], zone: &TimeZoneId) -> Vec<Mon
             .then(a.event.cmp(&b.event))
     });
     chips
+}
+
+/// [`extent`], counted under test, so a test can hold the month to placing each occurrence once.
+fn place(occurrence: &Occurrence, zone: &TimeZoneId) -> Option<Extent> {
+    #[cfg(test)]
+    PLACED.with(|placed| placed.set(placed.get() + 1));
+    extent(occurrence, zone)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many times this thread has placed an occurrence on the day axis.
+    static PLACED: core::cell::Cell<usize> = const { core::cell::Cell::new(0) };
 }
 
 /// The day number of `date`; re-exported for the app layer's horizon checks.

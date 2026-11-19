@@ -72,7 +72,6 @@ internal static class CalendarSurfaceDraw
         IReadOnlyList<StripPage> pages,
         SurfaceMetrics m,
         SurfaceTheme theme,
-        SurfaceStrings strings,
         TextLayoutCache text,
         float scrollY,
         float contentTop,
@@ -87,7 +86,6 @@ internal static class CalendarSurfaceDraw
             DrawBands(ds, pages, m, theme, text, contentTop, expanded, shapeWidth);
         }
         DrawGrid(ds, pages, m, theme, text, scrollY, contentTop, nowMinutes, shapeWidth, trace);
-        DrawLoading(ds, pages, m, theme, strings, text, contentTop);
     }
 
     /// <summary>
@@ -393,54 +391,5 @@ internal static class CalendarSurfaceDraw
         var shapedRoom = (shapeWidth / block.Span.Columns) - (SurfaceTheme.BlockGap * 2f)
             - CalendarBlocks.BarWidth - (CalendarBlocks.LabelPadding * 2f);
         CalendarBlockDraw.BlockLabel(ds, text, theme, block, rect, m.HourHeight, shapedRoom);
-    }
-
-    /// <summary>
-    /// A week the core has not answered for, saying so, over its own columns, and no further.
-    /// </summary>
-    /// <remarks>
-    /// <c>IsMaterialized == false</c> <b>does not mean "no events"</b> (§4). A confidently empty week is
-    /// a lie that looks exactly like a real answer. It is drawn per week, because at a seam one week may
-    /// be loaded and its neighbour not, and a bar across the whole surface would libel the loaded one.
-    /// </remarks>
-    private static void DrawLoading(
-        CanvasDrawingSession ds,
-        IReadOnlyList<StripPage> pages,
-        SurfaceMetrics m,
-        SurfaceTheme theme,
-        SurfaceStrings strings,
-        TextLayoutCache text,
-        float contentTop)
-    {
-        var height = m.Viewport.LaneHeight;
-        var clip = new Rect(m.Gutter, contentTop, m.DayViewport, MathF.Min(height, MathF.Max(m.Height - contentTop, 0f)));
-        using var layer = ds.CreateLayer(1f, clip);
-
-        var origin = ds.Transform;
-        ds.Transform = Matrix3x2.CreateTranslation(m.Gutter, 0f) * origin;
-
-        foreach (var strip in pages)
-        {
-            if (strip.Page.IsMaterialized || strip.Page.Headings.Count == 0)
-            {
-                continue;
-            }
-            var rect = new Rect(strip.Left, contentTop, m.WeekWidth, height);
-            ds.FillRectangle(rect, theme.Surface);
-            ds.DrawText(
-                strings.Loading,
-                new Rect(strip.Left + 8f, contentTop + 3f, MathF.Max(m.WeekWidth - 16f, 0f), height),
-                theme.Muted,
-                theme.Chrome);
-            ds.DrawLine(
-                strip.Left,
-                contentTop + height,
-                strip.Left + m.WeekWidth,
-                contentTop + height,
-                theme.Now,
-                NowLineThickness);
-        }
-
-        ds.Transform = origin;
     }
 }
