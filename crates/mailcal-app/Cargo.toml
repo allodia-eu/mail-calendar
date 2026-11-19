@@ -19,6 +19,11 @@ mailcal-viewmodel = { workspace = true }
 # The provider-format glue: builds CalDAV event writes (iCal) so the app stays free of
 # a direct provider-caldav dependency.
 mailcal-account = { workspace = true }
+# The writing assistant's requests, every one behind the jurisdiction gate, and the gate itself,
+# which the own endpoint's form asks before a save. Neither opens a socket: the bindings install
+# the transport (`ai::AiHost`).
+mailcal-ai = { workspace = true }
+mailcal-jurisdiction = { workspace = true }
 # Shared rich compose document renderer and attachment manifest.
 mailcal-composer = { workspace = true }
 # Sanitises the engine's raw (unsanitised) message HTML, and builds the document a host renders it in.

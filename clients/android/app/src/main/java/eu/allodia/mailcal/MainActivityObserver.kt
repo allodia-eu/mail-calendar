@@ -65,6 +65,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         }
         // A change to the signature library started, ended or was refused, or a slot was assigned.
         CoreSurface.SIGNATURES -> signatures = app.signaturesPage()
+        // The writing assistant's surfaces: no screen of this client draws them.
+        CoreSurface.WRITING_STYLE, CoreSurface.REPLY_DRAFT, CoreSurface.AI_ENDPOINT -> {}
         // A pass over the person's other devices started or ended: their card moves, and the
         // first-run card's progress with it.
         CoreSurface.OTHER_DEVICES -> {

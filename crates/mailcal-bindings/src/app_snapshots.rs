@@ -73,6 +73,10 @@ impl MailcalApp {
             self.dispatch_signature(intent);
             return;
         }
+        if let Intent::Ai { intent } = intent {
+            self.dispatch_ai(intent);
+            return;
+        }
         if let Intent::Notices { intent } = intent {
             self.dispatch_notice(intent);
             return;

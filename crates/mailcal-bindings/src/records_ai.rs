@@ -1,0 +1,310 @@
+//! The writing assistant's records (`docs/ai.md`): what every surface of it shares (where a
+//! request may reach, what can go wrong and what that offers), and the own endpoint's form. A
+//! client draws these and words them; it decides none of what they say.
+
+use mailcal_app::ai as core;
+
+use crate::ControlState;
+
+/// How far a request may reach. Read, never changed: no client offers to change it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum JurisdictionMode {
+    /// Anywhere, a destination nobody classified included.
+    All,
+    /// Anywhere that processes in the EU, whoever runs it.
+    EuHosted,
+    /// Only what processes in the EU and is run from the EU.
+    EuNative,
+}
+
+/// Where an own endpoint runs, as the person declared it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum JurisdictionClass {
+    /// In the EU, by a company based in the EU, or on the person's own computer.
+    EuNative,
+    /// In the EU, by a company based outside it.
+    EuHosted,
+    /// Outside the EU.
+    NonEu,
+    /// Not said.
+    Unknown,
+}
+
+/// Why learning or drafting did not happen (`docs/ai.md` rule 27). The client words it, and never
+/// shows a server's sentence. Stopping is not a failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiFailure {
+    /// The relay refused the Allodia sign-in, or it lacks the assistant's permission.
+    RelaySignIn,
+    /// The own endpoint refused its key.
+    EndpointKeyRefused,
+    /// The gate refuses the own endpoint as declared, under the mode in force.
+    Refused {
+        mode: JurisdictionMode,
+        class: JurisdictionClass,
+    },
+    /// No own endpoint is set up and the relay cannot be asked.
+    NowhereToSend,
+    /// The destination could not be reached, or did not answer in time.
+    Unreachable,
+    /// The destination answered with an error.
+    ServerError,
+    /// The destination asked for fewer requests.
+    TooManyRequests,
+    /// An answer arrived that could not be read.
+    Unreadable,
+    /// No credits are left.
+    OutOfCredits,
+    /// The plan no longer includes the assistant.
+    NotEntitled,
+    /// The account has no Sent folder.
+    NoSentFolder { another_account: bool },
+    /// Nothing in the range says enough to learn from.
+    NothingToLearn,
+    /// The sample was too large to send.
+    SampleTooLarge,
+    /// No style has been learned yet.
+    NoStyle,
+    /// This account drafts in no style.
+    NoStyleForAccount,
+    /// The message answered is no longer on this device.
+    MessageGone,
+}
+
+/// What a failure offers: one action, drawn as one control.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiRemedy {
+    SignInToAllodia,
+    OpenAiEndpoint,
+    TryAgain,
+    ChooseAccount,
+    ChooseRange,
+    LearnStyle,
+    ChooseStyle,
+}
+
+/// The own endpoint's form under Settings → Advanced (`docs/ai.md` rules 6 and 7), a record an
+/// Advanced page embeds. Pulled after `Surface::AiEndpoint` and `Surface::Settings`.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct AiEndpointForm {
+    /// The address: from the edit being saved, then from an edit a save refused, otherwise as
+    /// stored. Empty with nothing set up.
+    pub address: String,
+    /// The model, drawn as the address is.
+    pub model: String,
+    /// Where it runs, drawn as the address is; `None` until declared.
+    pub declared: Option<JurisdictionClass>,
+    /// Whether a key is kept. The key is never drawn back: the field says one is kept and stays
+    /// empty, and leaving it empty keeps it.
+    pub key_kept: bool,
+    /// What a save of the fields drawn would refuse. As the person types, a client asks
+    /// [`crate::MailcalApp::ai_endpoint_gap`] of the fields typed and says each beside its field.
+    pub gaps: AiEndpointGaps,
+    /// Save: running while a save runs. A client holds it besides while `ai_endpoint_gap` names a
+    /// gap in the fields typed.
+    pub save: ControlState,
+    /// Remove: offered while an endpoint is stored, running while a removal runs.
+    pub remove: ControlState,
+    /// What the last change came to, until the next starts.
+    pub outcome: Option<AiEndpointOutcome>,
+}
+
+/// What is wrong with the address.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiEndpointAddressGap {
+    /// None was given.
+    Missing,
+    /// It is not a usable address.
+    Unusable,
+    /// It needs HTTPS, being to somewhere other than this device.
+    NeedsHttps,
+}
+
+/// What is wrong with the declaration of where the endpoint runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiEndpointDeclarationGap {
+    /// Nothing was declared.
+    Missing,
+    /// The gate refuses what was declared under the mode in force.
+    Refused {
+        mode: JurisdictionMode,
+        class: JurisdictionClass,
+    },
+}
+
+/// Every field's problem at once; a field without one has none here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct AiEndpointGaps {
+    pub address: Option<AiEndpointAddressGap>,
+    pub model_missing: bool,
+    pub declaration: Option<AiEndpointDeclarationGap>,
+}
+
+/// Which change to the own endpoint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiEndpointChangeKind {
+    Save,
+    Remove,
+}
+
+/// What a change to the own endpoint came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum AiEndpointResult {
+    /// Saved: the key in the keystore and the rest in the preferences.
+    Saved,
+    /// Removed, the key with it.
+    Removed,
+    /// Not saved, for these reasons; the form keeps the edit.
+    Refused { gaps: AiEndpointGaps },
+    /// The keystore refused the key, so nothing changed; the form says so and keeps the edit.
+    KeyNotStored,
+    /// Made, and the preferences could not be written, so it holds until the app closes. The
+    /// failed-save notice says so.
+    NotWritten,
+}
+
+/// The last change and what it came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
+pub struct AiEndpointOutcome {
+    /// Grows with each change, so a client acts on each outcome once.
+    pub serial: u64,
+    pub kind: AiEndpointChangeKind,
+    pub result: AiEndpointResult,
+}
+
+impl From<core::Mode> for JurisdictionMode {
+    fn from(mode: core::Mode) -> Self {
+        match mode {
+            core::Mode::All => Self::All,
+            core::Mode::EuHosted => Self::EuHosted,
+            core::Mode::EuNative => Self::EuNative,
+        }
+    }
+}
+
+impl From<core::Class> for JurisdictionClass {
+    fn from(class: core::Class) -> Self {
+        match class {
+            core::Class::EuNative => Self::EuNative,
+            core::Class::EuHosted => Self::EuHosted,
+            core::Class::NonEu => Self::NonEu,
+            core::Class::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<JurisdictionClass> for core::Class {
+    fn from(class: JurisdictionClass) -> Self {
+        match class {
+            JurisdictionClass::EuNative => Self::EuNative,
+            JurisdictionClass::EuHosted => Self::EuHosted,
+            JurisdictionClass::NonEu => Self::NonEu,
+            JurisdictionClass::Unknown => Self::Unknown,
+        }
+    }
+}
+
+impl From<core::AiFailure> for AiFailure {
+    fn from(failure: core::AiFailure) -> Self {
+        use core::AiFailure as F;
+        match failure {
+            F::RelaySignIn => Self::RelaySignIn,
+            F::EndpointKeyRefused => Self::EndpointKeyRefused,
+            F::Refused { mode, class } => Self::Refused {
+                mode: mode.into(),
+                class: class.into(),
+            },
+            F::NowhereToSend => Self::NowhereToSend,
+            F::Unreachable => Self::Unreachable,
+            F::ServerError => Self::ServerError,
+            F::TooManyRequests => Self::TooManyRequests,
+            F::Unreadable => Self::Unreadable,
+            F::OutOfCredits => Self::OutOfCredits,
+            F::NotEntitled => Self::NotEntitled,
+            F::NoSentFolder { another_account } => Self::NoSentFolder { another_account },
+            F::NothingToLearn => Self::NothingToLearn,
+            F::SampleTooLarge => Self::SampleTooLarge,
+            F::NoStyle => Self::NoStyle,
+            F::NoStyleForAccount => Self::NoStyleForAccount,
+            F::MessageGone => Self::MessageGone,
+        }
+    }
+}
+
+impl From<core::AiRemedy> for AiRemedy {
+    fn from(remedy: core::AiRemedy) -> Self {
+        use core::AiRemedy as R;
+        match remedy {
+            R::SignInToAllodia => Self::SignInToAllodia,
+            R::OpenAiEndpoint => Self::OpenAiEndpoint,
+            R::TryAgain => Self::TryAgain,
+            R::ChooseAccount => Self::ChooseAccount,
+            R::ChooseRange => Self::ChooseRange,
+            R::LearnStyle => Self::LearnStyle,
+            R::ChooseStyle => Self::ChooseStyle,
+        }
+    }
+}
+
+impl From<core::AiEndpointGaps> for AiEndpointGaps {
+    fn from(gaps: core::AiEndpointGaps) -> Self {
+        Self {
+            address: gaps.address.map(|gap| match gap {
+                core::AiEndpointAddressGap::Missing => AiEndpointAddressGap::Missing,
+                core::AiEndpointAddressGap::Unusable => AiEndpointAddressGap::Unusable,
+                core::AiEndpointAddressGap::NeedsHttps => AiEndpointAddressGap::NeedsHttps,
+            }),
+            model_missing: gaps.model_missing,
+            declaration: gaps.declaration.map(|gap| match gap {
+                core::AiEndpointDeclarationGap::Missing => AiEndpointDeclarationGap::Missing,
+                core::AiEndpointDeclarationGap::Refused { mode, class } => {
+                    AiEndpointDeclarationGap::Refused {
+                        mode: mode.into(),
+                        class: class.into(),
+                    }
+                }
+            }),
+        }
+    }
+}
+
+/// The form for `view`: while a change runs or waits, both controls are held, and the one that
+/// started it runs (`docs/waiting.md`).
+pub(crate) fn endpoint_form(view: core::AiEndpointView) -> Option<AiEndpointForm> {
+    if !view.offered {
+        return None;
+    }
+    let busy = !view.work.is_empty();
+    let runs = |kind: core::AiEndpointChangeKind| view.work.contains(&kind);
+    Some(AiEndpointForm {
+        address: view.fields.address.clone(),
+        model: view.fields.model.clone(),
+        declared: view.fields.declared.map(Into::into),
+        key_kept: view.fields.key_kept,
+        gaps: view.gaps.into(),
+        save: ControlState {
+            enabled: !busy,
+            running: runs(core::AiEndpointChangeKind::Save),
+        },
+        remove: ControlState {
+            enabled: !busy && view.stored,
+            running: runs(core::AiEndpointChangeKind::Remove),
+        },
+        outcome: view.outcome.map(|outcome| AiEndpointOutcome {
+            serial: outcome.serial,
+            kind: match outcome.kind {
+                core::AiEndpointChangeKind::Save => AiEndpointChangeKind::Save,
+                core::AiEndpointChangeKind::Remove => AiEndpointChangeKind::Remove,
+            },
+            result: match outcome.result {
+                core::AiEndpointResult::Saved => AiEndpointResult::Saved,
+                core::AiEndpointResult::Removed => AiEndpointResult::Removed,
+                core::AiEndpointResult::Refused { gaps } => {
+                    AiEndpointResult::Refused { gaps: gaps.into() }
+                }
+                core::AiEndpointResult::KeyNotStored => AiEndpointResult::KeyNotStored,
+                core::AiEndpointResult::NotWritten => AiEndpointResult::NotWritten,
+            },
+        }),
+    })
+}

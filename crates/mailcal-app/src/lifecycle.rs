@@ -120,6 +120,14 @@ impl<P: Provider> App<P> {
                     move || observer.surface_changed(Surface::Notices)
                 },
             )),
+            ai: Box::new(crate::ai::AiState::new(
+                prefs_path.as_ref().and_then(|path| path.parent()),
+                prefs.clone(),
+                {
+                    let observer = Arc::clone(&observer);
+                    move || observer.surface_changed(Surface::Notices)
+                },
+            )),
             mcp_settings: Mutex::new(McpSettingsState::new(prefs.clone())),
             sync_settings: Mutex::new(SyncSettingsState::new(prefs.clone())),
             notify_marks: Mutex::new(NotifyMarksState::new(prefs.clone())),

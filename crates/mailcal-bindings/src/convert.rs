@@ -52,6 +52,9 @@ impl From<AppSurface> for Surface {
             AppSurface::AccountPage => Self::AccountPage,
             AppSurface::Allodia => Self::Allodia,
             AppSurface::Signatures => Self::Signatures,
+            AppSurface::WritingStyle => Self::WritingStyle,
+            AppSurface::ReplyDraft => Self::ReplyDraft,
+            AppSurface::AiEndpoint => Self::AiEndpoint,
             AppSurface::Reading => Self::Reading,
             AppSurface::Sending => Self::Sending,
             AppSurface::SyncProgress => Self::SyncProgress,
@@ -202,9 +205,11 @@ impl TryFrom<Intent> for AppIntent {
             Intent::AccountPage { .. }
             | Intent::Allodia { .. }
             | Intent::Preferences { .. }
-            | Intent::Signature { .. } => {
+            | Intent::Signature { .. }
+            | Intent::Ai { .. } => {
                 return Err(
-                    "an account page, Allodia, preference or signature change is the binding's own"
+                    "an account page, Allodia, preference, signature or assistant change is the \
+                     binding's own"
                         .to_owned(),
                 );
             }

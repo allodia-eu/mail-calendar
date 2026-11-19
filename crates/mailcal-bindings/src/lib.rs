@@ -24,6 +24,8 @@ mod account_work;
 mod accounts_distinction;
 mod accounts_view;
 mod agent_ui;
+mod ai_host;
+mod ai_transport;
 mod allodia;
 mod allodia_devices;
 #[cfg(feature = "allodia-license")]
@@ -49,6 +51,7 @@ mod app_accounts_google;
 mod app_accounts_microsoft;
 mod app_accounts_uses;
 mod app_accounts_view;
+mod app_ai;
 mod app_allodia;
 mod app_allodia_devices;
 mod app_allodia_purchase;
@@ -131,6 +134,7 @@ mod records;
 mod records_account_page;
 mod records_account_sign_in;
 mod records_accounts;
+mod records_ai;
 mod records_avatar;
 mod records_calendar;
 mod records_calendar_pane;
@@ -176,6 +180,7 @@ pub use account_page::setup_link_pickers;
 pub use account_sign_in::AccountSignInOptions;
 pub use account_split::UnreachedUses;
 pub use agent_ui::{AgentDraft, AgentHostUi};
+pub use ai_host::is_reserved_config;
 pub use allodia::*;
 pub use allodia_devices::*;
 pub use allodia_health::AllodiaGrantHealth;
@@ -241,9 +246,9 @@ pub use native_fault::watch_for_native_faults;
 pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_interval_ms};
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
-    AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
-    InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope, SelectedRow,
-    SignatureIntent,
+    AccountPageIntent, AiEndpointIntent, AiIntent, AllodiaIntent, BulkAction, EventIntent,
+    FolderIntent, Intent, InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent,
+    SearchScope, SelectedRow, SignatureIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -268,6 +273,7 @@ pub use records_accounts::{
     AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
     MailSyncTechnology, SignInMethod, UseProblem,
 };
+pub use records_ai::*;
 pub use records_avatar::Avatar;
 pub use records_calendar::*;
 pub use records_calendar_pane::*;
@@ -454,45 +460,31 @@ impl MailcalApp {
 /// string for a host to surface, or `None` when the channel is empty.
 #[cfg(test)]
 mod tests;
-
-#[cfg(test)]
-mod tests_showcase;
-
-#[cfg(test)]
-mod tests_showcase_first_run;
-
-#[cfg(test)]
-mod tests_showcase_accounts;
-
-#[cfg(test)]
-mod tests_showcase_invitation;
-
-#[cfg(test)]
-mod tests_showcase_meeting;
-
-#[cfg(test)]
-mod tests_showcase_sender_name;
-
-#[cfg(test)]
-mod tests_send_account;
-
-#[cfg(test)]
-mod tests_boot;
-
-#[cfg(test)]
-mod tests_credentials;
-
-#[cfg(test)]
-mod tests_credential_ordering;
-
-#[cfg(test)]
-mod tests_calendar;
-
-#[cfg(test)]
-mod tests_setup;
-
 #[cfg(test)]
 mod tests_background;
-
+#[cfg(test)]
+mod tests_boot;
+#[cfg(test)]
+mod tests_calendar;
+#[cfg(test)]
+mod tests_credential_ordering;
+#[cfg(test)]
+mod tests_credentials;
 #[cfg(test)]
 mod tests_reading;
+#[cfg(test)]
+mod tests_send_account;
+#[cfg(test)]
+mod tests_setup;
+#[cfg(test)]
+mod tests_showcase;
+#[cfg(test)]
+mod tests_showcase_accounts;
+#[cfg(test)]
+mod tests_showcase_first_run;
+#[cfg(test)]
+mod tests_showcase_invitation;
+#[cfg(test)]
+mod tests_showcase_meeting;
+#[cfg(test)]
+mod tests_showcase_sender_name;

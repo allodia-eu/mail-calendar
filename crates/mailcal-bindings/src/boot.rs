@@ -137,6 +137,8 @@ pub(crate) fn build_accounts(
     // ⚠️ Taken either way, so the mail parsers never see it, but **kept only by a core that can use
     // it**: a second core holding the grant is a second refresh gate over one credential.
     let allodia = crate::allodia::take_stored(&mut configs).filter(|_| start_live_sync);
+    // The own AI endpoint's key is another such entry, taken out on the same terms.
+    let ai_key = crate::ai_host::take_stored(&mut configs);
 
     let registry = AccountRegistry::new();
     // Before any account is registered, so each one's learned DAV principals come with it.
@@ -367,6 +369,7 @@ pub(crate) fn build_accounts(
     // first batch would report zero accounts.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    mailcal.install_ai(ai_key);
     #[cfg(feature = "allodia-license")]
     mailcal.refresh_allodia_entitlement();
     // A refresh that widens a grant opens a use the dial before it was planned without; dial it
