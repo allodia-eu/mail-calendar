@@ -17,6 +17,7 @@ use crate::{
         composer_reply_draft_input::{self as input, Input},
         composer_reply_draft_notes::{self as notes},
         controls::{self, tests::spins},
+        icons,
         mailbox::tests::rendered_labels,
     },
 };
@@ -38,7 +39,7 @@ type Asked = Rc<RefCell<Vec<String>>>;
 
 pub(crate) fn all() {
     each_state_says_what_it_is_among_the_notes();
-    the_card_ticks_what_the_core_ticks_and_holds_a_gap();
+    the_card_ticks_what_the_core_ticks_and_marks_a_gap();
     the_control_runs_while_a_draft_is_made();
     the_input_fills_from_a_suggestion_and_drafts_on_return();
     the_input_held_says_why_with_its_remedy();
@@ -111,6 +112,11 @@ fn each_state_says_what_it_is_among_the_notes() {
             .iter()
             .any(|text| text == l10n::composer_drafting())
     );
+    assert_eq!(
+        descendants::<adw::Spinner>(root).len(),
+        0,
+        "the action row's control is the one spinner while a draft is made"
+    );
     button(root, l10n::composer_draft_stop())
         .expect("Stop")
         .emit_clicked();
@@ -164,7 +170,7 @@ fn each_state_says_what_it_is_among_the_notes() {
     assert_eq!(*asked.borrow(), ["stop", "remedy TryAgain"]);
 }
 
-fn the_card_ticks_what_the_core_ticks_and_holds_a_gap() {
+fn the_card_ticks_what_the_core_ticks_and_marks_a_gap() {
     let item = |index, kind, text: &str, done, tick| ReplyDraftItem {
         index,
         kind,
@@ -177,15 +183,22 @@ fn the_card_ticks_what_the_core_ticks_and_holds_a_gap() {
         &record(ReplyDraftState::Drafted {
             summary: "Bob asks whether Saturday suits you.".to_owned(),
             checklist: vec![
-                item(0, ReplyDraftTaskKind::FillIn, "[date]", true, HELD),
+                item(0, ReplyDraftTaskKind::FillIn, "[date]", true, None),
+                item(1, ReplyDraftTaskKind::FillIn, "[time]", false, None),
                 item(
-                    1,
+                    2,
                     ReplyDraftTaskKind::Attach,
                     "Attach the agenda",
                     false,
-                    FREE,
+                    Some(FREE),
                 ),
-                item(2, ReplyDraftTaskKind::Do, "Book the room", false, FREE),
+                item(
+                    3,
+                    ReplyDraftTaskKind::Do,
+                    "Book the room",
+                    false,
+                    Some(FREE),
+                ),
             ],
         }),
         &asked,
@@ -203,17 +216,42 @@ fn the_card_ticks_what_the_core_ticks_and_holds_a_gap() {
             .any(|text| text == l10n::composer_checklist_heading())
     );
     let checks = descendants::<gtk::CheckButton>(root);
-    assert_eq!(checks.len(), 3);
+    assert_eq!(
+        checks.len(),
+        2,
+        "a gap follows the reply, so it is no checkbox"
+    );
+    let gaps = descendants::<gtk::Box>(root)
+        .into_iter()
+        .filter(|line| line.widget_name() == notes::GAP_MARK)
+        .collect::<Vec<_>>();
+    assert_eq!(gaps.len(), 2);
+    let marks = |line: &gtk::Box| {
+        descendants::<gtk::Image>(line.upcast_ref())
+            .iter()
+            .filter_map(|image| image.icon_name().map(|name| name.to_string()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        marks(&gaps[0]),
+        [icons::GAP_FILLED],
+        "a gap filled in is done"
+    );
+    assert_eq!(
+        marks(&gaps[1]),
+        [icons::GAP_OPEN],
+        "a gap still in the reply is open"
+    );
     assert!(
-        checks[0].is_active() && !checks[0].is_sensitive(),
-        "a gap follows the reply"
+        gaps.iter()
+            .all(|line| line.accessible_role() == gtk::AccessibleRole::Checkbox)
     );
     assert!(shown.contains(&l10n::composer_task_fill_in("[date]")));
-    assert!(!checks[2].is_active() && checks[2].is_sensitive());
-    checks[2].set_active(true);
+    assert!(!checks[1].is_active() && checks[1].is_sensitive());
+    checks[1].set_active(true);
     assert_eq!(
         *asked.borrow(),
-        ["tick 2 true"],
+        ["tick 3 true"],
         "drawing asked for nothing, a tick asks once"
     );
 }

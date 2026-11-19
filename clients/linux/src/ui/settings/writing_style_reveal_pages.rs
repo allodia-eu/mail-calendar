@@ -163,9 +163,14 @@ fn stat(label: &str, value: &str) -> gtk::Box {
     column
 }
 
-/// A typical reply as a miniature letter, above its length and shape.
+/// A typical reply as a miniature letter, above its length and shape. The letter is one element
+/// to a screen reader, spoken as one sentence, with nothing inside it read on its own.
 pub(super) fn letter(body: &gtk::Box, letter: &WritingStyleLetter) {
-    let paper = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let paper = gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .accessible_role(gtk::AccessibleRole::Img)
+        .build();
+    paper.update_property(&[Property::Label(&words::letter(letter))]);
     paper.add_css_class("card");
     paper.add_css_class("mailcal-reveal-letter");
     if !letter.opening.is_empty() {
@@ -193,6 +198,11 @@ pub(super) fn letter(body: &gtk::Box, letter: &WritingStyleLetter) {
             closing.append(&name);
         }
         paper.append(&closing);
+    }
+    let mut child = paper.first_child();
+    while let Some(inside) = child {
+        inside.update_state(&[State::Hidden(true)]);
+        child = inside.next_sibling();
     }
     let caption = text(l10n::reveal_letter_caption());
     caption.add_css_class("caption");

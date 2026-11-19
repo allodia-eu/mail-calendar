@@ -115,6 +115,10 @@ icons! {
     /// A document going out. Not `mail-send`, which the pane gives Sent: an Outbox that looks like
     /// Sent is the one confusion that row exists to prevent.
     OUTBOX = "document-send-symbolic";
+
+    // A drafted reply's gap, which the reply fills rather than a tick: a state, not a control.
+    GAP_OPEN = "radio-symbolic";
+    GAP_FILLED = "object-select-symbolic";
     ATTACHMENT = "mail-attachment-symbolic";
     /// A person with no photo, and the account a folder tree hangs from.
     PERSON = "avatar-default-symbolic";

@@ -29,8 +29,8 @@ pub(super) struct Wiring {
     pub(super) style: reveal::Send,
     /// The reveal of a style, read from the core.
     pub(super) reveal_of: Rc<dyn Fn(String) -> Option<WritingStyleReveal>>,
-    /// Opens what a remedy names that the flow does not move to: the Allodia sign-in, the
-    /// endpoint form. The flow is closed first.
+    /// Opens what a remedy names that leads outside the flow: the Allodia sign-in, the endpoint
+    /// form. The flow has taken the remedy first.
     pub(super) open_remedy: Rc<dyn Fn(AiRemedy)>,
 }
 
@@ -172,7 +172,7 @@ impl Learning {
                 email,
                 range,
                 reach,
-                review,
+                state,
                 sends_to,
                 cannot_send,
                 keyword_kept,
@@ -182,7 +182,7 @@ impl Learning {
                     email,
                     range,
                     reach,
-                    state: review,
+                    state,
                     sends_to: sends_to.as_ref(),
                     cannot_send: *cannot_send,
                     keyword_kept: *keyword_kept,
@@ -249,22 +249,17 @@ impl Learning {
         })
     }
 
-    /// The failure's remedy: one the flow moves to is sent to it, any other is opened where it
-    /// lives once the flow is closed.
+    /// The failure's remedy, sent to the flow whichever it is and never with a Close; one that
+    /// leads elsewhere is then opened where it lives (`docs/ai.md` rules 11 and 27).
     fn remedy(&self, remedy: AiRemedyControl) -> FlowAction {
         let AiRemedyControl { remedy, control } = remedy;
         let (send, open) = (
             Rc::clone(&self.wiring.send),
             Rc::clone(&self.wiring.open_remedy),
         );
-        let pressed: Pressed = Rc::new(move || match remedy {
-            AiRemedy::ChooseAccount | AiRemedy::ChooseRange | AiRemedy::TryAgain => {
-                send(StyleLearningIntent::Remedy);
-            }
-            other => {
-                send(StyleLearningIntent::Close);
-                open(other);
-            }
+        let pressed: Pressed = Rc::new(move || {
+            send(StyleLearningIntent::Remedy);
+            open(remedy);
         });
         FlowAction {
             label: words::remedy(remedy).to_owned(),

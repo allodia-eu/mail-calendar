@@ -276,26 +276,25 @@ pub(super) fn review(review: &Review<'_>) -> gtk::Widget {
     if !review.keyword_kept {
         content.append(&dim(l10n::learn_keyword_not_kept()));
     }
-    // The question Learn answers: what is sent, and where. Pressing Learn is the consent.
-    let (sent, refused) = match (review.sends_to, review.cannot_send) {
-        (Some(StyleLearningDestination::Relay), _) => {
-            (l10n::learn_consent_relay().to_owned(), false)
-        }
-        (Some(StyleLearningDestination::OwnEndpoint { host }), _) => {
-            (l10n::learn_consent_own(host), false)
-        }
-        (None, failure) => (
-            failure
-                .map_or_else(l10n::ai_failure_nowhere_to_send, words::failure)
-                .to_owned(),
-            true,
+    // The question Learn answers: what is sent, and where. Pressing Learn is the consent. With
+    // nothing usable nothing will be sent, and the record names neither a place nor a reason.
+    let page = match (review.sends_to, review.cannot_send) {
+        (Some(StyleLearningDestination::Relay), _) => status(
+            l10n::learn_consent_title(),
+            Some(l10n::learn_consent_relay()),
         ),
+        (Some(StyleLearningDestination::OwnEndpoint { host }), _) => status(
+            l10n::learn_consent_title(),
+            Some(&l10n::learn_consent_own(host)),
+        ),
+        (None, Some(failure)) => {
+            let page = status(l10n::learn_consent_title(), Some(words::failure(failure)));
+            // Learn is held; the reason stands where the destination would.
+            page.add_css_class("dim-label");
+            page
+        }
+        (None, None) => status("", None),
     };
-    let page = status(l10n::learn_consent_title(), Some(&sent));
-    if refused {
-        // Learn is held; the reason stands where the destination would.
-        page.add_css_class("dim-label");
-    }
     let clamp = adw::Clamp::new();
     clamp.set_maximum_size(520);
     clamp.set_child(Some(&content));

@@ -29,8 +29,8 @@ pub(crate) fn draw(notes: &gtk::Box, record: &ComposerReplyDraft, actions: &Acti
     match &record.state {
         ReplyDraftState::Drafting => {
             let row = plain_text_row();
+            // No spinner: Draft a reply in the action row runs meanwhile, and one is enough.
             row.set_title(l10n::composer_drafting());
-            row.add_prefix(&adw::Spinner::new());
             let stop = Rc::clone(&actions.stop);
             row.add_suffix(&controls::button(
                 l10n::composer_draft_stop(),
@@ -132,13 +132,58 @@ fn heading(text: &str) -> gtk::Label {
     label
 }
 
-/// One item, worded by its kind and ticked as the core says. A gap follows the reply, so its tick
-/// is held.
-fn item_check(item: &ReplyDraftItem, actions: &Actions) -> gtk::CheckButton {
+/// One item, worded by its kind and ticked as the core says. A gap has no tick, since the reply
+/// decides it: its state is a mark beside the text that cannot be pressed, never a checkbox held
+/// (`docs/ai.md` rule 23).
+fn item_check(item: &ReplyDraftItem, actions: &Actions) -> gtk::Widget {
     let said = match item.kind {
         ReplyDraftTaskKind::FillIn => l10n::composer_task_fill_in(&item.text),
         ReplyDraftTaskKind::Attach | ReplyDraftTaskKind::Do => item.text.clone(),
     };
+    let Some(control) = item.tick else {
+        return gap_mark(&said, item.done).upcast();
+    };
     let (tick, index) = (Rc::clone(&actions.tick), item.index);
-    controls::check(&said, item.done, item.tick, move |done| tick(index, done))
+    controls::check(&said, item.done, control, move |done| tick(index, done)).upcast()
 }
+
+/// A gap's state: a check once its text is gone from the reply, an open circle while it is there.
+/// To a screen reader it is a state that can be read and not changed.
+pub(super) fn gap_mark(said: &str, done: bool) -> gtk::Box {
+    let line = gtk::Box::builder()
+        .orientation(gtk::Orientation::Horizontal)
+        .spacing(10)
+        .accessible_role(gtk::AccessibleRole::Checkbox)
+        .build();
+    line.set_widget_name(GAP_MARK);
+    line.set_margin_top(4);
+    line.set_margin_bottom(4);
+    line.update_property(&[
+        gtk::accessible::Property::Label(said),
+        gtk::accessible::Property::ReadOnly(true),
+    ]);
+    line.update_state(&[gtk::accessible::State::Checked(if done {
+        gtk::AccessibleTristate::True
+    } else {
+        gtk::AccessibleTristate::False
+    })]);
+    let mark = gtk::Image::builder()
+        .icon_name(if done {
+            icons::GAP_FILLED
+        } else {
+            icons::GAP_OPEN
+        })
+        .accessible_role(gtk::AccessibleRole::Presentation)
+        .build();
+    mark.add_css_class(if done { "success" } else { "dim-label" });
+    let text = gtk::Label::new(Some(said));
+    text.set_wrap(true);
+    text.set_xalign(0.0);
+    text.update_state(&[gtk::accessible::State::Hidden(true)]);
+    line.append(&mark);
+    line.append(&text);
+    line
+}
+
+/// The widget name a gap's mark carries, for a test to find it by.
+pub(super) const GAP_MARK: &str = "reply-draft-gap";

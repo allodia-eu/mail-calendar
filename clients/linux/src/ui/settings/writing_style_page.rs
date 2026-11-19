@@ -22,7 +22,11 @@ pub(super) struct Actions {
     pub(super) assign: Rc<dyn Fn(String, Option<String>)>,
     pub(super) learn: Rc<dyn Fn()>,
     pub(super) stop: Rc<dyn Fn()>,
+    /// A remedy for why Learn cannot be pressed: there is no flow, so it only opens where it
+    /// leads.
     pub(super) remedy: Rc<dyn Fn(AiRemedy)>,
+    /// The remedy of a run that failed, which the flow takes first (`docs/ai.md` rule 11).
+    pub(super) run_remedy: Rc<dyn Fn(AiRemedy)>,
 }
 
 /// Draws `page` into `body`, saying `refused` when the last change on it was refused.
@@ -89,17 +93,23 @@ fn style_row(entry: &WritingStyleEntry, actions: &Actions) -> adw::ActionRow {
 /// Learn, the run drawn in its place, or why it cannot be pressed.
 fn learn_area(page: &WritingStylePage, actions: &Actions) -> gtk::Box {
     let area = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    match page.run {
-        Some(WritingStyleRun::Learning { done, total, stop }) => {
+    match &page.run {
+        Some(WritingStyleRun::Learning {
+            email,
+            done,
+            total,
+            stop,
+        }) => {
             let list = boxed();
             let row = plain_text_row();
-            row.set_title(&words::progress(done, total));
+            row.set_title(&words::progress(*done, *total));
+            row.set_subtitle(&l10n::learn_progress_account(email));
             let spinner = adw::Spinner::new();
             row.add_prefix(&spinner);
             let send = Rc::clone(&actions.stop);
             row.add_suffix(&controls::button(
                 l10n::learn_stop(),
-                stop,
+                *stop,
                 false,
                 move || send(),
             ));
@@ -108,7 +118,7 @@ fn learn_area(page: &WritingStylePage, actions: &Actions) -> gtk::Box {
             return area;
         }
         Some(WritingStyleRun::Failed { failure, remedy }) => {
-            area.append(&failed_row(failure, remedy, actions));
+            area.append(&failed_row(*failure, *remedy, actions));
         }
         None => {}
     }
@@ -123,7 +133,7 @@ fn learn_area(page: &WritingStylePage, actions: &Actions) -> gtk::Box {
         let row = plain_text_row();
         row.set_title(said);
         if let Some(remedy) = remedy {
-            row.add_suffix(&remedy_button(remedy, actions));
+            row.add_suffix(&remedy_button(remedy, &actions.remedy));
         }
         list.append(&row);
         area.append(&list);
@@ -153,15 +163,15 @@ fn failed_row(
     mark.add_css_class("warning");
     row.add_prefix(&mark);
     if let Some(remedy) = remedy {
-        row.add_suffix(&remedy_button(remedy, actions));
+        row.add_suffix(&remedy_button(remedy, &actions.run_remedy));
     }
     list.append(&row);
     list
 }
 
 /// A failure's remedy, drawn from its control: it opens where it leads and never runs here.
-fn remedy_button(remedy: AiRemedyControl, actions: &Actions) -> gtk::Button {
-    let open = Rc::clone(&actions.remedy);
+fn remedy_button(remedy: AiRemedyControl, pressed: &Rc<dyn Fn(AiRemedy)>) -> gtk::Button {
+    let open = Rc::clone(pressed);
     controls::button(
         words::remedy(remedy.remedy),
         remedy.control,

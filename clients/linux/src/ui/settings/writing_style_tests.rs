@@ -8,11 +8,10 @@ use adw::prelude::*;
 use mailcal_bindings::{
     AiFailure, AiRemedy, AiRemedyControl, ControlState, StyleLearnRange, StyleLearningAccount,
     StyleLearningDestination, StyleLearningIntent, StyleLearningReport, StyleLearningReview,
-    StyleLearningStage, StyleLearningTrailStage, StyleSentReach, WritingStyleChangeKind,
-    WritingStyleEntry, WritingStyleFacts, WritingStyleLearnBlock, WritingStyleLearning,
-    WritingStyleOpens, WritingStyleOutcome, WritingStylePage, WritingStyleRefusal,
-    WritingStyleResult, WritingStyleReveal, WritingStyleRevealPage, WritingStyleRun,
-    WritingStyleSlot,
+    StyleLearningStage, StyleSentReach, WritingStyleChangeKind, WritingStyleEntry,
+    WritingStyleFacts, WritingStyleLearnBlock, WritingStyleLearning, WritingStyleOpens,
+    WritingStyleOutcome, WritingStylePage, WritingStyleRefusal, WritingStyleResult,
+    WritingStyleReveal, WritingStyleRevealPage, WritingStyleRun, WritingStyleSlot,
 };
 
 use crate::{
@@ -40,13 +39,18 @@ const HELD: ControlState = ControlState {
 
 type Asked = Rc<RefCell<Vec<String>>>;
 
+#[path = "writing_style_flow_tests.rs"]
+mod flow_tests;
+
 pub(crate) fn all() {
     the_page_draws_the_library_learn_and_the_slots();
     learn_says_why_it_is_held_with_its_one_remedy();
     a_run_is_drawn_in_learns_place_with_stop();
     a_run_that_failed_says_so_and_learn_reopens_it();
     each_stage_draws_exactly_the_controls_its_record_gives();
-    a_remedy_the_flow_moves_to_is_sent_and_any_other_is_opened();
+    flow_tests::every_remedy_is_sent_alone_and_one_leading_elsewhere_opened();
+    flow_tests::nothing_usable_names_no_destination();
+    flow_tests::the_letter_is_spoken_as_one_sentence();
     the_reveal_acts_on_an_outcome_once();
     endpoint::the_form_is_absent_while_the_core_offers_none();
     endpoint::save_sends_the_fields_as_typed_and_no_key_for_an_empty_field();
@@ -90,7 +94,8 @@ fn page() -> WritingStylePage {
 }
 
 fn actions(asked: &Asked) -> Actions {
-    let (open, assign, learn, stop, remedy) = (
+    let (open, assign, learn, stop, remedy, run_remedy) = (
+        asked.clone(),
         asked.clone(),
         asked.clone(),
         asked.clone(),
@@ -107,6 +112,11 @@ fn actions(asked: &Asked) -> Actions {
         learn: Rc::new(move || learn.borrow_mut().push("learn".to_owned())),
         stop: Rc::new(move || stop.borrow_mut().push("stop".to_owned())),
         remedy: Rc::new(move |chosen| remedy.borrow_mut().push(format!("remedy {chosen:?}"))),
+        run_remedy: Rc::new(move |chosen| {
+            run_remedy
+                .borrow_mut()
+                .push(format!("run remedy {chosen:?}"));
+        }),
     }
 }
 
@@ -200,6 +210,7 @@ fn a_run_is_drawn_in_learns_place_with_stop() {
             &WritingStylePage {
                 learn: HELD,
                 run: Some(WritingStyleRun::Learning {
+                    email: "alice@test.local".to_owned(),
                     done: 1,
                     total,
                     stop: FREE,
@@ -214,6 +225,10 @@ fn a_run_is_drawn_in_learns_place_with_stop() {
             "in Learn's place"
         );
         assert!(rendered_labels(root).contains(&said));
+        assert!(
+            rendered_labels(root).contains(&l10n::learn_progress_account("alice@test.local")),
+            "whose sent mail is read"
+        );
         button(root, l10n::learn_stop())
             .expect("Stop")
             .emit_clicked();
@@ -222,6 +237,7 @@ fn a_run_is_drawn_in_learns_place_with_stop() {
 }
 
 fn a_run_that_failed_says_so_and_learn_reopens_it() {
+    let asked = Asked::default();
     let body = drawn(
         &WritingStylePage {
             run: Some(WritingStyleRun::Failed {
@@ -233,7 +249,7 @@ fn a_run_that_failed_says_so_and_learn_reopens_it() {
             }),
             ..page()
         },
-        &Asked::default(),
+        &asked,
     );
     let root = body.upcast_ref::<gtk::Widget>();
     let shown = rendered_labels(root);
@@ -248,6 +264,14 @@ fn a_run_that_failed_says_so_and_learn_reopens_it() {
             .any(|text| text == l10n::ai_failure_unreachable())
     );
     assert!(button(root, l10n::writing_style_learn()).is_some_and(|learn| learn.is_sensitive()));
+    button(root, l10n::ai_remedy_try_again())
+        .expect("its remedy")
+        .emit_clicked();
+    assert_eq!(
+        *asked.borrow(),
+        ["run remedy TryAgain"],
+        "the run's remedy goes to the flow, not only to where it leads"
+    );
 }
 
 fn flow(asked: &Asked) -> Rc<Learning> {
@@ -322,7 +346,7 @@ fn each_stage_draws_exactly_the_controls_its_record_gives() {
                 email: "alice@test.local".to_owned(),
                 range: StyleLearnRange::Everything,
                 reach: StyleSentReach::Everything,
-                review: StyleLearningReview::Ready { report },
+                state: StyleLearningReview::Ready { report },
                 sends_to: Some(StyleLearningDestination::OwnEndpoint {
                     host: "localhost".to_owned(),
                 }),
@@ -378,46 +402,6 @@ fn each_stage_draws_exactly_the_controls_its_record_gives() {
             "Close".to_owned()
         ]
     );
-}
-
-fn a_remedy_the_flow_moves_to_is_sent_and_any_other_is_opened() {
-    for (remedy, expected) in [
-        (AiRemedy::ChooseRange, vec!["Remedy"]),
-        (
-            AiRemedy::OpenAiEndpoint,
-            vec!["Close", "open OpenAiEndpoint"],
-        ),
-    ] {
-        let asked = Asked::default();
-        let flow = flow(&asked);
-        flow.draw(
-            WritingStyleLearning {
-                back: Some(FREE),
-                trail: vec![StyleLearningTrailStage::Review],
-                ..record(StyleLearningStage::Failed {
-                    failure: AiFailure::NothingToLearn,
-                    remedy: Some(AiRemedyControl {
-                        remedy,
-                        control: FREE,
-                    }),
-                })
-            },
-            None,
-        );
-        let page = on_screen(&flow);
-        assert!(
-            rendered_labels(&page)
-                .iter()
-                .any(|text| text == l10n::learn_failed_title())
-        );
-        button(
-            &page,
-            crate::ui::settings::writing_style_words::remedy(remedy),
-        )
-        .expect("its remedy")
-        .emit_clicked();
-        assert_eq!(*asked.borrow(), expected);
-    }
 }
 
 fn the_reveal_acts_on_an_outcome_once() {

@@ -18,6 +18,7 @@ use adw::prelude::*;
 use gtk::{gio, glib};
 use mailcal_bindings::{
     AiIntent, AiRemedy, ComposerReplyDraft, ControlState, Intent, MailcalApp, ReplyDraftIntent,
+    StyleLearningIntent, WritingStyleIntent,
 };
 use webkit6::{LoadEvent, prelude::WebViewExt};
 
@@ -318,29 +319,39 @@ impl ReplyDraft {
         }
     }
 
-    /// Opens what a remedy names: the instruction's input again, Settings where a style or the
-    /// endpoint is set up, or the Allodia sign-in.
+    /// Opens what a remedy names (`docs/ai.md` rule 27): the instruction's input again, the
+    /// learning flow, Settings where a style or the endpoint is set up, or the Allodia sign-in.
+    /// It closes the input and nothing else; the composer's record follows on its own.
     fn open_remedy(&self, remedy: AiRemedy) {
+        if remedy == AiRemedy::TryAgain {
+            if let Some((_, button)) = self.button.borrow().as_ref() {
+                button.popup();
+            }
+            return;
+        }
+        self.popover.popdown();
         match remedy {
-            AiRemedy::TryAgain => {
-                if let Some((_, button)) = self.button.borrow().as_ref() {
-                    button.popup();
-                }
-            }
-            AiRemedy::SignInToAllodia => {
-                self.popover.popdown();
-                self.sender.emit(AppInput::StartAllodiaSignIn);
-            }
+            AiRemedy::SignInToAllodia => self.sender.emit(AppInput::StartAllodiaSignIn),
             AiRemedy::OpenAiEndpoint => {
-                self.popover.popdown();
                 self.sender
                     .emit(AppInput::OpenSettingsAt(Category::Advanced));
             }
-            AiRemedy::LearnStyle
-            | AiRemedy::ChooseStyle
+            // The flow's host is over Settings → Writing style, which draws it once open.
+            AiRemedy::LearnStyle => {
+                self.app.dispatch(Intent::Ai {
+                    intent: AiIntent::WritingStyle {
+                        intent: WritingStyleIntent::Learning {
+                            intent: StyleLearningIntent::Open,
+                        },
+                    },
+                });
+                self.sender
+                    .emit(AppInput::OpenSettingsAt(Category::WritingStyle));
+            }
+            AiRemedy::ChooseStyle
             | AiRemedy::ChooseAccount
-            | AiRemedy::ChooseRange => {
-                self.popover.popdown();
+            | AiRemedy::ChooseRange
+            | AiRemedy::TryAgain => {
                 self.sender
                     .emit(AppInput::OpenSettingsAt(Category::WritingStyle));
             }

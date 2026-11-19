@@ -4,7 +4,8 @@
 use mailcal_bindings::{
     AiEndpointAddressGap, AiEndpointDeclarationGap, AiFailure, AiRemedy, JurisdictionClass,
     JurisdictionLimit, JurisdictionRefusal, StyleLearnRange, StyleSentReach, WritingStyleFacts,
-    WritingStyleFrequency, WritingStyleRefusal, WritingStyleTopic,
+    WritingStyleFrequency, WritingStyleLetter, WritingStyleRefusal, WritingStyleSpan,
+    WritingStyleTopic,
 };
 
 use crate::{l10n, ui::timestamps};
@@ -163,6 +164,27 @@ pub(super) fn progress(done: u32, total: u32) -> String {
     } else {
         l10n::learn_progress(&done.to_string(), &total.to_string())
     }
+}
+
+/// The miniature letter as one sentence for a screen reader (`docs/ai.md` rule 15): opening,
+/// length, paragraphs, closing and name, each left out when it is empty or zero.
+pub(super) fn letter(letter: &WritingStyleLetter) -> String {
+    let said = |spans: &[WritingStyleSpan]| spans.iter().map(|span| span.text.as_str()).collect();
+    let opening: String = said(&letter.opening);
+    let closing: String = said(&letter.closing);
+    let name = letter.signs_as.trim();
+    [
+        (!opening.trim().is_empty()).then(|| l10n::a11y_letter_opening(opening.trim())),
+        (letter.words > 0).then(|| l10n::a11y_letter_words(i64::from(letter.words))),
+        (letter.paragraph_count > 0)
+            .then(|| l10n::a11y_letter_paragraphs(i64::from(letter.paragraph_count))),
+        (!closing.trim().is_empty()).then(|| l10n::a11y_letter_closing(closing.trim())),
+        (!name.is_empty()).then(|| l10n::a11y_letter_name(name)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join(", ")
 }
 
 pub(super) fn frequency(frequency: WritingStyleFrequency) -> &'static str {
