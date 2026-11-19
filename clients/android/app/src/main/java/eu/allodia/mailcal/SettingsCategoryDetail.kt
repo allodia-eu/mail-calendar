@@ -144,9 +144,9 @@ internal fun CategoryDetail(
             }
         }
 
-        // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md
-        // category 4), then the person's Jitsi server (docs/conferencing.md, rule 13), then each
-        // account's default (rule 10).
+        // Videoconferencing: the accounts that make meetings, while one does (docs/settings.md,
+        // Videoconferencing), then the person's Jitsi server (docs/conferencing.md, rule 13), then
+        // each account's default (rule 10).
         SettingsCategory.VIDEOCONFERENCING -> {
             MeetingAccountsCard(accountsUi.state.snapshot.meetingAccounts, onOpenAccount)
             SettingsGroupCard(

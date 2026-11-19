@@ -1,4 +1,4 @@
-// What a Gmail account's page says about which way its mail syncs (docs/settings.md row 9): each
+// What a Gmail account's page says about which way its mail syncs (docs/settings.md, Accounts): each
 // technology its own word and explanation, drawn on the card, with the explanation behind the
 // info button.
 package eu.allodia.mailcal
