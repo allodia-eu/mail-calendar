@@ -1,4 +1,4 @@
-// The Advanced ▸ AI assistant access panel (docs/mcp.md, docs/settings.md row 8).
+// The Advanced ▸ AI assistant access panel (docs/mcp.md, docs/settings.md row 12).
 //
 // Desktop-only, and by construction rather than by an `#if`: the core reports no endpoint on a
 // platform whose host set none, and the panel renders nothing when there is none. That mirrors

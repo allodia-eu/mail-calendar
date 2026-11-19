@@ -1,4 +1,4 @@
-// What a Gmail account's page says about which way its mail syncs (docs/settings.md row 9): each
+// What a Gmail account's page says about which way its mail syncs (docs/settings.md row 11): each
 // technology its own word and explanation, and the help page it links to.
 
 import MailcalBindings
