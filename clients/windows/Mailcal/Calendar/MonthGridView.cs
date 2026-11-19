@@ -27,7 +27,7 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Calendar;
 
-/// <summary>The drawn-once month grid: 6×7 cells, "+N more", loading state.</summary>
+/// <summary>The drawn-once month grid: 6×7 cells, "+N more", and the loading pill.</summary>
 internal sealed class MonthGridView : UserControl
 {
     private const int WeekRows = 6; // always six weeks, so the grid does not change height as you page
@@ -38,14 +38,11 @@ internal sealed class MonthGridView : UserControl
 
     private readonly Grid _host = new();
     private readonly Grid _root = new();
-    private readonly ProgressRing _loading = new()
+    // Over the weekday headings' row and the first week, as the time grid's sits over its hours. The
+    // month has no spoken summary, so the pill is what a screen reader hears.
+    private readonly CalendarLoadingPill _loading = new(L10n.CalendarLoadingRange(), spoken: true, "CalendarMonthLoading")
     {
-        IsActive = false,
-        Visibility = Visibility.Collapsed,
-        Width = 32,
-        Height = 32,
-        HorizontalAlignment = HorizontalAlignment.Center,
-        VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, HeaderRowHeight + CalendarLoading.PillGap, 0, 0),
     };
 
     private MonthPage? _page;
@@ -109,11 +106,9 @@ internal sealed class MonthGridView : UserControl
             return;
         }
 
-        // `false` does not mean "no events", it means the engine has not looked yet (§4). Say so,
-        // rather than draw a confidently empty month.
-        var materialized = page.IsMaterialized;
-        _loading.IsActive = !materialized;
-        _loading.Visibility = materialized ? Visibility.Collapsed : Visibility.Visible;
+        // `false` does not mean "no events", it means the engine has not looked yet (§4). The month
+        // is drawn as usual, with whatever it holds, and the pill over it says the rest is coming.
+        _loading.Show(!page.IsMaterialized);
 
         if (page.Cells.Length < WeekRows * Cols)
         {

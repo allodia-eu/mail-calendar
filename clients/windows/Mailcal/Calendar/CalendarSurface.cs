@@ -238,6 +238,12 @@ internal sealed partial class CalendarSurface : UserControl
     /// <summary>Raised whenever the visible period changes, so the header can follow.</summary>
     internal Action? PeriodChanged { get; set; }
 
+    /// <summary>Whether a week on screen is loading, and where the pill saying so sits.</summary>
+    internal LoadingPillPlace LoadingPill { get; private set; }
+
+    /// <summary>Raised when <see cref="LoadingPill"/> changes, so the host can show, hide or move it.</summary>
+    internal Action? LoadingPillChanged { get; set; }
+
     /// <summary>Raised when the grid comes to rest on days other than it last rested on, with the first
     /// day on screen and how many are: once a gesture or a step has settled, never during one.</summary>
     internal Action<DateOnly, int>? CameToRest { get; set; }

@@ -48,7 +48,7 @@ internal sealed class CalendarSurfaceAutomationPeer(CalendarSurface owner)
 }
 
 /// <summary>
-/// One spoken thing on the grid: an event, an all-day bar, a "+N" chip, or the loading strip.
+/// One spoken thing on the grid: an event, an all-day bar, a "+N" chip, or the week's loading status.
 /// </summary>
 /// <remarks>
 /// Not backed by a <see cref="UIElement"/>, there isn't one, because the grid is drawn. It carries

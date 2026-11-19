@@ -342,7 +342,7 @@ black surface, and the words were found only by scrolling up to midnight.
 |---|---|
 | Linux | `clients/linux/src/ui/calendar/loading.rs`, over the week's scroller and the month |
 | Android | `CalendarSurfaceDraw.kt`, the pill drawn over the grid at the top of the day viewport |
-| Windows | `CalendarSurfaceDraw.cs` and the month view |
+| Windows | `CalendarLoadingPill.cs`, a XAML element over the time grid (`CalendarView`, placed by `CalendarLoading.cs`) and the month (`MonthGridView.cs`) |
 | Apple | `CalendarGridView.swift` and the month view |
 
 The core owes the client the same honesty, and it costs one rule in the cache: **the materialized
