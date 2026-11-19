@@ -36,7 +36,7 @@ pub mod wire;
 mod test_support;
 
 pub use backend::{AiBackend, AiError};
-pub use checklist::{DraftTask, TaskKind};
+pub use checklist::{ChecklistProgress, DraftTask, TaskKind, tasks_done, tasks_open};
 pub use draft::{Draft, DraftRequest, THREAD_CHARS, ThreadMessage, draft_reply};
 pub use endpoint::{EndpointError, OwnEndpoint, endpoint_errors};
 pub use gated::{GatedBackend, ModeSource, admit};
