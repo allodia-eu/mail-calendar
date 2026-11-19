@@ -139,12 +139,14 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     - `Review`: the core reads the range and stops before anything leaves: `Reading`, then `Ready`
       (messages found, how many say enough to learn from per language, how many were left out in
       other languages, the dates read) or `NothingUsable`. It says what is sent where, naming the
-      relay or the endpoint's host, and names no price, which only the relay knows. It says how far
-      back the device holds the account's mail, and, for an account whose server keeps no
-      keyword, that only this device knows its drafted replies (rule 25). **Pressing Learn there
-      is the consent**; nothing asks anywhere else. Learn carries the default name the style is
-      stored under and the language the app is read in, both the client's, since the core has no
-      words or locale of its own.
+      relay or the endpoint's host, and names no price, which only the relay knows. At
+      `NothingUsable` Learn is held and nothing will be sent, so the record names neither a
+      destination nor a reason it could not send (`sends_to` and `cannot_send` are both empty).
+      It says how far back the device holds the account's mail, and, for an account whose server
+      keeps no keyword, that only this device knows its drafted replies (rule 25). **Pressing
+      Learn there is the consent**; nothing asks anywhere else. Learn carries the default name the
+      style is stored under and the language the app is read in, both the client's, since the
+      core has no words or locale of its own.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
     - `Failed { failure, remedy }`, with its one remedy (rule 27). `Remedy` moves the flow for

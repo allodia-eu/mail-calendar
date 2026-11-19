@@ -47,10 +47,10 @@ async fn one_account_learns_from_its_sent_mail_after_the_consent() {
     assert_eq!(report.languages[0].language.as_str(), "en");
     assert_eq!(
         sends_to,
-        Ok(AiRoute::OwnEndpoint {
+        Some(Ok(AiRoute::OwnEndpoint {
             host: "models.example.eu".to_owned(),
             declared: Some(mailcal_ai::Class::EuNative),
-        })
+        }))
     );
     assert!(!keyword_kept, "the fake keeps no keyword on a Sent copy");
     assert_eq!(
@@ -191,7 +191,12 @@ async fn an_empty_sent_folder_has_nothing_usable_and_learn_is_held() {
         panic!("an empty Sent folder has nothing usable");
     };
     assert_eq!(report.found, 0);
-    assert!(learner.view().learn.is_some_and(|learn| !learn.enabled));
+    let view = learner.view();
+    assert!(view.learn.is_some_and(|learn| !learn.enabled));
+    let LearningStage::Review { sends_to, .. } = view.stage else {
+        panic!("not on Review");
+    };
+    assert_eq!(sends_to, None, "nothing to send names no destination");
 }
 
 #[tokio::test]

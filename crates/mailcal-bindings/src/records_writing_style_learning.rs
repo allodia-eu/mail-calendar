@@ -136,7 +136,9 @@ pub enum StyleLearningStage {
         range: StyleLearnRange,
         reach: StyleSentReach,
         review: StyleLearningReview,
-        /// Where Learn sends; `None` when it cannot, and `cannot_send` says why.
+        /// Where Learn sends; `None` when it cannot, and `cannot_send` says why. Both are `None`
+        /// while the review is `NothingUsable`: nothing will be sent, so nothing is said about
+        /// where.
         sends_to: Option<StyleLearningDestination>,
         cannot_send: Option<AiFailure>,
         /// Whether the account's server keeps the drafted-reply keyword; without it only this
@@ -277,13 +279,14 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
                     report: report(found),
                 },
             },
-            sends_to: sends_to.as_ref().ok().map(|route| match route {
-                core::AiRoute::Relay => StyleLearningDestination::Relay,
-                core::AiRoute::OwnEndpoint { host, .. } => {
-                    StyleLearningDestination::OwnEndpoint { host: host.clone() }
+            sends_to: match &sends_to {
+                Some(Ok(core::AiRoute::Relay)) => Some(StyleLearningDestination::Relay),
+                Some(Ok(core::AiRoute::OwnEndpoint { host, .. })) => {
+                    Some(StyleLearningDestination::OwnEndpoint { host: host.clone() })
                 }
-            }),
-            cannot_send: sends_to.err().map(Into::into),
+                Some(Err(_)) | None => None,
+            },
+            cannot_send: sends_to.and_then(Result::err).map(Into::into),
             keyword_kept,
         },
         core::LearningStage::Learning { done, total } => {

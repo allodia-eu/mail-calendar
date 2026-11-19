@@ -62,8 +62,9 @@ pub enum LearningStage {
         reach: SentReach,
         /// What was found.
         review: Review,
-        /// Where Learn would send, or why it cannot.
-        sends_to: Result<AiRoute, AiFailure>,
+        /// Where Learn would send, or why it cannot; `None` while nothing found is usable, since
+        /// nothing will be sent.
+        sends_to: Option<Result<AiRoute, AiFailure>>,
         /// Whether the account's server keeps the drafted keyword; without it only this device
         /// knows which replies were drafted.
         keyword_kept: bool,
@@ -227,7 +228,7 @@ impl<P: Provider> App<P> {
                     range: flow.range.unwrap_or(LearnRange::Everything),
                     reach,
                     review: review.clone(),
-                    sends_to: route,
+                    sends_to: (!matches!(review, Review::NothingUsable(_))).then_some(route),
                     keyword_kept: flow
                         .reviewed
                         .as_ref()
