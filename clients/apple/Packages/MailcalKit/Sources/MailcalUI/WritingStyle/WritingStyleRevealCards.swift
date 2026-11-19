@@ -117,29 +117,44 @@ struct RevealPhrasesSection: View {
     }
 }
 
-/// One language's sections as the detail draws them, settled and on one page: the letter, the
-/// greetings and sign-offs, tone and approach, the phrases.
+/// One language's sections as the detail draws them, settled and on one page: the sections the
+/// record lists, in its order, each saying so for a language with nothing for it.
 struct RevealLanguageSections: View {
     let language: WritingStyleLanguage
+    let sections: [WritingStyleSection]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            if let letter = language.letter {
-                section(L10n.reveal_step_letter()) { RevealLetterSection(letter: letter, shown: true) }
+            ForEach(Array(sections.enumerated()), id: \.offset) { _, kind in
+                section(title(kind)) { content(kind) }
             }
-            if let habits = language.habits {
-                section(L10n.reveal_step_habits()) { RevealHabitsSection(habits: habits, shown: true) }
-            }
-            if !language.cards.isEmpty {
-                section(L10n.reveal_step_voice()) { RevealCardsSection(cards: language.cards, shown: true) }
-            }
-            if let phrases = language.phrases {
-                section(L10n.reveal_phrases()) { RevealPhrasesSection(phrases: phrases, shown: true) }
-            }
-            if language.letter == nil, language.habits == nil, language.cards.isEmpty,
-               language.phrases == nil {
-                Text(L10n.reveal_nothing_in_language()).foregroundStyle(.secondary)
-            }
+        }
+    }
+
+    @ViewBuilder
+    private func content(_ kind: WritingStyleSection) -> some View {
+        switch kind {
+        case .letter:
+            if let letter = language.letter { RevealLetterSection(letter: letter, shown: true) } else { nothing }
+        case .habits:
+            if let habits = language.habits { RevealHabitsSection(habits: habits, shown: true) } else { nothing }
+        case .voice:
+            if language.cards.isEmpty { nothing } else { RevealCardsSection(cards: language.cards, shown: true) }
+        case .phrases:
+            if let phrases = language.phrases { RevealPhrasesSection(phrases: phrases, shown: true) } else { nothing }
+        }
+    }
+
+    private var nothing: some View {
+        Text(L10n.reveal_nothing_in_language()).foregroundStyle(.secondary)
+    }
+
+    private func title(_ kind: WritingStyleSection) -> String {
+        switch kind {
+        case .letter: L10n.reveal_step_letter()
+        case .habits: L10n.reveal_step_habits()
+        case .voice: L10n.reveal_step_voice()
+        case .phrases: L10n.reveal_phrases()
         }
     }
 

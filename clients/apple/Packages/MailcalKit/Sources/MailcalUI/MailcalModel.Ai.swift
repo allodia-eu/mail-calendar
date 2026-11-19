@@ -26,7 +26,7 @@ extension MailboxModel {
 extension AiEndpointGaps {
     /// No gap: what the form draws before the core has opened.
     static var none: AiEndpointGaps {
-        AiEndpointGaps(address: nil, modelMissing: false, declaration: nil)
+        AiEndpointGaps(address: nil, modelMissing: false, declaration: nil, keptKey: nil)
     }
 
     /// Whether a save of these fields would be refused.

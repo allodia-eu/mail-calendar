@@ -74,6 +74,12 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
         #expect(StyleLearningStageKey(.learned(style: "s1")) == .learned)
     }
 
+    @Test func theTrailNamesTheStagesTheHostPushes() {
+        #expect(StyleLearningStageKey(StyleLearningTrailStage.chooseAccount) == .chooseAccount)
+        #expect(StyleLearningStageKey(StyleLearningTrailStage.chooseRange) == .chooseRange)
+        #expect(StyleLearningStageKey(StyleLearningTrailStage.review) == .review)
+    }
+
     @Test func aRangeOfThePersonsOwnIsOnePresetWhateverItsDays() {
         let one = StyleLearnRange.between(since: "2026-01-01", until: "2026-02-01")
         #expect(one.samePreset(as: .between(since: "2025-01-01", until: "2025-12-31")))
@@ -117,7 +123,9 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
     @Test func learnHeldSaysWhy() {
         #expect(WritingStyleWords.blocked(.noMailAccount) == L10n.writing_style_learn_no_account())
         #expect(
-            WritingStyleWords.blocked(.cannotSend(failure: .nowhereToSend, remedy: .openAiEndpoint))
+            WritingStyleWords.blocked(.cannotSend(
+                failure: .nowhereToSend,
+                remedy: AiRemedyControl(remedy: .openAiEndpoint, control: .free())))
                 == L10n.ai_failure_nowhere_to_send())
     }
 

@@ -69,6 +69,7 @@ struct SettingsWritingStyle: View {
                     ) {
                         opened = OpenedStyle(id: style.id, opens: style.opens)
                     }
+                    .padding(.vertical, 4)
                     .accessibilityIdentifier("writingStyle.row.\(style.id)")
                     if style.id != page.styles.last?.id { Divider() }
                 }
@@ -108,7 +109,7 @@ struct SettingsWritingStyle: View {
                 }
             }
             .accessibilityElement(children: .contain)
-        case let .failed(failure, _):
+        case let .failed(failure, remedy):
             VStack(alignment: .leading, spacing: 8) {
                 Label(
                     L10n.writing_style_run_failed() + " " + AiWords.failure(failure),
@@ -117,7 +118,10 @@ struct SettingsWritingStyle: View {
                 .font(.callout)
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
-                learnButton(page)
+                HStack(spacing: 10) {
+                    learnButton(page)
+                    if let remedy { remedyButton(remedy) }
+                }
             }
         case nil:
             VStack(alignment: .leading, spacing: 8) {
@@ -154,12 +158,17 @@ struct SettingsWritingStyle: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if case let .cannotSend(_, remedy?) = block {
-                ControlButton(title: AiWords.remedy(remedy), control: .free()) {
-                    model.openRemedy(remedy)
-                }
-                .buttonStyle(.bordered)
+                remedyButton(remedy)
             }
         }
+    }
+
+    /// The one thing that changes a failure, as its control says.
+    private func remedyButton(_ remedy: AiRemedyControl) -> some View {
+        ControlButton(title: AiWords.remedy(remedy.remedy), control: remedy.control) {
+            model.openRemedy(remedy.remedy)
+        }
+        .buttonStyle(.bordered)
     }
 
     // MARK: Each account's style

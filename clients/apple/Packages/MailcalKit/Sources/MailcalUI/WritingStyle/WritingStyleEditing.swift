@@ -105,6 +105,17 @@ enum StyleLearningStageKey: Hashable {
     }
 }
 
+extension StyleLearningStageKey {
+    /// A stage the record's trail names.
+    init(_ stage: StyleLearningTrailStage) {
+        switch stage {
+        case .chooseAccount: self = .chooseAccount
+        case .chooseRange: self = .chooseRange
+        case .review: self = .review
+        }
+    }
+}
+
 extension StyleLearnRange {
     /// Whether this is the same preset as `other`, whatever days a range of the person's own has.
     func samePreset(as other: StyleLearnRange?) -> Bool {

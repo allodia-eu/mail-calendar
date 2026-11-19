@@ -11,7 +11,7 @@ enum AiWords {
         switch failure {
         case .relaySignIn: L10n.ai_failure_relay_sign_in()
         case .endpointKeyRefused: L10n.ai_failure_key_refused()
-        case let .refused(mode, _): refusedFailure(mode)
+        case let .refused(refusal): refusedFailure(refusal)
         case .nowhereToSend: L10n.ai_failure_nowhere_to_send()
         case .unreachable: L10n.ai_failure_unreachable()
         case .serverError: L10n.ai_failure_server_error()
@@ -54,7 +54,7 @@ enum AiWords {
     static func declarationGap(_ gap: AiEndpointDeclarationGap) -> String {
         switch gap {
         case .missing: L10n.ai_endpoint_gap_where_missing()
-        case let .refused(mode, _): refusedGap(mode)
+        case let .refused(refusal): refusedGap(refusal)
         }
     }
 
@@ -73,14 +73,30 @@ enum AiWords {
         ]
     }
 
-    /// The gate refuses only under a mode narrower than `all`, so `all` never reaches these two;
-    /// it takes the wider mode's sentence rather than an empty one.
-    private static func refusedFailure(_ mode: JurisdictionMode) -> String {
-        mode == .euNative ? L10n.ai_failure_refused_eu_native() : L10n.ai_failure_refused_eu_hosted()
+    /// What the key field says about the key kept, for the address as typed.
+    static func keyHint(_ kept: AiEndpointKeptKey?) -> String {
+        switch kept {
+        case .carried: L10n.ai_endpoint_key_stored()
+        case .dropped: L10n.ai_endpoint_key_dropped()
+        case nil: L10n.ai_endpoint_key_hint()
+        }
     }
 
-    private static func refusedGap(_ mode: JurisdictionMode) -> String {
-        mode == .euNative
+    /// The limit a refusal is under: worded by what the mode in force admits.
+    private static func limit(_ refusal: JurisdictionRefusal) -> JurisdictionLimit {
+        switch refusal {
+        case .euHosted: .euNative
+        case let .nonEu(mode), let .unknown(mode): mode
+        }
+    }
+
+    private static func refusedFailure(_ refusal: JurisdictionRefusal) -> String {
+        limit(refusal) == .euNative
+            ? L10n.ai_failure_refused_eu_native() : L10n.ai_failure_refused_eu_hosted()
+    }
+
+    private static func refusedGap(_ refusal: JurisdictionRefusal) -> String {
+        limit(refusal) == .euNative
             ? L10n.ai_endpoint_gap_refused_eu_native() : L10n.ai_endpoint_gap_refused_eu_hosted()
     }
 }

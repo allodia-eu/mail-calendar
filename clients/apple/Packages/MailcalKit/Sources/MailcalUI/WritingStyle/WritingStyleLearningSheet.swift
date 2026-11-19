@@ -22,11 +22,9 @@ struct WritingStyleLearningSheet: View {
 
     private func host(_ flow: WritingStyleLearning) -> some View {
         let key = StyleLearningStageKey(flow.stage)
-        // The trail is the stage on screen alone until the record gives the stages before it, so
-        // the host pushes nothing and Back is drawn as a button of its own.
         return FlowHost(
-            trail: [key],
-            title: { _ in title(flow.stage) },
+            trail: flow.trail.map(StyleLearningStageKey.init) + [key],
+            title: title,
             cancel: FlowControl(title: closeTitle(flow.stage), control: flow.close) {
                 model.learnStyle(.close)
             },
@@ -34,8 +32,12 @@ struct WritingStyleLearningSheet: View {
                 FlowControl(title: L10n.wizard_back(), control: control) { model.learnStyle(.back) }
             },
             primary: primary(flow)
-        ) { _ in
-            WritingStyleLearningStage(model: model, stage: flow.stage)
+        ) { shown in
+            // Only the stage on screen has its record; one beneath it in the stack is its title
+            // until Back makes it current again.
+            if shown == key {
+                WritingStyleLearningStage(model: model, stage: flow.stage)
+            }
         }
         .interactiveDismissDisabled(key == .learning)
     }
@@ -52,9 +54,9 @@ struct WritingStyleLearningSheet: View {
         if let next = flow.next {
             return FlowControl(title: L10n.wizard_next(), control: next) { model.learnStyle(.next) }
         }
-        if let remedy = flow.remedy, case let .failed(_, kind?) = flow.stage {
-            return FlowControl(title: AiWords.remedy(kind), control: remedy) {
-                model.openRemedy(kind)
+        if case let .failed(_, remedy?) = flow.stage {
+            return FlowControl(title: AiWords.remedy(remedy.remedy), control: remedy.control) {
+                model.openRemedy(remedy.remedy)
             }
         }
         if let stop = flow.stop {
@@ -65,7 +67,7 @@ struct WritingStyleLearningSheet: View {
         return nil
     }
 
-    private func title(_ stage: StyleLearningStage) -> String {
+    private func title(_ stage: StyleLearningStageKey) -> String {
         switch stage {
         case .chooseAccount: L10n.learn_account_title()
         case .chooseRange: L10n.learn_range_title()

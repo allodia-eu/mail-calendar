@@ -214,7 +214,18 @@ struct RevealLetterSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .revealCard(palette, radius: 12)
         .shadow(color: palette.shadow, radius: 14, y: 10)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(spoken)
+    }
+
+    /// The letter as VoiceOver reads it: the greeting, the sign-off and the name, a placeholder by
+    /// its own word, each part once.
+    private var spoken: String {
+        [letter.opening, letter.closing]
+            .map { $0.map(\.text).joined().trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " … ")
+            + (letter.signsAs.isEmpty ? "" : " " + letter.signsAs)
     }
 
     private var facts: some View {

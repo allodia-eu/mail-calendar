@@ -15,7 +15,6 @@ struct WritingStyleRevealView: View {
     @State private var name = ""
     @State private var notes = ""
     @State private var language = 0
-    @State private var loaded = false
     @State private var session: WritingStyleSheetSession
     /// Why Save did not take.
     @State private var problem: String?
@@ -26,20 +25,21 @@ struct WritingStyleRevealView: View {
         self.close = close
         _session = State(initialValue: WritingStyleSheetSession(
             style: styleId, page: model.writingStyle.page))
+        let reveal = model.writingStyleReveal(styleId)
+        _name = State(initialValue: reveal?.name ?? "")
+        _notes = State(initialValue: reveal?.notes ?? "")
     }
 
     var body: some View {
         // Read again whenever the core says the feature's records moved.
         let _ = model.writingStyle.version
+        // Asked here, so it follows every keystroke and every language chosen: the pages read
+        // both inside the host, where a change to this view's state would not reach them.
+        let refusal = writingStyleNameRefusal(name: name)
+        let _ = language
         Group {
             if let reveal = model.writingStyleReveal(styleId) {
-                pages(reveal)
-                    .onAppear {
-                        guard !loaded else { return }
-                        loaded = true
-                        name = reveal.name
-                        notes = reveal.notes
-                    }
+                pages(reveal, refusal: refusal)
             }
         }
         .onChange(of: model.writingStyle.page?.outcome?.serial) { _, _ in
@@ -51,7 +51,7 @@ struct WritingStyleRevealView: View {
         }
     }
 
-    private func pages(_ reveal: WritingStyleReveal) -> some View {
+    private func pages(_ reveal: WritingStyleReveal, refusal: WritingStyleRefusal?) -> some View {
         let pages = reveal.pages
         return FlowPages(
             count: pages.count,
@@ -62,23 +62,27 @@ struct WritingStyleRevealView: View {
             },
             primary: { index in
                 guard pages[index] == .name else { return nil }
-                let refused = writingStyleNameRefusal(name: name) != nil
-                return FlowControl(title: L10n.reveal_save(), control: reveal.save.held(refused)) {
+                return FlowControl(
+                    title: L10n.reveal_save(), control: reveal.save.held(refusal != nil)
+                ) {
                     problem = nil
                     model.changeWritingStyle(.saveReveal(style: styleId, name: name, notes: notes))
                 }
             },
             backTitle: L10n.wizard_back(),
             nextTitle: L10n.wizard_next(),
-            progressLabel: { L10n.a11y_flow_page(page: String($0 + 1), count: pages.count) }
+            progressLabel: { L10n.a11y_flow_page(page: String($0 + 1), count: pages.count) },
+            paging: reveal.paging
         ) { index in
-            page(pages[index], reveal)
+            page(pages[index], reveal, refusal: refusal)
         }
         .interactiveDismissDisabled(reveal.save.running)
     }
 
     @ViewBuilder
-    private func page(_ page: WritingStyleRevealPage, _ reveal: WritingStyleReveal) -> some View {
+    private func page(
+        _ page: WritingStyleRevealPage, _ reveal: WritingStyleReveal, refusal: WritingStyleRefusal?
+    ) -> some View {
         switch page {
         case .read:
             RevealPage { shown in
@@ -93,7 +97,7 @@ struct WritingStyleRevealView: View {
         case .letter, .habits, .voice, .phrases:
             perLanguage(page, reveal.languages)
         case .name:
-            namePage(reveal)
+            namePage(reveal, refusal: refusal)
         }
     }
 
@@ -151,7 +155,7 @@ struct WritingStyleRevealView: View {
             .foregroundStyle(.secondary)
     }
 
-    private func namePage(_ reveal: WritingStyleReveal) -> some View {
+    private func namePage(_ reveal: WritingStyleReveal, refusal: WritingStyleRefusal?) -> some View {
         VStack(alignment: .leading, spacing: 18) {
             HeldFields(control: reveal.save) {
                 VStack(alignment: .leading, spacing: 18) {
@@ -162,7 +166,7 @@ struct WritingStyleRevealView: View {
                         TextField(L10n.writing_style_name_label(), text: $name)
                             .textFieldStyle(.roundedBorder)
                             .accessibilityIdentifier("writingStyle.reveal.name")
-                        if let refusal = writingStyleNameRefusal(name: name) {
+                        if let refusal {
                             Text(WritingStyleWords.refusal(refusal))
                                 .font(RevealFont.caption)
                                 .foregroundStyle(.orange)

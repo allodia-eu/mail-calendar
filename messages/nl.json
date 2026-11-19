@@ -1264,6 +1264,7 @@
 	"ai_endpoint_key": "Sleutel",
 	"ai_endpoint_key_hint": "Laat leeg als de server er geen nodig heeft.",
 	"ai_endpoint_key_stored": "Er is een sleutel bewaard. Laat leeg om die te houden.",
+	"ai_endpoint_key_dropped": "De bewaarde sleutel hoort bij een andere server. Typ de sleutel voor deze server, of laat het veld leeg als die er geen nodig heeft.",
 	"ai_endpoint_model": "Model",
 	"ai_endpoint_where": "Waar draait het?",
 	"ai_endpoint_where_eu_native": "In de EU, beheerd door een Europees bedrijf, of op mijn eigen computer",

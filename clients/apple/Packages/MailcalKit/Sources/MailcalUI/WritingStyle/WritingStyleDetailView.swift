@@ -128,7 +128,8 @@ struct WritingStyleDetailView: View {
         Divider()
         RevealLanguagePicker(languages: detail.languages, selected: $language)
         if detail.languages.indices.contains(language) {
-            RevealLanguageSections(language: detail.languages[language])
+            RevealLanguageSections(
+                language: detail.languages[language], sections: detail.sections)
         }
         Divider()
         ControlButton(

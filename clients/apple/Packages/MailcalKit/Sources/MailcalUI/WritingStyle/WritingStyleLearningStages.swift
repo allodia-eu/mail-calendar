@@ -122,12 +122,7 @@ private struct StyleRangeStage: View {
     var body: some View {
         Text(email).font(.callout).foregroundStyle(.secondary)
         StyleChoiceList(options: options, selected: selectedOption) { id in
-            if let index = Int(id) {
-                model.learnStyle(.selectRange(range: presets[index]))
-            } else {
-                // A range of the person's own, over everything the bounds allow until they move it.
-                model.learnStyle(.selectRange(range: .between(since: earliest ?? latest, until: latest)))
-            }
+            if let index = Int(id) { model.learnStyle(.selectRange(range: presets[index])) }
         }
         if case let .between(since, until)? = selected {
             betweenDays(since: since, until: until)
@@ -138,22 +133,18 @@ private struct StyleRangeStage: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// The core's presets, then a range of the person's own, which the core bounds rather than
-    /// lists.
+    /// The core's presets, a range of the person's own last.
     private var options: [StyleChoice] {
         presets.enumerated().map { index, preset in
             StyleChoice(
                 id: String(index), title: WritingStyleWords.range(preset),
                 note: preset.samePreset(as: .untilEndOfLastYear) ? L10n.learn_range_until_hint() : nil)
-        } + [StyleChoice(id: Self.between, title: L10n.learn_range_between())]
+        }
     }
 
     private var selectedOption: String? {
-        if case .between? = selected { return Self.between }
-        return presets.firstIndex { $0.samePreset(as: selected) }.map(String.init)
+        presets.firstIndex { $0.samePreset(as: selected) }.map(String.init)
     }
-
-    private static let between = "between"
 
     /// The two days of a range of the person's own, each bounded by the other and by what the
     /// device holds. A day is the core's `YYYY-MM-DD`, in UTC.

@@ -14,8 +14,7 @@ import Testing
     private func screen(_ page: WritingStylePage?) -> HostedScreen {
         let model = MailboxModel()
         model.writingStyle.page = page
-        return HostedScreen(
-            ScrollView { SettingsWritingStyle(model: model) }, size: CGSize(width: 393, height: 1400))
+        return HostedScreen(SettingsWritingStyle(model: model), size: CGSize(width: 393, height: 1400))
     }
 
     private func page(
@@ -46,7 +45,9 @@ import Testing
     @Test func aHeldLearnOffersItsOneRemedy() {
         let shown = screen(page(
             learn: .free(false),
-            blocked: .cannotSend(failure: .nowhereToSend, remedy: .openAiEndpoint)))
+            blocked: .cannotSend(
+                failure: .nowhereToSend,
+                remedy: AiRemedyControl(remedy: .openAiEndpoint, control: .free()))))
         #expect(shown.elements("Learn my writing style").first?.enabled == false, "\(shown.dump())")
         #expect(shown.elements(L10n.ai_remedy_open_endpoint()).first?.enabled == true)
     }

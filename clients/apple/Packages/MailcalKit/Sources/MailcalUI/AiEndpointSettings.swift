@@ -55,8 +55,7 @@ private struct AiEndpointFormView: View {
                         }
                         field(
                             L10n.ai_endpoint_key(),
-                            hint: form.keyKept
-                                ? L10n.ai_endpoint_key_stored() : L10n.ai_endpoint_key_hint(),
+                            hint: AiWords.keyHint(gaps.keptKey),
                             gap: nil
                         ) {
                             SecureField(L10n.ai_endpoint_key(), text: $fields.key)

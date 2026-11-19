@@ -7,7 +7,8 @@ import Testing
 
 @testable import MailcalUI
 
-private let noGaps = AiEndpointGaps(address: nil, modelMissing: false, declaration: nil)
+private let noGaps = AiEndpointGaps(
+    address: nil, modelMissing: false, declaration: nil, keptKey: nil)
 
 private func form(
     keyKept: Bool = false, outcome: AiEndpointOutcome? = nil
@@ -75,24 +76,33 @@ private func outcome(_ serial: UInt64, _ result: AiEndpointResult) -> AiEndpoint
         #expect(AiWords.addressGap(.needsHttps) == L10n.ai_endpoint_gap_needs_https())
         #expect(AiWords.modelGap(noGaps) == nil)
         #expect(
-            AiWords.modelGap(AiEndpointGaps(address: nil, modelMissing: true, declaration: nil))
+            AiWords.modelGap(AiEndpointGaps(
+                address: nil, modelMissing: true, declaration: nil, keptKey: nil))
                 == L10n.ai_endpoint_gap_model_missing())
         #expect(AiWords.declarationGap(.missing) == L10n.ai_endpoint_gap_where_missing())
         #expect(
-            AiWords.declarationGap(.refused(mode: .euNative, class: .nonEu))
+            AiWords.declarationGap(.refused(refusal: .nonEu(mode: .euNative)))
                 == L10n.ai_endpoint_gap_refused_eu_native())
         #expect(
-            AiWords.declarationGap(.refused(mode: .euHosted, class: .nonEu))
+            AiWords.declarationGap(.refused(refusal: .nonEu(mode: .euHosted)))
                 == L10n.ai_endpoint_gap_refused_eu_hosted())
+        #expect(
+            AiWords.declarationGap(.refused(refusal: .euHosted))
+                == L10n.ai_endpoint_gap_refused_eu_native(),
+            "only an EU-native limit refuses an endpoint run in the EU from outside it")
     }
 
-    @Test func aRefusalIsWordedByTheModeInForce() {
+    @Test func aRefusalIsWordedByTheLimitItIsUnder() {
+        #expect(AiWords.failure(.refused(refusal: .euHosted)) == L10n.ai_failure_refused_eu_native())
         #expect(
-            AiWords.failure(.refused(mode: .euNative, class: .euHosted))
-                == L10n.ai_failure_refused_eu_native())
-        #expect(
-            AiWords.failure(.refused(mode: .euHosted, class: .nonEu))
+            AiWords.failure(.refused(refusal: .unknown(mode: .euHosted)))
                 == L10n.ai_failure_refused_eu_hosted())
+    }
+
+    @Test func theKeyFieldSaysWhatTheSaveWouldDoToTheKeptKey() {
+        #expect(AiWords.keyHint(.carried) == L10n.ai_endpoint_key_stored())
+        #expect(AiWords.keyHint(.dropped) == L10n.ai_endpoint_key_dropped())
+        #expect(AiWords.keyHint(nil) == L10n.ai_endpoint_key_hint())
     }
 
     @Test func everyFailureAndRemedyHasWords() {

@@ -135,15 +135,6 @@ struct FlowHost<Stage: Hashable, Page: View>: View {
                 if let progress { FlowDots(progress: progress).padding(.vertical, 8) }
             }
             .toolbar {
-                // A stage with Back and nothing pushed beneath it: Back is drawn first, where the
-                // back button would be.
-                if stage == trail.first, let back, back.control.enabled {
-                    ToolbarItem(placement: .navigation) {
-                        ControlButton(
-                            title: back.title, systemImage: "chevron.backward",
-                            control: back.control, action: back.action)
-                    }
-                }
                 ToolbarItem(placement: .cancellationAction) { FlowButton(cancel) }
                 if let primary {
                     ToolbarItem(placement: .confirmationAction) {
@@ -170,6 +161,8 @@ struct FlowPages<Page: View>: View {
     let backTitle: String
     let nextTitle: String
     let progressLabel: (Int) -> String
+    /// Moving between pages, held by the record while a change runs.
+    var paging: ControlState = .free()
     @ViewBuilder let page: (Int) -> Page
 
     @State private var index = 0
@@ -188,23 +181,25 @@ struct FlowPages<Page: View>: View {
             FlowFooter(
                 cancel: cancel,
                 progress: FlowProgress(step: index, count: count, label: progressLabel(index)),
-                back: index > 0 ? FlowControl(title: backTitle, control: .free()) { move(-1) } : nil,
+                back: index > 0 ? FlowControl(title: backTitle, control: paging) { move(-1) } : nil,
                 primary: primary(index)
                     ?? (index + 1 < count
-                        ? FlowControl(title: nextTitle, control: .free()) { move(1) } : nil)
+                        ? FlowControl(title: nextTitle, control: paging) { move(1) } : nil)
             )
         }
         .frame(minWidth: 520, idealWidth: 560, minHeight: 480, idealHeight: 600)
         #else
         NavigationStack {
-            TabView(selection: $index) {
-                ForEach(0..<count, id: \.self) { page in
-                    FlowPage(title: title(page)) { self.page(page) }
-                        .tag(page)
+            HeldFields(control: paging) {
+                TabView(selection: $index) {
+                    ForEach(0..<count, id: \.self) { page in
+                        FlowPage(title: title(page)) { self.page(page) }
+                            .tag(page)
+                    }
                 }
+                .tabViewStyle(.page(indexDisplayMode: .always))
+                .indexViewStyle(.page(backgroundDisplayMode: .always))
             }
-            .tabViewStyle(.page(indexDisplayMode: .always))
-            .indexViewStyle(.page(backgroundDisplayMode: .always))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { FlowButton(cancel) }

@@ -1264,6 +1264,7 @@
 	"ai_endpoint_key": "Key",
 	"ai_endpoint_key_hint": "Leave empty if the server needs none.",
 	"ai_endpoint_key_stored": "A key is stored. Leave empty to keep it.",
+	"ai_endpoint_key_dropped": "The key kept is for another server. Type the key for this one, or leave it empty if it needs none.",
 	"ai_endpoint_model": "Model",
 	"ai_endpoint_where": "Where does it run?",
 	"ai_endpoint_where_eu_native": "In the EU, run by a European company, or on my own computer",
