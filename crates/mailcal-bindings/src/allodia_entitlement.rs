@@ -6,8 +6,9 @@
 //! Read in the background and never on a path anyone waits for: at launch, after a sign-in, and
 //! on a refresh, each only once the service's own interval has passed. Stored in the app data
 //! directory rather than the keystore, because it is derived rather than secret and a keystore
-//! read can cost a prompt. Today the only thing drawn from it is the Allodia notice's rise to
-//! Blocked in the last week of a paid answer's grace.
+//! read can cost a prompt. Two things are drawn from it: the Allodia notice's rise to Blocked in
+//! the last week of a paid answer's grace, and whether the writing assistant is offered
+//! (`allodia_ai.rs`).
 
 use std::{
     path::PathBuf,
@@ -17,7 +18,7 @@ use std::{
     },
 };
 
-use allodia_license::{AccountService, Cache, Error, Feature, Outcome, Stored};
+use allodia_license::{AccountService, Cache, Capability, Error, Feature, Outcome, Stored};
 
 use crate::{AllodiaGrantHealth, MailcalApp, allodia_transport::HttpsTransport};
 
@@ -55,6 +56,16 @@ impl EntitlementState {
             .lock()
             .expect("entitlement lock")
             .lapses_soon(now)
+    }
+
+    /// Whether the answer in force at `now` grants `capability`: the stored one inside its grace,
+    /// otherwise none.
+    pub(crate) fn grants(&self, capability: &Capability, now: i64) -> bool {
+        self.cache
+            .lock()
+            .expect("entitlement lock")
+            .effective(now)
+            .grants(capability)
     }
 
     fn should_refresh(&self, now: i64) -> bool {
@@ -99,13 +110,20 @@ fn now() -> i64 {
 
 impl MailcalApp {
     /// Reads the entitlement in the background when an Allodia account is signed in and the
-    /// service's interval has passed. Returns at once.
+    /// service's interval has passed. Returns at once. First tells the writing assistant's offer
+    /// what the stored answer grants now, so a grace that has run out takes it away.
     pub(crate) fn refresh_allodia_entitlement(&self) {
-        let state = &self.allodia_entitlement;
+        self.publish_ai_entitlement();
         let signed_in = self.allodia.lock().expect("allodia account lock").is_some();
-        if !signed_in || !state.should_refresh(now()) {
-            return;
+        if signed_in && self.allodia_entitlement.should_refresh(now()) {
+            self.read_allodia_entitlement_in_background();
         }
+    }
+
+    /// Reads the entitlement in the background now, whatever the interval says, unless a read is
+    /// already out. Returns at once.
+    pub(crate) fn read_allodia_entitlement_in_background(&self) {
+        let state = &self.allodia_entitlement;
         // The app, for a read that outlives the call that started it.
         let Some(app) = self.rediscovery.app() else {
             return;
@@ -155,11 +173,15 @@ impl MailcalApp {
             }
         };
         self.allodia_entitlement.record(outcome, now());
+        self.publish_ai_entitlement();
         if self.allodia_entitlement.lapses_soon(now()) != lapsed_before {
             self.app.signal_notices();
         }
     }
 }
+
+#[path = "allodia_ai.rs"]
+mod ai;
 
 #[cfg(test)]
 #[path = "allodia_entitlement_tests.rs"]

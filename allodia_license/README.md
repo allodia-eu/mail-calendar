@@ -15,8 +15,9 @@ signing in to an Allodia account, and whatever a paid plan turns on. Using them 
 subscription. The source is published so it can be read and audited, not so it can be reused:
 [`LICENSE.md`](LICENSE.md) §2 is what anyone may do with it, §4 is what nobody may.
 
-Today that is one crate, `crates/allodia-license`: it asks what the account is entitled to, and
-decides what a client draws between one answer and the next. **[`entitlement.md`](entitlement.md)
+Today that is one crate, `crates/allodia-license`: it asks what the account is entitled to,
+decides what a client draws between one answer and the next, and sends the writing assistant's
+requests to Allodia's relay ([`docs/ai.md`](../docs/ai.md)). **[`entitlement.md`](entitlement.md)
 is the contract**: read that first; the crate is where its rules are implemented so that four
 clients cannot each decide them slightly differently.
 
@@ -61,7 +62,7 @@ the build does not notice.
   `mailcal-oauth` rather than carrying a second OAuth client, and its own workspace would have meant
   a second engine on disk for one small crate. `default-members` is an explicit list rather than a
   subtraction, so nothing joins the default build by accident.
-- **The one line that connects them**: `crates/mailcal-app/Cargo.toml` carries the crate as an
+- **The one line that connects them**: `crates/mailcal-bindings/Cargo.toml` carries the crate as an
   **optional** dependency behind an `allodia-license` feature, off by default. `cargo build` does
   not compile it and `cargo tree` does not list it; `cargo build --features allodia-license` does
   both. `cargo xtask check-license-dir` allows exactly that line and the feature that gates it.

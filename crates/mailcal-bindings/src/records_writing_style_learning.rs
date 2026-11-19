@@ -1,0 +1,297 @@
+//! The learning flow as the core decides it (`docs/ai.md` rules 11 to 14). A client draws it in
+//! its flow host and words it; every control is a `ControlState`, and one that is `None` is not
+//! drawn.
+
+use mailcal_app::ai as core;
+
+use super::records::{control, failed};
+use crate::{AiFailure, AiRemedy, ControlState};
+
+/// The learning flow, drawn in the flow host (pulled after `Surface::WritingStyle`); `None`
+/// while no host draws it.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct WritingStyleLearning {
+    pub stage: StyleLearningStage,
+    pub back: Option<ControlState>,
+    /// Next, on `ChooseAccount` and `ChooseRange`.
+    pub next: Option<ControlState>,
+    /// Learn, on `Review`; pressing it is the consent.
+    pub learn: Option<ControlState>,
+    /// Stop, on `Learning`.
+    pub stop: Option<ControlState>,
+    /// The failure's remedy, on `Failed` when it has one (`StyleLearningIntent::Remedy`).
+    pub remedy: Option<ControlState>,
+    /// Closing the host (`StyleLearningIntent::Close`).
+    pub close: ControlState,
+}
+
+/// One account the flow can learn from.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct StyleLearningAccount {
+    pub account_id: String,
+    pub email: String,
+}
+
+/// Which sent mail to learn from. Days are `YYYY-MM-DD`, whole days in UTC.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleLearnRange {
+    /// Everything the device holds.
+    Everything,
+    /// Everything up to the end of last year.
+    UntilEndOfLastYear,
+    /// A range of the person's own, both days included, within `ChooseRange`'s bounds.
+    Between { since: String, until: String },
+}
+
+/// How far back the device holds an account's mail.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleSentReach {
+    Everything,
+    /// From this day, `YYYY-MM-DD`.
+    Since {
+        day: String,
+    },
+}
+
+/// Where Learn sends what the review found.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleLearningDestination {
+    /// Allodia's relay.
+    Relay,
+    /// The own endpoint, named by its host.
+    OwnEndpoint { host: String },
+}
+
+/// One language of the review.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct StyleLearningLanguage {
+    /// ISO 639-1 code.
+    pub language: String,
+    /// Messages in it that say enough to learn from.
+    pub usable: u32,
+}
+
+/// What the review read on the device.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
+pub struct StyleLearningReport {
+    /// Messages found in the range.
+    pub found: u32,
+    /// Those that say enough to learn from, in any language.
+    pub usable: u32,
+    /// Per language, most messages first.
+    pub languages: Vec<StyleLearningLanguage>,
+    /// Usable messages left out because their language is not one the assistant names.
+    pub other_languages: u32,
+    /// The oldest and newest message read, seconds since the Unix epoch.
+    pub oldest: Option<i64>,
+    pub newest: Option<i64>,
+}
+
+/// The review's state.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleLearningReview {
+    /// Reading on the device; nothing has left it.
+    Reading,
+    Ready {
+        report: StyleLearningReport,
+    },
+    /// Nothing says enough to learn from; Learn is held.
+    NothingUsable {
+        report: StyleLearningReport,
+    },
+}
+
+/// Where the flow stands, with what each stage shows.
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleLearningStage {
+    ChooseAccount {
+        accounts: Vec<StyleLearningAccount>,
+        selected: Option<String>,
+    },
+    ChooseRange {
+        email: String,
+        /// The presets that can be honoured, in order.
+        presets: Vec<StyleLearnRange>,
+        /// The first day a range of the person's own may start on; `None` when the device holds
+        /// everything.
+        earliest: Option<String>,
+        /// The last day it may end on.
+        latest: String,
+        selected: Option<StyleLearnRange>,
+        reach: StyleSentReach,
+    },
+    Review {
+        email: String,
+        range: StyleLearnRange,
+        reach: StyleSentReach,
+        review: StyleLearningReview,
+        /// Where Learn sends; `None` when it cannot, and `cannot_send` says why.
+        sends_to: Option<StyleLearningDestination>,
+        cannot_send: Option<AiFailure>,
+        /// Whether the account's server keeps the drafted-reply keyword; without it only this
+        /// device knows which replies were drafted, which the review says.
+        keyword_kept: bool,
+    },
+    Learning {
+        done: u32,
+        /// Zero until the run knows.
+        total: u32,
+    },
+    Failed {
+        failure: AiFailure,
+        remedy: Option<AiRemedy>,
+    },
+    /// The reveal of `style` follows in the same host.
+    Learned { style: String },
+}
+
+fn day(date: time::Date) -> String {
+    format!(
+        "{:04}-{:02}-{:02}",
+        date.year(),
+        u8::from(date.month()),
+        date.day()
+    )
+}
+
+/// A `YYYY-MM-DD` day, or `None` when it is not one.
+fn parse_day(text: &str) -> Option<time::Date> {
+    let mut parts = text.trim().splitn(3, '-');
+    let year = parts.next()?.parse().ok()?;
+    let month = time::Month::try_from(parts.next()?.parse::<u8>().ok()?).ok()?;
+    let day = parts.next()?.parse().ok()?;
+    time::Date::from_calendar_date(year, month, day).ok()
+}
+
+impl From<core::LearnRange> for StyleLearnRange {
+    fn from(range: core::LearnRange) -> Self {
+        match range {
+            core::LearnRange::Everything => Self::Everything,
+            core::LearnRange::UntilEndOfLastYear => Self::UntilEndOfLastYear,
+            core::LearnRange::Between { since, until } => Self::Between {
+                since: day(since),
+                until: day(until),
+            },
+        }
+    }
+}
+
+impl StyleLearnRange {
+    /// The core's range, or `None` for a day that is not one.
+    pub(crate) fn to_core(&self) -> Option<core::LearnRange> {
+        Some(match self {
+            Self::Everything => core::LearnRange::Everything,
+            Self::UntilEndOfLastYear => core::LearnRange::UntilEndOfLastYear,
+            Self::Between { since, until } => core::LearnRange::Between {
+                since: parse_day(since)?,
+                until: parse_day(until)?,
+            },
+        })
+    }
+}
+
+impl From<core::SentReach> for StyleSentReach {
+    fn from(reach: core::SentReach) -> Self {
+        match reach {
+            core::SentReach::Everything => Self::Everything,
+            core::SentReach::Since(date) => Self::Since { day: day(date) },
+        }
+    }
+}
+
+fn report(report: mailcal_ai::corpus::CorpusReport) -> StyleLearningReport {
+    StyleLearningReport {
+        found: report.found,
+        usable: report.usable,
+        languages: report
+            .languages
+            .into_iter()
+            .map(|language| StyleLearningLanguage {
+                language: language.language.as_str().to_owned(),
+                usable: language.usable,
+            })
+            .collect(),
+        other_languages: report.undetected,
+        oldest: report.oldest,
+        newest: report.newest,
+    }
+}
+
+/// The learning flow's record.
+pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
+    let stage = match view.stage {
+        core::LearningStage::ChooseAccount { accounts, selected } => {
+            StyleLearningStage::ChooseAccount {
+                accounts: accounts
+                    .into_iter()
+                    .map(|account| StyleLearningAccount {
+                        account_id: account.id,
+                        email: account.address,
+                    })
+                    .collect(),
+                selected,
+            }
+        }
+        core::LearningStage::ChooseRange {
+            address,
+            ranges,
+            selected,
+            reach,
+        } => StyleLearningStage::ChooseRange {
+            email: address,
+            presets: ranges.presets.into_iter().map(Into::into).collect(),
+            earliest: ranges.earliest.map(day),
+            latest: day(ranges.latest),
+            selected: selected.map(Into::into),
+            reach: reach.into(),
+        },
+        core::LearningStage::Review {
+            address,
+            range,
+            reach,
+            review,
+            sends_to,
+            keyword_kept,
+        } => StyleLearningStage::Review {
+            email: address,
+            range: range.into(),
+            reach: reach.into(),
+            review: match review {
+                core::Review::Reading => StyleLearningReview::Reading,
+                core::Review::Ready(found) => StyleLearningReview::Ready {
+                    report: report(found),
+                },
+                core::Review::NothingUsable(found) => StyleLearningReview::NothingUsable {
+                    report: report(found),
+                },
+            },
+            sends_to: sends_to.as_ref().ok().map(|route| match route {
+                core::AiRoute::Relay => StyleLearningDestination::Relay,
+                core::AiRoute::OwnEndpoint { host, .. } => {
+                    StyleLearningDestination::OwnEndpoint { host: host.clone() }
+                }
+            }),
+            cannot_send: sends_to.err().map(Into::into),
+            keyword_kept,
+        },
+        core::LearningStage::Learning { done, total } => {
+            StyleLearningStage::Learning { done, total }
+        }
+        core::LearningStage::Failed { failure } => {
+            let (failure, remedy) = failed(failure);
+            StyleLearningStage::Failed { failure, remedy }
+        }
+        core::LearningStage::Learned { style } => StyleLearningStage::Learned {
+            style: style.as_str().to_owned(),
+        },
+    };
+    WritingStyleLearning {
+        stage,
+        back: view.back.map(control),
+        next: view.next.map(control),
+        learn: view.learn.map(control),
+        stop: view.stop.map(control),
+        remedy: view.remedy.map(control),
+        close: control(view.close),
+    }
+}

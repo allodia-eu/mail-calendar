@@ -9,7 +9,10 @@ EU-hosted account service, whose address is fixed at build time by the injected 
 so there is nothing for the `JurisdictionGate` to decide and it would be a no-op, in the style of
 the 2026-07-11 analytics carve-out; see [`../AGENTS.md`](../AGENTS.md). A build with no registration
 baked in (every build from source) has no Allodia sign-in at all and reaches the service never, so
-an air-gapped or self-hosted deployment behaves identically to a connected one.
+an air-gapped or self-hosted deployment behaves identically to a connected one. The writing
+assistant's relay request is **not** under this carve-out: it carries mail text, and passes the
+gate as `eu-native` like every other request of that feature
+([`docs/ai.md`](../docs/ai.md), "Sovereignty scope").
 
 Re-ratified 2026-08-27, when the service's sign-in page gained Apple and Google beside an ordinary
 email and password. That is an identity provider one step further out than this rule reaches: the
@@ -66,6 +69,14 @@ beside the store. The answer is derived, not a credential, so it belongs there, 
 platform keystore, which is for secrets and costs a prompt on some platforms. Signing out erases
 it, and so does signing in as a different account. No client reads or stores it.
 
+What it grants of `ai` is told to the writing assistant's offer (`ai_offer`, [`docs/ai.md`](../docs/ai.md)
+rule 5) from memory, never by a read: at launch, after each read, on each trigger above whether or
+not a read is due, and at sign-out. The last of those is what lets a stored answer's grace run out
+on a device that is never answered. A relay request refused as `not_entitled` reads the
+entitlement again at once, interval or not, since the stored answer is then known to be stale.
+A label a stored answer holds as unknown is read again by a version that knows it, so a capability
+granted before an update grants after it without waiting for the next read.
+
 Two horizons, and they answer different questions:
 
 | | Question | Value |
@@ -114,6 +125,7 @@ That costs nothing, because **every paid capability needs Allodia to do somethin
 | `push` | The relay wakes the device. |
 | `send_later` | A server holds the message and submits it at the hour. |
 | `central_admin` | The administration surfaces are the service. |
+| `ai` | The relay forwards each request to an EU-native model and spends the person's credits ([`docs/ai.md`](../docs/ai.md)). |
 
 A build that invents a capability draws a switch and then gets a refusal. What it cannot do is
 take a capability, because the capability is not on the device.
@@ -247,6 +259,13 @@ The last is the one that fails invisibly: without it a token *is* issued and *do
 the service's own `userinfo`, so it looks entirely valid right up to the `401`, which names
 neither the audience nor the scope.
 
+**`mailcal:ai:use` raises no standing prompt**, for the reason
+[`purchasing.md`](purchasing.md) gives for the subscription scopes: `Feature::UseAi` is not in
+`Feature::ALL`. It is asked for only where the service advertises it, and a grant recorded without
+it is said where the person uses the writing assistant, by the relay's status
+(`RelayStatus::SignInNeeded`) and the failure `RelaySignIn` ([`docs/ai.md`](../docs/ai.md) rules 2
+and 27). A grant whose scopes were never recorded concludes nothing; the relay's own `401` decides.
+
 ### What a client calls
 
 Five calls, and a client needs no other knowledge of any of this:
@@ -378,6 +397,7 @@ the service verifies, because neither is written down here.
 | Say a refused grant in the app's banner, with sign in again | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Signing in again widens the grant, end to end | ✅ | ⬜ | ⬜ | ✅ | ⬜ | ⬜ |
 | Draw a paid capability | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Offer the writing assistant on `ai`, with the grace and degrade rules | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 The core's first two rows are **verified against the production service**, not only against a local
 one: sign-in, a JWT minted for the discovered audience, a refresh token, and the entitlement read

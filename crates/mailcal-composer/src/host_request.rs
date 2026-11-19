@@ -40,6 +40,38 @@ pub enum HostRequestKind {
     /// How far the message is scrolled inside its box, in its framed mode
     /// (`docs/composer-layout.md`, rule 2). A notice.
     Scroll(MessageScroll),
+    /// What the reply above the signature and the quote holds, for a drafted reply
+    /// (`docs/ai.md`, rules 21 to 23). A notice, handed to the core rather than read by a client.
+    ReplyDraft(ReplyDraftReport),
+}
+
+/// What the text above the signature and the quote holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LeadText {
+    /// Nothing: no text and no picture.
+    Empty,
+    /// The draft the editor put there, untouched.
+    Draft,
+    /// Anything else: what the person wrote, or a draft they edited.
+    Written,
+}
+
+/// The editor's account of the reply, sent after each change to it. Carries no content: the
+/// draft's gaps are named by their place in the list the editor was given.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplyDraftReport {
+    /// The draft the editor was last given, by the number the core gave it; zero before any.
+    pub serial: u64,
+    /// What the text above the signature and the quote holds.
+    pub lead: LeadText,
+    /// Whether that draft is in the body: false once its step is undone, true again on a redo.
+    pub inserted: bool,
+    /// The draft's gaps still in the reply, by their place in its list.
+    pub left: Vec<u32>,
+    /// How many times the text above the signature and the quote has changed. Never goes down.
+    pub edits: u64,
 }
 
 /// How far the message is scrolled inside its box, and where its text ends, in whole CSS pixels.

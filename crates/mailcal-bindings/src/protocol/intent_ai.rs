@@ -1,13 +1,17 @@
 //! The writing assistant's half of the FFI intent surface (`docs/ai.md`), behind one `Intent::Ai`
 //! variant: a family per surface of the feature, each nested here.
 
-use crate::JurisdictionClass;
+use crate::{JurisdictionClass, ReplyDraftIntent, WritingStyleIntent};
 
 /// A change to one of the writing assistant's surfaces.
 #[derive(uniffi::Enum)]
 pub enum AiIntent {
     /// A change to the own endpoint ([`AiEndpointIntent`]).
     Endpoint { intent: AiEndpointIntent },
+    /// A change on Settings → Writing style ([`WritingStyleIntent`]).
+    WritingStyle { intent: WritingStyleIntent },
+    /// A change to a composer's Draft a reply ([`ReplyDraftIntent`]).
+    ReplyDraft { intent: ReplyDraftIntent },
 }
 
 /// A change to the own endpoint, from its form under Settings → Advanced. Each runs off the host's
@@ -20,10 +24,9 @@ pub enum AiEndpointIntent {
         address: String,
         model: String,
         declared: Option<JurisdictionClass>,
-        /// The key as typed, which replaces the kept one; empty keeps none. `None` leaves the kept
-        /// key as it is: what a client sends when the person left the key field empty while the
-        /// form says one is kept.
-        key: Option<String>,
+        /// The key as typed, which replaces the kept one. Empty leaves the kept key as it is and
+        /// writes nothing to the keystore (`docs/ai.md` rule 7).
+        key: String,
     },
     /// Removes the endpoint and its key.
     Remove,

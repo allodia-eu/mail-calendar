@@ -1,8 +1,8 @@
 //! Keeping the message being composed on the server, at the layer a composer drives it from.
 //!
 //! The rules under test are in `docs/drafts.md`. The one worth stating twice: the stored copy
-//! is named by the key the provider answered with, and three of the four real adapters move
-//! that key on every save. `SubmitProvider` moves it too, which is what lets these tests tell
+//! is named by the key the provider answered with, and the IMAP and JMAP adapters move that key
+//! on every save. `SubmitProvider` moves it too, which is what lets these tests tell
 //! a correct save from one quietly storing a second copy each time.
 //!
 //! A child of [`super`] (the send tests), reusing its `SubmitProvider` and app builders; its

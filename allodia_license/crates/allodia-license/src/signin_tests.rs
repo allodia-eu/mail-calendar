@@ -96,6 +96,7 @@ fn a_scope_the_service_offers_is_asked_for() {
         "mailcal:accounts:write",
         "mailcal:subscription:read",
         "mailcal:subscription:write",
+        "mailcal:ai:use",
     ]);
     let asked = scopes_for(&tomorrow);
     for scope in SCOPES {
@@ -104,6 +105,21 @@ fn a_scope_the_service_offers_is_asked_for() {
             "{scope} not asked for"
         );
     }
+}
+
+/// A deployment without the relay keeps every other scope, and the relay's is asked for once the
+/// service lists it.
+#[test]
+fn the_relay_s_scope_is_asked_for_only_where_the_service_lists_it() {
+    let without = advertised(&[
+        "openid",
+        "offline_access",
+        "mailcal:entitlement:read",
+        "mailcal:accounts:read",
+    ]);
+    let asked = scopes_for(&without);
+    assert!(!asked.iter().any(|scope| scope == "mailcal:ai:use"));
+    assert!(asked.iter().any(|scope| scope == "mailcal:accounts:read"));
 }
 
 /// The four that gate the sign-in itself are sent whether or not the service lists them.

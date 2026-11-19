@@ -49,8 +49,9 @@ for every kind of change.
      three-finger gestures and the shortcut bar.
 
 4. **A step in the body is one change, however it was made.** A toolbar command, a paste, a picture
-   inserted or dropped, a list indented, a table inserted, a cell moved to, a link made or removed:
-   one step each. Typing runs into one step until the caret moves, typing turns into deleting or the
+   inserted or dropped, a list indented, a table inserted, a cell moved to, a link made or removed,
+   a drafted reply put in from Draft a reply ([`ai.md`](ai.md) rule 21, `history.step`): one step
+   each. Typing runs into one step until the caret moves, typing turns into deleting or the
    typing pauses for a second (`TYPING_PAUSE_MS`). Dragging a picture's corner is one step however
    many moves it took. The newest hundred steps are kept (`MAX_STEPS`).
 

@@ -1,11 +1,63 @@
-//! The questions and states the showcase stages on demand for the UI suites and the help
-//! screenshots, each behind a `MAILCAL_SHOWCASE_*` variable a development build reads
-//! (`docs/debugging.md`).
+//! The questions and states the in-memory boots stage on demand for the UI suites and the help
+//! screenshots, each behind a `MAILCAL_*` variable only a development build reads
+//! (`docs/debugging.md`): this module is compiled into no other build.
+
+use std::sync::Arc;
 
 use engine_api::{AccountId, Provider, TimeZoneId};
-use mailcal_app::{App, Intent as AppIntent};
+use mailcal_app::{App, Intent as AppIntent, ai::AiHost};
 
-use crate::runtime::FfiRuntime;
+use crate::{
+    MailcalApp,
+    ai_host::{BindingsAiHost, build_kind},
+    runtime::FfiRuntime,
+};
+
+/// Whether the launch set `name` to anything.
+fn requested(name: &str) -> bool {
+    std::env::var_os(name).is_some_and(|value| !value.is_empty())
+}
+
+/// What the `MAILCAL_SHOWCASE_*` variables ask of the seeded showcase, whose first account is `id`
+/// at `address`.
+pub(crate) fn stage_on_request<P: Provider>(
+    app: &App<P>,
+    runtime: &FfiRuntime,
+    id: &str,
+    address: &str,
+    device: &TimeZoneId,
+) {
+    if requested("MAILCAL_SHOWCASE_SERVER_CHANGE") {
+        pause_for_a_server_change(app, id);
+    }
+    if requested("MAILCAL_SHOWCASE_REAUTH") {
+        ask_for_reconsent(app, id);
+    }
+    if requested("MAILCAL_SHOWCASE_QUESTIONS") {
+        ask_the_questions(app, runtime, id, address, device);
+    }
+}
+
+/// `MAILCAL_OFFER_AI`: the writing assistant offered on an in-memory boot.
+pub(crate) fn offer_ai_on_request(mailcal: &MailcalApp) {
+    if requested("MAILCAL_OFFER_AI") {
+        offer_ai(mailcal);
+    }
+}
+
+/// Installs the assistant's host, as a stored boot does, so the own endpoint's form and Settings
+/// → Writing style can be driven (`docs/ai.md` rule 5). Without it an in-memory boot offers the
+/// feature to nobody, which keeps it out of the store captures. The host sends nothing, since
+/// these boots reach nobody, and the keystore refuses a key, since they keep none.
+pub(crate) fn offer_ai(mailcal: &MailcalApp) {
+    let host = BindingsAiHost::offline(
+        mailcal.runtime.handle().clone(),
+        Arc::clone(&mailcal.credential_store),
+    );
+    mailcal
+        .app
+        .install_ai_host(Arc::new(host) as Arc<dyn AiHost>, build_kind());
+}
 
 /// The account `id`'s calendar waiting on a server found on another site, for
 /// `MAILCAL_SHOWCASE_SERVER_CHANGE`, which puts the question in front of the UI suites
@@ -59,3 +111,7 @@ pub(crate) fn ask_the_questions<P: Provider>(
             .await;
     });
 }
+
+#[cfg(test)]
+#[path = "showcase_staging_tests.rs"]
+mod tests;

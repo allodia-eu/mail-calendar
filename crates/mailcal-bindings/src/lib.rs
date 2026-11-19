@@ -147,6 +147,7 @@ mod records_notices;
 mod records_outbox;
 mod records_signatures;
 mod records_video_meeting;
+mod reply_draft;
 mod retry;
 pub mod sync_state;
 mod talk_offer;
@@ -173,6 +174,7 @@ mod store_files;
 mod timezone;
 mod token_sink;
 mod use_outages;
+mod writing_style;
 
 pub use about::{AboutInfo, AboutPlatform, Attribution, about_info};
 pub use account_capability::AccountCapability;
@@ -248,7 +250,7 @@ pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AiEndpointIntent, AiIntent, AllodiaIntent, BulkAction, EventIntent,
     FolderIntent, Intent, InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent,
-    SearchScope, SelectedRow, SignatureIntent,
+    SearchScope, SelectedRow, SignatureIntent, StyleLearningIntent, WritingStyleIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -310,6 +312,7 @@ pub use rendering::{
     render_message_html, render_message_print_html, should_open_external_link,
 };
 pub use repeat_editor::repeat_change_of;
+pub use reply_draft::*;
 pub use row_menu::{MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection};
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
@@ -329,6 +332,7 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
+pub use writing_style::*;
 /// A shared registry of each connected account's re-connection state ([`account_registry`]).
 type SharedRegistry = Arc<account_registry::AccountRegistry>;
 

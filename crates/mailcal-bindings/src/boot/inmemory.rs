@@ -118,9 +118,8 @@ pub(crate) fn build_demo(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
-    // A development build offers the writing assistant to everyone (`docs/ai.md` rule 5), this
-    // one included. Its store keeps no key, so a key typed here is refused as the keystore's.
-    mailcal.install_ai(None);
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    super::showcase_staging::offer_ai_on_request(&mailcal);
     mailcal
 }
 
@@ -239,23 +238,13 @@ pub(crate) fn build_showcase(
         )
     });
     #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_SERVER_CHANGE").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::pause_for_a_server_change(&app, &primary_identity);
-    }
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_REAUTH").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::ask_for_reconsent(&app, &primary_identity);
-    }
-    #[cfg(any(debug_assertions, feature = "dev-harness"))]
-    if std::env::var_os("MAILCAL_SHOWCASE_QUESTIONS").is_some_and(|value| !value.is_empty()) {
-        super::showcase_staging::ask_the_questions(
-            &app,
-            &runtime,
-            &primary_identity,
-            &primary.identity,
-            &device_tz,
-        );
-    }
+    super::showcase_staging::stage_on_request(
+        &app,
+        &runtime,
+        &primary_identity,
+        &primary.identity,
+        &device_tz,
+    );
     let registered = [
         listed(
             &primary_identity,
@@ -365,9 +354,8 @@ fn finish_showcase(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
-    // A development build offers the writing assistant to everyone (`docs/ai.md` rule 5), this
-    // one included. Its store keeps no key, so a key typed here is refused as the keystore's.
-    mailcal.install_ai(None);
+    #[cfg(any(debug_assertions, feature = "dev-harness"))]
+    super::showcase_staging::offer_ai_on_request(&mailcal);
     mailcal
 }
 

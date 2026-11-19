@@ -23,9 +23,14 @@ mod endpoint;
 mod failure;
 mod host;
 mod offer;
+mod own_mail;
+mod reply_draft;
+mod reply_draft_flow;
+mod reply_draft_work;
 mod route;
 mod styles;
 mod worker;
+mod writing_style;
 
 pub use endpoint::{
     AiEndpointAddressGap, AiEndpointChange, AiEndpointChangeKind, AiEndpointDeclarationGap,
@@ -36,9 +41,16 @@ pub use failure::{AiFailure, AiRemedy};
 pub use host::{AiCancel, AiHost, AiRelay, KeyNotStored, RelayStatus};
 pub use mailcal_account::{DRAFTED_REPLY_KEYWORD, StoredWritingStyle, WritingStyleId};
 pub use offer::{AiEntitlement, BuildKind, ai_offered};
+pub(crate) use reply_draft::ReplyDraftHeld;
+pub use reply_draft::{
+    REPLY_DRAFT_SUGGESTIONS, ReplyDraftControl, ReplyDraftItem, ReplyDraftScript, ReplyDraftState,
+    ReplyDraftSuggestion, ReplyDraftView,
+};
+pub use reply_draft_flow::ReplyDraftStart;
 pub use route::AiRoute;
 pub use styles::StylesWritten;
 pub use worker::{AiQueued, AiRun, AiWork, AiWorkKey};
+pub use writing_style::*;
 
 use crate::{App, Surface, preferences_file::PreferencesFile};
 
@@ -53,6 +65,7 @@ pub(crate) struct AiState<P> {
     ports: Mutex<host::Ports>,
     endpoint: Mutex<endpoint::EndpointWork>,
     work: Mutex<worker::Queue<P>>,
+    writing_style: writing_style::WritingStyleState,
 }
 
 impl<P> AiState<P> {
@@ -65,13 +78,14 @@ impl<P> AiState<P> {
         on_failure: impl Fn() + Clone + Send + Sync + 'static,
     ) -> Self {
         Self {
-            settings: Arc::new(Mutex::new(prefs.load().ai)),
+            settings: Arc::new(Mutex::new(*prefs.load().ai)),
             prefs,
             styles: Mutex::new(styles::StyleLibrary::new(dir, on_failure.clone())),
             drafted: Mutex::new(drafted::DraftedLog::new(dir, on_failure)),
             ports: Mutex::new(host::Ports::default()),
             endpoint: Mutex::new(endpoint::EndpointWork::default()),
             work: Mutex::new(worker::Queue::default()),
+            writing_style: writing_style::WritingStyleState::default(),
         }
     }
 
