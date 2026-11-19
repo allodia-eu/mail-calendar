@@ -181,6 +181,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::views_tests::
         an_unchanged_month_keeps_its_cells_and_a_changed_one_is_drawn_again();
     crate::ui::calendar::views_tests::a_month_still_loading_keeps_its_cells();
+    crate::ui::calendar::views_tests::the_month_rings_the_focus_date();
     crate::ui::calendar::detail_tests::maybe_leaves_the_detail_open_and_it_follows_the_store();
     crate::ui::calendar::detail_tests::decline_asks_before_it_answers_and_then_closes_the_detail();
     crate::ui::calendar::detail_tests::

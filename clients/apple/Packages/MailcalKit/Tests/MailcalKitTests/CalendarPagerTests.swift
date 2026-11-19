@@ -71,12 +71,6 @@ private let weekStart = "2026-07-06"
         #expect(pager.mode == .week)
     }
 
-    @Test func choosingAShapeFromTheMenuKeepsThePeriodYouAreLookingAt() {
-        var pager = CalendarPager(origin: date(weekStart), mode: .week, calendar: calendar())
-        let week = pager.anchor(forPage: 3)
-        pager.setMode(.month, currentPage: 3)
-        #expect(pager.origin == week)
-    }
 
     @Test func aMonthPagesByCalendarMonthNotByAFixedNumberOfDays() {
         // Months are 28–31 days long. Striding by any constant would drift off the month within a

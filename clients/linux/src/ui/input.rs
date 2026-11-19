@@ -79,6 +79,8 @@ pub(crate) enum AppInput {
     /// The calendar pane paged its mini month, or a day in it was pressed.
     CalendarPane(PaneInput),
     ShowCalendarDay(String),
+    /// A day of the month was pressed on its own space: the focus goes there, the view stays.
+    FocusCalendarDay(String),
     ToggleAllDay,
     OpenCalendarEvent(EventIdentity),
     BeginNewEvent,

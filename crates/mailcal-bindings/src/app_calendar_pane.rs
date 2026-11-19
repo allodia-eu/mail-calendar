@@ -33,6 +33,35 @@ impl MailcalApp {
         self.app.calendar_seat(date, layout.into()).into()
     }
 
+    /// The calendar's focus date (`YYYY-MM-DD`): the day every view is drawn around, `today` (the
+    /// client's, in the display zone) until one is set (`docs/calendar.md`, "The focus date").
+    pub fn calendar_focus(&self, today: String) -> String {
+        let today = today
+            .parse()
+            .unwrap_or_else(|_| crate::app_calendar::today());
+        self.app.calendar_focus(today).to_string()
+    }
+
+    /// Puts the focus on `date` (`YYYY-MM-DD`): a day picked in the mini month or the month, Today,
+    /// or a day's heading. A malformed date is ignored.
+    pub fn set_calendar_focus(&self, date: String) {
+        if let Ok(date) = date.parse() {
+            self.app.set_calendar_focus(date);
+        }
+    }
+
+    /// Moves the focus `steps` periods of `layout` (negative goes back), as previous and next do,
+    /// and returns where it landed: a week or a month holding `today` lands on today. Draw the
+    /// period `calendar_seat` gives for it.
+    pub fn step_calendar_focus(&self, layout: CalendarLayout, steps: i32, today: String) -> String {
+        let today = today
+            .parse()
+            .unwrap_or_else(|_| crate::app_calendar::today());
+        self.app
+            .step_calendar_focus(layout.into(), steps, today)
+            .to_string()
+    }
+
     /// Every calendar grouped under its account, in the account order: what the pane lists, and
     /// what a phone's calendar manager and a calendar picker group by.
     pub fn calendar_groups(&self) -> Vec<CalendarGroup> {

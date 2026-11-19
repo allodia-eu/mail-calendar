@@ -112,24 +112,16 @@ internal sealed class CalendarSurfaceDriver(CalendarSurfaceState state)
     internal void SettleDay(SurfaceMetrics m) => SnapTo(state.NearestDay(m), m);
 
     /// <summary>
-    /// Steps the strip by <paramref name="days"/>, what the header's <c>&lt;</c> and <c>&gt;</c> do.
+    /// Slides the strip to <paramref name="targetWeeks"/>, what the header's <c>&lt;</c> and
+    /// <c>&gt;</c> do: the first day of the period the core seats the focus in, in weeks from the
+    /// origin.
     /// </summary>
     /// <remarks>
-    /// By the <b>visible span</b> (the day zoom moves a day, the three-day zoom three, the week a
-    /// week), so a chevron never skips a day the user could not see. It steps from wherever the strip
-    /// is, and does not re-align: click <c>&gt;</c> on a Wednesday-to-Tuesday view and you get the next
-    /// Wednesday to Tuesday. Anything else would move the grid by an amount the user did not ask for.
-    /// <para>
-    /// "Where the strip is" means where it is going: a press during an earlier step's slide adds to
-    /// that step's landing, so ten quick presses go ten weeks and rest on a day. A press during a
-    /// coast steps from the day the coast is nearest, which is where it would have rested.
-    /// </para>
+    /// An absolute landing, not a step from wherever the strip is: the focus has already moved, in the
+    /// core, by however many presses there were, so a press during an earlier step's slide retargets it
+    /// and ten quick presses go ten periods. It replaces a coast too, which the press overrules.
     /// </remarks>
-    internal void SlideDays(int days, SurfaceMetrics m)
-    {
-        var from = _current is StripSnap snap ? snap.TargetWeeks : state.NearestDay(m);
-        SnapTo(from + ((float)days / CalendarUnits.DaysInWeek), m);
-    }
+    internal void SlideTo(float targetWeeks, SurfaceMetrics m) => SnapTo(targetWeeks, m);
 
     /// <summary>Springs the strip to <paramref name="targetWeeks"/>, the one landing this file has.</summary>
     private void SnapTo(float targetWeeks, SurfaceMetrics m)

@@ -8,6 +8,7 @@ package eu.allodia.mailcal
 
 import android.content.Context
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,6 +35,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,6 +75,7 @@ internal fun CalendarMonthGrid(
     weekStartsMonday: Boolean,
     onOpenEvent: (EventOpen) -> Unit,
     modifier: Modifier = Modifier,
+    onPickDay: (String) -> Unit = {},
 ) {
     val dark = LocalAppDark.current
     if (page.cells.size < MONTH_WEEKS * 7) return
@@ -98,6 +102,7 @@ internal fun CalendarMonthGrid(
                                 isToday = cell.date == today.toString(),
                                 dark = dark,
                                 onOpenEvent = onOpenEvent,
+                                onPick = onPickDay,
                                 modifier = Modifier
                                     .weight(1f)
                                     .fillMaxSize(),
@@ -145,10 +150,27 @@ private fun MonthDayCell(
     isToday: Boolean,
     dark: Boolean,
     onOpenEvent: (EventOpen) -> Unit,
+    onPick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val date = parseIsoDate(cell.date)
-    Box(modifier = modifier.padding(horizontal = 1.dp)) {
+    val selected = L10n.a11y_calendar_focus_day(LocalContext.current)
+    // The focus date is rung, so the week the week view opens on is never a surprise, and a press on
+    // the day's own space puts the focus there; its events take their presses first
+    // (`docs/calendar.md`, "The focus date").
+    Box(
+        modifier = modifier
+            .padding(horizontal = 1.dp)
+            .then(
+                if (cell.isFocus) {
+                    Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                } else {
+                    Modifier
+                },
+            )
+            .clickable { onPick(cell.date) }
+            .semantics { if (cell.isFocus) stateDescription = selected },
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // The date number. Days of the neighbouring months are dimmed, without that, the 1st of
             // next month reads as part of this one and you tap into the wrong month.

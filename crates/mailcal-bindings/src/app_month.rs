@@ -81,6 +81,7 @@ impl From<AppMonthCell> for MonthCell {
         Self {
             date: cell.date,
             in_month: cell.in_month,
+            is_focus: cell.is_focus,
             chips: cell.chips.into_iter().map(Into::into).collect(),
         }
     }

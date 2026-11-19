@@ -44,9 +44,11 @@ extension MailboxModel {
         }
     }
 
-    /// The month containing `anchor`, laid out. A different query, and a different layout.
+    /// The month containing `anchor`, laid out. A different query, and a different layout. Its ring
+    /// is on the focus, so it is pulled again when the focus moves.
     func monthPage(anchor: Date) -> MonthPage? {
-        app?.monthPage(anchor: isoDate(anchor, calendar: gridCalendar))
+        _ = calendarFocus
+        return app?.monthPage(anchor: isoDate(anchor, calendar: gridCalendar))
     }
 
     /// The first day of the week containing `date`, per the user's week-start setting.

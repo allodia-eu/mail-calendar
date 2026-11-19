@@ -1,8 +1,9 @@
 // What the calendar is showing and where, the state a swipe, a zoom, and "back to today" all move.
 //
-// The Rust core never tracks where the user is: `calendarRange(from:columns:)` is a pull with an
-// argument, so the *client* owns the anchor. This is the whole navigation model, and it is a plain
-// type with no SwiftUI in it so the page↔date mapping is testable without a view.
+// The Rust core holds the calendar's focus date and the rules that move it; where the strip is, and
+// so which week a page pull is asked for, is the client's, because `calendarRange(from:columns:)` is
+// a pull with an argument. This is the whole navigation model, and it is a plain type with no
+// SwiftUI in it so the page↔date mapping and the focus's round trips are testable without a view.
 //
 // **A page is a week**: the unit the core is queried in, pulled and painted as, and the unit
 // `CalendarStrip` counts along. It is no longer the boundary a scroll cannot cross, nor a thing a
@@ -101,11 +102,22 @@ func modeForColumns(_ columns: Int) -> CalendarMode {
     } ?? .threeDay
 }
 
+/// The core's focus date (`docs/calendar.md`, "The focus date"), behind a seam a test can fake.
+@MainActor
+protocol CalendarFocusing {
+    func setCalendarFocus(_ date: Date)
+    /// Moves the focus `steps` periods of `layout` and returns where it landed.
+    func stepCalendarFocus(_ layout: CalendarLayout, _ steps: Int, today: Date) -> Date
+}
+
 /// Maps pager pages to anchor dates, and moves the origin when the user switches shape or jumps home.
 ///
 /// `origin` is the date week 0 begins on. It moves only on a deliberate jump, a shape change or
 /// "back to today", never on a scroll or a zoom: a scroll is just a different position along the
 /// strip over the same origin, and a zoom must leave the days exactly where they are.
+///
+/// `focus` is the day every view is drawn around. The core holds it; this is its copy, moved only
+/// through a `CalendarFocusing` so the two agree. A shape change seats the new view on it.
 struct CalendarPager {
     /// The shape being drawn.
     private(set) var mode: CalendarMode
@@ -113,13 +125,20 @@ struct CalendarPager {
     /// The date the middle page shows. For a grid this is a week's first day.
     private(set) var origin: Date
 
+    /// The calendar's focus date.
+    private(set) var focus: Date
+
+    /// The strip's week, from the origin, that `focus` was last brought up to date on.
+    private var focusWeek = 0
+
     /// The calendar the day arithmetic runs in, the display zone, not the device's.
     private let calendar: Calendar
 
-    init(origin: Date, mode: CalendarMode = .threeDay, calendar: Calendar) {
+    init(origin: Date, mode: CalendarMode = .threeDay, calendar: Calendar, focus: Date? = nil) {
         self.origin = origin
         self.mode = mode
         self.calendar = calendar
+        self.focus = focus ?? origin
     }
 
     /// The anchor date `page` shows, the first day the core's query is asked for.
@@ -138,11 +157,50 @@ struct CalendarPager {
         return calendar.date(byAdding: .day, value: page * daysInWeek, to: origin) ?? origin
     }
 
-    /// Switches shape, keeping the period the user is looking at.
-    mutating func setMode(_ next: CalendarMode, currentPage: Int) {
-        guard next != mode else { return }
-        origin = anchor(forPage: currentPage)
+    /// Switches shape around the focus, which does not move: the week, then the month, then the
+    /// week again comes back to the same week. A grid is seated on the first day of the week holding
+    /// it, through `weekStart`, the core's rule.
+    mutating func setMode(_ next: CalendarMode, weekStart: (Date) -> Date) {
         mode = next
+        seat(weekStart: weekStart)
+    }
+
+    /// The strip came to rest in week `week` from the origin: the focus moves by as many weeks,
+    /// through the core, which lands a step into today's week on today.
+    @MainActor
+    mutating func settle(week: Int, today: Date, core: some CalendarFocusing) {
+        guard mode.isGrid, week != focusWeek else { return }
+        focus = core.stepCalendarFocus(.week, week - focusWeek, today: today)
+        focusWeek = week
+    }
+
+    /// Previous or next on the month: the focus moves a month, on the same day of the month, and
+    /// the month holding it is drawn.
+    @MainActor
+    mutating func stepMonth(_ direction: Int, today: Date, core: some CalendarFocusing) {
+        guard mode.isMonth else { return }
+        focus = core.stepCalendarFocus(.month, direction, today: today)
+        origin = focus
+    }
+
+    /// Puts the focus on `date` and the view around it: back to today, and a mini-month day.
+    @MainActor
+    mutating func focus(on date: Date, weekStart: (Date) -> Date, core: some CalendarFocusing) {
+        core.setCalendarFocus(date)
+        focus = date
+        seat(weekStart: weekStart)
+    }
+
+    /// Puts the focus on `date`, a month day pressed, and leaves the view where it is.
+    @MainActor
+    mutating func pick(_ date: Date, core: some CalendarFocusing) {
+        core.setCalendarFocus(date)
+        focus = date
+    }
+
+    private mutating func seat(weekStart: (Date) -> Date) {
+        origin = mode.isGrid ? weekStart(focus) : focus
+        focusWeek = 0
     }
 
     /// Changes the **zoom level** without touching the origin.
@@ -153,10 +211,5 @@ struct CalendarPager {
     mutating func setZoom(_ next: CalendarMode) {
         guard next != mode, next.isGrid else { return }
         mode = next
-    }
-
-    /// Re-centres on `date`, "back to today".
-    mutating func jump(to date: Date) {
-        origin = date
     }
 }

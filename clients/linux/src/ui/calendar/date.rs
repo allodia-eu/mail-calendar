@@ -67,18 +67,6 @@ pub(super) fn add_days(date: Date, days: i64) -> Date {
     date.checked_add(Duration::days(days)).unwrap_or(date)
 }
 
-pub(super) fn month_start(date: Date) -> Date {
-    Date::from_calendar_date(date.year(), date.month(), 1).unwrap_or(date)
-}
-
-pub(super) fn add_months(date: Date, delta: i32) -> Date {
-    let zero_based = i32::from(u8::from(date.month())) - 1 + delta;
-    let year = date.year() + zero_based.div_euclid(12);
-    let month_number = u8::try_from(zero_based.rem_euclid(12) + 1).unwrap_or(1);
-    let month = Month::try_from(month_number).unwrap_or(Month::January);
-    Date::from_calendar_date(year, month, 1).unwrap_or(date)
-}
-
 pub(super) fn weekday_short(date: Date) -> String {
     native_format(date, "%a")
         .unwrap_or_else(|| (date.weekday().number_days_from_monday() + 1).to_string())
@@ -283,8 +271,8 @@ mod tests {
     use time::{Date, Month};
 
     use super::{
-        add_days, add_months, clock, local_date_time, month_full, month_title, parse_date,
-        parse_wall, period_title, wall_string, weekday_full, weekday_short,
+        add_days, clock, local_date_time, month_full, month_title, parse_date, parse_wall,
+        period_title, wall_string, weekday_full, weekday_short,
     };
 
     #[test]
@@ -292,13 +280,6 @@ mod tests {
         let wall = parse_wall("2026-07-21T10:15:30").expect("valid wall clock");
         assert_eq!(wall_string(wall), "2026-07-21T10:15:30");
         assert_eq!(parse_date("2026-02-30"), None);
-    }
-
-    #[test]
-    fn month_navigation_is_anchored_on_the_first() {
-        let january = Date::from_calendar_date(2026, Month::January, 31).unwrap();
-        assert_eq!(add_months(january, 1).to_string(), "2026-02-01");
-        assert_eq!(add_months(january, -1).to_string(), "2025-12-01");
     }
 
     #[test]

@@ -39,6 +39,7 @@ fn month_showing(title: &str) -> CalendarModel {
     model.month.cells = vec![MonthCell {
         date: "2026-10-26".to_owned(),
         in_month: true,
+        is_focus: false,
         chips: vec![MonthChip {
             account: "alice@test.local".to_owned(),
             event: "standup".to_owned(),
@@ -118,4 +119,21 @@ pub(crate) fn a_month_still_loading_keeps_its_cells() {
         cell.downcast_ref::<gtk::Label>().is_none(),
         "a month still loading drew words in place of its days"
     );
+}
+
+/// The focus date is rung in the month, so a person can see which week the week view
+/// opens on (`docs/calendar.md`, "The focus date").
+pub(crate) fn the_month_rings_the_focus_date() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let grid = gtk::Grid::new();
+    let mut model = month_showing("Standup");
+    model.month.cells[0].is_focus = true;
+    render_month(&grid, &model, &sender, &mut None);
+    let cell = grid.child_at(0, 0).expect("the month drew its day");
+    assert!(cell.has_css_class("mailcal-month-focus"));
+
+    model.month.cells[0].is_focus = false;
+    render_month(&grid, &model, &sender, &mut None);
+    let cell = grid.child_at(0, 0).expect("the month drew its day");
+    assert!(!cell.has_css_class("mailcal-month-focus"));
 }

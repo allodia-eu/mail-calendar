@@ -64,6 +64,9 @@ pub struct MonthCell {
     /// days of its neighbours. A client dims the others; without this it cannot tell them apart,
     /// and the 1st of the next month looks like part of this one.
     pub in_month: bool,
+    /// Whether this is the calendar's focus date ([`super::focus`]), which a client rings: the day
+    /// every other view opens around.
+    pub is_focus: bool,
     /// Everything on this day, all-day first and then by start time. **Not** truncated: the client
     /// caps it to what fits and counts the rest.
     pub chips: Vec<MonthChip>,
@@ -119,6 +122,7 @@ pub fn build<'a>(
             MonthCell {
                 date: date.to_string(),
                 in_month: date.month() == anchor.month() && date.year() == anchor.year(),
+                is_focus: false,
                 chips: chips_on(day, &placed),
             }
         })

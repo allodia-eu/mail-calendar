@@ -121,6 +121,8 @@ final class MailboxModel {
     var calendarPaneState = CalendarPaneModel()
     /// A pressed mini-month day, for the calendar screen to apply.
     var calendarSeatRequest: CalendarSeatRequest?
+    /// The core's calendar focus date, nil until the calendar first opens (MailcalModel.CalendarFocus.swift).
+    var calendarFocus: String?
     /// Settings → Videoconferencing, read again on `Surface::Calendar` and `Surface::Settings`.
     var videoconferencing = VideoconferencingPage(jitsiServer: nil, jitsiRefused: nil, defaults: [])
     /// The persisted display preferences the core owns: first day of the week, the 12/24-hour clock

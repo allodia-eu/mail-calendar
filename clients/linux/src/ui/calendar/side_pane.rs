@@ -12,7 +12,7 @@ use mailcal_bindings::{
 };
 
 use super::{
-    date::{add_days, month_start, parse_date, today_in},
+    date::{add_days, parse_date, today_in},
     model::{CalendarMode, CalendarModel},
     side_pane_list::CalendarList,
     side_pane_month::MiniMonthView,
@@ -159,15 +159,12 @@ impl CalendarSide {
 /// layout is chosen as the menu chooses one, on the seat's day.
 fn seat(app: &MailcalApp, calendar: &mut CalendarModel, date: &str) {
     let seat = app.calendar_seat(date.to_owned(), calendar.mode.layout());
-    let Some(anchor) = parse_date(&seat.anchor) else {
+    let Some(pressed) = parse_date(date) else {
         return;
     };
     let mode = CalendarMode::from(&seat.layout);
-    calendar.focus = if mode == CalendarMode::Month {
-        month_start(anchor)
-    } else {
-        anchor
-    };
+    // The pressed day is the focus; the week drawn around it aligns on its own.
+    calendar.focus_on(app, pressed);
     calendar.all_day_expanded = false;
     if calendar.mode == mode {
         calendar.refresh(app);

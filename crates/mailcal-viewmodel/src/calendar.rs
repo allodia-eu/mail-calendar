@@ -20,6 +20,7 @@ pub mod agenda;
 /// at [`crate::color`] now that avatars draw from the same palette.
 pub use crate::color;
 pub mod days;
+pub mod focus;
 pub mod grid;
 pub mod meeting;
 pub mod month;

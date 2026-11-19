@@ -50,7 +50,7 @@ internal sealed class MonthGridView : UserControl
     private CultureInfo _culture = CultureInfo.CurrentCulture;
     private bool _use24Hour = true;
 
-    /// <summary>Raised when a day cell is tapped, so the host can jump to that day in the time grid.</summary>
+    /// <summary>Raised when a day cell's own space is tapped, so the host can move the focus there.</summary>
     internal Action<DateOnly>? DayPicked { get; set; }
 
     /// <summary>Raised when an event chip is tapped, with its <c>(account, event)</c>, opens the
@@ -161,7 +161,7 @@ internal sealed class MonthGridView : UserControl
         var isToday = date == _today;
 
         var stack = new StackPanel { Spacing = 2 };
-        stack.Children.Add(DateNumber(date, cell.InMonth, isToday));
+        stack.Children.Add(Ringed(DateNumber(date, cell.InMonth, isToday), cell.IsFocus));
 
         var total = cell.Chips.Length;
         var shown = ChipsShown(total, capacity);
@@ -192,13 +192,34 @@ internal sealed class MonthGridView : UserControl
             Child = stack,
         };
 
-        // Tappable, jump to this day in the time grid. Tapped (not a Button) keeps the today
-        // highlight and the dim-out reading cleanly, without a control template fighting them.
+        // Tappable: the focus moves to this day. Tapped (not a Button) keeps the today highlight and
+        // the dim-out reading cleanly, without a control template fighting them.
         border.Tapped += (_, _) => DayPicked?.Invoke(date);
-        AutomationProperties.SetName(
-            border,
-            total > 0 ? $"{date:D}, {total}" : $"{date:D}");
+        var name = total > 0 ? $"{date:D}, {total}" : $"{date:D}";
+        AutomationProperties.SetName(border, cell.IsFocus ? $"{name}, {L10n.A11yCalendarFocusDay()}" : name);
         return border;
+    }
+
+    // The focus date, the day every view is drawn around (docs/calendar.md, "The focus date"): a ring
+    // round the day's number, outside today's disc so the two read together.
+    private static UIElement Ringed(UIElement number, bool focus)
+    {
+        if (!focus || number is not FrameworkElement inner)
+        {
+            return number;
+        }
+        inner.HorizontalAlignment = HorizontalAlignment.Center;
+        inner.VerticalAlignment = VerticalAlignment.Center;
+        return new Border
+        {
+            Width = 24,
+            Height = 24,
+            CornerRadius = new CornerRadius(12),
+            BorderThickness = new Thickness(1.5),
+            BorderBrush = new SolidColorBrush((Color)Application.Current.Resources["SystemAccentColor"]),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Child = inner,
+        };
     }
 
     private UIElement DateNumber(DateOnly date, bool inMonth, bool isToday)
@@ -267,7 +288,7 @@ internal sealed class MonthGridView : UserControl
         var element = CalendarHold.Compose(shape, colors.Accent, corner: 3, awaiting, ChipHeight - 2);
 
         // A tap opens the event's detail, and is marked handled so it does not also fire the cell's
-        // DayPicked and jump into the day zoom instead.
+        // DayPicked and move the focus instead.
         element.Tapped += (_, e) =>
         {
             e.Handled = true;

@@ -141,7 +141,21 @@ internal class CalendarPager(
     today: LocalDate,
     mode: CalendarMode,
     private val weekStartFor: (LocalDate) -> LocalDate,
+    private val core: CalendarFocus = LocalCalendarFocus(today),
 ) {
+    /**
+     * The calendar's **focus date**, which every view is drawn around (`docs/calendar.md`, "The focus
+     * date"). The core holds it; this is its copy, moved only through [core] so the two agree.
+     */
+    var focus by mutableStateOf(today)
+        private set
+
+    /** The page [focus] was last brought up to date on. */
+    private var focusPage = CALENDAR_PAGE_ORIGIN
+
+    /** A re-centre is on its way: the page the screen reports is the old origin's until it lands. */
+    private var recentring = false
+
     /** The shape being drawn. */
     var mode by mutableStateOf(mode)
         private set
@@ -181,16 +195,51 @@ internal class CalendarPager(
     }
 
     /**
-     * Switches shape, keeping the period the user is looking at.
-     *
-     * A grid is seated on the first day of the week holding the page's anchor. From the month that
-     * anchor is the 1st, which is rarely a week's first day.
+     * Brings [focus] up to the page the pager settled on: a week page moves it by weeks and a month
+     * page by months, through the core, which lands a step into today's week or month on today.
      */
-    fun setMode(next: CalendarMode, currentPage: Int) {
+    fun settle(page: Int, today: LocalDate) {
+        if (recentring || page == focusPage || mode == CalendarMode.AGENDA) return
+        val layout = if (mode.isMonth) CalendarLayout.MONTH else CalendarLayout.WEEK
+        focus = core.step(layout, page - focusPage, today)
+        focusPage = page
+    }
+
+    /** The screen has re-centred on [origin]: the page it reports is the origin's again. */
+    fun recentred() {
+        recentring = false
+        focusPage = CALENDAR_PAGE_ORIGIN
+    }
+
+    /**
+     * Switches shape around the focus, which does not move: the week, then the month, then the week
+     * again comes back to the same week. A grid is seated on the first day of the week holding it.
+     */
+    fun setMode(next: CalendarMode, currentPage: Int, today: LocalDate) {
         if (next == mode) return
-        val anchor = anchorFor(currentPage)
-        origin = if (next.isGrid) weekStartFor(anchor) else anchor
+        settle(currentPage, today)
+        origin = if (next.isGrid) weekStartFor(focus) else focus
         mode = next
+        recentre()
+    }
+
+    /** Puts the focus on `date` and the view around it (back to today). */
+    fun focusOn(date: LocalDate) {
+        core.set(date)
+        focus = date
+        origin = if (mode.isMonth) date else weekStartFor(date)
+        recentre()
+    }
+
+    /** Puts the focus on `date`, a day pressed on `page`, without moving the view. */
+    fun pick(date: LocalDate, page: Int) {
+        core.set(date)
+        focus = date
+        focusPage = page
+    }
+
+    private fun recentre() {
+        recentring = true
         resetToken += 1
     }
 
@@ -206,11 +255,44 @@ internal class CalendarPager(
         mode = next
     }
 
-    /** Re-centres on `date` (the "back to today" affordance, with today). */
-    fun jumpTo(date: LocalDate) {
-        origin = date
-        resetToken += 1
+}
+
+/** The core's focus date (`MailcalApp.calendarFocus` and its kin), behind a seam a test can fake. */
+internal interface CalendarFocus {
+    fun set(date: LocalDate)
+
+    /** Moves the focus `steps` periods of `layout` and returns where it landed. */
+    fun step(layout: CalendarLayout, steps: Int, today: LocalDate): LocalDate
+}
+
+/**
+ * A stand-in for a pager with no core behind it, the previews and the unit tests: it only shifts the
+ * date. The rules (a step into today's week or month lands on today, a short month's last day) are
+ * the core's alone, and the app always passes the core's.
+ */
+internal class LocalCalendarFocus(today: LocalDate) : CalendarFocus {
+    private var focus = today
+
+    override fun set(date: LocalDate) {
+        focus = date
     }
+
+    override fun step(layout: CalendarLayout, steps: Int, today: LocalDate): LocalDate {
+        focus = if (layout == CalendarLayout.MONTH) {
+            focus.plusMonths(steps.toLong())
+        } else {
+            focus.plusWeeks(steps.toLong())
+        }
+        return focus
+    }
+}
+
+/** The app's [CalendarFocus]: the core's own. */
+internal class CoreCalendarFocus(private val app: uniffi.mailcal_bindings.MailcalApp) : CalendarFocus {
+    override fun set(date: LocalDate) = app.setCalendarFocus(date.toString())
+
+    override fun step(layout: CalendarLayout, steps: Int, today: LocalDate): LocalDate =
+        LocalDate.parse(app.stepCalendarFocus(layout, steps, today.toString()))
 }
 
 /**

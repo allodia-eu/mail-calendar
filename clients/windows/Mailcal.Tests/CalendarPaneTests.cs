@@ -66,18 +66,34 @@ public class CalendarPaneTests
     [Fact]
     public void ADayOutsideTheGridWearsNoBand() => Assert.Null(CalendarPaneModel.Band(ShownSpan.Outside));
 
+    private static readonly PaneDayWords Words = new("Today", "Selected", "Shown in the calendar");
+
     [Fact]
     public void ADaySaysItsFullDateThenTodayThenThatTheGridShowsIt()
     {
         var culture = CultureInfo.GetCultureInfo("en-GB");
-        var day = new MiniDay("2026-11-18", 18, true, true, ShownSpan.Middle);
+        var day = new MiniDay("2026-11-18", 18, true, true, ShownSpan.Middle, false);
 
         Assert.Equal(
             "Wednesday, 18 November 2026, Today, Shown in the calendar",
-            CalendarPaneModel.DayName(day, culture, "Today", "Shown in the calendar"));
+            CalendarPaneModel.DayName(day, culture, Words));
         Assert.Equal(
             "Thursday, 19 November 2026",
-            CalendarPaneModel.DayName(day with { Date = "2026-11-19", IsToday = false, Shown = ShownSpan.Outside }, culture, "Today", "Shown"));
+            CalendarPaneModel.DayName(day with { Date = "2026-11-19", IsToday = false, Shown = ShownSpan.Outside }, culture, Words));
+    }
+
+    [Fact]
+    public void TheFocusDaySaysItIsSelectedAfterToday()
+    {
+        var culture = CultureInfo.GetCultureInfo("en-GB");
+        var day = new MiniDay("2026-11-18", 18, true, true, ShownSpan.Middle, true);
+
+        Assert.Equal(
+            "Wednesday, 18 November 2026, Today, Selected, Shown in the calendar",
+            CalendarPaneModel.DayName(day, culture, Words));
+        Assert.Equal(
+            "Thursday, 19 November 2026, Selected",
+            CalendarPaneModel.DayName(day with { Date = "2026-11-19", IsToday = false, Shown = ShownSpan.Outside }, culture, Words));
     }
 
     [Theory]

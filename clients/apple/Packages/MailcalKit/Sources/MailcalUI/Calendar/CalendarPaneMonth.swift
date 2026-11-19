@@ -106,6 +106,10 @@ struct CalendarPaneMonth: View {
                     }
                 }
                 .background { band(day.shown) }
+                // The calendar's focus date: a ring, over today's fill as over any other day.
+                .overlay {
+                    if day.isFocus { Circle().strokeBorder(Color.accentColor, lineWidth: 1.5) }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -143,7 +147,7 @@ struct CalendarPaneMonth: View {
         return .handled
     }
 
-    /// The full date, then "today" and "shown in the calendar" where they apply.
+    /// The full date, then "today", "selected" and "shown in the calendar" where they apply.
     private func label(_ day: MiniDay) -> String {
         var parts: [String] = []
         if let date = parseISODate(day.date, calendar: calendar) {
@@ -154,6 +158,7 @@ struct CalendarPaneMonth: View {
             parts.append(day.date)
         }
         if day.isToday { parts.append(L10n.calendar_today()) }
+        if day.isFocus { parts.append(L10n.a11y_calendar_focus_day()) }
         if day.shown != .outside { parts.append(L10n.a11y_calendar_pane_day_shown()) }
         return parts.joined(separator: ", ")
     }

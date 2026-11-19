@@ -109,6 +109,7 @@ fn mini_day(is_today: bool, shown: ShownSpan) -> MiniDay {
         day: 28,
         in_month: true,
         is_today,
+        is_focus: false,
         shown,
     }
 }
