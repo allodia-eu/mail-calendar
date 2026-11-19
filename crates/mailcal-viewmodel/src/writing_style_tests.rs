@@ -66,6 +66,39 @@ fn a_first_sentence_ends_where_a_reader_would_end_it() {
     assert_eq!(first_sentence_end("A. b"), 4, "lower case continues it");
 }
 
+/// A heading loses the full stop that ends its sentence and nothing else: an ellipsis, written
+/// out or as one character, and a question or exclamation mark are part of what it says, and so
+/// is the point that closes an abbreviation.
+#[test]
+fn a_heading_drops_its_full_stop_and_keeps_every_other_mark() {
+    let cases = [
+        (
+            "Few exclamation marks... Dashes rarely.",
+            "Few exclamation marks...",
+        ),
+        (
+            "Few exclamation marks.. Dashes rarely.",
+            "Few exclamation marks",
+        ),
+        ("Few exclamation marks…", "Few exclamation marks…"),
+        ("Few exclamation marks... ", "Few exclamation marks..."),
+        ("Really?! Then calmer.", "Really?!"),
+        (
+            "Uses Dutch shorthand, a.u.b.",
+            "Uses Dutch shorthand, a.u.b.",
+        ),
+        (
+            "Uses Dutch shorthand, a.u.b.. Then stops.",
+            "Uses Dutch shorthand, a.u.b.",
+        ),
+        ("Signs as Sam.", "Signs as Sam"),
+    ];
+    for (description, heading) in cases {
+        let (got, _) = card_text("", description).unwrap();
+        assert_eq!(got, heading, "{description}");
+    }
+}
+
 #[test]
 fn a_card_never_shows_a_sentence_twice_and_an_empty_one_is_left_out() {
     assert_eq!(

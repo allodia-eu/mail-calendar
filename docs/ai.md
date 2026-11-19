@@ -189,7 +189,9 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     anything for is left out, and a per-language page says so for a language with nothing for it.
     A description without a heading of its own is headed by its first sentence, which ends at a
     full stop, question mark, exclamation mark or ellipsis followed by the end or by a space and
-    anything but a lower-case letter. The pages: **what was read**
+    anything but a lower-case letter; the heading drops its full stop, a doubled one included, and
+    keeps an ellipsis, written out or not, a question or exclamation mark and the point closing an
+    abbreviation such as "e.g.". The pages: **what was read**
     (how many messages, from which address, since when, in which languages); **a typical reply** (a
     miniature letter in the person's usual length and shape, opening as they often do);
     **greetings and sign-offs**, each worded by its share ("mostly" for half or more, "often" for a

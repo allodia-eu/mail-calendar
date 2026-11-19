@@ -256,9 +256,25 @@ pub fn card_text(headline: &str, description: &str) -> Option<(String, String)> 
         return None;
     }
     let end = first_sentence_end(text);
-    let sentence = text[..end].trim();
-    let sentence = sentence.strip_suffix('.').unwrap_or(sentence);
+    let sentence = without_full_stop(text[..end].trim());
     Some((sentence.to_owned(), text[end..].trim().to_owned()))
+}
+
+/// `sentence` without the full stop that ends it, a doubled one included. Three points or more
+/// are an ellipsis and stay, as do a question or exclamation mark, and so does one point after a
+/// word that holds a point of its own, since it closes an abbreviation such as "e.g.".
+fn without_full_stop(sentence: &str) -> &str {
+    let stem = sentence.trim_end_matches('.');
+    let points = sentence.len() - stem.len();
+    if points == 0 || points >= 3 {
+        return sentence;
+    }
+    let last_word = stem.rsplit(char::is_whitespace).next().unwrap_or(stem);
+    if last_word.contains('.') {
+        &sentence[..=stem.len()]
+    } else {
+        stem.trim_end()
+    }
 }
 
 /// Where the first sentence of `text` ends: after a full stop, question mark, exclamation mark or
