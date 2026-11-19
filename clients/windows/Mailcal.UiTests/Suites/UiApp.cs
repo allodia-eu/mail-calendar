@@ -108,7 +108,13 @@ public abstract class UiApp : IDisposable
     public void Dispose()
     {
         _app?.Dispose();
+        Stopped();
         GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Called once the app has quit, for a launch that started something beside it.</summary>
+    protected virtual void Stopped()
+    {
     }
 }
 

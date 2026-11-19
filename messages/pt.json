@@ -162,6 +162,7 @@
 	"a11y_outbox_count_one": "{count} à espera de envio",
 	"a11y_resize_folder_pane": "Redimensionar o painel de pastas",
 	"a11y_back": "Retroceder",
+	"a11y_flow_page": "Página {page} de {count}",
 	"a11y_timezone_settings": "Definições de fuso horário",
 
 	"reset_title": "Repor a base de dados local?",
@@ -1338,6 +1339,7 @@
 	"learn_consent_own": "As palavras que escreveu nestas mensagens, sem correio citado nem assinaturas, são enviadas para {host}, o endpoint que configurou, que descreve como escreve. O que lhes acontece lá depende de quem o gere.",
 	"learn_consent_confirm": "Aprender",
 	"learn_progress": "A aprender como escreve ({done} de {total})…",
+	"learn_progress_unknown": "A aprender como escreve…",
 	"learn_stop": "Parar",
 	"learn_failed_title": "Não foi aprendido nenhum estilo",
 	"reveal_title": "O que notámos na sua forma de escrever",

@@ -162,6 +162,7 @@
 	"a11y_outbox_count_one": "{count} en attente d'envoi",
 	"a11y_resize_folder_pane": "Redimensionner le volet des dossiers",
 	"a11y_back": "Retour",
+	"a11y_flow_page": "Page {page} sur {count}",
 	"a11y_timezone_settings": "Réglages de fuseau horaire",
 
 	"reset_title": "Réinitialiser la base de données locale ?",
@@ -1338,6 +1339,7 @@
 	"learn_consent_own": "Les mots que vous avez écrits dans ces messages, sans e-mails cités ni signatures, sont envoyés à {host}, le point d’accès que vous avez configuré, qui décrit votre façon d’écrire. Ce qu’il en advient là-bas dépend de qui l’exploite.",
 	"learn_consent_confirm": "Apprendre",
 	"learn_progress": "Apprentissage de votre façon d’écrire ({done} sur {total})…",
+	"learn_progress_unknown": "Apprentissage de votre façon d’écrire…",
 	"learn_stop": "Arrêter",
 	"learn_failed_title": "Aucun style n’a été appris",
 	"reveal_title": "Ce que nous avons remarqué dans votre façon d’écrire",

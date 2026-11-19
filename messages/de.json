@@ -162,6 +162,7 @@
 	"a11y_outbox_count_one": "{count} wartet auf den Versand",
 	"a11y_resize_folder_pane": "Größe des Ordnerbereichs ändern",
 	"a11y_back": "Zurück",
+	"a11y_flow_page": "Seite {page} von {count}",
 	"a11y_timezone_settings": "Zeitzoneneinstellungen",
 
 	"reset_title": "Lokale Datenbank zurücksetzen?",
@@ -1338,6 +1339,7 @@
 	"learn_consent_own": "Die Worte, die Sie in diesen Nachrichten geschrieben haben, ohne zitierte E-Mails oder Signaturen, werden an {host} gesendet, den von Ihnen eingerichteten Endpunkt, der beschreibt, wie Sie schreiben. Was dort damit geschieht, entscheidet, wer ihn betreibt.",
 	"learn_consent_confirm": "Lernen",
 	"learn_progress": "Lernen, wie Sie schreiben ({done} von {total})…",
+	"learn_progress_unknown": "Lernen, wie Sie schreiben…",
 	"learn_stop": "Anhalten",
 	"learn_failed_title": "Es wurde kein Stil gelernt",
 	"reveal_title": "Was uns an Ihrem Schreiben aufgefallen ist",

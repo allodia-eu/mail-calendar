@@ -16,12 +16,12 @@ public sealed partial class SettingsDialog
     // an empty panel reads as a broken panel rather than as a build without a route, and it is what
     // every build from source would show. The category and the group inside it share one string,
     // because the product's own name belongs in one place.
-    private static (string Tag, string Label)[] Categories() =>
+    private (string Tag, string Label)[] Categories() =>
         MailcalBindingsMethods.AllodiaSignInAvailable()
             ? new[] { ("allodia", L10n.SettingsAllodiaHeading()) }.Concat(MailCategories()).ToArray()
             : MailCategories();
 
-    private static (string Tag, string Label)[] MailCategories() => new[]
+    private (string Tag, string Label)[] MailCategories() => new (string, string)?[]
     {
         ("general", L10n.SettingsCategoryGeneral()),
         ("calendar", L10n.SettingsCategoryCalendar()),
@@ -30,15 +30,18 @@ public sealed partial class SettingsDialog
         ("composing", L10n.SettingsCategoryComposing()),
         // Its own category, not a sub-screen of Composing: a signature is a standalone entity reused
         // across accounts, and "Settings → Signatures" is the path people already look for
-        // (docs/settings.md slot 7).
+        // (docs/settings.md, Signatures).
         ("signatures", L10n.SettingsCategorySignatures()),
+        // Only while the writing assistant is offered: the core's page is null otherwise, and so
+        // the category is absent (docs/ai.md rule 4).
+        _model.WritingStylePage() is null ? null : (WritingStyleTag, L10n.SettingsCategoryWritingStyle()),
         ("notifications", L10n.SettingsCategoryNotifications()),
         ("privacy", L10n.SettingsCategoryPrivacy()),
         ("accounts", L10n.SettingsCategoryAccounts()),
         ("advanced", L10n.SettingsCategoryAdvanced()),
         ("diagnostics", L10n.SettingsCategoryDiagnostics()),
         ("about", L10n.SettingsCategoryAbout()),
-    };
+    }.OfType<(string, string)>().ToArray();
 
     // The row's id is its tag, so a test finds a category in whatever language the app is in.
     private static ListViewItem CategoryItem(string tag, string label)

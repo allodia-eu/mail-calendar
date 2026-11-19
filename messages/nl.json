@@ -162,6 +162,7 @@
 	"a11y_outbox_count_one": "{count} wacht op verzending",
 	"a11y_resize_folder_pane": "Formaat van het mappenpaneel wijzigen",
 	"a11y_back": "Terug",
+	"a11y_flow_page": "Pagina {page} van {count}",
 	"a11y_timezone_settings": "Tijdzone-instellingen",
 
 	"reset_title": "Lokale database resetten?",
@@ -1338,6 +1339,7 @@
 	"learn_consent_own": "De woorden die je in deze berichten schreef, zonder geciteerde mail of handtekeningen, gaan naar {host}, het endpoint dat je hebt ingesteld, dat beschrijft hoe je schrijft. Wat er daar mee gebeurt, bepaalt wie het beheert.",
 	"learn_consent_confirm": "Leren",
 	"learn_progress": "Leren hoe je schrijft ({done} van {total})…",
+	"learn_progress_unknown": "Leren hoe je schrijft…",
 	"learn_stop": "Stoppen",
 	"learn_failed_title": "Er is geen stijl geleerd",
 	"reveal_title": "Wat ons opviel aan hoe je schrijft",

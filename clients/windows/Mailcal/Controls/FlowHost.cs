@@ -117,6 +117,12 @@ internal sealed class FlowHost
             });
         }
         _stage.ContentTransitions = transitions;
+        // A stage handed back later, as a page whose fields keep what is typed, may have only one
+        // parent.
+        if (_stage.Content is ScrollViewer previous)
+        {
+            previous.Content = null;
+        }
         _stage.Content = new ScrollViewer { Content = stage, Padding = new Thickness(0, 4, 16, 12) };
     }
 
@@ -161,6 +167,9 @@ internal sealed class FlowHost
         }
         _drawingPips = false;
         NamePips();
+        // A pager made visible applies its template on the next layout, and the template names it
+        // over a name set before, so it is named again once that has happened.
+        _pips.DispatcherQueue?.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, NamePips);
     }
 
     private void NamePips()
