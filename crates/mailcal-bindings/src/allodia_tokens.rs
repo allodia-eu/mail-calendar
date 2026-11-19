@@ -66,6 +66,18 @@ impl Tokens {
             .map(|tokens| tokens.access_token.expose().to_owned())
     }
 
+    /// Holds `tokens` as if they had been minted, for a test that must not reach the service.
+    #[cfg(test)]
+    pub(crate) fn hold(&self, tokens: TokenSet) {
+        *self.access.lock().expect("allodia token lock") = Some(tokens);
+    }
+
+    /// The token in hand now, for a test.
+    #[cfg(test)]
+    pub(crate) fn held(&self) -> Option<String> {
+        self.live(OffsetDateTime::now_utc())
+    }
+
     /// Note that a caller has entered the refresh path, and how many are now in it.
     ///
     /// The returned guard leaves the count correct on every exit, including the `?` that a refusal
@@ -291,10 +303,12 @@ impl MailcalApp {
         drop(held);
         // The connectivity snapshot carries the refusal as a banner, so the host is told to read
         // it again whenever it is raised or taken down.
-        // The Allodia account's card draws the refusal too.
+        // The Allodia account's card draws the refusal too, and the writing assistant's relay
+        // asks for a sign-in while it stands.
         if banner_moved {
             self.app.signal_connectivity();
             self.app.allodia_changed();
+            self.app.ai_relay_changed();
         }
     }
 
@@ -345,6 +359,7 @@ impl MailcalApp {
         // prompt's worth of noise on some hosts, for a value that changes about once a release.
         if changed {
             self.persist_allodia_grant();
+            self.app.ai_relay_changed();
         }
     }
 

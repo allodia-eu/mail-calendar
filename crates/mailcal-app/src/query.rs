@@ -190,3 +190,9 @@ pub(crate) fn format_instant(instant: UtcDateTime) -> String {
         instant.second(),
     )
 }
+
+/// The readable text of a message's sanitised HTML, for a body with no text part: what a model
+/// is handed in place of the HTML, never the HTML itself.
+pub(crate) fn plain_text_of(html: &str) -> String {
+    text::to_plain(html)
+}

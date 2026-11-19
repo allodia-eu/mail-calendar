@@ -185,6 +185,35 @@ fn an_unknown_capability_is_kept_but_never_granted() {
     );
 }
 
+#[test]
+fn the_writing_assistant_is_a_paid_capability_of_its_own() {
+    let fake = Fake::ok(
+        200,
+        r#"{"plan":"free","capabilities":["accounts_sync","ai"],"refreshAfterSeconds":1}"#,
+    );
+    let service = AccountService::new("https://allodia.example");
+    let answer = service.entitlement(&fake, "tok_abc").unwrap();
+    assert!(answer.entitlement.grants(&Capability::Ai));
+    assert!(Capability::Ai.is_paid());
+}
+
+/// An answer stored by a version that did not know `ai` holds it as an unknown label; the version
+/// that knows it grants it from the stored answer, without waiting for the next read.
+#[test]
+fn a_label_stored_before_this_version_knew_it_is_granted_once_it_does() {
+    let mut answer = paid();
+    answer
+        .entitlement
+        .capabilities
+        .insert(Capability::Unknown("ai".to_owned()));
+    let cache = Cache::restore(Some(Stored {
+        answer,
+        fetched_at: NOW,
+    }));
+    assert!(cache.effective(NOW).grants(&Capability::Ai));
+    assert!(cache.effective(NOW).grants(&Capability::Push));
+}
+
 // --- What to draw between answers
 // -----------------------------------------------------------------
 
@@ -387,6 +416,7 @@ fn sign_in_asks_for_a_refresh_token_and_for_nothing_that_reaches_mail() {
             "mailcal:accounts:write",
             "mailcal:subscription:read",
             "mailcal:subscription:write",
+            "mailcal:ai:use",
         ]
     );
     assert!(crate::SCOPES.contains(&"offline_access"));

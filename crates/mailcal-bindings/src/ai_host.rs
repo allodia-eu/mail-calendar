@@ -204,4 +204,37 @@ mod tests {
         assert_eq!(take_stored(&mut configs).as_deref(), Some("sk-new"));
         assert_eq!(written[1], ("ai-endpoint".to_owned(), None));
     }
+
+    /// Only a build that can sign in to Allodia installs the relay. Without it a stored grant
+    /// reaches nothing, and a request has nowhere to go until an own endpoint is set up.
+    #[test]
+    fn only_a_build_with_the_allodia_sign_in_has_a_relay() {
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let dir = crate::tests::temp_data_dir("ai-relay-installed");
+        let app = crate::MailcalApp::new_accounts(
+            Box::new(crate::tests::ChannelObserver { tx }),
+            Box::new(crate::tests::NullLogger),
+            crate::LogLevel::Info,
+            Vec::new(),
+            dir.to_string_lossy().into_owned(),
+            "Etc/UTC".to_owned(),
+            crate::analytics::test_device(),
+            Box::new(crate::tests::RecordingStoreHandle(Arc::default())),
+        )
+        .expect("the app boots");
+        *app.allodia.lock().unwrap() = Some(crate::allodia::StoredAccount {
+            id: None,
+            email: "person@example.eu".to_owned(),
+            name: None,
+            refresh_token: "refresh".to_owned(),
+            granted_scopes: None,
+            end_session_endpoint: None,
+        });
+        let route = app.app.ai_route();
+        if cfg!(feature = "allodia-license") {
+            assert_eq!(route, Ok(mailcal_app::ai::AiRoute::Relay));
+        } else {
+            assert_eq!(route, Err(mailcal_app::ai::AiFailure::NowhereToSend));
+        }
+    }
 }

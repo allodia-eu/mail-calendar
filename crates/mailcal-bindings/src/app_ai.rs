@@ -27,14 +27,6 @@ impl MailcalApp {
 
     /// Queues a piece of the assistant's work, and runs the queue on a thread of its own when
     /// nothing else was running. Returns at once.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "learning a style and drafting a reply are the work queued here, and neither \
-                      is dispatched yet"
-        )
-    )]
     pub(crate) fn queue_ai_work(&self, work: AiWork<Box<dyn Provider>>) -> AiQueued {
         let queued = self.app.queue_ai_work(work);
         if queued == AiQueued::Run {
@@ -48,6 +40,7 @@ impl MailcalApp {
     pub(crate) fn dispatch_ai(&self, intent: AiIntent) {
         match intent {
             AiIntent::Endpoint { intent } => self.dispatch_ai_endpoint(intent),
+            AiIntent::WritingStyle { intent } => self.dispatch_writing_style(intent),
         }
     }
 

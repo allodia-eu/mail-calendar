@@ -53,10 +53,23 @@ impl Cache {
     /// Start from what the host had persisted, or from nothing.
     ///
     /// A stored value that would not parse is `None` here, which reads as the free app, never as
-    /// an error, and never as a reason to block.
+    /// an error, and never as a reason to block. A label stored by a version that did not know it
+    /// is read again by this one, so a capability granted before an update grants after it.
     #[must_use]
     pub fn restore(stored: Option<Stored>) -> Self {
-        Self { stored }
+        Self {
+            stored: stored.map(|mut stored| {
+                let capabilities = &mut stored.answer.entitlement.capabilities;
+                *capabilities = std::mem::take(capabilities)
+                    .into_iter()
+                    .map(|capability| match capability {
+                        Capability::Unknown(label) => Capability::parse(&label),
+                        known => known,
+                    })
+                    .collect();
+                stored
+            }),
+        }
     }
 
     /// What the host should persist. `None` means there is nothing worth keeping.
