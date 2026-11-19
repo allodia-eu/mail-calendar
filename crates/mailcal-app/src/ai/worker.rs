@@ -219,7 +219,7 @@ impl<P: Provider> App<P> {
     /// Runs one piece of work [`App::queue_ai_work`] started, then the work under the same key
     /// that waited for it, each to its end. Not for a UI thread.
     pub fn run_ai_work(&self) {
-        self.run_started(|started| started.pop_front());
+        self.run_started(VecDeque::pop_front);
     }
 
     /// Runs the started work `take` takes, then the work under its key that waited for it.
