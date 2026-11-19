@@ -1,4 +1,4 @@
-// Settings → Videoconferencing's accounts that make video meetings (docs/settings.md category 4):
+// Settings → Videoconferencing's accounts that make video meetings (docs/settings.md, Videoconferencing):
 // drawn only while there is one, each saying its use's state and opening the account's page, with
 // no switch of its own.
 package eu.allodia.mailcal

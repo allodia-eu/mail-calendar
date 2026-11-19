@@ -1,4 +1,4 @@
-// Settings → Calendar → Default calendar (docs/settings.md category 3).
+// Settings → Calendar → Default calendar (docs/settings.md, Calendar).
 //
 // The calendars offered, how they group under accounts and which is selected are the core's
 // (`new_event_calendars`): the selection is `CalendarRow.isDefault`, resolved against the calendars

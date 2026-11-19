@@ -1,4 +1,4 @@
-// Settings → Videoconferencing (docs/settings.md slot 4): the accounts that make video meetings,
+// Settings → Videoconferencing (docs/settings.md, Videoconferencing): the accounts that make video meetings,
 // while there are any, then the person's Jitsi server (docs/conferencing.md, rule 13). The server
 // is empty until they fill it; the field sends its text and the core's page says what came of it,
 // stored in its tidied form or refused as typed. Once one is stored, every calendar whose provider
