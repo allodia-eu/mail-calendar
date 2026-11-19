@@ -196,7 +196,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     keeps an ellipsis, written out or not, a question or exclamation mark and the point closing an
     abbreviation such as "e.g.". The pages: **what was read**
     (how many messages, from which address, since when, in which languages); **a typical reply** (a
-    miniature letter in the person's usual length and shape, opening as they often do);
+    miniature letter in the person's usual length and shape, opening as they often do, which is one
+    accessible element with its grey lines hidden, spoken as `a11y_letter_opening`,
+    `a11y_letter_words`, `a11y_letter_paragraphs`, `a11y_letter_closing` and `a11y_letter_name` in
+    that order, joined by a comma, each left out when its value is empty or zero: a greeting or a
+    sign-off is its runs' text read as written, a placeholder as its word, and the paragraphs are
+    the record's `paragraph_count`, never the lines drawn);
     **greetings and sign-offs**, each worded by its share ("mostly" for half or more, "often" for a
     fifth or more, "sometimes" below), with the name signed; **tone and approach** (register, how a
     reply is built, declining and chasing, punctuation); **phrases** used and avoided; and **name and

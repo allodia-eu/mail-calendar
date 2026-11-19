@@ -66,6 +66,9 @@ pub struct RevealLetter {
     pub signs_as: String,
     /// The typical length in words; zero when unknown.
     pub words: u32,
+    /// The typical number of paragraphs, as spoken; zero when unknown, though `paragraphs` then
+    /// draws two.
+    pub paragraph_count: u32,
     /// How they paragraph and how long their sentences run; empty when nothing was said.
     pub shape: String,
 }

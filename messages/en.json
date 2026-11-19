@@ -164,6 +164,13 @@
 	"a11y_back": "Back",
 	"a11y_flow_page": "Page {page} of {count}",
 	"a11y_reveal_language": "Language",
+	"a11y_letter_opening": "Opens with {greeting}",
+	"a11y_letter_words": "About {count} words",
+	"a11y_letter_words_one": "About {count} word",
+	"a11y_letter_paragraphs": "{count} paragraphs",
+	"a11y_letter_paragraphs_one": "{count} paragraph",
+	"a11y_letter_closing": "Signs off with {sign_off}",
+	"a11y_letter_name": "Signed {name}",
 	"a11y_timezone_settings": "Timezone settings",
 
 	"reset_title": "Reset the local database?",

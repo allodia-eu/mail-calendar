@@ -164,6 +164,13 @@
 	"a11y_back": "Terug",
 	"a11y_flow_page": "Pagina {page} van {count}",
 	"a11y_reveal_language": "Taal",
+	"a11y_letter_opening": "Begint met {greeting}",
+	"a11y_letter_words": "Ongeveer {count} woorden",
+	"a11y_letter_words_one": "Ongeveer {count} woord",
+	"a11y_letter_paragraphs": "{count} alinea’s",
+	"a11y_letter_paragraphs_one": "{count} alinea",
+	"a11y_letter_closing": "Sluit af met {sign_off}",
+	"a11y_letter_name": "Ondertekend met {name}",
 	"a11y_timezone_settings": "Tijdzone-instellingen",
 
 	"reset_title": "Lokale database resetten?",

@@ -164,6 +164,13 @@
 	"a11y_back": "Retroceder",
 	"a11y_flow_page": "Página {page} de {count}",
 	"a11y_reveal_language": "Idioma",
+	"a11y_letter_opening": "Começa com {greeting}",
+	"a11y_letter_words": "Cerca de {count} palavras",
+	"a11y_letter_words_one": "Cerca de {count} palavra",
+	"a11y_letter_paragraphs": "{count} parágrafos",
+	"a11y_letter_paragraphs_one": "{count} parágrafo",
+	"a11y_letter_closing": "Termina com {sign_off}",
+	"a11y_letter_name": "Assinado {name}",
 	"a11y_timezone_settings": "Definições de fuso horário",
 
 	"reset_title": "Repor a base de dados local?",

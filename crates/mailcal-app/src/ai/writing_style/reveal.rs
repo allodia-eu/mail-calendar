@@ -161,6 +161,7 @@ fn language(code: &str, style: &LanguageStyle) -> RevealLanguage {
             closing: first_run(&style.sign_offs),
             signs_as: style.signs_as.clone(),
             words: style.typical_words,
+            paragraph_count: style.typical_paragraphs,
             shape: style.shape.clone(),
         }),
         habits: has_habits.then(|| RevealHabits {

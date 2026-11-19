@@ -164,6 +164,13 @@
 	"a11y_back": "Zurück",
 	"a11y_flow_page": "Seite {page} von {count}",
 	"a11y_reveal_language": "Sprache",
+	"a11y_letter_opening": "Beginnt mit {greeting}",
+	"a11y_letter_words": "Etwa {count} Wörter",
+	"a11y_letter_words_one": "Etwa {count} Wort",
+	"a11y_letter_paragraphs": "{count} Absätze",
+	"a11y_letter_paragraphs_one": "{count} Absatz",
+	"a11y_letter_closing": "Endet mit {sign_off}",
+	"a11y_letter_name": "Unterschrieben mit {name}",
 	"a11y_timezone_settings": "Zeitzoneneinstellungen",
 
 	"reset_title": "Lokale Datenbank zurücksetzen?",

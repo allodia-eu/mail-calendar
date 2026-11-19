@@ -164,6 +164,13 @@
 	"a11y_back": "Indietro",
 	"a11y_flow_page": "Pagina {page} di {count}",
 	"a11y_reveal_language": "Lingua",
+	"a11y_letter_opening": "Inizia con {greeting}",
+	"a11y_letter_words": "Circa {count} parole",
+	"a11y_letter_words_one": "Circa {count} parola",
+	"a11y_letter_paragraphs": "{count} paragrafi",
+	"a11y_letter_paragraphs_one": "{count} paragrafo",
+	"a11y_letter_closing": "Termina con {sign_off}",
+	"a11y_letter_name": "Firmato {name}",
 	"a11y_timezone_settings": "Impostazioni del fuso orario",
 
 	"reset_title": "Ripristinare il database locale?",

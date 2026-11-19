@@ -113,7 +113,9 @@ pub struct WritingStyleLanguage {
     pub phrases: Option<WritingStylePhrases>,
 }
 
-/// The miniature letter: the person's usual length and shape, opening as they often do.
+/// The miniature letter: the person's usual length and shape, opening as they often do. It is one
+/// accessible element, its grey lines hidden, spoken from the `a11y_letter_*` messages
+/// (`docs/ai.md` rule 15).
 #[derive(Debug, Clone, PartialEq, uniffi::Record)]
 pub struct WritingStyleLetter {
     /// The greeting most messages open with; empty when none is known.
@@ -126,6 +128,9 @@ pub struct WritingStyleLetter {
     pub signs_as: String,
     /// The typical length in words; zero when unknown.
     pub words: u32,
+    /// The typical number of paragraphs, which is what is spoken; zero when unknown, though
+    /// `paragraphs` then draws two.
+    pub paragraph_count: u32,
     /// How they paragraph and how long their sentences run; empty when nothing was said.
     pub shape: String,
 }
@@ -253,6 +258,7 @@ fn language(language: vm::RevealLanguage) -> WritingStyleLanguage {
             closing: runs(letter.closing),
             signs_as: letter.signs_as,
             words: letter.words,
+            paragraph_count: letter.paragraph_count,
             shape: letter.shape,
         }),
         habits: language.habits.map(|found| WritingStyleHabits {

@@ -164,6 +164,13 @@
 	"a11y_back": "Retour",
 	"a11y_flow_page": "Page {page} sur {count}",
 	"a11y_reveal_language": "Langue",
+	"a11y_letter_opening": "Commence par {greeting}",
+	"a11y_letter_words": "Environ {count} mots",
+	"a11y_letter_words_one": "Environ {count} mot",
+	"a11y_letter_paragraphs": "{count} paragraphes",
+	"a11y_letter_paragraphs_one": "{count} paragraphe",
+	"a11y_letter_closing": "Se termine par {sign_off}",
+	"a11y_letter_name": "Signé {name}",
 	"a11y_timezone_settings": "Réglages de fuseau horaire",
 
 	"reset_title": "Réinitialiser la base de données locale ?",
