@@ -446,7 +446,7 @@ internal fun RichComposeMessageDialog(
                             // (`docs/composer-layout.md`, rule 1).
                             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                                 ComposerNotices(error = composerError, draftStatus = draftStatus)
-                                draft?.let { ComposerReplyDraftNotes(it, exits::leave) }
+                                draft?.let { ComposerReplyDraftNotes(it) }
                                 ComposerFileTiles(
                                     files = fileTiles,
                                     onRemove = { tile ->
@@ -467,7 +467,7 @@ internal fun RichComposeMessageDialog(
                         onAnswered = { droppedPictures = emptyList() },
                     )
                     ComposerLinkDialogHost(linkHost, webView)
-                    draft?.let { ComposerReplyDraftDialogs(it, exits::leave, send) }
+                    draft?.let { ComposerReplyDraftDialogs(it, send) }
                     // Inside the composer's own Dialog for the same reason, so back reaches the
                     // confirmation (keep editing) rather than the composer underneath.
                     if (confirmingDiscard) {

@@ -3,6 +3,12 @@
 // from the core's memory, so the main thread may make it.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import java.time.ZoneId
 import uniffi.mailcal_bindings.AiIntent
 import uniffi.mailcal_bindings.AiRemedy
@@ -49,24 +55,39 @@ internal fun MainActivity.composerReplyDraftUi(app: MailcalApp) = ComposerReplyD
     read = { composition, from -> app.composerReplyDraft(composition, from) },
     report = { composition, message -> app.composerReplyDraftReport(composition, message) },
     onChange = { app.dispatch(Intent.Ai(AiIntent.ReplyDraft(it))) },
-    onRemedy = { remedy, leave -> openRemedy(app, remedy, leave) },
+    onRemedy = { remedy -> openRemedy(app, remedy) },
     version = writingStyle.draftVersion,
     language = appLanguage(this),
 )
 
-// A remedy the composer cannot take in place: the Allodia sign-in opens over it; a place in
-// Settings opens once the composer has closed, its draft kept.
-private fun MainActivity.openRemedy(app: MailcalApp, remedy: AiRemedy, leave: () -> Unit) {
+// A remedy the composer cannot take in place (docs/ai.md rule 27). It leaves the composer as it is:
+// the Allodia sign-in opens in the browser, and a place in Settings opens over the composer, whose
+// Back returns to it. Learn style opens the learning flow there.
+private fun MainActivity.openRemedy(app: MailcalApp, remedy: AiRemedy) {
     val category = when (remedyAction(remedy)) {
         RemedyAction.SIGN_IN -> return changeAllodia(allodiaSignIn())
         RemedyAction.OPEN_ENDPOINT -> SettingsCategory.ADVANCED
         RemedyAction.LEARN, RemedyAction.CHOOSE_STYLE -> SettingsCategory.WRITING_STYLE
         RemedyAction.MOVE_FLOW -> return
     }
-    leave()
-    settingsCategory = category
-    showingSettings = true
     if (remedy == AiRemedy.LEARN_STYLE) {
         app.dispatch(Intent.Ai(AiIntent.WritingStyle(WritingStyleIntent.Learning(StyleLearningIntent.Open))))
+    }
+    settingsCategory = category
+    settingsOverComposer = true
+}
+
+/** Settings over the composer, full screen as the composer is; leaving it shows the composer again. */
+@Composable
+internal fun MainActivity.SettingsOverComposer(instance: MailcalApp) {
+    val leave = { settingsOverComposer = false }
+    Dialog(
+        onDismissRequest = leave,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        SystemBarsMatchTheme()
+        Surface(modifier = Modifier.fillMaxSize()) {
+            SettingsTabContent(instance, onLeave = leave)
+        }
     }
 }

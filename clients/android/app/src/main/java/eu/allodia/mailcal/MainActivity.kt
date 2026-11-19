@@ -162,6 +162,9 @@ class MainActivity : AppCompatActivity() {
     // two questions, and one nullable enum answering both makes every reader prove they cannot
     // disagree.
     internal var settingsCategory by mutableStateOf<SettingsCategory?>(null)
+    // Settings raised over the composer by a writing-assistant remedy, which leaves the composer as
+    // it is underneath (MainActivityWritingStyle.kt).
+    internal var settingsOverComposer by mutableStateOf(false)
     // The Diagnostics screen (Settings → Diagnostics), swapped in over Settings. Both flags stay
     // true while it shows, so its branch is checked first and its Back returns to Settings.
     internal var showingDiagnostics by mutableStateOf(false)

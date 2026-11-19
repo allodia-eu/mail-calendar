@@ -10,12 +10,18 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasProgressBarRangeInfo
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -73,9 +79,10 @@ internal fun replyDraft(
 private val DRAFTED = ReplyDraftState.Drafted(
     summary = "Asks whether Thursday still works.",
     checklist = listOf(
-        ReplyDraftItem(0u, ReplyDraftTaskKind.FILL_IN, "[delivery date]", false, HELD),
+        ReplyDraftItem(0u, ReplyDraftTaskKind.FILL_IN, "[delivery date]", false, null),
         ReplyDraftItem(1u, ReplyDraftTaskKind.ATTACH, "Attach the quote", false, FREE),
         ReplyDraftItem(2u, ReplyDraftTaskKind.DO, "Book the room", true, FREE),
+        ReplyDraftItem(3u, ReplyDraftTaskKind.FILL_IN, "[name]", true, null),
     ),
 )
 
@@ -91,17 +98,13 @@ class ComposerReplyDraftTest {
     private var record by mutableStateOf<ComposerReplyDraft?>(replyDraft())
     private var version by mutableStateOf(0)
     private var submitted = 0
-    private var left = 0
 
     private val ui
         get() = ComposerReplyDraftUi(
             read = { _, _ -> record },
             report = { _, message -> reports += message },
             onChange = { sent += it },
-            onRemedy = { remedy, leave ->
-                remedies += remedy
-                leave()
-            },
+            onRemedy = { remedies += it },
             version = version,
             language = "en",
         )
@@ -112,8 +115,8 @@ class ComposerReplyDraftTest {
                 val host = rememberReplyDraft(ui, COMPOSITION, from = "acct-1", editor = null)
                 if (host != null) {
                     Column {
-                        ComposerReplyDraftNotes(host) { left++ }
-                        ComposerReplyDraftDialogs(host, { left++ }) { submitted++ }
+                        ComposerReplyDraftNotes(host)
+                        ComposerReplyDraftDialogs(host) { submitted++ }
                         Button(onClick = { host.send { submitted++ } }) {
                             Text("send")
                         }
@@ -189,7 +192,10 @@ class ComposerReplyDraftTest {
         compose.onNodeWithTag(REPLY_DRAFT_LINE_TAG).assertDoesNotExist()
         compose.onNodeWithTag(REPLY_DRAFT_REMEDY_TAG).performClick()
         assertEquals(listOf(AiRemedy.CHOOSE_STYLE), remedies)
-        assertEquals("the place opens behind the composer, which closes", 1, left)
+        // The input closes, the client's own; the composer stays as it is (docs/ai.md rule 27).
+        compose.onNodeWithText(L10n.ai_failure_no_style_for_account(ctx())).assertDoesNotExist()
+        compose.onNodeWithTag(REPLY_DRAFT_CONTROL_TAG).assertIsDisplayed()
+        assertEquals(emptyList<ReplyDraftIntent>(), sent)
     }
 
     @Test
@@ -199,6 +205,7 @@ class ComposerReplyDraftTest {
         compose.onNodeWithTag("$REPLY_DRAFT_CONTROL_TAG-running").assertExists()
         compose.onNodeWithTag(REPLY_DRAFT_CONTROL_TAG).assertIsNotEnabled()
         compose.onNodeWithTag(REPLY_DRAFT_DRAFTING_TAG).assertIsDisplayed()
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(1)
         compose.onNodeWithTag(REPLY_DRAFT_STOP_TAG).performClick()
         assertEquals(listOf<ReplyDraftIntent>(ReplyDraftIntent.Stop(COMPOSITION)), sent)
     }
@@ -209,7 +216,14 @@ class ComposerReplyDraftTest {
         show()
         compose.onNodeWithText("Asks whether Thursday still works.").assertIsDisplayed()
         compose.onNodeWithText(L10n.composer_task_fill_in(ctx(), "[delivery date]")).assertIsDisplayed()
-        compose.onNodeWithTag(replyDraftItemTag(0u)).assertIsOff().assertIsNotEnabled()
+        // A gap follows the reply: its state is read, with no action and no checkbox to hold.
+        for ((index, done) in listOf(0u to false, 3u to true)) {
+            val gap = compose.onNodeWithTag(replyDraftItemTag(index))
+            if (done) gap.assertIsOn() else gap.assertIsOff()
+            gap.assert(SemanticsMatcher.keyNotDefined(SemanticsActions.OnClick))
+            gap.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled))
+            gap.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.Role))
+        }
         compose.onNodeWithTag(replyDraftItemTag(2u)).assertIsOn()
 
         compose.onNodeWithTag(replyDraftItemTag(1u)).performClick()
@@ -283,7 +297,7 @@ class ComposerReplyDraftTest {
         val asked = mutableListOf<String?>()
         var from by mutableStateOf<String?>("acct-1")
         compose.setContent {
-            val reading = ComposerReplyDraftUi({ _, f -> asked += f; replyDraft() }, { _, _ -> }, {}, { _, _ -> }, 0, "en")
+            val reading = ComposerReplyDraftUi({ _, f -> asked += f; replyDraft() }, { _, _ -> }, {}, {}, 0, "en")
             rememberReplyDraft(reading, COMPOSITION, from, null)
         }
         compose.waitForIdle()

@@ -61,8 +61,9 @@ internal fun learnRangeTag(range: StyleLearnRange) = when (range) {
 
 /**
  * The host's controls for a stage, each from the record: Back, the one primary the stage has
- * (Next, Learn, Stop or the failure's remedy) and Close. [onRemedy] is told the remedy when it is
- * one the client opens rather than one the core moves the flow by.
+ * (Next, Learn, Stop or the failure's remedy) and Close. A remedy is sent to the flow whichever it
+ * is, never with a Close; [onRemedy] is then told one that leads outside the flow, to open it
+ * (docs/ai.md rules 11 and 27).
  */
 internal fun learningChrome(
     ctx: Context,
@@ -81,11 +82,8 @@ internal fun learningChrome(
         ?: learning.stop?.let { FlowAction(L10n.learn_stop(ctx), it, { send(StyleLearningIntent.Stop) }, outlined = true) }
         ?: remedy?.let { offered ->
             FlowAction(aiRemedyText(ctx, offered.remedy), offered.control, {
-                if (remedyAction(offered.remedy) == RemedyAction.MOVE_FLOW) {
-                    send(StyleLearningIntent.Remedy)
-                } else {
-                    onRemedy(offered.remedy)
-                }
+                send(StyleLearningIntent.Remedy)
+                if (remedyAction(offered.remedy) != RemedyAction.MOVE_FLOW) onRemedy(offered.remedy)
             })
         }
     return FlowChrome(
@@ -138,7 +136,7 @@ private fun Supporting(text: String) {
 private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
     val ctx = LocalContext.current
     val locale = catalogLocale(LocalContext.current)
-    val report = when (val review = stage.review) {
+    val report = when (val review = stage.state) {
         StyleLearningReview.Reading -> {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
@@ -160,7 +158,7 @@ private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
         }
     }
     Supporting(sentReachText(ctx, stage.reach, locale))
-    if (stage.review is StyleLearningReview.NothingUsable) {
+    if (stage.state is StyleLearningReview.NothingUsable) {
         Text(L10n.learn_report_nothing(ctx), style = MaterialTheme.typography.bodyLarge)
     }
     stage.sendsTo?.let { destination ->

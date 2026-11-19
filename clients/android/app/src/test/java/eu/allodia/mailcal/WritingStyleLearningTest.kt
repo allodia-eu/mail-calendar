@@ -8,11 +8,13 @@ import androidx.activity.OnBackPressedDispatcher
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -49,7 +51,7 @@ private val REPORT = StyleLearningReport(
 )
 
 private fun review(
-    review: StyleLearningReview = StyleLearningReview.Ready(REPORT),
+    state: StyleLearningReview = StyleLearningReview.Ready(REPORT),
     sendsTo: StyleLearningDestination? = StyleLearningDestination.Relay,
     cannotSend: AiFailure? = null,
     keywordKept: Boolean = true,
@@ -57,7 +59,7 @@ private fun review(
     email = "alice@test.local",
     range = StyleLearnRange.Everything,
     reach = StyleSentReach.Since("2025-03-01"),
-    review = review,
+    state = state,
     sendsTo = sendsTo,
     cannotSend = cannotSend,
     keywordKept = keywordKept,
@@ -139,7 +141,7 @@ class WritingStyleLearningTest {
 
     @Test
     fun the_review_reads_first_and_sends_nothing() {
-        show(learning(review(review = StyleLearningReview.Reading), back = FREE, learn = HELD))
+        show(learning(review(state = StyleLearningReview.Reading), back = FREE, learn = HELD))
         compose.onNodeWithText(L10n.learn_reading(ctx())).assertIsDisplayed()
         compose.onNodeWithTag(FLOW_PRIMARY_TAG).assertIsNotEnabled()
     }
@@ -171,9 +173,13 @@ class WritingStyleLearningTest {
     }
 
     @Test
-    fun nothing_usable_says_so() {
-        show(learning(review(review = StyleLearningReview.NothingUsable(REPORT)), back = FREE, learn = HELD))
+    fun nothing_usable_says_so_and_names_no_destination() {
+        val nothing = review(state = StyleLearningReview.NothingUsable(REPORT), sendsTo = null, cannotSend = null)
+        show(learning(nothing, back = FREE, learn = HELD))
         compose.onNodeWithText(L10n.learn_report_nothing(ctx())).assertExists()
+        // Nothing will be sent, so the record names no place and no reason, and neither is drawn.
+        compose.onNodeWithText(L10n.learn_consent_title(ctx())).assertDoesNotExist()
+        compose.onNodeWithText(L10n.ai_failure_nowhere_to_send(ctx())).assertDoesNotExist()
     }
 
     @Test
@@ -195,13 +201,14 @@ class WritingStyleLearningTest {
         compose.onNodeWithText(L10n.ai_failure_nothing_to_learn(ctx())).assertIsDisplayed()
         compose.onNodeWithText(L10n.ai_remedy_choose_range(ctx())).performClick()
         assertEquals(listOf<StyleLearningIntent>(StyleLearningIntent.Remedy), intents())
+        assertEquals("a step of the flow opens nothing else", 0, endpointsOpened + signIns.size)
     }
 
     @Test
-    fun a_remedy_the_client_opens_is_opened_rather_than_sent() {
+    fun a_remedy_that_leads_elsewhere_goes_to_the_flow_alone_and_then_opens_there() {
         show(learning(StyleLearningStage.Failed(AiFailure.EndpointKeyRefused, offered(AiRemedy.OPEN_AI_ENDPOINT)), back = FREE))
         compose.onNodeWithText(L10n.ai_remedy_open_endpoint(ctx())).performClick()
-        assertEquals("the host closes so the form is in view", listOf<StyleLearningIntent>(StyleLearningIntent.Close), intents())
+        assertEquals("the flow ends on the remedy, never a Close", listOf<StyleLearningIntent>(StyleLearningIntent.Remedy), intents())
         assertEquals(1, endpointsOpened)
 
         sent.clear()
@@ -209,7 +216,7 @@ class WritingStyleLearningTest {
         compose.waitForIdle()
         compose.onNodeWithText(L10n.ai_remedy_sign_in(ctx())).performClick()
         assertEquals(1, signIns.size)
-        assertEquals(emptyList<StyleLearningIntent>(), intents())
+        assertEquals("the flow waits on its review", listOf<StyleLearningIntent>(StyleLearningIntent.Remedy), intents())
     }
 
     @Test
@@ -290,8 +297,13 @@ class WritingStyleLearningTest {
         }
         compose.waitForIdle()
         compose.onNodeWithText(L10n.reveal_title(ctx())).assertIsDisplayed()
+        compose.onAllNodesWithTag(FLOW_CLOSE_TAG).assertCountEquals(1)
         compose.onNodeWithTag(FLOW_CLOSE_TAG).performClick()
-        assertEquals("closing the learned reveal is the flow's Close", listOf<StyleLearningIntent>(StyleLearningIntent.Close), intents())
+        assertEquals(
+            "one Close over a reveal, the reveal's own, after learning as from a row",
+            listOf<WritingStyleIntent>(WritingStyleIntent.CloseReveal("style-1")),
+            sent,
+        )
     }
 
     @Test

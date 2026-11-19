@@ -22,6 +22,7 @@ import uniffi.mailcal_bindings.StyleLearningReport
 import uniffi.mailcal_bindings.StyleSentReach
 import uniffi.mailcal_bindings.WritingStyleFacts
 import uniffi.mailcal_bindings.WritingStyleFrequency
+import uniffi.mailcal_bindings.WritingStyleLetter
 import uniffi.mailcal_bindings.WritingStyleRefusal
 import uniffi.mailcal_bindings.WritingStyleRevealPage
 import uniffi.mailcal_bindings.WritingStyleTopic
@@ -30,9 +31,10 @@ import uniffi.mailcal_bindings.WritingStyleTopic
 internal fun aiFailureText(ctx: Context, failure: AiFailure): String = when (failure) {
     AiFailure.RelaySignIn -> L10n.ai_failure_relay_sign_in(ctx)
     AiFailure.EndpointKeyRefused -> L10n.ai_failure_key_refused(ctx)
-    is AiFailure.Refused -> when (refusalLimit(failure.refusal)) {
-        JurisdictionLimit.EU_HOSTED -> L10n.ai_failure_refused_eu_hosted(ctx)
-        JurisdictionLimit.EU_NATIVE -> L10n.ai_failure_refused_eu_native(ctx)
+    is AiFailure.Refused -> when {
+        failure.refusal is JurisdictionRefusal.Unknown -> L10n.ai_failure_refused_undeclared(ctx)
+        refusalLimit(failure.refusal) == JurisdictionLimit.EU_HOSTED -> L10n.ai_failure_refused_eu_hosted(ctx)
+        else -> L10n.ai_failure_refused_eu_native(ctx)
     }
     AiFailure.NowhereToSend -> L10n.ai_failure_nowhere_to_send(ctx)
     AiFailure.Unreachable -> L10n.ai_failure_unreachable(ctx)
@@ -247,3 +249,22 @@ internal fun catalogLocale(ctx: Context): Locale = when (val language = appLangu
 /** The language the app is read in, as the ISO 639-1 code `Learn` carries. */
 internal fun appLanguage(ctx: Context): String =
     ctx.resources.configuration.locales[0].language.takeIf { it in L10n.LOCALES } ?: L10n.LOCALES.first()
+
+/**
+ * The miniature letter as one sentence for TalkBack (docs/ai.md rule 15): opening, length,
+ * paragraphs, closing and name, each left out when it is empty or zero. A greeting or a sign-off is
+ * its runs' text as written, a placeholder as its word; the paragraphs are the record's count,
+ * never the lines drawn.
+ */
+internal fun letterSpoken(ctx: Context, letter: WritingStyleLetter): String {
+    val opening = letter.opening.joinToString("") { it.text }.trim()
+    val closing = letter.closing.joinToString("") { it.text }.trim()
+    val name = letter.signsAs.trim()
+    return listOfNotNull(
+        opening.takeIf { it.isNotEmpty() }?.let { L10n.a11y_letter_opening(ctx, it) },
+        letter.words.takeIf { it > 0u }?.let { L10n.a11y_letter_words(ctx, it.toInt()) },
+        letter.paragraphCount.takeIf { it > 0u }?.let { L10n.a11y_letter_paragraphs(ctx, it.toInt()) },
+        closing.takeIf { it.isNotEmpty() }?.let { L10n.a11y_letter_closing(ctx, it) },
+        name.takeIf { it.isNotEmpty() }?.let { L10n.a11y_letter_name(ctx, it) },
+    ).joinToString(", ")
+}

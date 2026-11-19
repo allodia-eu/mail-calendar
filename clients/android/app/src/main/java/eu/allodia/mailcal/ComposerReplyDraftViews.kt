@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +33,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AiFailure
@@ -53,7 +57,7 @@ internal fun replyDraftItemText(ctx: Context, item: ReplyDraftItem): String = wh
 }
 
 @Composable
-internal fun ComposerReplyDraftNotes(host: ReplyDraftHost, leave: () -> Unit) {
+internal fun ComposerReplyDraftNotes(host: ReplyDraftHost) {
     val ctx = LocalContext.current
     val record = host.record
     val reduced = rememberReducedMotion()
@@ -96,7 +100,7 @@ internal fun ComposerReplyDraftNotes(host: ReplyDraftHost, leave: () -> Unit) {
                     )
                     state.remedy?.let { offered ->
                         ControlTextButton(aiRemedyText(ctx, offered.remedy), offered.control, REPLY_DRAFT_REMEDY_TAG) {
-                            host.remedy(offered.remedy, leave)
+                            host.remedy(offered.remedy)
                         }
                     }
                 }
@@ -119,13 +123,13 @@ private fun NoteSurface(colour: Color, content: @Composable RowScope.() -> Unit)
 @Composable
 private fun DraftingLine(host: ReplyDraftHost) {
     val ctx = LocalContext.current
+    // No spinner of its own: Draft a reply above runs while the draft is made, and one is enough.
     NoteSurface(MaterialTheme.colorScheme.secondaryContainer) {
-        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
         Text(
             L10n.composer_drafting(ctx),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.weight(1f).padding(start = 12.dp).testTag(REPLY_DRAFT_DRAFTING_TAG),
+            modifier = Modifier.weight(1f).testTag(REPLY_DRAFT_DRAFTING_TAG),
         )
         ControlTextButton(L10n.composer_draft_stop(ctx), host.record.stop, REPLY_DRAFT_STOP_TAG) { host.stop() }
     }
@@ -149,30 +153,61 @@ private fun DraftCard(host: ReplyDraftHost, drafted: ReplyDraftState.Drafted) {
             if (drafted.checklist.isNotEmpty()) {
                 CardHeading(L10n.composer_checklist_heading(ctx), R.drawable.ic_task_alt)
                 drafted.checklist.forEach { item ->
-                    ControlCheckRow(
-                        checked = item.done,
-                        control = item.tick,
-                        tag = replyDraftItemTag(item.index),
-                        content = {
-                            Icon(
-                                painterResource(kindIcon(item.kind)),
-                                contentDescription = null,
-                                tint = colours.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text(
-                                replyDraftItemText(ctx, item),
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    textDecoration = if (item.done) TextDecoration.LineThrough else null,
-                                ),
-                                color = if (item.done) colours.onSurfaceVariant else colours.onSurface,
-                                modifier = Modifier.padding(start = 8.dp),
-                            )
-                        },
-                    ) { done -> host.tick(item.index, done) }
+                    val content: @Composable RowScope.() -> Unit = {
+                        Icon(
+                            painterResource(kindIcon(item.kind)),
+                            contentDescription = null,
+                            tint = colours.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Text(
+                            replyDraftItemText(ctx, item),
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                textDecoration = if (item.done) TextDecoration.LineThrough else null,
+                            ),
+                            color = if (item.done) colours.onSurfaceVariant else colours.onSurface,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                    val tick = item.tick
+                    if (tick == null) {
+                        GapRow(item.done, replyDraftItemTag(item.index), content)
+                    } else {
+                        ControlCheckRow(item.done, tick, replyDraftItemTag(item.index), content) { done ->
+                            host.tick(item.index, done)
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+// A gap, which the reply fills rather than a tick (docs/ai.md rule 23): a mark beside the text that
+// cannot be pressed, never a checkbox held, which would read as unavailable. TalkBack reads its
+// state and offers no action.
+@Composable
+private fun GapRow(done: Boolean, tag: String, content: @Composable RowScope.() -> Unit) {
+    val colours = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics(mergeDescendants = true) {
+                toggleableState = if (done) ToggleableState.On else ToggleableState.Off
+            }
+            .padding(vertical = 2.dp)
+            .heightIn(min = 48.dp)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(if (done) R.drawable.ic_check_circle else R.drawable.ic_radio_button_unchecked),
+            contentDescription = null,
+            tint = if (done) colours.primary else colours.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp).size(22.dp),
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        content()
     }
 }
 

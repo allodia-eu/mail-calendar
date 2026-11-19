@@ -87,6 +87,18 @@ internal fun WritingStyleCategory(ui: WritingStyleUi, onOpenEndpoint: () -> Unit
             RemedyAction.MOVE_FLOW, RemedyAction.LEARN, RemedyAction.CHOOSE_STYLE -> ui.learn(StyleLearningIntent.Open)
         }
     }
+    // A run that failed with its host closed: the flow takes its remedy first, as it does in the host
+    // (docs/ai.md rule 11), opening on the step a remedy that is one names; one that leads elsewhere
+    // is then opened there.
+    val runRemedy = { chosen: AiRemedy ->
+        if (chosen == AiRemedy.CHOOSE_ACCOUNT || chosen == AiRemedy.CHOOSE_RANGE) ui.learn(StyleLearningIntent.Open)
+        ui.learn(StyleLearningIntent.Remedy)
+        when (remedyAction(chosen)) {
+            RemedyAction.SIGN_IN -> ui.onSignIn()
+            RemedyAction.OPEN_ENDPOINT -> onOpenEndpoint()
+            RemedyAction.MOVE_FLOW, RemedyAction.LEARN, RemedyAction.CHOOSE_STYLE -> Unit
+        }
+    }
 
     if (page.styles.isEmpty() && page.run == null) {
         EmptyLibrary(page, ui, remedy)
@@ -97,7 +109,7 @@ internal fun WritingStyleCategory(ui: WritingStyleUi, onOpenEndpoint: () -> Unit
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(modifier = Modifier.height(16.dp))
-        LearnArea(page, ui, remedy)
+        LearnArea(page, ui, remedy, runRemedy)
         Spacer(modifier = Modifier.height(16.dp))
         SettingsGroupCard(L10n.writing_style_library_heading(ctx), null) {
             StyleLibrary(page, ui) { entry ->
@@ -171,7 +183,12 @@ private fun EmptyLibrary(page: WritingStylePage, ui: WritingStyleUi, remedy: (Ai
 // Learn, with why it cannot be pressed and its one remedy; or, while a run goes, the run in its
 // place with Stop; or a run that failed after its host was closed, above Learn, which reopens it.
 @Composable
-private fun LearnArea(page: WritingStylePage, ui: WritingStyleUi, remedy: (AiRemedy) -> Unit) {
+private fun LearnArea(
+    page: WritingStylePage,
+    ui: WritingStyleUi,
+    remedy: (AiRemedy) -> Unit,
+    runRemedy: (AiRemedy) -> Unit,
+) {
     val ctx = LocalContext.current
     when (val run = page.run) {
         is WritingStyleRun.Learning -> {
@@ -183,6 +200,11 @@ private fun LearnArea(page: WritingStylePage, ui: WritingStyleUi, remedy: (AiRem
                     Text(
                         learnProgressText(ctx, run.done, run.total),
                         style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Text(
+                        L10n.learn_progress_account(ctx, run.email),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                     )
                     val fraction = learnProgressFraction(run.done, run.total)
@@ -200,7 +222,7 @@ private fun LearnArea(page: WritingStylePage, ui: WritingStyleUi, remedy: (AiRem
         }
         is WritingStyleRun.Failed -> {
             FailureLine(L10n.writing_style_run_failed(ctx) + " " + aiFailureText(ctx, run.failure))
-            run.remedy?.let { RemedyButton(it, remedy) }
+            run.remedy?.let { RemedyButton(it, runRemedy) }
         }
         null -> Unit
     }

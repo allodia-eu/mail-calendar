@@ -108,6 +108,7 @@ internal fun styleLanguage(code: String, full: Boolean = true) = WritingStyleLan
         closing = listOf(span("Best,")),
         signsAs = "Alice",
         words = 80u,
+        paragraphCount = 3u,
         shape = "Two short paragraphs.",
     ).takeIf { full },
     habits = WritingStyleHabits(

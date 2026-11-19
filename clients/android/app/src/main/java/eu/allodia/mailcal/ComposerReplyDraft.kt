@@ -24,9 +24,8 @@ internal class ComposerReplyDraftUi(
     // `composerReplyDraftReport`, handed every message the editor posts.
     val report: (composition: String, message: String) -> Unit,
     val onChange: (ReplyDraftIntent) -> Unit,
-    // A remedy the client opens; [leave] closes the composer, keeping the draft, when the place it
-    // opens is behind it.
-    val onRemedy: (remedy: AiRemedy, leave: () -> Unit) -> Unit,
+    // A remedy the client opens. The composer stays open under it (docs/ai.md rule 27).
+    val onRemedy: (remedy: AiRemedy) -> Unit,
     // Grows with each REPLY_DRAFT and WRITING_STYLE signal, so the record is read again.
     val version: Int,
     // The catalog locale the app is shown in, which the summary and the checklist are written in.
@@ -89,9 +88,17 @@ internal class ReplyDraftHost(
         if (sendAnyway) submit()
     }
 
-    /** A remedy: Try again opens the input again; the others are the client's to open. */
-    fun remedy(remedy: AiRemedy, leave: () -> Unit) {
-        if (remedy == AiRemedy.TRY_AGAIN) open() else ui.onRemedy(remedy, leave)
+    /**
+     * A remedy: Try again opens the input again; any other closes the input, the client's own, and
+     * opens what it names over the composer, which stays as it is.
+     */
+    fun remedy(remedy: AiRemedy) {
+        if (remedy == AiRemedy.TRY_AGAIN) {
+            open()
+        } else {
+            sheetOpen = false
+            ui.onRemedy(remedy)
+        }
     }
 
     /** The script for the editor, once per serial: null when there is none new. */

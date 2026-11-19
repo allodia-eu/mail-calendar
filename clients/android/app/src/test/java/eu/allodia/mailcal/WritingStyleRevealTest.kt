@@ -12,6 +12,7 @@ import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -105,6 +106,10 @@ class WritingStyleRevealTest {
         show()
         next()
         compose.onNodeWithText("Two short paragraphs.").assertExists()
+        // The letter is one element to TalkBack, spoken as one sentence; its runs are not read alone.
+        compose.onNodeWithTag(REVEAL_LETTER_TAG)
+            .assert(hasContentDescription(letterSpoken(ctx(), checkNotNull(styleLanguage("en").letter))))
+        compose.onNodeWithText("Best,").assertDoesNotExist()
         compose.onNodeWithTag(revealLanguageTag("nl")).performClick()
         compose.waitForIdle()
         compose.onNodeWithText(L10n.reveal_nothing_in_language(ctx())).assertIsDisplayed()

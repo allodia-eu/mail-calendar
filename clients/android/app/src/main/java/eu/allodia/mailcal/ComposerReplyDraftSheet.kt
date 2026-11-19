@@ -57,9 +57,9 @@ internal fun replyDraftSuggestionText(ctx: Context, suggestion: ReplyDraftSugges
     }
 
 @Composable
-internal fun ComposerReplyDraftDialogs(host: ReplyDraftHost, leave: () -> Unit, submit: () -> Unit) {
+internal fun ComposerReplyDraftDialogs(host: ReplyDraftHost, submit: () -> Unit) {
     val ctx = LocalContext.current
-    if (host.sheetOpen) InstructionSheet(host, leave)
+    if (host.sheetOpen) InstructionSheet(host)
     if (host.askingReplace) {
         ReplaceQuestion(REPLY_DRAFT_REPLACE_TAG, host::answerReplace)
     } else if (host.record.replaceArrived) {
@@ -111,7 +111,7 @@ private fun ReplaceQuestion(tag: String, onAnswer: (Boolean) -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun InstructionSheet(host: ReplyDraftHost, leave: () -> Unit) {
+private fun InstructionSheet(host: ReplyDraftHost) {
     val ctx = LocalContext.current
     val record = host.record
     val sheet = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -132,7 +132,7 @@ private fun InstructionSheet(host: ReplyDraftHost, leave: () -> Unit) {
                 held.remedy?.let { offered ->
                     ControlButton(aiRemedyText(ctx, offered.remedy), offered.control, REPLY_DRAFT_REMEDY_TAG) {
                         host.sheetOpen = false
-                        host.remedy(offered.remedy, leave)
+                        host.remedy(offered.remedy)
                     }
                 }
                 return@Column

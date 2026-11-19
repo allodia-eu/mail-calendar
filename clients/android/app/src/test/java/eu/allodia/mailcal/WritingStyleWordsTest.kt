@@ -13,6 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import uniffi.mailcal_bindings.AiEndpointDeclarationGap
 import uniffi.mailcal_bindings.AiFailure
 import uniffi.mailcal_bindings.AiRemedy
 import uniffi.mailcal_bindings.JurisdictionLimit
@@ -36,6 +37,32 @@ class WritingStyleWordsTest {
         assertEquals(
             L10n.ai_failure_refused_eu_native(ctx()),
             aiFailureText(ctx(), AiFailure.Refused(JurisdictionRefusal.EuHosted)),
+        )
+        assertEquals(
+            "an endpoint that does not say where it runs has words of its own",
+            L10n.ai_failure_refused_undeclared(ctx()),
+            aiFailureText(ctx(), AiFailure.Refused(JurisdictionRefusal.Unknown(JurisdictionLimit.EU_NATIVE))),
+        )
+    }
+
+    @Test
+    fun the_letter_is_spoken_as_one_sentence_in_order_leaving_out_what_is_empty() {
+        val letter = checkNotNull(styleLanguage("en").letter)
+        assertEquals(
+            listOf(
+                L10n.a11y_letter_opening(ctx(), "Hi Name,"),
+                L10n.a11y_letter_words(ctx(), 80),
+                L10n.a11y_letter_paragraphs(ctx(), 3),
+                L10n.a11y_letter_closing(ctx(), "Best,"),
+                L10n.a11y_letter_name(ctx(), "Alice"),
+            ).joinToString(", "),
+            letterSpoken(ctx(), letter),
+        )
+        val bare = letter.copy(opening = emptyList(), words = 0u, paragraphCount = 0u, signsAs = "")
+        assertEquals(
+            "the paragraphs are the record's count, never the lines drawn",
+            L10n.a11y_letter_closing(ctx(), "Best,"),
+            letterSpoken(ctx(), bare),
         )
     }
 
@@ -85,10 +112,10 @@ class WritingStyleWordsTest {
     }
 
     @Test
-    fun a_refusal_nobody_declared_is_worded_by_its_mode() {
+    fun beside_the_form_a_refusal_nobody_declared_is_worded_by_its_mode() {
         assertEquals(
-            L10n.ai_failure_refused_eu_hosted(ctx()),
-            aiFailureText(ctx(), AiFailure.Refused(JurisdictionRefusal.Unknown(JurisdictionLimit.EU_HOSTED))),
+            L10n.ai_endpoint_gap_refused_eu_hosted(ctx()),
+            endpointDeclarationGapText(ctx(), AiEndpointDeclarationGap.Refused(JurisdictionRefusal.Unknown(JurisdictionLimit.EU_HOSTED))),
         )
     }
 

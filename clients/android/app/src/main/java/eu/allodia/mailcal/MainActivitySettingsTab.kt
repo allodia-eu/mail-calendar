@@ -21,9 +21,10 @@ import uniffi.mailcal_bindings.standardPort
  */
 internal fun MailcalApp.setPreference(intent: PreferenceIntent) = dispatch(Intent.Preferences(intent))
 
-// The unified Settings screen, swapped in over the mailbox.
+// The unified Settings screen, swapped in over the mailbox, or over the composer when [onLeave]
+// says where its Back goes instead.
 @Composable
-internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
+internal fun MainActivity.SettingsTabContent(instance: MailcalApp, onLeave: (() -> Unit)? = null) {
     // All four are pulled in the same step that sets the core, so none is null here.
     val display = displaySettings ?: return
     val quotes = quoteSettings ?: return
@@ -120,7 +121,7 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             // Advanced, reset the local cache.
                             onReset = { instance.reset() },
                             onBack = {
-                                showingSettings = false
+                                if (onLeave != null) onLeave() else showingSettings = false
                                 settingsCategory = null
                                 accountSettings.page = null
                                 accountSettings.notice = null

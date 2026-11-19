@@ -72,14 +72,13 @@ internal fun WritingStyleFlow(
         }
     }
 
+    // The flow has taken the remedy already: the sign-in waits on its review, the endpoint's form
+    // follows a flow it ended.
     val remedy = { chosen: AiRemedy ->
         when (remedyAction(chosen)) {
             RemedyAction.SIGN_IN -> ui.onSignIn()
-            RemedyAction.OPEN_ENDPOINT -> {
-                ui.learn(StyleLearningIntent.Close)
-                onOpenEndpoint()
-            }
-            RemedyAction.MOVE_FLOW, RemedyAction.LEARN, RemedyAction.CHOOSE_STYLE -> ui.learn(StyleLearningIntent.Remedy)
+            RemedyAction.OPEN_ENDPOINT -> onOpenEndpoint()
+            RemedyAction.MOVE_FLOW, RemedyAction.LEARN, RemedyAction.CHOOSE_STYLE -> Unit
         }
     }
     val chrome = if (reveal != null) {
@@ -91,13 +90,11 @@ internal fun WritingStyleFlow(
             nameRefusal = ui.nameRefusal,
             onPage = { target -> scope.launch { pager.animateScrollToPage(target) } },
             onSave = { ui.onChange(WritingStyleIntent.SaveReveal(revealId, fields.name, fields.notes)) },
+            // One Close over a reveal, the reveal's own, whether learning led to it or a row opened
+            // it (docs/ai.md rule 15).
             onClose = {
-                if (fromRow) {
-                    ui.onChange(WritingStyleIntent.CloseReveal(revealId))
-                    onRevealLeft()
-                } else {
-                    ui.learn(StyleLearningIntent.Close)
-                }
+                ui.onChange(WritingStyleIntent.CloseReveal(revealId))
+                if (fromRow) onRevealLeft()
             },
         )
     } else {

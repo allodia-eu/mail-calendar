@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
@@ -51,6 +52,8 @@ import uniffi.mailcal_bindings.WritingStyleHabit
 import uniffi.mailcal_bindings.WritingStyleHabits
 import uniffi.mailcal_bindings.WritingStyleLetter
 import uniffi.mailcal_bindings.WritingStyleSpan
+
+internal const val REVEAL_LETTER_TAG = "reveal-letter"
 
 private val NUMERAL = TextStyle(fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
 
@@ -194,8 +197,10 @@ private fun Letter(letter: WritingStyleLetter, shown: Boolean) {
     val starts = letter.paragraphs.runningFold(0) { total, paragraph -> total + paragraph.lines.size }
     val serif = MaterialTheme.typography.bodyLarge.copy(fontFamily = FontFamily.Serif)
     val ink = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+    // One element to TalkBack, spoken as one sentence, with nothing inside it read on its own.
+    val spoken = letterSpoken(LocalContext.current, letter)
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag(REVEAL_LETTER_TAG).clearAndSetSemantics { contentDescription = spoken },
         colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp, bottom = 18.dp)) {

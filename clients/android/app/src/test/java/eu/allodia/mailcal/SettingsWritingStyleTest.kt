@@ -118,10 +118,11 @@ class SettingsWritingStyleTest {
 
     @Test
     fun a_run_is_drawn_in_learn_s_place_with_stop() {
-        page = stylePage().copy(run = WritingStyleRun.Learning(1u, 4u, FREE))
+        page = stylePage().copy(run = WritingStyleRun.Learning("alice@test.local", 1u, 4u, FREE))
         show()
         compose.onNodeWithTag(WRITING_STYLE_LEARN_TAG).assertDoesNotExist()
         compose.onNodeWithText(L10n.learn_progress(ctx(), "1", "4")).assertIsDisplayed()
+        compose.onNodeWithText(L10n.learn_progress_account(ctx(), "alice@test.local")).assertIsDisplayed()
         compose.onNodeWithTag(WRITING_STYLE_STOP_TAG).performClick()
         assertEquals(listOf<StyleLearningIntent>(StyleLearningIntent.Stop), learningSent(sent))
     }
@@ -133,6 +134,11 @@ class SettingsWritingStyleTest {
         compose.onNodeWithText(L10n.writing_style_run_failed(ctx()), substring = true).assertIsDisplayed()
         compose.onNodeWithTag(WRITING_STYLE_LEARN_TAG).performClick()
         assertEquals(listOf<StyleLearningIntent>(StyleLearningIntent.Open), learningSent(sent))
+
+        // Its remedy goes to the flow, as it would in the host.
+        sent.clear()
+        compose.onNodeWithTag(WRITING_STYLE_REMEDY_TAG).performClick()
+        assertEquals(listOf<StyleLearningIntent>(StyleLearningIntent.Remedy), learningSent(sent))
     }
 
     @Test
