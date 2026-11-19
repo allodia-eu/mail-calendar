@@ -127,6 +127,11 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             },
                             initialCategory = settingsCategory,
                             accountsUi = accountsSettingsUi(),
+                            // Writing style and the own endpoint, each the core's record
+                            // (MainActivityWritingStyle.kt); a change returns at once and its
+                            // signal redraws them.
+                            writingStyle = writingStyleUi(instance),
+                            aiEndpoint = aiEndpointUi(instance),
                         )
 }
 

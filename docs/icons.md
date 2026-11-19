@@ -240,6 +240,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Reading | `envelope.open` | `ic_mail` | — | `mailcal-mail-read-symbolic` (`mail-read`) |
 | Composing | `square.and.pencil` | `ic_edit` | — | `document-edit-symbolic` |
 | Signatures | `signature` | `ic_signature` | — | `mailcal-signature-symbolic` (`signature`) |
+| Writing style | — | `ic_stylus_note` | — | — |
 | Notifications | `bell` | `ic_notifications` | — | `mailcal-bell-symbolic` (`bell`) |
 | Privacy | `hand.raised` | `ic_lock` | — | `channel-secure-symbolic` |
 | Accounts | `tray.2` | `ic_inbox` | — | `mailcal-inbox-symbolic` |
@@ -259,6 +260,10 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Delete a signature, or remove an account | `trash` | `ic_delete` | — | — |
 | Insert an image into a signature | `photo` | `ic_image` | — | — |
 | Save / cancel the signature editor | — | `ic_check` / `ic_close` | — | — |
+| The reveal's card on tone | — | `ic_tune` | — | — |
+| The reveal's card on how a reply is built | — | `ic_reply` | — | — |
+| The reveal's card on declining, chasing and apologising | — | `ic_forum` | — | — |
+| The reveal's card on punctuation | — | `ic_text_fields` | — | — |
 | Explain an account's sync technology | `info.circle` | `ic_info` | `E946` Info | `help-about-symbolic` |
 | Jump to the end of the log | `arrow.down.to.line` | — | — | — |
 | The analytics preview, open / closed | `chevron.down` / `chevron.right` | — | — | — |

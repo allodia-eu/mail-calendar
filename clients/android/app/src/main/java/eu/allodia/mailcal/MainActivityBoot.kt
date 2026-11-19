@@ -10,7 +10,7 @@ import android.net.Uri
 import android.os.Build
 import androidx.activity.enableEdgeToEdge
 import uniffi.mailcal_bindings.MailtoPrefill
-import uniffi.mailcal_bindings.isAllodiaAccountConfig
+import uniffi.mailcal_bindings.isReservedConfig
 import uniffi.mailcal_bindings.parseMailtoUri
 
 // What onCreate needs after `setContent`, to make the initial connect call: the resolved account
@@ -114,11 +114,10 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
         // The showcase seeds its own two accounts, so it never shows the setup form, unless the
         // screenshot being taken is *of* that form.
         //
-        // "No MAIL account" rather than "nothing stored": the Allodia grant shares this store
-        // under a reserved id, so somebody who signs in on the first-run screen and quits before
-        // adding a mailbox would otherwise be met at the next launch by an empty inbox and no way
-        // back to setup. The core routes that entry out before anything reads it as a mailbox;
-        // this asks it the same question.
+        // "No MAIL account" rather than "nothing stored": the Allodia grant and the own AI
+        // endpoint's key share this store under reserved ids, so somebody who signs in on the
+        // first-run screen and quits before adding a mailbox would otherwise be met at the next
+        // launch by an empty inbox and no way back to setup (needsMailSetup).
         // The add-account capture is the one showcase run that DOES want the setup form, and wants
         // it as the required first one: the offer above the address field is made once and never
         // again to somebody who already has an account (docs/onboarding.md), and `firstRun` on that
@@ -126,7 +125,7 @@ internal fun MainActivity.prepareBoot(): MainActivityBootPlan {
         // accounts and shows no form at all.
         needsSetup = when {
             showcase -> ShowcaseMode.screen(this) == ShowcaseScreen.ADD_ACCOUNT
-            else -> configs.all { isAllodiaAccountConfig(it) }
+            else -> needsMailSetup(configs)
         }
         if (showcase) {
             // The periodic worker builds its own headless core over the *stored* accounts, so it
@@ -289,3 +288,11 @@ internal fun MainActivity.completeOAuthRedirect(data: Uri) {
         null -> Unit
     }
 }
+
+/**
+ * Whether the store holds no mail account: every entry in it, if any, is one of the core's own. The
+ * core routes those out before anything reads them as a mailbox, and this asks it the same
+ * question, passed in so the JVM suite, which never loads the cdylib, can reach it.
+ */
+internal fun needsMailSetup(configs: List<String>, isReserved: (String) -> Boolean = ::isReservedConfig): Boolean =
+    configs.all(isReserved)
