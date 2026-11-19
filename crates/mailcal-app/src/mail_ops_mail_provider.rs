@@ -215,8 +215,8 @@ impl Provider for ThreadProvider {
         ))
     }
 
-    /// Stores a draft, answering with a key that **moves on every save**, which is what
-    /// three of the four real adapters do: a caller that never passes `replacing` therefore
+    /// Stores a draft, answering with a key that **moves on every save**, which is what the
+    /// IMAP and JMAP adapters do: a caller that never passes `replacing` therefore
     /// leaves a second copy here too, rather than passing quietly.
     async fn put_draft(
         &self,

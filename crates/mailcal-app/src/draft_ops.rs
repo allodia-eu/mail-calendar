@@ -2,8 +2,9 @@
 //! per-composition record that joins the two.
 //!
 //! The rules are in `docs/drafts.md`; two of them decide almost everything here. The stored
-//! copy is named by the **key the provider answered with**, because three of the four adapters
-//! move it on a re-save and the fourth moves the `Message-ID` instead. And the save is the one
+//! copy is named by the **key the provider answered with**, because the IMAP and JMAP adapters
+//! move it on every re-save, Graph's when it writes the draft anew, and Gmail's moves the
+//! `Message-ID` instead. And the save is the one
 //! mail write this app repeats on purpose, which is why every save of one composition carries
 //! the same `Message-ID`: that is what the engine keys the queued op's resource on, so a fresh
 //! one per save would leave each save queued *beside* the last rather than superseding it.

@@ -96,9 +96,9 @@ pub struct AiEndpointEdit {
     pub model: String,
     /// Where the person declared it runs.
     pub declared: Option<Class>,
-    /// The key as typed, which replaces the one kept; empty keeps none. `None` leaves the kept
-    /// key as it is, so an edit of the rest never asks for it again.
-    pub key: Option<String>,
+    /// The key as typed, which replaces the one kept. Empty leaves the kept key as it is and
+    /// writes nothing to the keystore (`docs/ai.md` rule 7).
+    pub key: String,
 }
 
 /// The address and the key are the person's configuration, and never printed.
@@ -106,7 +106,7 @@ impl fmt::Debug for AiEndpointEdit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("AiEndpointEdit")
             .field("declared", &self.declared)
-            .field("key", &self.key.as_ref().map(|key| !key.trim().is_empty()))
+            .field("key", &!self.key.trim().is_empty())
             .finish_non_exhaustive()
     }
 }
@@ -198,10 +198,10 @@ pub struct AiEndpointView {
     /// The fields: from the edit being saved, then from an edit a save refused, otherwise from
     /// what is stored.
     pub fields: AiEndpointFields,
-    /// Whether an endpoint is stored, which is when Remove is offered.
+    /// Whether an endpoint is stored.
     pub stored: bool,
-    /// What a save of the fields drawn would refuse.
-    pub gaps: AiEndpointGaps,
+    /// Whether Remove is offered: an endpoint or a key is stored, or a removal runs or waits.
+    pub removable: bool,
     /// The change running, then any waiting behind it.
     pub work: Vec<AiEndpointChangeKind>,
     /// What the last change came to, until the next starts.
@@ -268,18 +268,20 @@ impl<P: Provider> App<P> {
                 key_kept,
             },
         };
-        let gaps = self.ai_endpoint_gap(&fields.address, &fields.model, fields.declared);
+        let queued: Vec<_> = work
+            .running
+            .iter()
+            .chain(&work.waiting)
+            .map(AiEndpointChange::kind)
+            .collect();
         AiEndpointView {
             offered: self.ai_offer(),
+            removable: stored.is_some()
+                || fields.key_kept
+                || queued.contains(&AiEndpointChangeKind::Remove),
             fields,
             stored: stored.is_some(),
-            gaps,
-            work: work
-                .running
-                .iter()
-                .chain(&work.waiting)
-                .map(AiEndpointChange::kind)
-                .collect(),
+            work: queued,
             outcome: work.outcome,
         }
     }
@@ -353,12 +355,10 @@ impl<P: Provider> App<P> {
                             return AiEndpointResult::Refused { gaps };
                         }
                     };
-                if let Some(key) = &edit.key {
-                    let key = Some(key.trim()).filter(|key| !key.is_empty());
-                    if self.write_endpoint_key(key).is_err() {
-                        self.endpoint_work().refused = Some(edit);
-                        return AiEndpointResult::KeyNotStored;
-                    }
+                let key = edit.key.trim();
+                if !key.is_empty() && self.write_endpoint_key(Some(key)).is_err() {
+                    self.endpoint_work().refused = Some(edit);
+                    return AiEndpointResult::KeyNotStored;
                 }
                 self.endpoint_work().refused = None;
                 let stored = AiEndpoint {

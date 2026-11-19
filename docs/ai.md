@@ -95,9 +95,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    it ([`waiting.md`](waiting.md)), an `AiEndpointIntent`, running from the press until the key is
    in the platform keystore (id `ai-endpoint`) and the rest in the preferences. The fields are held
    with it, drawn from the edit being saved, then from an edit a save refused, otherwise from what
-   is stored. A stored key is never drawn back: the field says one is kept.
-   A key the keystore refused is said on the form. **Remove** is the same kind of change and takes
-   the key out. Saving dials nothing; the first request says whether the endpoint answers.
+   is stored. A stored key is never drawn back: the field says one is kept. A key typed replaces
+   it; an empty field leaves it as it is and writes nothing to the keystore, so a key is taken out
+   only by Remove. A key the keystore refused is said on the form. **Remove** is the same kind of
+   change, drawn only while an endpoint or a key is stored, and takes both out. Saving dials
+   nothing; the first request says whether the endpoint answers.
 
 ### Settings → Writing style
 

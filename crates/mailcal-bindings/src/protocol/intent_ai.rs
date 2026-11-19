@@ -24,10 +24,9 @@ pub enum AiEndpointIntent {
         address: String,
         model: String,
         declared: Option<JurisdictionClass>,
-        /// The key as typed, which replaces the kept one; empty keeps none. `None` leaves the kept
-        /// key as it is: what a client sends when the person left the key field empty while the
-        /// form says one is kept.
-        key: Option<String>,
+        /// The key as typed, which replaces the kept one. Empty leaves the kept key as it is and
+        /// writes nothing to the keystore (`docs/ai.md` rule 7).
+        key: String,
     },
     /// Removes the endpoint and its key.
     Remove,

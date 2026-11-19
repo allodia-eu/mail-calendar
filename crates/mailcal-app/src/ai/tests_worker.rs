@@ -196,7 +196,7 @@ fn stopping_work_that_runs_abandons_its_request() {
             address: "https://models.example.eu/v1".to_owned(),
             model: "m".to_owned(),
             declared: Some(Class::EuNative),
-            key: None,
+            key: String::new(),
         }));
     let (started, wait_for_start) = channel::<()>();
     let (stop, wait_for_stop): (_, Receiver<()>) = channel();
