@@ -283,7 +283,7 @@ landing is never a surprise, and a step into today's week or month lands on toda
 | Linux | `clients/linux/src/ui/calendar/model_focus.rs`; the ring in `views.rs` and `side_pane_month.rs` |
 | Android | `CalendarPaging.kt` (the pager settles the focus as it turns); the ring in `CalendarMonth.kt` |
 | Windows | `Calendar/CalendarFocus.cs` (the arrows step it and the strip slides to its seat; a swipe that takes the days off it takes it along); the ring in `MonthGridView.cs` and `CalendarPane.xaml.cs` |
-| Apple | to follow |
+| Apple | `CalendarPager` in `CalendarPaging.swift` (the strip settles the focus as it comes to rest, `CalendarScreenView+Focus.swift`); the ring in `CalendarMonthView.swift` and `CalendarPaneMonth.swift` |
 
 ### "Back to today" appears only when it would move you: *unless it lives in a cluster*
 

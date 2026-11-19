@@ -32,7 +32,7 @@ import Testing
         return HostedScreen(
             CalendarMonthView(
                 page: page, today: first, calendar: calendar, weekStartsMonday: true,
-                use24Hour: true, onOpen: { _ in }
+                use24Hour: true, onOpen: { _ in }, onFocus: { _ in }
             ),
             size: size
         )
@@ -44,7 +44,7 @@ import Testing
 
     /// Where the first cell's day number is drawn.
     private func firstDay(_ screen: HostedScreen) -> CGRect? {
-        screen.elements(role: "AXStaticText") { $0 == "26" }.first?.bounds
+        screen.elements(role: "AXButton") { $0 == "26" }.first?.bounds
     }
 
     @Test func aMonthStillLoadingKeepsItsCellsUnderThePill() throws {

@@ -100,9 +100,9 @@ struct CalendarScreenView: View {
         // The fallback is the shape the core persisted, not a literal: `seed` has not run on the
         // first evaluation, and a hardcoded mode renders one frame in a shape the user did not
         // choose, with `recentre` measuring against it.
-        let pager = pager ?? CalendarPager(
-            origin: model.weekStart(of: today),
-            mode: model.calendarLayout.mode,
+        let pager = pager ?? seatedPager(
+            model.calendarLayout.mode,
+            focus: model.calendarFocus.flatMap { parseISODate($0, calendar: calendar) } ?? today,
             calendar: calendar
         )
         // A grid has no page: its anchor is whichever week the strip's left edge is in, which
@@ -118,15 +118,15 @@ struct CalendarScreenView: View {
             writeStatus: model.calendarWriteStatus,
             canCreateEvent: calendarSupportsNewEvent(currentCalendars(pager: pager, anchor: anchor)),
             onMode: { setMode($0, calendar: calendar) },
-            onBackToToday: { backToToday(today: today, calendar: calendar) },
+            onBackToToday: { backToToday(today: today) },
             onNewEvent: {
                 let def = currentCalendars(pager: pager, anchor: anchor).first { $0.isDefault }.map(\.choice)
                 editor = EventEditorState.create(default: def, zone: TimeZone.current.identifier, now: today)
             },
             onManage: toolbarIsRegular ? nil : { managing = true },
             onRefresh: { model.showCalendar() },
-            onPrevious: { step(-1, mode: pager.mode) },
-            onNext: { step(1, mode: pager.mode) }
+            onPrevious: { step(-1, mode: pager.mode, today: today) },
+            onNext: { step(1, mode: pager.mode, today: today) }
         )
 
         VStack(spacing: 0) {
@@ -135,7 +135,7 @@ struct CalendarScreenView: View {
                 Divider()
             #endif
             content(pager: pager, anchor: anchor, calendar: calendar, today: today)
-                .movesThroughTime { step($0, mode: pager.mode) }
+                .movesThroughTime { step($0, mode: pager.mode, today: today) }
         }
         #if os(iOS)
             // The period is the bar's title (Apple's Human Interface Guidelines, "Toolbars": a
@@ -154,6 +154,7 @@ struct CalendarScreenView: View {
         .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
         .onChange(of: paneGrid(pager, calendar), initial: true) { model.calendarPaneState.follow($1) }
         .onChange(of: model.calendarSeatRequest) { applySeat($1, calendar: calendar) }
+        .onChange(of: position.restingDay) { settleFocus(restingDay: $1, today: today) }
         .onChange(of: todayColumn(pager: pager, calendar: calendar), initial: true) { _, column in
             position.todayColumn = column
         }
@@ -338,10 +339,11 @@ struct CalendarScreenView: View {
                     calendar: calendar,
                     weekStartsMonday: model.weekStartsMonday,
                     use24Hour: model.use24Hour,
-                    onOpen: open
+                    onOpen: open,
+                    onFocus: { pickDay($0, calendar: calendar) }
                 )
                 .id(model.calendarVersion)
-                .monthSwipe { step($0, mode: .month) }
+                .monthSwipe { step($0, mode: .month, today: today) }
             }
         default:
             CalendarGridContent(
@@ -388,39 +390,12 @@ struct CalendarScreenView: View {
         // hanging off the side of the screen.
         let mode = model.calendarLayout.mode
         if pager == nil {
-            pager = CalendarPager(
-                origin: model.weekStart(of: today), mode: mode, calendar: calendar
-            )
+            let focus = model.openingCalendarFocus(today: today)
+            pager = seatedPager(mode, focus: focus, calendar: calendar)
+            seatDay = focus
         }
         position.zoom.resetHours(Int(model.displaySettings.visibleHours))
         position.zoom.resetDays(mode.gridColumns)
-    }
-
-    /// A week along the strip, a month of the month grid; nothing in the agenda, which has no period.
-    private func step(_ direction: Int, mode: CalendarMode) {
-        if mode.isGrid {
-            // From wherever the strip is, so a chevron pressed mid-seam keeps the day it is framed
-            // on rather than re-aligning the week under the user.
-            position.held = true
-            withAnimation(.easeOut(duration: 0.25)) { position.strip.weeks += CGFloat(direction) }
-        } else if mode != .agenda {
-            page += direction
-        }
-    }
-
-    func setMode(_ next: CalendarMode, calendar: Calendar) {
-        guard var current = pager else { return }
-        model.setCalendarLayout(next.layout)
-        current.setMode(next, currentPage: current.mode.isGrid ? position.anchorWeek : page)
-        // Picking a shape from the MENU is where week alignment happens, not on a zoom, which must
-        // leave the days exactly where they are.
-        if next.isGrid {
-            current.jump(to: model.weekStart(of: current.origin))
-            position.zoom.resetDays(next.columns)
-        }
-        pager = current
-        page = 0
-        recentreToken += 1
     }
 
     /// A settled pinch: change the zoom level WITHOUT moving the origin. The week stays exactly where
@@ -429,17 +404,6 @@ struct CalendarScreenView: View {
         guard var current = pager, current.mode != next else { return }
         current.setZoom(next)
         pager = current
-    }
-
-    private func backToToday(today: Date, calendar: Calendar) {
-        guard var current = pager else { return }
-        seatDay = nil
-        current.jump(to: current.mode.isMonth ? today : model.weekStart(of: today))
-        pager = current
-        page = 0
-        // The strip runs on for ever, so a jump home is a real journey: `recentre` frames it, and
-        // landing on the right week while looking at the wrong end of it is only half a jump.
-        recentreToken += 1
     }
 
     func nowMinutes(calendar: Calendar) -> Int {

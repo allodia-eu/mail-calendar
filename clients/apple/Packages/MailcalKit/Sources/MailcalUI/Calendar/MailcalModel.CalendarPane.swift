@@ -12,14 +12,16 @@ extension MailboxModel {
         guard let app else { return nil }
         _ = calendarVersion
         _ = displaySettings
+        _ = calendarFocus
         let today = isoDate(ShowcaseMode.now ?? Date(), calendar: gridCalendar)
         return app.calendarPane(query: calendarPaneState.query(today: today))
     }
 
-    /// A day of the mini month was pressed: asks the core where that puts the grid, for the
-    /// calendar screen to apply the way its layout menu does.
+    /// A day of the mini month was pressed: the focus goes there, and the core says where that puts
+    /// the grid, for the calendar screen to apply the way its layout menu does.
     func seatCalendar(on date: String) {
         guard let app else { return }
+        if let day = parseISODate(date, calendar: gridCalendar) { setCalendarFocus(day) }
         let layout = calendarPaneState.grid?.layout ?? calendarLayout
         calendarSeatRequest = CalendarSeatRequest(seat: app.calendarSeat(date: date, layout: layout))
     }

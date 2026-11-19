@@ -19,19 +19,16 @@ extension CalendarScreenView {
         )
     }
 
-    /// Takes the seat the core gave a pressed day, through the path the layout menu uses, then frames
-    /// the grid on that day rather than on today.
+    /// Takes the layout the core gave a pressed day, through the path the layout menu uses, seated
+    /// on the pressed day, which `seatCalendar` has made the focus, and frames the grid on it.
     func applySeat(_ request: CalendarSeatRequest?, calendar: Calendar) {
-        guard let seat = request?.seat, let day = parseISODate(seat.anchor, calendar: calendar) else {
-            return
-        }
-        let mode = seat.layout.mode
-        setMode(mode, calendar: calendar)
+        guard
+            let seat = request?.seat,
+            let day = model.calendarFocus.flatMap({ parseISODate($0, calendar: calendar) })
+        else { return }
         guard var current = pager else { return }
-        current.jump(to: mode.isMonth ? day : model.weekStart(of: day))
+        current.focus(on: day, weekStart: model.weekStart(of:), core: model)
         pager = current
-        page = 0
-        seatDay = day
-        recentreToken += 1
+        setMode(seat.layout.mode, calendar: calendar)
     }
 }

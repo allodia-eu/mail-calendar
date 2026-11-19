@@ -34,6 +34,9 @@ struct CalendarMonthView: View {
     let use24Hour: Bool
     /// A tap on a chip opens the event's detail.
     let onOpen: (EventRefID) -> Void
+    /// A press on a day's own space puts the calendar's focus there (`docs/calendar.md`, "The focus
+    /// date"); its chips take their presses first.
+    let onFocus: (String) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -97,12 +100,19 @@ struct CalendarMonthView: View {
         let shown = monthChipsShown(total: cell.chips.count, capacity: capacity)
         let hidden = cell.chips.count - shown
 
+        let number = date.map { "\(calendar.component(.day, from: $0))" } ?? ""
+
         VStack(spacing: 1) {
-            Text(date.map { "\(calendar.component(.day, from: $0))" } ?? "")
+            Text(number)
                 .font(.caption2.weight(isToday ? .bold : .regular))
                 .foregroundStyle(dayColor(isToday: isToday, inMonth: cell.inMonth))
                 .frame(width: 18, height: 18)
                 .background(isToday ? Color.accentColor : Color.clear, in: Circle())
+                .accessibilityLabel(
+                    cell.isFocus ? "\(number), \(L10n.a11y_calendar_focus_day())" : number
+                )
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { onFocus(cell.date) }
 
             ForEach(cell.chips.prefix(shown), id: \.rowID) { chip in
                 let calendarRow = page.calendars.row(account: chip.account, calendar: chip.calendar)
@@ -151,6 +161,14 @@ struct CalendarMonthView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .padding(.horizontal, 1)
+        // The focus is drawn, so the week a shape change opens on is never a surprise.
+        .overlay {
+            if cell.isFocus {
+                RoundedRectangle(cornerRadius: 3).strokeBorder(Color.accentColor, lineWidth: 2)
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { onFocus(cell.date) }
     }
 
     /// Days of the neighbouring months are dimmed, without that, the 1st of next month reads as part
