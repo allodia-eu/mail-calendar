@@ -149,6 +149,8 @@ pub(crate) struct CalendarFake {
     pub(super) tags: BTreeMap<CalendarId, CollectionTag>,
     /// The calendar each event fetch named, in order.
     pub(super) event_fetches: Arc<Mutex<Vec<String>>>,
+    /// How a windowed fake fetches; idle unless its capabilities say it is windowed.
+    pub(super) windowed: Arc<super::calendar_windowed::WindowedFetch>,
 }
 
 impl CalendarFake {
@@ -189,6 +191,7 @@ impl CalendarFake {
             per_calendar: false,
             tags: BTreeMap::new(),
             event_fetches: Arc::new(Mutex::new(Vec::new())),
+            windowed: Arc::default(),
         }
     }
 
@@ -322,6 +325,24 @@ impl Provider for CalendarFake {
     async fn sync_events(
         &self,
         _account: &AccountId,
+        calendar: &CalendarId,
+        cursor: Option<&SyncState>,
+        window: engine_api::Horizon,
+    ) -> ProviderResult<ScopeSync<Event>> {
+        self.windowed.enter(window).await;
+        let sync = self.fetch_events(calendar, cursor)?;
+        Ok(if self.caps.windowed_events() {
+            super::calendar_windowed::WindowedFetch::keep_inside(sync, window)
+        } else {
+            sync
+        })
+    }
+}
+
+impl CalendarFake {
+    /// What the calendar's server answers for `calendar`'s events, whatever window was named.
+    fn fetch_events(
+        &self,
         calendar: &CalendarId,
         cursor: Option<&SyncState>,
     ) -> ProviderResult<ScopeSync<Event>> {

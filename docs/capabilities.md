@@ -126,6 +126,7 @@ Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
 | Calendar: the shape and horizon you left it in, restored on launch | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: a phone opens on three days, a tablet or a computer on the whole week, until you choose a shape | ✅ | — | ✅ | — | ✅ | — |
 | Calendar: your diary on screen from the store at launch, filled without opening it, so it is there offline | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendar: any week or month loads, however far back or ahead, with every event the account's server holds there ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: refreshes periodically while the app remains open, without requiring another visit to the tab | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ✅ |
 | Calendar: create with a **calendar picker** (grouped by account) · all-day · notes · location | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Calendar: a **default calendar** for new events, chosen in Settings → Calendar among the calendars that can take one ([`docs/calendar.md`](docs/calendar.md)) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |

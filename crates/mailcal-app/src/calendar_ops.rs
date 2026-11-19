@@ -17,7 +17,6 @@ use mailcal_viewmodel::calendar::{self, AccountEvent};
 
 use crate::{
     Account, App, CalendarWriteStatus,
-    calendar_cache::rolling_horizon,
     helpers::{generated_idempotency, generated_uid, now_utc},
     reference::EventRef,
 };
@@ -43,13 +42,10 @@ impl<P: Provider> App<P> {
     /// That is the one lie `docs/calendar.md` exists to forbid: `false` means *we have not looked*,
     /// and it must not be rendered as *there is nothing there*.
     pub async fn prime_calendar(&self) {
-        let Some(horizon) = rolling_horizon() else {
-            return;
-        };
         if !self.has_stored_calendars().await {
             return;
         }
-        if self.rebuild_calendar_cache(horizon).await {
+        if self.rebuild_calendar_expanded().await {
             self.rebuild_calendar().await;
         }
     }
@@ -142,10 +138,7 @@ impl<P: Provider> App<P> {
     /// Call this after a write: the store is already fresh when the engine's write
     /// call returns, so a second sync would only waste a network round-trip.
     pub(crate) async fn rebuild_calendar_view(&self) {
-        let Some(horizon) = rolling_horizon() else {
-            return;
-        };
-        if self.rebuild_calendar_cache(horizon).await {
+        if self.rebuild_calendar_expanded().await {
             self.rebuild_calendar().await;
         }
     }

@@ -24,10 +24,13 @@ impl MailcalApp {
     /// Always six weeks, so the grid does not change height as the user pages and a "+N more" chip
     /// that fits in February still fits in March.
     ///
-    /// A malformed `anchor` falls back to today rather than failing the draw.
+    /// A malformed `anchor` falls back to today rather than failing the draw. A month the
+    /// calendar has not been expanded to starts the widening to it, as `calendar_range` does.
     pub fn month_page(&self, anchor: String) -> MonthPage {
         let anchor = anchor.parse().unwrap_or_else(|_| today());
-        self.app.month_page(anchor).into()
+        let page = self.app.month_page(anchor);
+        self.widen_calendar_if_owed();
+        page.into()
     }
 
     /// Every calendar, with the user's decisions applied; what Settings lists.

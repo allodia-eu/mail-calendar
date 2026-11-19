@@ -43,12 +43,16 @@ use mailcal_viewmodel::{
 
 use crate::App;
 
+// The widening to a page outside the rolling horizon, a child so it can read the cache's helpers.
+#[path = "calendar_reach.rs"]
+pub(crate) mod reach;
+
 /// How far back the rolling horizon materializes: enough that last quarter is browsable
 /// without a re-expansion, without carrying years of dead occurrences in memory.
 const HORIZON_DAYS_BACK: i64 = 120;
 
-/// How far forward. A year covers the planning a user actually does; paging past it widens
-/// the horizon rather than silently showing an empty grid.
+/// How far forward: a year covers the planning a user actually does. A page asked for beyond
+/// either edge widens the window to it for the rest of the session ([`reach`]).
 const HORIZON_DAYS_AHEAD: i64 = 400;
 
 /// One calendar as the **server** describes it. What the *user* decided about it; shown/hidden, a
@@ -98,6 +102,13 @@ pub(crate) struct CalendarCache {
     /// The window the occurrences cover, or `None` before the first sync. A page outside it
     /// is **not** empty; it is *unknown*, and the two must not look the same.
     pub(crate) window: Option<Horizon>,
+    /// The window the pages asked for this session reach, when one lay outside the rolling
+    /// horizon ([`reach`]).
+    pub(crate) visited: Option<Horizon>,
+    /// The window every account was last expanded over this session.
+    pub(crate) expanded: Option<Horizon>,
+    /// Whether a page asked for days no expansion has been started for.
+    pub(crate) widening_owed: bool,
 }
 
 /// One rendered page of the calendar.
@@ -136,7 +147,7 @@ impl<P: Provider> App<P> {
     /// synchronous, in-memory, never the store or the network.
     #[must_use]
     pub fn month_page(&self, anchor: CalendarDate) -> MonthPage {
-        let cache = self.calendar_cache.lock().expect("calendar cache poisoned");
+        let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
         let calendars = self.resolved_calendars(&cache);
         let visible = filter_visible(&cache.occurrences, &calendars);
         let grid = month::build(
@@ -150,6 +161,7 @@ impl<P: Provider> App<P> {
             .iter()
             .filter_map(|cell| cell.date.parse().ok())
             .collect();
+        reach::note_page(&mut cache, &days);
         MonthPage {
             is_materialized: covers(cache.window, &days),
             grid,
@@ -171,10 +183,14 @@ impl<P: Provider> App<P> {
     ///
     /// Alignment is a separate, deliberate act: [`App::week_start_date`], applied when the user
     /// picks "Week" from a menu rather than every time the column count changes.
+    ///
+    /// A page outside the window the calendar has been expanded over owes a widening to it; the
+    /// caller asks [`App::take_calendar_widening`] and runs [`App::widen_calendar`] off its thread.
     #[must_use]
     pub fn calendar_range(&self, from: CalendarDate, columns: u32) -> CalendarPage {
         let days = days_from(from, columns);
-        let cache = self.calendar_cache.lock().expect("calendar cache poisoned");
+        let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
+        reach::note_page(&mut cache, &days);
         let calendars = self.resolved_calendars(&cache);
         let visible = filter_visible(&cache.occurrences, &calendars);
         CalendarPage {

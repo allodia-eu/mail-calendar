@@ -7,7 +7,6 @@ use engine_api::{AccountId, EventScopePass, Horizon, Provider, TimeZoneId, Unexp
 use crate::{
     App, CalendarWriteStatus,
     accounts::Account,
-    calendar_cache::rolling_horizon,
     calendar_unexpandable::unexpandable_line,
     sync_account::{reach_of, reach_of_api, reachability, signin_expired},
     use_problems::refresh::RefreshedUse,
@@ -48,13 +47,13 @@ impl<P: Provider> App<P> {
     /// alone: the ones a change reached (added, signed in again, given a calendar, reconnected).
     /// Every other account is left alone, each being a round trip and a scope lease. Every
     /// account is still re-expanded and the cache rebuilt, which costs no network, so the
-    /// rolling window advances on a pass that connected nothing.
+    /// calendar window advances on a pass that connected nothing.
     pub async fn refresh_calendar_of(&self, ids: &[AccountId]) {
         self.refresh_calendars(Some(ids), false).await;
     }
 
     async fn refresh_calendars(&self, only: Option<&[AccountId]>, clear_write_status: bool) {
-        let Some(horizon) = rolling_horizon() else {
+        let Some(horizon) = self.calendar_window() else {
             return;
         };
         let zone = self.active_zone();
@@ -67,16 +66,30 @@ impl<P: Provider> App<P> {
                 self.refresh_account_calendar(acct, account, sync, horizon, &zone)
             }))
             .await;
+        // A Microsoft or Google calendar is fetched inside a window, and the rolling horizon moves
+        // past the one its first sync opened over as the account ages. The engine reopens it when
+        // the horizon has moved (once a day at most) and asks nothing otherwise; one it could not
+        // reach is fetched by the next refresh.
+        self.reach_calendar().await;
         let synced = sync_start.elapsed();
         let rebuild_start = Instant::now();
-        let changed = self.rebuild_calendar_cache(horizon).await;
+        // Expanded after every sync rather than beside each, under the lock a widening takes, so a
+        // window widened while a server was answering is expanded here too, not narrowed back.
+        let expansion = self.expand_calendar().await;
+        if !expansion.complete {
+            self.owe_calendar_widening();
+        }
+        let changed = expansion.changed;
         if changed {
             self.rebuild_calendar().await;
         }
         if clear_write_status {
             self.set_calendar_write_status(CalendarWriteStatus::Idle);
         }
-        let mut total = CalendarPass::default();
+        let mut total = CalendarPass {
+            refused: expansion.refused,
+            ..CalendarPass::default()
+        };
         for pass in passes {
             total.calendars += pass.calendars;
             total.synced += pass.synced;
@@ -87,7 +100,7 @@ impl<P: Provider> App<P> {
         }
         log::info!(
             "refresh_calendar: {} calendar(s); {} synced, {} unchanged, {} busy, {} failed; \
-             sync+expand {}ms + rebuild {}ms{}",
+             sync {}ms + expand and rebuild {}ms{}",
             total.calendars,
             total.synced,
             total.unchanged,
@@ -102,7 +115,7 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Syncs one account's calendars when `sync` asks for it, then re-expands them.
+    /// Syncs one account's calendars when `sync` asks for it.
     async fn refresh_account_calendar(
         &self,
         acct: usize,
@@ -174,12 +187,6 @@ impl<P: Provider> App<P> {
                 }
                 self.apply_signin_expired(&account.id, signin_expired(list, reaches.into_iter()));
             }
-        }
-        // A delta expands only changed events. Re-expanding keeps a quiet account materialised
-        // as the rolling window advances.
-        match self.engine.expand_horizon(&account.id, horizon, zone).await {
-            Ok(expansion) => pass.refused.extend(expansion.unexpandable),
-            Err(error) => log::warn!("calendar[a{acct}]: expansion failed: {error}"),
         }
         pass
     }

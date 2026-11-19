@@ -296,6 +296,7 @@ impl Provider for InvitationFake {
         _account: &AccountId,
         _calendar: &CalendarId,
         cursor: Option<&SyncState>,
+        _window: engine_api::Horizon,
     ) -> ProviderResult<ScopeSync<Event>> {
         if cursor.is_some() {
             // The delta a post-write reconcile makes. It reports the event a `put_event` just

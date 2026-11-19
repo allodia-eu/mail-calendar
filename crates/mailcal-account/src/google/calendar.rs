@@ -6,7 +6,7 @@
 //! so this wraps it in a [`RefreshingGoogleCalendarProvider`] that mints a fresh access token
 //! before each network call and delegates to a freshly built provider (reusing its warm
 //! connection pool while the token is unchanged). One provider serves every calendar of the
-//! account, carrying a fetch window centred on today, re-centred each reconnect.
+//! account; the engine names the window each event fetch opens over (`docs/calendar.md` §4).
 //!
 //! Two things are simpler than the Graph calendar: Google is **IANA-native** (event times carry
 //! an IANA `timeZone`), so there is **no display-zone `Prefer` header** to thread through, and
@@ -27,6 +27,7 @@ use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
     sync::{SyncScope, SyncState, SyncUpdate},
+    time::Horizon,
 };
 use engine_provider::{
     CalendarListing, CalendarUserAddresses, Capabilities, ConnectionInfo, EventDeletion,
@@ -34,10 +35,9 @@ use engine_provider::{
     ProviderResult, ScopeSync, WriteGuard,
 };
 use engine_tls::TlsClientConfig;
-use provider_google::{CalendarWindow, GoogleCalendarProvider, GoogleClient};
-use time::{Duration, OffsetDateTime};
+use provider_google::{GoogleCalendarProvider, GoogleClient};
 
-use super::{calendar_date, should_reconnect};
+use super::should_reconnect;
 use crate::{AccountError, GraphTokenSource, tls::tls_with};
 
 /// What a Google series edit costs the occurrences the user changed by hand: moving the
@@ -52,13 +52,6 @@ const GOOGLE_OVERRIDE_SURVIVAL: OverrideSurvival = OverrideSurvival {
     clobbers_own_fields: true,
 };
 
-/// How many days **back** the baked-in fetch window spans (the app's rolling horizon), so a
-/// freshly connected provider already covers everything the grid can scroll to.
-const WINDOW_DAYS_BACK: i64 = 120;
-
-/// How many days **ahead** the baked-in fetch window spans (the app's rolling horizon).
-const WINDOW_DAYS_AHEAD: i64 = 400;
-
 /// A [`Provider`] for every calendar of a Google account that refreshes its access token before
 /// every network call and delegates to a freshly built [`GoogleCalendarProvider`]. Internal; the
 /// account layer hands callers `Box<dyn Provider>` from [`connect_google_calendar_provider`].
@@ -70,8 +63,6 @@ pub(crate) struct RefreshingGoogleCalendarProvider {
     /// Calendar read + a server-enforced write guard; Google rejects a stale `If-Match` with a
     /// `412`, exactly like Graph.
     capabilities: Capabilities,
-    /// The initial (snapshot) event window, centred on today at connect time.
-    window: CalendarWindow,
     /// The account's shared TLS policy, cloned into each rebuilt Google client.
     tls: TlsClientConfig,
     /// The built delegate, cached by the access token it was built with, so the reqwest
@@ -82,11 +73,7 @@ pub(crate) struct RefreshingGoogleCalendarProvider {
 impl RefreshingGoogleCalendarProvider {
     /// A refreshing calendar provider sharing `tokens` with the account's Gmail provider.
     #[must_use]
-    pub(crate) fn new(
-        tokens: Arc<GraphTokenSource>,
-        window: CalendarWindow,
-        tls: TlsClientConfig,
-    ) -> Self {
+    pub(crate) fn new(tokens: Arc<GraphTokenSource>, tls: TlsClientConfig) -> Self {
         Self {
             tokens,
             capabilities: Capabilities::none()
@@ -96,8 +83,10 @@ impl RefreshingGoogleCalendarProvider {
                 // itself. As on Graph this is only the pre-delegate fallback, and it matters
                 // for the same reason: a host told otherwise would send its own iMIP reply
                 // beside the one the server already sent.
-                .with_calendar_scheduling(),
-            window,
+                .with_calendar_scheduling()
+                // The engine names the window a snapshot opens over, and reads this before the
+                // first token fetch too: told the fetch is whole, it would never fetch a range.
+                .with_windowed_events(),
             tls,
             cached: Mutex::new(None),
         }
@@ -128,7 +117,7 @@ impl RefreshingGoogleCalendarProvider {
             &crate::user_agent(),
         )
         .map_err(ProviderError::from)?;
-        let provider = Arc::new(GoogleCalendarProvider::new(client).with_window(self.window));
+        let provider = Arc::new(GoogleCalendarProvider::new(client));
         *self
             .cached
             .lock()
@@ -198,11 +187,15 @@ impl Provider for RefreshingGoogleCalendarProvider {
         account: &AccountId,
         calendar: &CalendarId,
         cursor: Option<&SyncState>,
+        window: Horizon,
     ) -> ProviderResult<ScopeSync<Event>> {
         let mut provider = self.delegate().await?;
         let mut reconnected = false;
         loop {
-            match provider.sync_events(account, calendar, cursor).await {
+            match provider
+                .sync_events(account, calendar, cursor, window)
+                .await
+            {
                 Ok(value) => return Ok(value),
                 Err(err) if !reconnected && should_reconnect(&err) => {
                     self.invalidate_delegate();
@@ -271,8 +264,7 @@ impl CalendarWrites for RefreshingGoogleCalendarProvider {
 }
 
 /// Connects the Google calendar provider a Google account syncs its agenda through: **one**
-/// token-refreshing provider for every calendar of the account, carrying a fetch window centred
-/// on today: the Google parallel of
+/// token-refreshing provider for every calendar of the account: the Google parallel of
 /// [`connect_graph_calendar_provider`](crate::connect_graph_calendar_provider). Reads
 /// `calendarList` once with a fresh token first, so a calendar the account cannot reach fails
 /// here rather than on every refresh.
@@ -288,15 +280,12 @@ pub async fn connect_google_calendar_provider(
     tokens: Arc<GraphTokenSource>,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
-    let window = rolling_window()?;
-    let calendars = list_calendars(account_id, &tokens, &tls, window).await?;
+    let calendars = list_calendars(account_id, &tokens, &tls).await?;
     log::debug!(
         "google: calendar list returned {} calendar(s)",
         calendars.len()
     );
-    Ok(Box::new(RefreshingGoogleCalendarProvider::new(
-        tokens, window, tls,
-    )))
+    Ok(Box::new(RefreshingGoogleCalendarProvider::new(tokens, tls)))
 }
 
 /// Enumerates the account's calendars (a full snapshot) with a one-off client on a fresh access
@@ -305,14 +294,12 @@ async fn list_calendars(
     account_id: &AccountId,
     tokens: &Arc<GraphTokenSource>,
     tls: &TlsClientConfig,
-    window: CalendarWindow,
 ) -> Result<Vec<Calendar>, AccountError> {
     let token = tokens.access_token().await?;
     let client = GoogleClient::connect(token, tls, &tokens.retry(), &crate::user_agent())
         .map_err(|err| AccountError::Google(err.to_string()))?;
     log::debug!("google: fetching calendar list");
     let listing = GoogleCalendarProvider::new(client)
-        .with_window(window)
         .sync_calendars(account_id, None)
         .await
         .map_err(|err| AccountError::Google(err.to_string()))?;
@@ -320,17 +307,6 @@ async fn list_calendars(
         SyncUpdate::Snapshot { objects, .. } => objects,
         SyncUpdate::Delta { changed, .. } => changed,
     })
-}
-
-/// The event fetch window, centred on today: a few months back and a bit over a year ahead,
-/// matching the app's rolling calendar horizon.
-fn rolling_window() -> Result<CalendarWindow, AccountError> {
-    let today = OffsetDateTime::now_utc().date();
-    let start = calendar_date(today - Duration::days(WINDOW_DAYS_BACK))
-        .ok_or_else(|| AccountError::Google("calendar window start out of range".to_owned()))?;
-    let end = calendar_date(today + Duration::days(WINDOW_DAYS_AHEAD))
-        .ok_or_else(|| AccountError::Google("calendar window end out of range".to_owned()))?;
-    Ok(CalendarWindow::new(start, end))
 }
 
 #[cfg(test)]
@@ -349,7 +325,6 @@ mod tests {
         let (endpoint, _hits) = dead_grant_token_endpoint();
         let provider = RefreshingGoogleCalendarProvider::new(
             source_at(endpoint, None),
-            rolling_window().unwrap(),
             tls_with(&[]).unwrap(),
         );
         assert_calendar_answers_reach_the_delegate(&provider).await;
@@ -376,11 +351,8 @@ mod tests {
     fn serves_every_calendar_with_enforced_writes_and_a_scope_each() {
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
         let calendar = CalendarId::try_from("alice@gmail.com").unwrap();
-        let provider = RefreshingGoogleCalendarProvider::new(
-            google_source(),
-            rolling_window().unwrap(),
-            tls_with(&[]).unwrap(),
-        );
+        let provider =
+            RefreshingGoogleCalendarProvider::new(google_source(), tls_with(&[]).unwrap());
         let info = provider.connection_info();
         assert!(info.capabilities.calendars());
         assert!(!info.capabilities.mail());
@@ -401,20 +373,6 @@ mod tests {
         assert_eq!(
             provider.calendar_scope(&account),
             SyncScope::GoogleCalendarList { account },
-        );
-    }
-
-    #[test]
-    fn the_fetch_window_brackets_today() {
-        let today = OffsetDateTime::now_utc().date();
-        let window = rolling_window().unwrap();
-        assert_eq!(
-            window.start,
-            calendar_date(today - Duration::days(WINDOW_DAYS_BACK)).unwrap(),
-        );
-        assert_eq!(
-            window.end,
-            calendar_date(today + Duration::days(WINDOW_DAYS_AHEAD)).unwrap(),
         );
     }
 }
