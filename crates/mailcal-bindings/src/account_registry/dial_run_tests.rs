@@ -35,12 +35,20 @@ async fn dial(entry: &ConnectedAccount) -> String {
         .to_string()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn an_account_used_for_mail_fails_on_its_mailbox() {
     let failure = dial(&entry("")).await;
     assert!(failure.starts_with("imap"), "{failure}");
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn an_account_not_used_for_mail_never_dials_its_mailbox() {
     // Used for its calendar alone: the failure is the calendar's, because the mailbox was
@@ -87,6 +95,10 @@ fn a_stored_account_without_a_mailbox_boots_as_one() {
     assert!(prepared.connected.imap().is_none(), "no mailbox to watch");
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_dial_of_an_account_without_a_mailbox_opens_its_calendar() {
     let config = mailcal_account::load_str(DAV_ONLY).unwrap();
@@ -103,6 +115,10 @@ username = "alice"
 password = "pw"
 "#;
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_dial_of_an_address_book_alone_opens_it() {
     let config = mailcal_account::load_str(CONTACTS_ONLY).unwrap();
@@ -171,6 +187,10 @@ fn a_withheld_mailbox_leaves_an_account_without_mail() {
 
 /// A calendar the grant withholds is still a calendar the person chose, so it raises the prompt
 /// to sign in again rather than staying silently empty; and nothing is dialled to learn it.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_withheld_calendar_asks_for_consent_without_being_dialled() {
     let entry = microsoft(&["calendar"], &["offline_access", "User.Read"]);
@@ -185,6 +205,10 @@ async fn a_withheld_calendar_asks_for_consent_without_being_dialled() {
 
 /// A redial of the calendar and contacts leaves the mailbox alone: it is already connected, and
 /// signing in to it again is what makes a provider such as Yahoo limit the account's sign-ins.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_dial_of_the_uses_alone_never_opens_the_mailbox() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

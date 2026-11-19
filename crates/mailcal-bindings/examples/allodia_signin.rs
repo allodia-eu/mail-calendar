@@ -12,7 +12,7 @@
 //! (`AllodiaIntent::SignIn`), prints the authorization URL the core holds, waits for the redirect
 //! and hands it back; then **boots a second app** from what the first one stored, to prove the
 //! entry comes back as a signed-in account and not as an account error. It signs out at the end,
-//! so nothing is left behind but the temporary directory it names.
+//! and the temporary directory it names is removed when it exits, so nothing is left behind.
 
 use std::{
     collections::BTreeMap,
@@ -155,9 +155,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let data_dir =
-        std::env::temp_dir().join(format!("allodia-signin-probe-{}", std::process::id()));
-    std::fs::create_dir_all(&data_dir)?;
+    let scratch = tempfile::Builder::new()
+        .prefix("allodia-signin-probe-")
+        .tempdir()?;
+    let data_dir = scratch.path();
     let store = Arc::new(MemoryStore::default());
     println!("data dir: {}", data_dir.display());
 

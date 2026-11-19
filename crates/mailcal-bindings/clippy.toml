@@ -1,6 +1,10 @@
 # A blocking FFI call polls its future on a thread of our own, never on the host's: see
 # `src/runtime.rs`. Its `drive` is the one place tokio's `block_on` is allowed outside tests.
+#
+# Clippy reads this file instead of the workspace's `clippy.toml`, never as well, so the last entry
+# repeats the workspace's.
 disallowed-methods = [
     { path = "tokio::runtime::Runtime::block_on", reason = "poll on the FFI driver thread: `FfiRuntime::block_on` or `runtime::drive`" },
     { path = "tokio::runtime::Handle::block_on", reason = "poll on the FFI driver thread: `FfiRuntime::block_on` or `runtime::drive`" },
+    { path = "std::env::temp_dir", reason = "a fixed name under it is shared by every checkout running the same test at once: a test holds a `tempfile::TempDir`, and shipped code that needs the OS directory itself says why in an `#[expect]` at the call site" },
 ]

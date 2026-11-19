@@ -233,6 +233,10 @@ mod tests {
     /// application the portal launches, which answers "The application launch failed" and looks to
     /// the user like a broken attachment. The cache directory is a real host path.
     #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the assertion is that the path is outside the OS temporary directory"
+    )]
     fn a_decoded_attachment_never_lands_in_the_sandboxs_private_tmp() {
         let directory = opened_attachment_dir();
 
@@ -284,6 +288,7 @@ mod tests {
         let app = boot::app(Box::new(SurfaceObserver::new(sender)))
             .expect("boot harness account")
             .app;
+        let staging = tempfile::tempdir().expect("a staging directory");
         let deadline = Instant::now() + Duration::from_secs(20);
         let (account, key) = loop {
             let snapshot = app.mailbox_list();
@@ -307,7 +312,7 @@ mod tests {
                     key,
                     all: false,
                 },
-                std::env::temp_dir().to_string_lossy().into_owned(),
+                staging.path().to_string_lossy().into_owned(),
                 None,
             )
             .expect("open the harness reply");

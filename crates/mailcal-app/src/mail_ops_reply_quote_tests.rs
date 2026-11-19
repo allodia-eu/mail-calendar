@@ -13,6 +13,7 @@ use crate::{Intent, SendStatus};
 
 #[tokio::test(start_paused = true)]
 async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
@@ -35,6 +36,7 @@ async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
         attachments: Vec::new(),
     };
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,
@@ -67,6 +69,7 @@ async fn rich_reply_re_sanitizes_a_quoted_original_before_sending() {
 
 #[tokio::test(start_paused = true)]
 async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_id() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
@@ -91,6 +94,7 @@ async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_
         attachments: Vec::new(),
     };
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,
@@ -137,6 +141,7 @@ async fn rich_reply_reattaches_quoted_inline_images_as_cid_keeping_the_original_
 
 #[tokio::test(start_paused = true)]
 async fn rich_reply_keeps_the_line_breaks_of_a_quoted_plain_text_original() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, submissions) = reply_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
@@ -164,6 +169,7 @@ async fn rich_reply_keeps_the_line_breaks_of_a_quoted_plain_text_original() {
         attachments: Vec::new(),
     };
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,

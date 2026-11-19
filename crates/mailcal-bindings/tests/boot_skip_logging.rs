@@ -5,10 +5,7 @@
 //! so a capture installed beside the crate's parallel unit tests would lose records. One `#[test]`
 //! for the same reason.
 
-use std::{
-    fs,
-    sync::{Arc, Mutex, mpsc},
-};
+use std::sync::{Arc, Mutex, mpsc};
 
 use mailcal_bindings::{
     AccountCredentialStore, CredentialStoreError, DeviceClass, DeviceInfo, LogLevel, Logger,
@@ -63,9 +60,7 @@ fn a_stored_account_left_out_at_boot_is_logged_without_its_contents() {
         // A config whose parse error quotes a line holding a secret.
         format!("[google]\nemail = \"{EMAIL}\"\nrefresh_token = \"{TOKEN}\" broken\n"),
     ];
-    let dir = std::env::temp_dir().join(format!("mailcal-bootskip-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).expect("a writable temp dir");
+    let dir = tempfile::tempdir().expect("a writable temp dir");
 
     let lines = Arc::new(Mutex::new(Vec::new()));
     let (tx, _rx) = mpsc::channel();
@@ -74,7 +69,7 @@ fn a_stored_account_left_out_at_boot_is_logged_without_its_contents() {
         Box::new(Capture(Arc::clone(&lines))),
         LogLevel::Info,
         configs,
-        dir.to_string_lossy().into_owned(),
+        dir.path().to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         DeviceInfo {
             platform: Platform::Linux,
@@ -107,5 +102,4 @@ fn a_stored_account_left_out_at_boot_is_logged_without_its_contents() {
     }
 
     drop(app);
-    let _ = fs::remove_dir_all(dir);
 }

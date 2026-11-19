@@ -34,15 +34,15 @@ pub fn main_checkout_env(root: &Path) -> Option<PathBuf> {
 mod tests {
     use std::{fs, path::PathBuf};
 
+    use tempfile::TempDir;
+
     use super::main_checkout_env;
 
     /// A main checkout with `.git/` and a linked worktree under it, laid out as git lays them out,
-    /// in a directory of the test's own.
-    fn layout(test: &str, main_env: bool, worktree_env: bool) -> (PathBuf, PathBuf) {
-        let base =
-            std::env::temp_dir().join(format!("mailcal-buildenv-{}-{test}", std::process::id()));
-        let _ = fs::remove_dir_all(&base);
-        let main = base.join("main");
+    /// in a directory of the test's own that the returned guard removes.
+    fn layout(main_env: bool, worktree_env: bool) -> (TempDir, PathBuf, PathBuf) {
+        let base = tempfile::tempdir().unwrap();
+        let main = base.path().join("main");
         let worktree = main.join(".claude/worktrees/task");
         let private = main.join(".git/worktrees/task");
         fs::create_dir_all(&private).unwrap();
@@ -59,12 +59,12 @@ mod tests {
         if worktree_env {
             fs::write(worktree.join(".env"), "MAILCAL_MS_CLIENT_ID=x\n").unwrap();
         }
-        (main, worktree)
+        (base, main, worktree)
     }
 
     #[test]
     fn a_worktree_without_the_file_its_main_checkout_has_is_found() {
-        let (main, worktree) = layout("found", true, false);
+        let (_base, main, worktree) = layout(true, false);
         let found = main_checkout_env(&worktree).expect("the main checkout's .env is named");
         assert_eq!(
             fs::canonicalize(found).unwrap(),
@@ -74,13 +74,13 @@ mod tests {
 
     #[test]
     fn a_worktree_with_its_own_file_is_left_alone() {
-        let (_, worktree) = layout("own", true, true);
+        let (_base, _, worktree) = layout(true, true);
         assert_eq!(main_checkout_env(&worktree), None);
     }
 
     #[test]
     fn a_main_checkout_without_registrations_is_a_choice_not_a_mistake() {
-        let (_, worktree) = layout("none", false, false);
+        let (_base, _, worktree) = layout(false, false);
         assert_eq!(
             main_checkout_env(&worktree),
             None,
@@ -90,7 +90,7 @@ mod tests {
 
     #[test]
     fn a_main_checkout_is_never_asked_about_another() {
-        let (main, _) = layout("main", false, false);
+        let (_base, main, _) = layout(false, false);
         fs::create_dir_all(main.join(".git")).ok();
         assert_eq!(
             main_checkout_env(&main),
@@ -101,7 +101,7 @@ mod tests {
 
     #[test]
     fn a_relative_pointer_resolves_from_the_worktree() {
-        let (main, worktree) = layout("relative", true, false);
+        let (_base, main, worktree) = layout(true, false);
         fs::write(
             worktree.join(".git"),
             "gitdir: ../../../.git/worktrees/task\n",

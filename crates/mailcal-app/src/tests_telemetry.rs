@@ -23,7 +23,7 @@ use super::{
     Account, App, AppObserver, Batch, DeviceClass, DeviceInfo, Intent, NOTICE_VERSION, Platform,
     Surface, Telemetry, TelemetrySink, TimeZoneInit,
 };
-use crate::tests_fakes as fakes;
+use crate::{preferences_file::ScratchPreferences, tests_fakes as fakes};
 
 // The payload/no-content half of these tests. A CHILD module, not a sibling, so it can see the
 // fixtures above without widening `FakeProvider` beyond this test tree.
@@ -104,13 +104,6 @@ fn app_with_analytics(
     (app, sink)
 }
 
-/// A scratch preferences path, cleaned first so a rerun starts unasked.
-fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-telemetry-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir.join("preferences.toml")
-}
-
 /// One account, so a dispatch has something to act on. `account` gives it the identity
 /// `me@acct-1.local`: an address the payload must never carry, which the content test relies on.
 fn one_account() -> Vec<Account<FakeProvider>> {
@@ -119,7 +112,8 @@ fn one_account() -> Vec<Account<FakeProvider>> {
 
 #[tokio::test]
 async fn a_background_calendar_refresh_is_not_feature_adoption() {
-    let path = scratch("background-calendar");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path);
     app.set_analytics_consent(true);
     sink.batches.lock().unwrap().clear();
@@ -148,7 +142,8 @@ async fn a_background_calendar_refresh_is_not_feature_adoption() {
 /// also no install id on disk to write.
 #[tokio::test]
 async fn nothing_is_sent_and_no_id_is_minted_before_consent() {
-    let path = scratch("unasked");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path.clone());
 
     assert!(!app.analytics_consent().asked, "a first launch is unasked");
@@ -163,6 +158,7 @@ async fn nothing_is_sent_and_no_id_is_minted_before_consent() {
         sink.batches.lock().unwrap().is_empty(),
         "an unasked user must produce no telemetry at all"
     );
+    app.settle_preferences();
     assert_eq!(
         load_preferences(&path).analytics_install_id,
         None,
@@ -173,7 +169,8 @@ async fn nothing_is_sent_and_no_id_is_minted_before_consent() {
 /// Declining is recorded (so we never ask again) and sends nothing.
 #[tokio::test]
 async fn declining_is_remembered_and_sends_nothing() {
-    let path = scratch("declined");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path.clone());
 
     app.set_analytics_consent(false);
@@ -185,6 +182,7 @@ async fn declining_is_remembered_and_sends_nothing() {
     app.report_app_opened();
     app.dispatch(Intent::RefreshCalendar).await;
     assert!(sink.batches.lock().unwrap().is_empty());
+    app.settle_preferences();
     assert_eq!(load_preferences(&path).analytics_install_id, None);
 }
 
@@ -192,7 +190,8 @@ async fn declining_is_remembered_and_sends_nothing() {
 /// given, rather than leaving it invisible until the next launch.
 #[tokio::test]
 async fn opting_in_mints_an_id_and_starts_sending() {
-    let path = scratch("consented");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path.clone());
 
     app.set_analytics_consent(true);
@@ -229,7 +228,8 @@ async fn opting_in_mints_an_id_and_starts_sending() {
 /// everything held under it (GDPR Art. 17), which is only possible *because* the id is stable.
 #[tokio::test]
 async fn withdrawing_stops_the_stream_clears_the_id_and_erases_the_backend() {
-    let path = scratch("withdrawn");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path.clone());
 
     app.set_analytics_consent(true);
@@ -271,8 +271,8 @@ async fn withdrawing_stops_the_stream_clears_the_id_and_erases_the_backend() {
 /// again, nothing is sent.
 #[tokio::test]
 async fn a_stale_notice_version_re_asks_and_stops_the_stream() {
-    let path = scratch("stale-notice");
-    let _ = std::fs::create_dir_all(path.parent().unwrap());
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     save_preferences(
         &path,
         &mailcal_account::Preferences {
@@ -301,8 +301,8 @@ async fn a_stale_notice_version_re_asks_and_stops_the_stream() {
 /// the notice must not become a way to re-prompt someone who already refused.
 #[tokio::test]
 async fn a_decline_survives_a_notice_bump() {
-    let path = scratch("declined-old-notice");
-    let _ = std::fs::create_dir_all(path.parent().unwrap());
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     save_preferences(
         &path,
         &mailcal_account::Preferences {
@@ -322,7 +322,8 @@ async fn a_decline_survives_a_notice_bump() {
 /// Consent is a persisted decision: it survives a relaunch, id and all.
 #[tokio::test]
 async fn consent_and_its_id_survive_a_relaunch() {
-    let path = scratch("relaunch");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (first, _) = app_with_analytics(one_account(), path.clone());
     first.set_analytics_consent(true);
     first.settle_preferences();
@@ -345,8 +346,8 @@ async fn consent_and_its_id_survive_a_relaunch() {
 /// The consent write is read-modify-write, so the sibling preferences in the same file survive.
 #[tokio::test]
 async fn writing_consent_preserves_sibling_preferences() {
-    let path = scratch("siblings");
-    let _ = std::fs::create_dir_all(path.parent().unwrap());
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     save_preferences(
         &path,
         &mailcal_account::Preferences {

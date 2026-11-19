@@ -11,9 +11,11 @@
 use engine_api::Engine;
 
 use super::{
-    App, SilentObserver, Telemetry, TimeZoneInit, app_with_analytics, device, one_account, scratch,
+    App, SilentObserver, Telemetry, TimeZoneInit, app_with_analytics, device, one_account,
 };
-use crate::{EventIntent, FolderRef, Intent, PROPERTY_KEYS, Protocol};
+use crate::{
+    EventIntent, FolderRef, Intent, PROPERTY_KEYS, Protocol, preferences_file::ScratchPreferences,
+};
 
 /// The load-bearing privacy test. Drive a consented app through the intents that *do* carry
 /// content (a search query, a message, an event title) and assert none of it reaches the wire.
@@ -22,7 +24,8 @@ use crate::{EventIntent, FolderRef, Intent, PROPERTY_KEYS, Protocol};
 /// the claim being made to users is about what actually leaves the device.
 #[tokio::test]
 async fn no_content_reaches_the_wire() {
-    let path = scratch("no-content");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path);
     app.set_accounts([("acct-1".to_owned(), Protocol::Imap)].into());
     app.set_analytics_consent(true);
@@ -92,7 +95,8 @@ async fn no_content_reaches_the_wire() {
 /// the event in production: so the test is the contract between the two repositories.
 #[tokio::test]
 async fn every_property_key_is_whitelisted() {
-    let path = scratch("keys");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path);
     app.set_accounts([("acct-1".to_owned(), Protocol::Jmap)].into());
     app.set_analytics_consent(true);
@@ -125,7 +129,8 @@ async fn every_property_key_is_whitelisted() {
 /// by reporting something more precise than we asked for.
 #[tokio::test]
 async fn the_core_coarsens_the_hosts_raw_device_facts() {
-    let path = scratch("coarsen");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     // Three IMAP + one JMAP: enough accounts to land in a bucket rather than a raw count.
     let (app, sink) = app_with_analytics(one_account(), path);
     app.set_accounts(
@@ -159,7 +164,8 @@ async fn the_core_coarsens_the_hosts_raw_device_facts() {
 /// pins that.
 #[tokio::test]
 async fn the_payload_preview_matches_what_actually_goes_on_the_wire() {
-    let path = scratch("preview");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let (app, sink) = app_with_analytics(one_account(), path);
     app.set_accounts([("acct-1".to_owned(), Protocol::Graph)].into());
 
@@ -198,7 +204,8 @@ async fn the_payload_preview_matches_what_actually_goes_on_the_wire() {
 /// it, because every other test wires a sink.
 #[tokio::test]
 async fn a_build_with_no_relay_still_previews_the_real_device() {
-    let path = scratch("unsent");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let app = App::new(
         Engine::open_in_memory().unwrap(),
         one_account(),

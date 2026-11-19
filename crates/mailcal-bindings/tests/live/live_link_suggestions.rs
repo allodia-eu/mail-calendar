@@ -40,7 +40,7 @@ fn the_calendar_that_schedules_as_the_mailbox_address_is_suggested_and_a_strange
         return;
     };
     let base = format!("http://{http}");
-    let app = app("link-suggestions", RecordingStore::default());
+    let (_dir, app) = app("link-suggestions", RecordingStore::default());
 
     let mailbox = mailcal_bindings::jmap_account_config_toml(JmapSetup {
         email: "alice@test.local".to_owned(),

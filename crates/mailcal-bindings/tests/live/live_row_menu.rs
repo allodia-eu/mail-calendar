@@ -161,7 +161,7 @@ fn a_jmap_conversation_menu_answers_its_newest_message() {
         eprintln!("skipping row-menu live test: STALWART_HTTP_ADDR unset");
         return;
     };
-    let app = app("row-menu-jmap", RecordingStore::default());
+    let (_dir, app) = app("row-menu-jmap", RecordingStore::default());
     let config = mailcal_bindings::jmap_account_config_toml(JmapSetup {
         email: "alice@test.local".to_owned(),
         server_url: Some(format!("http://{http}")),
@@ -182,7 +182,7 @@ fn an_imap_conversation_menu_answers_its_newest_message() {
         return;
     };
     let (host, port) = imap.rsplit_once(':').expect("host:port");
-    let app = app("row-menu-imap", RecordingStore::default());
+    let (_dir, app) = app("row-menu-imap", RecordingStore::default());
     let config = format!(
         "[imap]\naddr = \"127.0.0.1:{port}\"\nserver_name = \"{host}\"\n\
          username = \"alice@test.local\"\npassword = \"harness-alice-pw\"\n\

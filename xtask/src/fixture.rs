@@ -26,13 +26,22 @@ impl Repo {
     /// Two directories are always present. `git grep` fails outright on a pathspec that matches no
     /// file, and several checks name `crates` and `clients` explicitly, so a fixture without them
     /// would report an error rather than the verdict under test.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "xtask has no dependencies, so the fixture names its own directory under the OS \
+                  one: by process, time and counter, so no other test or checkout shares it, and \
+                  removed on drop"
+    )]
     pub(crate) fn new(files: &[(&str, &str)]) -> Self {
         let stamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_nanos());
         let unique = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!("xtask-fixture-{stamp}-{unique}"));
-        std::fs::create_dir_all(&root).expect("could not create the fixture directory");
+        let process = std::process::id();
+        let root = std::env::temp_dir().join(format!("xtask-fixture-{process}-{stamp}-{unique}"));
+        // `create_dir`, not `create_dir_all`: a name another fixture already holds fails here
+        // rather than handing two tests one directory.
+        std::fs::create_dir(&root).expect("could not create the fixture directory");
 
         let repo = Self { root };
         repo.git(&["init", "--quiet"]);

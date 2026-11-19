@@ -123,21 +123,19 @@ pub(crate) fn global() -> Arc<HostPreferences> {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use super::HostPreferences;
 
-    fn scratch() -> std::path::PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        std::env::temp_dir().join(format!("mailcal-linux-preferences-{nonce}.json"))
+    /// A preferences file that does not exist yet, in a directory the returned guard removes.
+    fn scratch() -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let path = dir.path().join("preferences.json");
+        (dir, path)
     }
 
     #[test]
     fn absent_notification_choice_defaults_on() {
-        let preferences = HostPreferences::open(scratch());
+        let (_dir, path) = scratch();
+        let preferences = HostPreferences::open(path);
 
         assert!(preferences.notifications_enabled());
         assert!(!preferences.diagnostics_debug());
@@ -147,7 +145,7 @@ mod tests {
 
     #[test]
     fn host_choices_survive_reopening() {
-        let path = scratch();
+        let (_dir, path) = scratch();
         let preferences = HostPreferences::open(path.clone());
         preferences.set_language(Some("nl"));
         preferences.set_notifications_enabled(false);

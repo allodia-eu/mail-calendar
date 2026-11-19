@@ -17,18 +17,13 @@ use super::{
         invitation_app_with_prefs, stored_event,
     },
 };
-use crate::{App, InvitationResponse};
+use crate::{App, InvitationResponse, preferences_file::ScratchPreferences};
 
 /// A preferences file naming the alias the stored meeting invites.
-fn with_alias(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-calendar-rsvp-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    let path = dir.join("preferences.toml");
-    let mut prefs = mailcal_account::load_preferences(&path);
+fn with_alias() -> ScratchPreferences {
+    let mut prefs = mailcal_account::Preferences::default();
     prefs.set_account_aliases("acct-a", vec![ALIAS.to_owned()]);
-    mailcal_account::save_preferences(&path, &prefs).unwrap();
-    path
+    ScratchPreferences::seeded(&prefs)
 }
 
 fn respond(response: InvitationResponse) -> Intent {
@@ -39,9 +34,9 @@ fn respond(response: InvitationResponse) -> Intent {
     })
 }
 
-async fn booted(provider: InvitationFake, name: &str) -> App<InvitationFake> {
+async fn booted(provider: InvitationFake, prefs: &ScratchPreferences) -> App<InvitationFake> {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
-    let app = invitation_app_with_prefs(provider, &surfaces, Some(with_alias(name)));
+    let app = invitation_app_with_prefs(provider, &surfaces, Some(prefs.path()));
     app.dispatch(Intent::RefreshMail).await;
     app.dispatch(Intent::RefreshCalendar).await;
     app
@@ -51,7 +46,8 @@ async fn booted(provider: InvitationFake, name: &str) -> App<InvitationFake> {
 async fn an_invitee_answers_from_the_calendar_where_the_server_schedules() {
     let provider = InvitationFake::new();
     let (rsvps, sends) = (provider.rsvps(), provider.sends());
-    let app = booted(provider, "server").await;
+    let prefs = with_alias();
+    let app = booted(provider, &prefs).await;
 
     let detail = app
         .event_detail(&evt("acct-a", EVENT_KEY), None)
@@ -75,7 +71,8 @@ async fn where_nobody_schedules_the_answer_is_written_and_emailed_from_the_event
     let mut provider = InvitationFake::new().without_server_scheduling();
     provider.materialized = true;
     let (rsvps, sends) = (provider.rsvps(), provider.sends());
-    let app = booted(provider, "imip").await;
+    let prefs = with_alias();
+    let app = booted(provider, &prefs).await;
 
     app.dispatch(respond(InvitationResponse::Tentative)).await;
 
@@ -101,7 +98,8 @@ async fn where_nobody_schedules_the_answer_is_written_and_emailed_from_the_event
 async fn an_answer_emailed_without_a_calendar_write_still_settles() {
     let provider = InvitationFake::new().without_stored_answers();
     let (rsvps, sends) = (provider.rsvps(), provider.sends());
-    let app = booted(provider, "imip-unstored").await;
+    let prefs = with_alias();
+    let app = booted(provider, &prefs).await;
 
     app.dispatch(respond(InvitationResponse::Tentative)).await;
 
@@ -116,7 +114,8 @@ async fn a_reply_the_server_could_not_deliver_is_offered_by_email_from_the_event
         status: "5.2".to_owned(),
     });
     let sends = provider.sends();
-    let app = booted(provider, "fallback").await;
+    let prefs = with_alias();
+    let app = booted(provider, &prefs).await;
 
     app.dispatch(respond(InvitationResponse::Decline)).await;
 
@@ -139,7 +138,8 @@ async fn an_account_with_no_way_to_tell_the_organiser_is_offered_no_answer() {
     let mut provider = InvitationFake::new().with_no_route();
     provider.materialized = true;
     let rsvps = provider.rsvps();
-    let app = booted(provider, "no-route").await;
+    let prefs = with_alias();
+    let app = booted(provider, &prefs).await;
 
     let detail = app
         .event_detail(&evt("acct-a", EVENT_KEY), None)
@@ -188,7 +188,8 @@ async fn the_organiser_and_an_appointment_are_offered_no_answer() {
 async fn a_calendar_that_no_longer_connects_is_offered_no_answer() {
     let provider = InvitationFake::new();
     let (rsvps, sends) = (provider.rsvps(), provider.sends());
-    let app = booted(provider, "disconnected").await;
+    let prefs = with_alias();
+    let app = booted(provider, &prefs).await;
     let event = evt("acct-a", EVENT_KEY);
     let answer = app.event_detail(&event, None).await.expect("the meeting");
     assert!(answer.my_answer.is_some());

@@ -2247,6 +2247,7 @@ dependencies = [
  "rustls-pki-types",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "time",
  "tokio",
@@ -2301,6 +2302,7 @@ dependencies = [
 name = "mailcal-bindgen-cs"
 version = "0.18.1"
 dependencies = [
+ "tempfile",
  "uniffi-bindgen-cs",
 ]
 
@@ -2341,6 +2343,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "time",
  "tokio",
@@ -2353,6 +2356,9 @@ dependencies = [
 [[package]]
 name = "mailcal-buildenv"
 version = "0.18.1"
+dependencies = [
+ "tempfile",
+]
 
 [[package]]
 name = "mailcal-composer"
@@ -2376,6 +2382,7 @@ name = "mailcal-l10n"
 version = "0.18.1"
 dependencies = [
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -2396,6 +2403,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sys-locale",
+ "tempfile",
  "time",
  "tokio",
  "url",
@@ -2415,6 +2423,7 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -2424,6 +2433,7 @@ version = "0.18.1"
 dependencies = [
  "mailcal-l10n",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 

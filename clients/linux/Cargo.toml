@@ -38,6 +38,9 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 url.workspace = true
 webkit6 = { version = "0.6.1", features = ["v2_52"] }
 
+[dev-dependencies]
+tempfile.workspace = true
+
 [build-dependencies]
 mailcal-l10n = { path = "../../crates/mailcal-l10n" }
 

@@ -231,7 +231,7 @@ fn a_jmap_account_opens_the_group_mailbox_shared_with_it() {
         return;
     };
     let store = RecordingStore::default();
-    let app = app("shared-jmap", store.clone());
+    let (_dir, app) = app("shared-jmap", store.clone());
     let config = mailcal_bindings::jmap_account_config_toml(JmapSetup {
         email: "alice@test.local".to_owned(),
         server_url: Some(format!("http://{http}")),
@@ -253,7 +253,7 @@ fn an_imap_account_opens_the_group_mailbox_shared_with_it() {
     };
     let (host, port) = imap.rsplit_once(':').expect("host:port");
     let store = RecordingStore::default();
-    let app = app("shared-imap", store.clone());
+    let (_dir, app) = app("shared-imap", store.clone());
     let config = format!(
         "[imap]\naddr = \"127.0.0.1:{port}\"\nserver_name = \"{host}\"\n\
          username = \"alice@test.local\"\npassword = \"harness-alice-pw\"\n\
