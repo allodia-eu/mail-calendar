@@ -74,6 +74,7 @@ internal fun CalendarScreen(
     // Where a week begins. The CORE owns this, it applies the user's week-start setting, so three
     // clients cannot disagree about which day a week starts on.
     weekStartFor: (LocalDate) -> LocalDate,
+    calendarFocus: CalendarFocus? = null,
     // Every calendar under its account, in the core's account order: what the manager lists
     // (`calendar_groups`).
     calendarGroupsFor: () -> List<CalendarGroup>,
@@ -144,7 +145,11 @@ internal fun CalendarScreen(
     // sideways swipe pages between.
     // Seeded from the CORE's persisted layout, so the calendar reopens in the shape it was left in:
     // and reopens the same way on every client, rather than each one keeping its own idea.
-    val pager = remember { CalendarPager(today, display.layout.toMode(), weekStartFor) }
+    val pager = remember {
+        val focus = calendarFocus ?: LocalCalendarFocus(today)
+        CalendarPager(today, display.layout.toMode(), weekStartFor, focus)
+    }
+    LaunchedEffect(Unit) { calendarFocus?.set(today) }
     val pagerState = rememberPagerState(initialPage = CALENDAR_PAGE_ORIGIN) { CALENDAR_PAGE_COUNT }
     // The open editor (create or edit), or null; and the event whose detail is open, or null.
     var editor by remember { mutableStateOf<EventEditorState?>(null) }
@@ -189,7 +194,9 @@ internal fun CalendarScreen(
     LaunchedEffect(pager.resetToken) {
         surface.resetWeek()
         pagerState.scrollToPage(CALENDAR_PAGE_ORIGIN)
+        pager.recentred()
     }
+    LaunchedEffect(currentPageIndex) { pager.settle(currentPageIndex, today) }
 
     // The settled page drives the header, its title, and whether "back to today" is worth offering.
     // Pulling it again here (the grid pulls its own) costs an in-memory read: the query never touches
@@ -204,7 +211,7 @@ internal fun CalendarScreen(
     // The month is a different query, and it is also the one view whose title comes from the ANCHOR
     // rather than from the days on screen: a month grid deliberately shows a few days either side, so
     // titling it from its columns would name June for a July page.
-    val currentMonth = remember(pager.mode, pager.origin, currentPageIndex, calendarVersion) {
+    val currentMonth = remember(pager.mode, pager.origin, pager.focus, currentPageIndex, calendarVersion) {
         if (pager.mode.isMonth) monthFor(anchor) else null
     }
     val visibleDays = remember(currentPage) {
@@ -264,7 +271,7 @@ internal fun CalendarScreen(
             title = title,
             mode = pager.mode,
             onModeChange = {
-                pager.setMode(it, currentPageIndex)
+                pager.setMode(it, currentPageIndex, today)
                 onSetLayout(it.toLayout())
             },
             today = today,
@@ -279,7 +286,7 @@ internal fun CalendarScreen(
             // calendar on any account takes a write, nothing synced yet included.
             canCreateEvent = newEventCalendars.groups.isNotEmpty(),
             onBackToToday = {
-                pager.jumpTo(if (pager.mode.isMonth) today else weekStartFor(today))
+                pager.focusOn(today)
                 // Today's column may be scrolled off the side of its own week, so put it back in
                 // view too, landing on the right week but looking at the wrong end of it is only
                 // half a jump home. The scroll happens in the grid, which is the only thing here
@@ -301,7 +308,7 @@ internal fun CalendarScreen(
                 beyondViewportPageCount = 1,
                 modifier = Modifier.weight(1f),
             ) { page ->
-                val monthPage = remember(pager.mode, pager.origin, page, calendarVersion) {
+                val monthPage = remember(pager.mode, pager.origin, pager.focus, page, calendarVersion) {
                     monthFor(pager.anchorFor(page))
                 }
                 CalendarMonthGrid(
@@ -310,6 +317,7 @@ internal fun CalendarScreen(
                     locale = locale,
                     weekStartsMonday = weekStartsMonday,
                     onOpenEvent = openEvent,
+                    onPickDay = { date -> pager.pick(parseIsoDate(date), page) },
                 )
             }
         } else if (onAgenda) {

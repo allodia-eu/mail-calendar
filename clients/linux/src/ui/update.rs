@@ -104,6 +104,9 @@ impl AppModel {
             AppInput::ShowCalendarDay(date) => {
                 self.move_calendar(|calendar, app| calendar.show_day(app, &date));
             }
+            AppInput::FocusCalendarDay(date) => {
+                self.move_calendar(|calendar, app| calendar.focus_day(app, &date));
+            }
             AppInput::ToggleAllDay => self.calendar.toggle_all_day(),
             AppInput::OpenCalendarEvent(event) => {
                 if let Some(app) = &self.app {

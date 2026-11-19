@@ -7,8 +7,9 @@
 
 use engine_api::{CalendarDate, Provider};
 use mailcal_account::CalendarLayout;
-use mailcal_viewmodel::calendar::pane::{
-    self, CalendarGroup, MiniMonth, NewEventCalendars, PaneView,
+use mailcal_viewmodel::calendar::{
+    focus::{self, Stride},
+    pane::{self, CalendarGroup, MiniMonth, NewEventCalendars, PaneView},
 };
 
 use crate::App;
@@ -63,13 +64,19 @@ impl<P: Provider> App<P> {
             },
             CalendarLayout::Agenda => PaneView::Agenda,
         };
+        let mut month = pane::mini_month(
+            &view,
+            query.today,
+            query.month,
+            self.display_settings().week_start.starts_monday(),
+        );
+        if let Some(focus) = self.focus_date().map(|focus| focus.to_string()) {
+            for day in month.weeks.iter_mut().flat_map(|week| week.days.iter_mut()) {
+                day.is_focus = day.date == focus;
+            }
+        }
         CalendarPane {
-            month: pane::mini_month(
-                &view,
-                query.today,
-                query.month,
-                self.display_settings().week_start.starts_monday(),
-            ),
+            month,
             groups: self.calendar_groups(),
         }
     }
@@ -127,6 +134,65 @@ impl<P: Provider> App<P> {
         if changed {
             self.calendar.resignal();
         }
+    }
+}
+
+/// The calendar's **focus date**: the one day every view is drawn around, held here so four
+/// clients cannot disagree about where the week opened from a paged month lands
+/// (`docs/calendar.md`, "The focus date").
+///
+/// It is not persisted: a launch opens on today. A client sets it when the person picks a day (the
+/// mini month, a month cell, Today, a day's heading) and moves it with [`App::step_calendar_focus`]
+/// on previous and next, then draws the period [`App::calendar_seat`] gives for it.
+impl<P: Provider> App<P> {
+    /// The focus date, or `today` until a client has set one.
+    #[must_use]
+    pub fn calendar_focus(&self, today: CalendarDate) -> CalendarDate {
+        self.focus_date().unwrap_or(today)
+    }
+
+    /// Puts the focus on `date`.
+    pub fn set_calendar_focus(&self, date: CalendarDate) {
+        self.calendar_cache
+            .lock()
+            .expect("calendar cache poisoned")
+            .focus = Some(date);
+    }
+
+    /// Moves the focus `steps` periods of `layout` (negative steps go back) and returns where it
+    /// landed: a week or a month that holds `today` lands on today itself ([`focus::step`]). The
+    /// agenda shows no period, so it leaves the focus where it is.
+    pub fn step_calendar_focus(
+        &self,
+        layout: CalendarLayout,
+        steps: i32,
+        today: CalendarDate,
+    ) -> CalendarDate {
+        let stride = match layout {
+            CalendarLayout::Day => Stride::Day,
+            CalendarLayout::ThreeDay => Stride::ThreeDays,
+            CalendarLayout::WorkWeek | CalendarLayout::Week => Stride::Week,
+            CalendarLayout::Month => Stride::Month,
+            CalendarLayout::Agenda => return self.calendar_focus(today),
+        };
+        let starts_monday = self.display_settings().week_start.starts_monday();
+        let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
+        let landed = focus::step(
+            cache.focus.unwrap_or(today),
+            stride,
+            steps,
+            today,
+            starts_monday,
+        );
+        cache.focus = Some(landed);
+        landed
+    }
+
+    pub(crate) fn focus_date(&self) -> Option<CalendarDate> {
+        self.calendar_cache
+            .lock()
+            .expect("calendar cache poisoned")
+            .focus
     }
 }
 

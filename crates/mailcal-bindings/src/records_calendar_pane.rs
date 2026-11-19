@@ -53,6 +53,9 @@ pub struct MiniDay {
     pub in_month: bool,
     /// Whether it is today: a filled accent circle.
     pub is_today: bool,
+    /// Whether it is the calendar's focus date (`calendar_focus`): a ring.
+    #[uniffi(default = false)]
+    pub is_focus: bool,
     /// Its place in the band of shown days.
     pub shown: ShownSpan,
 }
@@ -156,6 +159,7 @@ impl From<AppMiniDay> for MiniDay {
             day: day.day,
             in_month: day.in_month,
             is_today: day.is_today,
+            is_focus: day.is_focus,
             shown: day.shown.into(),
         }
     }

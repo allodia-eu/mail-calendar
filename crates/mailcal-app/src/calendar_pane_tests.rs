@@ -192,3 +192,67 @@ async fn a_hidden_calendar_leaves_the_agenda_as_it_leaves_the_grid() {
     app.set_calendar_visible("acct", "work", true).await;
     assert_eq!(keys(&app), ["evt-home", "evt-work"]);
 }
+
+/// The focus date through the app (`docs/calendar.md`, "The focus date"): stepped by the layout's
+/// own period, carried across a view switch, and rung on the month and the mini month.
+#[tokio::test]
+async fn the_focus_moves_by_the_layouts_period_and_is_rung_where_it_is() {
+    let surfaces = Arc::new(Mutex::new(Vec::new()));
+    let app = calendar_app(accounts(), &surfaces);
+    let today = date("2026-11-19");
+    assert_eq!(app.calendar_focus(today), today, "the focus opens on today");
+
+    app.set_calendar_focus(date("2027-09-13"));
+    assert_eq!(
+        app.step_calendar_focus(CalendarLayout::Month, 1, today),
+        date("2027-10-13"),
+        "a month on keeps the day of the month"
+    );
+    assert_eq!(
+        app.step_calendar_focus(CalendarLayout::Week, 1, today),
+        date("2027-10-20")
+    );
+    assert_eq!(
+        app.step_calendar_focus(CalendarLayout::Agenda, 1, today),
+        date("2027-10-20"),
+        "the agenda shows no period, so it leaves the focus"
+    );
+    // The week drawn from it is the week holding it, whatever view was open before.
+    assert_eq!(
+        app.calendar_seat(app.calendar_focus(today), CalendarLayout::Week)
+            .anchor,
+        date("2027-10-18")
+    );
+    assert_eq!(
+        app.step_calendar_focus(CalendarLayout::Month, -11, today),
+        today,
+        "a step into the month that holds today lands on today"
+    );
+
+    app.set_calendar_focus(date("2026-11-24"));
+    let month = app.month_page(date("2026-11-01"));
+    let rung: Vec<&str> = month
+        .grid
+        .cells
+        .iter()
+        .filter(|cell| cell.is_focus)
+        .map(|cell| cell.date.as_str())
+        .collect();
+    assert_eq!(rung, ["2026-11-24"]);
+    let pane = app.calendar_pane(CalendarPaneQuery {
+        today,
+        layout: CalendarLayout::Month,
+        anchor: date("2026-11-24"),
+        columns: 7,
+        month: None,
+    });
+    let rung: Vec<&str> = pane
+        .month
+        .weeks
+        .iter()
+        .flat_map(|week| &week.days)
+        .filter(|day| day.is_focus)
+        .map(|day| day.date.as_str())
+        .collect();
+    assert_eq!(rung, ["2026-11-24"]);
+}

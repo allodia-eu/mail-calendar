@@ -408,6 +408,10 @@ pub struct MonthCell {
     /// its neighbours. Dim the others; otherwise the 1st of next month looks like part of
     /// this one and the user taps into the wrong month without noticing.
     pub in_month: bool,
+    /// Whether this is the calendar's focus date (`calendar_focus`): ring it, so a person can see
+    /// which week the week view opens on (`docs/calendar.md`, "The focus date").
+    #[uniffi(default = false)]
+    pub is_focus: bool,
     /// Everything on this day: all-day events first, then timed ones by start.
     ///
     /// **Not truncated.** How many chips fit is a question of how tall a cell is on *this* screen,

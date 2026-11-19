@@ -61,6 +61,8 @@ pub struct MiniDay {
     pub in_month: bool,
     /// Whether it is today, by the client's own clock.
     pub is_today: bool,
+    /// Whether it is the calendar's focus date ([`super::focus`]), which a client rings.
+    pub is_focus: bool,
     /// Its place in the band of days the grid shows.
     pub shown: ShownSpan,
 }
@@ -171,6 +173,7 @@ pub fn mini_month(
                         day: u32::from(date.day()),
                         in_month: date.month() == first.month() && date.year() == first.year(),
                         is_today: day == today,
+                        is_focus: false,
                         shown: span,
                     }
                 })

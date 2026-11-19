@@ -20,6 +20,8 @@ use crate::{
 };
 
 const TODAY: &str = "2026-10-28";
+/// The focus date: not today, so its ring is told from today's fill.
+const FOCUS: &str = "2026-10-30";
 
 /// October 2026 from Monday 28 September, with the grid on the week of the 26th.
 fn october() -> MiniMonth {
@@ -42,6 +44,7 @@ fn october() -> MiniMonth {
                         day: u32::from(date.day()),
                         in_month: date.month() == Month::October,
                         is_today: date.to_string() == TODAY,
+                        is_focus: date.to_string() == FOCUS,
                         shown,
                     }
                 })
@@ -150,6 +153,10 @@ pub(crate) fn the_mini_month_marks_today_and_the_shown_days_and_asks_for_a_seat(
         "a day of another month is dimmed"
     );
     assert!(!today.has_css_class("mailcal-mini-dimmed"));
+    // The focus date is rung, and only it (`docs/calendar.md`, "The focus date").
+    let focus = month.day(FOCUS).expect("the focus is drawn");
+    assert!(focus.has_css_class("mailcal-mini-focus"));
+    assert!(!today.has_css_class("mailcal-mini-focus"));
     assert!(
         month
             .band("2026-10-26")

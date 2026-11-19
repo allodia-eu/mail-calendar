@@ -8,10 +8,7 @@ use time::Date;
 
 pub(crate) use super::reference::{DeleteRequest, EventIdentity};
 use super::{
-    date::{
-        add_days, add_months, date_heading, month_start, month_title, parse_date, period_title,
-        today, today_in,
-    },
+    date::{add_days, date_heading, month_title, parse_date, period_title, today, today_in},
     drag::CreateSlot,
     editor::{CalendarChoice, EventDetails, EventEditor, EventForm, new_event_choices},
 };
@@ -119,6 +116,7 @@ impl CalendarModel {
         };
         let zone = app.timezone_settings().active;
         let today = today_in(&zone);
+        app.set_calendar_focus(today.to_string());
         let settings = app.display_settings();
         let mode = CalendarMode::from(&settings.layout);
         #[cfg(any(debug_assertions, feature = "dev-harness"))]
@@ -240,53 +238,14 @@ impl CalendarModel {
         }
         self.mode = mode;
         self.all_day_expanded = false;
+        // The focus stays where it is: the view drawn is the one around it ("The focus date").
         if mode.is_grid() {
             self.week_anchor = align_week(app, self.focus);
-        } else if mode == CalendarMode::Month {
-            self.focus = month_start(self.focus);
         }
         crate::ui::preference::set(
             app,
             mailcal_bindings::PreferenceIntent::SetCalendarLayout {
                 layout: mode.layout(),
-            },
-        );
-        self.refresh(app);
-    }
-
-    pub(crate) fn step(&mut self, app: &MailcalApp, direction: i32) {
-        match self.mode {
-            CalendarMode::Day => self.focus = add_days(self.focus, i64::from(direction)),
-            CalendarMode::ThreeDay => {
-                self.focus = add_days(self.focus, i64::from(direction) * 3);
-            }
-            CalendarMode::WorkWeek | CalendarMode::Week => {
-                self.focus = add_days(self.focus, i64::from(direction) * 7);
-            }
-            CalendarMode::Month => self.focus = add_months(self.focus, direction),
-            CalendarMode::Agenda => return,
-        }
-        self.all_day_expanded = false;
-        self.refresh(app);
-    }
-
-    pub(crate) fn jump_today(&mut self, app: &MailcalApp) {
-        self.focus = today_in(&app.timezone_settings().active);
-        self.all_day_expanded = false;
-        self.refresh(app);
-    }
-
-    pub(crate) fn show_day(&mut self, app: &MailcalApp, date: &str) {
-        let Some(date) = parse_date(date) else {
-            return;
-        };
-        self.focus = date;
-        self.mode = CalendarMode::Day;
-        self.all_day_expanded = false;
-        crate::ui::preference::set(
-            app,
-            mailcal_bindings::PreferenceIntent::SetCalendarLayout {
-                layout: CalendarLayout::Day,
             },
         );
         self.refresh(app);
@@ -482,6 +441,9 @@ impl CalendarModel {
 fn align_week(app: &MailcalApp, date: Date) -> Date {
     parse_date(&app.week_start_date(date.to_string())).unwrap_or(date)
 }
+
+#[path = "model_focus.rs"]
+mod focus;
 
 #[cfg(test)]
 #[path = "model_tests.rs"]

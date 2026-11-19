@@ -153,6 +153,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 weekStartFor = { date ->
                                     parseIsoDate(instance.weekStartDate(date.toString()))
                                 },
+                                // The focus date every view is drawn around is the core's.
+                                calendarFocus = CoreCalendarFocus(instance),
                                 calendarGroupsFor = { instance.calendarGroups() },
                                 newEventCalendarsFor = { instance.newEventCalendars() },
                                 display = display,

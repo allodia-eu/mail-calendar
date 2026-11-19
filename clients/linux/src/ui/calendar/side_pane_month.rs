@@ -184,6 +184,9 @@ impl DayCell {
         if day.is_today {
             classes.push(TODAY);
         }
+        if day.is_focus {
+            classes.push(FOCUS);
+        }
         if !day.in_month {
             classes.push(OUTSIDE);
         }
@@ -200,6 +203,9 @@ pub(super) fn spoken(day: &MiniDay) -> String {
     let mut parts = vec![parse_date(&day.date).map_or_else(|| day.date.clone(), long_date)];
     if day.is_today {
         parts.push(l10n::calendar_today().to_owned());
+    }
+    if day.is_focus {
+        parts.push(l10n::a11y_calendar_focus_day().to_owned());
     }
     if day.shown != ShownSpan::Outside {
         parts.push(l10n::a11y_calendar_pane_day_shown().to_owned());
@@ -321,6 +327,7 @@ const MONTH: &str = "mailcal-mini-month";
 const CELL: &str = "mailcal-mini-cell";
 const DAY: &str = "mailcal-mini-day";
 const TODAY: &str = "mailcal-mini-today";
+const FOCUS: &str = "mailcal-mini-focus";
 const OUTSIDE: &str = "mailcal-mini-dimmed";
 const CAPTION: &str = "mailcal-mini-caption";
 
@@ -333,6 +340,7 @@ fn css() -> String {
         "box.{CELL} {{ min-height: 24px; }}
 button.{DAY} {{ min-width: 24px; min-height: 24px; padding: 0; border-radius: 9999px; font-feature-settings: \"tnum\"; }}
 button.{DAY}.{TODAY} {{ background-color: var(--accent-bg-color); color: var(--accent-fg-color); font-weight: 700; }}
+button.{DAY}.{FOCUS} {{ box-shadow: inset 0 0 0 2px var(--accent-color); }}
 button.{DAY}.{OUTSIDE} {{ opacity: 0.5; }}
 label.{CAPTION} {{ font-size: 0.8em; font-feature-settings: \"tnum\"; }}
 box.mailcal-mini-only {{ {band} border-radius: 12px; }}

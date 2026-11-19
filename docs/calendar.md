@@ -247,6 +247,44 @@ So the two wide shapes frame on the week start; the two narrow ones frame on tod
 > the *right* edge, not the left. The shared helper agrees on all of them (column 6); it is the bound
 > underneath that differs. The strip's answer is the one the rule always described.
 
+### The focus date
+
+A cross-platform product decision, the same on every client: the calendar keeps **one focus date**,
+held by the core (`calendar_focus`, `set_calendar_focus`, `step_calendar_focus`, in
+`mailcal-app/src/calendar_pane.rs`; the stepping rules in `mailcal-viewmodel/src/calendar/focus.rs`),
+and **every view shows the period that contains it**.
+
+1. **Switching views never moves it.** The week, then the month, then the week again comes back to
+   the same week; the month opened from a day shows that day's month. The period drawn is
+   `calendar_seat(focus, layout)`, the same seat a mini-month press uses.
+2. **Previous and next move it by one period** of the view on screen: a day by one day, three days by
+   three, a week and a work week by seven, a month by one calendar month **keeping the day of the
+   month**, the last day of a shorter month standing in for a day it lacks (the 31st of January, a
+   month on, is the 28th of February). The 13th of September, a month on, is the 13th of October, so
+   the week opened from there is the week of the 13th.
+3. **A step that lands on a week or a month holding today lands on today.** Paging back to this month
+   and opening the week shows this week, not the week of the day carried there. A day and three days
+   are anchored on the focus itself, so moving it would move the days shown; they carry it as it is.
+4. **It is shown, and a press puts it somewhere.** The month grid and the mini month ring the focus
+   day (`MonthCell::is_focus`, `MiniDay::is_focus`) and say so (`a11y_calendar_focus_day`). A press
+   on a month day's own space moves the focus there and leaves the view as it is; a mini-month day,
+   Today and a day's heading move it too.
+5. **It is not persisted.** A launch opens on today; a client sets it to today as it opens.
+
+Why: the week a person lands on after paging the month must be one they can predict, and four
+clients each picking their own answer is how it stopped being one. Before this, Linux carried a
+focus but reset it to the 1st on entering the month, Android and Apple seated the week holding the
+1st, and Windows jumped to this week. The rule is Outlook's (a selected date, kept across views,
+paged by the month on the same day), with two changes Outlook lacks: the focus is drawn, so the
+landing is never a surprise, and a step into today's week or month lands on today.
+
+| Client | Where |
+|---|---|
+| Linux | `clients/linux/src/ui/calendar/model_focus.rs`; the ring in `views.rs` and `side_pane_month.rs` |
+| Android | `CalendarPaging.kt` (the pager settles the focus as it turns); the ring in `CalendarMonth.kt` |
+| Windows | to follow |
+| Apple | to follow |
+
 ### "Back to today" appears only when it would move you: *unless it lives in a cluster*
 
 A cross-platform product decision (Apple and Android): the "back to today" affordance is shown **only

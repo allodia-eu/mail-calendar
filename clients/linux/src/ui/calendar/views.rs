@@ -146,6 +146,7 @@ pub(super) fn render_month(
         dark,
     });
     // A month still loading keeps its cells; the pane's pill over them says it is loading.
+    install_month_css();
     clear_grid(grid);
     for (index, cell) in model.month.cells.iter().enumerate() {
         let Ok(column) = i32::try_from(index % 7) else {
@@ -169,7 +170,12 @@ pub(super) fn render_month(
         );
         date_button.add_css_class("flat");
         date_button.set_halign(gtk::Align::Start);
-        date_button.update_property(&[AccessibleProperty::Label(&cell.date)]);
+        let spoken = if cell.is_focus {
+            format!("{}, {}", cell.date, l10n::a11y_calendar_focus_day())
+        } else {
+            cell.date.clone()
+        };
+        date_button.update_property(&[AccessibleProperty::Label(&spoken)]);
         let input = sender.clone();
         let date = cell.date.clone();
         date_button.connect_clicked(move |_| input.emit(AppInput::ShowCalendarDay(date.clone())));
@@ -236,6 +242,18 @@ pub(super) fn render_month(
         frame.set_child(Some(&day));
         frame.set_hexpand(true);
         frame.set_vexpand(true);
+        if cell.is_focus {
+            frame.add_css_class(MONTH_FOCUS);
+        }
+        // A press on the day's own space puts the focus there, which the other views open
+        // around; its number and its events are buttons, which take their presses first.
+        let press = gtk::GestureClick::new();
+        let input = sender.clone();
+        let date = cell.date.clone();
+        press.connect_released(move |_, _, _, _| {
+            input.emit(AppInput::FocusCalendarDay(date.clone()));
+        });
+        frame.add_controller(press);
         grid.attach(&frame, column, row, 1, 1);
     }
 }
@@ -368,6 +386,26 @@ fn clear_list(list: &gtk::ListBox) {
 fn clear_grid(grid: &gtk::Grid) {
     while let Some(child) = grid.first_child() {
         grid.remove(&child);
+    }
+}
+
+/// The ring on the calendar's focus date (`docs/calendar.md`, "The focus date").
+const MONTH_FOCUS: &str = "mailcal-month-focus";
+
+fn install_month_css() {
+    static INSTALLED: std::sync::Once = std::sync::Once::new();
+    if let Some(display) = gtk::gdk::Display::default() {
+        INSTALLED.call_once(|| {
+            let provider = gtk::CssProvider::new();
+            provider.load_from_string(&format!(
+                "frame.{MONTH_FOCUS} {{ border-color: var(--accent-color); box-shadow: inset 0 0 0 1px var(--accent-color); }}"
+            ));
+            gtk::style_context_add_provider_for_display(
+                &display,
+                &provider,
+                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        });
     }
 }
 

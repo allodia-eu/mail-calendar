@@ -450,6 +450,7 @@
 	"calendar_pane_read_only": "Só de leitura",
 	"calendar_pane_color": "Cor",
 	"a11y_calendar_pane_day_shown": "Mostrado no calendário",
+	"a11y_calendar_focus_day": "Selecionado",
 	"a11y_calendar_pane_calendar": "{name}, {account}",
 
 	"reading_loading": "A carregar a mensagem…",

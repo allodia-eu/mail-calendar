@@ -12,6 +12,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithTag
 import java.util.Locale
@@ -167,5 +172,32 @@ class MonthChipParticipationTest {
         compose.onNodeWithTag(CALENDAR_LOADING_PILL).assertIsDisplayed()
         compose.onNodeWithContentDescription("Loading this period…").assertExists()
         compose.onNodeWithContentDescription("Design review").assertExists()
+    }
+
+    @Test
+    fun the_focus_date_is_rung_and_a_pressed_day_is_where_the_focus_goes() {
+        // docs/calendar.md, "The focus date": the ring says which week the week view opens on, and
+        // a press on a day's own space moves it there.
+        val page = monthWith(emptyList())
+        val focus = page.cells[10].date
+        var picked: String? = null
+        compose.setContent {
+            AppTheme {
+                CalendarMonthGrid(
+                    page = page.copy(
+                        cells = page.cells.map { it.copy(isFocus = it.date == focus) },
+                    ),
+                    today = LocalDate.of(2026, 7, 15),
+                    locale = Locale.forLanguageTag("en-GB"),
+                    weekStartsMonday = true,
+                    onOpenEvent = { },
+                    onPickDay = { picked = it },
+                )
+            }
+        }
+        compose.onAllNodes(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Selected"))
+            .assertCountEquals(1)
+        compose.onAllNodes(hasClickAction())[20].performClick()
+        assertEquals(page.cells[20].date, picked)
     }
 }

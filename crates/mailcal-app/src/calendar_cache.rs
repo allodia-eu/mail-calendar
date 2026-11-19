@@ -109,6 +109,8 @@ pub(crate) struct CalendarCache {
     pub(crate) expanded: Option<Horizon>,
     /// Whether a page asked for days no expansion has been started for.
     pub(crate) widening_owed: bool,
+    /// The calendar's focus date, once a client has set it (`calendar_focus`).
+    pub(crate) focus: Option<CalendarDate>,
 }
 
 /// One rendered page of the calendar.
@@ -150,7 +152,7 @@ impl<P: Provider> App<P> {
         let mut cache = self.calendar_cache.lock().expect("calendar cache poisoned");
         let calendars = self.resolved_calendars(&cache);
         let visible = filter_visible(&cache.occurrences, &calendars);
-        let grid = month::build(
+        let mut grid = month::build(
             anchor,
             self.display_settings().week_start.starts_monday(),
             visible,
@@ -162,6 +164,11 @@ impl<P: Provider> App<P> {
             .filter_map(|cell| cell.date.parse().ok())
             .collect();
         reach::note_page(&mut cache, &days);
+        if let Some(focus) = cache.focus.map(|focus| focus.to_string()) {
+            for cell in &mut grid.cells {
+                cell.is_focus = cell.date == focus;
+            }
+        }
         MonthPage {
             is_materialized: covers(cache.window, &days),
             grid,

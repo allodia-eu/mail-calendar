@@ -97,34 +97,71 @@ class CalendarPagerTest {
         val paged = CALENDAR_PAGE_ORIGIN + 3
         val week = pager.anchorFor(paged)
 
-        pager.setMode(CalendarMode.MONTH, paged)
+        pager.setMode(CalendarMode.MONTH, paged, WEEK)
         assertEquals(week, pager.origin)
         assertNotEquals(0, pager.resetToken)
     }
 
     @Test
-    fun leaving_the_month_for_a_grid_seats_the_week_on_its_first_day() {
-        // A month page is anchored on the 1st, and July 2026 begins on a Wednesday. The week a
-        // menu choice seats from there is the one holding the 1st, from its first day
-        // (docs/calendar.md section 3): a Wednesday under the first heading is the misalignment that
-        // section forbids.
-        val holdingTheFirst = LocalDate.of(2026, 6, 29)
+    fun leaving_the_month_seats_the_week_holding_the_focus_on_its_first_day() {
+        // The focus date, not the 1st (docs/calendar.md, "The focus date"): opened on Wednesday 15
+        // July 2026, the month seats the week of the 15th, from its first day, on every grid shape.
+        val focus = LocalDate.of(2026, 7, 15)
         for (grid in listOf(CalendarMode.WEEK, CalendarMode.WORK_WEEK, CalendarMode.DAY)) {
-            val pager = CalendarPager(WEEK, CalendarMode.MONTH, ::mondayWeekStart)
-            pager.setMode(grid, CALENDAR_PAGE_ORIGIN)
-            assertEquals("$grid", holdingTheFirst, pager.origin)
-            assertEquals("$grid", holdingTheFirst, pager.anchorFor(CALENDAR_PAGE_ORIGIN))
+            val pager = CalendarPager(focus, CalendarMode.MONTH, ::mondayWeekStart)
+            pager.setMode(grid, CALENDAR_PAGE_ORIGIN, focus)
+            assertEquals("$grid", LocalDate.of(2026, 7, 13), pager.origin)
         }
     }
 
     @Test
-    fun leaving_the_agenda_after_the_month_seats_the_week_on_its_first_day() {
-        // The agenda keeps the anchor it was given, so a month, then the agenda, then a grid must
-        // still land on a week's first day.
+    fun a_paged_month_carries_the_focus_into_the_week() {
+        // Two months on from the 15th is the 15th of September: the week opened there holds it.
+        val focus = LocalDate.of(2026, 7, 15)
+        val pager = CalendarPager(focus, CalendarMode.MONTH, ::mondayWeekStart)
+        pager.settle(CALENDAR_PAGE_ORIGIN + 2, focus)
+        assertEquals(LocalDate.of(2026, 9, 15), pager.focus)
+        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN + 2, focus)
+        assertEquals(LocalDate.of(2026, 9, 14), pager.origin)
+    }
+
+    @Test
+    fun the_week_then_the_month_then_the_week_comes_back_to_the_same_week() {
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
+        pager.settle(CALENDAR_PAGE_ORIGIN + 3, WEEK)
+        pager.setMode(CalendarMode.MONTH, CALENDAR_PAGE_ORIGIN + 3, WEEK)
+        pager.recentred()
+        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN, WEEK)
+        assertEquals(WEEK.plusWeeks(3), pager.origin)
+    }
+
+    @Test
+    fun the_page_reported_before_a_re_centre_lands_moves_no_focus() {
+        // A view switch re-origins the strip, and until the screen has scrolled back to the middle
+        // it still reports the old page: taken as a swipe, it would move the focus a second time.
+        val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
+        pager.settle(CALENDAR_PAGE_ORIGIN + 3, WEEK)
+        pager.setMode(CalendarMode.MONTH, CALENDAR_PAGE_ORIGIN + 3, WEEK)
+        pager.settle(CALENDAR_PAGE_ORIGIN + 3, WEEK)
+        assertEquals(WEEK.plusWeeks(3), pager.focus)
+    }
+
+    @Test
+    fun the_agenda_between_the_month_and_the_week_keeps_the_focus() {
+        val focus = LocalDate.of(2026, 7, 15)
+        val pager = CalendarPager(focus, CalendarMode.MONTH, ::mondayWeekStart)
+        pager.setMode(CalendarMode.AGENDA, CALENDAR_PAGE_ORIGIN, focus)
+        pager.recentred()
+        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN, focus)
+        assertEquals(LocalDate.of(2026, 7, 13), pager.origin)
+    }
+
+    @Test
+    fun a_day_pressed_in_the_month_is_where_the_week_opens() {
         val pager = CalendarPager(WEEK, CalendarMode.MONTH, ::mondayWeekStart)
-        pager.setMode(CalendarMode.AGENDA, CALENDAR_PAGE_ORIGIN)
-        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN)
-        assertEquals(LocalDate.of(2026, 6, 29), pager.origin)
+        pager.pick(LocalDate.of(2026, 7, 24), CALENDAR_PAGE_ORIGIN)
+        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN, WEEK)
+        assertEquals(LocalDate.of(2026, 7, 20), pager.origin)
     }
 
     @Test
@@ -145,7 +182,7 @@ class CalendarPagerTest {
         // to, and the *next* "back to today" would be measured from there.
         val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
         val token = pager.resetToken
-        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN + 3)
+        pager.setMode(CalendarMode.WEEK, CALENDAR_PAGE_ORIGIN + 3, WEEK)
         assertEquals(token, pager.resetToken)
         assertEquals(WEEK, pager.origin)
     }
@@ -153,11 +190,11 @@ class CalendarPagerTest {
     @Test
     fun back_to_today_re_origins_and_re_centres() {
         val pager = CalendarPager(WEEK, CalendarMode.WEEK, ::mondayWeekStart)
-        pager.setMode(CalendarMode.DAY, CALENDAR_PAGE_ORIGIN + 10)
+        pager.setMode(CalendarMode.DAY, CALENDAR_PAGE_ORIGIN + 10, WEEK)
         assertNotEquals(WEEK, pager.origin)
 
         val token = pager.resetToken
-        pager.jumpTo(WEEK)
+        pager.focusOn(WEEK)
         assertEquals(WEEK, pager.origin)
         assertEquals(WEEK, pager.anchorFor(CALENDAR_PAGE_ORIGIN))
         assertNotEquals(token, pager.resetToken)
