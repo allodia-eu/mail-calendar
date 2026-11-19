@@ -55,11 +55,7 @@ impl AppModel {
         kind: ComposeKind,
         sender: &relm4::Sender<AppInput>,
     ) {
-        let Some(origin) = compose_origin(
-            kind,
-            self.reader_message(source),
-            self.snapshot.selected_account.as_deref(),
-        ) else {
+        let Some(origin) = compose_origin(kind, self.reader_message(source)) else {
             return;
         };
         let target = match source {
@@ -212,17 +208,11 @@ impl AppModel {
 }
 
 /// What a composer of `kind` raised over `opened` is opened on: the open message for a reply or a
-/// forward, and a new message from the folder's account otherwise, whatever the reading pane
-/// shows. `None` for an answer with nothing open to answer.
-fn compose_origin(
-    kind: ComposeKind,
-    opened: Option<&OpenedMessage>,
-    selected_account: Option<&str>,
-) -> Option<ComposeOrigin> {
+/// forward, and otherwise a new message from the account the core decides, whatever the reading
+/// pane shows. `None` for an answer with nothing open to answer.
+fn compose_origin(kind: ComposeKind, opened: Option<&OpenedMessage>) -> Option<ComposeOrigin> {
     if kind == ComposeKind::New {
-        return Some(ComposeOrigin::New {
-            account: selected_account.map(str::to_owned),
-        });
+        return Some(ComposeOrigin::New { account: None });
     }
     let message = opened?;
     Some(answer_origin(
@@ -291,28 +281,23 @@ mod tests {
     }
 
     /// New Mail with a message open in the reading pane: nothing to quote or answer, and the
-    /// account of the folder on screen rather than of the message beside it.
+    /// account is the core's to decide rather than the message's beside it.
     #[test]
     fn a_new_message_answers_nothing_even_with_a_message_open() {
         let message = open_message();
-        assert_eq!(
-            compose_origin(ComposeKind::New, Some(&message), Some("selected-account")),
-            Some(ComposeOrigin::New {
-                account: Some("selected-account".to_owned())
-            })
-        );
-        assert_eq!(
-            compose_origin(ComposeKind::New, None, None),
-            Some(ComposeOrigin::New { account: None }),
-            "where the list belongs to no account, the core decides"
-        );
+        for opened in [Some(&message), None] {
+            assert_eq!(
+                compose_origin(ComposeKind::New, opened),
+                Some(ComposeOrigin::New { account: None })
+            );
+        }
     }
 
     #[test]
     fn a_reply_or_forward_answers_the_open_message() {
         let message = open_message();
         assert_eq!(
-            compose_origin(ComposeKind::Reply, Some(&message), Some("selected")),
+            compose_origin(ComposeKind::Reply, Some(&message)),
             Some(ComposeOrigin::Reply {
                 account: "message-account".to_owned(),
                 key: "message".to_owned(),
@@ -320,7 +305,7 @@ mod tests {
             })
         );
         assert_eq!(
-            compose_origin(ComposeKind::ReplyAll, Some(&message), None),
+            compose_origin(ComposeKind::ReplyAll, Some(&message)),
             Some(ComposeOrigin::Reply {
                 account: "message-account".to_owned(),
                 key: "message".to_owned(),
@@ -328,7 +313,7 @@ mod tests {
             })
         );
         assert_eq!(
-            compose_origin(ComposeKind::Forward, Some(&message), None),
+            compose_origin(ComposeKind::Forward, Some(&message)),
             Some(ComposeOrigin::Forward {
                 account: "message-account".to_owned(),
                 key: "message".to_owned(),
@@ -339,11 +324,7 @@ mod tests {
             ComposeKind::ReplyAll,
             ComposeKind::Forward,
         ] {
-            assert_eq!(
-                compose_origin(kind, None, Some("selected")),
-                None,
-                "{kind:?}"
-            );
+            assert_eq!(compose_origin(kind, None), None, "{kind:?}");
         }
     }
 

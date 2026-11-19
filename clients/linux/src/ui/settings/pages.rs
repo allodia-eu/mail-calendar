@@ -13,6 +13,8 @@ use super::{PageContext, choice, dialog_box, group, page_box};
 // A child of this module rather than of `settings.rs`, which is at its line limit.
 #[path = "default_calendar.rs"]
 mod default_calendar;
+#[path = "send_account.rs"]
+mod send_account;
 use crate::{l10n, ui::preference};
 
 pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
@@ -178,29 +180,7 @@ pub(super) fn composing(ctx: &PageContext) -> gtk::Box {
         l10n::settings_send_account_heading(),
         l10n::settings_send_account_description(),
     );
-    let snapshot = ctx.app.mailbox_list();
-    let labels = snapshot
-        .accounts
-        .iter()
-        .map(|account| account.email.as_str())
-        .collect::<Vec<_>>();
-    let stored = ctx.app.default_send_account();
-    let selected = snapshot
-        .accounts
-        .iter()
-        .position(|account| Some(&account.id) == stored.as_ref())
-        .and_then(|index| u32::try_from(index).ok())
-        .unwrap_or(0);
-    let (row, picker) = choice(l10n::settings_send_account_heading(), &labels, selected);
-    let app = ctx.app.clone();
-    let accounts = snapshot.accounts;
-    picker.connect_selected_notify(move |picker| {
-        let account = accounts
-            .get(picker.selected() as usize)
-            .map(|account| account.id.clone());
-        preference::set(&app, PreferenceIntent::SetDefaultSendAccount { account });
-    });
-    send.add(&row);
+    send.add(&send_account::row(ctx));
     content.append(&send);
     content
 }

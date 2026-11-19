@@ -25,7 +25,8 @@ use super::{AppInput, AppModel, composer_open::ComposerTarget};
 
 impl AppModel {
     /// Opens a composer for what another application shared with this one: a new message from
-    /// the folder's account, holding the shared files on top of whatever the core opened it with.
+    /// the account the core decides, holding the shared files on top of whatever the core opened
+    /// it with.
     ///
     /// The recipient fields come straight through: they are non-empty only when the shared text
     /// was itself a `mailto:` link, which the core decoded through the mail-link allowlist. A
@@ -46,9 +47,7 @@ impl AppModel {
         }
         let (prefill, files) = share_prefill(prefill);
         self.open_composer_on(
-            ComposeOrigin::New {
-                account: self.snapshot.selected_account.clone(),
-            },
+            ComposeOrigin::New { account: None },
             Some(prefill),
             ComposerTarget::Pane,
             files,
