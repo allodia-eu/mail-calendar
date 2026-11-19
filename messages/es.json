@@ -1344,6 +1344,7 @@
 	"learn_consent_confirm": "Aprender",
 	"learn_progress": "Aprendiendo cómo escribes ({done} de {total})…",
 	"learn_progress_starting": "Aprendiendo cómo escribes…",
+	"learn_progress_account": "Correo enviado desde {email}",
 	"learn_stop": "Detener",
 	"learn_failed_title": "No se aprendió ningún estilo",
 	"reveal_title": "Lo que hemos notado en cómo escribes",

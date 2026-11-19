@@ -67,10 +67,12 @@ pub enum WritingStyleLearnBlock {
 }
 
 /// The run as the page draws it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+#[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum WritingStyleRun {
-    /// Under way: progress and Stop (`StyleLearningIntent::Stop`).
+    /// Under way: whose sent mail is read, progress and Stop (`StyleLearningIntent::Stop`).
     Learning {
+        /// The address of the account learned from, which the page names.
+        email: String,
         done: u32,
         /// Zero until the run knows; a client then draws no fraction.
         total: u32,
@@ -199,7 +201,13 @@ pub(crate) fn page(view: core::WritingStylePageView) -> WritingStylePage {
             }
         }),
         run: view.run.map(|run| match run {
-            core::PageRun::Learning { done, total, stop } => WritingStyleRun::Learning {
+            core::PageRun::Learning {
+                address,
+                done,
+                total,
+                stop,
+            } => WritingStyleRun::Learning {
+                email: address,
                 done,
                 total,
                 stop: control(stop),

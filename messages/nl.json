@@ -1344,6 +1344,7 @@
 	"learn_consent_confirm": "Leren",
 	"learn_progress": "Leren hoe je schrijft ({done} van {total})…",
 	"learn_progress_starting": "Leren hoe je schrijft…",
+	"learn_progress_account": "Verzonden mail van {email}",
 	"learn_stop": "Stoppen",
 	"learn_failed_title": "Er is geen stijl geleerd",
 	"reveal_title": "Wat ons opviel aan hoe je schrijft",

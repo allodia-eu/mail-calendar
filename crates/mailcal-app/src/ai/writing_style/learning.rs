@@ -269,6 +269,11 @@ impl<P: Provider> App<P> {
         let flow = flows.flow.as_ref()?;
         match flow.stage {
             Stage::Learning { done, total } => Some(PageRun::Learning {
+                address: flow
+                    .account
+                    .as_ref()
+                    .map(|(_, address)| address.clone())
+                    .unwrap_or_default(),
                 done,
                 total,
                 stop: StyleControl::of(false, false),

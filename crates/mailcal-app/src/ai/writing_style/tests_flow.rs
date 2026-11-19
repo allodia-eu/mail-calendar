@@ -295,7 +295,8 @@ async fn stop_keeps_nothing_and_closing_leaves_the_run_on_the_page() {
     let page = learner.app.writing_style_page().unwrap();
     assert!(matches!(
         page.run,
-        Some(PageRun::Learning { stop, .. }) if stop.enabled
+        Some(PageRun::Learning { ref address, stop, .. })
+            if stop.enabled && address == "me@acct-1.local"
     ));
     assert!(!page.learn.enabled);
     release.send(()).unwrap();

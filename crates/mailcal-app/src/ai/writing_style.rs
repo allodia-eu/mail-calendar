@@ -105,10 +105,12 @@ pub enum LearnBlock {
 }
 
 /// The run the page draws in Learn's place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PageRun {
     /// Under way.
     Learning {
+        /// The address of the account whose sent mail is read, which the page names.
+        address: String,
         /// Requests answered.
         done: u32,
         /// Requests the run makes; zero until it knows.

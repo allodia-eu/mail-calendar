@@ -1344,6 +1344,7 @@
 	"learn_consent_confirm": "Lernen",
 	"learn_progress": "Lernen, wie Sie schreiben ({done} von {total})…",
 	"learn_progress_starting": "Lernen, wie Sie schreiben…",
+	"learn_progress_account": "Gesendete E-Mails von {email}",
 	"learn_stop": "Anhalten",
 	"learn_failed_title": "Es wurde kein Stil gelernt",
 	"reveal_title": "Was uns an Ihrem Schreiben aufgefallen ist",

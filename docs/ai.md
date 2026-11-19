@@ -121,7 +121,8 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 9. **Learn says on the page why it cannot be pressed**: no account is used for mail, there is
    nowhere to send, the gate refuses the endpoint as declared, or the Allodia sign-in needs
    renewing, each with its one remedy (rule 27). While a run goes, the page draws it in Learn's
-   place, with its progress and Stop.
+   place, with its progress, the address whose sent mail it reads (`learn_progress_account`) and
+   Stop; until the run knows how many requests it makes it says `learn_progress_starting`.
 10. **A row opens the reveal once, and the detail ever after** (rules 15 and 16).
 
 ### Learning a style
