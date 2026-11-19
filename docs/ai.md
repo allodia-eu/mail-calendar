@@ -46,6 +46,16 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    with `mailcal:ai:use`) is `eu-native` by construction: its gateway forwards only to providers it
    classifies as EU-native, picks the model by `purpose`, and stores and logs nothing of a request.
    A request waits five minutes to learn and two to draft.
+   The relay is a request's route only in a build that carries the Allodia sign-in, and only
+   while an account is signed in. It sends only to the account service fixed at build time
+   (`allodia_license::host()`), so nothing else can be sent under the relay's class. It is ready unless the service
+   refused the sign-in or the grant is recorded without `mailcal:ai:use`; either is
+   `RelaySignIn`, said before anything is pressed, and the scope raises no prompt anywhere else.
+   The body is the chat-completions request with `purpose` (`style` or `draft`) and without a
+   model. The relay's refusal codes reach the person as failures (rule 27): `401` the sign-in,
+   `402 insufficient_credits` no credits, `403 not_entitled` the entitlement, which the core then
+   reads again at once, `429 rate_limited` too many requests, `413 too_large` the sample, and
+   anything else a server error.
 3. **What leaves is the request the person started.** Learning sends their own words from the range
    they chose, without quotes or signatures. Drafting sends the message answered, the style's
    section and passages for its language, the recipient context, the instruction and the plain text
@@ -66,7 +76,9 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    Allodia entitlement carries `ai`.** A development build is a debug build, or the Android
    development build, whose core carries `dev-harness`. The entitlement is read as
    [`entitlement.md`](../allodia_license/entitlement.md) says, and an answer without `ai` takes
-   effect at once. Relay and own endpoint are offered together under it. Early access ends before
+   effect at once: the stored answer inside its grace, never a read anyone waits for, published to
+   the offer at launch, after each read, on each refresh trigger and at sign-out, so a grace that
+   runs out takes the offer with it. Relay and own endpoint are offered together under it. Early access ends before
    the relay is sold; from then the own endpoint is in every build, as the relay's free counterpart
    ([`pledge.md`](pledge.md)).
 
@@ -293,7 +305,7 @@ own server, which is not a dispatch of this feature.
 | The draft as one undo step, replacing asked first (21, 22) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The card, ticks from the editor's changes, asked once at Send (23, 24) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | A drafted reply never learned from: the log, the keyword on the Sent copy and the stored draft (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The Allodia relay | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 No platform ships the feature yet, and one ships it only once every row is ✅ there, each driven
 against the harness's Sent Items and a canned endpoint, iPad and a production build signed in with
