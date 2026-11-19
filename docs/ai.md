@@ -236,7 +236,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     line, and the input opens holding the one the last draft was asked with (`instruction`).
 20. **Drafting returns at once and can be stopped.** `ReplyDraftIntent::Draft` starts it and `Stop`
     abandons it, the request in flight included, and an answer that comes after Stop is dropped;
-    the composer stays usable, and `Drafting` draws among its notes with Stop. A draft never waits
+    the composer stays usable. One indicator shows the work ([`waiting.md`](waiting.md) rules 1 and 3):
+    Draft is pressed in the input the action row's control opened, and the input closes onto that
+    control, which runs (`control`) until the draft is in or stopped and is the one spinner drawn.
+    `Drafting` draws among the notes as a line with Stop and no spinner of its own, and Stop is
+    never running, since it ends the work at once. A draft never waits
     for a style being learned or for another composer's draft: a composition drafts one reply at a
     time, and closing it stops its draft.
 21. **A draft goes in above the signature and the quote, as one undo step.** The client runs the

@@ -145,7 +145,8 @@ pub enum ReplyDraftState {
     },
     /// It can draft.
     Ready,
-    /// A draft is being made, or waits for the replace question.
+    /// A draft is being made, or waits for the replace question: a note with Stop and without a
+    /// spinner, since the action row's control shows the work.
     Drafting,
     /// A draft is in the reply, with what the message asks and what is left to do.
     Drafted {
@@ -203,12 +204,12 @@ impl fmt::Debug for ReplyDraftScript {
 pub struct ReplyDraftView {
     /// Where it stands.
     pub state: ReplyDraftState,
-    /// Draft a reply in the action row: running while a draft is made, held only when the
-    /// message answered is gone.
+    /// Draft a reply in the action row: running while a draft is made, the one control that
+    /// shows the work; held only when the message answered is gone.
     pub control: ReplyDraftControl,
     /// Draft, in the instruction's input.
     pub draft: ReplyDraftControl,
-    /// Stop, while a draft is made.
+    /// Stop, while a draft is made. Never running: Stop ends the work at once.
     pub stop: ReplyDraftControl,
     /// Why Draft cannot be pressed, said in the input in place of the field.
     pub held_by: Option<ReplyDraftHold>,

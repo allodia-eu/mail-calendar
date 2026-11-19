@@ -41,6 +41,10 @@ async fn a_draft_moves_from_ready_through_drafting_to_the_card() {
     assert_eq!(drafting.state, ReplyDraftState::Drafting);
     assert!(drafting.control.running && !drafting.control.enabled);
     assert!(!drafting.draft.enabled && drafting.stop.enabled);
+    assert!(
+        !drafting.draft.running && !drafting.stop.running,
+        "the action row's control is the one that shows the work"
+    );
     assert_eq!(drafting.instruction, "yes, Friday", "trimmed by the core");
     assert_eq!(
         app.draft_reply(&reply, start(false)),
