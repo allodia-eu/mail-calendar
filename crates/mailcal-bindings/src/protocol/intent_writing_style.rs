@@ -57,8 +57,11 @@ pub enum StyleLearningIntent {
         language: String,
     },
     Stop,
-    /// The failure's remedy, on `Failed`. `ChooseAccount`, `ChooseRange` and `TryAgain` move the
-    /// flow; for the others a client opens what the remedy names.
+    /// The failure's remedy, on `Failed`, sent for every remedy, in the flow or on the page's run,
+    /// and never with a `Close` of its own. `ChooseAccount`, `ChooseRange` and `TryAgain` move the
+    /// flow; `SignInToAllodia` takes it back as Back does, to wait there while the client starts
+    /// the sign-in; `OpenAiEndpoint` ends it, as `Close` does, and the client then opens Settings
+    /// → Advanced (`docs/ai.md` rule 27).
     Remedy,
     /// Closing the host.
     Close,

@@ -78,9 +78,9 @@ pub enum WritingStyleRun {
         total: u32,
         stop: ControlState,
     },
-    /// It failed after its host was closed. Learn reopens the flow on the failure, where a
-    /// remedy that is a step of the flow is taken; the remedy is held while a change to the
-    /// library runs.
+    /// It failed after its host was closed. Learn reopens the flow on the failure; the remedy,
+    /// held while a change to the library runs, is sent as `StyleLearningIntent::Remedy`, as in
+    /// the flow (`docs/ai.md` rule 11).
     Failed {
         failure: AiFailure,
         remedy: Option<AiRemedyControl>,

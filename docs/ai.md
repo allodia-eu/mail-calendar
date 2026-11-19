@@ -150,9 +150,13 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
       core has no words or locale of its own.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
-    - `Failed { failure, remedy }`, with its one remedy (rule 27). `Remedy` moves the flow for
-      `ChooseAccount` and `ChooseRange` as Back does, and `TryAgain` runs again what failed; for
-      the others a client opens what the remedy names.
+    - `Failed { failure, remedy }`, with its one remedy (rule 27). A client sends `Remedy` for
+      every remedy, here and on the page's run, and never a `Close` with it. `Remedy` moves the
+      flow for `ChooseAccount` and `ChooseRange` as Back does, and `TryAgain` runs again what
+      failed. For `SignInToAllodia` it also goes back as Back does, and the flow stays open on
+      the review while the client starts the sign-in, so Learn waits there for the person's
+      return. For `OpenAiEndpoint` it ends the flow as Close does, and the client then opens
+      Settings → Advanced. A `Close` sent before or after it comes to the same.
     - `Learned { style }`: the style is in the library under the default name, and the reveal
       follows in the same host.
 12. **Back and closing do what the stage says.** Back, Next, Learn, Stop and Close are each a
@@ -317,9 +321,13 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     adds words of its own. A remedy comes with its control (`AiRemedyControl`), wherever it is
     drawn: held while the surface it sits on holds its controls (a change to the library, on the
     page; Draft, for the composer's Try again) and never running, since what it starts is drawn
-    where it leads. A refusal by the gate names only what
-    the gate can refuse: a mode that refuses something and a class it refuses, never `all` and
-    never an endpoint declared EU-native.
+    where it leads. What it leaves is decided here: the learning flow as rule 11 says; in the
+    composer only the instruction input, the client's own, and never the composer, whose record
+    follows on `Surface::WritingStyle` (rule 17), no intent going to it: `LearnStyle` opens the
+    learning flow (`StyleLearningIntent::Open`), `ChooseStyle` Settings → Writing style,
+    `OpenAiEndpoint` Settings → Advanced and `SignInToAllodia` the Allodia sign-in. A refusal by
+    the gate names only what the gate can refuse: a mode that refuses something and a class it
+    refuses, never `all` and never an endpoint declared EU-native.
 
     | Failure | Remedy |
     |---|---|
