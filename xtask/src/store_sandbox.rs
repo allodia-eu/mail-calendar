@@ -35,13 +35,22 @@ struct Rule {
     symptom: &'static str,
 }
 
-const RULES: &[Rule] = &[Rule {
-    marker: "NWListener(",
-    key: "com.apple.security.network.server",
-    feature: "the Google sign-in redirect listener (GoogleOAuth.swift)",
-    symptom: "the bind returns EPERM and the setup sheet reads \
-              \"POSIXErrorCode(rawValue: 1): Operation not permitted\"",
-}];
+const RULES: &[Rule] = &[
+    Rule {
+        marker: "NWListener(",
+        key: "com.apple.security.network.server",
+        feature: "the Google sign-in redirect listener (GoogleOAuth.swift)",
+        symptom: "the bind returns EPERM and the setup sheet reads \
+                  \"POSIXErrorCode(rawValue: 1): Operation not permitted\"",
+    },
+    Rule {
+        marker: "printOperation(with:",
+        key: "com.apple.security.print",
+        feature: "printing a message (MessagePrint.swift)",
+        symptom: "AppKit shows \"This application does not support printing\" in place of the \
+                  print sheet",
+    },
+];
 
 /// Whether the entitlements file actually **grants** `key`, rather than merely naming it.
 ///
