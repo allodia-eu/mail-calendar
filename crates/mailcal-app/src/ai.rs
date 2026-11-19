@@ -26,6 +26,7 @@ mod offer;
 mod route;
 mod styles;
 mod worker;
+mod writing_style;
 
 pub use endpoint::{
     AiEndpointAddressGap, AiEndpointChange, AiEndpointChangeKind, AiEndpointDeclarationGap,
@@ -39,6 +40,7 @@ pub use offer::{AiEntitlement, BuildKind, ai_offered};
 pub use route::AiRoute;
 pub use styles::StylesWritten;
 pub use worker::{AiQueued, AiRun, AiWork, AiWorkKey};
+pub use writing_style::*;
 
 use crate::{App, Surface, preferences_file::PreferencesFile};
 
@@ -53,6 +55,7 @@ pub(crate) struct AiState<P> {
     ports: Mutex<host::Ports>,
     endpoint: Mutex<endpoint::EndpointWork>,
     work: Mutex<worker::Queue<P>>,
+    writing_style: writing_style::WritingStyleState,
 }
 
 impl<P> AiState<P> {
@@ -72,6 +75,7 @@ impl<P> AiState<P> {
             ports: Mutex::new(host::Ports::default()),
             endpoint: Mutex::new(endpoint::EndpointWork::default()),
             work: Mutex::new(worker::Queue::default()),
+            writing_style: writing_style::WritingStyleState::default(),
         }
     }
 
