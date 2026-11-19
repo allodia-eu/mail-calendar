@@ -1,5 +1,5 @@
 // Keeping this device's account list in step with the person's other devices. The core runs the
-// pass and keeps what it found (docs/settings.md category 10, docs/waiting.md); what is here is the
+// pass and keeps what it found (docs/settings.md, Accounts; docs/waiting.md); what is here is the
 // store it remembers in, and reading what it says.
 
 using System;

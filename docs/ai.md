@@ -121,7 +121,8 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 9. **Learn says on the page why it cannot be pressed**: no account is used for mail, there is
    nowhere to send, the gate refuses the endpoint as declared, or the Allodia sign-in needs
    renewing, each with its one remedy (rule 27). While a run goes, the page draws it in Learn's
-   place, with its progress and Stop.
+   place, with its progress, the address whose sent mail it reads (`learn_progress_account`) and
+   Stop; until the run knows how many requests it makes it says `learn_progress_starting`.
 10. **A row opens the reveal once, and the detail ever after** (rules 15 and 16).
 
 ### Learning a style
@@ -139,17 +140,23 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     - `Review`: the core reads the range and stops before anything leaves: `Reading`, then `Ready`
       (messages found, how many say enough to learn from per language, how many were left out in
       other languages, the dates read) or `NothingUsable`. It says what is sent where, naming the
-      relay or the endpoint's host, and names no price, which only the relay knows. It says how far
-      back the device holds the account's mail, and, for an account whose server keeps no
-      keyword, that only this device knows its drafted replies (rule 25). **Pressing Learn there
-      is the consent**; nothing asks anywhere else. Learn carries the default name the style is
-      stored under and the language the app is read in, both the client's, since the core has no
-      words or locale of its own.
+      relay or the endpoint's host, and names no price, which only the relay knows. At
+      `NothingUsable` Learn is held and nothing will be sent, so the record names neither a
+      destination nor a reason it could not send (`sends_to` and `cannot_send` are both empty).
+      It says how far back the device holds the account's mail, and, for an account whose server
+      keeps no keyword, that only this device knows its drafted replies (rule 25). **Pressing
+      Learn there is the consent**; nothing asks anywhere else. Learn carries the default name the
+      style is stored under and the language the app is read in, both the client's, since the
+      core has no words or locale of its own.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
-    - `Failed { failure, remedy }`, with its one remedy (rule 27). `Remedy` moves the flow for
-      `ChooseAccount` and `ChooseRange` as Back does, and `TryAgain` runs again what failed; for
-      the others a client opens what the remedy names.
+    - `Failed { failure, remedy }`, with its one remedy (rule 27). A client sends `Remedy` for
+      every remedy, here and on the page's run, and never a `Close` with it. `Remedy` moves the
+      flow for `ChooseAccount` and `ChooseRange` as Back does, and `TryAgain` runs again what
+      failed. For `SignInToAllodia` it also goes back as Back does, and the flow stays open on
+      the review while the client starts the sign-in, so Learn waits there for the person's
+      return. For `OpenAiEndpoint` it ends the flow as Close does, and the client then opens
+      Settings → Advanced. A `Close` sent before or after it comes to the same.
     - `Learned { style }`: the style is in the library under the default name, and the reveal
       follows in the same host.
 12. **Back and closing do what the stage says.** Back, Next, Learn, Stop and Close are each a
@@ -162,7 +169,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     | `Review` | to `ChooseRange`, dropping a read under way | ends the flow, dropping a read under way |
     | `Learning` | none; Stop returns to `Review` | the run goes on, drawn on the page with its Stop ([`waiting.md`](waiting.md) rule 3) |
     | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
-    | `Learned` | none | the reveal counts as shown; the style keeps its default name |
+    | `Learned` | none | the reveal is left as its own Close leaves it (rule 15); the style keeps its default name |
 
     The record's `trail` names the stages before the current one, first to last, each where Back
     from the one after it goes, so a host that draws the flow as a navigation stack keys its path
@@ -189,16 +196,27 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     anything for is left out, and a per-language page says so for a language with nothing for it.
     A description without a heading of its own is headed by its first sentence, which ends at a
     full stop, question mark, exclamation mark or ellipsis followed by the end or by a space and
-    anything but a lower-case letter. The pages: **what was read**
+    anything but a lower-case letter; the heading drops its full stop, a doubled one included, and
+    keeps an ellipsis, written out or not, a question or exclamation mark and the point closing an
+    abbreviation such as "e.g.". The pages: **what was read**
     (how many messages, from which address, since when, in which languages); **a typical reply** (a
-    miniature letter in the person's usual length and shape, opening as they often do);
+    miniature letter in the person's usual length and shape, opening as they often do, which is one
+    accessible element with its grey lines hidden, spoken as `a11y_letter_opening`,
+    `a11y_letter_words`, `a11y_letter_paragraphs`, `a11y_letter_closing` and `a11y_letter_name` in
+    that order, joined by a comma, each left out when its value is empty or zero: a greeting or a
+    sign-off is its runs' text read as written, a placeholder as its word, and the paragraphs are
+    the record's `paragraph_count`, never the lines drawn);
     **greetings and sign-offs**, each worded by its share ("mostly" for half or more, "often" for a
     fifth or more, "sometimes" below), with the name signed; **tone and approach** (register, how a
     reply is built, declining and chasing, punctuation); **phrases** used and avoided; and **name and
     notes**, with Save. The four in between are per language, with a language control when there is
     more than one. Moving between the pages is a control of the record (`paging`), held while a
     change to the library runs, as Save and closing are. The reveal counts as shown once it is
-    left, by Save or by closing.
+    left, by Save or by closing. **Closing is one control**: over a reveal the host draws one
+    Close, from the reveal's `close`, and sends `CloseReveal`, whether the reveal follows learning
+    or was opened from a row. After learning, the flow's `close` is that control in the same state
+    and the flow's `Close` makes the same change, so either intent leaves the reveal once and the
+    flow ends when the reveal is written as shown.
 16. **An existing style opens its detail** (`writing_style_detail(style)`): the first page's facts,
     the reveal's sections as one page without paging, those the record lists (`sections`, left out
     by the rule the reveal leaves a page out by), the name, the notes and **Forget**. A blank
@@ -228,7 +246,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     line, and the input opens holding the one the last draft was asked with (`instruction`).
 20. **Drafting returns at once and can be stopped.** `ReplyDraftIntent::Draft` starts it and `Stop`
     abandons it, the request in flight included, and an answer that comes after Stop is dropped;
-    the composer stays usable, and `Drafting` draws among its notes with Stop. A draft never waits
+    the composer stays usable. One indicator shows the work ([`waiting.md`](waiting.md) rules 1 and 3):
+    Draft is pressed in the input the action row's control opened, and the input closes onto that
+    control, which runs (`control`) until the draft is in or stopped and is the one spinner drawn.
+    `Drafting` draws among the notes as a line with Stop and no spinner of its own, and Stop is
+    never running, since it ends the work at once. A draft never waits
     for a style being learned or for another composer's draft: a composition drafts one reply at a
     time, and closing it stops its draft.
 21. **A draft goes in above the signature and the quote, as one undo step.** The client runs the
@@ -259,9 +281,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     `mailcal_ai::tasks_done`: a gap while its text is gone from the reply, open again when an undo
     brings it back; an attach item once as many files were added after the draft went in as there
     are attach items, since which file answers which item cannot be told, or once ticked; the rest
-    once the person ticks them (`ReplyDraftIntent::Tick`). A gap is never ticked by hand. After each
-    change above the signature and the quote the editor reports which of the draft's gaps are left,
-    by their place in its list, and the core re-derives the ticks from that, never on a timer.
+    once the person ticks them (`ReplyDraftIntent::Tick`). A gap is never ticked by hand: its item
+    has no `tick`, and a client draws its `done` as a state beside the text (an open or a done
+    mark that cannot be pressed), never as a disabled checkbox, which would read as unavailable
+    rather than as following the reply. After each change above the signature and the quote the
+    editor reports which of the draft's gaps are left, by their place in its list, and the core
+    re-derives the ticks from that, never on a timer.
 24. **Send asks once while the checklist has open items.** The record's `send_question` and
     `submit_composition` read the same function, so the two cannot disagree: while the question is
     due a client asks before it submits, and `submit_composition` refuses without sending.
@@ -289,12 +314,20 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 ### Failures, and what a client decides
 
 27. **A failure and its remedy are decided once, in the core** (`AiFailure`, `AiRemedy`); a client
-    words them and never shows a server's sentence. Stop is not a failure. A remedy comes with its
-    control (`AiRemedyControl`), wherever it is drawn: held while the surface it sits on holds its
-    controls (a change to the library, on the page; Draft, for the composer's Try again) and never
-    running, since what it starts is drawn where it leads. A refusal by the gate names only what
-    the gate can refuse: a mode that refuses something and a class it refuses, never `all` and
-    never an endpoint declared EU-native.
+    words them and never shows a server's sentence. Stop is not a failure. Every failure, remedy,
+    refusal and endpoint gap has its message in the shared catalog (`ai_failure_*`, `ai_remedy_*`,
+    `ai_endpoint_gap_*`, a refusal of an undeclared endpoint `ai_failure_refused_undeclared`), and
+    a bindings test (`records_ai_words_tests.rs`) names the one for each variant, so no client
+    adds words of its own. A remedy comes with its control (`AiRemedyControl`), wherever it is
+    drawn: held while the surface it sits on holds its controls (a change to the library, on the
+    page; Draft, for the composer's Try again) and never running, since what it starts is drawn
+    where it leads. What it leaves is decided here: the learning flow as rule 11 says; in the
+    composer only the instruction input, the client's own, and never the composer, whose record
+    follows on `Surface::WritingStyle` (rule 17), no intent going to it: `LearnStyle` opens the
+    learning flow (`StyleLearningIntent::Open`), `ChooseStyle` Settings → Writing style,
+    `OpenAiEndpoint` Settings → Advanced and `SignInToAllodia` the Allodia sign-in. A refusal by
+    the gate names only what the gate can refuse: a mode that refuses something and a class it
+    refuses, never `all` and never an endpoint declared EU-native.
 
     | Failure | Remedy |
     |---|---|
@@ -367,7 +400,8 @@ No platform ships the feature yet, and one ships it only once every row is ✅ t
 against the harness's Sent Items and a canned endpoint, iPad and a production build signed in with
 and without `ai` included: no cell turns on the strength of shared code alone.
 
-Legend: ✅ shipped · 🚧 in progress · ⬜ planned · — not applicable.
+Legend: ✅ shipped · 🚧 in progress, which is what a platform drawing a surface under early access is
+([`settings.md`](settings.md), Writing style) · ⬜ planned · — not applicable.
 
 ## Enforcement
 

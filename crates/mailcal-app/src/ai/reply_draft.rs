@@ -120,8 +120,9 @@ pub struct ReplyDraftItem {
     pub text: String,
     /// Whether it is done ([`mailcal_ai::tasks_done`]).
     pub done: bool,
-    /// The person's tick: held for a gap, which follows the reply.
-    pub tick: ReplyDraftControl,
+    /// The person's tick; `None` for a gap, whose `done` follows the reply and is drawn as a
+    /// state, not as a control.
+    pub tick: Option<ReplyDraftControl>,
 }
 
 impl fmt::Debug for ReplyDraftItem {
@@ -145,7 +146,8 @@ pub enum ReplyDraftState {
     },
     /// It can draft.
     Ready,
-    /// A draft is being made, or waits for the replace question.
+    /// A draft is being made, or waits for the replace question: a note with Stop and without a
+    /// spinner, since the action row's control shows the work.
     Drafting,
     /// A draft is in the reply, with what the message asks and what is left to do.
     Drafted {
@@ -203,12 +205,12 @@ impl fmt::Debug for ReplyDraftScript {
 pub struct ReplyDraftView {
     /// Where it stands.
     pub state: ReplyDraftState,
-    /// Draft a reply in the action row: running while a draft is made, held only when the
-    /// message answered is gone.
+    /// Draft a reply in the action row: running while a draft is made, the one control that
+    /// shows the work; held only when the message answered is gone.
     pub control: ReplyDraftControl,
     /// Draft, in the instruction's input.
     pub draft: ReplyDraftControl,
-    /// Stop, while a draft is made.
+    /// Stop, while a draft is made. Never running: Stop ends the work at once.
     pub stop: ReplyDraftControl,
     /// Why Draft cannot be pressed, said in the input in place of the field.
     pub held_by: Option<ReplyDraftHold>,
@@ -350,10 +352,10 @@ fn held_view(held: &ReplyDraftHeld, files_added: &dyn Fn(u64) -> usize) -> HeldV
                     kind: task.kind,
                     text: task.text.clone(),
                     done,
-                    tick: ReplyDraftControl {
-                        enabled: task.kind != TaskKind::FillIn,
+                    tick: (task.kind != TaskKind::FillIn).then_some(ReplyDraftControl {
+                        enabled: true,
                         running: false,
-                    },
+                    }),
                 })
                 .collect(),
         }

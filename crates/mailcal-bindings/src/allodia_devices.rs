@@ -1,5 +1,5 @@
 //! What the person's other devices have to say about this device's accounts, kept by the core
-//! (`docs/waiting.md`, `docs/settings.md` category 10).
+//! (`docs/waiting.md`, `docs/settings.md`, Accounts).
 //!
 //! The core runs the pass itself, whenever what it compares may have moved: once somewhere to keep
 //! the bookkeeping is installed, after an Allodia sign-in, after an account is added and after a

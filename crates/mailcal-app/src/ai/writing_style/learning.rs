@@ -13,7 +13,7 @@ use mailcal_ai::{
 };
 
 use super::{
-    PageRun, StyleControl, WritingStyleChange,
+    PageRun, StyleControl, WritingStyleChange, WritingStyleChangeKind,
     flow::{Flow, Flows, LearningIntent, LearningTrailStage, Review, Reviewed, Stage, Start},
     range::{LearnRange, LearnRanges, SentReach, learn_ranges, today},
 };
@@ -61,9 +61,10 @@ pub enum LearningStage {
         /// How far back the device holds the account's mail.
         reach: SentReach,
         /// What was found.
-        review: Review,
-        /// Where Learn would send, or why it cannot.
-        sends_to: Result<AiRoute, AiFailure>,
+        state: Review,
+        /// Where Learn would send, or why it cannot; `None` while nothing found is usable, since
+        /// nothing will be sent.
+        sends_to: Option<Result<AiRoute, AiFailure>>,
         /// Whether the account's server keeps the drafted keyword; without it only this device
         /// knows which replies were drafted.
         keyword_kept: bool,
@@ -104,7 +105,8 @@ pub struct LearningView {
     pub learn: Option<StyleControl>,
     /// Stop, on `Learning`.
     pub stop: Option<StyleControl>,
-    /// Closing the host.
+    /// Closing the host. On `Learned` it is the reveal's `close`, the same control in the same
+    /// state, and either intent leaves the reveal the same way.
     pub close: StyleControl,
 }
 
@@ -226,8 +228,8 @@ impl<P: Provider> App<P> {
                     address,
                     range: flow.range.unwrap_or(LearnRange::Everything),
                     reach,
-                    review: review.clone(),
-                    sends_to: route,
+                    state: review.clone(),
+                    sends_to: (!matches!(review, Review::NothingUsable(_))).then_some(route),
                     keyword_kept: flow
                         .reviewed
                         .as_ref()
@@ -248,9 +250,13 @@ impl<P: Provider> App<P> {
                     remedy: failure.remedy_control(true),
                 }
             }
-            Stage::Learned(style) => LearningStage::Learned {
-                style: style.clone(),
-            },
+            // The reveal is on screen: closing the host is the reveal's Close, drawn as it is.
+            Stage::Learned(style) => {
+                view.close = self.style_controls(style)(WritingStyleChangeKind::CloseReveal);
+                LearningStage::Learned {
+                    style: style.clone(),
+                }
+            }
         };
         view
     }
@@ -263,6 +269,11 @@ impl<P: Provider> App<P> {
         let flow = flows.flow.as_ref()?;
         match flow.stage {
             Stage::Learning { done, total } => Some(PageRun::Learning {
+                address: flow
+                    .account
+                    .as_ref()
+                    .map(|(_, address)| address.clone())
+                    .unwrap_or_default(),
                 done,
                 total,
                 stop: StyleControl::of(false, false),

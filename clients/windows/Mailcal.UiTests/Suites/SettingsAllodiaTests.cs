@@ -1,4 +1,4 @@
-// Settings → Allodia account (docs/settings.md slot 1): the category for the product's own account,
+// Settings → Allodia account (docs/settings.md, Allodia account): the category for the product's own account,
 // and what it draws signed out. The failures this is for are the client's: the category built but
 // never reached, the panel reached without the way out, or the category surviving into a build that
 // has no route to offer. A build from source has no category at all, and that is a pass, so each

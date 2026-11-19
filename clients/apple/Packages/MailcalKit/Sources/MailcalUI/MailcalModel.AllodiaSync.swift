@@ -1,5 +1,5 @@
 // Keeping this device's account list in step with the person's other devices. The core runs the
-// pass and every change (docs/settings.md category 10); what is here is handing it somewhere to
+// pass and every change (docs/settings.md, Accounts); what is here is handing it somewhere to
 // keep its bookkeeping, and reading what it says.
 
 import Foundation

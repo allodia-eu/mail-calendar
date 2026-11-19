@@ -23,7 +23,9 @@ pub struct WritingStyleLearning {
     pub learn: Option<ControlState>,
     /// Stop, on `Learning`. The failure's remedy is on `Failed`.
     pub stop: Option<ControlState>,
-    /// Closing the host (`StyleLearningIntent::Close`).
+    /// Closing the host (`StyleLearningIntent::Close`). On `Learned` the reveal is on screen and
+    /// this is the reveal's `close` in the same state; `Close` then leaves the reveal as
+    /// `WritingStyleIntent::CloseReveal` does, and the flow ends once it is written as shown.
     pub close: ControlState,
 }
 
@@ -135,8 +137,11 @@ pub enum StyleLearningStage {
         email: String,
         range: StyleLearnRange,
         reach: StyleSentReach,
-        review: StyleLearningReview,
-        /// Where Learn sends; `None` when it cannot, and `cannot_send` says why.
+        /// What the review found.
+        state: StyleLearningReview,
+        /// Where Learn sends; `None` when it cannot, and `cannot_send` says why. Both are `None`
+        /// while the review is `NothingUsable`: nothing will be sent, so nothing is said about
+        /// where.
         sends_to: Option<StyleLearningDestination>,
         cannot_send: Option<AiFailure>,
         /// Whether the account's server keeps the drafted-reply keyword; without it only this
@@ -261,14 +266,14 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
             address,
             range,
             reach,
-            review,
+            state,
             sends_to,
             keyword_kept,
         } => StyleLearningStage::Review {
             email: address,
             range: range.into(),
             reach: reach.into(),
-            review: match review {
+            state: match state {
                 core::Review::Reading => StyleLearningReview::Reading,
                 core::Review::Ready(found) => StyleLearningReview::Ready {
                     report: report(found),
@@ -277,13 +282,14 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
                     report: report(found),
                 },
             },
-            sends_to: sends_to.as_ref().ok().map(|route| match route {
-                core::AiRoute::Relay => StyleLearningDestination::Relay,
-                core::AiRoute::OwnEndpoint { host, .. } => {
-                    StyleLearningDestination::OwnEndpoint { host: host.clone() }
+            sends_to: match &sends_to {
+                Some(Ok(core::AiRoute::Relay)) => Some(StyleLearningDestination::Relay),
+                Some(Ok(core::AiRoute::OwnEndpoint { host, .. })) => {
+                    Some(StyleLearningDestination::OwnEndpoint { host: host.clone() })
                 }
-            }),
-            cannot_send: sends_to.err().map(Into::into),
+                Some(Err(_)) | None => None,
+            },
+            cannot_send: sends_to.and_then(Result::err).map(Into::into),
             keyword_kept,
         },
         core::LearningStage::Learning { done, total } => {

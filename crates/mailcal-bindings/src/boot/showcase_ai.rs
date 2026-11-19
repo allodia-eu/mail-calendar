@@ -1,7 +1,8 @@
 //! What `MAILCAL_OFFER_AI` stages on an in-memory boot besides the offer, for the UI suites
-//! (`docs/debugging.md`): two learned styles, an own endpoint on this device, and a transport that
-//! answers a draft from a canned reply and every other request as no answer. Nothing leaves the
-//! device. Compiled with the staging module, into a development build alone.
+//! (`docs/debugging.md`): two learned styles, an own endpoint on this device, sent mail on the
+//! showcase's first account to learn from, and a transport that answers a draft from a canned
+//! reply and every other request as no answer. Nothing leaves the device. Compiled with the
+//! staging module, into a development build alone.
 
 use std::collections::BTreeMap;
 
@@ -15,6 +16,11 @@ use mailcal_app::{
     App,
     ai::{AiEndpointChange, AiEndpointEdit, Class},
 };
+
+#[path = "showcase_ai_sent.rs"]
+mod sent;
+
+pub(crate) use sent::with_sent_mail;
 
 /// The model the staged endpoint asks for. A draft asked of it gets the canned reply; asked of
 /// any other model, or for anything but a draft, a request answers as no answer.
@@ -218,6 +224,9 @@ fn waiting(address: &str) -> StoredWritingStyle {
     )
 }
 
+#[cfg(test)]
+#[path = "showcase_ai_learning_tests.rs"]
+mod learning_tests;
 #[cfg(test)]
 #[path = "showcase_ai_tests.rs"]
 mod tests;

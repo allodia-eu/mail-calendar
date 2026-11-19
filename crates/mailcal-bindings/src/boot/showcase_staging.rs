@@ -6,11 +6,13 @@ use std::sync::Arc;
 
 use engine_api::{AccountId, Provider, TimeZoneId};
 use mailcal_app::{App, Intent as AppIntent, ai::AiHost};
+use time::OffsetDateTime;
 
 use crate::{
     MailcalApp,
     ai_host::{BindingsAiHost, build_kind},
     runtime::FfiRuntime,
+    showcase_data::AccountSeed,
 };
 
 #[path = "showcase_ai.rs"]
@@ -41,10 +43,26 @@ pub(crate) fn stage_on_request<P: Provider>(
     }
 }
 
+/// Whether the launch set `MAILCAL_OFFER_AI`.
+pub(crate) fn ai_requested() -> bool {
+    requested("MAILCAL_OFFER_AI")
+}
+
+/// The showcase's first account as seeded, with the sent mail a learning flow reads when
+/// `offer_ai`, so its review is `Ready`. Without it the seed is returned untouched: the store
+/// captures come from this boot.
+pub(crate) fn primary_seed(seed: AccountSeed, now: OffsetDateTime, offer_ai: bool) -> AccountSeed {
+    if offer_ai {
+        ai::with_sent_mail(seed, now)
+    } else {
+        seed
+    }
+}
+
 /// `MAILCAL_OFFER_AI`: the writing assistant offered on an in-memory boot, with two learned
 /// styles and an own endpoint staged for `account` (its id and address) when the boot has one.
 pub(crate) fn offer_ai_on_request(mailcal: &MailcalApp, account: Option<(&str, &str)>) {
-    if requested("MAILCAL_OFFER_AI") {
+    if ai_requested() {
         offer_ai(mailcal);
         if let Some((id, address)) = account {
             ai::stage(mailcal.app.as_ref(), id, address);

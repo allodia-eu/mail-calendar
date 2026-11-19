@@ -197,7 +197,10 @@ fn closing_ends_the_flow_except_while_learning_and_marks_a_reveal_shown() {
         apply(&mut flows, LearningIntent::Close, &["a", "b"]),
         Start::RevealClosed(closed) if closed == id
     ));
-    assert!(flows.flow.is_none());
+    assert!(
+        flows.flow.is_some(),
+        "the flow ends once the reveal is written as shown"
+    );
 }
 
 #[test]
@@ -308,4 +311,35 @@ fn try_again_reruns_what_failed() {
         apply(&mut flows, LearningIntent::Remedy, &["a"]),
         Start::Read(_)
     ));
+}
+
+/// `docs/ai.md` rule 27: the sign-in is taken over the flow, which waits on the review for the
+/// person's return; the endpoint is set up under Settings → Advanced, which the flow is closed for.
+/// A Close sent before or after the remedy comes to the same.
+#[test]
+fn a_remedy_that_leads_elsewhere_keeps_or_closes_the_flow_whatever_the_order() {
+    let mut flows = reviewed();
+    flows.flow.as_mut().unwrap().stage = Stage::Failed(AiFailure::RelaySignIn);
+    apply(&mut flows, LearningIntent::Remedy, &["a", "b"]);
+    assert!(
+        matches!(stage(&flows), Some(Stage::Review(Review::Ready(_)))),
+        "the flow waits on the review for the sign-in"
+    );
+
+    for first in [LearningIntent::Remedy, LearningIntent::Close] {
+        let mut flows = reviewed();
+        flows.flow.as_mut().unwrap().stage = Stage::Failed(AiFailure::NowhereToSend);
+        apply(&mut flows, first.clone(), &["a", "b"]);
+        assert!(flows.flow.is_none(), "{first:?} ends the flow");
+        let second = if first == LearningIntent::Remedy {
+            LearningIntent::Close
+        } else {
+            LearningIntent::Remedy
+        };
+        assert!(matches!(
+            apply(&mut flows, second, &["a", "b"]),
+            Start::Nothing
+        ));
+        assert!(flows.flow.is_none());
+    }
 }
