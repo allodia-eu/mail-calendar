@@ -29,6 +29,9 @@ internal class WritingStyleState {
 
     // Counts WRITING_STYLE signals, so an open reveal or detail reads its record again.
     var version by mutableIntStateOf(0)
+
+    // Counts REPLY_DRAFT and WRITING_STYLE signals, so an open composer reads Draft a reply again.
+    var draftVersion by mutableIntStateOf(0)
 }
 
 /** Settings → Writing style's records and the calls its screens make. */

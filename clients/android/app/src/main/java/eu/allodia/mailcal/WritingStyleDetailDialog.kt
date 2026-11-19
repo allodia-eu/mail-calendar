@@ -50,6 +50,7 @@ import uniffi.mailcal_bindings.WritingStyleIntent
 import uniffi.mailcal_bindings.WritingStyleRefusal
 import uniffi.mailcal_bindings.WritingStyleResult
 import uniffi.mailcal_bindings.WritingStyleRevealPage
+import uniffi.mailcal_bindings.WritingStyleSection
 
 internal const val DETAIL_NAME_TAG = "style-detail-name"
 internal const val DETAIL_RENAME_TAG = "style-detail-rename"
@@ -58,12 +59,12 @@ internal const val DETAIL_FORGET_TAG = "style-detail-forget"
 internal const val DETAIL_FORGET_CONFIRM_TAG = "style-detail-forget-confirm"
 internal const val DETAIL_CLOSE_TAG = "style-detail-close"
 
-private val SECTIONS = listOf(
-    WritingStyleRevealPage.LETTER,
-    WritingStyleRevealPage.HABITS,
-    WritingStyleRevealPage.VOICE,
-    WritingStyleRevealPage.PHRASES,
-)
+private fun WritingStyleSection.page(): WritingStyleRevealPage = when (this) {
+    WritingStyleSection.LETTER -> WritingStyleRevealPage.LETTER
+    WritingStyleSection.HABITS -> WritingStyleRevealPage.HABITS
+    WritingStyleSection.VOICE -> WritingStyleRevealPage.VOICE
+    WritingStyleSection.PHRASES -> WritingStyleRevealPage.PHRASES
+}
 
 /** Forget's question: what it does, then the accounts that draft in the style now. */
 internal fun forgetMessage(ctx: Context, detail: WritingStyleDetail): String =
@@ -138,7 +139,7 @@ internal fun WritingStyleDetailDialog(id: String, ui: WritingStyleUi, onClose: (
                     ) { ui.onChange(WritingStyleIntent.SetNotes(id, it)) }
                     LanguageControl(detail.languages, language) { language = it }
                     val chosen = detail.languages.getOrNull(language)
-                    SECTIONS.forEach { page ->
+                    detail.sections.map { it.page() }.forEach { page ->
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text(
                                 revealPageTitle(ctx, page),

@@ -15,8 +15,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import uniffi.mailcal_bindings.AiFailure
 import uniffi.mailcal_bindings.AiRemedy
-import uniffi.mailcal_bindings.JurisdictionClass
-import uniffi.mailcal_bindings.JurisdictionMode
+import uniffi.mailcal_bindings.JurisdictionLimit
+import uniffi.mailcal_bindings.JurisdictionRefusal
 import uniffi.mailcal_bindings.StyleLearningIntent
 import uniffi.mailcal_bindings.StyleLearningLanguage
 import uniffi.mailcal_bindings.StyleLearningReport
@@ -31,11 +31,11 @@ class WritingStyleWordsTest {
     fun a_refusal_is_worded_by_the_mode_in_force() {
         assertEquals(
             L10n.ai_failure_refused_eu_hosted(ctx()),
-            aiFailureText(ctx(), AiFailure.Refused(JurisdictionMode.EU_HOSTED, JurisdictionClass.NON_EU)),
+            aiFailureText(ctx(), AiFailure.Refused(JurisdictionRefusal.NonEu(JurisdictionLimit.EU_HOSTED))),
         )
         assertEquals(
             L10n.ai_failure_refused_eu_native(ctx()),
-            aiFailureText(ctx(), AiFailure.Refused(JurisdictionMode.EU_NATIVE, JurisdictionClass.EU_HOSTED)),
+            aiFailureText(ctx(), AiFailure.Refused(JurisdictionRefusal.EuHosted)),
         )
     }
 
@@ -85,10 +85,17 @@ class WritingStyleWordsTest {
     }
 
     @Test
-    fun between_two_dates_starts_from_the_widest_range_the_core_allows() {
-        assertEquals("2025-03-01", betweenStart(chooseRange()).since)
-        assertEquals("2026-11-19", betweenStart(chooseRange()).until)
-        assertEquals("with no first day, from the last", "2026-11-19", betweenStart(chooseRange(earliest = null)).since)
+    fun a_refusal_nobody_declared_is_worded_by_its_mode() {
+        assertEquals(
+            L10n.ai_failure_refused_eu_hosted(ctx()),
+            aiFailureText(ctx(), AiFailure.Refused(JurisdictionRefusal.Unknown(JurisdictionLimit.EU_HOSTED))),
+        )
+    }
+
+    @Test
+    fun dates_follow_the_catalog_s_region_not_the_device_s() {
+        assertEquals(Locale.UK, catalogLocale(ctx()))
+        assertEquals("19 November 2026", dayText("2026-11-19", catalogLocale(ctx())))
     }
 
     @Test

@@ -5,13 +5,15 @@ package eu.allodia.mailcal
 
 import java.time.ZoneId
 import uniffi.mailcal_bindings.AiEndpointForm
-import uniffi.mailcal_bindings.AiEndpointGaps
+import uniffi.mailcal_bindings.AiRemedy
+import uniffi.mailcal_bindings.AiRemedyControl
 import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.JurisdictionClass
 import uniffi.mailcal_bindings.StyleLearnRange
 import uniffi.mailcal_bindings.StyleLearningAccount
 import uniffi.mailcal_bindings.StyleLearningIntent
 import uniffi.mailcal_bindings.StyleLearningStage
+import uniffi.mailcal_bindings.StyleLearningTrailStage
 import uniffi.mailcal_bindings.StyleSentReach
 import uniffi.mailcal_bindings.WritingStyleCard
 import uniffi.mailcal_bindings.WritingStyleDetail
@@ -31,6 +33,7 @@ import uniffi.mailcal_bindings.WritingStylePhrases
 import uniffi.mailcal_bindings.WritingStyleRefusal
 import uniffi.mailcal_bindings.WritingStyleReveal
 import uniffi.mailcal_bindings.WritingStyleRevealPage
+import uniffi.mailcal_bindings.WritingStyleSection
 import uniffi.mailcal_bindings.WritingStyleSlot
 import uniffi.mailcal_bindings.WritingStyleSpan
 import uniffi.mailcal_bindings.WritingStyleTopic
@@ -69,9 +72,9 @@ internal fun learning(
     next: ControlState? = null,
     learn: ControlState? = null,
     stop: ControlState? = null,
-    remedy: ControlState? = null,
     close: ControlState = FREE,
-) = WritingStyleLearning(stage = stage, back = back, next = next, learn = learn, stop = stop, remedy = remedy, close = close)
+    trail: List<StyleLearningTrailStage> = emptyList(),
+) = WritingStyleLearning(stage = stage, trail = trail, back = back, next = next, learn = learn, stop = stop, close = close)
 
 internal fun chooseAccount(selected: String? = null) = StyleLearningStage.ChooseAccount(
     accounts = listOf(StyleLearningAccount("alice", "alice@test.local"), StyleLearningAccount("bob", "bob@test.local")),
@@ -80,7 +83,11 @@ internal fun chooseAccount(selected: String? = null) = StyleLearningStage.Choose
 
 internal fun chooseRange(
     selected: StyleLearnRange? = StyleLearnRange.Everything,
-    presets: List<StyleLearnRange> = listOf(StyleLearnRange.Everything, StyleLearnRange.UntilEndOfLastYear),
+    presets: List<StyleLearnRange> = listOf(
+        StyleLearnRange.Everything,
+        StyleLearnRange.UntilEndOfLastYear,
+        StyleLearnRange.Between("2025-03-01", "2026-11-19"),
+    ),
     earliest: String? = "2025-03-01",
 ) = StyleLearningStage.ChooseRange(
     email = "alice@test.local",
@@ -118,6 +125,7 @@ internal fun styleReveal(
     languages: List<WritingStyleLanguage> = listOf(styleLanguage("en"), styleLanguage("nl", full = false)),
     save: ControlState = FREE,
     close: ControlState = FREE,
+    paging: ControlState = FREE,
 ) = WritingStyleReveal(
     id = id,
     facts = styleFacts(),
@@ -127,6 +135,7 @@ internal fun styleReveal(
     notes = "",
     save = save,
     close = close,
+    paging = paging,
 )
 
 internal fun styleDetail(
@@ -134,6 +143,7 @@ internal fun styleDetail(
     rename: ControlState = FREE,
     forget: ControlState = FREE,
     drafting: List<String> = listOf("alice@test.local"),
+    sections: List<WritingStyleSection> = WritingStyleSection.entries.toList(),
 ) = WritingStyleDetail(
     id = id,
     facts = styleFacts(),
@@ -144,6 +154,7 @@ internal fun styleDetail(
     notesControl = FREE,
     forget = forget,
     draftingAccounts = drafting,
+    sections = sections,
 )
 
 internal fun endpointForm(
@@ -152,13 +163,12 @@ internal fun endpointForm(
     declared: JurisdictionClass? = null,
     keyKept: Boolean = false,
     save: ControlState = FREE,
-    remove: ControlState = HELD,
+    remove: ControlState? = null,
 ) = AiEndpointForm(
     address = address,
     model = model,
     declared = declared,
     keyKept = keyKept,
-    gaps = AiEndpointGaps(null, false, null),
     save = save,
     remove = remove,
     outcome = null,
@@ -188,3 +198,6 @@ internal fun testWritingStyleUi(
 /** The learning intents among [sent], in order. */
 internal fun learningSent(sent: List<WritingStyleIntent>): List<StyleLearningIntent> =
     sent.filterIsInstance<WritingStyleIntent.Learning>().map { it.intent }
+
+/** A remedy offered with a control that can be pressed. */
+internal fun offered(remedy: AiRemedy, control: ControlState = FREE) = AiRemedyControl(remedy, control)

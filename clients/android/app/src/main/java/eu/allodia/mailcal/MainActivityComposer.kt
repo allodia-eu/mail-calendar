@@ -208,6 +208,7 @@ private fun MainActivity.ComposerFor(
         importance = remember(opening.composition) {
             composerImportanceStore(instance, opening.composition)
         },
+        replyDraft = composerReplyDraftUi(instance),
         onSubmitRich = { submission -> submitComposition(instance, submission) },
         onDismiss = onDismiss,
     )

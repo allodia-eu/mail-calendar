@@ -4,6 +4,19 @@
 package eu.allodia.mailcal
 
 import android.content.Context
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,13 +29,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
@@ -68,9 +79,13 @@ internal fun learningChrome(
             })
         }
         ?: learning.stop?.let { FlowAction(L10n.learn_stop(ctx), it, { send(StyleLearningIntent.Stop) }, outlined = true) }
-        ?: learning.remedy?.takeIf { remedy != null }?.let { control ->
-            FlowAction(aiRemedyText(ctx, checkNotNull(remedy)), control, {
-                if (remedyAction(remedy) == RemedyAction.MOVE_FLOW) send(StyleLearningIntent.Remedy) else onRemedy(remedy)
+        ?: remedy?.let { offered ->
+            FlowAction(aiRemedyText(ctx, offered.remedy), offered.control, {
+                if (remedyAction(offered.remedy) == RemedyAction.MOVE_FLOW) {
+                    send(StyleLearningIntent.Remedy)
+                } else {
+                    onRemedy(offered.remedy)
+                }
             })
         }
     return FlowChrome(
@@ -85,7 +100,7 @@ internal fun learningChrome(
 @Composable
 internal fun LearningStageView(stage: StyleLearningStage, zone: ZoneId, send: (StyleLearningIntent) -> Unit) {
     val ctx = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     when (stage) {
         is StyleLearningStage.ChooseAccount -> FlowPage(L10n.learn_account_title(ctx), Modifier.testTag(LEARN_STAGE_TAG)) {
             Column {
@@ -122,7 +137,7 @@ private fun Supporting(text: String) {
 @Composable
 private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
     val ctx = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     val report = when (val review = stage.review) {
         StyleLearningReview.Reading -> {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -162,26 +177,69 @@ private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
     if (!stage.keywordKept) Supporting(L10n.learn_keyword_not_kept(ctx))
 }
 
-// The run's progress, alone in the middle: a count once the run knows its total.
+// The run's progress, alone in the middle: a ring around the feature's glyph, which breathes while
+// the run does not yet know its total and fills once it does, and the count under it. Under reduced
+// motion the ring stands still at its value.
 @Composable
 private fun LearningProgress(done: UInt, total: UInt) {
     val ctx = LocalContext.current
+    val reduced = rememberReducedMotion()
     val fraction = learnProgressFraction(done, total)
+    val shown by animateFloatAsState(
+        targetValue = fraction ?: 0f,
+        animationSpec = if (reduced) snap() else tween(600, easing = SETTLE),
+        label = "learning",
+    )
+    val breathing = if (reduced) {
+        1f
+    } else {
+        val pulse = rememberInfiniteTransition(label = "breathing")
+        pulse.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.04f,
+            animationSpec = infiniteRepeatable(tween(1_400, easing = SETTLE), RepeatMode.Reverse),
+            label = "breathing",
+        ).value
+    }
+    val colours = MaterialTheme.colorScheme
     Box(modifier = Modifier.fillMaxSize().padding(FLOW_GUTTER).testTag(LEARN_PROGRESS_TAG), contentAlignment = Alignment.Center) {
         Column(
             modifier = Modifier.widthIn(max = 360.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp),
         ) {
-            if (fraction == null) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            } else {
-                LinearProgressIndicator(progress = { fraction }, modifier = Modifier.fillMaxWidth())
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(168.dp)) {
+                if (fraction == null) {
+                    CircularProgressIndicator(modifier = Modifier.fillMaxSize(), strokeWidth = 6.dp, trackColor = colours.surfaceContainerHighest)
+                } else {
+                    CircularProgressIndicator(
+                        progress = { shown },
+                        modifier = Modifier.fillMaxSize(),
+                        strokeWidth = 6.dp,
+                        trackColor = colours.surfaceContainerHighest,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(112.dp)
+                        .graphicsLayer {
+                            scaleX = breathing
+                            scaleY = breathing
+                        }
+                        .background(colours.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painterResource(R.drawable.ic_stylus_note),
+                        contentDescription = null,
+                        tint = colours.onPrimaryContainer,
+                        modifier = Modifier.size(52.dp),
+                    )
+                }
             }
             Text(
                 learnProgressText(ctx, done, total),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.titleLarge,
                 textAlign = TextAlign.Center,
             )
         }

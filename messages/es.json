@@ -1279,6 +1279,7 @@
 	"ai_endpoint_gap_refused_eu_native": "Solo se puede usar un servidor que funcione en la UE gestionado por una empresa europea, o en tu propio ordenador.",
 	"ai_endpoint_gap_refused_eu_hosted": "Solo se puede usar un servidor que funcione en la UE.",
 	"ai_endpoint_key_not_stored": "No se pudo guardar la clave.",
+	"ai_endpoint_key_dropped": "La clave guardada pertenece a otro servidor. Escribe la clave de nuevo, o deja esto vacío si el servidor no necesita ninguna.",
 	"ai_failure_relay_sign_in": "Vuelve a iniciar sesión en tu cuenta de Allodia para usar el estilo de escritura.",
 	"ai_failure_key_refused": "El punto de acceso rechazó la clave.",
 	"ai_failure_refused_eu_native": "El estilo de escritura solo envía correo a una IA que funciona en la UE con un operador europeo, y tu propio punto de acceso está configurado como si funcionara en otro lugar.",

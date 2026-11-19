@@ -166,6 +166,10 @@ noted beside it, and the two without one are this app's own drawings.
 | Save as draft | `tray.and.arrow.down` | `ic_save_draft` | text | text |
 | Attach | `paperclip` | `ic_attachment` | text | text |
 | Choose a signature | `signature` | `ic_signature` | text | text |
+| Draft a reply, and what its card says the message asks | — | `ic_stylus_note` | — | — |
+| A drafted reply's gap to fill in | — | `ic_text_fields` | — | — |
+| A drafted reply's file to attach | — | `ic_attachment` | — | — |
+| A drafted reply's task, and the card's checklist | — | `ic_task_alt` | — | — |
 | The draft's actions (Save as draft, Discard), on iPhone and iPad | `ellipsis` | — | — | — |
 | The chosen signature | — | `ic_check` | — | — |
 | Show / hide Cc and Bcc | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | `E70D` ChevronDown / `E70E` ChevronUp | `pan-down-symbolic` / `pan-up-symbolic` |

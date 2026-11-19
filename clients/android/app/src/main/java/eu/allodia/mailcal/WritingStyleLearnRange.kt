@@ -22,7 +22,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -43,33 +42,22 @@ internal fun dayMillis(day: String): Long? =
 /** The day the date picker chose, as the core reads one. */
 internal fun millisDay(millis: Long): String = Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).toLocalDate().toString()
 
-/**
- * The range a press on "Between two dates" starts from: the widest the core allows, from its first
- * day (or its last, when the device holds everything and there is no first) to its last.
- */
-internal fun betweenStart(stage: StyleLearningStage.ChooseRange): StyleLearnRange.Between =
-    StyleLearnRange.Between(since = stage.earliest ?: stage.latest, until = stage.latest)
-
 @Composable
 internal fun LearnRangeChoice(stage: StyleLearningStage.ChooseRange, send: (StyleLearningIntent) -> Unit) {
     val ctx = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     val selected = stage.selected
     Column {
+        // The last preset is a range of the person's own, carrying the days it starts from.
         stage.presets.forEach { range ->
             ChoiceRow(
                 label = learnRangeText(ctx, range, locale),
-                selected = selected == range,
+                selected = if (range is StyleLearnRange.Between) selected is StyleLearnRange.Between else selected == range,
                 tag = learnRangeTag(range),
                 note = if (range == StyleLearnRange.UntilEndOfLastYear) L10n.learn_range_until_hint(ctx) else null,
-            ) { send(StyleLearningIntent.SelectRange(range)) }
+            ) { if (!(range is StyleLearnRange.Between && selected is StyleLearnRange.Between)) send(StyleLearningIntent.SelectRange(range)) }
         }
         val between = selected as? StyleLearnRange.Between
-        ChoiceRow(
-            label = L10n.learn_range_between(ctx),
-            selected = between != null,
-            tag = learnRangeTag(betweenStart(stage)),
-        ) { if (between == null) send(StyleLearningIntent.SelectRange(betweenStart(stage))) }
         if (between != null) {
             Column(modifier = Modifier.padding(start = 52.dp)) {
                 DayButton(L10n.learn_range_from(ctx), between.since, stage, LEARN_SINCE_TAG) {
@@ -88,7 +76,7 @@ internal fun LearnRangeChoice(stage: StyleLearningStage.ChooseRange, send: (Styl
 @Composable
 private fun DayButton(label: String, day: String, stage: StyleLearningStage.ChooseRange, tag: String, onPick: (String) -> Unit) {
     val ctx = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     var picking by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))

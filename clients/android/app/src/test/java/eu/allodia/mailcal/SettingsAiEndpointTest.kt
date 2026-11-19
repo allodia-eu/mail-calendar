@@ -35,23 +35,29 @@ import uniffi.mailcal_bindings.AiEndpointDeclarationGap
 import uniffi.mailcal_bindings.AiEndpointForm
 import uniffi.mailcal_bindings.AiEndpointGaps
 import uniffi.mailcal_bindings.AiEndpointIntent
+import uniffi.mailcal_bindings.AiEndpointKeptKey
 import uniffi.mailcal_bindings.AiEndpointOutcome
 import uniffi.mailcal_bindings.AiEndpointResult
 import uniffi.mailcal_bindings.JurisdictionClass
-import uniffi.mailcal_bindings.JurisdictionMode
+import uniffi.mailcal_bindings.JurisdictionLimit
+import uniffi.mailcal_bindings.JurisdictionRefusal
 
-// The core's rule, as far as these tests need it: an address on this device may be plain HTTP.
-private fun gaps(address: String, model: String, declared: JurisdictionClass?) = AiEndpointGaps(
+// The core's rule, as far as these tests need it: an address on this device may be plain HTTP, and a
+// key kept for [keptFor] stays only while the address stays on that server.
+private fun gaps(address: String, model: String, declared: JurisdictionClass?, keptFor: String?) = AiEndpointGaps(
     address = when {
         address.isBlank() -> AiEndpointAddressGap.MISSING
-        address.startsWith("http://") && !address.startsWith("http://localhost") -> AiEndpointAddressGap.NEEDS_HTTPS
+        address.startsWith("http:") && !address.startsWith("http://localhost") -> AiEndpointAddressGap.NEEDS_HTTPS
         else -> null
     },
     modelMissing = model.isBlank(),
     declaration = when (declared) {
         null -> AiEndpointDeclarationGap.Missing
-        JurisdictionClass.NON_EU -> AiEndpointDeclarationGap.Refused(JurisdictionMode.EU_NATIVE, declared)
+        JurisdictionClass.NON_EU -> AiEndpointDeclarationGap.Refused(JurisdictionRefusal.NonEu(JurisdictionLimit.EU_NATIVE))
         else -> null
+    },
+    keptKey = keptFor?.let { server ->
+        if (address.substringAfter("//").substringBefore('/') == server) AiEndpointKeptKey.CARRIED else AiEndpointKeptKey.DROPPED
     },
 )
 
@@ -64,11 +70,14 @@ class SettingsAiEndpointTest {
     private val sent = mutableListOf<AiEndpointIntent>()
     private var form by mutableStateOf<AiEndpointForm?>(endpointForm())
 
+    /** The server a kept key belongs to, or null with none kept. */
+    private var keptFor: String? = null
+
     private fun show() {
         compose.setContent {
             AppTheme {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    AiEndpointCard(AiEndpointUi(form, ::gaps) { sent += it })
+                    AiEndpointCard(AiEndpointUi(form, { a, m, d -> gaps(a, m, d, keptFor) }) { sent += it })
                 }
             }
         }
@@ -82,6 +91,25 @@ class SettingsAiEndpointTest {
         form = null
         show()
         compose.onNodeWithText(L10n.ai_endpoint_title(ctx())).assertDoesNotExist()
+    }
+
+    @Test
+    fun remove_is_drawn_only_while_the_form_offers_it() {
+        show()
+        compose.onNodeWithTag(AI_ENDPOINT_REMOVE_TAG).assertDoesNotExist()
+    }
+
+    /** A key kept for one server is not carried to another: the field says it must be typed again. */
+    @Test
+    fun the_key_field_says_whether_a_save_keeps_the_kept_key() {
+        keptFor = "localhost:11434"
+        form = endpointForm("http://localhost:11434/v1", "mistral", JurisdictionClass.EU_NATIVE, keyKept = true, remove = FREE)
+        show()
+        compose.onNodeWithText(L10n.ai_endpoint_key_stored(ctx())).assertIsDisplayed()
+
+        compose.onNodeWithTag(AI_ENDPOINT_ADDRESS_TAG).performTextReplacement("https://llm.test.local/v1")
+        compose.onNodeWithText(L10n.ai_endpoint_key_dropped(ctx())).assertIsDisplayed()
+        compose.onNodeWithText(L10n.ai_endpoint_key_stored(ctx())).assertDoesNotExist()
     }
 
     @Test
@@ -101,16 +129,14 @@ class SettingsAiEndpointTest {
     }
 
     @Test
-    fun save_sends_the_fields_as_typed_and_no_key_for_an_empty_key_field() {
-        form = endpointForm(keyKept = true)
+    fun save_sends_the_fields_as_typed_and_an_empty_key_for_an_empty_key_field() {
         show()
-        compose.onNodeWithText(L10n.ai_endpoint_key_stored(ctx())).assertIsDisplayed()
         compose.onNodeWithTag(AI_ENDPOINT_ADDRESS_TAG).performTextInput("http://localhost:11434/v1")
         compose.onNodeWithTag(AI_ENDPOINT_MODEL_TAG).performTextInput("mistral")
         compose.onNodeWithTag(aiEndpointWhereTag(JurisdictionClass.EU_NATIVE)).performScrollTo().performClick()
         save().assertIsEnabled().performClick()
         assertEquals(
-            listOf<AiEndpointIntent>(AiEndpointIntent.Save("http://localhost:11434/v1", "mistral", JurisdictionClass.EU_NATIVE, null)),
+            listOf<AiEndpointIntent>(AiEndpointIntent.Save("http://localhost:11434/v1", "mistral", JurisdictionClass.EU_NATIVE, "")),
             sent,
         )
     }

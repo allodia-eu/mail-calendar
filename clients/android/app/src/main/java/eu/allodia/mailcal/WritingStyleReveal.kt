@@ -28,14 +28,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import java.time.ZoneId
-import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.WritingStyleLanguage
 import uniffi.mailcal_bindings.WritingStyleRefusal
 import uniffi.mailcal_bindings.WritingStyleReveal
@@ -61,7 +59,7 @@ internal class RevealFields(name: String, notes: String) {
 /**
  * The host's controls on the reveal's page [current]: Back on every page after the first, Next on
  * every page before the last and Save on it, held while the core refuses the name typed. Moving
- * between pages starts nothing, so it is held only while a change on the reveal runs.
+ * between pages is the record's `paging`.
  */
 internal fun revealChrome(
     ctx: Context,
@@ -74,7 +72,7 @@ internal fun revealChrome(
     onClose: () -> Unit,
 ): FlowChrome {
     val count = reveal.pages.size
-    val moving = ControlState(enabled = reveal.close.enabled, running = false)
+    val moving = reveal.paging
     val last = current >= count - 1
     return FlowChrome(
         title = L10n.settings_category_writing_style(ctx),
@@ -103,7 +101,11 @@ internal fun RevealPages(
     padding: PaddingValues,
 ) {
     val ctx = LocalContext.current
-    HorizontalPager(state = pager, modifier = Modifier.fillMaxSize().padding(padding)) { index ->
+    HorizontalPager(
+        state = pager,
+        modifier = Modifier.fillMaxSize().padding(padding),
+        userScrollEnabled = reveal.paging.enabled,
+    ) { index ->
         val page = reveal.pages.getOrNull(index) ?: return@HorizontalPager
         val shown = rememberSeen(pager, index)
         val modifier = Modifier.testTag(revealPageTag(page))
@@ -111,6 +113,7 @@ internal fun RevealPages(
             WritingStyleRevealPage.READ -> FlowPage(
                 revealPageTitle(ctx, page),
                 modifier,
+                large = true,
                 bottom = {
                     Text(
                         L10n.reveal_pages_intro(ctx),
@@ -174,7 +177,7 @@ private fun NothingInLanguage() {
 internal fun LanguageControl(languages: List<WritingStyleLanguage>, selected: Int, onSelect: (Int) -> Unit) {
     if (languages.size < 2) return
     val ctx = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     val label = L10n.settings_language_heading(ctx)
     Row(
         modifier = Modifier

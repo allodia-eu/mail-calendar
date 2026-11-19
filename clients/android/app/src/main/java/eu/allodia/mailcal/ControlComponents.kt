@@ -4,7 +4,9 @@
 // the same way.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -109,6 +114,8 @@ internal fun ControlNavRow(
     note: String,
     control: ControlState,
     tag: String,
+    // A glyph in a tonal circle at the start, for a row that stands for a thing of its own.
+    icon: Int? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -119,6 +126,22 @@ internal fun ControlNavRow(
             .testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(
@@ -374,6 +397,56 @@ internal fun ControlSegmented(
                 ) { Text(label, maxLines = 1) }
             }
         }
+    }
+}
+
+/**
+ * An assist chip for an action offered beside what is being written, led by [icon]; the spinner
+ * takes the icon's place while its work runs.
+ */
+@Composable
+internal fun ControlAssistChip(label: String, icon: Int, control: ControlState, tag: String, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        enabled = control.enabled,
+        label = { Text(label) },
+        leadingIcon = {
+            if (control.running) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(AssistChipDefaults.IconSize).testTag("$tag-running"),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+            }
+        },
+        modifier = Modifier.testTag(tag),
+    )
+}
+
+/**
+ * A checkbox row: the whole row is the checkbox, one target. [onChange] is told what the person
+ * ticked it to; a row whose [control] is held follows something else and cannot be ticked by hand.
+ */
+@Composable
+internal fun ControlCheckRow(
+    checked: Boolean,
+    control: ControlState,
+    tag: String,
+    content: @Composable RowScope.() -> Unit,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, enabled = control.enabled, role = Role.Checkbox, onValueChange = onChange)
+            .padding(vertical = 2.dp)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null, enabled = control.enabled)
+        Spacer(modifier = Modifier.width(4.dp))
+        content()
     }
 }
 

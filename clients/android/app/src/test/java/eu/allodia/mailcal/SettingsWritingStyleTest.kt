@@ -80,9 +80,11 @@ class SettingsWritingStyleTest {
     }
 
     @Test
-    fun learn_opens_the_flow_and_an_empty_library_says_so() {
+    fun an_empty_library_invites_learning_and_learn_opens_the_flow() {
         show()
-        compose.onNodeWithText(L10n.writing_style_empty(ctx())).assertIsDisplayed()
+        compose.onNodeWithTag(WRITING_STYLE_EMPTY_TAG).assertIsDisplayed()
+        compose.onNodeWithText(L10n.settings_category_writing_style_summary(ctx())).assertIsDisplayed()
+        compose.onNodeWithText(L10n.writing_style_library_heading(ctx())).assertDoesNotExist()
         compose.onNodeWithTag(WRITING_STYLE_LEARN_TAG).assertIsEnabled().performClick()
         assertEquals(listOf<StyleLearningIntent>(StyleLearningIntent.Open), learningSent(sent))
     }
@@ -90,7 +92,7 @@ class SettingsWritingStyleTest {
     @Test
     fun learn_says_why_it_cannot_be_pressed_with_its_one_remedy() {
         page = stylePage(learn = HELD).copy(
-            learnBlocked = WritingStyleLearnBlock.CannotSend(AiFailure.NowhereToSend, AiRemedy.OPEN_AI_ENDPOINT),
+            learnBlocked = WritingStyleLearnBlock.CannotSend(AiFailure.NowhereToSend, offered(AiRemedy.OPEN_AI_ENDPOINT)),
         )
         show()
         compose.onNodeWithTag(WRITING_STYLE_LEARN_TAG).assertIsNotEnabled()
@@ -99,7 +101,7 @@ class SettingsWritingStyleTest {
         assertEquals(1, endpointsOpened)
 
         page = stylePage(learn = HELD).copy(
-            learnBlocked = WritingStyleLearnBlock.CannotSend(AiFailure.RelaySignIn, AiRemedy.SIGN_IN_TO_ALLODIA),
+            learnBlocked = WritingStyleLearnBlock.CannotSend(AiFailure.RelaySignIn, offered(AiRemedy.SIGN_IN_TO_ALLODIA)),
         )
         compose.waitForIdle()
         compose.onNodeWithTag(WRITING_STYLE_REMEDY_TAG).performClick()
@@ -126,7 +128,7 @@ class SettingsWritingStyleTest {
 
     @Test
     fun a_run_that_failed_with_its_host_closed_is_said_above_learn() {
-        page = stylePage().copy(run = WritingStyleRun.Failed(AiFailure.Unreachable, AiRemedy.TRY_AGAIN))
+        page = stylePage().copy(run = WritingStyleRun.Failed(AiFailure.Unreachable, offered(AiRemedy.TRY_AGAIN)))
         show()
         compose.onNodeWithText(L10n.writing_style_run_failed(ctx()), substring = true).assertIsDisplayed()
         compose.onNodeWithTag(WRITING_STYLE_LEARN_TAG).performClick()
@@ -188,5 +190,14 @@ class SettingsWritingStyleTest {
         page = stylePage().copy(outcome = refused.copy(serial = 2uL))
         compose.waitForIdle()
         compose.onNodeWithTag(WRITING_STYLE_OUTCOME_TAG).assert(hasText(L10n.writing_style_refused_gone(ctx())))
+    }
+
+    @Test
+    fun a_remedy_is_held_while_its_control_is() {
+        page = stylePage(learn = HELD).copy(
+            learnBlocked = WritingStyleLearnBlock.CannotSend(AiFailure.NowhereToSend, offered(AiRemedy.OPEN_AI_ENDPOINT, HELD)),
+        )
+        show()
+        compose.onNodeWithTag(WRITING_STYLE_REMEDY_TAG).assertIsNotEnabled()
     }
 }

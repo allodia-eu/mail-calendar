@@ -3,7 +3,18 @@
 // all three, so learning turns into its reveal in the same window.
 package eu.allodia.mailcal
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Modifier
@@ -92,13 +103,43 @@ internal fun WritingStyleFlow(
     } else {
         learningChrome(ctx, checkNotNull(learning), ui::learn, remedy)
     }
+    // What is on screen, keyed by its kind so a stage's own updates (a run's count) redraw in place,
+    // and by how deep into the flow it stands, which says whether it arrived going on or going back.
+    val shown = if (reveal != null) {
+        FlowScreen("reveal", Int.MAX_VALUE, null)
+    } else {
+        val current = checkNotNull(learning)
+        FlowScreen(current.stage::class.simpleName.orEmpty(), current.trail.size, current.stage)
+    }
+    val reduced = rememberReducedMotion()
     FlowHost(chrome) { padding ->
-        if (reveal != null) {
-            RevealPages(reveal, pager, fields, ui.nameRefusal, ui.zone, padding)
-        } else {
-            Box(modifier = Modifier.padding(padding)) {
-                LearningStageView(checkNotNull(learning).stage, ui.zone, ui::learn)
+        AnimatedContent(
+            targetState = shown,
+            transitionSpec = { flowTransition(onward = targetState.depth >= initialState.depth, reduced = reduced) },
+            contentKey = { it.kind },
+            label = "flow",
+        ) { screen ->
+            val stage = screen.stage
+            if (stage == null) {
+                reveal?.let { RevealPages(it, pager, fields, ui.nameRefusal, ui.zone, padding) }
+            } else {
+                Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    LearningStageView(stage, ui.zone, ui::learn)
+                }
             }
         }
     }
+}
+
+// A stage or the reveal, as the flow's transition sees it.
+private data class FlowScreen(val kind: String, val depth: Int, val stage: StyleLearningStage?)
+
+// Material's shared axis: onward slides in from the end, back from the start; nothing moves under
+// reduced motion.
+private fun flowTransition(onward: Boolean, reduced: Boolean): ContentTransform {
+    if (reduced) return EnterTransition.None togetherWith ExitTransition.None
+    val sign = if (onward) 1 else -1
+    val enter = slideInHorizontally(tween(300, easing = SETTLE)) { sign * it / 5 } + fadeIn(tween(240, 60))
+    val exit = slideOutHorizontally(tween(300, easing = SETTLE)) { -sign * it / 5 } + fadeOut(tween(120))
+    return enter togetherWith exit
 }

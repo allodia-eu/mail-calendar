@@ -28,6 +28,7 @@ import uniffi.mailcal_bindings.WritingStyleDetail
 import uniffi.mailcal_bindings.WritingStyleIntent
 import uniffi.mailcal_bindings.WritingStyleOutcome
 import uniffi.mailcal_bindings.WritingStyleResult
+import uniffi.mailcal_bindings.WritingStyleSection
 
 @RunWith(RobolectricTestRunner::class)
 class WritingStyleDetailTest {
@@ -123,5 +124,14 @@ class WritingStyleDetailTest {
         version += 1
         compose.waitForIdle()
         assertEquals(2, closed)
+    }
+
+    @Test
+    fun only_the_sections_the_record_lists_are_drawn() {
+        detail = styleDetail(sections = listOf(WritingStyleSection.LETTER))
+        show()
+        compose.onNodeWithText(L10n.reveal_step_letter(ctx())).assertExists()
+        compose.onNodeWithText(L10n.reveal_step_habits(ctx())).assertDoesNotExist()
+        compose.onNodeWithText(L10n.reveal_phrases(ctx())).assertDoesNotExist()
     }
 }

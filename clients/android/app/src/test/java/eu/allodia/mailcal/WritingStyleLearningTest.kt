@@ -191,7 +191,7 @@ class WritingStyleLearningTest {
 
     @Test
     fun a_failure_offers_its_one_remedy_and_the_core_moves_the_flow() {
-        show(learning(StyleLearningStage.Failed(AiFailure.NothingToLearn, AiRemedy.CHOOSE_RANGE), back = FREE, remedy = FREE))
+        show(learning(StyleLearningStage.Failed(AiFailure.NothingToLearn, offered(AiRemedy.CHOOSE_RANGE)), back = FREE))
         compose.onNodeWithText(L10n.ai_failure_nothing_to_learn(ctx())).assertIsDisplayed()
         compose.onNodeWithText(L10n.ai_remedy_choose_range(ctx())).performClick()
         assertEquals(listOf<StyleLearningIntent>(StyleLearningIntent.Remedy), intents())
@@ -199,13 +199,13 @@ class WritingStyleLearningTest {
 
     @Test
     fun a_remedy_the_client_opens_is_opened_rather_than_sent() {
-        show(learning(StyleLearningStage.Failed(AiFailure.EndpointKeyRefused, AiRemedy.OPEN_AI_ENDPOINT), back = FREE, remedy = FREE))
+        show(learning(StyleLearningStage.Failed(AiFailure.EndpointKeyRefused, offered(AiRemedy.OPEN_AI_ENDPOINT)), back = FREE))
         compose.onNodeWithText(L10n.ai_remedy_open_endpoint(ctx())).performClick()
         assertEquals("the host closes so the form is in view", listOf<StyleLearningIntent>(StyleLearningIntent.Close), intents())
         assertEquals(1, endpointsOpened)
 
         sent.clear()
-        record = learning(StyleLearningStage.Failed(AiFailure.RelaySignIn, AiRemedy.SIGN_IN_TO_ALLODIA), back = FREE, remedy = FREE)
+        record = learning(StyleLearningStage.Failed(AiFailure.RelaySignIn, offered(AiRemedy.SIGN_IN_TO_ALLODIA)), back = FREE)
         compose.waitForIdle()
         compose.onNodeWithText(L10n.ai_remedy_sign_in(ctx())).performClick()
         assertEquals(1, signIns.size)
@@ -264,7 +264,7 @@ class WritingStyleLearningTest {
     fun at_a_large_text_size_the_foot_stacks_rather_than_breaking_a_word() {
         // The dialog's window answers its own density, so the scale is the configuration's.
         RuntimeEnvironment.setFontScale(2f)
-        show(learning(StyleLearningStage.Failed(AiFailure.NothingToLearn, AiRemedy.CHOOSE_RANGE), back = FREE, remedy = FREE))
+        show(learning(StyleLearningStage.Failed(AiFailure.NothingToLearn, offered(AiRemedy.CHOOSE_RANGE)), back = FREE))
         val primary = compose.onNodeWithTag(FLOW_PRIMARY_TAG).getUnclippedBoundsInRoot()
         val back = compose.onNodeWithTag(FLOW_BACK_TAG).getUnclippedBoundsInRoot()
         assertTrue("the primary sits above Back: $primary over $back", primary.bottom <= back.top)

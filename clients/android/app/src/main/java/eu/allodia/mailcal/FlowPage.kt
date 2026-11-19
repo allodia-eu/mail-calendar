@@ -64,6 +64,8 @@ internal fun ChoiceRow(
 internal fun FlowPage(
     title: String?,
     modifier: Modifier = Modifier,
+    // A page that opens something, the first of a reveal, takes the larger heading.
+    large: Boolean = false,
     bottom: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -81,7 +83,7 @@ internal fun FlowPage(
                 if (title != null) {
                     Text(
                         title,
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = if (large) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
                         modifier = Modifier.semantics { heading() },
                     )
                 }

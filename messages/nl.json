@@ -1279,6 +1279,7 @@
 	"ai_endpoint_gap_refused_eu_native": "Alleen een server die in de EU draait bij een Europees bedrijf, of op je eigen computer, kan worden gebruikt.",
 	"ai_endpoint_gap_refused_eu_hosted": "Alleen een server die in de EU draait, kan worden gebruikt.",
 	"ai_endpoint_key_not_stored": "De sleutel kon niet worden bewaard.",
+	"ai_endpoint_key_dropped": "De bewaarde sleutel hoort bij een andere server. Typ de sleutel opnieuw, of laat dit leeg als de server er geen nodig heeft.",
 	"ai_failure_relay_sign_in": "Meld je opnieuw aan bij je Allodia-account om schrijfstijl te gebruiken.",
 	"ai_failure_key_refused": "Het endpoint weigerde de sleutel.",
 	"ai_failure_refused_eu_native": "Schrijfstijl stuurt mail alleen naar AI die in de EU draait bij een Europese partij, en je eigen endpoint is ingesteld als ergens anders draaiend.",

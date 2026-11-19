@@ -14,7 +14,8 @@ import uniffi.mailcal_bindings.AiEndpointAddressGap
 import uniffi.mailcal_bindings.AiEndpointDeclarationGap
 import uniffi.mailcal_bindings.AiFailure
 import uniffi.mailcal_bindings.AiRemedy
-import uniffi.mailcal_bindings.JurisdictionMode
+import uniffi.mailcal_bindings.JurisdictionLimit
+import uniffi.mailcal_bindings.JurisdictionRefusal
 import uniffi.mailcal_bindings.StyleLearnRange
 import uniffi.mailcal_bindings.StyleLearningDestination
 import uniffi.mailcal_bindings.StyleLearningReport
@@ -29,9 +30,9 @@ import uniffi.mailcal_bindings.WritingStyleTopic
 internal fun aiFailureText(ctx: Context, failure: AiFailure): String = when (failure) {
     AiFailure.RelaySignIn -> L10n.ai_failure_relay_sign_in(ctx)
     AiFailure.EndpointKeyRefused -> L10n.ai_failure_key_refused(ctx)
-    is AiFailure.Refused -> when (failure.mode) {
-        JurisdictionMode.EU_HOSTED -> L10n.ai_failure_refused_eu_hosted(ctx)
-        JurisdictionMode.EU_NATIVE, JurisdictionMode.ALL -> L10n.ai_failure_refused_eu_native(ctx)
+    is AiFailure.Refused -> when (refusalLimit(failure.refusal)) {
+        JurisdictionLimit.EU_HOSTED -> L10n.ai_failure_refused_eu_hosted(ctx)
+        JurisdictionLimit.EU_NATIVE -> L10n.ai_failure_refused_eu_native(ctx)
     }
     AiFailure.NowhereToSend -> L10n.ai_failure_nowhere_to_send(ctx)
     AiFailure.Unreachable -> L10n.ai_failure_unreachable(ctx)
@@ -101,10 +102,18 @@ internal fun endpointAddressGapText(ctx: Context, gap: AiEndpointAddressGap): St
 /** What is wrong with where the endpoint is declared to run, said under the choice. */
 internal fun endpointDeclarationGapText(ctx: Context, gap: AiEndpointDeclarationGap): String = when (gap) {
     AiEndpointDeclarationGap.Missing -> L10n.ai_endpoint_gap_where_missing(ctx)
-    is AiEndpointDeclarationGap.Refused -> when (gap.mode) {
-        JurisdictionMode.EU_HOSTED -> L10n.ai_endpoint_gap_refused_eu_hosted(ctx)
-        JurisdictionMode.EU_NATIVE, JurisdictionMode.ALL -> L10n.ai_endpoint_gap_refused_eu_native(ctx)
+    is AiEndpointDeclarationGap.Refused -> when (refusalLimit(gap.refusal)) {
+        JurisdictionLimit.EU_HOSTED -> L10n.ai_endpoint_gap_refused_eu_hosted(ctx)
+        JurisdictionLimit.EU_NATIVE -> L10n.ai_endpoint_gap_refused_eu_native(ctx)
     }
+}
+
+// The mode a refusal is worded by: only `EuNative` refuses an endpoint run in the EU by a company
+// based outside it.
+private fun refusalLimit(refusal: JurisdictionRefusal): JurisdictionLimit = when (refusal) {
+    JurisdictionRefusal.EuHosted -> JurisdictionLimit.EU_NATIVE
+    is JurisdictionRefusal.NonEu -> refusal.mode
+    is JurisdictionRefusal.Unknown -> refusal.mode
 }
 
 /** A language by its ISO 639-1 code, named in the language the app is read in. */
@@ -222,6 +231,18 @@ internal val WritingStyleRevealPage.perLanguage: Boolean
         this == WritingStyleRevealPage.HABITS ||
         this == WritingStyleRevealPage.VOICE ||
         this == WritingStyleRevealPage.PHRASES
+
+/**
+ * The locale the app's words are in: the catalog's language, and the region its copy is written
+ * for (British English, European Portuguese and Spanish), so a date reads as the words around it do
+ * rather than as the device's own region would have it.
+ */
+internal fun catalogLocale(ctx: Context): Locale = when (val language = appLanguage(ctx)) {
+    "en" -> Locale.UK
+    "pt" -> Locale.forLanguageTag("pt-PT")
+    "es" -> Locale.forLanguageTag("es-ES")
+    else -> Locale.forLanguageTag(language)
+}
 
 /** The language the app is read in, as the ISO 639-1 code `Learn` carries. */
 internal fun appLanguage(ctx: Context): String =

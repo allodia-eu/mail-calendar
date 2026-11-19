@@ -34,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -59,7 +58,7 @@ private val NUMERAL = TextStyle(fontWeight = FontWeight.SemiBold, fontFeatureSet
 @Composable
 internal fun StyleFactsView(facts: WritingStyleFacts, zone: ZoneId, shown: Boolean) {
     val ctx = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (facts.learnedFrom.isNotEmpty()) {
             Text(
@@ -119,7 +118,7 @@ private fun Stat(label: String, target: Int, shown: Boolean, delayMillis: Int) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LanguageChips(codes: List<String>, shown: Boolean) {
-    val locale = LocalConfiguration.current.locales[0]
+    val locale = catalogLocale(LocalContext.current)
     val colours = with(MaterialTheme.colorScheme) { listOf(primary, tertiary, secondary, inversePrimary, outline) }
     // The counts above already name the languages.
     FlowRow(

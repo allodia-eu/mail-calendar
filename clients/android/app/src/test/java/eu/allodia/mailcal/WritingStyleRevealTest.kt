@@ -169,4 +169,11 @@ class WritingStyleRevealTest {
         assertEquals(listOf<WritingStyleIntent>(WritingStyleIntent.CloseReveal("style-1")), sent)
         assertEquals(1, left)
     }
+
+    @Test
+    fun moving_between_pages_is_held_while_the_record_holds_it() {
+        reveal = styleReveal(paging = HELD)
+        show()
+        compose.onNodeWithTag(FLOW_PRIMARY_TAG).assertIsNotEnabled()
+    }
 }

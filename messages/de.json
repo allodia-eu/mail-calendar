@@ -1279,6 +1279,7 @@
 	"ai_endpoint_gap_refused_eu_native": "Nur ein Server, der in der EU von einem europäischen Unternehmen oder auf Ihrem eigenen Computer betrieben wird, kann verwendet werden.",
 	"ai_endpoint_gap_refused_eu_hosted": "Nur ein Server, der in der EU betrieben wird, kann verwendet werden.",
 	"ai_endpoint_key_not_stored": "Der Schlüssel konnte nicht gespeichert werden.",
+	"ai_endpoint_key_dropped": "Der gespeicherte Schlüssel gehört zu einem anderen Server. Geben Sie den Schlüssel erneut ein, oder lassen Sie das Feld leer, wenn der Server keinen braucht.",
 	"ai_failure_relay_sign_in": "Melden Sie sich erneut bei Ihrem Allodia-Konto an, um den Schreibstil zu verwenden.",
 	"ai_failure_key_refused": "Der Endpunkt hat den Schlüssel abgelehnt.",
 	"ai_failure_refused_eu_native": "Schreibstil sendet E-Mails nur an KI, die in der EU von einem europäischen Betreiber betrieben wird, und Ihr eigener Endpunkt ist als anderswo betrieben eingerichtet.",

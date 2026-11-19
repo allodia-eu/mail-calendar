@@ -1,7 +1,8 @@
 // Settings → Advanced's own AI endpoint (docs/ai.md rules 6 and 7): four fields the core tidies and
 // judges, Save and Remove as changes on the form's record. What a save would refuse is asked of the
 // core as the person types and said under its field; Save is held while it names anything. The
-// stored key is never drawn back: the field says one is kept, and leaving it empty keeps it.
+// stored key is never drawn back: the field says whether a save would keep it, and leaving it
+// empty keeps it for the same server.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AiEndpointForm
 import uniffi.mailcal_bindings.AiEndpointIntent
+import uniffi.mailcal_bindings.AiEndpointKeptKey
 import uniffi.mailcal_bindings.AiEndpointResult
 import uniffi.mailcal_bindings.JurisdictionClass
 
@@ -125,7 +127,9 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
                         Text(
                             when {
                                 keyRefused -> L10n.ai_endpoint_key_not_stored(ctx)
-                                form.keyKept -> L10n.ai_endpoint_key_stored(ctx)
+                                fields.key.isNotEmpty() -> L10n.ai_endpoint_key_hint(ctx)
+                                gaps.keptKey == AiEndpointKeptKey.CARRIED -> L10n.ai_endpoint_key_stored(ctx)
+                                gaps.keptKey == AiEndpointKeptKey.DROPPED -> L10n.ai_endpoint_key_dropped(ctx)
                                 else -> L10n.ai_endpoint_key_hint(ctx)
                             },
                         )
@@ -177,13 +181,15 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
             modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp, androidx.compose.ui.Alignment.End),
         ) {
-            ControlButton(
-                label = L10n.ai_endpoint_remove(ctx),
-                control = form.remove,
-                tag = AI_ENDPOINT_REMOVE_TAG,
-                destructive = true,
-                outlined = true,
-            ) { ui.onChange(AiEndpointIntent.Remove) }
+            form.remove?.let { remove ->
+                ControlButton(
+                    label = L10n.ai_endpoint_remove(ctx),
+                    control = remove,
+                    tag = AI_ENDPOINT_REMOVE_TAG,
+                    destructive = true,
+                    outlined = true,
+                ) { ui.onChange(AiEndpointIntent.Remove) }
+            }
             ControlButton(
                 label = L10n.ai_endpoint_save(ctx),
                 control = form.save,
@@ -195,7 +201,7 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
                         address = fields.address,
                         model = fields.model,
                         declared = fields.declared,
-                        key = fields.key.takeIf { it.isNotEmpty() },
+                        key = fields.key,
                     ),
                 )
             }

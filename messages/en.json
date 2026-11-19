@@ -1279,6 +1279,7 @@
 	"ai_endpoint_gap_refused_eu_native": "Only a server run in the EU by a European company, or on your own computer, can be used.",
 	"ai_endpoint_gap_refused_eu_hosted": "Only a server that runs in the EU can be used.",
 	"ai_endpoint_key_not_stored": "The key could not be stored.",
+	"ai_endpoint_key_dropped": "The key kept belongs to another server. Type the key again, or leave this empty if the server needs none.",
 	"ai_failure_relay_sign_in": "Sign in to your Allodia account again to use writing style.",
 	"ai_failure_key_refused": "The endpoint refused the key.",
 	"ai_failure_refused_eu_native": "Writing style only sends mail to AI run in the EU by a European operator, and your own endpoint is set up as running elsewhere.",
