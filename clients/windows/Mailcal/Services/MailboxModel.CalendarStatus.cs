@@ -5,8 +5,8 @@
 // The status -> indicator and status -> sentence mappings are the pure, unit-tested
 // CalendarWriteIndicators (Calendar layer); this file only turns them into the bound Visibility/text
 // the XAML needs (so the view needs no
-// converters), mirroring how UpdateSendStatus exposes the send hint. The write-capability gate for the
-// "New event" button (CalendarWriteGating, same pure layer) is bound from here too.
+// converters), mirroring how UpdateSendStatus exposes the send hint. The "New event" button's
+// enabled state is bound from here too.
 using Allodia.Mailcal.Calendar;
 using Microsoft.UI.Xaml;
 using uniffi.mailcal_bindings;
@@ -18,8 +18,8 @@ public sealed partial class MailboxModel
     private bool _newEventEnabled;
 
     /// <summary>
-    /// Whether the "New event" button is enabled: at least one calendar accepts writes
-    /// (CalendarWriteGating.CanCreate). Starts disabled, before any calendar has synced there is
+    /// Whether the "New event" button is enabled: the core offers a calendar a new event can go on
+    /// (NewEventCalendars). Starts disabled, before any calendar has synced there is
     /// nowhere a new event could go, and is refreshed on the calendar leg of Reload. Disabled, not
     /// hidden, so the header keeps its shape.
     /// </summary>

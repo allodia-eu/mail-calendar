@@ -116,11 +116,12 @@ struct CalendarScreenView: View {
             todayVisible: todayVisible(pager: pager, anchor: anchor, calendar: calendar),
             calendar: calendar,
             writeStatus: model.calendarWriteStatus,
-            canCreateEvent: calendarSupportsNewEvent(currentCalendars(pager: pager, anchor: anchor)),
+            canCreateEvent: !model.newEventCalendars().groups.isEmpty,
             onMode: { setMode($0, calendar: calendar) },
             onBackToToday: { backToToday(today: today, calendar: calendar) },
             onNewEvent: {
-                let def = currentCalendars(pager: pager, anchor: anchor).first { $0.isDefault }.map(\.choice)
+                let def = model.newEventCalendars().groups.lazy.flatMap(\.calendars)
+                    .first { $0.isDefault }.map(\.choice)
                 editor = EventEditorState.create(default: def, zone: TimeZone.current.identifier, now: today)
             },
             onManage: toolbarIsRegular ? nil : { managing = true },

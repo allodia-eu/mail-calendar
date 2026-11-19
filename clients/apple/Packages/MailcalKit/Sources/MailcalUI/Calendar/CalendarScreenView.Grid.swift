@@ -67,11 +67,7 @@ struct CalendarGridContent: View {
                 onScroll: { dx, dy in scroll(dx, dy, dayWidth: dayWidth, maxHour: maxHour) },
                 onScrollEnded: { dx, dy in coast(dx, dy, dayWidth: dayWidth, maxHour: maxHour) },
                 onOpen: onOpen,
-                canCreateEvent: calendarSupportsNewEvent(
-                    model.calendarPage(
-                        from: pager.anchor(forPage: position.anchorWeek), columns: daysInWeek
-                    )?.calendars ?? []
-                ),
+                canCreateEvent: !model.newEventCalendars().groups.isEmpty,
                 onDrop: { week, drag in onDrop(drag, week) }
             )
             .modifier(
