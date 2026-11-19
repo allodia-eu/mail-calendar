@@ -29,6 +29,7 @@ use std::{collections::BTreeSet, fmt};
 use serde::{Deserialize, Serialize};
 
 mod accounts;
+mod ai;
 mod cache;
 mod feature;
 mod link;
@@ -43,6 +44,7 @@ pub use accounts::{
     AccountList, CalDavEndpoint, ConflictWith, DeletedAccount, ImapEndpoint, JmapAuth, Security,
     SmtpEndpoint, SyncedAccount, SyncedConfig,
 };
+pub use ai::{Relay, TokenSource};
 pub use cache::{Cache, GRACE_SECONDS, LAPSE_WARNING_SECONDS, Outcome, Stored};
 pub use feature::Feature;
 pub use link::{Ledger, LinkOutcome, Pending, Settled, StorePurchase};
@@ -212,6 +214,8 @@ pub enum Capability {
     SendLater,
     /// Centralised deployment and administration.
     CentralAdmin,
+    /// The writing assistant through Allodia's relay (`docs/ai.md`).
+    Ai,
     /// A label this version does not know.
     Unknown(String),
 }
@@ -231,6 +235,7 @@ impl Capability {
             "push" => Self::Push,
             "send_later" => Self::SendLater,
             "central_admin" => Self::CentralAdmin,
+            "ai" => Self::Ai,
             other => Self::Unknown(other.to_owned()),
         }
     }

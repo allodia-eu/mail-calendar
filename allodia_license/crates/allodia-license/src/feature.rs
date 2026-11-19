@@ -29,6 +29,8 @@ pub enum Feature {
     ReadSubscription,
     /// Changing the subscription: attaching a store purchase, starting a checkout, cancelling.
     WriteSubscription,
+    /// Learning a writing style and drafting a reply through Allodia's relay.
+    UseAi,
 }
 
 impl Feature {
@@ -42,7 +44,9 @@ impl Feature {
     /// and buying something are things a person does deliberately, so the prompt belongs on that
     /// screen rather than on everybody's account card. A grant short of them is also the ordinary
     /// state of every grant issued before those scopes existed, and telling all of those people to
-    /// sign in again would be a prompt about a screen most of them will never open.
+    /// sign in again would be a prompt about a screen most of them will never open. The relay's
+    /// feature is left out for the same reason: Learn and Draft a reply say where the person looks
+    /// that its sign-in needs renewing (`docs/ai.md` rules 9 and 18).
     pub const ALL: &'static [Self] = &[Self::Entitlement, Self::ReadAccounts, Self::WriteAccounts];
 
     /// The scope that permits it.
@@ -54,6 +58,7 @@ impl Feature {
             Self::WriteAccounts => "mailcal:accounts:write",
             Self::ReadSubscription => "mailcal:subscription:read",
             Self::WriteSubscription => "mailcal:subscription:write",
+            Self::UseAi => "mailcal:ai:use",
         }
     }
 }
