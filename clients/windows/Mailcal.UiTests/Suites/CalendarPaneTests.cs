@@ -183,3 +183,28 @@ public sealed class CalendarPaneHarnessTests(HarnessApp harness)
     public void TheFolderTreeStepsAsideForThePaneAfterABoot() =>
         harness.Case(nameof(TheFolderTreeStepsAsideForThePaneAfterABoot), CalendarPaneTests.TheTreeStepsAsideForThePane);
 }
+
+/// <summary>A group's heading carries its account's notice mark, as the account's row in the folder
+/// tree does (rule 7, docs/notices.md rule 6): on the showcase that pauses its first account's
+/// calendar for a server on another site.</summary>
+[Trait("Dataset", "showcase")]
+public sealed class CalendarPaneNoticeTests(ServerChangeShowcaseApp showcase) : IClassFixture<ServerChangeShowcaseApp>
+{
+    [OfflineFact]
+    public void AGroupHeadingSaysWhatItsAccountsRowSays() => showcase.Case(nameof(AGroupHeadingSaysWhatItsAccountsRowSays), app =>
+    {
+        new CalendarFlow(app).ShowCalendar();
+        CalendarPaneTests.Pane(app);
+        var paused = Catalog.English("notice_mark_calendar_paused");
+        Element? heading = null;
+        Assert.True(App.Eventually(() =>
+            (heading = app.Agent.FindAll(new Filter { Type = "Button" })
+                .Where(e => e.Id.StartsWith("CalendarPaneGroup_", StringComparison.Ordinal))
+                .FirstOrDefault(e => app.Agent.Find(new Filter { Id = "AccountNoticeLabel", Under = e, OnScreen = true })?.Name == paused)) is not null,
+            TimeSpan.FromSeconds(15)), $"no calendar group's heading says '{paused}' beneath its address");
+
+        app.RowsList();
+        Assert.True(App.Eventually(() => app.AccountMark(heading!.Name) == paused, TimeSpan.FromSeconds(10)),
+            "and the account's row in the folder tree says the same");
+    });
+}

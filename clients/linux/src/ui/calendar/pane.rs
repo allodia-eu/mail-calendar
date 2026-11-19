@@ -1,6 +1,6 @@
 //! libadwaita calendar shell: mode menu, navigation cluster, and surface stack.
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use adw::prelude::*;
 use gtk::accessible::Property as AccessibleProperty;
@@ -15,7 +15,10 @@ use super::{
     side_pane::{CalendarSide, SidePane},
     views::{self, AgendaDrawn, MonthDrawn},
 };
-use crate::{l10n, ui::icons};
+use crate::{
+    l10n,
+    ui::{icons, notice_rules::AccountMark},
+};
 
 pub(crate) struct CalendarPane {
     root: adw::ToolbarView,
@@ -155,9 +158,10 @@ impl CalendarPane {
         &mut self,
         model: &CalendarModel,
         side: &CalendarSide,
+        marks: &HashMap<String, AccountMark>,
         app: Option<&Arc<MailcalApp>>,
     ) {
-        self.side.render(side);
+        self.side.render(side, marks);
         self.title.set_title(&model.period_title());
         self.title.set_subtitle(&model.agenda.timezone);
         self.mode.set_label(mode_label(model.mode));

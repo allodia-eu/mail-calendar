@@ -1,17 +1,23 @@
 //! The calendar pane as drawn (`docs/calendar-pane.md`): the mini month's days and band, what its
 //! presses ask for, and the calendars list. Run from the crate's one GTK test.
 
-use std::{cell::Cell, rc::Rc, time::Instant};
+use std::{cell::Cell, collections::HashMap, rc::Rc, time::Instant};
 
 use adw::prelude::*;
 use mailcal_bindings::{
     CalendarColor, CalendarGroup, CalendarPane, CalendarRow, MiniDay, MiniMonth, MiniWeek,
-    RecurrenceWeekday, ShownSpan, Swatch,
+    NoticeSeverity, RecurrenceWeekday, ShownSpan, Swatch,
 };
 use time::{Date, Duration, Month};
 
 use super::side_pane::{CalendarSide, PaneInput, SidePane};
-use crate::ui::{AppInput, PrimaryView, destinations::DestinationBar, icons, shell_sidebar};
+use crate::{
+    l10n,
+    ui::{
+        AppInput, PrimaryView, destinations::DestinationBar, icons, notice_rules,
+        notice_rules::AccountMark, shell_sidebar,
+    },
+};
 
 const TODAY: &str = "2026-10-28";
 
@@ -123,7 +129,7 @@ fn pane_input(sender: &relm4::Sender<AppInput>, receiver: &relm4::Receiver<AppIn
 pub(crate) fn the_mini_month_marks_today_and_the_shown_days_and_asks_for_a_seat() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let mut pane = SidePane::new(&sender);
-    pane.render(&side(true, true));
+    pane.render(&side(true, true), &HashMap::new());
     let month = pane.month();
 
     assert!(month.title().contains("2026"), "{}", month.title());
@@ -205,7 +211,7 @@ pub(crate) fn the_mini_month_marks_today_and_the_shown_days_and_asks_for_a_seat(
         month: moved,
         groups: groups(true, true),
     });
-    pane.render(&after);
+    pane.render(&after, &HashMap::new());
     assert_eq!(pane.month().day(TODAY), Some(today));
     assert!(
         pane.month()
@@ -224,7 +230,7 @@ pub(crate) fn the_mini_month_marks_today_and_the_shown_days_and_asks_for_a_seat(
 pub(crate) fn the_calendars_list_toggles_through_the_core_and_draws_only_what_changed() {
     let (sender, receiver) = relm4::channel::<AppInput>();
     let mut pane = SidePane::new(&sender);
-    pane.render(&side(true, true));
+    pane.render(&side(true, true), &HashMap::new());
     let list = pane.calendars().list().clone();
     // On screen, as it is in the app: a button inside a row clicks only once it is realised.
     let window = gtk::Window::new();
@@ -254,21 +260,21 @@ pub(crate) fn the_calendars_list_toggles_through_the_core_and_draws_only_what_ch
         }
     );
 
-    pane.render(&side(true, true));
+    pane.render(&side(true, true), &HashMap::new());
     assert_eq!(
         list.row_at_index(1).as_ref(),
         Some(&work),
         "an unchanged pull keeps its rows"
     );
 
-    pane.render(&side(true, false));
+    pane.render(&side(true, false), &HashMap::new());
     assert_ne!(
         list.row_at_index(1).as_ref(),
         Some(&work),
         "a hidden calendar is drawn again"
     );
 
-    pane.render(&side(false, false));
+    pane.render(&side(false, false), &HashMap::new());
     assert!(list.row_at_index(0).is_some());
     assert!(
         list.row_at_index(1).is_none(),
@@ -300,6 +306,64 @@ pub(crate) fn the_calendars_list_toggles_through_the_core_and_draws_only_what_ch
         }
     );
     window.destroy();
+}
+
+/// A group's heading wears its account's notice mark as the folder pane's account row does
+/// (`docs/calendar-pane.md` rule 7, `docs/notices.md` rule 6), and a heading whose account has
+/// no notice wears none.
+pub(crate) fn a_calendar_group_heading_carries_its_accounts_notice_mark() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut pane = SidePane::new(&sender);
+    let mut bob = groups(false, true).remove(0);
+    bob.account = "bob".to_owned();
+    bob.address = "bob@test.local".to_owned();
+    let mut both = groups(false, true);
+    both.push(bob);
+    let mut side = side(false, true);
+    side.set_pane(CalendarPane {
+        month: october(),
+        groups: both,
+    });
+    let marks = HashMap::from([(
+        "alice".to_owned(),
+        AccountMark {
+            severity: NoticeSeverity::Blocked,
+            label: l10n::notices_account_count(2),
+            detail: "first\nsecond".to_owned(),
+        },
+    )]);
+    pane.render(&side, &marks);
+    let list = pane.calendars().list().clone();
+    let heading = |index: i32| {
+        list.row_at_index(index)
+            .and_downcast::<adw::ActionRow>()
+            .expect("an account heading")
+    };
+
+    let alice = heading(0);
+    assert_eq!(
+        alice.subtitle().as_deref(),
+        Some(l10n::notices_account_count(2).as_str())
+    );
+    assert_eq!(alice.subtitle_lines(), 1, "never wrapping");
+    assert!(
+        images(&alice).contains(&notice_rules::glyph(NoticeSeverity::Blocked).to_owned()),
+        "the first notice's glyph"
+    );
+    let bob = heading(1);
+    assert_eq!(
+        bob.subtitle().unwrap_or_default(),
+        "",
+        "a healthy account carries no mark"
+    );
+    assert!(!images(&bob).contains(&notice_rules::glyph(NoticeSeverity::Blocked).to_owned()));
+
+    pane.render(&side, &HashMap::new());
+    assert_eq!(
+        heading(0).subtitle().unwrap_or_default(),
+        "",
+        "the mark leaves with the notice"
+    );
 }
 
 pub(crate) fn the_folder_column_holds_the_calendar_pane_beside_the_calendar_only() {

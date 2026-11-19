@@ -98,11 +98,7 @@ pub(super) fn unified_group_row(
 
 /// An account: its address, a chevron that opens its tree, and **no count**; the counts belong to
 /// the folders, and a roll-up here would sit directly above an identical number on the Inbox row
-/// beneath it.
-///
-/// While a notice is about it, its mark (`docs/notices.md` rule 6): a few words on one line under
-/// the address, and the first notice's glyph at the row's end, which is where an `AdwActionRow`
-/// takes a widget. A screen reader hears every one of its sentences.
+/// beneath it. While a notice is about it, it wears the account's [`wear_mark`].
 pub(super) fn account_row(
     account: &AccountRow,
     mark: Option<&AccountMark>,
@@ -121,19 +117,27 @@ pub(super) fn account_row(
     // precisely the one the user needs to read.
     row.set_tooltip_text(Some(&account.email));
     if let Some(mark) = mark {
-        row.set_subtitle(&mark.label);
-        row.set_subtitle_lines(1);
-        row.upcast_ref::<gtk::Widget>()
-            .update_property(&[AccessibleProperty::Description(&mark.detail)]);
-        let glyph = gtk::Image::from_icon_name(notice_rules::glyph(mark.severity));
-        if mark.severity == mailcal_bindings::NoticeSeverity::Blocked {
-            glyph.add_css_class("error");
-        }
-        // The words beside it say what the glyph shows.
-        glyph.set_accessible_role(gtk::AccessibleRole::Presentation);
-        row.add_suffix(&glyph);
+        wear_mark(&row, mark);
     }
     row
+}
+
+/// An account's mark on the row that heads it, in the folder pane or the calendar pane
+/// (`docs/notices.md` rule 6): a few words on one line under the address, and the first notice's
+/// glyph at the row's end, which is where an `AdwActionRow` takes a widget. A screen reader hears
+/// every one of its sentences.
+pub(super) fn wear_mark(row: &adw::ActionRow, mark: &AccountMark) {
+    row.set_subtitle(&mark.label);
+    row.set_subtitle_lines(1);
+    row.upcast_ref::<gtk::Widget>()
+        .update_property(&[AccessibleProperty::Description(&mark.detail)]);
+    let glyph = gtk::Image::from_icon_name(notice_rules::glyph(mark.severity));
+    if mark.severity == mailcal_bindings::NoticeSeverity::Blocked {
+        glyph.add_css_class("error");
+    }
+    // The words beside it say what the glyph shows.
+    glyph.set_accessible_role(gtk::AccessibleRole::Presentation);
+    row.add_suffix(&glyph);
 }
 
 /// The disclosure control, a button of its own rather than the row.

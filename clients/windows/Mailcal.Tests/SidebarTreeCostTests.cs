@@ -133,15 +133,13 @@ public class SidebarTreeCostTests
 
         Sync(target, Accounts("a", "b"), markOf: id => id == "a" ? mark : null);
 
-        Assert.True(account.HasMark);
-        Assert.Equal(mark.Label, account.MarkLabel);
+        Assert.Equal(mark, account.Mark);
         Assert.Same(account, target[1]);
         // A mark is a property change on a row that stays put, not a collection event.
         Assert.Equal(settled, counter.Events);
 
         Sync(target, Accounts("a", "b"));
-        Assert.False(account.HasMark);
-        Assert.Equal(string.Empty, account.MarkLabel);
+        Assert.Null(account.Mark);
     }
 
     [Fact]

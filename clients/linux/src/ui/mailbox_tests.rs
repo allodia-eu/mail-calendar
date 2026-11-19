@@ -171,6 +171,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::calendar::side_pane_widget_tests::
         the_calendars_list_toggles_through_the_core_and_draws_only_what_changed();
     crate::ui::calendar::side_pane_widget_tests::
+        a_calendar_group_heading_carries_its_accounts_notice_mark();
+    crate::ui::calendar::side_pane_widget_tests::
         the_folder_column_holds_the_calendar_pane_beside_the_calendar_only();
     crate::ui::calendar::views_tests::
         an_unchanged_agenda_keeps_its_rows_and_a_changed_one_is_drawn_again();

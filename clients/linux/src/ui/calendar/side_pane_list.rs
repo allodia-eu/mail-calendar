@@ -1,6 +1,8 @@
 //! The calendar pane's calendars (`docs/calendar-pane.md`, rules 6 to 9 and 11): each account's
 //! calendars under its address, in the core's order, drawn in the folder pane's rows.
 
+use std::collections::HashMap;
+
 use adw::prelude::*;
 use gtk::accessible::{Property as AccessibleProperty, State as AccessibleState};
 use mailcal_bindings::{CalendarGroup, CalendarRow};
@@ -12,6 +14,7 @@ use crate::{
         AppInput,
         folder_pane_rows::{self, GROUP_TITLE, ROW},
         icons, mailbox,
+        notice_rules::AccountMark,
     },
 };
 
@@ -32,6 +35,7 @@ pub(super) struct GroupKey {
     account: String,
     address: String,
     expanded: bool,
+    mark: Option<AccountMark>,
     calendars: Vec<CalendarKey>,
 }
 
@@ -51,13 +55,17 @@ enum RowIdentity {
     Calendar(String, String),
 }
 
-pub(super) fn keys(groups: &[CalendarGroup]) -> Vec<GroupKey> {
+pub(super) fn keys(
+    groups: &[CalendarGroup],
+    marks: &HashMap<String, AccountMark>,
+) -> Vec<GroupKey> {
     groups
         .iter()
         .map(|group| GroupKey {
             account: group.account.clone(),
             address: group.address.clone(),
             expanded: group.expanded,
+            mark: marks.get(&group.account).cloned(),
             calendars: group
                 .calendars
                 .iter()
@@ -103,8 +111,14 @@ impl CalendarList {
         &self.scroll
     }
 
-    pub(super) fn render(&mut self, groups: &[CalendarGroup]) {
-        let drawn = keys(groups);
+    /// Draws `groups`, each heading wearing its account's mark from `marks` (`docs/notices.md`
+    /// rule 6), which is keyed by the account id a group carries.
+    pub(super) fn render(
+        &mut self,
+        groups: &[CalendarGroup],
+        marks: &HashMap<String, AccountMark>,
+    ) {
+        let drawn = keys(groups, marks);
         if self.rendered.as_ref() == Some(&drawn) {
             return;
         }
@@ -114,7 +128,8 @@ impl CalendarList {
         }
         self.rows.clear();
         for group in groups {
-            self.list.append(&group_row(group, &self.sender));
+            let mark = marks.get(&group.account);
+            self.list.append(&group_row(group, mark, &self.sender));
             self.rows.push(RowIdentity::Group(group.account.clone()));
             if !group.expanded {
                 continue;
@@ -152,9 +167,14 @@ impl CalendarList {
     }
 }
 
-/// An account's heading: its address, heavier, after the chevron that opens or shuts it. Opening
-/// a group is the row's only action, so activating the row is pressing the chevron.
-fn group_row(group: &CalendarGroup, sender: &relm4::Sender<AppInput>) -> adw::ActionRow {
+/// An account's heading: its address, heavier, after the chevron that opens or shuts it, and the
+/// account's notice mark as the folder pane's account row wears it. Opening a group is the row's
+/// only action, so activating the row is pressing the chevron.
+fn group_row(
+    group: &CalendarGroup,
+    mark: Option<&AccountMark>,
+    sender: &relm4::Sender<AppInput>,
+) -> adw::ActionRow {
     let row = mailbox::plain_text_row();
     row.add_css_class(ROW);
     row.add_css_class(GROUP_TITLE);
@@ -189,6 +209,9 @@ fn group_row(group: &CalendarGroup, sender: &relm4::Sender<AppInput>) -> adw::Ac
     row.add_prefix(&icon);
     row.add_prefix(&chevron);
     row.set_activatable_widget(Some(&chevron));
+    if let Some(mark) = mark {
+        folder_pane_rows::wear_mark(&row, mark);
+    }
     row
 }
 

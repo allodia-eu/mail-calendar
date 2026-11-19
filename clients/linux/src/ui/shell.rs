@@ -278,8 +278,12 @@ impl AppWidgets {
         match model.primary {
             PrimaryView::Mail => self.primary.set_visible_child_name("mail"),
             PrimaryView::Calendar => {
-                self.calendar
-                    .render(&model.calendar, &model.calendar_side, model.app.as_ref());
+                self.calendar.render(
+                    &model.calendar,
+                    &model.calendar_side,
+                    &model.notices.marks,
+                    model.app.as_ref(),
+                );
                 self.primary.set_visible_child_name("calendar");
                 if calendar_opened {
                     self.calendar.opened();

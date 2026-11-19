@@ -130,6 +130,18 @@ public class NoticeRulesTests
     }
 
     [Fact]
+    public void A_calendar_groups_heading_finds_its_accounts_mark_by_the_groups_account()
+    {
+        // The calendar pane's group heading carries the mark its account's folder-tree row does
+        // (docs/calendar-pane.md rule 7), looked up by CalendarGroup.Account: the id a notice
+        // carries, never the address the heading shows.
+        var group = new CalendarGroup("acct-1", "eva@example.com", true, []);
+        var marks = NoticeRules.Marks([Make("outage", nameof(NoticeScreens.Calendar), account: "acct-1")], Words, count => $"{count} issues");
+
+        Assert.Equal("notice_mark_outage", marks[group.Account].Label);
+        Assert.False(marks.ContainsKey(group.Address));
+    }
+    [Fact]
     public void Each_account_with_a_notice_is_marked_by_its_first_on_one_short_line()
     {
         Notice[] notices =

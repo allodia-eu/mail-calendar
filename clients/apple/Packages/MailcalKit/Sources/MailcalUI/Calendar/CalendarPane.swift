@@ -76,6 +76,10 @@ struct CalendarPaneList: View {
                 }
                 ForEach(groups, id: \.account) { group in
                     heading(group)
+                    // The account's notices mark its heading here as they mark its row in the
+                    // folder tree, which this pane replaces (`docs/calendar-pane.md`, rule 7).
+                    AccountNoticeLine(about: model.notices(about: group.account))
+                        .padding(.leading, chevronTargetWidth)
                     if group.expanded {
                         ForEach(group.calendars, id: \.rowIdentity) { row(group, $0) }
                     }
