@@ -27,9 +27,12 @@ public sealed class FolderPanePositionTests(ImapHarnessApp harness)
     private const string Subject = "Kickoff notes";
     private static readonly string[] Opened = ["Archive", "Projects", "Clients"];
 
-    private static Element Account(App app) =>
-        app.Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
-        ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
+    private static Element Account(App app)
+    {
+        app.ShowMail();
+        return app.Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
+            ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
+    }
 
     private static Element? FolderRow(App app, string folder) =>
         app.Agent.Find(Filter.Named(folder, "ListItem") with { Under = Account(app) });

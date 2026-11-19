@@ -18,17 +18,16 @@ fn paid() -> Answer {
     }
 }
 
-fn dir(name: &str) -> std::path::PathBuf {
-    let dir =
-        std::env::temp_dir().join(format!("mailcal-entitlement-{name}-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).expect("a temporary directory");
-    dir
+/// A directory of the test's own, and its path; the directory is removed when the guard drops.
+fn dir() -> (tempfile::TempDir, std::path::PathBuf) {
+    let guard = tempfile::tempdir().expect("a temporary directory");
+    let path = guard.path().to_path_buf();
+    (guard, path)
 }
 
 #[test]
 fn an_answer_is_kept_beside_the_store_and_read_back_at_the_next_launch() {
-    let dir = dir("kept");
+    let (_guard, dir) = dir();
     EntitlementState::load(&dir).record(Outcome::Answered(paid()), NOW);
 
     let relaunched = EntitlementState::load(&dir);
@@ -42,7 +41,7 @@ fn an_answer_is_kept_beside_the_store_and_read_back_at_the_next_launch() {
 
 #[test]
 fn an_outage_keeps_what_was_stored() {
-    let dir = dir("outage");
+    let (_guard, dir) = dir();
     let state = EntitlementState::load(&dir);
     state.record(Outcome::Answered(paid()), NOW);
     state.record(Outcome::Unreachable, NOW + 1);
@@ -51,7 +50,7 @@ fn an_outage_keeps_what_was_stored() {
 
 #[test]
 fn a_file_that_will_not_parse_is_the_free_app() {
-    let dir = dir("garbled");
+    let (_guard, dir) = dir();
     std::fs::write(dir.join(super::FILE_NAME), "not json").expect("a garbled file");
     let state = EntitlementState::load(&dir);
     assert!(!state.lapses_soon(NOW));
@@ -60,7 +59,7 @@ fn a_file_that_will_not_parse_is_the_free_app() {
 
 #[test]
 fn signing_out_forgets_the_answer_here_and_on_disk() {
-    let dir = dir("forget");
+    let (_guard, dir) = dir();
     let state = EntitlementState::load(&dir);
     state.record(Outcome::Answered(paid()), NOW);
     state.forget();

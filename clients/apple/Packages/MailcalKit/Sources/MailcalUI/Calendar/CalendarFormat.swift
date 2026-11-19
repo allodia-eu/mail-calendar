@@ -86,17 +86,6 @@ func weekdayShort(_ date: Date, calendar: Calendar, locale: Locale = L10n.appLoc
     templateFormatters.formatter("EEE", calendar: calendar, locale: locale).string(from: date)
 }
 
-/// The ISO-8601 week number, the "wk 28" a Dutch or German user expects to see.
-///
-/// Always the ISO reckoning, never the locale's: an ISO week starts on Monday and belongs to the year
-/// holding its Thursday. Asking a US-locale calendar for a "week of year" gives a different number,
-/// and a week number that disagrees with everyone else's is worse than none.
-func isoWeekNumber(_ date: Date, zone: TimeZone) -> Int {
-    var iso = Calendar(identifier: .iso8601)
-    iso.timeZone = zone
-    return iso.component(.weekOfYear, from: date)
-}
-
 /// The title over the grid: the month (and year) the shown days fall in.
 ///
 /// A week straddling a month names both, "Jun – Jul 2026", because titling it with one month is

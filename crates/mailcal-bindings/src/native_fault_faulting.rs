@@ -75,11 +75,10 @@ fn child_log() -> Option<String> {
     std::env::var(CHILD_LOG).ok()
 }
 
-/// A scratch directory and a seeded log, named for the test so two running at once cannot collide.
-fn scratch(name: &str) -> (std::path::PathBuf, std::path::PathBuf) {
-    let dir = std::env::temp_dir().join(format!("mailcal-{name}-{}", std::process::id()));
-    fs::create_dir_all(&dir).expect("scratch dir");
-    let log = dir.join("mailcal.log");
+/// A seeded log in a directory of the test's own, removed when the returned guard drops.
+fn scratch() -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().expect("scratch dir");
+    let log = dir.path().join("mailcal.log");
     fs::write(&log, "an ordinary line\n").expect("seed the log");
     (dir, log)
 }
@@ -142,10 +141,9 @@ fn the_faulting_child() {
 // allodia-eu/mail-calendar#21 holds the evidence. Run them with `-- --ignored`.
 #[ignore = "flaky in CI: the child dies during frame collection; see the note above"]
 fn a_real_fault_writes_its_record_and_still_reaches_the_handler_it_displaced() {
-    let (dir, log) = scratch("fault");
+    let (_dir, log) = scratch();
     let status = run_child("native_fault::faulting::the_faulting_child", &log);
     let written = fs::read_to_string(&log).expect("read the log back");
-    let _ = fs::remove_dir_all(&dir);
 
     assert_eq!(
         status.code(),
@@ -211,10 +209,9 @@ fn the_surviving_child() {
 // allodia-eu/mail-calendar#21 holds the evidence. Run them with `-- --ignored`.
 #[ignore = "flaky in CI: the child dies during frame collection; see the note above"]
 fn a_fault_the_process_survives_leaves_the_ordinary_log_working() {
-    let (dir, log) = scratch("survived");
+    let (_dir, log) = scratch();
     let status = run_child("native_fault::faulting::the_surviving_child", &log);
     let written = fs::read_to_string(&log).expect("read the log back");
-    let _ = fs::remove_dir_all(&dir);
 
     assert_eq!(
         status.code(),

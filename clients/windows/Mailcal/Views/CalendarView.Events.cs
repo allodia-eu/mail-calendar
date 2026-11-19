@@ -30,7 +30,7 @@ public sealed partial class CalendarView
         }
         // A fresh editor, defaulting to the first writable calendar and the device's own zone (so the
         // created event reads back the same wall clock when it is opened to edit).
-        var editor = EventEditorState.Create(DefaultChoice(), Model.ActiveZone, DateTime.Now);
+        var editor = EventEditorState.Create(DefaultChoice(), Model.ActiveZone, Model.WallClock());
         var dialog = new EventEditorDialog(Model, editor) { XamlRoot = this.XamlRoot };
         if (await DialogHelper.ShowAsync(dialog) == ContentDialogResult.Primary)
         {

@@ -58,12 +58,22 @@ impl AppModel {
                 self.sync_bar = sync_line::sync_bar(&progress);
                 self.sync_status = sync_line::sync_status(&progress, &self.snapshot.accounts);
             }
-            Surface::Calendar => self.calendar.refresh(&app),
+            Surface::Calendar => {
+                // What the calendars offer is what Settings' default calendar and meetings list.
+                self.calendar_settings_read = self.calendar_settings_read.wrapping_add(1);
+                self.calendar.refresh(&app);
+                self.calendar_side.pull(&app, &self.calendar);
+            }
             Surface::Contacts => self.contacts.refresh(&app),
             Surface::ContactsStatus => self.contacts.refresh_write_status(&app),
             Surface::CalendarStatus => self.calendar.refresh_write_status(&app),
             Surface::Settings => {
+                // An account added or removed changes the signature slots listed.
+                self.signatures_read = self.signatures_read.wrapping_add(1);
+                self.calendar_settings_read = self.calendar_settings_read.wrapping_add(1);
                 self.calendar.refresh_settings(&app);
+                // The week start moves the mini month's columns.
+                self.calendar_side.pull(&app, &self.calendar);
                 self.settings.signalled();
                 // After the signal's redraw, so a notice it raises is drawn rather than skipped.
                 self.account_work_signalled();
@@ -86,6 +96,9 @@ impl AppModel {
                 self.settings.signalled();
                 self.refresh_onboarding_card();
             }
+            // The signature library or an account's signatures moved, or a change to them started
+            // or ended.
+            Surface::Signatures => self.signatures_read = self.signatures_read.wrapping_add(1),
             // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
             // the stored sign-in.
             Surface::Allodia => self.allodia_signalled(),

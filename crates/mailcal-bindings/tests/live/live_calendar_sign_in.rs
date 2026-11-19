@@ -123,7 +123,7 @@ username = "{LOGIN}"
 password = "not-this-servers"
 "#
     );
-    let app = app("calendar-sign-in", RecordingStore::default());
+    let (_dir, app) = app("calendar-sign-in", RecordingStore::default());
     let mailbox = app
         .add_account(mailbox_config)
         .expect("the mailbox connects")

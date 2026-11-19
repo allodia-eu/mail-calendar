@@ -185,32 +185,28 @@ mod tests {
 
     use super::{keeps_others_out, prepare_directory};
 
-    /// A scratch directory at `mode`, removed when the test ends.
-    fn dir_at(mode: u32, name: &str) -> std::path::PathBuf {
-        let path = std::env::temp_dir().join(format!("mailcal-mcp-{name}-{}", std::process::id()));
-        let _ = fs::remove_dir_all(&path);
-        fs::create_dir_all(&path).unwrap();
-        fs::set_permissions(&path, fs::Permissions::from_mode(mode)).unwrap();
-        path
+    /// A scratch directory at `mode`, removed when the returned guard drops.
+    fn dir_at(mode: u32) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        fs::set_permissions(dir.path(), fs::Permissions::from_mode(mode)).unwrap();
+        dir
     }
 
     #[test]
     fn a_directory_others_can_enter_does_not_satisfy_the_rule() {
         for mode in [0o755, 0o750, 0o705, 0o777] {
-            let dir = dir_at(mode, &format!("open{mode:o}"));
+            let dir = dir_at(mode);
             assert!(
-                !keeps_others_out(&dir),
+                !keeps_others_out(dir.path()),
                 "mode {mode:o} lets another user traverse in"
             );
-            let _ = fs::remove_dir_all(&dir);
         }
     }
 
     #[test]
     fn an_owner_only_directory_satisfies_the_rule() {
-        let dir = dir_at(0o700, "owner-only");
-        assert!(keeps_others_out(&dir));
-        let _ = fs::remove_dir_all(&dir);
+        let dir = dir_at(0o700);
+        assert!(keeps_others_out(dir.path()));
     }
 
     #[test]
@@ -226,8 +222,7 @@ mod tests {
         // that follows is the part the system refuses. The refusal itself cannot be reproduced
         // here, because only the App Group container's own protection produces it, so what is
         // pinned is the decision taken when it happens.
-        let dir = dir_at(0o700, "prepare");
-        assert!(prepare_directory(&dir.join("mcp.sock")));
-        let _ = fs::remove_dir_all(&dir);
+        let dir = dir_at(0o700);
+        assert!(prepare_directory(&dir.path().join("mcp.sock")));
     }
 }

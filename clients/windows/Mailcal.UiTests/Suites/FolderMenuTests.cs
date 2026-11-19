@@ -65,9 +65,12 @@ public sealed class FolderMenuTests(HarnessApp harness)
         return names;
     }
 
-    private static Element AccountRow(App app) =>
-        app.Agent.Wait(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd }, App.Patience)
-        ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
+    private static Element AccountRow(App app)
+    {
+        app.ShowMail();
+        return app.Agent.Wait(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd }, App.Patience)
+            ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
+    }
 
     /// <summary>Alice's row for <paramref name="path"/>, each folder on the way opened so the row is
     /// drawn. A launch lists the account before its folders arrive from the server.</summary>

@@ -56,6 +56,12 @@ public sealed partial class MailboxModel
             OnAllodiaSignal();
             return;
         }
+        // The signature library moved: only Settings → Signatures and the composers' pickers read it.
+        if (changed == Surface.Signatures)
+        {
+            RaiseSignaturesChanged();
+            return;
+        }
         // A change on an account's page started, waited or ended, or a server answered what the
         // page asked: only what draws the accounts and their pages reads it again. What a change
         // stores raises Surface.Settings besides.
@@ -230,6 +236,8 @@ public sealed partial class MailboxModel
         {
             RaiseAnalyticsConsent();
             RaiseAccountsChanged();
+            // An account added or removed moves Settings → Signatures' rows.
+            RaiseSignaturesChanged();
         }
 
         // The derived mail count/name labels may have changed with the collections.
@@ -359,36 +367,6 @@ public sealed partial class MailboxModel
         FolderRole.Important => SidebarFolderRole.Important,
         _ => SidebarFolderRole.Other,
     };
-
-    /// <summary>Whether two projected accounts are the same in every way the sidebar draws.</summary>
-    private static bool Same(AccountItem a, AccountItem b) =>
-        a.Id == b.Id
-        && a.Email == b.Email
-        // The label is drawn (the composer's From), so a name that moved with nothing else has to
-        // reach the projection, exactly as an unread count does.
-        && a.SendLabel == b.SendLabel
-        && a.Expanded == b.Expanded
-        && a.ManagesFolders == b.ManagesFolders
-        && a.Folders.Count == b.Folders.Count
-        && a.Folders.Zip(b.Folders).All(pair => SameFolder(pair.First, pair.Second));
-
-    /// <summary>Whether two projected folders draw alike. The place in the tree and what the row
-    /// offers count too: a folder moved under the same key (every transport but IMAP keeps it)
-    /// changes nothing else, and a change that has just reached the server changes only
-    /// <see cref="FolderItem.Pending"/>. Expansion is left out on purpose, it is moved locally first
-    /// (<see cref="SetFolderExpanded"/>) and a snapshot from before that must not spring it back.</summary>
-    private static bool SameFolder(FolderItem a, FolderItem b) =>
-        a.Key == b.Key
-        && a.Name == b.Name
-        && a.Role == b.Role
-        && a.Unread == b.Unread
-        && a.Parent == b.Parent
-        && a.HasChildren == b.HasChildren
-        && a.Pending == b.Pending
-        && a.InTrash == b.InTrash
-        && a.Editable == b.Editable
-        && a.AcceptsFolders == b.AcceptsFolders
-        && a.AcceptsMessages == b.AcceptsMessages;
 
     /// <summary>
     /// Rebuilds <see cref="Folders"/> only when the folder set actually changes, so the

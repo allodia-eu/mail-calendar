@@ -70,7 +70,8 @@ pub(super) struct CreatePaint {
 
 #[derive(Clone, Debug)]
 pub(super) struct GridScene {
-    pub(super) week_number: u8,
+    /// The ISO 8601 week the page starts in, as the core numbers it (`GridDay::week`).
+    pub(super) week_number: u32,
     pub(super) days: Vec<DayPaint>,
     pub(super) events: Vec<EventPaint>,
     pub(super) bands: Vec<BandPaint>,
@@ -112,12 +113,7 @@ impl GridScene {
 
     pub(super) fn from_model(model: &CalendarModel, dark: bool) -> Self {
         let (first, count) = model.visible_day_range();
-        let week_number = model
-            .page
-            .days
-            .first()
-            .and_then(|day| parse_date(&day.date))
-            .map_or(0, time::Date::iso_week);
+        let week_number = model.page.days.first().map_or(0, |day| day.week);
         let today = today_in(&model.page.timezone);
         let days = model
             .page

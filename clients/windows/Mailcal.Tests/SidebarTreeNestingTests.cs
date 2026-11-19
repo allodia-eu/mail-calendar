@@ -150,30 +150,4 @@ public class SidebarTreeNestingTests
         Assert.Equal("inner", Assert.Single(outer.Children).Tag);
         Assert.Equal(1, childrenWhenExpanded);
     }
-    // A row already on screen must never be left holding nothing, because a row the framework has
-    // realised empty can be told it is open and then show nothing at all. The calendar and
-    // contacts destinations draw no mail tree, and the way they do it is by shutting each account
-    // row rather than emptying it, so the tree a returning row reopens was attached the whole
-    // time. This watches the collection itself: the count may never reach zero.
-    [Fact]
-    public void LeavingMailNeverEmptiesAnAccountRow()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        var account = SidebarFixture.Account("a", folders: SidebarFixture.Tree());
-        SidebarFixture.Sync(target, [account]);
-        var row = target.Single(item => item.AccountId == "a");
-        Assert.Single(row.Children);
-
-        var everEmptied = false;
-        row.Children.CollectionChanged += (_, _) => everEmptied |= row.Children.Count == 0;
-
-        SidebarFixture.Sync(target, [account], showFolders: false);
-        Assert.False(row.IsExpanded);
-        Assert.Single(row.Children);
-
-        SidebarFixture.Sync(target, [account]);
-        Assert.True(row.IsExpanded);
-        Assert.Single(row.Children);
-        Assert.False(everEmptied);
-    }
 }

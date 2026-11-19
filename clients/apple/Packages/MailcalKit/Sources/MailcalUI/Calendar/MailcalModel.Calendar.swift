@@ -109,8 +109,12 @@ extension MailboxModel {
         preference(.setDefaultCalendar(account: account, calendar: calendar))
     }
 
-    /// Every account whose calendars offer a video meeting, with the one its new events take.
-    func meetingDefaults() -> [MeetingDefault] { app?.meetingDefaults() ?? [] }
+    /// Sends the Jitsi field's text. The core applies it before `dispatch` returns, so the page is
+    /// read straight back: the field decides from it what it shows next.
+    func setJitsiServer(_ text: String) {
+        preference(.setJitsiServer(server: text))
+        if let app { videoconferencing = app.videoconferencingPage() }
+    }
 
     /// Chooses the video meeting `account`'s new events take once they have an invitee.
     func setDefaultMeeting(account: String, choice: String?) {

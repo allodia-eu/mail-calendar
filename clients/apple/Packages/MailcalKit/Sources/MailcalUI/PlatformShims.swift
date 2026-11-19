@@ -186,12 +186,16 @@ final class PlatformFilePicker: NSObject, UIDocumentPickerDelegate {
     private let onPick: ([URL]) -> Void
     private init(onPick: @escaping ([URL]) -> Void) { self.onPick = onPick }
 
-    static func present(onPick: @escaping ([URL]) -> Void) {
+    /// Presents the picker, offering files of `contentTypes`, several at once when `multiple`.
+    static func present(
+        contentTypes: [UTType] = [.item], multiple: Bool = true,
+        onPick: @escaping ([URL]) -> Void
+    ) {
         guard let host = topPresentedViewController() else { return }
         let picker = PlatformFilePicker(onPick: onPick)
         active = picker
-        let vc = UIDocumentPickerViewController(forOpeningContentTypes: [.item], asCopy: true)
-        vc.allowsMultipleSelection = true
+        let vc = UIDocumentPickerViewController(forOpeningContentTypes: contentTypes, asCopy: true)
+        vc.allowsMultipleSelection = multiple
         vc.delegate = picker
         host.present(vc, animated: true)
     }

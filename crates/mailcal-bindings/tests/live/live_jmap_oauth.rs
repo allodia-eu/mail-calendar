@@ -36,7 +36,7 @@ fn a_jmap_account_signs_in_through_discovery_and_registration() {
     };
     let server = format!("http://{addr}");
     let store = RecordingStore::default();
-    let app = app("signin", store.clone());
+    let (_dir, app) = app("signin", store.clone());
 
     assert!(
         app.jmap_oauth_available(EMAIL.to_owned(), Some(server.clone())),
@@ -165,7 +165,7 @@ fn the_seeded_harness_offers_no_sign_in() {
         eprintln!("skipping: STALWART_HTTP_ADDR unset");
         return;
     };
-    let app = app("seeded", RecordingStore::default());
+    let (_dir, app) = app("seeded", RecordingStore::default());
     assert!(
         !app.jmap_oauth_available(EMAIL.to_owned(), Some(format!("http://{addr}"))),
         "the seeded harness now offers JMAP sign-in, so every client's setup form changes for it; \

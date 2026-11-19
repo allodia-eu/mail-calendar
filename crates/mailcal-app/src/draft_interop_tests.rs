@@ -93,8 +93,9 @@ fn fixtures_dir() -> PathBuf {
 #[tokio::test]
 async fn another_clients_draft_reopens_as_it_was_stored() {
     let mut entries = Vec::new();
+    let scratch = tempfile::tempdir().expect("a staging directory");
     for fixture in FIXTURES {
-        let opening = reopen(fixture).await;
+        let opening = reopen(&scratch, fixture).await;
         assert_eq!(opening.kind, fixture.kind, "{}", fixture.name);
         assert!(!opening.seeds_signature, "{}", fixture.name);
         assert_eq!(opening.subject, fixture.subject, "{}", fixture.name);
@@ -131,7 +132,7 @@ async fn another_clients_draft_reopens_as_it_was_stored() {
     );
 }
 
-async fn reopen(fixture: &Fixture) -> crate::ComposeOpening {
+async fn reopen(scratch: &tempfile::TempDir, fixture: &Fixture) -> crate::ComposeOpening {
     let key = format!("interop-{}", fixture.name);
     let mut message = stored_draft(&key);
     message.envelope.subject = Some(fixture.subject.to_owned());
@@ -148,8 +149,7 @@ async fn reopen(fixture: &Fixture) -> crate::ComposeOpening {
     .expect("the fixture is readable");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![message]).serving(&key, &source));
     app.dispatch(Intent::RefreshMail).await;
-    let staging = std::env::temp_dir().join(format!("mailcal-interop-{}", fixture.name));
-    let _ = std::fs::remove_dir_all(&staging);
+    let staging = scratch.path().join(fixture.name);
     open(&app, &key, &staging.to_string_lossy()).await
 }
 

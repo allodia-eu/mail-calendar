@@ -13,7 +13,7 @@ import androidx.compose.ui.res.painterResource
 import org.json.JSONObject
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.SignatureBody
-import uniffi.mailcal_bindings.SignatureRow
+import uniffi.mailcal_bindings.SignatureEntry
 import uniffi.mailcal_bindings.SignatureSlotKind
 
 // The library to list plus the two lookups the core answers. Passed as a value rather than the whole
@@ -21,18 +21,18 @@ import uniffi.mailcal_bindings.SignatureSlotKind
 // screenshot run and the JVM tests want.
 internal data class ComposerSignatures(
     // The library, for the picker.
-    val library: List<SignatureRow>,
+    val library: List<SignatureEntry>,
     // The signature `account` uses in `slot`, or null when that slot is unassigned.
     val forAccount: (String, SignatureSlotKind) -> SignatureBody?,
     // One signature by id, the per-message override.
     val byId: (String) -> SignatureBody?,
 )
 
-// Binds the composer's three needs to the live core. `library` comes from the snapshot the SETTINGS
-// signal refreshes (names only); the two lookups are cheap in-memory core reads, run when the
-// composer opens and again whenever From changes, never cached, because the assignment can change
-// under an open composer.
-internal fun composerSignatures(app: MailcalApp, library: List<SignatureRow>) = ComposerSignatures(
+// Binds the composer's three needs to the live core. `library` is the signatures page's, read
+// again on every SIGNATURES signal (names only); the two lookups are cheap in-memory core reads,
+// run when the composer opens and again whenever From changes, never cached, because the
+// assignment can change under an open composer.
+internal fun composerSignatures(app: MailcalApp, library: List<SignatureEntry>) = ComposerSignatures(
     library = library,
     forAccount = { account, slot -> app.resolveSignature(account, slot) },
     byId = { id -> app.signatureBody(id) },
@@ -86,7 +86,7 @@ internal fun signatureSeedJson(body: SignatureBody?): String? = body?.let {
 // the control changing its name to whichever signature is selected.
 @Composable
 internal fun ComposerSignatureMenu(
-    library: List<SignatureRow>,
+    library: List<SignatureEntry>,
     selected: String?,
     expanded: Boolean,
     onExpand: (Boolean) -> Unit,

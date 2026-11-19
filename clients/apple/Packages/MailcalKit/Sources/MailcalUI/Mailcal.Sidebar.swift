@@ -127,7 +127,7 @@ extension ContentView {
     /// ``sidebarDestinations(showsCalendarAndContacts:)`` says what it answers.
     func sidebarList(showsCalendarAndContacts: Bool) -> some View {
         #if os(macOS)
-        sidebarTree
+        sidebarColumn(showsPane: showsCalendarAndContacts)
             // Above the accounts it is about, and out of the content column, so the list and its
             // actions bar never move (docs/notices.md).
             .safeAreaInset(edge: .top, spacing: 0) {
@@ -152,7 +152,7 @@ extension ContentView {
             if hSize != .compact {
                 NoticeCard(model: model, destination: model.destination)
             }
-            sidebarTree
+            sidebarColumn(showsPane: showsCalendarAndContacts)
             sidebarDestinations(showsCalendarAndContacts: showsCalendarAndContacts)
         }
         .sidebarTitle()
@@ -160,7 +160,7 @@ extension ContentView {
     }
 
     /// The accounts and their folders, as the pane's scrolling list.
-    private var sidebarTree: some View {
+    var sidebarTree: some View {
         List {
             Section {
                 outboxRow
@@ -213,18 +213,8 @@ extension ContentView {
                     // The account carries its own notices: one line under its address, the first
                     // one's glyph and a few words, readable without a pointer and never wrapping; the
                     // sentences are in the notice and on the account's page (docs/notices.md rule 6).
-                    let about = model.notices(about: account.id)
-                    if let first = about.first, let label = NoticeRules.rowLabel(about) {
-                        HStack(spacing: 5) {
-                            NoticeGlyph(severity: first.severity).imageScale(.small)
-                            Text(label).lineLimit(1).truncationMode(.tail)
-                        }
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    AccountNoticeLine(about: model.notices(about: account.id))
                         .padding(.leading, paneRowShift + 28)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityLabel(about.map { NoticeRules.text($0.title) }.joined(separator: " "))
-                    }
                     // Every expanded account's folders show indented beneath it, not just the
                     // selected one's, and whatever surface is on screen: the pane is furniture,
                     // so looking at the calendar is not a reason for a tree to empty

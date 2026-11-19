@@ -5297,7 +5297,9 @@
   window.setComposerScheme = (scheme) => setScheme(doc.documentElement, scheme);
   window.insertSignatureImage = (image) => {
     const data = (image ? parsed(image) : {}) ?? {};
-    const url = String(data.data_url ?? "");
+    const given = String(data.data_url ?? "");
+    const head = given.indexOf(",");
+    const url = head < 0 ? given : given.slice(0, head).toLowerCase() + given.slice(head);
     if (!url.startsWith("data:image/") || safePreviewUrl(url) === "")
       return;
     const node = doc.createElement("img");

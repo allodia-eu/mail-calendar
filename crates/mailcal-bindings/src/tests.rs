@@ -4,10 +4,10 @@
 //! 500-line limit.
 
 use std::{
-    fs,
+    cell::RefCell,
     sync::mpsc,
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant},
 };
 
 use engine_api::{TimeZoneId, is_supported_zone};
@@ -85,15 +85,22 @@ impl AccountCredentialStore for RecordingStoreHandle {
     }
 }
 
+thread_local! {
+    /// The directories each [`temp_data_dir`] made, removed when the thread that asked ends. The
+    /// test harness runs every test on a thread of its own, so that is the end of the test.
+    static DATA_DIRS: RefCell<Vec<tempfile::TempDir>> = const { RefCell::new(Vec::new()) };
+}
+
+/// A data directory that does not exist yet, inside one of the calling test's own that is removed
+/// when the test ends. A helper that boots an app can name one without handing a guard back.
 pub(crate) fn temp_data_dir(name: &str) -> std::path::PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock is after the Unix epoch")
-        .as_nanos();
-    std::env::temp_dir().join(format!(
-        "mailcal-bindings-{name}-{}-{nanos}",
-        std::process::id(),
-    ))
+    let dir = tempfile::Builder::new()
+        .prefix(&format!("mailcal-bindings-{name}-"))
+        .tempdir()
+        .expect("a directory of the test's own");
+    let path = dir.path().join("data");
+    DATA_DIRS.with_borrow_mut(|dirs| dirs.push(dir));
+    path
 }
 
 pub(super) fn wait_until(timeout: Duration, mut pred: impl FnMut() -> bool) -> bool {
@@ -233,8 +240,6 @@ fn deferred_boot_badges_an_unreachable_account_without_dropping_it() {
         detail.contains("outage@example.com"),
         "the detail names the affected account: {detail}",
     );
-
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 #[test]

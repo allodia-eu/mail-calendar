@@ -13,7 +13,7 @@ use fakes::{
 use mailcal_viewmodel::ViewMode;
 
 use super::{Intent, Surface};
-use crate::tests_fakes as fakes;
+use crate::{preferences_file::ScratchPreferences, tests_fakes as fakes};
 
 #[tokio::test]
 async fn archive_moves_the_message_to_the_archive_folder() {
@@ -412,9 +412,8 @@ async fn set_push_folder_caps_subscriptions_at_the_limit() {
 #[tokio::test]
 async fn message_grouping_defaults_to_threaded_and_persists_across_a_relaunch() {
     // The grouping is now a persisted preference (default Threaded), not a runtime-only toggle.
-    let dir = std::env::temp_dir().join("mailcal-grouping-persist-test");
-    let _ = std::fs::remove_dir_all(&dir);
-    let path = dir.join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
 
     // A fresh app (no preferences file yet) defaults to Threaded.
@@ -438,15 +437,12 @@ async fn message_grouping_defaults_to_threaded_and_persists_across_a_relaunch() 
         &surfaces,
     );
     assert_eq!(relaunched.view_mode(), ViewMode::Flat);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[tokio::test]
 async fn per_account_sync_depth_overrides_only_that_account_and_survives_other_edits() {
-    let dir = std::env::temp_dir().join("mailcal-account-depth-test");
-    let _ = std::fs::remove_dir_all(&dir);
-    let path = dir.join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = app_with_prefs(
         vec![
@@ -484,6 +480,4 @@ async fn per_account_sync_depth_overrides_only_that_account_and_survives_other_e
 
     // The other account remains at the product default until it gets its own explicit override.
     assert_eq!(depth(&after, "acct-2"), 3);
-
-    let _ = std::fs::remove_dir_all(&dir);
 }

@@ -5,11 +5,7 @@
 //! registry entry present before the connect that might rotate it. See
 //! [`crate::credential_store`] and `crate::account_registry`.
 
-use std::{
-    fs,
-    path::PathBuf,
-    sync::{Arc, mpsc},
-};
+use std::sync::{Arc, mpsc};
 
 use crate::{
     AccountCredentialStore, LogLevel, MailcalApp,
@@ -111,7 +107,6 @@ fn the_constructors_credential_store_is_live_before_the_first_refresh_can_be() {
 
     drop(written);
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// A `[jmap]` config with an OAuth grant, pointed at a port nothing listens on so any connect
@@ -142,7 +137,7 @@ fn unreachable_oauth_jmap_config() -> (String, mailcal_account::JmapAccountConfi
 }
 
 /// Builds an account-less app over a throwaway store, for the `add_account` ordering tests.
-fn app_with_recorder(name: &str) -> (Arc<MailcalApp>, Arc<RecordingCredentialStore>, PathBuf) {
+fn app_with_recorder(name: &str) -> (Arc<MailcalApp>, Arc<RecordingCredentialStore>) {
     let (tx, _rx) = mpsc::channel();
     let data_dir = temp_data_dir(name);
     let recorder = Arc::new(RecordingCredentialStore::default());
@@ -157,7 +152,7 @@ fn app_with_recorder(name: &str) -> (Arc<MailcalApp>, Arc<RecordingCredentialSto
         Box::new(RecordingStoreHandle(Arc::clone(&recorder))),
     )
     .expect("an account-less app boots");
-    (app, recorder, data_dir)
+    (app, recorder)
 }
 
 /// An `add_account` whose connect fails leaves nothing behind. Registering before connecting is
@@ -165,7 +160,7 @@ fn app_with_recorder(name: &str) -> (Arc<MailcalApp>, Arc<RecordingCredentialSto
 /// account the app never got.
 #[test]
 fn a_failed_add_account_leaves_no_registry_entry_behind() {
-    let (app, _recorder, data_dir) = app_with_recorder("add-account-rollback");
+    let (app, _recorder) = app_with_recorder("add-account-rollback");
     let (config_toml, config) = unreachable_oauth_jmap_config();
     let account_id = config.account_id().expect("a valid account id");
 
@@ -178,12 +173,11 @@ fn a_failed_add_account_leaves_no_registry_entry_behind() {
     );
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 #[test]
 fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
-    let (app, recorder, data_dir) = app_with_recorder("password-repair-rollback");
+    let (app, recorder) = app_with_recorder("password-repair-rollback");
     let config_toml = crate::account_config_toml(crate::AccountSetup {
         imap_host: "127.0.0.1:1".to_owned(),
         username: "repair@example.com".to_owned(),
@@ -237,7 +231,6 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
     );
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// What the core writes to the store is the config the **registry** holds, not the TOML the
@@ -250,7 +243,7 @@ fn a_rejected_replacement_keeps_the_registered_and_stored_password() {
 /// grant, which is how a real JMAP account died.
 #[test]
 fn the_stored_credential_is_the_registrys_config_not_the_callers() {
-    let (app, recorder, data_dir) = app_with_recorder("persist-from-registry");
+    let (app, recorder) = app_with_recorder("persist-from-registry");
     let (config_toml, config) = unreachable_oauth_jmap_config();
     let account_id = config.account_id().expect("a valid account id");
 
@@ -282,7 +275,6 @@ fn the_stored_credential_is_the_registrys_config_not_the_callers() {
 
     drop(written);
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// Removing an account erases its stored credential: the core's job now, not a second call the
@@ -292,7 +284,7 @@ fn the_stored_credential_is_the_registrys_config_not_the_callers() {
 /// credential stayed in the vault, and the next launch brought it back with nothing to explain it.
 #[test]
 fn removing_an_account_erases_its_stored_credential() {
-    let (app, recorder, data_dir) = app_with_recorder("remove-erases-credential");
+    let (app, recorder) = app_with_recorder("remove-erases-credential");
     let (config_toml, config) = unreachable_oauth_jmap_config();
     let account_id = config.account_id().expect("a valid account id");
     let _registered = register_jmap(&app, &config_toml);
@@ -308,7 +300,6 @@ fn removing_an_account_erases_its_stored_credential() {
     assert!(!app.registry.contains(account_id.as_str()),);
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// A store that refuses is *reported*, not swallowed; in both directions.
@@ -356,7 +347,6 @@ fn a_store_that_refuses_fails_the_add_and_reports_the_erase() {
     );
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// A host store that refuses everything, standing in for a locked Keychain or an Android Keystore

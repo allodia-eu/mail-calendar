@@ -4,7 +4,7 @@ use mailcal_bindings::{EventIntent, Intent, InvitationResponse, MailcalApp};
 
 use super::{
     AppModel, PrimaryView,
-    calendar::{EventForm, EventIdentity},
+    calendar::{CalendarModel, EventForm, EventIdentity, PaneInput},
 };
 use crate::l10n;
 
@@ -44,6 +44,27 @@ impl CalendarRefreshGate {
 }
 
 impl AppModel {
+    /// Moves the grid, then reads the calendar pane again: the grid has come to rest on other
+    /// days, so the mini month follows it (`docs/calendar-pane.md`, rule 12).
+    pub(super) fn move_calendar(&mut self, change: impl FnOnce(&mut CalendarModel, &MailcalApp)) {
+        if let Some(app) = self.app.clone() {
+            change(&mut self.calendar, &app);
+            self.calendar_side.pull(&app, &self.calendar);
+        }
+    }
+
+    pub(super) fn calendar_pane(&mut self, input: PaneInput) {
+        if let Some(app) = self.app.clone() {
+            self.calendar_side.input(&app, &mut self.calendar, input);
+        }
+    }
+
+    pub(super) fn pull_calendar_pane(&mut self) {
+        if let Some(app) = self.app.clone() {
+            self.calendar_side.pull(&app, &self.calendar);
+        }
+    }
+
     pub(super) fn delete_calendar_event(&mut self, event: EventIdentity) {
         self.dispatch(Intent::Events {
             intent: EventIntent::Delete {
@@ -81,6 +102,7 @@ impl AppModel {
 
     pub(super) fn show_calendar(&mut self) {
         self.primary = PrimaryView::Calendar;
+        self.pull_calendar_pane();
         if self.calendar_refresh.calendar_opened() {
             self.dispatch(Intent::RefreshCalendar);
         }

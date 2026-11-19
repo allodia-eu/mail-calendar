@@ -162,6 +162,9 @@ leg_reauth_notices() {
   show_calendar_tab
   ui_wait textLike="$calendar_reauth" timeoutMs=30000
   ui_wait text="Sign in again" role=button
+  # The account's group in the calendar pane wears the mark its folder-pane row does
+  # (docs/calendar-pane.md rule 7).
+  ui_within wait id=calendar-list -- text="2 issues"
   capture reauth-notices-calendar
 }
 

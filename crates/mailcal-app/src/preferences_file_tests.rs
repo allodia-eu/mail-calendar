@@ -1,5 +1,4 @@
 use std::{
-    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -9,14 +8,7 @@ use std::{
 
 use mailcal_account::{Appearance, TimeFormat, WeekStart, load_preferences, save_preferences};
 
-use super::{PreferencesFile, lock};
-
-fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-preferences-file-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir
-}
+use super::{PreferencesFile, ScratchPreferences};
 
 fn counted() -> (Arc<AtomicUsize>, impl Fn() + Send + Sync + 'static) {
     let told = Arc::new(AtomicUsize::new(0));
@@ -29,7 +21,8 @@ fn counted() -> (Arc<AtomicUsize>, impl Fn() + Send + Sync + 'static) {
 /// A change is read back at once, before the writer has saved it, and is in the file after.
 #[test]
 fn a_change_is_read_at_once_and_saved_behind() {
-    let path = scratch("read-at-once").join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let file = PreferencesFile::open(path.clone(), || {});
     file.edit(|prefs| prefs.appearance = Appearance::Dark);
     assert_eq!(file.load().appearance, Appearance::Dark);
@@ -42,7 +35,8 @@ fn a_change_is_read_at_once_and_saved_behind() {
 /// holds as it is written, so none writes back a copy read before another landed.
 #[test]
 fn changes_made_together_are_all_kept() {
-    let path = scratch("together").join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let file = PreferencesFile::open(path.clone(), || {});
     let threads: Vec<_> = (0..8)
         .map(|n| {
@@ -70,7 +64,8 @@ fn changes_made_together_are_all_kept() {
 /// A field another process wrote while this one was running survives this one's next save.
 #[test]
 fn a_field_written_elsewhere_survives() {
-    let path = scratch("elsewhere").join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let file = PreferencesFile::open(path.clone(), || {});
     file.edit(|prefs| prefs.appearance = Appearance::Light);
     file.settle();
@@ -91,9 +86,9 @@ fn a_field_written_elsewhere_survives() {
 /// once the cause has gone writes it and says so.
 #[test]
 fn a_failed_save_keeps_its_change_until_a_retry_writes_it() {
-    let dir = scratch("failed");
+    let dir = tempfile::tempdir().unwrap();
     // A file where the directory should be: the save cannot create it.
-    let blocked = dir.join("data");
+    let blocked = dir.path().join("data");
     std::fs::write(&blocked, b"not a directory").unwrap();
     let path = blocked.join("preferences.toml");
     let (told, on_failure) = counted();
@@ -126,7 +121,8 @@ fn a_failed_save_keeps_its_change_until_a_retry_writes_it() {
 /// The last handle going writes what is still waiting before the writer stops.
 #[test]
 fn what_waits_is_written_when_the_last_handle_goes() {
-    let path = scratch("last-handle").join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let file = PreferencesFile::open(path.clone(), || {});
     file.edit(|prefs| prefs.appearance = Appearance::Light);
     drop(file);
@@ -142,14 +138,15 @@ fn what_waits_is_written_when_the_last_handle_goes() {
 /// A process about to end waits for what is waiting to be written, and no longer than it said.
 #[test]
 fn a_bounded_wait_returns_once_written_or_at_its_limit() {
-    let path = scratch("bounded").join("preferences.toml");
+    let scratch = ScratchPreferences::empty();
+    let path = scratch.path();
     let file = PreferencesFile::open(path.clone(), || {});
     file.edit(|prefs| prefs.appearance = Appearance::Light);
     assert!(file.settle_within(Duration::from_secs(5)));
     assert_eq!(load_preferences(&path).appearance, Appearance::Light);
 
     // A disk that does not answer: the writer cannot take the file while this holds it.
-    let held = lock(&file.0.as_ref().unwrap().0.io);
+    let held = file.hold_disk();
     file.edit(|prefs| prefs.appearance = Appearance::Dark);
     let started = Instant::now();
     assert!(!file.settle_within(Duration::from_millis(100)));

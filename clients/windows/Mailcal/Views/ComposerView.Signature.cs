@@ -18,10 +18,10 @@ namespace Allodia.Mailcal.Views;
 
 public sealed partial class ComposerView
 {
-    // The library, read once when the composer opens: it feeds the menu, which is built once. The
-    // BODIES are never cached, those are resolved on every seed and every swap, because an
-    // assignment can change under an open composer.
-    private IReadOnlyList<SignatureRow> _signatureLibrary = Array.Empty<SignatureRow>();
+    // The library as the menu lists it, read when the composer opens and again whenever it moves
+    // (Surface.Signatures). The BODIES are never cached, those are resolved on every seed and every
+    // swap, because an assignment can change under an open composer.
+    private IReadOnlyList<SignatureEntry> _signatureLibrary = Array.Empty<SignatureEntry>();
 
     // The user's explicit choice for THIS message, or null while it follows the account. Null is the
     // state the composer opens in, and the one a From change re-resolves; once the user picks, the
@@ -29,8 +29,7 @@ public sealed partial class ComposerView
     // replacing it would undo a deliberate act.
     private SignatureChoice? _signatureChoice;
 
-    // Builds the Signature control. Hidden entirely while the library is empty: a picker whose only
-    // entry is "None" tells the user nothing, and every platform hides it the same way.
+    // Builds the Signature control and follows the library while the composer is open.
     private void InitSignatures()
     {
         // A moved composer carries on with the choice the one it left had made.
@@ -43,9 +42,34 @@ public sealed partial class ComposerView
         // A stored message (a resumed draft, an Outbox edit) carries the signature it was written
         // with, so it gets no seed and no picker (ComposeOpening.SeedsSignature). A moved composer
         // is offered what the one it left was (ComposeContext.ManagesSignature).
-        _signatureLibrary = _request?.ManagesSignature == true
-            ? _model?.Signatures.Signatures ?? (IReadOnlyList<SignatureRow>)Array.Empty<SignatureRow>()
-            : Array.Empty<SignatureRow>();
+        if (_request?.ManagesSignature == true && _model is { } model)
+        {
+            model.SignaturesChanged -= OnSignatureLibraryChanged;
+            model.SignaturesChanged += OnSignatureLibraryChanged;
+        }
+        ShowSignatureLibrary();
+    }
+
+    /// <summary>Stops following the library. Called from <c>Teardown</c>.</summary>
+    private void TeardownSignatures()
+    {
+        if (_model is { } model)
+        {
+            model.SignaturesChanged -= OnSignatureLibraryChanged;
+        }
+    }
+
+    // The library moved: a signature written, renamed or deleted in Settings while this is open.
+    private void OnSignatureLibraryChanged() => ShowSignatureLibrary();
+
+    // Reads the library and draws the control from it. Hidden entirely while the library is empty:
+    // a picker whose only entry is "None" tells the user nothing, and every platform hides it the
+    // same way.
+    private void ShowSignatureLibrary()
+    {
+        _signatureLibrary = _request?.ManagesSignature == true && _model is { } model
+            ? model.SignaturesPage().Signatures
+            : Array.Empty<SignatureEntry>();
         if (_signatureLibrary.Count == 0)
         {
             SignatureButton.Visibility = Visibility.Collapsed;

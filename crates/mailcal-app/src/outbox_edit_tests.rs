@@ -8,10 +8,7 @@
 //!
 //! A child of the send tests, reusing their `SubmitProvider` and app builders.
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicU64, Ordering},
-};
+use std::sync::Arc;
 
 use engine_api::{
     AccountId, ContentIdHeader, Draft, DraftAttachment, DraftCalendar, EmailAddress,
@@ -25,15 +22,11 @@ use mailcal_viewmodel::QueuedRow;
 use super::{SubmitProvider, app_over, outbox_tests::outbox_holding};
 use crate::{App, CompositionId, DraftsIntent, Intent, OutboxIntent, QueuedRef};
 
-/// A staging directory of this test's own.
-pub(super) fn staging() -> String {
-    static SEQ: AtomicU64 = AtomicU64::new(0);
-    std::env::temp_dir()
-        .join(format!(
-            "mailcal-outbox-edit-{}-{}",
-            std::process::id(),
-            SEQ.fetch_add(1, Ordering::Relaxed)
-        ))
+/// A staging directory inside `scratch`, the test's own; nothing is there yet.
+pub(super) fn staging(scratch: &tempfile::TempDir) -> String {
+    scratch
+        .path()
+        .join("staging")
         .to_string_lossy()
         .into_owned()
 }
@@ -107,13 +100,14 @@ fn save(composition: &str, text: &str) -> Intent {
 /// draft holding every file.
 #[tokio::test(start_paused = true)]
 async fn editing_a_queued_send_moves_all_of_it_back_into_drafts() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let provider = SubmitProvider::offline();
     let puts = provider.draft_puts();
     let app = app_over(provider);
     let row = queue_reply_with_a_file(&app).await;
     assert!(row.editable);
 
-    let staging = staging();
+    let staging = staging(&scratch);
     app.dispatch(edit(&row, &staging)).await;
 
     assert!(app.mailbox_list().outbox.is_empty(), "it left the Outbox");
@@ -145,19 +139,19 @@ async fn editing_a_queued_send_moves_all_of_it_back_into_drafts() {
         saved[1].0.in_reply_to.as_ref().map(MessageIdHeader::as_str),
         Some("parent@remote")
     );
-    let _ = std::fs::remove_dir_all(staging);
 }
 
 /// A message whose files cannot be written where the composer reads them stays where it is:
 /// opening a composer without them would have its first save take them off the draft.
 #[tokio::test(start_paused = true)]
 async fn a_message_whose_files_cannot_be_staged_stays_in_the_outbox() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let provider = SubmitProvider::offline();
     let puts = provider.draft_puts();
     let app = app_over(provider);
     let row = queue_reply_with_a_file(&app).await;
     // A file where the directory should be.
-    let blocked = staging();
+    let blocked = staging(&scratch);
     std::fs::write(&blocked, b"not a directory").unwrap();
 
     app.dispatch(edit(&row, &blocked)).await;
@@ -165,13 +159,13 @@ async fn a_message_whose_files_cannot_be_staged_stays_in_the_outbox() {
     assert_eq!(app.mailbox_list().outbox.len(), 1);
     assert!(puts.lock().unwrap().is_empty(), "no draft was made");
     assert!(app.compose_request().is_none());
-    let _ = std::fs::remove_file(blocked);
 }
 
 /// An answer to an invitation carries a calendar part no composer holds, so editing it would
 /// send something else. It is not offered, and asked anyway it stays put.
 #[tokio::test(start_paused = true)]
 async fn an_invitation_answer_is_not_offered_for_editing() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let provider = SubmitProvider::offline();
     let puts = provider.draft_puts();
     let app = app_over(provider);
@@ -191,7 +185,7 @@ async fn an_invitation_answer_is_not_offered_for_editing() {
     let row = outbox_holding(&app, 1).await.remove(0);
     assert!(!row.editable);
 
-    app.dispatch(edit(&row, &staging())).await;
+    app.dispatch(edit(&row, &staging(&scratch))).await;
 
     assert_eq!(app.mailbox_list().outbox.len(), 1);
     assert!(puts.lock().unwrap().is_empty());
@@ -221,6 +215,7 @@ fn document_quoting_the_plan() -> ComposerDocument {
 /// does, as it does for a draft resumed from Drafts.
 #[tokio::test(start_paused = true)]
 async fn an_edited_message_opens_formatted_and_keeps_its_quoted_picture() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let provider = SubmitProvider::offline();
     let puts = provider.draft_puts();
     let app = app_over(provider);
@@ -245,7 +240,7 @@ async fn an_edited_message_opens_formatted_and_keeps_its_quoted_picture() {
         .await;
     let row = outbox_holding(&app, 1).await.remove(0);
 
-    app.dispatch(edit(&row, &staging())).await;
+    app.dispatch(edit(&row, &staging(&scratch))).await;
 
     let request = app.compose_request().expect("the composer is offered");
     assert!(

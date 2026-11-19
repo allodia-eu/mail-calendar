@@ -89,6 +89,7 @@ async fn a_send_cut_off_while_connecting_goes_out_once_after_a_restart() {
 /// and nothing that would send a waiting message sends this one.
 #[tokio::test(start_paused = true)]
 async fn a_send_cut_off_after_the_hand_over_is_never_sent_again_unasked() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let provider = SubmitProvider::cut_off_at(CutOff::AfterHandOver);
     let (stopped, handed) = (provider.stopped(), provider.handed_over());
     let app = app_over(provider);
@@ -103,7 +104,7 @@ async fn a_send_cut_off_after_the_hand_over_is_never_sent_again_unasked() {
         OutboxIntent::Cancel(target(&row)),
         OutboxIntent::Edit {
             queued: target(&row),
-            staging_directory: staging(),
+            staging_directory: staging(&scratch),
         },
     ] {
         app.dispatch(Intent::Outbox(intent)).await;

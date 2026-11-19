@@ -45,6 +45,10 @@ impl Provider for StuckSubmitProvider {
 impl engine_api::MailboxWrites for StuckSubmitProvider {}
 impl CalendarWrites for StuckSubmitProvider {}
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// Sends from a process that then ends, boots the app over its store, and answers what the
 /// Outbox holds afterwards.
 fn state_after_boot(name: &str, after_hand_over: bool) -> PendingOpState {
@@ -102,7 +106,6 @@ fn state_after_boot(name: &str, after_hand_over: bool) -> PendingOpState {
         .block_on(engine.outbox(&account))
         .expect("read the outbox after boot");
     assert_eq!(rows.len(), 1, "the message must still be in the Outbox");
-    let _ = fs::remove_dir_all(data_dir);
     rows[0].state
 }
 

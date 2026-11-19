@@ -60,18 +60,6 @@ private func days(_ iso: [String]) -> [Date] {
         #expect(weekdayShort(week[0], calendar: calendar(), locale: dutch) == "ma")
     }
 
-    @Test func weekNumbersAreIso8601() {
-        // The "wk 28" a Dutch or German user expects. ISO weeks start on Monday and belong to the year
-        // holding their Thursday, so the turn of the year is where a naive implementation breaks, and
-        // asking a US-locale calendar for a "week of year" gives a different number entirely.
-        let zone = TimeZone(identifier: "Europe/Amsterdam")!
-        #expect(isoWeekNumber(parseISODate("2026-07-06", calendar: calendar())!, zone: zone) == 28)
-        #expect(isoWeekNumber(parseISODate("2026-07-12", calendar: calendar())!, zone: zone) == 28)
-        #expect(isoWeekNumber(parseISODate("2026-07-13", calendar: calendar())!, zone: zone) == 29)
-        // 2027-01-01 is a Friday, so it belongs to ISO week 53 of 2026, not week 1.
-        #expect(isoWeekNumber(parseISODate("2027-01-01", calendar: calendar())!, zone: zone) == 53)
-    }
-
     @Test func theHourRulerFollowsTheClockSetting() {
         #expect(hourLabel(9, use24Hour: true) == "09")
         #expect(hourLabel(23, use24Hour: true) == "23")

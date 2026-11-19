@@ -22,9 +22,12 @@ public sealed class UnifiedUnreadTests(ImapHarnessApp harness)
     private const string Subject = "Weekend walk";
     private static readonly string Inbox = Catalog.English("folder_inbox");
 
-    private static Element Under(App app, string parent) =>
-        app.Agent.Find(Filter.Named(Inbox, "ListItem") with { Under = app.Agent.Find(Filter.Named(parent, "ListItem") with { Window = app.Mailbox.Hwnd }) })
-        ?? throw new InvalidOperationException($"the pane shows no Inbox under '{parent}'");
+    private static Element Under(App app, string parent)
+    {
+        app.ShowMail();
+        return app.Agent.Find(Filter.Named(Inbox, "ListItem") with { Under = app.Agent.Find(Filter.Named(parent, "ListItem") with { Window = app.Mailbox.Hwnd }) })
+            ?? throw new InvalidOperationException($"the pane shows no Inbox under '{parent}'");
+    }
 
     private static string AccountInbox(App app) => app.PaneUnread(Under(app, Harness.Alice));
 

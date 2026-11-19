@@ -12,6 +12,9 @@ workspace = true
 [dependencies]
 serde_json = "1"
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [[bin]]
 name = "mailcal-l10n"
 path = "src/bin/mailcal-l10n.rs"

@@ -248,6 +248,13 @@ pub(crate) struct AppModel {
     /// invitation card is rebuilt when the core publishes a new one and left alone on every other
     /// render; a rebuild mid-render would take a half-typed note to the organiser away.
     reading_generation: u64,
+    /// Counts the reads of Settings → Signatures the core signalled (`Surface::Signatures` and
+    /// `Surface::Settings`), so the page, an editor open on it and each composer's picker read it
+    /// again once for each.
+    signatures_read: u64,
+    /// Counts the signals Settings' calendar pages follow (`Surface::Calendar` and
+    /// `Surface::Settings`), so each part drawn from the calendars reads its record once for each.
+    calendar_settings_read: u64,
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeContext>,
     composer_generation: u64,
@@ -295,7 +302,8 @@ pub(crate) struct AppModel {
     calendar_refresh: calendar_actions::CalendarRefreshGate,
     /// The unified Inbox unread on the app's icon in a dock (`docs/app-badge.md`).
     launcher_badge: launcher_badge::LauncherBadge,
-    calendar_manager_generation: u64,
+    /// The calendar pane's last pull, and the month it was paged to.
+    calendar_side: calendar::CalendarSide,
     setup: SetupState,
     /// What the next Settings render should show, and whether it opens the window or only redraws
     /// an open one ([`settings::SettingsState`]).

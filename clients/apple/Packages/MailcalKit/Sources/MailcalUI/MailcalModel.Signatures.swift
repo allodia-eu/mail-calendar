@@ -1,10 +1,10 @@
-// The signature library's actions on the model: the CRUD the Settings screen drives, and the two
-// resolutions the composer runs (the account's signature for the mode it opened in, and a named
-// one for the per-message override). State lives in Rust, `model.signatures` mirrors the snapshot
-// and refreshes on every `Surface::Settings` signal; these dispatch the setters.
+// The signature library on the model (docs/signatures.md): the changes Settings → Signatures
+// dispatches, and the two resolutions the composer runs (the account's signature for the mode it
+// opened in, and a named one for the per-message override). `model.signatures` is the core's
+// `signatures_page`, read again on every `Surface::Signatures` and `Surface::Settings` signal.
 //
 // The mode → slot rule is the one piece of signature logic a client owns, so it is a plain
-// function here rather than a knot of view state, it is what the JVM/unit suites can pin.
+// function here rather than a knot of view state, which the unit suite can pin.
 
 import Foundation
 import MailcalBindings
@@ -14,10 +14,18 @@ import MailcalBindings
 /// splitting them makes a setting nobody sets.
 ///
 /// A free function rather than a method on the `@MainActor` model, so the rule can be tested
-/// without an actor hop, it is pure, and it is the one piece of signature logic the client owns
-/// (`SignatureSlotTests`).
+/// without an actor hop (`SignatureSlotTests`).
 func signatureSlot(for mode: RichComposeMode) -> SignatureSlotKind {
     mode == .new ? .newMessage : .replyForward
+}
+
+extension SignaturesPage {
+    /// The page before the core has opened: nothing listed and nothing to press.
+    static var empty: SignaturesPage {
+        SignaturesPage(
+            signatures: [], accounts: [], add: .free(false), newId: "", save: .free(false),
+            outcome: nil)
+    }
 }
 
 extension MailboxModel {
@@ -39,25 +47,21 @@ extension MailboxModel {
         app?.signatureHtml(id: id)
     }
 
-    /// Creates a signature and returns its row, the minted id included, so the caller can select
-    /// what it just made without re-pulling and guessing which row is new.
-    @discardableResult
-    func createSignature(name: String, bodyHTML: String, bodyPlain: String) -> SignatureRow? {
-        app?.createSignature(name: name, bodyHtml: bodyHTML, bodyPlain: bodyPlain)
+    /// Stores a signature under `id`: one in the library, or a new one under the page's `newId`.
+    /// Returns at once; what it came to is the page's `outcome`.
+    func saveSignature(_ id: String, name: String, bodyHTML: String, bodyPlain: String) {
+        app?.dispatch(intent: .signature(
+            intent: .save(id: id, name: name, bodyHtml: bodyHTML, bodyPlain: bodyPlain)))
     }
 
-    /// Replaces a signature's name and body. An id that names nothing is a no-op.
-    func updateSignature(_ id: String, name: String, bodyHTML: String, bodyPlain: String) {
-        _ = app?.updateSignature(id: id, name: name, bodyHtml: bodyHTML, bodyPlain: bodyPlain)
-    }
-
-    /// Deletes a signature, clearing it from every account that used it.
+    /// Deletes a signature, clearing it from every account that used it. Returns at once.
     func deleteSignature(_ id: String) {
-        _ = app?.deleteSignature(id: id)
+        app?.dispatch(intent: .signature(intent: .delete(id: id)))
     }
 
-    /// Assigns (or clears, with `nil`) which signature an account uses in one slot.
-    func setAccountSignature(_ account: String, _ slot: SignatureSlotKind, _ signature: String?) {
-        app?.setAccountSignature(account: account, slot: slot, signature: signature)
+    /// Sets which signature an account uses in one slot, or none with `nil`.
+    func assignSignature(_ account: String, _ slot: SignatureSlotKind, _ signature: String?) {
+        app?.dispatch(intent: .signature(
+            intent: .assign(account: account, slot: slot, signature: signature)))
     }
 }

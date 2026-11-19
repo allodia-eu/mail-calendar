@@ -83,10 +83,10 @@ private final class ClickThroughEffectView: NSVisualEffectView {
 #endif
 
 extension ContentView {
-    /// Calendar, Contacts and Settings, under the folder tree and out of its scroll.
+    /// Mail, Calendar, Contacts and Settings, under the pane's content and out of its scroll.
     ///
     /// **Pinned, not the last rows of the list.** The tree takes whatever height is left over, so
-    /// an account with a few dozen folders scrolls for as long as it likes and these three stay
+    /// an account with a few dozen folders scrolls for as long as it likes and these stay
     /// where the user last saw them. As a section at the end of the list they were a scroll to the
     /// bottom of every folder the user has, which is the bug this shape fixes; the Windows pane's
     /// footer items and the Linux bottom bar are the same decision in their own toolkits.
@@ -94,13 +94,19 @@ extension ContentView {
     /// `showsCalendarAndContacts` is what a platform answers with where its other surfaces live.
     /// The desktop and the iPad columns reach them from here, because the pane is the only
     /// navigation they have; the iPhone reaches them from its tab bar, so listing them here too
-    /// would offer the same two destinations twice. Settings is pinned either way, it has no tab,
+    /// would offer the same destinations twice. Settings is pinned either way, it has no tab,
     /// and it must not be something the user has to remember a gesture to find.
     @ViewBuilder
     func sidebarDestinations(showsCalendarAndContacts: Bool) -> some View {
         VStack(spacing: 0) {
             Divider()
             if showsCalendarAndContacts {
+                pinnedDestination(
+                    title: L10n.nav_mail(),
+                    icon: "tray.full",
+                    selected: model.destination == .mail
+                ) { showMail() }
+                .accessibilityIdentifier("NavMail")
                 pinnedDestination(
                     title: L10n.nav_calendar(),
                     icon: "calendar",

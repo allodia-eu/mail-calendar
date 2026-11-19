@@ -14,6 +14,7 @@ the suite runs on any host with no Windows SDK.
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 import zipfile
 from pathlib import Path
@@ -269,14 +270,10 @@ class Document(unittest.TestCase):
 
 class Arguments(unittest.TestCase):
     def setUp(self) -> None:
-        self.here = Path(__file__).resolve().parent / "_appinstaller_args"
-        self.here.mkdir(exist_ok=True)
-        self.addCleanup(self._clean)
-
-    def _clean(self) -> None:
-        for path in sorted(self.here.rglob("*")):
-            path.unlink()
-        self.here.rmdir()
+        # Outside the source tree: the gate lints every file in it while these tests run.
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        self.here = Path(scratch.name)
 
     def test_a_plain_http_url_is_refused(self) -> None:
         """A package fetched over http is one an intermediary chose."""

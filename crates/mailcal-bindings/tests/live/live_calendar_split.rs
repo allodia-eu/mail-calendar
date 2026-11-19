@@ -80,7 +80,7 @@ fn a_calendar_the_sign_in_does_not_reach_moves_to_an_account_of_its_own() {
     };
     let port = dav.rsplit(':').next().expect("an address with a port");
     let dav_url = format!("http://localhost:{port}");
-    let app = app("calendar-split", RecordingStore::default());
+    let (_dir, app) = app("calendar-split", RecordingStore::default());
     let SetupRecommendation::Imap {
         imap_host,
         smtp_host,

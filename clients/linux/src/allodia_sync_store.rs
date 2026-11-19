@@ -60,23 +60,22 @@ impl SyncStateStore for FileSyncStateStore {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
     use mailcal_bindings::SyncStateStore as _;
 
     use super::FileSyncStateStore;
 
-    fn scratch() -> std::path::PathBuf {
-        let nonce = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        std::env::temp_dir().join(format!("mailcal-linux-sync-{nonce}"))
+    /// A data directory that does not exist yet, beneath one of the test's own that the returned
+    /// guard removes.
+    fn scratch() -> (tempfile::TempDir, std::path::PathBuf) {
+        let root = tempfile::tempdir().expect("a scratch directory");
+        let dir = root.path().join("data");
+        (root, dir)
     }
 
     #[test]
     fn a_device_that_has_never_synced_reads_back_nothing() {
-        let store = FileSyncStateStore::in_data_dir(&scratch());
+        let (_root, dir) = scratch();
+        let store = FileSyncStateStore::in_data_dir(&dir);
         assert_eq!(store.load().expect("an absent file is not an error"), None);
     }
 
@@ -84,7 +83,7 @@ mod tests {
     /// time a pass runs, but a store handed a path before that must not fail on it.
     #[test]
     fn a_blob_survives_the_round_trip_and_makes_its_own_directory() {
-        let dir = scratch();
+        let (_root, dir) = scratch();
         let store = FileSyncStateStore::in_data_dir(&dir);
         store.save("{\"a\":1}".to_owned()).expect("stored");
         assert_eq!(
@@ -96,6 +95,5 @@ mod tests {
             store.load().expect("readable").as_deref(),
             Some("{\"a\":2}")
         );
-        let _ = std::fs::remove_dir_all(dir);
     }
 }

@@ -31,15 +31,11 @@ fn today() -> engine_api::CalendarDate {
     )
 }
 
-/// A scratch store path that dies with the test.
-fn scratch_store(name: &str) -> std::path::PathBuf {
-    let mut path = std::env::temp_dir();
-    path.push(format!(
-        "mailcal-launch-{name}-{}.sqlite",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_file(&path);
-    path
+/// A store path in a directory that dies with the returned guard.
+fn scratch_store() -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let path = dir.path().join("mailcal.sqlite");
+    (dir, path)
 }
 
 /// **The point of the whole thing.** A launch fills the calendar store without being asked to, so
@@ -51,7 +47,7 @@ fn scratch_store(name: &str) -> std::path::PathBuf {
 #[tokio::test]
 async fn a_launch_fills_the_calendar_store_without_being_asked() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
-    let db = scratch_store("unasked");
+    let (_scratch, db) = scratch_store();
 
     // Launch one. Nobody opens the calendar; nobody dispatches anything.
     {
@@ -91,7 +87,6 @@ async fn a_launch_fills_the_calendar_store_without_being_asked() {
         0,
         "painting the grid went to the network"
     );
-    let _ = std::fs::remove_file(&db);
 }
 
 /// The catch-up paints before it syncs, so the network is never in front of the grid.
@@ -101,7 +96,7 @@ async fn a_launch_fills_the_calendar_store_without_being_asked() {
 #[tokio::test]
 async fn the_catch_up_paints_the_stored_week_before_it_reaches_the_network() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
-    let db = scratch_store("order");
+    let (_scratch, db) = scratch_store();
 
     {
         let provider = CalendarFake::with_events(vec![event_from_today("standup", 0, 9, 30)]);
@@ -130,7 +125,6 @@ async fn the_catch_up_paints_the_stored_week_before_it_reaches_the_network() {
         "a failed sync must not take the stored week down with it"
     );
     assert_eq!(page.grid.timed.len(), 1);
-    let _ = std::fs::remove_file(&db);
 }
 
 /// A launch with no network over a store that has never synced says "loading", not "nothing on".
@@ -322,7 +316,7 @@ async fn one_accounts_change_fetches_that_accounts_calendar_alone() {
 #[tokio::test]
 async fn a_pass_that_connected_nothing_still_draws_the_stored_week() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));
-    let db = scratch_store("connected-nothing");
+    let (_scratch, db) = scratch_store();
     {
         let provider = CalendarFake::with_events(vec![event_from_today("standup", 0, 9, 30)]);
         let app = calendar_app_on(
@@ -350,7 +344,6 @@ async fn a_pass_that_connected_nothing_still_draws_the_stored_week() {
         0,
         "no account was asked to sync"
     );
-    let _ = std::fs::remove_file(&db);
 }
 
 /// A refresh over accounts nobody has dialed yet claims nothing.

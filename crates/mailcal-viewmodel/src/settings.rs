@@ -45,53 +45,6 @@ pub struct QuoteSettings {
     pub per_message: bool,
 }
 
-/// One signature in the user's library, as a settings list or a composer picker renders it.
-///
-/// Metadata only: the body is fetched one at a time (`App::signature_html`) so a list of ten
-/// signatures does not carry ten logos' worth of base64 across the FFI to draw ten names.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SignatureRow {
-    /// The signature's opaque id; what an assignment and the body fetch name it by.
-    pub id: String,
-    /// The user's name for it ("Work", "Personal").
-    pub name: String,
-}
-
-/// Which of an account's two signature slots is meant. Mirrors the persisted
-/// `mailcal_account::SignatureSlot`, kept here so the view-model crate stays free of an
-/// account-layer dependency (the same shape as [`SwipeDirection`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SignatureSlotKind {
-    /// The signature a brand-new message opens with.
-    NewMessage,
-    /// The signature a reply or a forward opens with; one slot for both, as in Outlook.
-    ReplyForward,
-}
-
-/// One account's signature assignment for the settings screen: which signature it uses for a
-/// new message and which for a reply/forward. `None` in a slot means **no signature** there.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct AccountSignatureRow {
-    /// The account's id (passed back to the setter).
-    pub account_id: String,
-    /// The account's email address (display label).
-    pub email: String,
-    /// The signature id used for new messages, or `None`.
-    pub new_message: Option<String>,
-    /// The signature id used for replies and forwards, or `None`.
-    pub reply_forward: Option<String>,
-}
-
-/// An immutable snapshot of the signatures surface for a host to render: the library in the
-/// user's chosen order, plus one row per configured account with its two assignments.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SignaturesSnapshot {
-    /// The library, in display order.
-    pub signatures: Vec<SignatureRow>,
-    /// One row per configured account.
-    pub accounts: Vec<AccountSignatureRow>,
-}
-
 /// What a swipe across a message row does, as the host renders it in settings. Mirrors the
 /// persisted `mailcal_account::SwipeAction`, kept here so the view-model crate stays free of an
 /// account-layer dependency.

@@ -60,6 +60,14 @@ pub enum PreferenceIntent {
         calendar: String,
         hex: Option<String>,
     },
+    /// Opens or shuts `account`'s group of calendars in the calendar pane; persisted, and
+    /// signals `Surface::Calendar`.
+    SetCalendarGroupExpanded { account: String, expanded: bool },
+    /// The person's Jitsi server, as the field holds it; blank forgets it. The core stores it in
+    /// its tidied form and redraws the calendars (`Surface::Calendar`), writes nothing for text
+    /// that comes to what is stored, and keeps text it refuses on `VideoconferencingPage`
+    /// (`Surface::Settings`). A client sends the field each time it is applied or left.
+    SetJitsiServer { server: String },
     /// `account`'s default video meeting, one of its `MeetingDefault::choices` ids, or none.
     SetDefaultMeeting {
         account: String,

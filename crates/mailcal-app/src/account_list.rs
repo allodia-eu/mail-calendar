@@ -24,6 +24,10 @@ struct Listed {
     mailbox: bool,
     /// Whether its calendar is connected: it has a calendar provider to ask.
     calendar: bool,
+    /// Whether it is used for mail, connected or not: what sends mail under its address.
+    uses_mail: bool,
+    /// Its address.
+    email: String,
 }
 
 /// The accounts the app drives, in the order the host stored them.
@@ -81,6 +85,16 @@ impl<P> AccountList<P> {
             .any(|listed| listed.id == *id && listed.calendar)
     }
 
+    /// Every account used for mail, by id and address, in order, as the last change to the list
+    /// left it. Never waits on the list's lock.
+    pub(crate) fn senders(&self) -> Vec<(AccountId, String)> {
+        self.copy()
+            .iter()
+            .filter(|listed| listed.uses_mail)
+            .map(|listed| (listed.id.clone(), listed.email.clone()))
+            .collect()
+    }
+
     fn copy(&self) -> std::sync::MutexGuard<'_, Vec<Listed>> {
         self.listed.lock().expect("account list copy poisoned")
     }
@@ -93,6 +107,8 @@ fn listed<P>(accounts: &[Arc<Account<P>>]) -> Vec<Listed> {
             id: account.id.clone(),
             mailbox: !account.providers.is_empty(),
             calendar: account.calendar_provider.is_some(),
+            uses_mail: account.uses_mail,
+            email: account.identity.email.clone(),
         })
         .collect()
 }

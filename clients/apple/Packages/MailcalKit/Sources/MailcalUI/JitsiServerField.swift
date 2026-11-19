@@ -1,16 +1,26 @@
 // Settings → Videoconferencing's one field: the person's Jitsi server (docs/conferencing.md, rule 13).
-// Empty until they fill it, and checked by the core before it is stored, so an address it refuses
-// is said here and nothing changes. Once one is stored, every calendar whose provider writes a
-// meeting offers Jitsi in the editor.
+// The field sends what it holds each time it is submitted or left; the core stores it in its tidied
+// form or refuses it, and `VideoconferencingPage` says which. Once one is stored, every calendar
+// whose provider writes a meeting offers Jitsi in the editor.
 
 import MailcalBindings
 import SwiftUI
+
+/// Whether the field says its address was refused: while it still holds the text the core refused.
+func jitsiRefusalShown(text: String, page: VideoconferencingPage) -> Bool {
+    page.jitsiRefused == text
+}
+
+/// What the field holds after sending `sent`: the stored form, unless the core refused it, when the
+/// text stays for the person to correct.
+func jitsiFieldText(afterSending sent: String, page: VideoconferencingPage) -> String {
+    jitsiRefusalShown(text: sent, page: page) ? sent : page.jitsiServer ?? ""
+}
 
 struct JitsiServerField: View {
     var model: MailboxModel
 
     @State private var text = ""
-    @State private var refused = false
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -24,28 +34,26 @@ struct JitsiServerField: View {
                     .keyboardType(.URL)
                 #endif
                 .focused($focused)
-                .onSubmit(store)
+                .onSubmit(send)
                 .onChange(of: focused) { _, isFocused in
-                    if !isFocused { store() }
+                    if !isFocused { send() }
                 }
-                .onChange(of: text) { _, _ in refused = false }
-            if refused {
+            if jitsiRefusalShown(text: text, page: model.videoconferencing) {
                 Text(L10n.settings_jitsi_server_invalid())
                     .font(.footnote)
                     .foregroundStyle(.red)
             }
         }
-        .onAppear { text = model.app?.jitsiServer() ?? "" }
+        .onAppear { text = model.videoconferencing.jitsiServer ?? "" }
+        // A stored server changed while the field is not being typed in.
+        .onChange(of: model.videoconferencing.jitsiServer) { _, stored in
+            if !focused { text = stored ?? "" }
+        }
     }
 
-    /// Hands the address to the core, which stores it or says it will not; the stored form (its
-    /// trailing `/` dropped) is what the field shows afterwards.
-    private func store() {
-        guard let app = model.app else { return }
-        if app.setJitsiServer(server: text) {
-            text = app.jitsiServer() ?? ""
-        } else {
-            refused = true
-        }
+    private func send() {
+        let sent = text
+        model.setJitsiServer(sent)
+        text = jitsiFieldText(afterSending: sent, page: model.videoconferencing)
     }
 }

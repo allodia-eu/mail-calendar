@@ -138,6 +138,10 @@ fn forgetting_the_grant_forgets_the_token_minted_from_it() {
     );
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// ⚠️ The regression the refresh gate exists for, measured on a device.
 ///
 /// Signing in drops the held access token, and the account list, the subscription card and the

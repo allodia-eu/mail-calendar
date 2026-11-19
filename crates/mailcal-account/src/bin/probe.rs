@@ -31,6 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = mailcal_account::load(&config_path)?;
 
     // A throwaway on-disk store (a real host uses its app-group/container path).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a probe a person runs by hand, one run at a time, whose throwaway store is \
+                  cleared before each run; a bin target cannot reach the `tempfile` dev-dependency"
+    )]
     let db = std::env::temp_dir().join("mailcal-probe.sqlite3");
     let _ = std::fs::remove_file(&db);
     let engine = Engine::open(&db)?;

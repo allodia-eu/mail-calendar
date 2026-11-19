@@ -1,10 +1,7 @@
 //! [`super`]'s property for an IMAP account that signs in through its provider: its renewed
 //! refresh token reaches the host's store like any other grant's.
 
-use std::{
-    fs,
-    sync::{Arc, atomic::Ordering, mpsc},
-};
+use std::sync::{Arc, atomic::Ordering, mpsc};
 
 use super::{rotating_account, rotating_token_endpoint};
 use crate::{
@@ -85,7 +82,6 @@ fn a_renewal_of_an_imap_sign_in_reaches_the_store() {
     assert_imap_rotation_reached_the_store(&recorder, &account_id, "a booted IMAP sign-in");
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 #[test]
@@ -118,7 +114,6 @@ fn a_renewal_while_an_imap_sign_in_is_added_reaches_the_store() {
     assert_imap_rotation_reached_the_store(&recorder, &account_id, "add_account");
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// The other half of an add's store write, which only a connect that succeeds reaches: an IMAP
@@ -162,5 +157,4 @@ fn only_a_password_imap_account_is_stored_as_the_host_passed_it() {
     assert!(prepared(&with_password).stores_a_password());
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }

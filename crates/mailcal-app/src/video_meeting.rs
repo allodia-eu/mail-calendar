@@ -142,41 +142,6 @@ impl<P: Provider> App<P> {
                 .is_some_and(|provider| provider.connection_info().capabilities.conference_writes())
     }
 
-    /// The person's Jitsi server, or `None` until they set one (rule 13).
-    #[must_use]
-    pub fn jitsi_server(&self) -> Option<String> {
-        self.calendar_prefs
-            .lock()
-            .expect("calendar-prefs mutex poisoned")
-            .jitsi_server()
-            .map(str::to_owned)
-    }
-
-    /// Stores the person's Jitsi server, or forgets it for `None` or blank text, and redraws the
-    /// calendar rows whose choices it changes.
-    ///
-    /// # Errors
-    ///
-    /// `JitsiServerRefused` for anything but an `https` address without a query or fragment,
-    /// which then changes nothing.
-    pub fn set_jitsi_server(&self, server: Option<&str>) -> Result<(), JitsiServerRefused> {
-        let server = match server.map(str::trim).filter(|server| !server.is_empty()) {
-            Some(server) => Some(
-                JitsiMeetings::new(server)
-                    .map_err(|_| JitsiServerRefused)?
-                    .server()
-                    .to_owned(),
-            ),
-            None => None,
-        };
-        self.calendar_prefs
-            .lock()
-            .expect("calendar-prefs mutex poisoned")
-            .set_jitsi_server(server);
-        self.calendar.resignal();
-        Ok(())
-    }
-
     /// The meeting `change` puts on an event in a calendar whose server makes `calendar`'s
     /// meetings, from `start` to `end`, titled `title`, with the meeting it made at a service
     /// through an account; `None` when it takes one off. A server-made one is asked of the

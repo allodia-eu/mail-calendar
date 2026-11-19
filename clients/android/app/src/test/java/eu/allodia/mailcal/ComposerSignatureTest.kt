@@ -15,7 +15,6 @@ import org.junit.runner.RunWith
 import org.json.JSONObject
 import org.robolectric.RobolectricTestRunner
 import uniffi.mailcal_bindings.SignatureBody
-import uniffi.mailcal_bindings.SignatureRow
 import uniffi.mailcal_bindings.SignatureSlotKind
 
 private val WORK = SignatureBody("sig-work", "<p>Alice, Work</p>", "Alice, Work")
@@ -25,7 +24,7 @@ private val PERSONAL = SignatureBody("sig-home", "<p>Alice</p>", "Alice")
 private fun signatures(
     forAccount: (String, SignatureSlotKind) -> SignatureBody? = { _, _ -> null },
 ) = ComposerSignatures(
-    library = listOf(SignatureRow("sig-work", "Work"), SignatureRow("sig-home", "Personal")),
+    library = listOf(signatureEntry("sig-work", "Work"), signatureEntry("sig-home", "Personal")),
     forAccount = forAccount,
     byId = { id -> listOf(WORK, PERSONAL).firstOrNull { it.id == id } },
 )

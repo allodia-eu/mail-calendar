@@ -45,7 +45,7 @@ import uniffi.mailcal_bindings.ReadingSnapshot
 import uniffi.mailcal_bindings.SearchHorizon
 import uniffi.mailcal_bindings.SharePrefill
 import uniffi.mailcal_bindings.SendStatus
-import uniffi.mailcal_bindings.SignaturesSnapshot
+import uniffi.mailcal_bindings.SignaturesPage
 import uniffi.mailcal_bindings.SnapshotRow
 import uniffi.mailcal_bindings.Surface as CoreSurface
 import uniffi.mailcal_bindings.SwipeSettings
@@ -129,12 +129,10 @@ class MainActivity : AppCompatActivity() {
     internal var swipeSettings by mutableStateOf<SwipeSettings?>(null)
     internal var defaultSendAccount by mutableStateOf<String?>(null)
 
-    // The signature library plus each account's two slot assignments, pulled on connect and on
-    // every SETTINGS signal. Drives the Signatures settings category; the composer resolves its own
-    // signature through the core rather than reading this (docs/signatures.md). Metadata only, a
-    // body is fetched one at a time, so opening Settings never drags every embedded logo across the
-    // FFI. Null until the first pull.
-    internal var signatures by mutableStateOf<SignaturesSnapshot?>(null)
+    // Settings → Signatures as the core draws it, read on connect and on every SIGNATURES and
+    // SETTINGS signal; the composer's per-message picker lists its library too (docs/signatures.md).
+    // Names only: a body is fetched one at a time. Null until the first read.
+    internal var signatures by mutableStateOf<SignaturesPage?>(null)
 
     // The outgoing-send hint, pulled on a SENDING surface change: SENDING while a send is in
     // flight, then the terminal SENT/FAILED which auto-clears back to IDLE after a moment.
@@ -198,6 +196,8 @@ class MainActivity : AppCompatActivity() {
     // (mail AND calendar), the light/dark appearance, and the calendar's default horizon. Pulled on
     // connect and on every SETTINGS signal; null until the core exists, which holds the defaults.
     internal var displaySettings by mutableStateOf<DisplaySettings?>(null)
+    // Bumped on every SETTINGS signal: the Settings pages read from memory on a pull re-key on it.
+    internal var settingsVersion by mutableStateOf(0)
 
     // The appearance the app is PAINTED in. Its own state rather than a read of `displaySettings`,
     // because it is settled in onCreate, before the core exists, so the first frame is already

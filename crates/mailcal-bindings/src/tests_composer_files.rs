@@ -22,8 +22,7 @@ fn app() -> Arc<MailcalApp> {
 }
 
 fn staging() -> String {
-    std::env::temp_dir()
-        .join(format!("mailcal-composer-files-{}", std::process::id()))
+    crate::tests::temp_data_dir("composer-files")
         .to_string_lossy()
         .into_owned()
 }

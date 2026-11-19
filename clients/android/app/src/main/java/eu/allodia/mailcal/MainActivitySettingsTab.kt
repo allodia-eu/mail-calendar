@@ -11,6 +11,8 @@ import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.PreferenceIntent
 import uniffi.mailcal_bindings.SwipeDirection
 import uniffi.mailcal_bindings.aboutInfo
+import uniffi.mailcal_bindings.signatureImageRefusal
+import uniffi.mailcal_bindings.signatureNameRefusal
 import uniffi.mailcal_bindings.standardPort
 
 /**
@@ -40,18 +42,24 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             onSetWeekStart = { instance.setPreference(PreferenceIntent.SetWeekStart(it)) },
                             onSetVisibleHours = { instance.setPreference(PreferenceIntent.SetCalendarVisibleHours(it.toUByte())) },
                             // Calendar, which calendar a new event is filed on, and so the colour
-                            // a slot drawn on the grid wears. Read straight from the core (an
-                            // in-memory cache read) rather than held in state: the signal below
-                            // recomposes Settings, and the rows carry the resolved `isDefault`.
-                            calendars = remember(calendarVersion) { instance.calendars() },
+                            // a slot drawn on the grid wears. Read from the core's memory again on
+                            // CALENDAR and SETTINGS; the rows carry the resolved `isDefault`.
+                            newEventCalendars = remember(calendarVersion, settingsVersion) {
+                                instance.newEventCalendars()
+                            },
                             onSetDefaultCalendar = { account, calendar ->
                                 instance.setPreference(PreferenceIntent.SetDefaultCalendar(account, calendar))
                             },
-                            // Videoconferencing; once a server is stored, the calendar signal
-                            // redraws the editor's choices.
-                            jitsiServer = { instance.jitsiServer() },
-                            onSetJitsiServer = { instance.setJitsiServer(it) },
-                            meetingDefaults = remember(calendarVersion) { instance.meetingDefaults() },
+                            // Videoconferencing, the core's page, read again on the same two
+                            // signals. The Jitsi field is applied before dispatch returns, so the
+                            // page read after it is what the core made of the text.
+                            videoconferencing = remember(calendarVersion, settingsVersion) {
+                                instance.videoconferencingPage()
+                            },
+                            onSetJitsiServer = {
+                                instance.setPreference(PreferenceIntent.SetJitsiServer(it))
+                                instance.videoconferencingPage()
+                            },
                             onSetDefaultMeeting = { account, choice ->
                                 instance.setPreference(PreferenceIntent.SetDefaultMeeting(account, choice))
                             },
@@ -72,21 +80,15 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             swipe = swipes,
                             onSetSwipeLeft = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.LEFT, it)) },
                             onSetSwipeRight = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.RIGHT, it)) },
-                            // Signatures, the library and the per-account slots. Every setter
-                            // persists in the core and re-signals SETTINGS, which is what refreshes
-                            // the snapshot above; nothing is echoed locally.
-                            signatures = signatures,
-                            signatureHtml = { instance.signatureHtml(it) },
-                            onCreateSignature = { name, html, plain ->
-                                instance.createSignature(name, html, plain)
-                            },
-                            onUpdateSignature = { id, name, html, plain ->
-                                instance.updateSignature(id, name, html, plain)
-                            },
-                            onDeleteSignature = { instance.deleteSignature(it) },
-                            onSetAccountSignature = { account, slot, signature ->
-                                instance.setAccountSignature(account, slot, signature)
-                            },
+                            // Signatures, the core's page. A change returns at once and the
+                            // SIGNATURES signal redraws the page; nothing is echoed locally.
+                            signatures = SignaturesUi(
+                                page = signatures,
+                                bodyHtml = { instance.signatureHtml(it) },
+                                onChange = { instance.dispatch(Intent.Signature(it)) },
+                                nameRefusal = ::signatureNameRefusal,
+                                imageRefusal = { type, size -> signatureImageRefusal(type, size.toULong()) },
+                            ),
                             // Privacy, withdraw (or belatedly give) the usage-statistics consent.
                             analyticsEnabled = analyticsConsent?.enabled == true,
                             onSetAnalytics = { instance.setPreference(PreferenceIntent.SetAnalyticsConsent(it)) },

@@ -311,10 +311,16 @@ public sealed partial class SettingsDialog
         // Every other category reconciles itself, and the core is asked nothing on their behalf:
         // this runs on every settings and notices signal. An account is removed from the
         // Accounts category, so that is where the last one goes. Videoconferencing lists the
-        // accounts that make meetings, from the same snapshot.
+        // accounts that make meetings, from the same snapshot, and says a refused Jitsi server;
+        // Calendar's default list follows a default chosen.
         if (!_rebuilding && CurrentCategory() == "videoconferencing")
         {
             RefreshMeetingAccounts();
+            return;
+        }
+        if (!_rebuilding && CurrentCategory() == "calendar")
+        {
+            RefreshDefaultCalendars();
             return;
         }
         if (_rebuilding || CurrentCategory() != "accounts")

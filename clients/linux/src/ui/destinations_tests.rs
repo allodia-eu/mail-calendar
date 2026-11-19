@@ -51,7 +51,8 @@ pub(crate) fn the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_t
     let destinations = DestinationBar::new(&sender);
     let accounts = gtk::ScrolledWindow::new();
     accounts.set_child(Some(&gtk::ListBox::new()));
-    let (pane, _heading) = shell_sidebar::sidebar_pane(&accounts, &destinations);
+    let calendar = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    let pane = shell_sidebar::sidebar_pane(&accounts, &calendar, &destinations).pane;
 
     let bar = destinations.widget().clone().upcast::<gtk::Widget>();
     assert!(
@@ -66,9 +67,9 @@ pub(crate) fn the_switcher_is_pinned_below_the_accounts_and_never_scrolls_with_t
         "the switcher belongs to the folder pane's own toolbar view"
     );
     assert_eq!(
-        pane.content().as_ref(),
-        Some(accounts.upcast_ref::<gtk::Widget>()),
-        "the accounts are the pane's content, so they take the height the bars leave"
+        accounts.parent(),
+        pane.content(),
+        "the accounts are in the pane's content, so they take the height the bars leave"
     );
     // A later account is added from Settings → Accounts alone (`docs/settings.md`).
     let mut buttons = Vec::new();

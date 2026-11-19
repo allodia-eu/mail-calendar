@@ -25,11 +25,9 @@ pub(super) mod accounts;
 pub(super) mod allodia;
 pub(super) use allodia::failure_said as allodia_failure_said;
 pub(super) mod allodia_sync;
+mod calendar_follow;
 mod category;
 pub(super) mod dark_messages;
-pub(super) mod subscription;
-mod widgets;
-
 mod diagnostics;
 pub(super) mod general;
 mod give_way;
@@ -40,10 +38,13 @@ pub(super) mod redraw;
 pub(super) mod sender_name;
 mod shared_stores;
 mod signature_editor;
+mod signature_pictures;
 pub(super) mod signatures;
 mod state;
+pub(super) mod subscription;
 mod top_notice;
 pub(super) mod videoconferencing;
+mod widgets;
 
 pub(super) use give_way::PaneComposer;
 use state::Redraw;
@@ -125,6 +126,10 @@ struct PageContext {
     page: Option<mailcal_bindings::AccountPage>,
     /// What the person's other devices have to say, read with it.
     devices: Option<mailcal_bindings::AllodiaDevices>,
+    /// Where the Signatures page registers itself, so the window can ask it to follow the core.
+    signatures: signatures::Shown,
+    /// Where the pages drawn from the calendars register the parts that follow the core.
+    calendar: calendar_follow::Followers,
 }
 
 #[derive(Debug, Default)]
@@ -151,6 +156,10 @@ pub(super) struct SettingsWindow {
     prompts: super::separate_sign_in_view::Prompts,
     /// The banner above every category.
     top_notice: Option<super::notice_bar::NoticeBar>,
+    /// The Signatures page drawn last, which follows the core's signals itself.
+    signatures: signatures::Shown,
+    /// The parts of the calendar's pages drawn last, which follow the core's signals themselves.
+    calendar: calendar_follow::Followers,
 }
 
 impl SettingsWindow {
@@ -269,6 +278,8 @@ impl SettingsWindow {
             account: state.account.map(str::to_owned),
             page: None,
             devices: None,
+            signatures: self.signatures.clone(),
+            calendar: self.calendar.clone(),
         };
         // Read before the pages are built, which draw the account's page from it: a change
         // landing in between then reads as one the window has not drawn, and the next signal
@@ -292,6 +303,7 @@ impl SettingsWindow {
             self.rendered_generation = state.generation;
             return;
         }
+        self.calendar.clear();
         let (content, pages) = window_content(state.category, &ctx);
         navigation.add_named(&content, Some("settings"));
         navigation.set_visible_child_name("settings");

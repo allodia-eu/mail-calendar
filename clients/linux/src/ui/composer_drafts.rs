@@ -213,6 +213,25 @@ pub(crate) fn draft_hint_failed(status: Option<DraftStatus>) -> bool {
     matches!(status, Some(DraftStatus::Failed))
 }
 
+/// Draws what the draft's last save said, or takes the line away when there is nothing to say.
+/// A hint and never a gate: no state here stops the composer being closed.
+pub(crate) fn draw_draft_hint(label: &gtk::Label, status: Option<DraftStatus>) {
+    use gtk::prelude::*;
+    let Some(text) = draft_hint_text(status) else {
+        label.set_visible(false);
+        return;
+    };
+    label.set_text(text);
+    let (shown, hidden) = if draft_hint_failed(status) {
+        ("error", "dim-label")
+    } else {
+        ("dim-label", "error")
+    };
+    label.remove_css_class(hidden);
+    label.add_css_class(shown);
+    label.set_visible(true);
+}
+
 /// One composer's autosave: the single timer that notices a change and stores the message once
 /// the composer has gone quiet.
 ///

@@ -28,6 +28,7 @@ import uniffi.mailcal_bindings.AccountsSnapshot
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.Notice
 import uniffi.mailcal_bindings.NoticeAction
 import uniffi.mailcal_bindings.NoticeKind
@@ -39,6 +40,7 @@ import uniffi.mailcal_bindings.QuoteStyleKind
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
+import uniffi.mailcal_bindings.VideoconferencingPage
 import uniffi.mailcal_bindings.ViewMode
 import uniffi.mailcal_bindings.WeekStart
 
@@ -110,11 +112,10 @@ class SettingsNoticeTest {
                 onSetAppearance = {},
                 onSetWeekStart = {},
                 onSetVisibleHours = {},
-                calendars = emptyList(),
+                newEventCalendars = NewEventCalendars(emptyList(), named = false),
                 onSetDefaultCalendar = { _, _ -> },
-                jitsiServer = { null },
-                onSetJitsiServer = { true },
-                meetingDefaults = emptyList(),
+                videoconferencing = VideoconferencingPage(null, null, emptyList()),
+                onSetJitsiServer = { VideoconferencingPage(null, null, emptyList()) },
                 onSetDefaultMeeting = { _, _ -> },
                 mode = ViewMode.THREADED,
                 onSetMode = {},
@@ -128,12 +129,7 @@ class SettingsNoticeTest {
                 swipe = SwipeSettings(SwipeActionKind.ARCHIVE, SwipeActionKind.DELETE),
                 onSetSwipeLeft = {},
                 onSetSwipeRight = {},
-                signatures = null,
-                signatureHtml = { null },
-                onCreateSignature = { _, _, _ -> },
-                onUpdateSignature = { _, _, _, _ -> },
-                onDeleteSignature = {},
-                onSetAccountSignature = { _, _, _ -> },
+                signatures = testSignaturesUi(),
                 analyticsEnabled = false,
                 onSetAnalytics = {},
                 analyticsPayloadPreview = { "{}" },

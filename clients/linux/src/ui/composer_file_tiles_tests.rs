@@ -164,9 +164,8 @@ fn texts(tile: &gtk::Box) -> Vec<String> {
 /// words beneath and a Remove that takes it off through the core. Whether the list changed is the
 /// core's answer, so a forward's originals are not a change and taking one off is.
 pub(crate) fn a_tile_names_its_file_and_its_remove_goes_through_the_core() {
-    let dir = std::env::temp_dir().join("mailcal-file-tiles-test");
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    let report = dir.join("quarterly report for the board.pdf");
+    let dir = tempfile::tempdir().expect("temp dir");
+    let report = dir.path().join("quarterly report for the board.pdf");
     std::fs::write(&report, vec![0_u8; 2048]).expect("write");
 
     let store = FakeStore::opened_with(&["original.csv"]);
@@ -226,8 +225,6 @@ pub(crate) fn a_tile_names_its_file_and_its_remove_goes_through_the_core() {
         tiles.current().changed,
         "taking an original off is a change"
     );
-
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 /// The Remove is drawn from the tile's `remove` state through the client's control components,
@@ -261,8 +258,8 @@ pub(crate) fn a_tile_draws_its_remove_from_the_cores_state() {
 pub(crate) fn a_tile_shows_its_picture_or_the_glyph_under_a_summary() {
     use gtk::gdk_pixbuf::{Colorspace, Pixbuf};
 
-    let dir = std::env::temp_dir().join("mailcal-file-preview-test");
-    std::fs::create_dir_all(&dir).expect("temp dir");
+    let scratch = tempfile::tempdir().expect("temp dir");
+    let dir = scratch.path();
     let photo = dir.join("photo.png");
     let pixels = Pixbuf::new(Colorspace::Rgb, false, 8, 300, 200).expect("a picture");
     pixels.fill(0x3366_99ff);
@@ -330,8 +327,6 @@ pub(crate) fn a_tile_shows_its_picture_or_the_glyph_under_a_summary() {
         "a file with no picture shows the attachment glyph"
     );
     assert_eq!(descendants::<gtk::Picture>(drawn[1].upcast_ref()).len(), 0);
-
-    std::fs::remove_dir_all(&dir).ok();
 }
 
 #[test]

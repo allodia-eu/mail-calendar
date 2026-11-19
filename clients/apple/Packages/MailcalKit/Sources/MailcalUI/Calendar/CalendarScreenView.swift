@@ -38,17 +38,19 @@ struct EventRefID: Identifiable {
 struct CalendarScreenView: View {
     var model: MailboxModel
 
-    @State private var pager: CalendarPager?
+    @State var pager: CalendarPager?
     /// The page the **month** is on. The time grid has no pages: it has a strip (`CalendarStrip`).
-    @State private var page = 0
+    @State var page = 0
     /// Where the time grid is. An object rather than state of this view, so a frame of motion
     /// re-evaluates the grid and not this screen (`CalendarGridPosition`).
-    @State private var position: CalendarGridPosition
+    @State var position: CalendarGridPosition
     @State private var now = ShowcaseMode.now ?? Date()
     @State private var managing = false
+    /// The day a pressed mini-month day framed the grid on; nil frames today.
+    @State var seatDay: Date?
     /// Bumped whenever the grid should frame itself on today again: a shape from the menu, and
     /// "back to today". `CalendarGridContent` watches it.
-    @State private var recentreToken = 0
+    @State var recentreToken = 0
     /// The open editor (create or edit), or nil; and the event whose detail is open, or nil.
     @State private var editor: EventEditorState?
     @State private var openEvent: EventRefID?
@@ -121,7 +123,7 @@ struct CalendarScreenView: View {
                 let def = currentCalendars(pager: pager, anchor: anchor).first { $0.isDefault }.map(\.choice)
                 editor = EventEditorState.create(default: def, zone: TimeZone.current.identifier, now: today)
             },
-            onManage: { managing = true },
+            onManage: toolbarIsRegular ? nil : { managing = true },
             onRefresh: { model.showCalendar() },
             onPrevious: { step(-1, mode: pager.mode) },
             onNext: { step(1, mode: pager.mode) }
@@ -150,6 +152,8 @@ struct CalendarScreenView: View {
             }
         }
         .onReceive(tick) { now = ShowcaseMode.now ?? $0 }
+        .onChange(of: paneGrid(pager, calendar), initial: true) { model.calendarPaneState.follow($1) }
+        .onChange(of: model.calendarSeatRequest) { applySeat($1, calendar: calendar) }
         .onChange(of: todayColumn(pager: pager, calendar: calendar), initial: true) { _, column in
             position.todayColumn = column
         }
@@ -160,7 +164,7 @@ struct CalendarScreenView: View {
             if !position.held { recentreToken += 1 }
         }
         .sheet(isPresented: $managing) {
-            CalendarManagerView(model: model, calendars: currentCalendars(pager: pager, anchor: anchor))
+            CalendarManagerView(model: model)
         }
         // Tap an event -> its detail; Edit there opens the editor prefilled, Delete removes it.
         .sheet(item: $openEvent) { ref in
@@ -206,6 +210,7 @@ struct CalendarScreenView: View {
             EventEditorView(
                 editor: sheetItemBinding($editor, presented: presented),
                 calendars: currentCalendars(pager: pager, anchor: anchor),
+                offered: model.newEventCalendars(),
                 onCancel: { editor = nil },
                 onCreate: { model.createEvent($0); editor = nil },
                 onUpdate: { model.updateEvent($0); editor = nil },
@@ -344,6 +349,7 @@ struct CalendarScreenView: View {
                 pager: pager,
                 calendar: calendar,
                 today: today,
+                framedDay: seatDay,
                 nowMinutes: nowMinutes(calendar: calendar),
                 position: position,
                 recentreToken: recentreToken,
@@ -402,7 +408,7 @@ struct CalendarScreenView: View {
         }
     }
 
-    private func setMode(_ next: CalendarMode, calendar: Calendar) {
+    func setMode(_ next: CalendarMode, calendar: Calendar) {
         guard var current = pager else { return }
         model.setCalendarLayout(next.layout)
         current.setMode(next, currentPage: current.mode.isGrid ? position.anchorWeek : page)
@@ -427,6 +433,7 @@ struct CalendarScreenView: View {
 
     private func backToToday(today: Date, calendar: Calendar) {
         guard var current = pager else { return }
+        seatDay = nil
         current.jump(to: current.mode.isMonth ? today : model.weekStart(of: today))
         pager = current
         page = 0
