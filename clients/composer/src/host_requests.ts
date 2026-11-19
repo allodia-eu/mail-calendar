@@ -9,6 +9,7 @@
 // travels the same way, to a host that named it, and nothing answers it.
 
 import type { Steps } from "./history";
+import type { ReplyDraftReport } from "./reply_draft";
 
 /// `mailcal_composer::LinkRequest`.
 export interface LinkRequest {
@@ -27,17 +28,25 @@ interface Vocabulary {
 
 export type HostRequestKind = keyof Vocabulary;
 
-/// What the editor tells a host that asked, with no answer: `mailcal_composer::HistorySteps`, and
-/// framed mode's `CaretSpan` and `MessageScroll` (`framed.ts`).
+/// What the editor tells a host that asked, with no answer: `mailcal_composer::HistorySteps`,
+/// framed mode's `CaretSpan` and `MessageScroll` (`framed.ts`), and `ReplyDraftReport`
+/// (`reply_draft.ts`).
 interface Notices {
   history: Steps;
   caret: { top: number; bottom: number };
   scroll: { px: number; end: number };
+  reply_draft: ReplyDraftReport;
 }
 
 export type HostNoticeKind = keyof Notices;
 
-const KINDS: readonly (HostRequestKind | HostNoticeKind)[] = ["link", "history", "caret", "scroll"];
+const KINDS: readonly (HostRequestKind | HostNoticeKind)[] = [
+  "link",
+  "history",
+  "caret",
+  "scroll",
+  "reply_draft",
+];
 
 type Post = (message: string) => void;
 

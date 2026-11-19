@@ -94,6 +94,14 @@ impl ThreadProvider {
         self
     }
 
+    /// A provider with a Sent folder, for messages filed there.
+    pub(super) fn with_sent_folder(mut self) -> Self {
+        let mut sent = Mailbox::new(MailboxId::try_from("sent").unwrap(), "Sent");
+        sent.role = Some(MailboxRole::Sent);
+        self.mailboxes.push(sent);
+        self
+    }
+
     /// A provider whose every send fails outright, with nothing queued behind it.
     pub(super) fn failing_send(mut self) -> Self {
         self.send_fails = true;

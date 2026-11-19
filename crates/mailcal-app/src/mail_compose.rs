@@ -81,6 +81,7 @@ impl<P: Provider> App<P> {
         };
         // A reply moved back out of the Outbox stays a reply, and keeps its importance.
         let draft = self.with_composition(composition.as_ref(), draft);
+        let draft = self.mark_drafted_reply(composition.as_ref(), &account, draft);
         self.send_draft(&account, &draft, composition.as_ref())
             .await;
     }

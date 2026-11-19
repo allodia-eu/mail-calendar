@@ -1,13 +1,15 @@
 //! The work that sends to a model: learning a style and drafting a reply (`docs/ai.md` rules 13
-//! and 20), one piece at a time, off the host's thread.
+//! and 20), off the host's thread.
 //!
-//! A piece of work is queued on the host's thread and returns at once; the caller that was told to
-//! runs the queue on a thread of its own. Work asked for again while the same work runs or waits
-//! is dropped, so a double press starts it once. Stopping work that waits takes it out of the
-//! queue; stopping work that runs sets its [`AiCancel`], which abandons the request in flight and
-//! which the work reads before its next. What a piece of work came to is its own surface's to
-//! record: the queue only says what runs and what waits, and signals the surface it belongs to as
-//! that moves.
+//! Each key is a lane of its own: one learning run at a time, one draft per composition, and a
+//! draft never waits behind a learning run or another composition's draft. A piece of work is
+//! queued on the host's thread and returns at once; the caller told to runs it on a thread of its
+//! own. Work asked for again while the same work runs or waits is dropped, so a double press
+//! starts it once. Stopping work that waits takes it out of the queue; stopping work that runs
+//! sets its [`AiCancel`], which abandons the request in flight and which the work reads before its
+//! next. Work asked for again while the stopped run winds down waits for it, then runs. What a
+//! piece of work came to is its own surface's to record: the queue only says what runs and what
+//! waits, and signals the surface it belongs to as that moves.
 
 use std::{collections::VecDeque, fmt, future::Future};
 
@@ -118,10 +120,9 @@ impl AiRun<'_> {
 /// What queueing a piece of work did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AiQueued {
-    /// Nothing else was running: the caller runs the queue, off its own thread, with
-    /// [`App::run_ai_work`].
+    /// It starts now: the caller runs [`App::run_ai_work`] off its own thread.
     Run,
-    /// It runs after the work running now.
+    /// The same work, told to stop, is still winding down; this runs once it has.
     Waiting,
     /// The same work is already running or waiting.
     Duplicate,
@@ -129,19 +130,20 @@ pub enum AiQueued {
     NoHost,
 }
 
-/// The work running, and the work waiting behind it.
+/// The work running, the work started that no runner has taken yet, and the work waiting for a
+/// stopped run under its own key to wind down. At most one piece of work runs under a key.
 pub(crate) struct Queue<P> {
-    running: Option<(AiWorkKey, AiCancel)>,
-    /// The running work's body, until the runner takes it.
-    next: Option<AiWork<P>>,
+    /// In the order it started.
+    running: Vec<(AiWorkKey, AiCancel)>,
+    started: VecDeque<(AiWork<P>, AiCancel)>,
     waiting: VecDeque<AiWork<P>>,
 }
 
 impl<P> Default for Queue<P> {
     fn default() -> Self {
         Self {
-            running: None,
-            next: None,
+            running: Vec::new(),
+            started: VecDeque::new(),
             waiting: VecDeque::new(),
         }
     }
@@ -151,19 +153,31 @@ impl<P> Queue<P> {
     /// Whether `key`'s work is running or waiting. Work told to stop is no longer the same work,
     /// so asking again while it winds down queues it afresh.
     fn holds(&self, key: &AiWorkKey) -> bool {
-        self.running
-            .as_ref()
-            .is_some_and(|(running, cancel)| running == key && !cancel.is_set())
-            || self.waiting.iter().any(|work| work.key == *key)
+        self.live(key).is_some() || self.waiting.iter().any(|work| work.key == *key)
     }
 
-    /// Starts the next work waiting, if any.
-    fn advance(&mut self) {
-        self.running = None;
-        if let Some(work) = self.waiting.pop_front() {
-            self.running = Some((work.key.clone(), AiCancel::default()));
-            self.next = Some(work);
-        }
+    /// The stop of the work running under `key` that has not been told to stop.
+    fn live(&self, key: &AiWorkKey) -> Option<&AiCancel> {
+        self.running
+            .iter()
+            .find(|(running, cancel)| running == key && !cancel.is_set())
+            .map(|(_, cancel)| cancel)
+    }
+
+    /// Marks the work under `key` running, and answers its stop.
+    fn start(&mut self, key: AiWorkKey) -> AiCancel {
+        let cancel = AiCancel::default();
+        self.running.push((key, cancel.clone()));
+        cancel
+    }
+
+    /// Ends the run under `key`, and starts the work waiting for it, if any.
+    fn finish(&mut self, key: &AiWorkKey) -> Option<(AiWork<P>, AiCancel)> {
+        self.running.retain(|(running, _)| running != key);
+        let at = self.waiting.iter().position(|work| work.key == *key)?;
+        let work = self.waiting.remove(at)?;
+        let cancel = self.start(work.key.clone());
+        Some((work, cancel))
     }
 }
 
@@ -185,12 +199,16 @@ impl<P: Provider> App<P> {
             if queue.holds(&work.key) {
                 return AiQueued::Duplicate;
             }
-            if queue.running.is_some() {
+            if queue
+                .running
+                .iter()
+                .any(|(running, _)| *running == work.key)
+            {
                 queue.waiting.push_back(work);
                 AiQueued::Waiting
             } else {
-                queue.running = Some((work.key.clone(), AiCancel::default()));
-                queue.next = Some(work);
+                let cancel = queue.start(work.key.clone());
+                queue.started.push_back((work, cancel));
                 AiQueued::Run
             }
         };
@@ -198,40 +216,22 @@ impl<P: Provider> App<P> {
         queued
     }
 
-    /// Runs the work [`App::queue_ai_work`] started, and all that is queued behind it, each to its
-    /// end. Not for a UI thread.
+    /// Runs one piece of work [`App::queue_ai_work`] started, then the work under the same key
+    /// that waited for it, each to its end. Not for a UI thread.
     pub fn run_ai_work(&self) {
         let Some(host) = self.ai.ports().host.clone() else {
             return;
         };
-        loop {
-            let (work, cancel) = {
-                let mut queue = self.ai_queue();
-                let Some(work) = queue.next.take() else {
-                    return;
-                };
-                let cancel = queue
-                    .running
-                    .as_ref()
-                    .map(|(_, cancel)| cancel.clone())
-                    .unwrap_or_default();
-                (work, cancel)
-            };
-            let surface = work.key.surface();
+        let mut next = self.ai_queue().started.pop_front();
+        while let Some((work, cancel)) = next {
+            let key = work.key.clone();
             let run = AiRun {
                 cancel,
                 host: host.as_ref(),
             };
             (work.body)(self, &run);
-            let next = {
-                let mut queue = self.ai_queue();
-                queue.advance();
-                queue.running.as_ref().map(|(key, _)| key.surface())
-            };
-            self.observer.surface_changed(surface);
-            if let Some(next) = next.filter(|next| *next != surface) {
-                self.observer.surface_changed(next);
-            }
+            next = self.ai_queue().finish(&key);
+            self.observer.surface_changed(key.surface());
         }
     }
 
@@ -243,13 +243,12 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// Stops the work under `key`: taken out of the queue while it waits, told to stop while it
-    /// runs. Whether there was such work.
+    /// Stops the work under `key`: told to stop while it runs, taken out of the queue while it
+    /// waits. Whether there was such work.
     pub fn cancel_ai_work(&self, key: &AiWorkKey) -> bool {
         let stopped = {
             let mut queue = self.ai_queue();
-            if let Some((_, cancel)) = queue.running.as_ref().filter(|(running, _)| running == key)
-            {
+            if let Some(cancel) = queue.live(key) {
                 cancel.set();
                 true
             } else {
@@ -265,8 +264,8 @@ impl<P: Provider> App<P> {
         stopped
     }
 
-    /// The work running, then the work waiting behind it. Work told to stop is not listed while
-    /// it winds down.
+    /// The work running, in the order it started, then the work waiting. Work told to stop is
+    /// not listed while it winds down.
     #[must_use]
     pub fn ai_work(&self) -> Vec<AiWorkKey> {
         let queue = self.ai_queue();
@@ -282,9 +281,6 @@ impl<P: Provider> App<P> {
     /// Whether the work under `key` is running now, rather than waiting, stopped or not queued.
     #[must_use]
     pub fn ai_work_running(&self, key: &AiWorkKey) -> bool {
-        self.ai_queue()
-            .running
-            .as_ref()
-            .is_some_and(|(running, cancel)| running == key && !cancel.is_set())
+        self.ai_queue().live(key).is_some()
     }
 }

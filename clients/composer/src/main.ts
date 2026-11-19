@@ -20,6 +20,7 @@ import { editLinkThroughHost } from "./link_menu";
 import { autolinkBeforeCaret } from "./links";
 import { indentSelection } from "./lists";
 import { pastedHtml, pasteContent } from "./paste";
+import { installReplyDraft } from "./reply_draft";
 import {
   completeComposerQuoteAttribution,
   setComposerQuote,
@@ -63,6 +64,7 @@ const framed = installFramed(editor, {
 });
 installImageResize(editor);
 const revision = installRevisionCounter(editor);
+const replyDraft = installReplyDraft(editor, history, (report) => hostRequests.tell("reply_draft", report));
 
 // Paste. Formatted text keeps what the document can hold of its formatting (`paste.ts`), and wins
 // over a picture beside it, which is a rendering of that text (`pasteContent`). A picture on its
@@ -188,6 +190,7 @@ declare global {
     setPlainText: (text: unknown) => void;
     setComposerBody: (seed: string | BodySeed) => void;
     setComposerDocument: (document: string | ComposerDocument) => void;
+    setComposerDraftText: (seed: unknown) => boolean;
     useNativeComposerChrome: () => void;
     useFramedComposer: () => void;
     holdComposerWheelDown: (hold: unknown) => void;
@@ -250,6 +253,9 @@ window.setComposerBody = (seed) =>
   history.restart(() => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {}));
 window.setComposerDocument = (document) =>
   history.restart(() => setComposerDocument(editor, attachments, parsed<ComposerDocument>(document) ?? {}));
+/// An assistant's draft, from the script the core builds (`docs/ai.md` rule 21): above the
+/// signature and the quote, as one step of the history. Answers whether it was taken.
+window.setComposerDraftText = (seed) => replyDraft.setDraft(seed);
 /// The body's history for a host whose right-click menu carries Undo and Redo (Windows): the
 /// WebView's own items would read the engine's stack, which this editor never uses
 /// (`docs/undo.md` rule 3), so the host draws them and asks here.
@@ -273,6 +279,7 @@ window.setComposerHostRequests = (kinds) => {
   hostRequests.setAnswered(kinds);
   history.watch((steps) => hostRequests.tell("history", steps));
   framed.resend();
+  replyDraft.resend();
 };
 window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
 

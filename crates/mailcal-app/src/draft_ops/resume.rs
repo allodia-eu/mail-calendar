@@ -96,6 +96,7 @@ impl<P: Provider> App<P> {
             // The body already carries the signature it was written with.
             seeds_signature: false,
             importance: envelope.importance,
+            answering: None,
         })
     }
 

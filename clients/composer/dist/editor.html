@@ -2498,7 +2498,13 @@
   }
 
   // src/host_requests.ts
-  var KINDS = ["link", "history", "caret", "scroll"];
+  var KINDS = [
+    "link",
+    "history",
+    "caret",
+    "scroll",
+    "reply_draft"
+  ];
   function channelOf(win) {
     const scope = win;
     const handler = scope.webkit?.messageHandlers?.composerHost;
@@ -2600,6 +2606,7 @@
     let quiet = false;
     let listener = null;
     let told = null;
+    const marks = new Map;
     const observer = new view.MutationObserver((records) => record(records));
     observer.observe(editor, {
       childList: true,
@@ -2690,6 +2697,8 @@
         return false;
       }
       const undoing = from === undone;
+      if (step.tag)
+        marks.set(step.tag, !undoing);
       select(undoing ? step.before : step.after);
       if (undoing && step.typed)
         inverse.push(...insertTyped(step.typed));
@@ -2787,7 +2796,23 @@
         boundary = true;
       },
       outside: (change) => unrecorded(change, false),
-      restart: (change) => unrecorded(change, true)
+      restart: (change) => unrecorded(change, true),
+      step(tag, change) {
+        flush();
+        const before = undone.at(-1);
+        boundary = true;
+        pending = null;
+        const result = change();
+        flush();
+        const made = undone.at(-1);
+        if (made && made !== before) {
+          made.tag = tag;
+          marks.set(tag, true);
+        }
+        boundary = true;
+        return result;
+      },
+      applied: (tag) => marks.get(tag) ?? false
     };
     function unrecorded(change, forget) {
       flush();
@@ -3812,6 +3837,173 @@
     if (images.length > 0)
       return { images };
     return { text: transfer?.getData("text/plain") ?? "" };
+  }
+
+  // src/drafttext.ts
+  var BULLET = /^\s*[-*•]\s+(.*)$/;
+  var NUMBERED = /^\s*\d{1,3}[.)]\s+(.*)$/;
+  var HEADING = /^\s*#{1,3}\s+(.*)$/;
+  var INLINE = /\*\*(\S(?:.*?\S)?)\*\*|\*(\S(?:.*?\S)?)\*/g;
+  function draftBlocks(doc, text) {
+    const lines = text.split(/\r\n|\r|\n/);
+    const blocks = [];
+    let list = null;
+    lines.forEach((line, index) => {
+      const item = listItem2(line);
+      if (item) {
+        if (!list || list.tagName !== item.tag) {
+          list = doc.createElement(item.tag);
+          blocks.push(list);
+        }
+        const li = doc.createElement("li");
+        appendInline(doc, li, item.rest);
+        list.appendChild(li);
+        return;
+      }
+      if (line.trim() === "" && list && continuesList(lines, index, list.tagName))
+        return;
+      list = null;
+      const div = doc.createElement("div");
+      const heading = HEADING.exec(line);
+      if (heading) {
+        const bold = doc.createElement("b");
+        bold.textContent = heading[1] ?? "";
+        div.appendChild(bold);
+      } else if (line.length > 0) {
+        appendInline(doc, div, line);
+      } else {
+        div.appendChild(doc.createElement("br"));
+      }
+      blocks.push(div);
+    });
+    return blocks;
+  }
+  function listItem2(line) {
+    const bullet = BULLET.exec(line);
+    if (bullet)
+      return { tag: "UL", rest: bullet[1] ?? "" };
+    const numbered = NUMBERED.exec(line);
+    if (numbered)
+      return { tag: "OL", rest: numbered[1] ?? "" };
+    return null;
+  }
+  function continuesList(lines, blank, tag) {
+    const next = lines.slice(blank + 1).find((line) => line.trim() !== "");
+    return next !== undefined && listItem2(next)?.tag === tag;
+  }
+  function appendInline(doc, parent, text) {
+    let from = 0;
+    for (const match of text.matchAll(INLINE)) {
+      const at = match.index ?? 0;
+      if (at > from)
+        parent.appendChild(doc.createTextNode(text.slice(from, at)));
+      const mark = doc.createElement(match[1] !== undefined ? "b" : "i");
+      mark.textContent = match[1] ?? match[2] ?? "";
+      parent.appendChild(mark);
+      from = at + match[0].length;
+    }
+    if (from < text.length)
+      parent.appendChild(doc.createTextNode(text.slice(from)));
+  }
+
+  // src/reply_draft.ts
+  function leadBoundary(editor) {
+    return Array.from(editor.children).find((child) => child.classList.contains("allodia-signature") || child.classList.contains("allodia-quote")) ?? null;
+  }
+  function leadNodes(editor) {
+    const boundary = leadBoundary(editor);
+    const nodes = [];
+    for (let node = editor.firstChild;node && node !== boundary; node = node.nextSibling)
+      nodes.push(node);
+    return nodes;
+  }
+  function reading(nodes) {
+    let pictures = 0;
+    const lines = nodes.map((node) => {
+      if (node.nodeName === "IMG")
+        pictures += 1;
+      else if (node.nodeType === 1)
+        pictures += node.querySelectorAll("img").length;
+      return node.textContent ?? "";
+    });
+    return `${lines.join(`
+`)}\x00${pictures}`;
+  }
+  function holdsAnything(nodes) {
+    return nodes.some((node) => (node.textContent ?? "").trim().length > 0 || node.nodeName === "IMG" || node.nodeType === 1 && node.querySelector("img") !== null);
+  }
+  function installReplyDraft(editor, history, tell) {
+    let held = null;
+    let edits = 0;
+    let lastReading = reading(leadNodes(editor));
+    let told = null;
+    function report(force) {
+      const nodes = leadNodes(editor);
+      const now = reading(nodes);
+      if (now !== lastReading) {
+        edits += 1;
+        lastReading = now;
+      }
+      const inserted = held !== null && (held.tag === null || history.applied(held.tag));
+      const text = now.slice(0, now.lastIndexOf("\x00"));
+      const lead = !holdsAnything(nodes) ? "empty" : inserted && held !== null && now === held.untouched ? "draft" : "written";
+      const left = held ? held.gaps.flatMap((gap, at) => text.includes(gap) ? [at] : []) : [];
+      const next = { serial: held?.serial ?? 0, lead, inserted, left, edits };
+      const key = JSON.stringify(next);
+      if (!force && key === told)
+        return;
+      told = key;
+      tell(next);
+    }
+    new (windowOf(editor)).MutationObserver(() => report(false)).observe(editor, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+    return {
+      setDraft(value) {
+        const seed = seedOf(value);
+        if (!seed || held !== null && seed.serial <= held.serial)
+          return false;
+        const doc = documentOf(editor);
+        const blocks = draftBlocks(doc, seed.text);
+        if (seed.insert) {
+          const tag = `reply-draft-${seed.serial}`;
+          history.step(tag, () => replaceLead(editor, blocks));
+          held = { serial: seed.serial, gaps: seed.gaps, tag, untouched: reading(leadNodes(editor)) };
+        } else {
+          held = { serial: seed.serial, gaps: seed.gaps, tag: null, untouched: reading(blocks) };
+        }
+        report(false);
+        return true;
+      },
+      resend: () => report(true)
+    };
+  }
+  function replaceLead(editor, blocks) {
+    const boundary = leadBoundary(editor);
+    while (editor.firstChild && editor.firstChild !== boundary)
+      editor.removeChild(editor.firstChild);
+    for (const block of blocks)
+      editor.insertBefore(block, boundary);
+    const last = blocks.at(-1);
+    if (last)
+      caretInto(last.lastElementChild?.tagName === "LI" ? last.lastElementChild : last, false);
+  }
+  function seedOf(value) {
+    let seed = value;
+    if (typeof seed === "string") {
+      try {
+        seed = JSON.parse(seed);
+      } catch {
+        return null;
+      }
+    }
+    const raw = seed;
+    if (!raw || typeof raw.serial !== "number" || typeof raw.text !== "string")
+      return null;
+    const gaps = Array.isArray(raw.gaps) ? raw.gaps.filter((gap) => typeof gap === "string") : [];
+    return { serial: raw.serial, text: raw.text, gaps, insert: raw.insert !== false };
   }
 
   // src/resize.ts
@@ -5175,6 +5367,7 @@
   });
   installImageResize(editor);
   var revision = installRevisionCounter(editor);
+  var replyDraft = installReplyDraft(editor, history, (report) => hostRequests.tell("reply_draft", report));
   editor.addEventListener("paste", (event) => {
     event.preventDefault();
     const content = pasteContent(doc, event.clipboardData, caretHoldsInlineOnly(), attachments);
@@ -5275,6 +5468,7 @@
   window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
   window.setComposerBody = (seed) => history.restart(() => setComposerBody(editor, attachments, parsed(seed) ?? {}));
   window.setComposerDocument = (document2) => history.restart(() => setComposerDocument(editor, attachments, parsed(document2) ?? {}));
+  window.setComposerDraftText = (seed) => replyDraft.setDraft(seed);
   window.composerHistorySteps = () => JSON.stringify(history.steps());
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;
   window.useNativeComposerChrome = () => {
@@ -5288,6 +5482,7 @@
     hostRequests.setAnswered(kinds);
     history.watch((steps) => hostRequests.tell("history", steps));
     framed.resend();
+    replyDraft.resend();
   };
   window.answerComposerRequest = (id, answer) => hostRequests.answer(id, answer);
   window.setComposerLabels = (incoming) => {
