@@ -176,11 +176,9 @@ final class MailboxModel {
     /// per-message override of it, pulled on a `Surface::Settings` signal. The style seeds a new
     /// reply's composer; both drive the settings screen.
     var quoteSettings = QuoteSettings(style: .indented, perMessage: false)
-    /// The app-level default send account's id (pulled on a `Surface::Settings` signal), or
-    /// `nil` when the user hasn't chosen one. It decides which account the composer's From
-    /// dropdown opens on for a new message in the unified inbox. This is the **stored** id,
-    /// which may name an account the user has since removed, resolve it through `sendAccount`.
-    var defaultSendAccount: String?
+    /// Settings → Composing's default send account as the core decides it (pulled on a
+    /// `Surface::Settings` signal, which an account change raises too).
+    var sendAccountSetting = SendAccountSetting.noAccount
     /// What a leftward and a rightward swipe across a message row do (pulled on a
     /// `Surface::Settings` signal). A placeholder until `didOpen` reads the core's.
     var swipeSettings = SwipeSettings(left: .delete, right: .delete)

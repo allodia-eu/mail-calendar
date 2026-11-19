@@ -101,8 +101,8 @@ extension MailboxModel {
         refreshAccountsSnapshot()
         refreshAllodiaCard()
         // The preferences, before the first `Surface::Settings` signal: the swipe actions are
-        // read while rendering every row, the composer's From dropdown wants the stored default
-        // send account, the calendar opens on the stored horizon and shape, and
+        // read while rendering every row, Settings → Composing draws the send account, the
+        // calendar opens on the stored horizon and shape, and
         // `analyticsConsent.asked == false` puts the welcome screen up.
         reloadPreferences(app, repaint: false)
         // The composer resolves the account's signature when it opens, so the library has to

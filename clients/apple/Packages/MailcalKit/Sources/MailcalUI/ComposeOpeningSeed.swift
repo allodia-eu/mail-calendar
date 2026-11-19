@@ -24,18 +24,17 @@ enum ComposeOpeningSeed {
     }
 
     /// What an assistant's draft opens on: a reply when it names the message it answers, so it
-    /// stays in that conversation, and a new message from the account it names, else `selected`,
-    /// otherwise. Its body brings its author's own sign-off (`docs/mcp.md`), so the prefill says
-    /// so and the account's signature is not seeded under it.
+    /// stays in that conversation, and otherwise a new message from the account it names, or from
+    /// the one the core decides when it names none. Its body brings its author's own sign-off
+    /// (`docs/mcp.md`), so the prefill says so and the account's signature is not seeded under it.
     static func agentDraftOpening(
-        _ draft: AgentDraft,
-        selected: String?
+        _ draft: AgentDraft
     ) -> (origin: ComposeOrigin, prefill: ComposePrefill) {
         let origin: ComposeOrigin
         if let account = draft.replyToAccount, let key = draft.replyToKey {
             origin = .reply(account: account, key: key, all: false)
         } else {
-            origin = .new(account: draft.account ?? selected)
+            origin = .new(account: draft.account)
         }
         let prefill = ComposePrefill(
             to: draft.to, cc: draft.cc, bcc: draft.bcc, subject: draft.subject,

@@ -81,10 +81,10 @@ extension ContentView {
         }
     }
 
-    /// Opens a new message. Composing while one mailbox is open sends from that account; in the
-    /// combined inbox there is no such context, and the core decides.
+    /// Opens a new message. The core decides the account it is written from: the mailbox on
+    /// screen, else the default send account.
     func beginNewMessage() {
-        beginCompose(.new(account: model.selectedAccount))
+        beginCompose(.new(account: nil))
     }
 
     /// DEBUG/verification only: with `MAILCAL_COMPOSE=1`, open a new message once the core has
@@ -124,7 +124,7 @@ extension ContentView {
         }
         let link = request.prefill
         beginCompose(
-            .new(account: model.selectedAccount),
+            .new(account: nil),
             prefill: ComposePrefill(
                 to: link.to, cc: link.cc, bcc: link.bcc, subject: link.subject,
                 bodyText: link.body, signed: false, account: nil
@@ -140,9 +140,7 @@ extension ContentView {
     /// process, unprompted, at any moment, so the composer it replaces must keep what the user was
     /// writing, which it does by saving it to Drafts on the way out.
     func openDraft(_ request: AgentDraftRequest) {
-        let (origin, prefill) = ComposeOpeningSeed.agentDraftOpening(
-            request.draft, selected: model.selectedAccount
-        )
+        let (origin, prefill) = ComposeOpeningSeed.agentDraftOpening(request.draft)
         beginCompose(origin, prefill: prefill)
     }
 }

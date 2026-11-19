@@ -2,9 +2,8 @@
 // sends as, and through, that account (its identity AND its outbox), so this is an account
 // picker, not a free-text From header.
 //
-// The caller decides which account it opens on (`MailboxModel.sendAccount(preferring:)`): the one
-// that received the mail being replied to/forwarded, else the selected mailbox's account, else the
-// app-level default send account. Kept in its own file so RichComposerView.swift stays small.
+// It opens on the account the core opened the composer with (`ComposeOpening.account`). Kept in
+// its own file so RichComposerView.swift stays small.
 
 import MailcalBindings
 import SwiftUI

@@ -177,7 +177,7 @@ extension MailboxModel {
         }
         displaySettings = display
         quoteSettings = app.quoteSettings()
-        defaultSendAccount = app.defaultSendAccount()
+        sendAccountSetting = app.sendAccountSetting()
         swipeSettings = app.swipeSettings()
         analyticsConsent = app.analyticsConsent()
         videoconferencing = app.videoconferencingPage()

@@ -169,7 +169,7 @@ func composeContext(_ opening: ComposeOpening, isShare: Bool = false) -> Compose
             account: "acct-2", to: "ada@example.test", cc: "", bcc: "", subject: "Re: Planning",
             bodyText: "Yes.\n\nBob", replyToAccount: "acct-1", replyToKey: "m-7"
         )
-        let (origin, prefill) = ComposeOpeningSeed.agentDraftOpening(draft, selected: "acct-3")
+        let (origin, prefill) = ComposeOpeningSeed.agentDraftOpening(draft)
         #expect(origin == .reply(account: "acct-1", key: "m-7", all: false))
         #expect(prefill.to == "ada@example.test")
         #expect(prefill.bodyText == "Yes.\n\nBob")
@@ -184,18 +184,23 @@ func composeContext(_ opening: ComposeOpening, isShare: Bool = false) -> Compose
             account: "acct-2", to: "", cc: "", bcc: "", subject: "", bodyText: "",
             replyToAccount: nil, replyToKey: nil
         )
-        #expect(
-            ComposeOpeningSeed.agentDraftOpening(named, selected: "acct-3").origin
-                == .new(account: "acct-2")
-        )
+        #expect(ComposeOpeningSeed.agentDraftOpening(named).origin == .new(account: "acct-2"))
+        // Naming none, it leaves the account to the core, as New Mail does.
         let unnamed = AgentDraft(
             account: nil, to: "", cc: "", bcc: "", subject: "", bodyText: "",
             replyToAccount: "acct-1", replyToKey: nil
         )
-        #expect(
-            ComposeOpeningSeed.agentDraftOpening(unnamed, selected: "acct-3").origin
-                == .new(account: "acct-3")
-        )
+        #expect(ComposeOpeningSeed.agentDraftOpening(unnamed).origin == .new(account: nil))
+    }
+
+    @Test @MainActor func theFromFieldOpensOnTheAccountTheCoreOpenedTheComposerOn() {
+        // The core has already checked that `opening.account` can send, so the shell takes it as
+        // it is rather than resolving it against the accounts it happens to hold.
+        let model = MailboxModel()
+        model.accounts = [
+            AccountRow(id: "acct-2", email: "acct-2@example.test", name: "", expanded: true),
+        ]
+        #expect(model.composeContext(for: composeOpening()).initialFrom == "acct-1")
     }
 
     @Test func aDraftThatCouldNotOpenSaysSoInItsOwnWords() {

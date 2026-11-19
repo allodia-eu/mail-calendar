@@ -61,7 +61,7 @@ struct ComposeContext: Identifiable, Equatable {
     let id = UUID()
     /// What the core opened the composer with, on the composition it joined.
     let opening: ComposeOpening
-    /// The account id the From picker opens on: the opening's account as a sending account.
+    /// The account id the From picker opens on: the opening's account.
     let initialFrom: String?
     /// The style a fresh quote is seeded in (the persisted app default).
     let quoteStyle: QuoteStyleKind
