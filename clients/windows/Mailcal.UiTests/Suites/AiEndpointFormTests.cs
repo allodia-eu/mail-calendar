@@ -3,8 +3,9 @@
 // what is pinned here is the client wiring: the form drawn, Save held with the core's words beside
 // each field, a save shown in the fields, and Remove drawn only with something to remove.
 //
-// On the showcase offering the writing assistant (MAILCAL_OFFER_AI), which keeps what is saved in
-// memory: nothing is written anywhere and nothing is dialled. A keystore that is slow or refuses is
+// On the showcase offering the writing assistant (MAILCAL_OFFER_AI), which stages an endpoint at
+// localhost and keeps what is saved in memory: nothing is written anywhere and nothing is dialled.
+// A case that changes the endpoint puts the staged one back. A keystore that is slow or refuses is
 // AiEndpointKeystoreTests, on the harness.
 
 using Allodia.Mailcal.UiTests.Driver;
@@ -70,33 +71,47 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
         app.CloseDialogs();
     }
 
+    /// <summary>The endpoint the showcase stages (MAILCAL_OFFER_AI), put back after a case removed it.</summary>
+    internal const string Staged = "http://localhost:11434/v1";
+
     [OfflineFact]
-    public void TheFormIsDrawnWithNothingSetUpSaveHeldWithoutAWordAndNoRemove() =>
-        showcase.Case(nameof(TheFormIsDrawnWithNothingSetUpSaveHeldWithoutAWordAndNoRemove), app =>
+    public void TheFormDrawsTheStoredEndpointWithItsRemove() =>
+        showcase.Case(nameof(TheFormDrawsTheStoredEndpointWithItsRemove), app =>
         {
             var form = Form(app);
+            Assert.Equal(Staged, app.Agent.Read(Field(app, form, "AiEndpointAddress")).Value);
             foreach (var id in new[] { "AiEndpointAddress", "AiEndpointKey", "AiEndpointModel", "AiEndpointWhere" })
             {
-                Assert.True(Field(app, form, id).Enabled, $"#{id} can be filled in");
+                Assert.True(Field(app, form, id).Enabled, $"#{id} can be changed");
             }
             Assert.Equal(Catalog.English("ai_endpoint_key_hint"), Field(app, form, "AiEndpointKey_Note").Name);
-            Assert.False(Save(app, form).Enabled, "Save is held while nothing is filled in");
-            Assert.True(Line(app, form, "AiEndpointRemove") is null, "Remove is not drawn while nothing is stored");
-            Assert.True(Line(app, form, "AiEndpointAddress_Gap") is null, "a form nobody has touched says nothing beside its fields");
+            Assert.True(Line(app, form, "AiEndpointRemove") is { Enabled: true }, "a stored endpoint draws its Remove");
         }, app => app.CloseDialogs());
+
+    [OfflineFact]
+    public void RemovingTheEndpointEmptiesTheFormAndTakesRemoveAway() =>
+        showcase.Case(nameof(RemovingTheEndpointEmptiesTheFormAndTakesRemoveAway), app =>
+        {
+            RemoveSaved(app);
+            var form = Form(app);
+            Assert.True(Line(app, form, "AiEndpointRemove") is null, "Remove is not drawn while nothing is stored");
+            Assert.True(string.IsNullOrEmpty(app.Agent.Read(Field(app, form, "AiEndpointAddress")).Value), "the form is empty once the endpoint is removed");
+            Assert.False(Save(app, form).Enabled, "Save is held while nothing is filled in");
+            Assert.True(Line(app, form, "AiEndpointAddress_Gap") is null, "a form with nothing in it says nothing beside its fields");
+        }, app => SaveEndpoint(app, Staged));
 
     [OfflineFact]
     public void SaveIsHeldWhileTheFieldsLeaveSomethingOutAndEachFieldSaysWhat() =>
         showcase.Case(nameof(SaveIsHeldWhileTheFieldsLeaveSomethingOutAndEachFieldSaysWhat), app =>
         {
             var form = Form(app);
+            app.Agent.SetText(Field(app, form, "AiEndpointModel"), string.Empty);
             app.Agent.SetText(Field(app, form, "AiEndpointAddress"), "http://ai.example.eu/v1");
             // WinUI raises TextChanged after the text has changed, not with it.
             var needsHttps = Catalog.English("ai_endpoint_gap_needs_https");
             Assert.True(App.Eventually(() => Line(app, form, "AiEndpointAddress_Gap")?.Name == needsHttps, TimeSpan.FromSeconds(5)),
                 $"the address field says '{needsHttps}'; it says '{Line(app, form, "AiEndpointAddress_Gap")?.Name}'");
             Assert.Equal(Catalog.English("ai_endpoint_gap_model_missing"), Line(app, form, "AiEndpointModel_Gap")?.Name);
-            Assert.Equal(Catalog.English("ai_endpoint_gap_where_missing"), Line(app, form, "AiEndpointWhere_Gap")?.Name);
             Assert.False(Save(app, form).Enabled, "Save is held while the core says a save would refuse");
 
             Fill(app, form, key: string.Empty);
@@ -109,13 +124,12 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
         }, app => app.CloseDialogs());
 
     [OfflineFact]
-    public void ASaveWithoutAKeyIsStoredAndRemoveIsDrawn() =>
-        showcase.Case(nameof(ASaveWithoutAKeyIsStoredAndRemoveIsDrawn), app =>
+    public void ASaveWithoutAKeyIsStoredAndShownInTheFields() =>
+        showcase.Case(nameof(ASaveWithoutAKeyIsStoredAndShownInTheFields), app =>
         {
             SaveEndpoint(app, Address);
             var form = Form(app);
             Assert.Equal(Address, app.Agent.Read(Field(app, form, "AiEndpointAddress")).Value);
-            Assert.Equal(Catalog.English("ai_endpoint_key_hint"), Field(app, form, "AiEndpointKey_Note").Name);
             Assert.True(Line(app, form, "AiEndpointOutcome") is not { Rendered: true }, "a save that worked says nothing: the fields show it");
-        }, RemoveSaved);
+        }, app => SaveEndpoint(app, Staged));
 }

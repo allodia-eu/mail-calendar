@@ -27,23 +27,32 @@ public class FlowFooterTests
     public void AStageWithoutBackOrAPrimaryDrawsOnlyClose() =>
         Assert.Equal([FlowRole.Close], FlowFooter.Controls(new FlowFrame("t", Action("Close"))).Select(control => control.Role));
 
+    private static FlowFrame Frame(FlowSteps? steps = null, int? depth = null) => new("t", Action("Close"), Steps: steps, Depth: depth);
+
     [Fact]
     public void AStageComesInFromTheSideTheFlowMovedTowards()
     {
-        var first = new FlowSteps(3, 0, "1 of 3");
-        var second = new FlowSteps(3, 1, "2 of 3");
+        var first = Frame(new FlowSteps(3, 0, "1 of 3"));
+        var second = Frame(new FlowSteps(3, 1, "2 of 3"));
         Assert.Equal(FlowArrival.FromEnd, FlowFooter.Arrival(first, second));
         Assert.Equal(FlowArrival.FromStart, FlowFooter.Arrival(second, first));
         Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(second, second));
     }
 
-    // A flow that gives no count says nothing about which way it moved.
+    // A flow with no count says which way it moved by the stages behind each.
     [Fact]
-    public void WithoutACountAStageComesInInPlace()
+    public void WithoutACountTheStagesBehindSayTheSide()
     {
-        var counted = new FlowSteps(3, 1, "2 of 3");
-        Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(null, counted));
-        Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(counted, null));
-        Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(null, null));
+        Assert.Equal(FlowArrival.FromEnd, FlowFooter.Arrival(Frame(depth: 1), Frame(depth: 2)));
+        Assert.Equal(FlowArrival.FromStart, FlowFooter.Arrival(Frame(depth: 2), Frame(depth: 1)));
+    }
+
+    // Nothing that says which way it moved, nothing that moves.
+    [Fact]
+    public void WithNeitherACountNorADepthAStageComesInInPlace()
+    {
+        Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(null, Frame(new FlowSteps(3, 1, "2 of 3"))));
+        Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(Frame(), Frame()));
+        Assert.Equal(FlowArrival.InPlace, FlowFooter.Arrival(Frame(new FlowSteps(3, 1, "2 of 3")), Frame(depth: 2)));
     }
 }

@@ -77,10 +77,11 @@ public sealed partial class SettingsDialog
             ?? Action(learning.Learn, L10n.LearnConsentConfirm(), LearnNow)
             ?? Action(learning.Stop, L10n.LearnStop(), () => _model.MoveLearning(new StyleLearningIntent.Stop()))
             ?? (learning.Stage is StyleLearningStage.Failed { Remedy: { } remedy }
-                ? Action(learning.Remedy, words.Of(remedy), () => Remedy(remedy))
+                ? Action(remedy.Control, words.Of(remedy.Remedy), () => Remedy(remedy.Remedy))
                 : null);
         var back = Action(learning.Back, L10n.WizardBack(), () => _model.MoveLearning(new StyleLearningIntent.Back()));
-        return new FlowFrame(StageTitle(learning.Stage), close, back, primary);
+        // The stages behind this one tell the host which side it comes in from.
+        return new FlowFrame(StageTitle(learning.Stage), close, back, primary, Depth: learning.Trail.Length);
     }
 
     // The consent: the style is stored under the catalog's default name, its description written

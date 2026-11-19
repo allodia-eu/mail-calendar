@@ -75,16 +75,18 @@ public sealed partial class SettingsDialog
             parts.Shown = RevealPage(parts, page);
         }
         var close = new FlowAction(L10n.ActionClose(), reveal.Close, () => LeaveReveal(parts));
-        var back = parts.At > 0 ? new FlowAction(L10n.WizardBack(), Free, () => GoReveal(parts, parts.At - 1)) : null;
+        // Turning the pages, the pips' included, is held by the record's paging.
+        var back = parts.At > 0 ? new FlowAction(L10n.WizardBack(), reveal.Paging, () => GoReveal(parts, parts.At - 1)) : null;
         var primary = page == WritingStyleRevealPage.Name
             ? new FlowAction(L10n.RevealSave(), WritingStyleRules.NameSave(reveal.Save, MailboxModel.StyleNameRefusal(parts.Name.Text)), () =>
             {
                 parts.Said = null;
                 _model.ChangeWritingStyle(new WritingStyleIntent.SaveReveal(parts.Style, parts.Name.Text, parts.Notes.Text));
             })
-            : new FlowAction(L10n.WizardNext(), Free, () => GoReveal(parts, parts.At + 1));
+            : new FlowAction(L10n.WizardNext(), reveal.Paging, () => GoReveal(parts, parts.At + 1));
         ControlComponents.HoldFields(reveal.Save, parts.Name, parts.Notes);
-        var steps = new FlowSteps(count, parts.At, L10n.A11yFlowPage(Number(parts.At + 1), count), at => GoReveal(parts, at));
+        var steps = new FlowSteps(count, parts.At, L10n.A11yFlowPage(Number(parts.At + 1), count),
+            reveal.Paging.Enabled ? at => GoReveal(parts, at) : null);
         parts.Host.Draw(new FlowFrame(RevealTitle(page), close, back, primary, steps), parts.Shown!);
     }
 
@@ -170,6 +172,7 @@ public sealed partial class SettingsDialog
     {
         var bar = new SelectorBar();
         AutomationProperties.SetAutomationId(bar, "WritingStyleRevealLanguages");
+        AutomationProperties.SetName(bar, L10n.RevealStatLanguages());
         foreach (var language in languages)
         {
             bar.Items.Add(new SelectorBarItem { Text = StyleLanguage(language.Language) });

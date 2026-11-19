@@ -50,6 +50,7 @@ internal sealed class FlowHost
         VerticalAlignment = VerticalAlignment.Center,
     };
     private FlowSteps? _steps;
+    private FlowFrame? _frame;
     private bool _drawingPips;
 
     /// <summary>A host whose parts are named after <paramref name="automationId"/>.</summary>
@@ -95,7 +96,8 @@ internal sealed class FlowHost
     internal void Draw(FlowFrame frame, UIElement stage)
     {
         _title.Text = frame.Title;
-        var arrival = FlowFooter.Arrival(_steps, frame.Steps);
+        var arrival = FlowFooter.Arrival(_frame, frame);
+        _frame = frame;
         _steps = frame.Steps;
         if (_stage.Content is not ScrollViewer { Content: var shown } || !ReferenceEquals(shown, stage))
         {

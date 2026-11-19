@@ -227,7 +227,8 @@ public sealed partial class SettingsDialog
         }
         if (page.Run is WritingStyleRun.Failed failed)
         {
-            area.Children.Add(Bar(InfoBarSeverity.Error, L10n.WritingStyleRunFailed(), words.Of(failed.Failure), "WritingStyleRunFailed", null));
+            area.Children.Add(Bar(InfoBarSeverity.Error, L10n.WritingStyleRunFailed(), words.Of(failed.Failure), "WritingStyleRunFailed",
+                RemedyButton(failed.Remedy, words, "WritingStyleRunRemedy", reopen: true)));
         }
         switch (page.LearnBlocked)
         {
@@ -235,16 +236,8 @@ public sealed partial class SettingsDialog
                 area.Children.Add(Bar(InfoBarSeverity.Informational, null, L10n.WritingStyleLearnNoAccount(), "WritingStyleLearnBlocked", null));
                 break;
             case WritingStyleLearnBlock.CannotSend blocked:
-                var remedy = blocked.Remedy is { } named && RemedyOpens(named) is { } opens
-                    ? new Button { Content = words.Of(named) }
-                    : null;
-                if (remedy is not null)
-                {
-                    AutomationProperties.SetAutomationId(remedy, "WritingStyleLearnRemedy");
-                    var open = RemedyOpens(blocked.Remedy!.Value)!;
-                    remedy.Click += (_, _) => open();
-                }
-                area.Children.Add(Bar(InfoBarSeverity.Informational, null, words.Of(blocked.Failure), "WritingStyleLearnBlocked", remedy));
+                area.Children.Add(Bar(InfoBarSeverity.Informational, null, words.Of(blocked.Failure), "WritingStyleLearnBlocked",
+                    RemedyButton(blocked.Remedy, words, "WritingStyleLearnRemedy", reopen: false)));
                 break;
         }
         var learn = ControlComponents.Button(L10n.WritingStyleLearn(), page.Learn, "WritingStyleLearn", () =>
@@ -257,16 +250,44 @@ public sealed partial class SettingsDialog
     }
 
     // A standing line in the platform's own bar: what cannot be done, or what went wrong, with the
-    // one control that helps as its action.
-    private static InfoBar Bar(InfoBarSeverity severity, string? title, string message, string automationId, Button? action)
+    // one control that helps beneath it.
+    private static InfoBar Bar(InfoBarSeverity severity, string? title, string message, string automationId, UIElement? remedy)
     {
-        var bar = new InfoBar { Severity = severity, IsOpen = true, IsClosable = false, Message = message, ActionButton = action };
+        var bar = new InfoBar { Severity = severity, IsOpen = true, IsClosable = false, Message = message };
+        if (remedy is not null)
+        {
+            bar.Content = new Border { Padding = new Thickness(0, 0, 0, 12), Child = remedy };
+        }
         if (title is not null)
         {
             bar.Title = title;
         }
         AutomationProperties.SetAutomationId(bar, automationId);
         return bar;
+    }
+
+    // A failure's one remedy, drawn from the control its record gives. One that names another part of
+    // Settings opens it; one that moves the flow is the flow's, which a run that failed with its host
+    // closed reopens on the failure first.
+    private UIElement? RemedyButton(AiRemedyControl? remedy, AiWords words, string automationId, bool reopen)
+    {
+        if (remedy is not { } given)
+        {
+            return null;
+        }
+        return ControlComponents.Button(words.Of(given.Remedy), given.Control, automationId, () =>
+        {
+            if (RemedyOpens(given.Remedy) is { } opens)
+            {
+                opens();
+                return;
+            }
+            if (reopen)
+            {
+                _model.MoveLearning(new StyleLearningIntent.Open());
+            }
+            _model.MoveLearning(new StyleLearningIntent.Remedy());
+        });
     }
 
     // A remedy that opens another part of Settings, which the client does; the ones that move the
@@ -277,10 +298,6 @@ public sealed partial class SettingsDialog
         AiRemedy.SignInToAllodia when Categories().Any(category => category.Tag == "allodia") => () => SelectCategory("allodia"),
         _ => null,
     };
-
-    // A control that starts no work and that the core gives no state: turning the reveal's pages,
-    // which the host keeps.
-    private static readonly ControlState Free = new(true, false);
 
     private static UIElement Progress(uint done, uint total, string automationId)
     {

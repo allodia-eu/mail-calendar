@@ -40,8 +40,7 @@ internal sealed partial record AiWords(
     {
         AiFailure.RelaySignIn => RelaySignIn,
         AiFailure.EndpointKeyRefused => KeyRefused,
-        // Only a mode narrower than "anywhere" refuses, and each says what it admits.
-        AiFailure.Refused refused => refused.Mode == JurisdictionMode.EuHosted ? RefusedEuHosted : RefusedEuNative,
+        AiFailure.Refused refused => Refused(refused.Refusal, RefusedEuNative, RefusedEuHosted),
         AiFailure.NowhereToSend => NowhereToSend,
         AiFailure.Unreachable => Unreachable,
         AiFailure.ServerError => ServerError,
@@ -56,6 +55,18 @@ internal sealed partial record AiWords(
         AiFailure.NoStyleForAccount => NoStyleForAccount,
         AiFailure.MessageGone => MessageGone,
         _ => throw new ArgumentOutOfRangeException(nameof(failure), failure, null),
+    };
+
+    /// <summary>
+    /// A refusal, in the words of the limit that refused it: an endpoint run in the EU from outside
+    /// it is refused only where everything must be run from the EU, and anything else by the limit
+    /// the record names. <paramref name="euNative"/> and <paramref name="euHosted"/> say what each
+    /// limit admits.
+    /// </summary>
+    internal static string Refused(JurisdictionRefusal refusal, string euNative, string euHosted) => refusal switch
+    {
+        JurisdictionRefusal.NonEu { Mode: JurisdictionLimit.EuHosted } or JurisdictionRefusal.Unknown { Mode: JurisdictionLimit.EuHosted } => euHosted,
+        _ => euNative,
     };
 
     /// <summary>The words on the one control a failure offers.</summary>

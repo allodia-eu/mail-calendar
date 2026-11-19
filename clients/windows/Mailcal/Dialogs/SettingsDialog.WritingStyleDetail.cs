@@ -65,7 +65,7 @@ public sealed partial class SettingsDialog
 
         foreach (var language in detail.Languages)
         {
-            panel.Children.Add(LanguageSections(language, detail.Languages.Length > 1, ink));
+            panel.Children.Add(LanguageSections(language, detail.Languages.Length > 1, detail.Sections, ink));
         }
 
         panel.Children.Add(parts.ForgetSlot);
@@ -75,16 +75,17 @@ public sealed partial class SettingsDialog
     }
 
     // One language's sections, under its name when the style has more than one.
-    private UIElement LanguageSections(WritingStyleLanguage language, bool named, RevealInk ink)
+    private UIElement LanguageSections(WritingStyleLanguage language, bool named, WritingStyleSection[] sections, RevealInk ink)
     {
         var panel = new StackPanel { Spacing = 16 };
         if (named)
         {
             panel.Children.Add(new TextBlock { Text = StyleLanguage(language.Language), FontSize = 18, FontWeight = FontWeights.SemiBold });
         }
-        void Section(string heading, UIElement? body)
+        void Section(WritingStyleSection which, string heading, Func<UIElement?> body)
         {
-            if (body is null)
+            // Only the sections the record names, and of those only what this language has.
+            if (!sections.Contains(which) || body() is not { } drawn)
             {
                 return;
             }
@@ -92,13 +93,13 @@ public sealed partial class SettingsDialog
             var label = Heading(heading);
             AutomationProperties.SetHeadingLevel(label, Microsoft.UI.Xaml.Automation.Peers.AutomationHeadingLevel.Level3);
             section.Children.Add(label);
-            section.Children.Add(body);
+            section.Children.Add(drawn);
             panel.Children.Add(section);
         }
-        Section(L10n.RevealStepLetter(), language.Letter is { } letter ? LetterSection(letter, ink) : null);
-        Section(L10n.RevealStepHabits(), language.Habits is { } habits ? HabitsSection(habits, ink) : null);
-        Section(L10n.RevealStepVoice(), language.Cards.Length > 0 ? CardsSection(language.Cards, ink) : null);
-        Section(L10n.RevealPhrases(), language.Phrases is { } phrases ? PhrasesSection(phrases, ink) : null);
+        Section(WritingStyleSection.Letter, L10n.RevealStepLetter(), () => language.Letter is { } letter ? LetterSection(letter, ink) : null);
+        Section(WritingStyleSection.Habits, L10n.RevealStepHabits(), () => language.Habits is { } habits ? HabitsSection(habits, ink) : null);
+        Section(WritingStyleSection.Voice, L10n.RevealStepVoice(), () => language.Cards.Length > 0 ? CardsSection(language.Cards, ink) : null);
+        Section(WritingStyleSection.Phrases, L10n.RevealPhrases(), () => language.Phrases is { } phrases ? PhrasesSection(phrases, ink) : null);
         return panel;
     }
 

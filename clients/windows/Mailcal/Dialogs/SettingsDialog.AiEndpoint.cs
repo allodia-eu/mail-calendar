@@ -39,6 +39,7 @@ public sealed partial class SettingsDialog
         L10n.AiEndpointGapRefusedEuHosted(),
         L10n.AiEndpointKeyHint(),
         L10n.AiEndpointKeyStored(),
+        L10n.AiEndpointKeyDropped(),
         L10n.AiEndpointKeyNotStored());
 
     /// <summary>The form's group, or null while the assistant is not offered.</summary>
@@ -136,7 +137,6 @@ public sealed partial class SettingsDialog
             }
             DrawAiEndpointFields(parts, form);
         }
-        parts.KeyNote.Text = AiEndpointRules.KeyNote(form.KeyKept, AiEndpointText());
         ControlComponents.HoldFields(form.Save, parts.Address, parts.Key, parts.Model, parts.Where);
         parts.Said.Message = _aiEndpointSaid ?? string.Empty;
         parts.Said.IsOpen = _aiEndpointSaid is not null;
@@ -169,6 +169,8 @@ public sealed partial class SettingsDialog
         var typed = parts.Typed();
         var gaps = _model.AiEndpointGap(typed.Address, typed.Model, typed.Declared);
         var lines = AiEndpointRules.Lines(gaps, typed, AiEndpointText());
+        // What becomes of a kept key follows the address as typed.
+        parts.KeyNote.Text = AiEndpointRules.KeyNote(gaps.KeptKey, AiEndpointText());
         Say(parts.AddressGap, lines.Address);
         Say(parts.ModelGap, lines.Model);
         Say(parts.WhereGap, lines.Where);

@@ -21,9 +21,15 @@ internal sealed record FlowAction(string Label, ControlState State, Action Press
 internal sealed record FlowSteps(int Count, int Current, string Name, Action<int>? Go = null);
 
 /// <summary>One stage as the host draws it. <paramref name="Steps"/> is null for a flow with no
-/// known number of steps, which draws no pips.</summary>
+/// known number of steps, which draws no pips; <paramref name="Depth"/> is then how many stages
+/// the record says lie behind this one, which says only which way the flow moved.</summary>
 internal sealed record FlowFrame(
-    string Title, FlowAction Close, FlowAction? Back = null, FlowAction? Primary = null, FlowSteps? Steps = null);
+    string Title,
+    FlowAction Close,
+    FlowAction? Back = null,
+    FlowAction? Primary = null,
+    FlowSteps? Steps = null,
+    int? Depth = null);
 
 /// <summary>What a footer control is to the host.</summary>
 internal enum FlowRole
@@ -70,11 +76,13 @@ internal static class FlowFooter
     }
 
     /// <summary>The side the stage <paramref name="to"/> comes in from after <paramref name="from"/>:
-    /// only a count both give says which way the flow moved.</summary>
-    internal static FlowArrival Arrival(FlowSteps? from, FlowSteps? to) => (from, to) switch
-    {
-        ({ } before, { } after) when after.Current > before.Current => FlowArrival.FromEnd,
-        ({ } before, { } after) when after.Current < before.Current => FlowArrival.FromStart,
-        _ => FlowArrival.InPlace,
-    };
+    /// a step count both give says which way the flow moved, and otherwise the stages both say lie
+    /// behind them.</summary>
+    internal static FlowArrival Arrival(FlowFrame? from, FlowFrame to) =>
+        (from?.Steps, to.Steps) is ({ } before, { } after)
+            ? Side(before.Current, after.Current)
+            : (from?.Depth, to.Depth) is ({ } was, { } now) ? Side(was, now) : FlowArrival.InPlace;
+
+    private static FlowArrival Side(int before, int after) =>
+        after > before ? FlowArrival.FromEnd : after < before ? FlowArrival.FromStart : FlowArrival.InPlace;
 }

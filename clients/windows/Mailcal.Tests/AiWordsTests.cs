@@ -56,11 +56,15 @@ public class AiWordsTests
         Assert.Equal(said, Words.Of(failure));
     }
 
+    // An endpoint run in the EU from outside it is refused only where everything must be run from
+    // the EU; anything else is refused by the limit the record names.
     [Fact]
-    public void ARefusalSaysWhatTheModeInForceAdmits()
+    public void ARefusalSaysWhatTheLimitThatRefusedItAdmits()
     {
-        Assert.Equal("eu native only", Words.Of(new AiFailure.Refused(JurisdictionMode.EuNative, JurisdictionClass.NonEu)));
-        Assert.Equal("eu only", Words.Of(new AiFailure.Refused(JurisdictionMode.EuHosted, JurisdictionClass.NonEu)));
+        Assert.Equal("eu native only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.EuHosted())));
+        Assert.Equal("eu native only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.NonEu(JurisdictionLimit.EuNative))));
+        Assert.Equal("eu only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.NonEu(JurisdictionLimit.EuHosted))));
+        Assert.Equal("eu only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.Unknown(JurisdictionLimit.EuHosted))));
     }
 
     [Fact]

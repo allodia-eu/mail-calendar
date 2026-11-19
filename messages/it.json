@@ -1265,6 +1265,7 @@
 	"ai_endpoint_key": "Chiave",
 	"ai_endpoint_key_hint": "Lascia vuoto se il server non ne ha bisogno.",
 	"ai_endpoint_key_stored": "È salvata una chiave. Lascia vuoto per mantenerla.",
+	"ai_endpoint_key_dropped": "La chiave salvata non viene usata per un altro server. Digita di nuovo la chiave.",
 	"ai_endpoint_model": "Modello",
 	"ai_endpoint_where": "Dove funziona?",
 	"ai_endpoint_where_eu_native": "Nell’UE, gestito da un’azienda europea, o sul mio computer",

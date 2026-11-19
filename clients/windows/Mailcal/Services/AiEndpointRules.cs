@@ -18,6 +18,7 @@ namespace Allodia.Mailcal.Services;
 /// <param name="RefusedEuHosted"><c>ai_endpoint_gap_refused_eu_hosted</c>.</param>
 /// <param name="KeyHint"><c>ai_endpoint_key_hint</c>.</param>
 /// <param name="KeyKept"><c>ai_endpoint_key_stored</c>.</param>
+/// <param name="KeyDropped"><c>ai_endpoint_key_dropped</c>.</param>
 /// <param name="KeyNotStored"><c>ai_endpoint_key_not_stored</c>.</param>
 internal sealed record AiEndpointWords(
     string AddressMissing,
@@ -29,6 +30,7 @@ internal sealed record AiEndpointWords(
     string RefusedEuHosted,
     string KeyHint,
     string KeyKept,
+    string KeyDropped,
     string KeyNotStored);
 
 /// <summary>What the form says beside each field; null where the field has nothing to say.</summary>
@@ -68,7 +70,7 @@ internal static class AiEndpointRules
         var where = gaps.Declaration switch
         {
             AiEndpointDeclarationGap.Missing => words.WhereMissing,
-            AiEndpointDeclarationGap.Refused refused => Refused(refused.Mode, words),
+            AiEndpointDeclarationGap.Refused refused => AiWords.Refused(refused.Refusal, words.RefusedEuNative, words.RefusedEuHosted),
             _ => null,
         };
         return new AiEndpointGapLines(address, gaps.ModelMissing ? words.ModelMissing : null, where);
@@ -83,12 +85,14 @@ internal static class AiEndpointRules
     internal static ControlState SaveState(ControlState save, AiEndpointGaps typed) =>
         new(save.Enabled && Complete(typed), save.Running);
 
-    /// <summary>The line under the key field.</summary>
-    internal static string KeyNote(bool kept, AiEndpointWords words) => kept ? words.KeyKept : words.KeyHint;
-
-    // Only a mode narrower than "anywhere" refuses a declaration, and each says what it admits.
-    private static string Refused(JurisdictionMode mode, AiEndpointWords words) =>
-        mode == JurisdictionMode.EuHosted ? words.RefusedEuHosted : words.RefusedEuNative;
+    /// <summary>The line under the key field, from what the core says becomes of a kept key with the
+    /// address as typed: carried, said so; dropped, to be typed again; none kept, the hint.</summary>
+    internal static string KeyNote(AiEndpointKeptKey? kept, AiEndpointWords words) => kept switch
+    {
+        AiEndpointKeptKey.Carried => words.KeyKept,
+        AiEndpointKeptKey.Dropped => words.KeyDropped,
+        _ => words.KeyHint,
+    };
 }
 
 /// <summary>

@@ -1265,6 +1265,7 @@
 	"ai_endpoint_key": "Chave",
 	"ai_endpoint_key_hint": "Deixe em branco se o servidor não precisar.",
 	"ai_endpoint_key_stored": "Há uma chave guardada. Deixe em branco para a manter.",
+	"ai_endpoint_key_dropped": "A chave guardada não é usada para outro servidor. Introduza novamente a chave.",
 	"ai_endpoint_model": "Modelo",
 	"ai_endpoint_where": "Onde funciona?",
 	"ai_endpoint_where_eu_native": "Na UE, gerido por uma empresa europeia, ou no meu próprio computador",

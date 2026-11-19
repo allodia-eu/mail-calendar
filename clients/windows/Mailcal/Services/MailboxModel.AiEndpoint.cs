@@ -20,7 +20,7 @@ public sealed partial class MailboxModel
     /// connected, which holds Save.</summary>
     internal AiEndpointGaps AiEndpointGap(string address, string model, JurisdictionClass? declared) =>
         _app?.AiEndpointGap(address, model, declared)
-        ?? new AiEndpointGaps(AiEndpointAddressGap.Missing, true, new AiEndpointDeclarationGap.Missing());
+        ?? new AiEndpointGaps(AiEndpointAddressGap.Missing, true, new AiEndpointDeclarationGap.Missing(), null);
 
     /// <summary>A save or a removal. Returns at once: the change runs in the core, and what it came
     /// to is the form's outcome.</summary>

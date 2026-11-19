@@ -1265,6 +1265,7 @@
 	"ai_endpoint_key": "Clé",
 	"ai_endpoint_key_hint": "Laissez vide si le serveur n’en demande pas.",
 	"ai_endpoint_key_stored": "Une clé est enregistrée. Laissez vide pour la conserver.",
+	"ai_endpoint_key_dropped": "La clé enregistrée n’est pas utilisée pour un autre serveur. Saisissez de nouveau la clé.",
 	"ai_endpoint_model": "Modèle",
 	"ai_endpoint_where": "Où fonctionne-t-il ?",
 	"ai_endpoint_where_eu_native": "Dans l’UE, exploité par une entreprise européenne, ou sur mon propre ordinateur",

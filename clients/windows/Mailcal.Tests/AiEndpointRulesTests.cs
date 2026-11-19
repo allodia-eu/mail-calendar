@@ -16,9 +16,9 @@ public class AiEndpointRulesTests
 
     private static readonly AiEndpointWords Words = new(
         "address missing", "address unusable", "needs https", "model missing", "where missing",
-        "eu native only", "eu only", "key hint", "key kept", "key not stored");
+        "eu native only", "eu only", "key hint", "key kept", "key dropped", "key not stored");
 
-    private static readonly AiEndpointGaps None = new(null, false, null);
+    private static readonly AiEndpointGaps None = new(null, false, null, null);
 
     private static readonly AiEndpointTyped Typed = new("https://ai.example.eu/v1", string.Empty, "model", JurisdictionClass.EuNative);
 
@@ -32,29 +32,37 @@ public class AiEndpointRulesTests
     public void EachGapIsSaidBesideItsField()
     {
         var lines = AiEndpointRules.Lines(
-            new AiEndpointGaps(AiEndpointAddressGap.NeedsHttps, true, new AiEndpointDeclarationGap.Missing()), Typed, Words);
+            new AiEndpointGaps(AiEndpointAddressGap.NeedsHttps, true, new AiEndpointDeclarationGap.Missing(), null), Typed, Words);
         Assert.Equal(new AiEndpointGapLines("needs https", "model missing", "where missing"), lines);
     }
 
     [Fact]
     public void AFormWithNothingGivenSaysNothing()
     {
-        var everything = new AiEndpointGaps(AiEndpointAddressGap.Missing, true, new AiEndpointDeclarationGap.Missing());
+        var everything = new AiEndpointGaps(AiEndpointAddressGap.Missing, true, new AiEndpointDeclarationGap.Missing(), null);
         Assert.Equal(new AiEndpointGapLines(null, null, null),
             AiEndpointRules.Lines(everything, new AiEndpointTyped(" ", string.Empty, string.Empty, null), Words));
         Assert.Equal("address missing",
             AiEndpointRules.Lines(everything, new AiEndpointTyped(string.Empty, string.Empty, "m", null), Words).Address);
     }
 
-    // The mode is the core's, and decides which refusal is said: each names what it admits. The
-    // generated enum is internal, so a theory names it rather than taking it.
+    // The limit that refused is the core's, and decides which words are said: each names what it
+    // admits. The generated types are internal, so a theory names them rather than taking them.
     [Theory]
-    [InlineData("eu-native", "eu native only")]
-    [InlineData("eu-hosted", "eu only")]
-    public void ARefusedDeclarationSaysWhatTheModeAdmits(string mode, string said)
+    [InlineData("eu-hosted declared", "eu native only")]
+    [InlineData("outside the eu, eu-native limit", "eu native only")]
+    [InlineData("outside the eu, eu-hosted limit", "eu only")]
+    [InlineData("undeclared, eu-hosted limit", "eu only")]
+    public void ARefusedDeclarationSaysWhatTheLimitAdmits(string refused, string said)
     {
-        var inForce = mode == "eu-hosted" ? JurisdictionMode.EuHosted : JurisdictionMode.EuNative;
-        var gaps = new AiEndpointGaps(null, false, new AiEndpointDeclarationGap.Refused(inForce, JurisdictionClass.NonEu));
+        JurisdictionRefusal refusal = refused switch
+        {
+            "eu-hosted declared" => new JurisdictionRefusal.EuHosted(),
+            "outside the eu, eu-native limit" => new JurisdictionRefusal.NonEu(JurisdictionLimit.EuNative),
+            "outside the eu, eu-hosted limit" => new JurisdictionRefusal.NonEu(JurisdictionLimit.EuHosted),
+            _ => new JurisdictionRefusal.Unknown(JurisdictionLimit.EuHosted),
+        };
+        var gaps = new AiEndpointGaps(null, false, new AiEndpointDeclarationGap.Refused(refusal), null);
         Assert.Equal(said, AiEndpointRules.Lines(gaps, Typed, Words).Where);
     }
 
@@ -66,11 +74,13 @@ public class AiEndpointRulesTests
         Assert.Equal(Running, AiEndpointRules.SaveState(Running, None));
     }
 
+    // A kept key follows the address as typed: carried to the same server, dropped for another.
     [Fact]
-    public void TheKeyFieldSaysWhetherOneIsKept()
+    public void TheKeyFieldSaysWhatBecomesOfAKeptKey()
     {
-        Assert.Equal("key kept", AiEndpointRules.KeyNote(true, Words));
-        Assert.Equal("key hint", AiEndpointRules.KeyNote(false, Words));
+        Assert.Equal("key kept", AiEndpointRules.KeyNote(AiEndpointKeptKey.Carried, Words));
+        Assert.Equal("key dropped", AiEndpointRules.KeyNote(AiEndpointKeptKey.Dropped, Words));
+        Assert.Equal("key hint", AiEndpointRules.KeyNote(null, Words));
     }
 
     [Fact]

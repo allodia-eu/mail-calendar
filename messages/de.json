@@ -1265,6 +1265,7 @@
 	"ai_endpoint_key": "Schlüssel",
 	"ai_endpoint_key_hint": "Leer lassen, wenn der Server keinen braucht.",
 	"ai_endpoint_key_stored": "Ein Schlüssel ist gespeichert. Leer lassen, um ihn zu behalten.",
+	"ai_endpoint_key_dropped": "Der gespeicherte Schlüssel wird für einen anderen Server nicht verwendet. Geben Sie den Schlüssel erneut ein.",
 	"ai_endpoint_model": "Modell",
 	"ai_endpoint_where": "Wo wird er betrieben?",
 	"ai_endpoint_where_eu_native": "In der EU, von einem europäischen Unternehmen betrieben, oder auf meinem eigenen Computer",

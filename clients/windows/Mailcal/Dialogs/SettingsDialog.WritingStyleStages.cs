@@ -20,10 +20,8 @@ public sealed partial class SettingsDialog
         panel.Children.Add(Line(stage.Email, "WritingStyleFlowAccount"));
         panel.Children.Add(Description(Reach(stage.Reach)));
 
-        // The core's presets, then a range of the person's own, which is always offered within
-        // the days the record bounds.
+        // The core's presets, the last a range of the person's own holding the days it starts on.
         var options = stage.Presets.ToList();
-        options.Add(new StyleLearnRange.Between(stage.Earliest ?? stage.Latest, stage.Latest));
         var choice = new RadioButtons();
         AutomationProperties.SetName(choice, L10n.LearnRangeTitle());
         AutomationProperties.SetAutomationId(choice, "WritingStyleFlowRanges");
@@ -51,8 +49,6 @@ public sealed partial class SettingsDialog
             {
                 return;
             }
-            // A range of the person's own opens on the days the core allows, which they then
-            // narrow; with no first day bounded, on the last day alone.
             _model.MoveLearning(new StyleLearningIntent.SelectRange(options[choice.SelectedIndex]));
         };
         return panel;
