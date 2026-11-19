@@ -2148,8 +2148,8 @@ Stated, not buried.
   (a swipe action, an inline button, a flyout item) is **hidden** when its own row reports
   `can_write: false` (an affordance that can never fire is just a mystery) while the global
   **"New event"** button is **disabled**, never hidden, so the header keeps its shape; it enables
-  only when some `CalendarRow` on the page reports `can_write: true`, and an empty calendar list
-  (nothing synced yet) counts as no. The create routing keeps that promise: `create_account`
+  only while the core's `new_event_calendars` lists a calendar, the same list the editor's picker
+  offers, so an empty calendar list (nothing synced yet) counts as no. The create routing keeps that promise: `create_account`
   counts an account only when it has a `can_write` calendar (its provider writes **and** it lists
   a calendar it may write), takes the picker's choice or else the selected account when that one
   counts, else the first account that does, and a create with no such account anywhere is the

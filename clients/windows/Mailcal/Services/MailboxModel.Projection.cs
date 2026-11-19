@@ -213,10 +213,10 @@ public sealed partial class MailboxModel
             }).ToList();
             Reconcile(Events, events, item => item.Account + ":" + item.Key, SameEvent);
 
-            // The "New event" gate rides the same signal: the calendar list (with each one's write
-            // flag) is read off a cheap in-memory page pull, and the button is DISABLED, never
-            // hidden, the header keeps its shape, while no calendar accepts writes.
-            NewEventEnabled = CalendarWriteGating.CanCreate(Calendars());
+            // The "New event" gate rides the same signal, an in-memory read: the button is
+            // DISABLED, never hidden, so the header keeps its shape, while the core offers no
+            // calendar a new event can go on.
+            NewEventEnabled = NewEventCalendars()?.Groups.Any() == true;
 
             // The agenda is a snapshot; the GRID is a pull (MailboxModel.CalendarGrid.cs). One snapshot
             // slot cannot hold the five pages a pager keeps in hand, so the grid gets a version bump

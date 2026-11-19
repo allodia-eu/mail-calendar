@@ -65,8 +65,8 @@ struct CalendarToolbar: ToolbarContent {
             Label(L10n.action_new_event(), systemImage: "plus")
         }
         .help(L10n.action_new_event())
-        // Disabled, not hidden, when no calendar on the page can take a write, so the toolbar
-        // keeps its shape (see calendarSupportsNewEvent).
+        // Disabled, not hidden, when the core offers no calendar a new event can go on, so the
+        // toolbar keeps its shape.
         .disabled(!state.canCreateEvent)
     }
 
