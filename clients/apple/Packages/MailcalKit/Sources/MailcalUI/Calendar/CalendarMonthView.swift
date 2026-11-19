@@ -58,6 +58,7 @@ struct CalendarMonthView: View {
                     }
                 }
             }
+            .calendarLoadingPill(!page.isMaterialized)
         }
     }
 
