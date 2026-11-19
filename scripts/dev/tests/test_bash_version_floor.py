@@ -41,7 +41,7 @@ SOURCED_ONLY = frozenset(
             f"scripts/dev/linux-ui/{part}.sh"
             for part in (
                 "agent", "app", "fixtures", "session", "legs_start", "legs_mail",
-                "legs_calendar", "legs_people", "legs_desktop",
+                "legs_calendar", "legs_people", "legs_desktop", "legs_ai",
             )
         ),
     }

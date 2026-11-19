@@ -19,7 +19,7 @@ from bashtools import bash_argv  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SUITE = REPO_ROOT / "scripts" / "dev" / "linux-ui"
 PARTS = ["agent", "app", "fixtures", "session", "legs_start", "legs_mail", "legs_calendar",
-         "legs_people", "legs_desktop"]
+         "legs_people", "legs_desktop", "legs_ai"]
 
 
 def suite(body: str, *args: str) -> list[str]:
