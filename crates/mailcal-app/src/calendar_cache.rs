@@ -430,7 +430,7 @@ pub(crate) fn rolling_horizon() -> Option<Horizon> {
 /// heap-allocated strings) that was thousands of allocations landing in the middle of the fling;
 /// on the UI thread, because the page query is synchronous by design. The swipe stalled part-way
 /// through, which reads exactly like the page getting stuck between two weeks.
-fn filter_visible<'a>(
+pub(crate) fn filter_visible<'a>(
     occurrences: &'a [Occurrence],
     calendars: &[CalendarRow],
 ) -> Vec<&'a Occurrence> {

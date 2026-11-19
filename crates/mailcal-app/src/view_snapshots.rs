@@ -4,7 +4,7 @@
 //! runtime's fields. Each accessor returns the current immutable snapshot a host pulls after
 //! the matching `surface_changed` signal.
 
-use std::sync::atomic::Ordering;
+use std::{collections::HashSet, sync::atomic::Ordering};
 
 use engine_api::Provider;
 use mailcal_viewmodel::{CalendarSnapshot, MailboxListSnapshot, ReadingSnapshot, TimeZoneSnapshot};
@@ -18,10 +18,25 @@ impl<P: Provider> App<P> {
         self.mailbox_list.get()
     }
 
-    /// The current calendar agenda snapshot (pulled after a `Surface::Calendar` signal).
+    /// The current calendar agenda snapshot (pulled after a `Surface::Calendar` signal), without
+    /// the events of a hidden calendar.
+    ///
+    /// Visibility is applied here, at read time, as the grid's page query applies it: hiding a
+    /// calendar redraws both from memory, with no store read and no sync.
     #[must_use]
     pub fn calendar_list(&self) -> CalendarSnapshot {
-        self.calendar.get()
+        let mut snapshot = self.calendar.get();
+        let cache = self.calendar_cache.lock().expect("calendar cache poisoned");
+        let calendars = self.resolved_calendars(&cache);
+        let shown: HashSet<(&str, &str)> =
+            crate::calendar_cache::filter_visible(&cache.occurrences, &calendars)
+                .into_iter()
+                .map(|occurrence| (occurrence.account.as_str(), occurrence.event.as_str()))
+                .collect();
+        snapshot
+            .events
+            .retain(|row| shown.contains(&(row.account.as_str(), row.key.as_str())));
+        snapshot
     }
 
     /// The reading **pane**'s snapshot (pulled after a `Surface::Reading` signal): the open

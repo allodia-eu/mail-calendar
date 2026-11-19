@@ -59,6 +59,7 @@ mod app_allodia_purchase;
 mod app_allodia_subscription;
 mod app_allodia_sync;
 mod app_calendar;
+mod app_calendar_pane;
 mod app_contacts;
 mod app_display;
 mod app_folders;
@@ -136,6 +137,7 @@ mod records_account_sign_in;
 mod records_accounts;
 mod records_avatar;
 mod records_calendar;
+mod records_calendar_pane;
 mod records_conference;
 mod records_connectivity;
 mod records_contacts;
@@ -271,11 +273,8 @@ pub use records_accounts::{
     MailSyncTechnology, SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
-pub use records_calendar::{
-    AllDayBand, Appearance, CalendarColor, CalendarLayout, CalendarPage, CalendarRow,
-    CalendarSnapshot, DisplaySettings, EventEdge, EventRow, EventSwatch, GridDay, MonthCell,
-    MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
-};
+pub use records_calendar::*;
+pub use records_calendar_pane::*;
 pub use records_conference::{ConferenceDialIn, ConferenceState, EventConference};
 pub use records_connectivity::{AccountProvider, ConnectionInfo, HttpVersion, TlsVersion};
 pub use records_contacts::{

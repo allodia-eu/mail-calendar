@@ -76,6 +76,9 @@ impl MailcalApp {
                 self.runtime
                     .block_on(|| app.set_calendar_color(&account, &calendar, hex));
             }
+            PreferenceIntent::SetCalendarGroupExpanded { account, expanded } => {
+                app.set_calendar_group_expanded(&account, expanded);
+            }
             PreferenceIntent::SetDefaultMeeting { account, choice } => {
                 app.set_default_meeting(&account, choice.as_deref());
             }

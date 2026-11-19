@@ -60,6 +60,9 @@ pub enum PreferenceIntent {
         calendar: String,
         hex: Option<String>,
     },
+    /// Opens or shuts `account`'s group of calendars in the calendar pane; persisted, and
+    /// signals `Surface::Calendar`.
+    SetCalendarGroupExpanded { account: String, expanded: bool },
     /// `account`'s default video meeting, one of its `MeetingDefault::choices` ids, or none.
     SetDefaultMeeting {
         account: String,

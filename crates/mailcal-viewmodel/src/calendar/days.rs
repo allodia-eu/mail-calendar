@@ -69,6 +69,20 @@ pub fn weekday(day: i64) -> u8 {
     u8::try_from((day + 3).rem_euclid(7)).expect("0..=6")
 }
 
+/// The ISO 8601 week number of a day number: weeks run Monday to Sunday, and week 1 is the one
+/// holding the year's first Thursday.
+///
+/// ISO whatever the person's week start, because it is the numbering a European calendar prints;
+/// a Sunday-start row is labelled by the week its Monday falls in.
+#[must_use]
+pub fn iso_week(day: i64) -> u32 {
+    // The Thursday of the day's Monday-based week decides which year the week belongs to.
+    let thursday = day - i64::from(weekday(day)) + 3;
+    let year = date_at(thursday).year();
+    let week = (thursday - from_civil(year, 1, 1)) / 7 + 1;
+    u32::try_from(week).expect("1..=53")
+}
+
 /// The `columns` consecutive days starting at `from`: the day axis of every time grid.
 ///
 /// Consecutive **from the anchor**, not snapped to anything. That is what lets the user zoom the

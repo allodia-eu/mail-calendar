@@ -446,6 +446,11 @@
 	"calendar_loading_range": "Chargement de cette période…",
 	"calendar_now": "Maintenant",
 	"calendar_event_a11y": "{title}, {time}, {calendar}",
+	"calendar_pane_calendars": "Calendriers",
+	"calendar_pane_read_only": "Lecture seule",
+	"calendar_pane_color": "Couleur",
+	"a11y_calendar_pane_day_shown": "Affiché dans le calendrier",
+	"a11y_calendar_pane_calendar": "{name}, {account}",
 
 	"reading_loading": "Chargement du message…",
 	"reading_no_content": "Ce message ne contient rien qui puisse être affiché.",
