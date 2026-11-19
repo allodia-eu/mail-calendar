@@ -356,10 +356,10 @@ local or air-gapped deployment is exempt. Learning reads only the sent mail the 
 | The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
 | Learning in the flow host, with Back, Stop and one remedy (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
-| The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
+| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
+| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
+| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
 | A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 internal val FLOW_GUTTER = 20.dp
+
+/** The widest a page's column grows. */
+internal val FLOW_READING_WIDTH = 640.dp
 
 /** One answer of a single choice, the whole row its target, read as a radio button. */
 @Composable
@@ -69,10 +73,12 @@ internal fun FlowPage(
     bottom: (@Composable ColumnScope.() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    // A line of reading width on a tablet or in landscape, centred, rather than the screen's width.
+    BoxWithConstraints(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         val viewport = maxHeight
         Column(
             modifier = Modifier
+                .widthIn(max = FLOW_READING_WIDTH)
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .heightIn(min = viewport)

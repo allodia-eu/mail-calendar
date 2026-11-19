@@ -73,7 +73,7 @@ class WritingStyleDetailTest {
         compose.onNodeWithText(L10n.writing_style_refused_blank_name(ctx())).assertExists()
 
         compose.onNodeWithTag(DETAIL_NAME_TAG).performTextInput("Office")
-        compose.onNodeWithTag(DETAIL_RENAME_TAG).assertIsEnabled().performClick()
+        compose.onNodeWithTag(DETAIL_RENAME_TAG).assertIsEnabled().performScrollTo().performClick()
         assertEquals(listOf<WritingStyleIntent>(WritingStyleIntent.Rename("style-1", "Office")), sent)
     }
 

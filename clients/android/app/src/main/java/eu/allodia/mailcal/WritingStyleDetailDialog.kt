@@ -6,13 +6,13 @@ package eu.allodia.mailcal
 
 import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -123,6 +123,8 @@ internal fun WritingStyleDetailDialog(id: String, ui: WritingStyleUi, onClose: (
                         .fillMaxSize()
                         .padding(padding)
                         .verticalScroll(rememberScrollState())
+                        .wrapContentWidth()
+                        .widthIn(max = FLOW_READING_WIDTH)
                         .padding(horizontal = FLOW_GUTTER, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                 ) {
@@ -187,22 +189,23 @@ private fun DetailName(
 ) {
     val ctx = LocalContext.current
     val refusal = ui.nameRefusal(name) ?: refused
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(modifier = Modifier.weight(1f)) {
-            HeldFields(detail.rename) { enabled ->
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = onName,
-                    enabled = enabled,
-                    singleLine = true,
-                    isError = refusal != null,
-                    label = { Text(L10n.writing_style_name_label(ctx)) },
-                    supportingText = refusal?.let { { Text(writingStyleRefusalText(ctx, it)) } },
-                    modifier = Modifier.fillMaxWidth().testTag(DETAIL_NAME_TAG),
-                )
-            }
+    // The field takes the width and Rename sits under its end, so a large text size squeezes
+    // neither.
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        HeldFields(detail.rename) { enabled ->
+            OutlinedTextField(
+                value = name,
+                onValueChange = onName,
+                enabled = enabled,
+                singleLine = true,
+                isError = refusal != null,
+                label = { Text(L10n.writing_style_name_label(ctx)) },
+                supportingText = refusal?.let { { Text(writingStyleRefusalText(ctx, it)) } },
+                modifier = Modifier.fillMaxWidth().testTag(DETAIL_NAME_TAG),
+            )
         }
         ControlButton(
+            outlined = true,
             label = L10n.writing_style_rename(ctx),
             control = detail.rename,
             tag = DETAIL_RENAME_TAG,
