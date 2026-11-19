@@ -9,7 +9,7 @@ use engine_api::{Draft, Message, MessageIdHeader, ThreadId, ThreadRef};
 use mailcal_composer::{Block, ComposerDocument, Paragraph};
 
 use super::mail_fake::{
-    ThreadProvider, app_and_logs, original_message, rich_stored_draft, stored_draft,
+    ThreadProvider, app_and_logs, original_message, rich_stored_draft, staging_dir, stored_draft,
 };
 use crate::{
     ComposeKind, ComposeOrigin, ComposePrefill, CompositionId, DraftsIntent, Intent, MessageRef,
@@ -21,12 +21,6 @@ fn composition(name: &str) -> CompositionId {
 
 fn original() -> MessageRef {
     MessageRef::from_parts("acct-1", "m1".to_owned()).expect("a message reference")
-}
-
-fn staging_dir(name: &str) -> String {
-    let dir = std::env::temp_dir().join(format!("mailcal-open-staging-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    dir.to_string_lossy().into_owned()
 }
 
 fn empty_document() -> ComposerDocument {
@@ -63,6 +57,7 @@ fn chain(draft: &Draft) -> Vec<&str> {
 /// from Drafts went out as one.
 #[tokio::test]
 async fn a_reply_saved_before_it_is_sent_answers_its_message() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let reply = composition("reply");
@@ -73,7 +68,7 @@ async fn a_reply_saved_before_it_is_sent_answers_its_message() {
             all: false,
         },
         None,
-        &staging_dir("reply"),
+        &staging_dir(&scratch, "reply"),
     )
     .await
     .expect("the reply opens");
@@ -92,6 +87,7 @@ async fn a_reply_saved_before_it_is_sent_answers_its_message() {
 /// A forward continues the conversation without answering anyone, saved or sent.
 #[tokio::test]
 async fn a_forward_saved_continues_its_conversation_without_answering() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let forward = composition("forward");
@@ -101,7 +97,7 @@ async fn a_forward_saved_continues_its_conversation_without_answering() {
             message: original(),
         },
         None,
-        &staging_dir("forward"),
+        &staging_dir(&scratch, "forward"),
     )
     .await
     .expect("the forward opens");
@@ -117,6 +113,7 @@ async fn a_forward_saved_continues_its_conversation_without_answering() {
 /// A reply opens addressed, titled and quoting its original, from one call.
 #[tokio::test]
 async fn a_reply_opens_addressed_with_its_subject() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -128,7 +125,7 @@ async fn a_reply_opens_addressed_with_its_subject() {
                 all: true,
             },
             None,
-            &staging_dir("reply-all"),
+            &staging_dir(&scratch, "reply-all"),
         )
         .await
         .expect("the reply opens");
@@ -146,6 +143,7 @@ async fn a_reply_opens_addressed_with_its_subject() {
 /// with, field by field.
 #[tokio::test]
 async fn a_prefill_is_laid_over_the_origin() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -161,7 +159,7 @@ async fn a_prefill_is_laid_over_the_origin() {
                 bcc: "me@allodia.local".to_owned(),
                 ..ComposePrefill::default()
             }),
-            &staging_dir("prefilled"),
+            &staging_dir(&scratch, "prefilled"),
         )
         .await
         .expect("the reply opens");
@@ -176,6 +174,7 @@ async fn a_prefill_is_laid_over_the_origin() {
 /// signature to seed: its body has the one it was written with.
 #[tokio::test]
 async fn a_stored_reply_reopens_as_a_reply() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![rich_stored_draft("rich-1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -186,7 +185,7 @@ async fn a_stored_reply_reopens_as_a_reply() {
                 message: MessageRef::from_parts("acct-1", "rich-1".to_owned()).unwrap(),
             },
             None,
-            &staging_dir("resumed"),
+            &staging_dir(&scratch, "resumed"),
         )
         .await
         .expect("the draft resumes");
@@ -201,6 +200,7 @@ async fn a_stored_reply_reopens_as_a_reply() {
 /// original a second time under text that already quotes it, and the next save would store both.
 #[tokio::test]
 async fn only_a_stored_message_with_html_opens_with_its_quote() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let threaded = |mut message: Message| {
         message.thread = Some(ThreadRef::provider_assigned(
             ThreadId::try_from("t1").expect("a thread id"),
@@ -215,6 +215,7 @@ async fn only_a_stored_message_with_html_opens_with_its_quote() {
     app.dispatch(Intent::RefreshMail).await;
     let resume = |key: &'static str| {
         let app = std::sync::Arc::clone(&app);
+        let staging = staging_dir(&scratch, key);
         async move {
             app.open_composer(
                 composition(key),
@@ -222,7 +223,7 @@ async fn only_a_stored_message_with_html_opens_with_its_quote() {
                     message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
                 },
                 None,
-                &staging_dir(key),
+                &staging,
             )
             .await
             .expect("the draft resumes")
@@ -249,6 +250,7 @@ async fn only_a_stored_message_with_html_opens_with_its_quote() {
 /// opened, because the composition says so rather than the intent.
 #[tokio::test]
 async fn a_composition_knows_what_its_composer_is_doing() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let forward = composition("counted");
@@ -258,7 +260,7 @@ async fn a_composition_knows_what_its_composer_is_doing() {
             message: original(),
         },
         None,
-        &staging_dir("counted"),
+        &staging_dir(&scratch, "counted"),
     )
     .await
     .expect("the forward opens");
@@ -271,11 +273,13 @@ async fn a_composition_knows_what_its_composer_is_doing() {
 /// it; a link's or a share's body is the user's to sign (`docs/mcp.md`).
 #[tokio::test]
 async fn a_signed_prefill_seeds_no_signature() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
 
     let open = |name: &'static str, signed: bool| {
         let app = std::sync::Arc::clone(&app);
+        let staging = staging_dir(&scratch, name);
         async move {
             app.open_composer(
                 composition(name),
@@ -285,7 +289,7 @@ async fn a_signed_prefill_seeds_no_signature() {
                     signed,
                     ..ComposePrefill::default()
                 }),
-                &staging_dir(name),
+                &staging,
             )
             .await
             .expect("the composer opens")
@@ -300,6 +304,7 @@ async fn a_signed_prefill_seeds_no_signature() {
 /// a reply the user started, which brings no words of its own, refuses.
 #[tokio::test]
 async fn a_prefilled_reply_whose_original_is_gone_opens_as_a_new_message() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
     let gone = || ComposeOrigin::Reply {
@@ -317,7 +322,7 @@ async fn a_prefilled_reply_whose_original_is_gone_opens_as_a_new_message() {
                 signed: true,
                 ..ComposePrefill::default()
             }),
-            &staging_dir("assistant-reply"),
+            &staging_dir(&scratch, "assistant-reply"),
         )
         .await
         .expect("the assistant's words are not lost");
@@ -330,7 +335,7 @@ async fn a_prefilled_reply_whose_original_is_gone_opens_as_a_new_message() {
             composition("user-reply"),
             gone(),
             None,
-            &staging_dir("user-reply"),
+            &staging_dir(&scratch, "user-reply"),
         )
         .await;
     assert!(
@@ -343,6 +348,7 @@ async fn a_prefilled_reply_whose_original_is_gone_opens_as_a_new_message() {
 /// the reply goes out from, while it stays in the original's conversation.
 #[tokio::test]
 async fn a_prefill_names_the_account_to_write_from() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, _logs) = app_and_logs(ThreadProvider::with(vec![original_message("m1")]));
     app.dispatch(Intent::RefreshMail).await;
 
@@ -357,7 +363,7 @@ async fn a_prefill_names_the_account_to_write_from() {
                 account: Some(engine_api::AccountId::try_from("acct-2").unwrap()),
                 ..ComposePrefill::default()
             }),
-            &staging_dir("from-elsewhere"),
+            &staging_dir(&scratch, "from-elsewhere"),
         )
         .await
         .expect("the reply opens");
@@ -379,7 +385,11 @@ Content-Type: text/html; charset=utf-8
 ";
 
 /// Reopens the stored reply `key`, served as `source`, beside the message it answers.
-async fn reopen_reply(key: &str, source: &[u8]) -> crate::ComposeOpening {
+async fn reopen_reply(
+    scratch: &tempfile::TempDir,
+    key: &str,
+    source: &[u8],
+) -> crate::ComposeOpening {
     let mut draft = stored_draft(key);
     draft.envelope.subject = Some("Re: Quarterly report".to_owned());
     let parent = MessageIdHeader::new("parent@remote").expect("a Message-ID");
@@ -397,7 +407,7 @@ async fn reopen_reply(key: &str, source: &[u8]) -> crate::ComposeOpening {
             message: MessageRef::from_parts("acct-1", key.to_owned()).unwrap(),
         },
         None,
-        &staging_dir(key),
+        &staging_dir(scratch, key),
     )
     .await
     .expect("the draft resumes")
@@ -407,7 +417,8 @@ async fn reopen_reply(key: &str, source: &[u8]) -> crate::ComposeOpening {
 /// the draft already holds: so completing the attribution fetches nothing and works offline.
 #[tokio::test]
 async fn a_reopened_quote_carries_the_originals_headers_and_no_body() {
-    let html = reopen_reply("html-reply", HTML_REPLY).await;
+    let scratch = tempfile::tempdir().expect("a staging directory");
+    let html = reopen_reply(&scratch, "html-reply", HTML_REPLY).await;
     assert_ne!(html.body_html, "");
     let quote = html
         .quote

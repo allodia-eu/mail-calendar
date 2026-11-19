@@ -33,7 +33,7 @@ impl fmt::Debug for AppInput {
             Self::SetCalendarMode(_) => "SetCalendarMode",
             Self::StepCalendar(_) => "StepCalendar",
             Self::CalendarToday => "CalendarToday",
-            Self::ManageCalendars => "ManageCalendars",
+            Self::CalendarPane(_) => "CalendarPane",
             Self::ShowCalendarDay(_) => "ShowCalendarDay",
             Self::ToggleAllDay => "ToggleAllDay",
             Self::OpenCalendarEvent(_) => "OpenCalendarEvent",

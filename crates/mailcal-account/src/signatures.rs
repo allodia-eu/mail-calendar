@@ -214,6 +214,9 @@ pub fn load_signatures(path: impl AsRef<Path>) -> Signatures {
 
 /// Writes the signature library to `path` as TOML, creating parent directories as needed.
 ///
+/// Written beside it and renamed over it, as the preferences are: a file cut short reads as an
+/// empty library, and the next save built on that read would write every signature away.
+///
 /// # Errors
 ///
 /// Returns an [`io::Error`] if the parent directory or file cannot be written (a TOML
@@ -221,10 +224,7 @@ pub fn load_signatures(path: impl AsRef<Path>) -> Signatures {
 pub fn save_signatures(path: impl AsRef<Path>, signatures: &Signatures) -> io::Result<()> {
     let body = toml::to_string(signatures)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    if let Some(parent) = path.as_ref().parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, body)
+    crate::preferences::replace_file(path.as_ref(), &body)
 }
 
 #[cfg(test)]
@@ -248,9 +248,9 @@ mod tests {
 
     #[test]
     fn a_library_round_trips_through_toml_with_its_order_preserved() {
-        let dir = std::env::temp_dir().join("mailcal-signatures-roundtrip-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        let path = signatures_path(&dir);
+        let dir = tempfile::tempdir().unwrap();
+        // A data directory that does not exist yet, so the save has to make it.
+        let path = signatures_path(dir.path().join("data"));
 
         let mut library = Signatures::default();
         // Inserted in an order the id sort would NOT produce, so the assertion below proves the
@@ -270,7 +270,6 @@ mod tests {
             reloaded.get(&id("aaa")).unwrap().body_html,
             "<p>Personal</p>"
         );
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

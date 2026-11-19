@@ -36,6 +36,7 @@ mailcal-l10n = { path = "../mailcal-l10n" }
 # itself still has no parser, that is the point of the check.
 [dev-dependencies]
 serde_json = { workspace = true }
+tempfile = { workspace = true }
 
 # The Windows end-to-end test has to BE the app: it stands up a real named-pipe server and speaks
 # to the real binary over it. Same features as the server side uses.

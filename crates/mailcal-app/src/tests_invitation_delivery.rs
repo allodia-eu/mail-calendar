@@ -24,7 +24,7 @@ use engine_provider::ReplyDelivery;
 use fakes::{InvitationFake, MESSAGE_KEY, invitation_app, invitation_app_with_prefs};
 
 use super::{Intent, InvitationResponse, MessageRef, Surface};
-use crate::tests_fakes as fakes;
+use crate::{preferences_file::ScratchPreferences, tests_fakes as fakes};
 
 /// The message the invitation arrived in, named the way a client names it.
 fn invite() -> MessageRef {
@@ -32,14 +32,6 @@ fn invite() -> MessageRef {
         account: engine_api::AccountId::try_from("acct-a").unwrap(),
         key: engine_api::ProviderKey::new(MESSAGE_KEY).unwrap(),
     }
-}
-
-/// A scratch preferences path, cleaned first so a rerun starts from no stored choice.
-fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-reply-delivery-{name}"));
-    let _ = std::fs::remove_dir_all(&dir);
-    std::fs::create_dir_all(&dir).unwrap();
-    dir.join("preferences.toml")
 }
 
 /// Stores this account's standing answer to the reply-fallback question.
@@ -247,7 +239,8 @@ async fn a_second_answer_to_the_same_question_sends_nothing() {
 
 #[tokio::test]
 async fn a_remembered_never_is_honoured_without_asking() {
-    let prefs = scratch("never");
+    let scratch = ScratchPreferences::empty();
+    let prefs = scratch.path();
     remember(&prefs, mailcal_account::ReplyFallback::Never);
 
     let (app, _) = accept_with_prefs(
@@ -267,7 +260,8 @@ async fn a_remembered_never_is_honoured_without_asking() {
 
 #[tokio::test]
 async fn a_remembered_always_emails_the_reply_without_asking() {
-    let prefs = scratch("always");
+    let scratch = ScratchPreferences::empty();
+    let prefs = scratch.path();
     remember(&prefs, mailcal_account::ReplyFallback::Always);
 
     let provider = InvitationFake::new().reporting_delivery(ReplyDelivery::Failed {
@@ -297,7 +291,8 @@ async fn a_remembered_always_emails_the_reply_without_asking() {
 
 #[tokio::test]
 async fn remembering_the_answer_stops_the_next_meeting_asking() {
-    let prefs = scratch("remember");
+    let scratch = ScratchPreferences::empty();
+    let prefs = scratch.path();
 
     let (app, _) = accept_with_prefs(
         ReplyDelivery::Failed {

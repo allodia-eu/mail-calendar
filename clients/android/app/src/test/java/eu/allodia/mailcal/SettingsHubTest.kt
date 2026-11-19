@@ -6,6 +6,10 @@
 // the cdylib (the generated binding's records/enums are plain Kotlin).
 package eu.allodia.mailcal
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasClickAction
@@ -30,20 +34,18 @@ import org.robolectric.annotation.Config
 import uniffi.mailcal_bindings.Appearance
 import uniffi.mailcal_bindings.CalendarLayout
 import uniffi.mailcal_bindings.DisplaySettings
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.AboutInfo
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaCardState
-import uniffi.mailcal_bindings.AccountSignatureRow
 import uniffi.mailcal_bindings.Attribution
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.SignatureRow
-import uniffi.mailcal_bindings.SignatureSlotKind
-import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
+import uniffi.mailcal_bindings.VideoconferencingPage
 import uniffi.mailcal_bindings.ViewMode
 import uniffi.mailcal_bindings.WeekStart
 
@@ -67,11 +69,27 @@ class SettingsHubTest {
     private var resets = 0
     private var diagnosticsOpened = 0
 
-    /** The Jitsi server the screen reads, kept the way the core keeps it. */
-    private var jitsiServer: String? = null
+    /** Settings → Videoconferencing's page, kept the way the core keeps it. */
+    private var videoconferencing by mutableStateOf(VideoconferencingPage(null, null, emptyList()))
 
-    /** The signature snapshot the screen renders; overridden by the tests that need one. */
-    private var signatures: SignaturesSnapshot? = null
+    /** Every text the Jitsi field sent, in order. */
+    private val jitsiSent = mutableListOf<String>()
+
+    /** The core's `SetJitsiServer`: tidied and stored, or refused as sent and kept on the page. */
+    private fun setJitsiServer(typed: String): VideoconferencingPage {
+        jitsiSent += typed
+        val trimmed = typed.trim()
+        val kept = trimmed.takeIf { it.startsWith("https://") && '?' !in it && '#' !in it }?.trimEnd('/')
+        videoconferencing = when {
+            trimmed.isEmpty() -> videoconferencing.copy(jitsiServer = null, jitsiRefused = null)
+            kept != null -> videoconferencing.copy(jitsiServer = kept, jitsiRefused = null)
+            else -> videoconferencing.copy(jitsiRefused = typed)
+        }
+        return videoconferencing
+    }
+
+    /** The signatures page the screen renders; overridden by the tests that need one. */
+    private var signatures = signaturesPage()
 
     private fun show(
         initialCategory: SettingsCategory? = null,
@@ -97,15 +115,10 @@ class SettingsHubTest {
                 onSetAppearance = {},
                 onSetWeekStart = {},
                 onSetVisibleHours = {},
-            calendars = emptyList(),
-            onSetDefaultCalendar = { _, _ -> },
-                jitsiServer = { jitsiServer },
-                onSetJitsiServer = { typed ->
-                    val kept = typed.trim().takeIf { it.startsWith("https://") && '?' !in it && '#' !in it }
-                    if (typed.isBlank() || kept != null) jitsiServer = kept?.trimEnd('/')
-                    typed.isBlank() || kept != null
-                },
-                meetingDefaults = emptyList(),
+                newEventCalendars = NewEventCalendars(emptyList(), named = false),
+                onSetDefaultCalendar = { _, _ -> },
+                videoconferencing = videoconferencing,
+                onSetJitsiServer = ::setJitsiServer,
                 onSetDefaultMeeting = { _, _ -> },
                 mode = ViewMode.THREADED,
                 onSetMode = {},
@@ -119,12 +132,7 @@ class SettingsHubTest {
                 swipe = SwipeSettings(SwipeActionKind.ARCHIVE, SwipeActionKind.DELETE),
                 onSetSwipeLeft = {},
                 onSetSwipeRight = {},
-                signatures = signatures,
-                signatureHtml = { null },
-                onCreateSignature = { _, _, _ -> },
-                onUpdateSignature = { _, _, _, _ -> },
-                onDeleteSignature = {},
-                onSetAccountSignature = { _, _, _ -> },
+                signatures = testSignaturesUi(signatures),
                 analyticsEnabled = false,
                 onSetAnalytics = {},
                 analyticsPayloadPreview = { "{}" },
@@ -174,23 +182,52 @@ class SettingsHubTest {
     }
 
     /**
-     * Videoconferencing holds the Jitsi server, empty until the person fills it. An address the
-     * core refuses is said under the field and nothing is kept (docs/conferencing.md, rule 13).
+     * The refusal is said while the field holds exactly the text the core refused, so typing takes
+     * it away without a send; text the core keeps reads back in its stored form
+     * (docs/conferencing.md, rule 13).
      */
     @Test
-    fun videoconferencing_keeps_the_jitsi_server_the_core_accepts_and_says_when_it_refuses() {
+    fun videoconferencing_says_a_refusal_only_while_the_field_holds_the_refused_text() {
         show(initialCategory = SettingsCategory.VIDEOCONFERENCING)
         val field = compose.onNodeWithTag(JITSI_SERVER_FIELD)
-        field.performTextInput("http://meet.example.org")
+        val refusal = L10n.settings_jitsi_server_invalid(ctx())
+        field.performTextInput("http://meet.test.local")
         field.performImeAction()
-        compose.onNodeWithText(L10n.settings_jitsi_server_invalid(ctx())).assertIsDisplayed()
-        assertEquals(null, jitsiServer)
+        compose.onNodeWithText(refusal).assertIsDisplayed()
+        assertEquals(null, videoconferencing.jitsiServer)
+
+        field.performTextInput("x")
+        compose.onNodeWithText(refusal).assertDoesNotExist()
+        assertEquals(listOf("http://meet.test.local"), jitsiSent)
 
         field.performTextClearance()
-        field.performTextInput("https://meet.example.org/")
+        field.performTextInput(" https://meet.test.local/ ")
         field.performImeAction()
-        assertEquals("https://meet.example.org", jitsiServer)
-        compose.onNodeWithText(L10n.settings_jitsi_server_invalid(ctx())).assertDoesNotExist()
+        assertEquals("https://meet.test.local", videoconferencing.jitsiServer)
+        field.assert(hasText("https://meet.test.local"))
+        compose.onNodeWithText(refusal).assertDoesNotExist()
+    }
+
+    /** Whether the text changes anything is the core's to decide, so Done always sends it. */
+    @Test
+    fun videoconferencing_sends_the_jitsi_field_on_done_even_unchanged() {
+        videoconferencing = VideoconferencingPage("https://meet.test.local", null, emptyList())
+        show(initialCategory = SettingsCategory.VIDEOCONFERENCING)
+        val field = compose.onNodeWithTag(JITSI_SERVER_FIELD)
+        field.assert(hasText("https://meet.test.local"))
+        field.performImeAction()
+        assertEquals(listOf("https://meet.test.local"), jitsiSent)
+    }
+
+    /** A page read again while the person types leaves what they typed alone. */
+    @Test
+    fun videoconferencing_keeps_typed_text_over_a_redraw() {
+        show(initialCategory = SettingsCategory.VIDEOCONFERENCING)
+        val field = compose.onNodeWithTag(JITSI_SERVER_FIELD)
+        field.performTextInput("https://typing.test.local")
+        videoconferencing = VideoconferencingPage("https://meet.test.local", null, emptyList())
+        compose.waitForIdle()
+        field.assert(hasText("https://typing.test.local"))
     }
 
     /**
@@ -373,11 +410,9 @@ class SettingsHubTest {
      */
     @Test
     fun each_account_gets_both_slots_and_none_is_a_real_choice() {
-        signatures = SignaturesSnapshot(
-            signatures = listOf(SignatureRow("sig-work", "Work")),
-            accounts = listOf(
-                AccountSignatureRow("acct", "alice@test.local", newMessage = "sig-work", replyForward = null),
-            ),
+        signatures = signaturesPage(
+            signatures = listOf(signatureEntry("sig-work", "Work")),
+            accounts = listOf(accountSignatures("alice", newMessage = "sig-work")),
         )
         show()
         compose.onNodeWithText(L10n.settings_category_signatures(ctx())).performScrollTo().performClick()
@@ -393,31 +428,6 @@ class SettingsHubTest {
         // unassigned slot reads "None" rather than sitting blank.
         compose.onAllNodesWithText("Work").assertCountEquals(2)
         compose.onNodeWithText(L10n.settings_signatures_none(ctx())).performScrollTo().assertIsDisplayed()
-    }
-
-    /** Clearing a slot dispatches a null assignment, that is how a user turns a signature off. */
-    @Test
-    fun choosing_none_clears_the_slot() {
-        var cleared: Pair<SignatureSlotKind, String?>? = null
-        signatures = SignaturesSnapshot(
-            signatures = listOf(SignatureRow("sig-work", "Work")),
-            accounts = listOf(
-                AccountSignatureRow("acct", "alice@test.local", newMessage = "sig-work", replyForward = "sig-work"),
-            ),
-        )
-        compose.setContent {
-            AccountSignatureDefaultsCard(
-                accounts = signatures!!.accounts,
-                signatures = signatures!!.signatures,
-                onSet = { _, slot, signature -> cleared = slot to signature },
-            )
-        }
-
-        // The first slot's control, opened and set to None.
-        compose.onAllNodesWithText("Work")[0].performClick()
-        compose.onNodeWithText(L10n.settings_signatures_none(ctx())).performClick()
-
-        assertEquals(SignatureSlotKind.NEW_MESSAGE to null, cleared)
     }
 
     @Test

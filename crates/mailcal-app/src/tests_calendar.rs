@@ -269,8 +269,8 @@ async fn the_week_start_setting_moves_the_grids_first_column() {
 /// test still passes. (It did, and it was.) The question is only ever about the *next* launch.
 #[tokio::test]
 async fn a_primed_grid_paints_from_the_store_without_touching_the_network() {
-    let db = std::env::temp_dir().join("mailcal-prime-calendar.sqlite3");
-    let _ = std::fs::remove_file(&db);
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let db = scratch.path().join("mailcal.sqlite3");
     let surfaces = Arc::new(Mutex::new(Vec::new()));
 
     // Launch one: the store fills from the network, and the app is dropped.
@@ -320,7 +320,6 @@ async fn a_primed_grid_paints_from_the_store_without_touching_the_network() {
         0,
         "painting the grid went to the network, that is the several-second wait, back again"
     );
-    let _ = std::fs::remove_file(&db);
 }
 
 /// ...but a store that has never been synced must say so.

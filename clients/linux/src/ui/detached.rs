@@ -155,6 +155,7 @@ impl DetachedWindows {
             // (`docs/drafts.md`).
             open.view
                 .show_draft_hint(model, ComposerHost::Window(draft.id));
+            open.view.follow_signatures(model.signatures_read);
             open.discard.render(
                 model.discard_prompt == Some(ComposerHost::Window(draft.id)),
                 &open.window,

@@ -321,7 +321,8 @@ fn a_handle_to_a_destroyed_widget_says_it_is_gone() {
 }
 
 fn a_window_draws_its_own_picture() {
-    let path = std::env::temp_dir().join(format!("agent-shot-{}.png", std::process::id()));
+    let dir = tempfile::tempdir().expect("a scratch directory");
+    let path = dir.path().join("agent-shot.png");
     let reply = ok(&json!({ "verb": "screenshot", "path": path }));
     assert!(
         reply["width"].as_i64().is_some_and(|width| width > 0),
@@ -329,7 +330,6 @@ fn a_window_draws_its_own_picture() {
     );
     let bytes = std::fs::read(&path).expect("the picture was written");
     assert!(bytes.starts_with(b"\x89PNG"), "not a PNG");
-    std::fs::remove_file(path).ok();
 }
 
 fn an_idle_app_settles() {
@@ -339,7 +339,8 @@ fn an_idle_app_settles() {
 
 #[test]
 fn the_socket_answers_its_owner_alone() {
-    let dir = std::env::temp_dir().join(format!("agent-socket-{}", std::process::id()));
+    let scratch = tempfile::tempdir().unwrap();
+    let dir = scratch.path().join("agent");
     let path = dir.join("agent.sock");
     std::fs::create_dir_all(&dir).unwrap();
     std::fs::write(&path, b"left behind by an earlier run").unwrap();
@@ -348,5 +349,4 @@ fn the_socket_answers_its_owner_alone() {
         |path: &std::path::Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode(&path), 0o600);
     assert_eq!(mode(&dir), 0o700);
-    std::fs::remove_dir_all(dir).unwrap();
 }

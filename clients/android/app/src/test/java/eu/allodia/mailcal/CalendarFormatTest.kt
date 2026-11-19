@@ -62,18 +62,6 @@ class CalendarFormatTest {
     }
 
     @Test
-    fun week_numbers_are_iso_8601() {
-        // The "WK 28" a Dutch or German user expects. ISO weeks start on Monday and belong to the
-        // year holding their Thursday, so the turn of the year is where a naive implementation
-        // breaks.
-        assertEquals(28, isoWeekNumber(parseIsoDate("2026-07-06")))
-        assertEquals(28, isoWeekNumber(parseIsoDate("2026-07-12"))) // the Sunday closing week 28
-        assertEquals(29, isoWeekNumber(parseIsoDate("2026-07-13"))) // the Monday opening week 29
-        // 2027-01-01 is a Friday, so it belongs to ISO week 53 of 2026, not week 1.
-        assertEquals(53, isoWeekNumber(parseIsoDate("2027-01-01")))
-    }
-
-    @Test
     fun the_hour_ruler_follows_the_devices_clock_setting() {
         assertEquals("09", hourLabel(9, use24Hour = true))
         assertEquals("23", hourLabel(23, use24Hour = true))

@@ -44,7 +44,7 @@ fn an_imap_account_signs_in_through_its_providers_own_autoconfig() {
         return;
     };
     let store = RecordingStore::default();
-    let app = app("imap-signin", store.clone());
+    let (_dir, app) = app("imap-signin", store.clone());
 
     // The provider describing itself: detection reads the autoconfig over trusted HTTPS, so the
     // issuer it names is carried through to the setup form (docs/mail-oauth.md rule 4).

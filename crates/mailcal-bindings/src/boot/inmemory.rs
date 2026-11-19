@@ -221,7 +221,7 @@ pub(crate) fn build_showcase(
     // which is exactly right for a screenshot dataset. Without it the composer's Signature
     // control never appears (it is hidden while the library is empty) and the Settings category
     // shows its empty state, so a store capture would advertise neither.
-    runtime.block_on(|| seed_signatures(&app, locale, &primary_identity, &secondary_identity));
+    seed_signatures(&app, locale, &primary_identity, &secondary_identity);
     // Give each account the name it sends under (`docs/sending.md`). Without it both accounts
     // send as a bare address, which is a real state but not the one a screenshot should
     // advertise, and the seeded mail already addresses this person by name: the From picker
@@ -429,7 +429,7 @@ async fn seed_sender_names(app: &App<Box<dyn Provider>>, accounts: [(&str, &str)
 /// Assigning both slots is what makes the screenshots honest rather than lucky: the reply
 /// capture composes from the primary account, and a `NewMessage`-only assignment would leave it
 /// with no signature while the Settings screen said it had one.
-async fn seed_signatures(
+fn seed_signatures(
     app: &App<Box<dyn Provider>>,
     locale: ShowcaseLocale,
     primary: &str,
@@ -437,19 +437,18 @@ async fn seed_signatures(
 ) {
     let seeds = showcase_data::signatures(locale);
     for (account, seed) in [(primary, &seeds.primary), (secondary, &seeds.secondary)] {
-        let row = app
-            .create_signature(
-                seed.name.to_owned(),
-                seed.body_html.to_owned(),
-                seed.body_plain.to_owned(),
-            )
-            .await;
+        let id = app.signatures().new_id;
+        app.change_signature_now(mailcal_app::SignatureChange::Save {
+            id: id.clone(),
+            name: seed.name.to_owned(),
+            body_html: seed.body_html.to_owned(),
+            body_plain: seed.body_plain.to_owned(),
+        });
         for slot in [
             SignatureSlotKind::NewMessage,
             SignatureSlotKind::ReplyForward,
         ] {
-            app.set_account_signature(account, slot, Some(row.id.clone()))
-                .await;
+            app.assign_signature(account, slot, Some(id.clone()));
         }
     }
 }

@@ -19,6 +19,8 @@ public sealed class AddAccountTests(ShowcaseApp showcase)
 
     private static Element OpenForm(App app)
     {
+        // Add account is a row of the folder tree, which the calendar's pane stands in for.
+        app.ShowMail();
         app.Agent.Invoke(app.Agent.Find(Filter.ById("NavAddAccount", "ListItem")) ?? throw new InvalidOperationException("the sidebar has no Add account row"));
         return app.Agent.Wait(Filter.ById("DetectEmail", "Edit") with { OnScreen = true }, TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("Add account opened no setup form (#DetectEmail)");

@@ -46,8 +46,7 @@ struct CalendarDayHeader: View {
 
     /// The week of the **leftmost** column on screen, which is the one the gutter sits beside.
     private var weekNumber: Int {
-        guard let first = weeks.first?.days.first else { return 0 }
-        return isoWeekNumber(first, zone: calendar.timeZone)
+        Int(weeks.first?.page.days.first?.week ?? 0)
     }
 }
 

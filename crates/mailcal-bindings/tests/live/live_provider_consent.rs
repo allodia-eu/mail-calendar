@@ -16,7 +16,6 @@
 //! be removed from the account's app permissions.
 
 use std::{
-    fs,
     io::{BufRead, BufReader, Write},
     net::TcpListener,
     sync::{Arc, Mutex, mpsc},
@@ -65,17 +64,16 @@ impl AccountCredentialStore for RecordingStore {
     }
 }
 
-fn app(store: RecordingStore) -> Arc<MailcalApp> {
-    let dir = std::env::temp_dir().join(format!("mailcal-live-consent-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).expect("a writable temp dir");
+/// An account-less app in a temp dir of its own, which is removed when the returned guard drops.
+fn app(store: RecordingStore) -> (tempfile::TempDir, Arc<MailcalApp>) {
+    let dir = tempfile::tempdir().expect("a writable temp dir");
     let (tx, _rx) = mpsc::channel();
-    MailcalApp::new_accounts(
+    let app = MailcalApp::new_accounts(
         Box::new(SilentObserver(tx)),
         Box::new(PrintLogger),
         LogLevel::Info,
         Vec::new(),
-        dir.to_string_lossy().into_owned(),
+        dir.path().to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         DeviceInfo {
             platform: Platform::Linux,
@@ -86,7 +84,8 @@ fn app(store: RecordingStore) -> Arc<MailcalApp> {
         },
         Box::new(store),
     )
-    .expect("an account-less app boots")
+    .expect("an account-less app boots");
+    (dir, app)
 }
 
 fn capabilities(variable: &str) -> Option<Vec<AccountCapability>> {
@@ -178,7 +177,7 @@ fn a_person_signs_in_for_what_they_chose() {
         listener.local_addr().unwrap().port()
     );
     let store = RecordingStore::default();
-    let app = app(store.clone());
+    let (_dir, app) = app(store.clone());
 
     let row = match provider.as_str() {
         "microsoft" => {

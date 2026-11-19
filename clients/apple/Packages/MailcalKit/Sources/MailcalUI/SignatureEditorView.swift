@@ -16,11 +16,6 @@ import WebKit
 import PhotosUI
 #endif
 
-/// The cap on an embedded signature image, in bytes. A signature rides in **every** message the
-/// account sends, so a 5 MB logo is 5 MB per mail, and base64 adds a third on top. 512 KB is
-/// generous for a logo and small enough that nobody notices it on the wire.
-private let signatureImageLimit = 512 * 1024
-
 @MainActor
 @Observable
 final class SignatureEditor {
@@ -113,82 +108,51 @@ private struct SignatureEditorWebView: PlatformViewRepresentable {
     }
 }
 
-/// Reads an image file and turns it into a `data:` URI, or explains why it can't. Returns `nil`
-/// for an unreadable file; the size check is separate so the user is told *which* problem it is.
-enum SignatureImage {
-    /// The outcome of picking an image for a signature.
-    enum Outcome {
-        /// A `data:image/…;base64,…` URI, ready to insert.
-        case dataURL(String)
-        /// The file is larger than the per-image cap; carries the cap for the message.
-        case tooLarge(limit: String)
-        /// The file could not be read, or is not an image type we can name.
-        case failed
-    }
-
-    static func load(_ url: URL) -> Outcome {
-        guard let data = try? Data(contentsOf: url) else { return .failed }
-        guard data.count <= signatureImageLimit else {
-            return .tooLarge(
-                limit: ByteCountFormatter.string(
-                    fromByteCount: Int64(signatureImageLimit),
-                    countStyle: .file
-                )
-            )
-        }
-        guard let mediaType = mediaType(for: url) else { return .failed }
-        return .dataURL("data:\(mediaType);base64,\(data.base64EncodedString())")
-    }
-
-    /// The file's `image/*` media type. Anything else is refused here rather than embedded:
-    /// the editor would drop it anyway (it only accepts `data:image/`), and refusing at the
-    /// picker is where the user can still be told.
-    private static func mediaType(for url: URL) -> String? {
-        let type = (try? url.resourceValues(forKeys: [.contentTypeKey]).contentType)
-            ?? UTType(filenameExtension: url.pathExtension)
-        guard let mime = type?.preferredMIMEType, mime.hasPrefix("image/") else { return nil }
-        return mime
-    }
-}
-
-/// The editor for one signature: its name, the rich body, and an "add image" button. `save`
-/// receives the name and both body renderings; the caller decides whether that is a create or an
-/// update (it knows which signature it opened).
+/// The editor for one signature: its name, the rich body, and an "add image" button, drawn from
+/// the core's page. Save stores it under the session's id, and the page's outcome closes the
+/// editor or says why it was not saved.
 struct SignatureEditorView: View {
+    var model: MailboxModel
     let title: String
-    let initialName: String
-    let initialBodyHTML: String?
-    let save: (String, String, String) -> Void
-    let cancel: () -> Void
+    let close: () -> Void
 
     @State private var editor: SignatureEditor
+    @State private var session: SignatureEditorSession
     @State private var name: String
-    @State private var imageError: String?
+    /// Why the last save or picture did not take, in the catalog's words.
+    @State private var problem: String?
 
     init(
+        model: MailboxModel,
+        session: SignatureEditorSession,
         title: String,
         initialName: String,
         initialBodyHTML: String?,
-        save: @escaping (String, String, String) -> Void,
-        cancel: @escaping () -> Void
+        close: @escaping () -> Void
     ) {
+        self.model = model
         self.title = title
-        self.initialName = initialName
-        self.initialBodyHTML = initialBodyHTML
-        self.save = save
-        self.cancel = cancel
+        self.close = close
         let editor = SignatureEditor()
         editor.pendingBody = initialBodyHTML
         _editor = State(initialValue: editor)
+        _session = State(initialValue: session)
         _name = State(initialValue: initialName)
     }
+
+    private var page: SignaturesPage { model.signatures }
+
+    /// Cancel and Add image, held while a change runs on the page.
+    private var held: ControlState { .free(!page.save.running) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title).font(.headline)
-            LabeledContent(L10n.settings_signatures_name_label()) {
-                TextField(L10n.settings_signatures_name_placeholder(), text: $name)
-                    .textFieldStyle(.roundedBorder)
+            HeldFields(control: page.save) {
+                LabeledContent(L10n.settings_signatures_name_label()) {
+                    TextField(L10n.settings_signatures_name_placeholder(), text: $name)
+                        .textFieldStyle(.roundedBorder)
+                }
             }
             Text(L10n.settings_signatures_body_label())
                 .font(.subheadline)
@@ -197,20 +161,24 @@ struct SignatureEditorView: View {
                 .frame(minHeight: 200)
                 .border(.quaternary)
             HStack {
-                insertImageControl
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                HeldFields(control: held) {
+                    insertImageControl
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
                 Spacer()
             }
-            if let imageError {
-                Text(imageError).font(.caption).foregroundStyle(.red)
+            if let problem {
+                Text(problem).font(.caption).foregroundStyle(.red)
             }
             HStack {
                 Spacer()
-                Button(L10n.action_cancel(), role: .cancel) { cancel() }
-                Button(L10n.settings_signatures_save()) { commit() }
+                ControlButton(
+                    title: L10n.action_cancel(), role: .cancel, control: held, action: close)
+                ControlButton(
+                    title: L10n.settings_signatures_save(),
+                    control: SignatureEditorSession.save(page, name: name), action: commit)
                     .buttonStyle(.borderedProminent)
-                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(16)
@@ -223,12 +191,24 @@ struct SignatureEditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         #endif
         .modifier(ComposerLinkDialogModifier(request: $editor.linkRequest, channel: editor.hostChannel))
+        // A save that is running closes the editor or says why it did not take, so the sheet is
+        // not swiped away under it.
+        .interactiveDismissDisabled(page.save.running)
+        .onChange(of: page.outcome?.serial) { _, _ in
+            switch session.take(page.outcome) {
+            case .close: close()
+            case let .refused(reason): problem = SignatureLabels.refusal(reason)
+            case nil: break
+            }
+        }
     }
 
+    /// Sends the name as typed, which the core trims, and the body the bundle reads back.
     private func commit() {
+        problem = nil
         editor.body { result in
             guard let result else { return }
-            save(name.trimmingCharacters(in: .whitespacesAndNewlines), result.html, result.plain)
+            model.saveSignature(session.id, name: name, bodyHTML: result.html, bodyPlain: result.plain)
         }
     }
 
@@ -249,32 +229,34 @@ struct SignatureEditorView: View {
     }
 
     #if os(iOS)
+    /// A photograph arrives as a JPEG, because `PlatformPhotoPicker` asks for the compatible form,
+    /// and is asked of the core's rule as a file from Files is.
     private func choosePhoto() {
-        imageError = nil
+        problem = nil
         PlatformPhotoPicker.present(filter: .images, limit: 1) { pick in
             if let url = pick.files.first {
                 insert(url)
             } else if !pick.failed.isEmpty {
-                imageError = L10n.settings_signatures_image_failed()
+                problem = L10n.settings_signatures_image_failed()
             }
         }
     }
     #endif
 
     private func chooseImage() {
-        imageError = nil
+        problem = nil
         #if os(macOS)
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = false
-        panel.allowedContentTypes = [.image]
+        panel.allowedContentTypes = SignatureImage.types
         panel.begin { response in
             guard response == .OK, let url = panel.urls.first else { return }
             insert(url)
         }
         #else
-        PlatformFilePicker.present { urls in
+        PlatformFilePicker.present(contentTypes: SignatureImage.types, multiple: false) { urls in
             guard let url = urls.first else { return }
             insert(url)
         }
@@ -285,10 +267,10 @@ struct SignatureEditorView: View {
         switch SignatureImage.load(url) {
         case let .dataURL(dataURL):
             editor.insertImage(dataURL: dataURL, altText: url.deletingPathExtension().lastPathComponent)
-        case let .tooLarge(limit):
-            imageError = L10n.settings_signatures_image_too_large(limit: limit)
+        case let .refused(refusal):
+            problem = SignatureLabels.image(refusal)
         case .failed:
-            imageError = L10n.settings_signatures_image_failed()
+            problem = L10n.settings_signatures_image_failed()
         }
     }
 }

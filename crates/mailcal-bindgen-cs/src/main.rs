@@ -143,13 +143,12 @@ mod tests {
     fn an_identical_rewrite_keeps_its_timestamp_and_a_real_one_does_not() {
         // MSBuild compares mtimes, so a generator that touches an unchanged file rebuilds the
         // whole WinUI app for nothing.
-        let dir = std::env::temp_dir().join("mailcal-bindgen-cs-timestamp-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("the test directory is creatable");
+        let scratch = tempfile::tempdir().expect("the test directory is creatable");
+        let dir = scratch.path();
         let path = dir.join("mailcal_bindings.cs");
         std::fs::write(&path, b"// bindings").expect("the fixture is writable");
 
-        let before = snapshot(&dir);
+        let before = snapshot(dir);
         assert_eq!(before.len(), 1, "the snapshot covers the generated file");
         let stamp = before[0].modified;
 
@@ -187,30 +186,25 @@ mod tests {
         std::fs::remove_file(&path).expect("the fixture is removable");
         assert!(restore_if_unchanged(&before[0]).is_err());
         assert!(!path.exists());
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
     fn a_directory_that_does_not_exist_yet_snapshots_as_empty() {
-        let dir = std::env::temp_dir().join("mailcal-bindgen-cs-absent-dir-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        assert!(snapshot(&dir).is_empty());
+        let scratch = tempfile::tempdir().expect("the test directory is creatable");
+        assert!(snapshot(&scratch.path().join("absent")).is_empty());
     }
 
     #[test]
     fn a_subdirectory_is_not_snapshotted_as_a_file() {
-        let dir = std::env::temp_dir().join("mailcal-bindgen-cs-subdir-test");
-        let _ = std::fs::remove_dir_all(&dir);
+        let scratch = tempfile::tempdir().expect("the test tree is creatable");
+        let dir = scratch.path();
         std::fs::create_dir_all(dir.join("nested")).expect("the test tree is creatable");
         std::fs::write(dir.join("mailcal_bindings.cs"), b"// bindings").expect("writable");
 
-        let taken: Vec<_> = snapshot(&dir)
+        let taken: Vec<_> = snapshot(dir)
             .iter()
             .map(|s: &Snapshot| s.path.clone())
             .collect();
         assert_eq!(taken, vec![dir.join("mailcal_bindings.cs")]);
-
-        let _ = std::fs::remove_dir_all(&dir);
     }
 }

@@ -171,7 +171,11 @@ struct ComposerOnScreen: View {
 
     private static let signature = SignatureBody(id: "s1", bodyHtml: "<p>Regards</p>", bodyPlain: "Regards")
     private static let signatures = ComposerSignatures(
-        library: [SignatureRow(id: "s1", name: "Work")],
+        library: [
+            SignatureEntry(
+                id: "s1", name: "Work", edit: ControlState(enabled: true, running: false),
+                delete: ControlState(enabled: true, running: false))
+        ],
         forAccount: { _, _ in signature },
         byId: { _ in signature }
     )

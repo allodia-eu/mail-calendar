@@ -67,6 +67,8 @@ public sealed partial class SettingsDialog : ContentDialog
         model.AllodiaChanged += OnAllodiaChanged;
         Closed += (_, _) => model.AllodiaChanged -= OnAllodiaChanged;
         Closed += (_, _) => LeavingAllodiaSubscription();
+        model.SignaturesChanged += OnSignaturesChanged;
+        Closed += (_, _) => model.SignaturesChanged -= OnSignaturesChanged;
         model.OtherDevicesChanged += OnOtherDevices;
         Closed += (_, _) => model.OtherDevicesChanged -= OnOtherDevices;
         model.RemovalFailed += OnRemovalFailed;

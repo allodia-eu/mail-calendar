@@ -7,11 +7,7 @@
 
 #![cfg(unix)]
 
-use std::{
-    collections::BTreeSet,
-    sync::Arc,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::{collections::BTreeSet, sync::Arc, time::Duration};
 
 use serde_json::{Value, json};
 use tokio::{
@@ -21,19 +17,17 @@ use tokio::{
 
 use crate::{McpConfig, McpServer, session::LEGACY_PROTOCOL_VERSIONS, tests_fake::FakeBackend};
 
-/// A unique socket path for one test, well inside the 104-byte `sun_path` limit.
-fn endpoint(name: &str) -> String {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("a clock after 1970")
-        .as_nanos();
-    let path = std::env::temp_dir().join(format!("mcp-{name}-{unique}/mcp.sock"));
+/// A socket path for one test, in a directory the server makes inside one of the test's own that
+/// the returned guard removes, well inside the 104-byte `sun_path` limit.
+fn endpoint(name: &str) -> (tempfile::TempDir, String) {
+    let dir = tempfile::tempdir().expect("a directory of the test's own");
+    let path = dir.path().join(format!("mcp-{name}")).join("mcp.sock");
     let path = path.to_string_lossy().into_owned();
     assert!(
         path.len() < 104,
         "the test path must itself fit in sun_path"
     );
-    path
+    (dir, path)
 }
 
 /// Connects and waits until the connection actually answers.
@@ -111,7 +105,7 @@ fn config(path: &str, accounts: &[&str]) -> McpConfig {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn turning_it_on_binds_a_socket_that_answers_and_turning_it_off_leaves_nothing() {
-    let path = endpoint("lifecycle");
+    let (_dir, path) = endpoint("lifecycle");
     let (backend, _) = FakeBackend::new();
     let server = McpServer::new(backend, tokio::runtime::Handle::current());
 
@@ -144,7 +138,6 @@ async fn turning_it_on_binds_a_socket_that_answers_and_turning_it_off_leaves_not
         UnixStream::connect(&path).await.is_err(),
         "nothing answers on the endpoint once the server is stopped",
     );
-    let _ = std::fs::remove_file(&path);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -158,7 +151,7 @@ async fn a_settings_change_reaches_a_connection_that_is_already_open() {
     // unticking one did not revoke a live assistant's access: the same bug, in the direction that
     // actually matters. `apply` restarting the accept task could never fix it, because existing
     // connection tasks are untouched by that.
-    let path = endpoint("live-config");
+    let (_dir, path) = endpoint("live-config");
     let (backend, _) = FakeBackend::new();
     let server = McpServer::new(backend, tokio::runtime::Handle::current());
 
@@ -197,7 +190,6 @@ async fn a_settings_change_reaches_a_connection_that_is_already_open() {
     );
 
     server.stop();
-    let _ = std::fs::remove_file(&path);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -205,7 +197,7 @@ async fn turning_direct_send_on_reaches_a_live_connection_too() {
     // The same mechanism, on the toggle where a stale snapshot would be a security bug rather than
     // an inconvenience: a client that had `send_message` in a cached tool list must not be able to
     // call it after the user turns direct send off.
-    let path = endpoint("live-send");
+    let (_dir, path) = endpoint("live-send");
     let (backend, recorder) = FakeBackend::new();
     let server = McpServer::new(backend, tokio::runtime::Handle::current());
 
@@ -239,7 +231,6 @@ async fn turning_direct_send_on_reaches_a_live_connection_too() {
     );
 
     server.stop();
-    let _ = std::fs::remove_file(&path);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -247,7 +238,7 @@ async fn a_second_instance_does_not_steal_a_live_endpoint() {
     // THE trap. `unlink()` then `bind()` is the lazy fix and it is silently catastrophic: a
     // second copy of the app would delete the running instance's socket, bind its own, and every
     // MCP client would reconnect to the wrong process with the user seeing nothing.
-    let path = endpoint("no-steal");
+    let (_dir, path) = endpoint("no-steal");
     let (backend_a, _) = FakeBackend::new();
     let first = McpServer::new(
         Arc::clone(&backend_a) as Arc<dyn crate::MailBackend>,
@@ -277,14 +268,13 @@ async fn a_second_instance_does_not_steal_a_live_endpoint() {
 
     second.stop();
     first.stop();
-    let _ = std::fs::remove_file(&path);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_stale_socket_left_by_a_crash_is_replaced() {
     // The other half of "never steal": a leftover file that nobody is listening on must not
     // block the feature forever, or one crash would need a manual `rm` to recover from.
-    let path = endpoint("stale");
+    let (_dir, path) = endpoint("stale");
     std::fs::create_dir_all(std::path::Path::new(&path).parent().unwrap()).unwrap();
     {
         // Bind and immediately drop, leaving the file with no listener behind it.
@@ -301,7 +291,6 @@ async fn a_stale_socket_left_by_a_crash_is_replaced() {
     );
 
     server.stop();
-    let _ = std::fs::remove_file(&path);
 }
 
 #[tokio::test(flavor = "multi_thread")]

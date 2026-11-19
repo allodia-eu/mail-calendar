@@ -22,6 +22,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -174,24 +175,33 @@ internal fun ControlButton(
     }
 }
 
-/** A text button, for an action beside a row rather than the row's own. */
+/** A text button, for an action beside a row rather than the row's own, led by [icon] if given. */
 @Composable
 internal fun ControlTextButton(
     label: String,
     control: ControlState,
     tag: String,
     modifier: Modifier = Modifier,
+    icon: Int? = null,
     onClick: () -> Unit,
 ) {
     TextButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
         Running(control, tag)
+        if (icon != null && !control.running) {
+            Icon(
+                painter = painterResource(icon),
+                contentDescription = null,
+                modifier = Modifier.padding(end = 8.dp),
+            )
+        }
         Text(label)
     }
 }
 
 /**
  * An icon button, for an action beside a row where a label would take the row's room. [label] is
- * what assistive technology announces; the spinner takes the icon's place while its work runs.
+ * what assistive technology announces; the spinner takes the icon's place while its work runs. A
+ * destructive one draws its icon in the error colour.
  */
 @Composable
 internal fun ControlIconButton(
@@ -200,6 +210,7 @@ internal fun ControlIconButton(
     control: ControlState,
     tag: String,
     modifier: Modifier = Modifier,
+    destructive: Boolean = false,
     onClick: () -> Unit,
 ) {
     IconButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
@@ -210,6 +221,11 @@ internal fun ControlIconButton(
                 painter = painterResource(icon),
                 contentDescription = label,
                 modifier = Modifier.size(20.dp),
+                tint = if (destructive && control.enabled) {
+                    MaterialTheme.colorScheme.error
+                } else {
+                    LocalContentColor.current
+                },
             )
         }
     }

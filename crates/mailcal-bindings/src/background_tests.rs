@@ -13,6 +13,10 @@ fn a_watch_log_scope_does_not_expose_the_account_address() {
     assert!(!scope.contains('@'));
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn changes_during_a_refresh_cost_one_more_refresh_and_never_wait_for_it() {
     let runs = Arc::new(std::sync::atomic::AtomicUsize::new(0));

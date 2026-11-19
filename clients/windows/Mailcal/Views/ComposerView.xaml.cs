@@ -219,6 +219,7 @@ public sealed partial class ComposerView : UserControl
         // Before the editor goes: a composition nothing else finished is forgotten here, and leaves
         // the stored draft in Drafts (docs/drafts.md).
         TeardownDrafts();
+        TeardownSignatures();
         _editor.Close();
         ReleaseProbe.Watch(this, "composer");
     }

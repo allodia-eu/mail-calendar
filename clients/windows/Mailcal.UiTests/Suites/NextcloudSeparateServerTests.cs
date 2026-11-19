@@ -345,6 +345,7 @@ public sealed class NextcloudSeparateServerTests(SetupHarnessApp harness) : ICla
                 "Skip leaves the separate-server step");
             flow.CompleteSetupPrompts();
 
+            app.ShowMail();
             app.Agent.Invoke(app.Agent.Find(Filter.ById("NavAddAccount", "ListItem"))
                 ?? throw new InvalidOperationException("the sidebar has no Add account row (#NavAddAccount)"));
             ConnectToTheSeparateServerStep(app, flow, Bob, "harness-bob-pw");

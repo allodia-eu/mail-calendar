@@ -226,11 +226,12 @@ mod tests {
     };
     use crate::model::Raw;
 
-    fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(name);
-        let _ = std::fs::remove_dir_all(&dir);
+    /// A checkout with an empty `branding/`, in a directory the returned guard removes.
+    fn scratch() -> (tempfile::TempDir, PathBuf) {
+        let guard = tempfile::tempdir().expect("a scratch checkout");
+        let dir = guard.path().to_path_buf();
         std::fs::create_dir_all(dir.join("branding")).expect("a scratch checkout");
-        dir
+        (guard, dir)
     }
 
     fn write(root: &Path, file: &str, contents: &str) {
@@ -327,7 +328,7 @@ mod tests {
 
     #[test]
     fn the_brand_file_wins_over_the_default_and_the_environment_over_both() {
-        let dir = scratch("mailcal-l10n-brand-order");
+        let (_scratch, dir) = scratch();
         write(
             &dir,
             "default.env",
@@ -389,7 +390,7 @@ mod tests {
         // A missing file named here is changed on every build to Cargo, which rebuilt every crate
         // carrying a brand value on every build of every checkout. The directory is what notices
         // one appearing.
-        let dir = scratch("mailcal-l10n-brand-tracking");
+        let (_scratch, dir) = scratch();
         write(
             &dir,
             "default.env",
@@ -421,7 +422,7 @@ mod tests {
 
     #[test]
     fn a_checkout_without_the_default_is_an_error_not_an_empty_name() {
-        let dir = scratch("mailcal-l10n-brand-missing");
+        let (_scratch, dir) = scratch();
 
         let err = value(&dir, APP_NAME_KEY, None).expect_err("nothing names the app");
 

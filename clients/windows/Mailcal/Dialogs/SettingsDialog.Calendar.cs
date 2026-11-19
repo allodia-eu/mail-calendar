@@ -12,7 +12,7 @@
 // the core re-signals Settings + Calendar, and the calendar re-applies (CalendarView reacts to
 // MailboxModel.DisplaySettingsVersion).
 using System.Globalization;
-using Allodia.Mailcal.Calendar;
+using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -68,32 +68,85 @@ public sealed partial class SettingsDialog
         return panel;
     }
 
+    // The default-calendar group, refilled when the calendars a new event can go on change. A
+    // change of default alone moves the check in place: a redraw would take the radio from under
+    // the person who just pressed it, with their keyboard focus.
+    private StackPanel? _defaultCalendars;
+    private string? _defaultCalendarsDrawn;
+    private readonly Dictionary<(string Account, string Id), RadioButton> _defaultCalendarRadios = [];
+
+    private StackPanel DefaultCalendarChoices()
+    {
+        _defaultCalendars = new StackPanel();
+        _defaultCalendarsDrawn = null;
+        RefreshDefaultCalendars();
+        return _defaultCalendars;
+    }
+
     // Which calendar a new event is filed on. The checked row is the core's IsDefault, which it
     // resolves against the calendars that exist and can be written, so no fallback is kept here.
-    private UIElement DefaultCalendarChoices()
+    private void RefreshDefaultCalendars()
     {
-        var groups = CalendarWriteGating.DefaultChoices(_model.Calendars());
-        if (groups.Count == 0)
+        if (_defaultCalendars is not { } host)
         {
-            return Description(L10n.SettingsDefaultCalendarNone());
+            return;
+        }
+        var offered = _model.NewEventCalendars();
+        var drawn = SettingsCalendarPages.DefaultCalendarsFingerprint(offered);
+        if (drawn == _defaultCalendarsDrawn)
+        {
+            MoveDefaultCalendar(offered);
+            return;
+        }
+        _defaultCalendarsDrawn = drawn;
+        _defaultCalendarRadios.Clear();
+        host.Children.Clear();
+        if (offered is not { Groups.Length: > 0 })
+        {
+            host.Children.Add(Description(L10n.SettingsDefaultCalendarNone()));
+            return;
         }
         var stack = new StackPanel { Spacing = 4 };
-        foreach (var (header, rows) in groups)
+        foreach (var group in offered.Groups)
         {
-            if (header is not null)
+            if (offered.Named)
             {
-                stack.Children.Add(new TextBlock { Text = header, Margin = new Thickness(0, 8, 0, 0) });
+                stack.Children.Add(new TextBlock { Text = group.Address, Margin = new Thickness(0, 8, 0, 0) });
             }
-            foreach (var calendar in rows)
+            foreach (var calendar in group.Calendars)
             {
                 var radio = Radio(
                     calendar.Name, "default-calendar", calendar.IsDefault,
                     () => _model.SetDefaultCalendar(calendar.Account, calendar.Id));
                 AutomationProperties.SetAutomationId(radio, $"DefaultCalendar_{calendar.Account}_{calendar.Id}");
+                _defaultCalendarRadios[(calendar.Account, calendar.Id)] = radio;
                 stack.Children.Add(radio);
             }
         }
-        return stack;
+        host.Children.Add(stack);
+    }
+
+    /// <summary>Checks the core's default without storing it again: it is what the core already
+    /// holds.</summary>
+    private void MoveDefaultCalendar(NewEventCalendars? offered)
+    {
+        var was = _rebuilding;
+        _rebuilding = true;
+        try
+        {
+            foreach (var calendar in (offered?.Groups ?? []).SelectMany(group => group.Calendars))
+            {
+                if (_defaultCalendarRadios.TryGetValue((calendar.Account, calendar.Id), out var radio)
+                    && radio.IsChecked != calendar.IsDefault)
+                {
+                    radio.IsChecked = calendar.IsDefault;
+                }
+            }
+        }
+        finally
+        {
+            _rebuilding = was;
+        }
     }
 
     // The 12/24-hour clock group, drawn by BuildGeneral, under General, not Calendar, because it

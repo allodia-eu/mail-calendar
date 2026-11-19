@@ -31,7 +31,7 @@ use super::{
     settings::{PaneComposer, SettingsWindow},
     setup::SetupWindow,
     setup_widgets::SenderNamePrompt,
-    shell_sidebar::{restore_pane_width, sidebar_pane},
+    shell_sidebar::{Sidebar, restore_pane_width, sidebar_pane},
     sync_line,
     timestamps::MailClock,
     welcome::WelcomeWindow,
@@ -45,7 +45,7 @@ pub(crate) struct AppWidgets {
     messages: gtk::ListBox,
     search: SearchBar,
     mail_band: gtk::Box,
-    pane_heading: adw::HeaderBar,
+    sidebar_column: Sidebar,
     command_bar: CommandBarRow,
     selection_pane: SelectionCountPane,
     primary: gtk::Stack,
@@ -101,7 +101,8 @@ impl AppWidgets {
         sidebar_scroll.set_min_content_width(folder_pane::width::MIN);
         sidebar_scroll.set_child(Some(&sidebar));
         let destinations = DestinationBar::new(&sender);
-        let (sidebar_toolbar, pane_heading) = sidebar_pane(&sidebar_scroll, &destinations);
+        let calendar = CalendarPane::new(&root, sender.clone());
+        let sidebar_column = sidebar_pane(&sidebar_scroll, calendar.side(), &destinations);
 
         let messages = gtk::ListBox::new();
         // Multiple, so a selection is the platform's own selected state rather than a colour we
@@ -196,7 +197,6 @@ impl AppWidgets {
         inner.set_shrink_start_child(false);
         inner.set_vexpand(true);
         let mail_header = MailToolbar::new(search.entry()).widget().clone();
-        let calendar = CalendarPane::new(&root, sender.clone());
         let contacts = ContactsPane::new(&root, sender.clone());
         let primary = gtk::Stack::new();
         primary.set_transition_type(gtk::StackTransitionType::Crossfade);
@@ -204,7 +204,7 @@ impl AppWidgets {
         primary.add_named(calendar.widget(), Some("calendar"));
         primary.add_named(contacts.widget(), Some("contacts"));
         let outer = gtk::Paned::new(gtk::Orientation::Horizontal);
-        outer.set_start_child(Some(&sidebar_toolbar));
+        outer.set_start_child(Some(&sidebar_column.pane));
         outer.set_end_child(Some(&primary));
         outer.set_resize_start_child(false);
         outer.set_shrink_start_child(false);
@@ -237,7 +237,7 @@ impl AppWidgets {
             messages,
             search,
             mail_band,
-            pane_heading,
+            sidebar_column,
             command_bar,
             selection_pane,
             primary,
@@ -274,12 +274,16 @@ impl AppWidgets {
     pub(super) fn render(&mut self, model: &AppModel) {
         let calendar_opened = entered_calendar(self.rendered_primary, model.primary);
         self.destinations.sync(model.primary);
+        self.sidebar_column.show(model.primary);
         match model.primary {
             PrimaryView::Mail => self.primary.set_visible_child_name("mail"),
             PrimaryView::Calendar => {
-                self.calendar.render(&model.calendar, model.app.as_ref());
-                self.calendar
-                    .render_manager(model.calendar_manager_generation, model.app.as_ref());
+                self.calendar.render(
+                    &model.calendar,
+                    &model.calendar_side,
+                    &model.notices.marks,
+                    model.app.as_ref(),
+                );
                 self.primary.set_visible_child_name("calendar");
                 if calendar_opened {
                     self.calendar.opened();
@@ -292,7 +296,7 @@ impl AppWidgets {
         }
         mail_toolbar::show_mail_chrome(
             &self.mail_band,
-            &self.pane_heading,
+            &self.sidebar_column.heading,
             model.primary == PrimaryView::Mail,
         );
         self.rendered_primary = Some(model.primary);
@@ -376,6 +380,7 @@ impl AppWidgets {
             // How this composition's last save ended, re-read whenever the core says some
             // composition's moved (`docs/drafts.md`).
             self.composer.show_draft_hint(model, ComposerHost::Pane);
+            self.composer.follow_signatures(model.signatures_read);
             // A navigation is waiting for this draft to be left. Issued from here because the
             // model renders behind a shared reference and cannot run the editor round trip itself.
             if let Some(generation) = model.draft_check {
@@ -423,6 +428,8 @@ impl AppWidgets {
             model.preferences.clone(),
             self.sender.clone(),
         );
+        self.settings.follow_signatures(model.signatures_read);
+        self.settings.follow_calendar(model.calendar_settings_read);
         self.settings.show_notice(
             &model.notices.notices,
             model.settings.render_state().account,

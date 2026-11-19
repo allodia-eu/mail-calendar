@@ -24,6 +24,7 @@ pub mod grid;
 pub mod meeting;
 pub mod month;
 pub mod packing;
+pub mod pane;
 
 // The agenda is what this module started as; keep its types reachable at the original
 // path so every existing caller (and the FFI) still resolves.
@@ -95,4 +96,17 @@ pub struct MeetingDefault {
     pub choices: Vec<MeetingOption>,
     /// The `id` of the chosen one, while a calendar of the account still offers it.
     pub chosen: Option<String>,
+}
+
+/// Settings → Videoconferencing, past the accounts that make meetings (those are the accounts
+/// snapshot's): the person's Jitsi server and each account's default video meeting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VideoconferencingPage {
+    /// The Jitsi server as stored, or `None` until the person sets one.
+    pub jitsi_server: Option<String>,
+    /// The text the core last refused to store as the Jitsi server, exactly as it was sent, until
+    /// the next text is sent. The field says so while it still holds that text.
+    pub jitsi_refused: Option<String>,
+    /// Every account whose calendars offer a video meeting, with the one its new events take.
+    pub defaults: Vec<MeetingDefault>,
 }

@@ -56,8 +56,9 @@ mod provider;
 
 pub(super) use calendar::CalendarFake;
 pub(super) use calendar_builders::{
-    calendar_account, calendar_app, calendar_app_on, event_from_today, occurrence_wall_clock_of,
-    stored_event, weekly_event_from_today, weekly_event_with_a_moved_occurrence,
+    calendar_account, calendar_app, calendar_app_on, calendar_app_with_prefs, event_from_today,
+    occurrence_wall_clock_of, stored_event, weekly_event_from_today,
+    weekly_event_with_a_moved_occurrence,
 };
 pub(super) use connectors::{
     FakeConnector, FlakyConnector, ObservingConnector, SyncFailingConnector,

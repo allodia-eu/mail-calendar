@@ -14,7 +14,7 @@ use fakes::{FakeProvider, account, app, app_with_prefs, message};
 use mailcal_viewmodel::FolderRow;
 
 use super::{Intent, reference::FolderRef};
-use crate::tests_fakes as fakes;
+use crate::{preferences_file::ScratchPreferences, tests_fakes as fakes};
 
 /// The rows a pane would actually draw, as `(key, depth)`.
 fn drawn(rows: &[FolderRow]) -> Vec<(&str, u32)> {
@@ -132,8 +132,7 @@ async fn shutting_a_folder_hides_the_whole_branch_beneath_it() {
 async fn a_shut_folder_is_still_shut_after_a_relaunch() {
     // The reason expansion lives in the core at all (rule 3). A client holding this in view
     // state looks perfectly correct until the app is restarted.
-    let dir = std::env::temp_dir().join("mailcal-folder-tree-relaunch");
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = ScratchPreferences::empty();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
 
     {
@@ -142,7 +141,7 @@ async fn a_shut_folder_is_still_shut_after_a_relaunch() {
                 "acct-1",
                 FakeProvider::with_archive(vec![message("m1", "a", "One")]).with_nested_folders(),
             )],
-            dir.join("preferences.toml"),
+            scratch.path(),
             &surfaces,
         );
         app.dispatch(Intent::RefreshMail).await;
@@ -160,7 +159,7 @@ async fn a_shut_folder_is_still_shut_after_a_relaunch() {
             "acct-1",
             FakeProvider::with_archive(vec![message("m1", "a", "One")]).with_nested_folders(),
         )],
-        dir.join("preferences.toml"),
+        scratch.path(),
         &surfaces,
     );
     app.dispatch(Intent::RefreshMail).await;

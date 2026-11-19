@@ -20,7 +20,6 @@
 //! test has to make a rotation happen there.
 
 use std::{
-    fs,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::{
@@ -126,7 +125,6 @@ fn a_rotation_during_a_cold_background_worker_connect_reaches_the_store() {
     assert_rotation_reached_the_store(&recorder, &account_id, "cold background worker");
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// **The foreground app.** It returns from the constructor with placeholders and dials in the
@@ -173,7 +171,6 @@ fn a_rotation_during_the_foreground_background_dial_reaches_the_store() {
     assert_rotation_reached_the_store(&recorder, &account_id, "foreground background dial");
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// **Adding an account.** The dial fails here (no mail host), so the add fails and rolls back; but
@@ -216,7 +213,6 @@ fn a_rotation_during_add_account_reaches_the_store_even_when_the_dial_fails() {
     );
 
     drop(app);
-    let _ = fs::remove_dir_all(data_dir);
 }
 
 /// A token endpoint that answers one refresh and **rotates** the refresh token, like Fastmail.
@@ -330,7 +326,7 @@ fn two_cores_over_one_account_refresh_once() {
             let data_dir = temp_data_dir(name);
             std::thread::spawn(move || {
                 let (tx, _rx) = mpsc::channel();
-                let app = MailcalApp::new_background_worker(
+                MailcalApp::new_background_worker(
                     Box::new(ChannelObserver { tx }),
                     Box::new(NullLogger),
                     LogLevel::Info,
@@ -340,8 +336,7 @@ fn two_cores_over_one_account_refresh_once() {
                     crate::analytics::test_device(),
                     Box::new(RecordingStoreHandle(recorder)),
                 )
-                .expect("a headless worker boots even though the account is unreachable");
-                (app, data_dir)
+                .expect("a headless worker boots even though the account is unreachable")
             })
         })
         .collect();
@@ -358,10 +353,7 @@ fn two_cores_over_one_account_refresh_once() {
     );
     assert_rotation_reached_the_store(&recorder, &account_id, "two concurrent cores");
 
-    for (app, data_dir) in built {
-        drop(app);
-        let _ = fs::remove_dir_all(data_dir);
-    }
+    drop(built);
 }
 
 // The same property for an IMAP account signed in through its provider.

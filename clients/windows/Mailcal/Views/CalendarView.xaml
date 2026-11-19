@@ -18,8 +18,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- Header: the period on screen, month paging, "back to today", the calendar manager, the
-             zoom/shape menu, and new event.
+        <!-- Header: the period on screen, month paging, "back to today", the zoom/shape menu, and
+             new event.
              The period title is written by the GRID, from the days actually visible, at the day zoom
              the user is looking at one column, and naming the month of a Sunday they cannot see is a
              small lie that reads as a bug. The month grid writes it too, from its anchor month. -->
@@ -115,14 +115,6 @@
                         <FontIcon Glyph="&#xE76C;" FontSize="12" />
                     </Button>
                 </StackPanel>
-
-                <Button x:Name="ManageButton" Click="OnManageCalendars"
-                        Style="{StaticResource HeaderButton}"
-                        AutomationProperties.AutomationId="CalendarManage"
-                        AutomationProperties.Name="{x:Bind l10n:L10n.CalendarManage(), Mode=OneTime}"
-                        ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarManage(), Mode=OneTime}">
-                    <FontIcon Glyph="&#xE8FD;" FontSize="14" />
-                </Button>
 
                 <DropDownButton x:Name="ViewButton"
                                 Style="{StaticResource HeaderDropDown}"

@@ -120,4 +120,21 @@ internal static class TimeZones
     // The today label's clock, as CalendarFormat.ClockTime draws it; RelativeDateTests holds the two
     // together.
     private static string ClockPattern(bool use24Hour) => use24Hour ? "HH:mm" : "h:mm tt";
+
+    /// <summary>
+    /// The wall clock in <paramref name="zone"/> (an IANA id) at <paramref name="now"/>: what "today"
+    /// and "now" mean in the display zone the core resolved. The machine's own clock when the zone
+    /// is unknown.
+    /// </summary>
+    internal static DateTime WallClock(string zone, DateTimeOffset now)
+    {
+        try
+        {
+            return TimeZoneInfo.ConvertTime(now, TimeZoneInfo.FindSystemTimeZoneById(zone)).DateTime;
+        }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException or ArgumentException)
+        {
+            return now.ToLocalTime().DateTime;
+        }
+    }
 }

@@ -41,6 +41,7 @@ mailcal-l10n = { path = "../mailcal-l10n" }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-util", "time"] }
+tempfile = { workspace = true }
 
 [lints]
 workspace = true

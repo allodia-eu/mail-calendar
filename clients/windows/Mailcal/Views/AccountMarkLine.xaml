@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The mark an account carries while a notice is about it (docs/notices.md rule 6): one line under
+     its address, the notice's glyph in its tone and its few words, readable rather than a tooltip.
+     Drawn by the folder tree's account row and the calendar pane's group heading alike
+     (docs/calendar-pane.md rule 7). Collapsed while there is no mark. -->
+<UserControl
+    x:Class="Allodia.Mailcal.Views.AccountMarkLine"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Visibility="Collapsed"
+    IsTabStop="False">
+    <Grid ColumnSpacing="6">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+        <FontIcon x:Name="MarkGlyph"
+                  FontSize="12"
+                  VerticalAlignment="Center"
+                  AutomationProperties.AccessibilityView="Raw" />
+        <TextBlock x:Name="MarkLabel"
+                   Grid.Column="1"
+                   Style="{StaticResource CaptionTextBlockStyle}"
+                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                   TextWrapping="NoWrap"
+                   TextTrimming="CharacterEllipsis"
+                   AutomationProperties.AutomationId="AccountNoticeLabel" />
+    </Grid>
+</UserControl>

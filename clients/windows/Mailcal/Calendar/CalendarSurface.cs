@@ -238,6 +238,10 @@ internal sealed partial class CalendarSurface : UserControl
     /// <summary>Raised whenever the visible period changes, so the header can follow.</summary>
     internal Action? PeriodChanged { get; set; }
 
+    /// <summary>Raised when the grid comes to rest on days other than it last rested on, with the first
+    /// day on screen and how many are: once a gesture or a step has settled, never during one.</summary>
+    internal Action<DateOnly, int>? CameToRest { get; set; }
+
     // ---- Seeding and invalidation ------------------------------------------------------------------
 
     /// <summary>Re-seeds the grid from the core's persisted display settings.</summary>
@@ -399,6 +403,8 @@ internal sealed partial class CalendarSurface : UserControl
         {
             return;
         }
+
+        ReportRest(m);
 
         // Nothing is moving. Spend the idle frames painting the pages a flick will land on next, one
         // per frame, so a page turn never builds a week's paint mid-fling (§7). This presents nothing

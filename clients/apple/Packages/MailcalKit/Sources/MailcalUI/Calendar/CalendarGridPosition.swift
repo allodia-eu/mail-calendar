@@ -31,6 +31,9 @@ final class CalendarGridPosition {
     /// Whether today's column is on screen, the one reading of "in view" a strip has: its days do
     /// not belong to a page, so there is no week for today to be inside of.
     private(set) var todayInView = false
+    /// The day the strip's left edge last came to rest on, counted from the origin week's first day.
+    /// Published only at rest, so the pane beside the grid is asked again per landing, never per frame.
+    private(set) var restingDay = 0
 
     init(zoom: CalendarZoom) {
         self.zoom = zoom
@@ -47,5 +50,7 @@ final class CalendarGridPosition {
         let visible = Int(left.rounded(.down))..<Int((left + zoom.visibleDays).rounded(.up))
         let inView = todayColumn.map(visible.contains) ?? false
         if inView != todayInView { todayInView = inView }
+        let day = left.rounded()
+        if abs(left - day) < 0.001, Int(day) != restingDay { restingDay = Int(day) }
     }
 }

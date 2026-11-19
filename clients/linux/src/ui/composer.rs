@@ -330,26 +330,17 @@ impl ComposerPane {
         self.column.replace(Some(column));
     }
 
-    /// Draws what the draft's last save said, or takes the line away when there is nothing to
-    /// say. A hint and never a gate: no state here stops the composer being closed.
+    /// Draws what the draft's last save said (`composer_drafts::draw_draft_hint`).
     pub(crate) fn show_draft_hint(&self, model: &super::AppModel, host: ComposerHost) {
-        let Some(label) = self.hint.borrow().clone() else {
-            return;
-        };
-        let status = model.draft_status_of(host);
-        match super::composer_drafts::draft_hint_text(status) {
-            Some(text) => {
-                label.set_text(text);
-                if super::composer_drafts::draft_hint_failed(status) {
-                    label.remove_css_class("dim-label");
-                    label.add_css_class("error");
-                } else {
-                    label.remove_css_class("error");
-                    label.add_css_class("dim-label");
-                }
-                label.set_visible(true);
-            }
-            None => label.set_visible(false),
+        if let Some(label) = self.hint.borrow().as_ref() {
+            super::composer_drafts::draw_draft_hint(label, model.draft_status_of(host));
+        }
+    }
+
+    /// Lists the signature library again in the picker when the core signalled a read of it.
+    pub(crate) fn follow_signatures(&self, read: u64) {
+        if let Some(control) = self.signature.borrow().as_ref() {
+            control.follow(read);
         }
     }
 

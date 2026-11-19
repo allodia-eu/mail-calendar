@@ -1689,7 +1689,7 @@ The scoped release path is frame-qualified on the packaged runtime (note ¹²).
 | A calendar that is not connected says so, and nothing on it can be changed or answered | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A calendar that stops answering after it connected says so after two refreshes, and clears on the next that reaches it | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A change that did not happen says so; one that may have says it is unconfirmed | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Calendar manager: visibility + colour override (persisted) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Calendars shown and coloured from the pane (desktop, [`calendar-pane.md`](calendar-pane.md)) or the manager (phone): visibility + colour override (persisted) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Display settings: week start, 12/24h, horizon | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Pinch-to-zoom: hours | — | ✅ | ✅ | ✅ | ✅ | ⬜ |
 | Pinch-to-zoom: days, and **diagonal** | — | ✅ | ✅ | ✅ ¹ | ✅ | ⬜ |

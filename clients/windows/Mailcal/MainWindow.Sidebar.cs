@@ -1,6 +1,6 @@
 // The sidebar: a NavigationView accordion, the All Accounts group over the unified Inbox, one
-// expandable entry per account with its folders, and Add Account, plus the Calendar footer entry
-// and the Settings gear. The menu is
+// expandable entry per account with its folders, and Add Account, plus the Mail, Calendar and
+// Contacts destinations and the Settings gear. The menu is
 // BOUND to SidebarItems and reconciled in place from the model's Accounts/Folders/selection, so the
 // framework owns container realization and the native selection highlight. Split out of
 // MainWindow.xaml.cs to keep that file under the 500-line limit.
@@ -32,6 +32,7 @@ public sealed partial class MainWindow
     private const string AddAccountTag = SidebarTree.AddAccountTag;
     private const string OutboxTag = SidebarTree.OutboxTag;
     private const string AccountTagPrefix = SidebarTree.AccountTagPrefix;
+    private const string MailTag = "@mail";
     private const string CalendarTag = "@calendar";
     private const string ContactsTag = "@contacts";
 
@@ -92,9 +93,10 @@ public sealed partial class MainWindow
     public ObservableCollection<SidebarItem> SidebarItems { get; } = [];
 
     /// <summary>
-    /// The two non-mail destinations, above the Settings gear, so the accounts/folders accordion
-    /// keeps the whole scrollable body to itself. Contacts takes the People glyph, deliberately NOT
-    /// the Contact glyph the account rows carry, one card versus a group of them, so the
+    /// The destinations, Mail, Calendar and Contacts in that order above the Settings gear and pinned
+    /// under the accordion or the calendar pane (docs/folder-pane.md, rule 21). Mail takes the open
+    /// envelope, since the closed one is the Inbox's; Contacts takes the People glyph, deliberately
+    /// NOT the Contact glyph the account rows carry, one card versus a group of them, so the
     /// destination doesn't read as another account.
     /// </summary>
     /// <remarks>
@@ -108,10 +110,10 @@ public sealed partial class MainWindow
     [
         new SidebarItem
         {
-            Tag = ContactsTag,
-            Content = L10n.NavContacts(),
-            Glyph = "\uE716",           // People
-            AutomationId = "NavContacts",
+            Tag = MailTag,
+            Content = L10n.NavMail(),
+            Glyph = "\uE8C3",           // Read (an open envelope)
+            AutomationId = "NavMail",
         },
         new SidebarItem
         {
@@ -119,6 +121,13 @@ public sealed partial class MainWindow
             Content = L10n.NavCalendar(),
             Glyph = "\uE787",           // Calendar
             AutomationId = "NavCalendar",
+        },
+        new SidebarItem
+        {
+            Tag = ContactsTag,
+            Content = L10n.NavContacts(),
+            Glyph = "\uE716",           // People
+            AutomationId = "NavContacts",
         },
     ];
 
@@ -147,10 +156,6 @@ public sealed partial class MainWindow
             SidebarItems,
             Model.Accounts,
             Model.SelectedAccount,
-            // Folders belong on screen only on the mail destination; the calendar and contacts own
-            // the highlight outright, and a mail tree behind them is not what the pane is for.
-            // Their expansion is untouched, it is the core's, and it is waiting when mail returns.
-            showFolders: Model.Destination == AppDestination.Mail,
             Model.UnifiedUnread,
             Model.UnifiedExpanded,
             (uint)Model.Outbox.Count,
@@ -219,8 +224,8 @@ public sealed partial class MainWindow
     // data item, not its container, the framework maps it to whichever container it has realised.
     private void RestoreSelection()
     {
-        // The two footer destinations own the highlight outright; only the mail destination hands
-        // it back to an account/folder row.
+        // Calendar and Contacts own the highlight outright; on mail it is the account or folder row
+        // whose list is on screen, which is what Mail returns to.
         if (Model.Destination is AppDestination.Calendar or AppDestination.Contacts)
         {
             var tag = Model.Destination == AppDestination.Calendar ? CalendarTag : ContactsTag;
@@ -367,14 +372,18 @@ public sealed partial class MainWindow
             _ = OpenSettingsAsync();
             return;
         }
-        // The tag reaches here the same way whether the row was generated from SidebarItems (the
-        // templates bind it) or declared in XAML (the two footer destinations).
+        // The tag reaches here the same way from the accordion and from the destinations: the
+        // templates bind it from the SidebarItem either way.
         if (args.InvokedItemContainer is not NavigationViewItem item)
         {
             return;
         }
         switch (item.Tag as string)
         {
+            case MailTag:
+                // Back to the mail view as it was left (docs/calendar-pane.md, rule 10).
+                Model.ShowMail();
+                break;
             case CalendarTag:
                 ShowCalendarSurface();
                 break;
@@ -425,6 +434,7 @@ public sealed partial class MainWindow
     {
         Model.ShowCalendar();
         CalendarDetail.OnShown();
+        CalendarPaneView.OnShown();
     }
 
     /// <summary>

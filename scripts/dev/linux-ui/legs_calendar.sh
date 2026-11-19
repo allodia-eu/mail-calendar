@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Linux UI suite's calendar legs: the agenda, managing calendars, the meeting server, events,
+# The Linux UI suite's calendar legs: the agenda, the calendar pane, the meeting server, events,
 # meetings, answering from the calendar and the invitation card. Sourced by test-linux-ui.sh.
 
 # The calendar screen. A destination toggle that is already on stays on, so this is safe to repeat.
@@ -50,19 +50,61 @@ leg_calendar() {
   atspi wait --name-substring "$AWAITING_LABEL" --showing --timeout 45
   capture calendar-agenda
 
-  # Calendar management is one round trip through the same cache the agenda draws. Toggle the
-  # calendar away and back, apply a palette colour, reset it, then reach the default-calendar picker
-  # through the shared Settings taxonomy.
-  ui_press text="Manage calendars" role=button
-  ui_wait type=GtkWindow text="Manage calendars"
-  ui_wait text=alice@test.local window="Manage calendars"
-  ui_press type=GtkSwitch window="Manage calendars" index=0
-  ui_press type=GtkSwitch window="Manage calendars" index=0
-  ui_press type=GtkMenuButton window="Manage calendars" index=0
+  # The calendar pane (docs/calendar-pane.md) stands in the folder pane's column beside the
+  # calendar.
+  ui_wait id=calendar-pane
+  ui_within wait id=calendar-list -- text=alice@test.local
+
+  # A day in the mini month seats the grid: from the agenda, that day opens in Day. The living
+  # week's Wednesday, worked out as the seed works it out, holds the Workshop.
+  local wednesday
+  wednesday="$(date -u -d "-$(($(date -u +%u) - 1)) days +2 days" +%F)"
+  ui_press id="mini-day-$wednesday"
+  ui_wait type=GtkMenuButton text=Day
+  ui_wait textLike=Workshop role=button timeoutMs=45000
+
+  # The calendars are one round trip through the cache the grid draws: the living week is on the
+  # default calendar, so unticking it takes the Workshop off the grid and ticking it brings it
+  # back.
+  local default_calendar="Stalwart Calendar (alice@test.local)"
+  ui_press text="$default_calendar" role=checkbox
+  ui_gone textLike=Workshop role=button
+  ui_press text="$default_calendar" role=checkbox
+  ui_wait textLike=Workshop role=button timeoutMs=45000
+
+  # The row's colour, from its context menu: the Menu key's Shift+F10, on the focused row.
+  ui_one text="$default_calendar" role=checkbox
+  ui focus h="$UI_H"
+  # shellcheck disable=SC2046
+  linux_session_type $(linux_session_chord_args shift+F10)
+  ui_press text=Colour role=button
   ui_press id=calendar-colour-4f5ba6
   eventually grep -Fq '#4f5ba6' "$CORE_PREFERENCES" || die "calendar colour was not persisted"
+  ui_one text="$default_calendar" role=checkbox
+  ui focus h="$UI_H"
+  # shellcheck disable=SC2046
+  linux_session_type $(linux_session_chord_args shift+F10)
   ui_press text="Use the server's colour" role=button
-  ui_press text=Done role=button window="Manage calendars"
+  capture calendar-pane
+
+  # Back to the agenda the later legs read.
+  ui_press type=GtkMenuButton text=Day
+  ui_press text=Agenda role=button
+  ui_wait type=GtkMenuButton text=Agenda
+
+  # The agenda leaves a hidden calendar out too, and has it back once it is shown again.
+  ui_wait text=Workshop role=button timeoutMs=45000
+  ui_press text="$default_calendar" role=checkbox
+  ui_gone text=Workshop role=button
+  ui_press text="$default_calendar" role=checkbox
+  ui_wait text=Workshop role=button timeoutMs=45000
+
+  # Mail takes the column back for the folder tree.
+  ui_press text=Mail role=toggle-button
+  ui_wait id=message-list
+  ui_gone id=calendar-pane
+  show_calendar
+  ui_wait id=calendar-pane
 
   open_settings Calendar
   ui_wait text="Default calendar"
@@ -73,7 +115,7 @@ leg_calendar() {
       --within "Settings" --within-role frame --showing --timeout 20
   done
   close_settings
-  capture calendar-management
+  capture calendar-settings
 }
 
 # Settings → Videoconferencing (docs/conferencing.md, rule 13). The field commits on Return and on

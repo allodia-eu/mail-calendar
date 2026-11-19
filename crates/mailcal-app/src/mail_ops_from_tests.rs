@@ -179,6 +179,7 @@ async fn a_from_naming_an_unconfigured_account_fails_the_send_rather_than_substi
 
 #[tokio::test(start_paused = true)]
 async fn a_reply_from_another_account_still_threads_off_the_original() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, outboxes) = two_account_app(vec![original_message("m1")]);
     // Sync so the original lands in acct-1's store; the reply resolves it there.
     app.dispatch(Intent::RefreshMail).await;
@@ -187,6 +188,7 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
     // The original lives in acct-1 …
     // … but the user picked acct-2 in the From dropdown.
     let intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         Some("acct-2"),
@@ -221,6 +223,7 @@ async fn a_reply_from_another_account_still_threads_off_the_original() {
 
 #[tokio::test(start_paused = true)]
 async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, outboxes) = two_account_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
     // The default send account names acct-2, which a send without a From would otherwise take.
@@ -229,6 +232,7 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
 
     let (document, blobs) = reply_document();
     let mut intent = send_from_composer(
+        &scratch,
         &app,
         reply_origin("m1"),
         None,
@@ -252,11 +256,13 @@ async fn a_reply_without_a_from_still_sends_from_the_receiving_account() {
 
 #[tokio::test(start_paused = true)]
 async fn a_forward_from_another_account_sends_through_that_accounts_outbox() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
     let (app, outboxes) = two_account_app(vec![original_message("m1")]);
     app.dispatch(Intent::RefreshMail).await;
 
     let (document, blobs) = reply_document();
     let intent = send_from_composer(
+        &scratch,
         &app,
         forward_origin("m1"),
         Some("acct-2"),

@@ -42,7 +42,7 @@ fn servers_saved_elsewhere_replace_the_edit_a_save_refused() {
         return;
     };
     let (host, port) = imap.rsplit_once(':').expect("host:port");
-    let app = app("account-servers", RecordingStore::default());
+    let (_dir, app) = app("account-servers", RecordingStore::default());
     let config = format!(
         "[imap]\naddr = \"127.0.0.1:{port}\"\nserver_name = \"{host}\"\n\
          username = \"alice@test.local\"\npassword = \"harness-alice-pw\"\n\

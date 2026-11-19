@@ -63,6 +63,12 @@ extension MailboxModel {
             refreshAccountsSnapshot()
             return
         }
+        // The signature library, a change to it starting or ending, or an account's assignment:
+        // Settings → Signatures and the composer's picker, and nothing else.
+        if case .signatures = surface {
+            signatures = app?.signaturesPage() ?? .empty
+            return
+        }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
         // withdrawn it from the Outbox and joined it to the composition the opening names, so it
         // opens through the same context every composer does: the composer saves over that copy,
@@ -81,7 +87,7 @@ extension MailboxModel {
         if case .settings = surface {
             timezone = app?.timezoneSettings()
             if let app { reloadPreferences(app) }
-            signatures = app?.signatures() ?? SignaturesSnapshot(signatures: [], accounts: [])
+            signatures = app?.signaturesPage() ?? .empty
             mcpSettings = app?.mcpSettings()
             refreshAccountsSnapshot()
             return
@@ -92,6 +98,7 @@ extension MailboxModel {
             // The agenda list is a snapshot; the GRID is a pull, so the version bump is what tells it
             // to re-read whatever page is on screen.
             events = app?.calendarList().events ?? []
+            if let app { videoconferencing = app.videoconferencingPage() }
             calendarVersion &+= 1
             return
         }
@@ -173,5 +180,6 @@ extension MailboxModel {
         defaultSendAccount = app.defaultSendAccount()
         swipeSettings = app.swipeSettings()
         analyticsConsent = app.analyticsConsent()
+        videoconferencing = app.videoconferencingPage()
     }
 }

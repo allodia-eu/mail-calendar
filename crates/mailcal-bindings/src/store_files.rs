@@ -31,16 +31,15 @@ mod tests {
 
     #[test]
     fn every_file_the_engine_creates_is_a_listed_store_path() {
-        let dir = std::env::temp_dir().join(format!("mailcal-store-files-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        let scratch = tempfile::tempdir().unwrap();
+        let dir = scratch.path();
 
-        let engine = engine_api::Engine::open(dir.join(STORE_FILE)).expect("open store");
+        let _engine = engine_api::Engine::open(dir.join(STORE_FILE)).expect("open store");
 
         let listed: BTreeSet<String> = mail_store_paths(dir.display().to_string())
             .into_iter()
             .collect();
-        let created: BTreeSet<String> = std::fs::read_dir(&dir)
+        let created: BTreeSet<String> = std::fs::read_dir(dir)
             .unwrap()
             .map(|entry| entry.unwrap().path().display().to_string())
             .collect();
@@ -57,9 +56,6 @@ mod tests {
             !listed.iter().any(|path| path.ends_with("preferences.toml")),
             "preferences stay in the backup",
         );
-
-        drop(engine);
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

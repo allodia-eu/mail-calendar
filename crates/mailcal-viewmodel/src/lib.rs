@@ -24,6 +24,7 @@ mod row_menu;
 mod row_reach;
 pub mod sender;
 pub mod settings;
+pub mod signatures;
 pub mod sync_progress;
 pub mod text;
 pub mod view;
@@ -55,10 +56,14 @@ pub use row_reach::{
 };
 pub use sender::{address_label, sender_label};
 pub use settings::{
-    AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
-    McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureRow, SignatureSlotKind,
-    SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
+    AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, McpAccountRow, McpSettings,
+    QuoteSettings, QuoteStyleKind, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
     SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
+};
+pub use signatures::{
+    AccountSignatureRow, SignatureChangeKind, SignatureImageRefusal, SignatureOutcome,
+    SignatureRefusal, SignatureResult, SignatureRow, SignatureSlotKind, SignatureWork,
+    SignaturesView,
 };
 pub use sync_progress::{AccountSyncProgress, SyncProgressSnapshot, ThrottledAccount};
 pub use text::plain_text;

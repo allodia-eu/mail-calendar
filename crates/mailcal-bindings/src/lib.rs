@@ -4,10 +4,6 @@
 //! ([`MailcalApp::mailbox_list`]). FFI types mirror the `mailcal-app` types, which stay
 //! binding-free.
 
-// A test drives a runtime of its own from the test harness's thread, not from a host's, so the
-// `clippy.toml` rule that keeps FFI calls off the caller's stack does not apply to it.
-#![cfg_attr(test, allow(clippy::disallowed_methods))]
-
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
@@ -59,6 +55,7 @@ mod app_allodia_purchase;
 mod app_allodia_subscription;
 mod app_allodia_sync;
 mod app_calendar;
+mod app_calendar_pane;
 mod app_contacts;
 mod app_display;
 mod app_folders;
@@ -136,6 +133,7 @@ mod records_account_sign_in;
 mod records_accounts;
 mod records_avatar;
 mod records_calendar;
+mod records_calendar_pane;
 mod records_conference;
 mod records_connectivity;
 mod records_contacts;
@@ -143,6 +141,7 @@ mod records_event_detail;
 mod records_folders;
 mod records_notices;
 mod records_outbox;
+mod records_signatures;
 mod records_video_meeting;
 mod retry;
 pub mod sync_state;
@@ -244,6 +243,7 @@ pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
     InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope, SelectedRow,
+    SignatureIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -251,9 +251,8 @@ pub use records::{
     MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
     ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
-        AccountSignatureRow, AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport,
-        McpAccountRow, McpSettings, QuoteSettings, QuoteStyleKind, SignatureBody, SignatureRow,
-        SignatureSlotKind, SignaturesSnapshot, SwipeActionKind, SwipeDirection, SwipeSettings,
+        AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, McpAccountRow, McpSettings,
+        QuoteSettings, QuoteStyleKind, SwipeActionKind, SwipeDirection, SwipeSettings,
         SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
@@ -270,11 +269,8 @@ pub use records_accounts::{
     MailSyncTechnology, SignInMethod, UseProblem,
 };
 pub use records_avatar::Avatar;
-pub use records_calendar::{
-    AllDayBand, Appearance, CalendarColor, CalendarLayout, CalendarPage, CalendarRow,
-    CalendarSnapshot, DisplaySettings, EventEdge, EventRow, EventSwatch, GridDay, MonthCell,
-    MonthChip, MonthPage, Swatch, TimeFormat, TimedSegment, WeekStart,
-};
+pub use records_calendar::*;
+pub use records_calendar_pane::*;
 pub use records_conference::{ConferenceDialIn, ConferenceState, EventConference};
 pub use records_connectivity::{AccountProvider, ConnectionInfo, HttpVersion, TlsVersion};
 pub use records_contacts::{
@@ -299,6 +295,7 @@ pub use records_recurrence::{
     RecurrenceFrequency, RecurrenceWeekday, RepeatDraft, SeriesEditWarning, SimpleRecurrence,
 };
 pub use records_repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary};
+pub use records_signatures::*;
 pub use records_video_meeting::{
     EditorMeeting, MeetingAccount, MeetingChange, MeetingDefault, MeetingOption, MeetingWords,
 };
@@ -326,9 +323,7 @@ pub use store_files::mail_store_paths;
 pub use sync_state::{SyncStateError, SyncStateStore};
 pub(crate) use timezone::device_zone;
 pub use timezone::{available_time_zones, device_time_zone};
-/// A shared registry of each connected account's re-connection state; see
-/// [`account_registry`], which explains why this is a type with three methods rather than the
-/// open `HashMap` it replaced.
+/// A shared registry of each connected account's re-connection state ([`account_registry`]).
 type SharedRegistry = Arc<account_registry::AccountRegistry>;
 
 /// One account the app drives, with its providers boxed behind the [`Provider`] trait so

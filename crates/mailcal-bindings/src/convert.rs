@@ -51,6 +51,7 @@ impl From<AppSurface> for Surface {
             AppSurface::OtherDevices => Self::OtherDevices,
             AppSurface::AccountPage => Self::AccountPage,
             AppSurface::Allodia => Self::Allodia,
+            AppSurface::Signatures => Self::Signatures,
             AppSurface::Reading => Self::Reading,
             AppSurface::Sending => Self::Sending,
             AppSurface::SyncProgress => Self::SyncProgress,
@@ -198,9 +199,13 @@ impl TryFrom<Intent> for AppIntent {
             Intent::Outbox { intent } => Self::Outbox(outbox_intent(intent)?),
             Intent::Folders { intent } => Self::Folders(folder_intent(intent)?),
             // `dispatch` handles these itself, before converting.
-            Intent::AccountPage { .. } | Intent::Allodia { .. } | Intent::Preferences { .. } => {
+            Intent::AccountPage { .. }
+            | Intent::Allodia { .. }
+            | Intent::Preferences { .. }
+            | Intent::Signature { .. } => {
                 return Err(
-                    "an account page, Allodia or preference change is the binding's own".to_owned(),
+                    "an account page, Allodia, preference or signature change is the binding's own"
+                        .to_owned(),
                 );
             }
             Intent::DismissComposeRequest => Self::DismissComposeRequest,

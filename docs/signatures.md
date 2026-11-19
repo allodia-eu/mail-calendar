@@ -54,6 +54,55 @@ Two files, in the app data directory, for one reason:
 - The order the user arranged the list in is stored separately from the map: a `BTreeMap` sorts by
   the (random) id, which is no order at all to a reader. An entry missing from the order still
   lists, so a hand-edited file can never hide a signature the user can no longer delete.
+- **Both are read once, at launch, and held in memory.** A read never touches the disk: the
+  composer resolves a signature as it opens and on every From change. A change is applied in
+  memory and each file is written behind it, written beside the file and renamed over it, so a
+  reader never meets one cut short (which reads as an empty library). A write that fails is the
+  settings' failed-save notice ([`notices.md`](notices.md)), whose Try again writes both files,
+  and closing the app waits for both ([`waiting.md`](waiting.md) rule 7).
+
+## What a signature may hold
+
+Each rule is one function in the core, which an editor asks before the person presses and the
+save itself acts on, so the two cannot disagree. A client words the answer.
+
+- **A name.** It is stored without the spaces around it, and a blank one is refused
+  (`signature_name_refusal`). The editor holds its Save while the name typed is refused.
+- **Pictures in PNG, JPEG or GIF, up to 512 KB each** (`signature_image_refusal`, given the
+  media type, matched without regard to case, and the size). These three are what Outlook, Gmail
+  and Apple Mail all show. SVG is refused: it is a document that can carry scripts and outside
+  references, and is not shown reliably. The limit is there because a signature rides in **every**
+  message the account sends, and base64 adds a third on top while it is stored.
+  - An editor asks it of a picked file **before reading it**, so the person is told at once, and
+    each file picker offers only the three types. A pasted picture is asked before it is inserted
+    where the host reads the clipboard itself (Linux); elsewhere the shared editor inserts it, and
+    the save below judges it.
+  - The save asks it again of every `data:` picture in the body, judged by its **bytes** as well as
+    the type it claims, because a file can say it is a PNG and be something else.
+  - On iPhone and iPad, a picture from the photo library arrives as a JPEG: the picker asks for the
+    compatible representation, so a HEIC photograph is converted on the way in.
+
+## Changing the library
+
+Settings → Signatures is drawn from one record, `MailcalApp::signatures_page`, read from memory and
+read again on every `Surface::Signatures` and `Surface::Settings` signal. Its changes are
+`Intent::Signature` and return at once ([`waiting.md`](waiting.md)):
+
+- **Save** stores a signature under its id. An editor on a new signature saves under the page's
+  `new_id`, which names nothing until that first save, so a second press saves the same signature
+  again rather than adding another. Saving an id that names nothing else is refused as **gone**:
+  an edit never makes a signature the person thought they were changing.
+- **Delete** removes one, and clears it from every account that used it (below).
+- **Assign** sets one of an account's slots; it is applied before `dispatch` returns.
+
+A save and a deletion run off the host's thread, from the press until the library's file has been
+written, one at a time: one asked for while another runs waits and runs next, and the same one
+asked again is dropped. While one runs every control on the page is held, and the one that started
+it runs. What it came to is the page's `outcome`, with a serial that grows with each change: an
+editor acts on an outcome newer than the one in force when it opened, for the signature it edits.
+**Saved** closes it; **refused** keeps it open and says why; **not written** closes it, and the
+failed-save notice says the rest. The composer's per-message picker lists the same record's
+signatures.
 
 ## Security
 
@@ -108,8 +157,9 @@ Every row is the same contract; only the presentation differs.
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | Library CRUD (create / rename / edit body / delete) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Per-account **New messages** / **Replies or forwards** slots (each incl. None) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Drawn from `signatures_page`, changed as `Intent::Signature`, Save and Delete running until written | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Rich body authoring (formatting, lists, tables, links) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Inline image in a signature (embedded logo) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Inline image in a signature (embedded logo): PNG, JPEG or GIF up to 512 KB, by the core's rule | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Seeded into the composer, editable before send | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Auto-swap when the composer's From account changes | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Per-message override picker (incl. None), explicit choice sticks | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -239,17 +289,14 @@ it (only when a signature is present, so behaviour without one is unchanged).
   delimiter still emitted for a signature that is nothing but an image. Two cells are ✅ by
   **shared code rather than a driven run**: auto-swap (the harness seeds one account, so there is
   no second sender to change to) and delete-clears-every-assignment (a core teardown the core's own
-  tests pin). Two traps found in the driving, worth knowing before writing another such test: the
-  The packaged-runtime acceptance run keeps an AT-SPI client walking the tree through twelve
-  consecutive edit/save cycles. Opening the composer's signature menu puts focus **on the first
-  entry**, so keyboard-selecting index *N* takes *N* presses, not *N+1*, the same off-by-one
-  Windows records below, which silently selects the next signature along.
-  Two of those checks passed only after the *test* was fixed, and both are worth knowing before
-  writing another: a synthetic click needs its process to be **per-monitor DPI-aware** or the
-  coordinates are virtualized and it lands somewhere else entirely (here, inside the signature,
-  which reads exactly like the caret rule failing); and opening the picker's flyout puts focus **on
-  the first item**, so keyboard-selecting index *N* takes *N* presses, not *N+1*, or every
-  assertion reports the next signature along.
+  tests pin). The packaged-runtime acceptance run keeps an AT-SPI client walking the tree through
+  twelve consecutive edit/save cycles.
+  Two traps found while driving these checks are worth knowing before writing another: on
+  Windows, a synthetic click needs its process to be **per-monitor DPI-aware**, or the
+  coordinates are virtualised and it lands somewhere else entirely (here, inside the signature,
+  which reads exactly like the caret rule failing); and on Windows and Linux alike, opening the
+  composer's signature menu puts focus **on the first entry**, so keyboard-selecting index *N*
+  takes *N* presses, not *N+1*, or every assertion reports the next signature along.
 - **No JS test for the editor seams, and it has now cost a real bug.** Replying to a message with
   no HTML part rendered an *empty* quote (`setComposerQuote` assigned `body_html` and never fell
   back to `body_plain`), so the original vanished from the composer. It survived this feature's own
@@ -264,7 +311,9 @@ it (only when a signature is present, so behaviour without one is unchanged).
   the sanitise, the `data:`→`cid:` rewrite, the CRUD and the resolution, plus, on each client, the
   slot rule, the resolution precedence, the seed payload, (Android) the order of the
   page-finished script batch, which is what puts the signature above the quote, and (Windows) the
-  same three rules plus the image cap and media-type refusal (`Mailcal.Tests`).
+  same three rules (`Mailcal.Tests`). The name and picture rules, the save's queue and its
+  outcome are the core's (`tests_signature_work.rs`, `signature_rules_tests.rs`,
+  `app_signatures_tests.rs`, `signatures_page_tests.rs`).
 - **GTK's AT-SPI toplevel race remains upstream; Linux no longer enters it.** The old signature
   editor was a modal toplevel. While assistive technology enumerated visible toplevels, GTK could
   expose that window before or after its accessibility context had an object path and crash in
@@ -273,9 +322,6 @@ it (only when a signature is present, so behaviour without one is unchanged).
   toplevel, so that object-path transition no longer exists. `test-linux-ui.sh` holds an AT-SPI
   session open through twelve consecutive cycles on GTK 4.22.4; the original implementation fails
   that run.
-- **Embedded images are capped at 512 KB each, client-side.** A signature rides in *every* message an
-  account sends, and base64 adds a third on top. The cap is enforced where the file is picked (so the
-  user is told), not in the core.
 - **No signature reordering UI.** The stored order is honoured; nothing yet lets the user change it.
 
 ## Enforcement
@@ -286,7 +332,7 @@ stored, resolved, seeded, or sent:
 1. Update this document (**the rule and the matrix**) in the same change.
 2. Apply the change to **every** platform that has the surface, or record the shortfall under Known
    gaps, never silently.
-3. A user-facing change also updates [`../README.md`](../README.md)'s capability matrix and adds
+3. A user-facing change also updates [`capabilities.md`](capabilities.md) and adds
    a fragment under `docs/changelog/unreleased/` (every catalog locale, with its `Platforms:` and
    `Bump:`); see [`changelog.md`](changelog.md). It does **not** touch [`../VERSION`](../VERSION):
    only a release PR moves that.

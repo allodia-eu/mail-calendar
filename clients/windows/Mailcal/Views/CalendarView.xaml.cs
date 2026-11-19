@@ -13,7 +13,6 @@
 using System;
 using System.Globalization;
 using Allodia.Mailcal.Calendar;
-using Allodia.Mailcal.Dialogs;
 using Allodia.Mailcal.Services;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
@@ -113,6 +112,9 @@ public sealed partial class CalendarView : UserControl
         _grid.PageFor = (from, columns) => model.CalendarRange(from, columns) ?? EmptyPage(from);
         _grid.AnchorFor = week => _pager.AnchorFor(week);
         _grid.WeekStartFor = model.WeekStart;
+        _grid.Today = model.Today;
+        _grid.NowMinutes = () => model.WallClock() is var now ? (now.Hour * 60) + now.Minute : 0;
+        _grid.CameToRest = OnGridRest;
 
         model.PropertyChanged += (_, e) =>
         {
@@ -187,7 +189,7 @@ public sealed partial class CalendarView : UserControl
         var mode = display.Layout.ToMode();
         if (mode.IsGrid())
         {
-            _pager = new CalendarPager(DateOnly.FromDateTime(DateTime.Now), mode, Model.WeekStart);
+            _pager = new CalendarPager(Today(), mode, Model.WeekStart);
             _grid.Recentre(mode);
         }
 
@@ -213,7 +215,7 @@ public sealed partial class CalendarView : UserControl
         _grid.Apply(display);
         if (mode == CalendarMode.Month)
         {
-            _monthAnchor = FirstOfMonth(DateOnly.FromDateTime(DateTime.Now));
+            _monthAnchor = FirstOfMonth(Today());
             RefreshMonth();
         }
         _appliedDisplay = display;
@@ -248,7 +250,7 @@ public sealed partial class CalendarView : UserControl
         ApplyDisplaySettings(display);
         if (weekStartChanged)
         {
-            _pager = new CalendarPager(DateOnly.FromDateTime(DateTime.Now), _pager.Mode, Model.WeekStart);
+            _pager = new CalendarPager(Today(), _pager.Mode, Model.WeekStart);
             _grid.Recentre(_pager.Mode);
         }
     }
@@ -285,43 +287,13 @@ public sealed partial class CalendarView : UserControl
             _ => CalendarMode.Agenda,
         };
 
-        var wasMonth = IsMonth;
-        Model.SetCalendarLayout(mode.ToLayout());
-        ShowMode(mode);
-
-        if (mode == CalendarMode.Month)
-        {
-            _pager.SetMode(CalendarMode.Month, 0);
-            _monthAnchor = FirstOfMonth(DateOnly.FromDateTime(DateTime.Now));
-            RefreshMonth();
-            return;
-        }
-
-        if (!mode.IsGrid())
-        {
-            // The agenda: nothing to seat, and the nav cluster is already hidden.
-            return;
-        }
-
-        // A shape picked from the MENU re-seats the grid on the period you are looking at and re-seeds
-        // the day axis. A pinch does neither, that is the difference between SetMode and SetZoom, and
-        // it is why a zoom cannot make the days jump (§2, §3).
-        _pager.SetMode(mode, 0);
-        // The month has no page to carry into a grid, so leaving it opens on today's week.
-        if (wasMonth)
-        {
-            _pager.JumpTo(DateOnly.FromDateTime(DateTime.Now));
-        }
-        if (Model.CalendarDisplaySettings() is { } display)
-        {
-            _grid.Apply(display);
-        }
-        _grid.Recentre(_pager.Mode);
+        ChooseLayout(mode, at: null);
     }
 
     // Shows the one surface this shape needs, and names the chevrons for what they will now do.
     private void ShowMode(CalendarMode mode)
     {
+        _shown = mode;
         var agenda = mode == CalendarMode.Agenda;
         var month = mode == CalendarMode.Month;
         var grid = !agenda && !month;
@@ -363,7 +335,7 @@ public sealed partial class CalendarView : UserControl
         }
         var display = Model.CalendarDisplaySettings();
         var use24 = display is null || display.TimeFormat == TimeFormat.TwentyFourHour;
-        _month.Apply(page, DateOnly.FromDateTime(DateTime.Now), CultureInfo.CurrentCulture, use24);
+        _month.Apply(page, Today(), CultureInfo.CurrentCulture, use24);
         PeriodText.Text = _monthAnchor.ToString("MMMM yyyy", CultureInfo.CurrentCulture);
 
         var chips = 0;
@@ -373,6 +345,7 @@ public sealed partial class CalendarView : UserControl
         }
         Log.Info($"cal: month {_monthAnchor:yyyy-MM} cells={page.Cells.Length} chips={chips} " +
             $"materialized={page.IsMaterialized}");
+        ShownDaysMoved();
     }
 
     private void OnPrevPeriod(object sender, RoutedEventArgs e) => Step(-1);
@@ -409,32 +382,12 @@ public sealed partial class CalendarView : UserControl
             return;
         }
         Log.Info($"cal: open day {date:yyyy-MM-dd} from month");
-        _pager.SetMode(CalendarMode.Day, 0);
-        _pager.JumpTo(date);
-        Model.SetCalendarLayout(CalendarLayout.Day);
-        ShowMode(CalendarMode.Day);
-        if (Model.CalendarDisplaySettings() is { } display)
-        {
-            _grid.Apply(display);
-        }
-        // Frame the day the user picked, not today.
-        _grid.Recentre(CalendarMode.Day, date);
-    }
-
-    private async void OnManageCalendars(object sender, RoutedEventArgs e)
-    {
-        if (Model is null)
-        {
-            return;
-        }
-        Log.Info("cal: open manager");
-        var dialog = new CalendarManagerDialog(Model) { XamlRoot = this.XamlRoot };
-        await DialogHelper.ShowAsync(dialog);
+        ChooseLayout(CalendarMode.Day, date);
     }
 
     private void OnBackToToday(object sender, RoutedEventArgs e)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = Today();
         Log.Info($"cal: back to today (mode={_pager.Mode})");
         if (IsMonth)
         {
@@ -458,7 +411,9 @@ public sealed partial class CalendarView : UserControl
         var days = new GridDay[CalendarUnits.DaysInWeek];
         for (var i = 0; i < days.Length; i++)
         {
-            days[i] = new GridDay(from.AddDays(i).ToString("yyyy-MM-dd"));
+            var day = from.AddDays(i);
+            // Week 0: the core numbers weeks, and it has not answered for this one.
+            days[i] = new GridDay(day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), 0);
         }
         return new CalendarPage(days, [], [], 0, "UTC", [], false);
     }

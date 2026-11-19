@@ -33,7 +33,7 @@ class CalendarGridTest : CalendarGridTestBase() {
         screen(gridPage())
         // The header chrome is still a composable, it is not part of the grid surface.
         compose.onNodeWithText("Jul 2026").assertIsDisplayed()
-        // The ISO week number of 2026-07-06, drawn in the gutter and spoken from it.
+        // The week number the core gives 2026-07-06, drawn in the gutter and spoken from it.
         spoken("Week 28").assertExists()
     }
 

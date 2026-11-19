@@ -17,28 +17,41 @@ use crate::{
     ui::{AppInput, account_settings::AccountsInput},
 };
 
-/// A stand-in for the core's store: it keeps an `https` address with its trailing `/` dropped,
-/// and refuses anything else.
-fn store() -> Rc<RefCell<Option<String>>> {
-    Rc::new(RefCell::new(None))
+/// What the stand-in core holds: the stored server, the text last refused, and how many times
+/// a text was sent.
+#[derive(Default)]
+struct Held {
+    stored: Option<String>,
+    refused: Option<String>,
+    sent: usize,
 }
 
-fn group_over(held: &Rc<RefCell<Option<String>>>) -> adw::PreferencesGroup {
+/// A stand-in for the core: it keeps an `https` address with its trailing `/` dropped, forgets
+/// the server for blank text, and keeps anything else as refused until the next send.
+fn store() -> Rc<RefCell<Held>> {
+    Rc::default()
+}
+
+fn group_over(held: &Rc<RefCell<Held>>) -> (adw::PreferencesGroup, impl Fn() + 'static) {
     let read = Rc::clone(held);
     let write = Rc::clone(held);
     jitsi_server_group(
-        move || read.borrow().clone(),
+        move || {
+            let held = read.borrow();
+            (held.stored.clone(), held.refused.clone())
+        },
         move |typed| {
-            let typed = typed.trim().to_owned();
-            if typed.is_empty() {
-                *write.borrow_mut() = None;
-                return true;
+            let mut held = write.borrow_mut();
+            held.sent += 1;
+            held.refused = None;
+            let trimmed = typed.trim();
+            if trimmed.is_empty() {
+                held.stored = None;
+            } else if !trimmed.starts_with("https://") || trimmed.contains(['?', '#']) {
+                held.refused = Some(typed);
+            } else {
+                held.stored = Some(trimmed.trim_end_matches('/').to_owned());
             }
-            if !typed.starts_with("https://") || typed.contains(['?', '#']) {
-                return false;
-            }
-            *write.borrow_mut() = Some(typed.trim_end_matches('/').to_owned());
-            true
         },
     )
 }
@@ -61,7 +74,7 @@ fn parts(group: &adw::PreferencesGroup) -> (adw::EntryRow, gtk::Label) {
 
 pub(crate) fn the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_it_refuses() {
     let held = store();
-    let group = group_over(&held);
+    let (group, follow) = group_over(&held);
     let (entry, refused) = parts(&group);
     assert_eq!(
         entry.text(),
@@ -70,15 +83,32 @@ pub(crate) fn the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_
     );
     assert!(!refused.is_visible());
 
+    entry.emit_by_name::<()>("apply", &[]);
+    assert_eq!(
+        held.borrow().sent,
+        1,
+        "unchanged text is the core's to skip"
+    );
+
     entry.set_text("meet.example.org");
     entry.emit_by_name::<()>("apply", &[]);
     assert!(refused.is_visible(), "an address the core refuses is said");
-    assert_eq!(*held.borrow(), None, "and changes nothing");
+    assert_eq!(held.borrow().stored, None, "and changes nothing");
+    assert_eq!(entry.text(), "meet.example.org", "and the field keeps it");
 
     entry.set_text("https://meet.example.org/");
     assert!(!refused.is_visible(), "typing again takes the refusal away");
+    entry.set_text("meet.example.org");
+    assert!(
+        refused.is_visible(),
+        "the refused text again is still refused"
+    );
+    entry.set_text("https://meet.example.org/");
     entry.emit_by_name::<()>("apply", &[]);
-    assert_eq!(held.borrow().as_deref(), Some("https://meet.example.org"));
+    assert_eq!(
+        held.borrow().stored.as_deref(),
+        Some("https://meet.example.org")
+    );
     assert_eq!(
         entry.text(),
         "https://meet.example.org",
@@ -86,12 +116,24 @@ pub(crate) fn the_jitsi_server_field_stores_what_the_core_accepts_and_says_when_
     );
     assert!(!refused.is_visible());
 
-    let reopened = group_over(&held);
+    // The core's refusal, however it came, is drawn on the next signal.
+    held.borrow_mut().refused = Some("https://meet.example.org".to_owned());
+    follow();
+    assert!(refused.is_visible());
+    held.borrow_mut().refused = None;
+    follow();
+    assert!(!refused.is_visible());
+
+    let (reopened, _) = group_over(&held);
     assert_eq!(parts(&reopened).0.text(), "https://meet.example.org");
 
     entry.set_text("");
     entry.emit_by_name::<()>("apply", &[]);
-    assert_eq!(*held.borrow(), None, "an empty field forgets the server");
+    assert_eq!(
+        held.borrow().stored,
+        None,
+        "an empty field forgets the server"
+    );
 }
 
 #[test]

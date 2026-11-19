@@ -9,8 +9,8 @@
 // all-day inclusive↔exclusive conversion, lives in the pure EventEditorState (Calendar/, unit-tested
 // in Mailcal.Tests). This file is the WinUI chrome that binds to it: it mutates the shared state and,
 // on Save, leaves it to the caller (CalendarView) to dispatch CreateEvent / UpdateEvent from
-// state.CreateArgs() / state.UpdateArgs(). Built imperatively in code-behind, like CalendarManagerDialog,
-// so there is no client-side state to drift and the tree is deterministic.
+// state.CreateArgs() / state.UpdateArgs(). Built imperatively in code-behind, like SettingsDialog, so
+// there is no client-side state to drift and the tree is deterministic.
 using System;
 using System.Globalization;
 using System.Linq;
@@ -30,7 +30,8 @@ public sealed class EventEditorDialog : ContentDialog
 {
     private readonly MailboxModel _model;
     private readonly EventEditorState _state;
-    private readonly CalendarRow[] _writable;
+    private readonly CalendarGroup[] _offered;
+    private readonly bool _offeredNamed;
 
     // Built before DialogHelper mirrors the window's theme onto this dialog, so the colours are
     // handed out as brushes that follow it rather than read once (ThemePalette.cs).
@@ -60,8 +61,10 @@ public sealed class EventEditorDialog : ContentDialog
         _model = model;
         _state = state;
         _brushes = new ThemeBrushes(this);
-        // The picker only ever offers calendars a new/edited event could actually land in.
-        _writable = model.Calendars().Where(c => c.CanWrite).ToArray();
+        // The picker offers the calendars the core says a new event can be put on.
+        var offered = model.NewEventCalendars();
+        _offered = offered?.Groups ?? [];
+        _offeredNamed = offered?.Named ?? false;
         _invitees = new EventInviteeSection(model, state, _brushes, CaptionText);
 
         Title = state.IsEditing ? L10n.EventEditTitle() : L10n.EventNewTitle();
@@ -301,7 +304,9 @@ public sealed class EventEditorDialog : ContentDialog
     private void RefreshCalendarButton()
     {
         var choice = _state.Calendar;
-        var row = _writable.FirstOrDefault(c => c.Account == choice?.Account && c.Id == choice?.Id);
+        var row = _offered
+            .SelectMany(group => group.Calendars)
+            .FirstOrDefault(c => c.Account == choice?.Account && c.Id == choice?.Id);
         var name = row?.Name ?? choice?.Name ?? string.Empty;
 
         var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
@@ -326,20 +331,23 @@ public sealed class EventEditorDialog : ContentDialog
         _calendarButton.Content = content;
     }
 
-    // The writable-calendar picker: grouped by account, since a calendar id is unique only within one.
+    // The writable-calendar picker, under each account's address while the core names them.
     private Flyout CalendarFlyout()
     {
         var flyout = new Flyout();
         var list = new StackPanel { Spacing = 6, MinWidth = 260 };
-        foreach (var group in _writable.GroupBy(c => c.Account))
+        foreach (var group in _offered)
         {
-            list.Children.Add(new TextBlock
+            if (_offeredNamed)
             {
-                Text = group.First().AccountAddress,
-                FontWeight = FontWeights.SemiBold,
-                Style = Caption(),
-            });
-            foreach (var row in group)
+                list.Children.Add(new TextBlock
+                {
+                    Text = group.Address,
+                    FontWeight = FontWeights.SemiBold,
+                    Style = Caption(),
+                });
+            }
+            foreach (var row in group.Calendars)
             {
                 list.Children.Add(CalendarChoiceButton(flyout, row));
             }

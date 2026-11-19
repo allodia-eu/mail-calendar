@@ -441,7 +441,8 @@ internal fun CalendarPage.toPaint(
         dayCount = headings.size,
         drawnLanes = allDayDrawnLanes(allDayLanes.toInt(), expanded = false),
     )
-    val weekNumber = headings.firstOrNull()?.date?.let(::isoWeekNumber) ?: 0
+    // The ISO 8601 week the page starts in, as the core numbers it.
+    val weekNumber = days.firstOrNull()?.week?.toInt() ?: 0
 
     return PagePaint(
         headings = headings,

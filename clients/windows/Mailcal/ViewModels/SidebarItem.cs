@@ -196,29 +196,13 @@ public sealed class SidebarItem : INotifyPropertyChanged
         {
             if (Set(ref _mark, value))
             {
-                OnPropertyChanged(nameof(HasMark));
-                OnPropertyChanged(nameof(MarkGlyph));
-                OnPropertyChanged(nameof(MarkLabel));
                 OnPropertyChanged(nameof(MarkDetail));
-                OnPropertyChanged(nameof(MarkTone));
             }
         }
     }
 
-    /// <summary>Whether the row draws a mark at all.</summary>
-    public bool HasMark => _mark is not null;
-
-    /// <summary>The mark's glyph, empty without one.</summary>
-    public string MarkGlyph => _mark?.Glyph ?? string.Empty;
-
-    /// <summary>The mark's label, drawn beneath the address, empty without one.</summary>
-    public string MarkLabel => _mark?.Label ?? string.Empty;
-
     /// <summary>Every notice about the account, for a screen reader.</summary>
     public string MarkDetail => _mark?.Detail ?? string.Empty;
-
-    /// <summary>The mark's tone, which picks its colour; Informational without one.</summary>
-    public SidebarMarkTone MarkTone => _mark?.Tone ?? SidebarMarkTone.Informational;
 
     private bool _isPending;
     private string _pendingLabel = string.Empty;
