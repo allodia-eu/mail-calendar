@@ -37,10 +37,10 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
 
     /// <summary>Fills the form with an endpoint a save takes, at <paramref name="address"/>,
     /// declared to run in the EU by a European company.</summary>
-    internal static void Fill(App app, Element form, string key, string address = Address)
+    internal static void Fill(App app, Element form, string key, string address = Address, string model = "mistral-small")
     {
         app.Agent.SetText(Field(app, form, "AiEndpointAddress"), address);
-        app.Agent.SetText(Field(app, form, "AiEndpointModel"), "mistral-small");
+        app.Agent.SetText(Field(app, form, "AiEndpointModel"), model);
         app.Agent.SetText(Field(app, form, "AiEndpointKey"), key);
         var label = Catalog.English("ai_endpoint_where_eu_native");
         app.Agent.Select(app.Agent.Find(new Filter { Name = label, Type = "RadioButton", Under = form })
@@ -49,10 +49,10 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
 
     /// <summary>Saves an endpoint at <paramref name="address"/> without a key and waits until it is
     /// stored, which is when Remove is drawn.</summary>
-    internal static void SaveEndpoint(App app, string address)
+    internal static void SaveEndpoint(App app, string address, string model = "mistral-small")
     {
         var form = Form(app);
-        Fill(app, form, key: string.Empty, address);
+        Fill(app, form, key: string.Empty, address, model);
         Assert.True(App.Eventually(() => Save(app, form).Enabled, TimeSpan.FromSeconds(5)), "the endpoint's fields leave nothing out");
         app.Agent.Invoke(Save(app, form));
         Assert.True(App.Eventually(() => Line(app, Form(app), "AiEndpointRemove") is { Enabled: true }, TimeSpan.FromSeconds(15)),
@@ -73,6 +73,13 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
 
     /// <summary>The endpoint the showcase stages (MAILCAL_OFFER_AI), put back after a case removed it.</summary>
     internal const string Staged = "http://localhost:11434/v1";
+
+    /// <summary>The staged endpoint's model, the one name the showcase's canned drafts answer.</summary>
+    private const string StagedModel = "showcase-canned";
+
+    /// <summary>Puts the staged endpoint back as the showcase staged it, model included, so a later
+    /// suite in this app still gets the canned draft.</summary>
+    internal static void PutBackStaged(App app) => SaveEndpoint(app, Staged, StagedModel);
 
     [OfflineFact]
     public void TheFormDrawsTheStoredEndpointWithItsRemove() =>
@@ -98,7 +105,7 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
             Assert.True(string.IsNullOrEmpty(app.Agent.Read(Field(app, form, "AiEndpointAddress")).Value), "the form is empty once the endpoint is removed");
             Assert.False(Save(app, form).Enabled, "Save is held while nothing is filled in");
             Assert.True(Line(app, form, "AiEndpointAddress_Gap") is null, "a form with nothing in it says nothing beside its fields");
-        }, app => SaveEndpoint(app, Staged));
+        }, PutBackStaged);
 
     [OfflineFact]
     public void SaveIsHeldWhileTheFieldsLeaveSomethingOutAndEachFieldSaysWhat() =>
@@ -131,5 +138,5 @@ public sealed class AiEndpointFormTests(OfferAiShowcaseApp showcase)
             var form = Form(app);
             Assert.Equal(Address, app.Agent.Read(Field(app, form, "AiEndpointAddress")).Value);
             Assert.True(Line(app, form, "AiEndpointOutcome") is not { Rendered: true }, "a save that worked says nothing: the fields show it");
-        }, app => SaveEndpoint(app, Staged));
+        }, PutBackStaged);
 }

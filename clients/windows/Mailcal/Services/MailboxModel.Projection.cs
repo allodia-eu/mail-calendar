@@ -68,6 +68,12 @@ public sealed partial class MailboxModel
             RaiseAiEndpointChanged();
             return;
         }
+        // A composer's Draft a reply moved: only open composers read theirs again.
+        if (changed == Surface.ReplyDraft)
+        {
+            RaiseReplyDraftChanged();
+            return;
+        }
         // Settings → Writing style moved: its page, the learning flow, a reveal or a detail.
         if (changed == Surface.WritingStyle)
         {

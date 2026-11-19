@@ -201,5 +201,5 @@ public sealed class WritingStyleShowcaseTests(OfferAiShowcaseApp showcase)
             app.Agent.Invoke(remedy);
             Assert.True(app.Agent.Wait(new Filter { Id = "AiEndpointAddress", Under = dialog }, TimeSpan.FromSeconds(10)) is not null,
                 "the remedy opens the own endpoint's form");
-        }, app => AiEndpointFormTests.SaveEndpoint(app, AiEndpointFormTests.Staged));
+        }, AiEndpointFormTests.PutBackStaged);
 }

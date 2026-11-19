@@ -69,6 +69,27 @@ internal static class SaveDialogs
         return suggested;
     }
 
+    /// <summary>
+    /// Answers the Open dialog <paramref name="process"/> raises (a FileOpenPicker's) with
+    /// <paramref name="path"/>, through the name box's value as <see cref="Save"/> does.
+    /// </summary>
+    internal static void Choose(int process, string path)
+    {
+        AutomationElement? dialog = null;
+        if (!App.Eventually(() => (dialog = Open(process).FirstOrDefault()) is not null, TimeSpan.FromSeconds(30)))
+        {
+            throw new InvalidOperationException("no Open dialog came up within 30 s");
+        }
+        // An Open dialog's name box is the edit of combo box #1148, not Save As's #1001.
+        var box = Desktop.ById("1148", dialog!, ControlType.Edit) ?? throw new InvalidOperationException("the Open dialog has no file name box");
+        ((ValuePattern)box.GetCurrentPattern(ValuePattern.Pattern)).SetValue(path);
+        Desktop.Press(Desktop.ById("1", dialog!, ControlType.Button) ?? throw new InvalidOperationException("the Open dialog has no Open button"));
+        if (!App.Eventually(() => Open(process).Count == 0, TimeSpan.FromSeconds(15)))
+        {
+            throw new InvalidOperationException("the Open dialog did not close on the file it was given");
+        }
+    }
+
     /// <summary>Closes every classic dialog <paramref name="process"/> has open, a message box over a
     /// Save As included. Closing one is its Cancel; the topmost goes first, which is why this repeats.</summary>
     internal static void CloseAll(int process)

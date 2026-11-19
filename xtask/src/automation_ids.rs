@@ -65,7 +65,8 @@ pub(crate) const PLATFORM: &[(&str, &str)] = &[
     ("PART_TitleText", "the WinUI TitleBar's title"),
     ("FileNameControlHost", "the Windows save dialog"),
     ("1001", "the Windows save dialog's file name box"),
-    ("1", "the Windows save dialog's Save button"),
+    ("1148", "the Windows open dialog's file name box"),
+    ("1", "the Windows save and open dialogs' default button"),
 ];
 
 /// Every id the app can give an element.

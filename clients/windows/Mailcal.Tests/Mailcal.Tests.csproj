@@ -369,6 +369,7 @@
          Save, the run's line, a range, a day and a language. WinUI-free and L10n-free; they read
          the generated records, so they need the bindings. -->
     <Compile Include="..\Mailcal\Services\AiWords.cs" Link="Services\AiWords.cs" />
+    <Compile Include="..\Mailcal\Services\ReplyDraftWords.cs" Link="Services\ReplyDraftWords.cs" />
     <Compile Include="..\Mailcal\Services\WritingStyleRules.cs" Link="Services\WritingStyleRules.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />

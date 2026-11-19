@@ -85,6 +85,9 @@ public sealed partial class ComposerView
             return;
         }
         _files = files;
+        // A file item on Draft a reply's card is done once a file is added after the draft, which
+        // the core answers when the record is read; nothing else says it changed.
+        RefreshReplyDraft();
         FileTiles.ItemsSource = files.Tiles
             .Select(tile => new ComposerFileTileView(tile, () => RemoveFile(tile.Id)))
             .ToList();

@@ -5,6 +5,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Microsoft.UI.Xaml.Controls"
     xmlns:views="using:Allodia.Mailcal.Views"
+    xmlns:ctl="using:Allodia.Mailcal.Controls"
     xmlns:l10n="using:Allodia.Mailcal">
 
     <!-- The composer as it lives in the reading-pane slot: FLUID, not the fixed 620x660 the
@@ -128,8 +129,9 @@
                          action bar macOS/iOS put above the editor and of Android's app bar. Signature
                          stays hidden until the library holds something, since a picker offering only
                          "None" says nothing; the current choice shows as a checkmark inside the menu
-                         rather than on the button, so the row stays a row of verbs. -->
-                    <StackPanel Orientation="Horizontal" Spacing="8">
+                         rather than on the button, so the row stays a row of verbs. In a pane too
+                         narrow for every verb the row wraps rather than cutting the last ones off. -->
+                    <ctl:FlowPanel Spacing="8">
                         <Button Content="{x:Bind l10n:L10n.ActionAttach(), Mode=OneTime}" Click="OnAttachFiles" />
                         <DropDownButton x:Name="SignatureButton" Visibility="Collapsed"
                                         Content="{x:Bind l10n:L10n.ComposeSignatureLabel(), Mode=OneTime}">
@@ -137,6 +139,9 @@
                                 <MenuFlyout x:Name="SignatureMenu" />
                             </DropDownButton.Flyout>
                         </DropDownButton>
+                        <!-- Draft a reply (docs/ai.md rule 17), beside Signature: drawn from the core's
+                             record, absent while it says nothing (ComposerView.ReplyDraft.cs). -->
+                        <Border x:Name="ReplyDraftSlot" />
                         <!-- Importance (docs/importance.md), its entries the core's and the choice a
                              checkmark in the menu, as Signature's is; the glyph is the list row's for
                              what is in force. Hidden until the core has answered. -->
@@ -157,7 +162,7 @@
                              keeps no draft at all. -->
                         <Button x:Name="SaveDraftButton" Visibility="Collapsed"
                                 Content="{x:Bind l10n:L10n.ActionSaveDraft(), Mode=OneTime}" Click="OnSaveDraft" />
-                    </StackPanel>
+                    </ctl:FlowPanel>
 
                     <!-- The composer's notes, under the action row rather than under the message, which
                          would carry them down the column with every line typed. -->
@@ -173,6 +178,10 @@
                     <TextBlock x:Name="DraftHint" Visibility="Collapsed" TextWrapping="Wrap"
                                Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                                Style="{StaticResource CaptionTextBlockStyle}" />
+
+                    <!-- Draft a reply's notes: the message answered gone, a draft being made with its
+                         Stop, one that did not come, or the card (ComposerView.ReplyDraft.cs). -->
+                    <StackPanel x:Name="ReplyDraftNotes" Spacing="8" Visibility="Collapsed" />
 
                     <!-- The files, as the core holds them: how many and how large together, then a
                          tile each, in rows of equal-width columns that wrap, with no cap of their own

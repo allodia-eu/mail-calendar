@@ -26,12 +26,8 @@ public sealed partial class SettingsDialog
             var host = inFlow && _learningHost is { } flow ? flow : new FlowHost("WritingStyleReveal", FlowHeight());
             parts = new RevealParts(reveal, host, inFlow, new RevealInk(_brushes));
             parts.Name.Header = L10n.WritingStyleNameLabel();
-            parts.Notes.Header = L10n.WritingStyleNotes();
-            parts.Notes.PlaceholderText = L10n.WritingStyleNotesHint();
             AutomationProperties.SetName(parts.Name, L10n.WritingStyleNameLabel());
-            AutomationProperties.SetName(parts.Notes, L10n.WritingStyleNotes());
             AutomationProperties.SetAutomationId(parts.Name, "WritingStyleRevealName");
-            AutomationProperties.SetAutomationId(parts.Notes, "WritingStyleRevealNotes");
             parts.Name.TextChanged += (_, _) => DrawReveal(parts);
             _revealParts = parts;
         }
@@ -139,7 +135,12 @@ public sealed partial class SettingsDialog
                     AutomationProperties.SetAutomationId(parts.SaidLine, "WritingStyleRevealRefused");
                     parts.NamePage.Children.Add(parts.Name);
                     parts.NamePage.Children.Add(parts.SaidLine);
-                    parts.NamePage.Children.Add(parts.Notes);
+                    // The notes as the detail draws them: one component, wrapping long text.
+                    var notes = new StackPanel { Spacing = 4 };
+                    notes.Children.Add(new TextBlock { Text = L10n.WritingStyleNotes() });
+                    notes.Children.Add(Description(L10n.WritingStyleNotesHint()));
+                    notes.Children.Add(parts.NotesLine);
+                    parts.NamePage.Children.Add(notes);
                 }
                 return parts.NamePage;
         }
@@ -220,12 +221,10 @@ public sealed partial class SettingsDialog
 
         internal TextBox Name { get; } = new() { Text = record.Name, MinWidth = 320, HorizontalAlignment = HorizontalAlignment.Left };
 
-        internal TextBox Notes { get; } = new()
-        {
-            Text = record.Notes,
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.Wrap,
-            Height = 120,
-        };
+        // Sent with the name by Save, so what it would send on its own goes nowhere.
+        internal StackPanel NotesLine { get; } = ControlComponents.TextBox(
+            L10n.WritingStyleNotes(), record.Notes, record.Save, "WritingStyleRevealNotes", _ => { }, wraps: true);
+
+        internal TextBox Notes => ControlComponents.BoxIn(NotesLine);
     }
 }

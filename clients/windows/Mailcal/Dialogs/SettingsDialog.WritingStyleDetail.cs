@@ -135,7 +135,7 @@ public sealed partial class SettingsDialog
         {
             parts.NotesDrawn = detail.NotesControl;
             parts.NotesSlot.Child = ControlComponents.TextBox(L10n.WritingStyleNotes(), detail.Notes, detail.NotesControl, "WritingStyleNotes", notes =>
-                _model.ChangeWritingStyle(new WritingStyleIntent.SetNotes(parts.Style, notes)));
+                _model.ChangeWritingStyle(new WritingStyleIntent.SetNotes(parts.Style, notes)), wraps: true);
         }
         if (detail.Forget != parts.ForgetDrawn)
         {

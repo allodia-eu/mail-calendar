@@ -38,5 +38,9 @@ public sealed partial class MailboxModel
     internal static WritingStyleRefusal? StyleNameRefusal(string name) =>
         MailcalBindingsMethods.WritingStyleNameRefusal(name);
 
-    private void RaiseWritingStyleChanged() => WritingStyleChanged?.Invoke();
+    private void RaiseWritingStyleChanged()
+    {
+        WritingStyleChanged?.Invoke();
+        RaiseReplyDraftChanged();
+    }
 }
