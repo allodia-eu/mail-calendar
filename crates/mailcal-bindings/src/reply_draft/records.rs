@@ -6,7 +6,7 @@ use std::fmt;
 
 use mailcal_app::ai as core;
 
-use crate::{AiFailure, AiRemedy, ControlState};
+use crate::{AiFailure, AiRemedyControl, ControlState};
 
 /// Draft a reply, for one composition, read with `MailcalApp::composer_reply_draft`.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
@@ -40,11 +40,11 @@ pub struct ComposerReplyDraft {
     pub send_question: Option<ReplyDraftSendQuestion>,
 }
 
-/// Why Draft cannot be pressed, and its one remedy.
+/// Why Draft cannot be pressed, and its one remedy, which opens what it names.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Record)]
 pub struct ReplyDraftHold {
     pub failure: AiFailure,
-    pub remedy: Option<AiRemedy>,
+    pub remedy: Option<AiRemedyControl>,
 }
 
 /// Where Draft a reply stands (`docs/ai.md` rule 17).
@@ -53,7 +53,7 @@ pub enum ReplyDraftState {
     /// It cannot draft now.
     Unavailable {
         failure: AiFailure,
-        remedy: Option<AiRemedy>,
+        remedy: Option<AiRemedyControl>,
     },
     /// It can draft.
     Ready,
@@ -65,10 +65,11 @@ pub enum ReplyDraftState {
         summary: String,
         checklist: Vec<ReplyDraftItem>,
     },
-    /// The last draft did not come.
+    /// The last draft did not come. Try again opens the instruction's input, and is held with
+    /// Draft.
     Failed {
         failure: AiFailure,
-        remedy: Option<AiRemedy>,
+        remedy: Option<AiRemedyControl>,
     },
 }
 
@@ -146,9 +147,9 @@ impl From<core::ReplyDraftView> for ComposerReplyDraft {
             control: control(view.control),
             draft: control(view.draft),
             stop: control(view.stop),
-            held_by: view.held_by.map(|failure| ReplyDraftHold {
-                failure: failure.into(),
-                remedy: failure.remedy().map(Into::into),
+            held_by: view.held_by.map(|hold| ReplyDraftHold {
+                failure: hold.failure.into(),
+                remedy: hold.remedy.map(Into::into),
             }),
             suggestions: view.suggestions.into_iter().map(Into::into).collect(),
             instruction: view.instruction,

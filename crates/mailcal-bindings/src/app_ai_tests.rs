@@ -11,8 +11,8 @@ use mailcal_app::ai::{AiQueued, AiWork, AiWorkKey};
 
 use crate::{
     AiEndpointAddressGap, AiEndpointDeclarationGap, AiEndpointForm, AiEndpointIntent,
-    AiEndpointResult, AiIntent, Intent, JurisdictionClass, JurisdictionMode, LogLevel, MailcalApp,
-    Surface,
+    AiEndpointKeptKey, AiEndpointResult, AiIntent, Intent, JurisdictionClass, JurisdictionLimit,
+    JurisdictionRefusal, LogLevel, MailcalApp, Surface,
     tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle},
 };
 
@@ -158,6 +158,23 @@ fn a_save_dispatched_keeps_the_key_in_the_keystore_and_says_so_on_the_form() {
     assert!(persisted[0].1.contains("sk-test") && !persisted[0].1.contains(" sk-test "));
     // Where a request goes moved, so the page and every composer read theirs again too.
     every_ai_surface_signalled(&rx);
+    // What the key field says is asked of the address as typed: the key goes only to its server.
+    let kept = |address: &str| {
+        app.ai_endpoint_gap(
+            address.to_owned(),
+            "m".to_owned(),
+            Some(JurisdictionClass::EuNative),
+        )
+        .kept_key
+    };
+    assert_eq!(
+        kept("https://models.example.eu/v2"),
+        Some(AiEndpointKeptKey::Carried)
+    );
+    assert_eq!(
+        kept("https://models.example.com/v1"),
+        Some(AiEndpointKeptKey::Dropped)
+    );
 
     app.dispatch(Intent::Ai {
         intent: AiIntent::Endpoint {
@@ -187,10 +204,12 @@ fn the_gap_the_form_shows_is_the_one_the_save_refuses_by() {
     assert_eq!(
         gaps.declaration,
         Some(AiEndpointDeclarationGap::Refused {
-            mode: JurisdictionMode::EuNative,
-            class: JurisdictionClass::NonEu,
+            refusal: JurisdictionRefusal::NonEu {
+                mode: JurisdictionLimit::EuNative,
+            },
         })
     );
+    assert_eq!(gaps.kept_key, None, "no key is kept");
     app.dispatch(Intent::Ai {
         intent: AiIntent::Endpoint {
             intent: AiEndpointIntent::Save {

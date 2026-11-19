@@ -95,11 +95,17 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    it ([`waiting.md`](waiting.md)), an `AiEndpointIntent`, running from the press until the key is
    in the platform keystore (id `ai-endpoint`) and the rest in the preferences. The fields are held
    with it, drawn from the edit being saved, then from an edit a save refused, otherwise from what
-   is stored. A stored key is never drawn back: the field says one is kept. A key typed replaces
-   it; an empty field leaves it as it is and writes nothing to the keystore, so a key is taken out
-   only by Remove. A key the keystore refused is said on the form. **Remove** is the same kind of
-   change, drawn only while an endpoint or a key is stored, and takes both out. Saving dials
-   nothing; the first request says whether the endpoint answers.
+   is stored. A stored key is never drawn back. A key typed replaces it. **A key goes only to the
+   server it was given for**: a save whose address is on another host or port than the stored
+   endpoint's, compared as the URL parser normalises them with a scheme's default port counting as
+   none given, takes the kept key out unless a key is typed in the same save, and a key kept with
+   no endpoint stored goes to no address; a change of path or of scheme alone keeps it, writing
+   nothing to the keystore. What a save would do to it is said before Save is pressed, by the same
+   `ai_endpoint_gap`, for the address as typed (`kept_key`: carried or dropped), and the key field
+   says a key is kept only while it would be carried. A key the keystore refused, to store or to
+   take out, is said on the form and changes nothing. **Remove** is the same kind of change, drawn
+   only while an endpoint or a key is stored, and takes both out. Saving dials nothing; the first
+   request says whether the endpoint answers.
 
 ### Settings → Writing style
 
@@ -124,8 +130,9 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     - `ChooseAccount`, only with more than one account used for mail, each named by its address.
     - `ChooseRange`, from the core's presets (`learn_ranges`): everything the device holds;
       everything up to the end of last year, to leave out mail written with an assistant's help;
-      or a range of the person's own within days the core bounds. Only what the device holds is
-      offered: the record says how far back that is (the account's sync depth), the end of last
+      or a range of the person's own within days the core bounds, offered last and carrying the
+      days it starts from (the earliest day the device holds, or a year back when it holds
+      everything, to today). Only what the device holds is offered: the record says how far back that is (the account's sync depth), the end of last
       year is offered only when the device holds mail from before this year, and a range of the
       person's own starts no earlier. A day is a whole day in UTC, as a sync window's first day
       is. A client converts no dates.
@@ -157,6 +164,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
     | `Learned` | none | the reveal counts as shown; the style keeps its default name |
 
+    The record's `trail` names the stages before the current one, first to last, each where Back
+    from the one after it goes, so a host that draws the flow as a navigation stack keys its path
+    on it: `ChooseAccount` only when it was shown, then `ChooseRange`, then `Review`. `Learning`
+    and `Learned`, which have no Back, stand on the review they were started from; a `Failed`
+    stands on where its Back goes.
+
 13. **One run at a time**, as queued work. A run and a draft never wait for each other: each
     kind of work keeps to its own lane (rule 20), and the review's read sends nothing and runs
     beside both. Opening the flow while one runs opens it on `Learning`; an answer for a range or an
@@ -183,9 +196,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     fifth or more, "sometimes" below), with the name signed; **tone and approach** (register, how a
     reply is built, declining and chasing, punctuation); **phrases** used and avoided; and **name and
     notes**, with Save. The four in between are per language, with a language control when there is
-    more than one. The reveal counts as shown once it is left, by Save or by closing.
+    more than one. Moving between the pages is a control of the record (`paging`), held while a
+    change to the library runs, as Save and closing are. The reveal counts as shown once it is
+    left, by Save or by closing.
 16. **An existing style opens its detail** (`writing_style_detail(style)`): the first page's facts,
-    the reveal's sections as one page without paging, the name, the notes and **Forget**. A blank
+    the reveal's sections as one page without paging, those the record lists (`sections`, left out
+    by the rule the reveal leaves a page out by), the name, the notes and **Forget**. A blank
     name is refused (`writing_style_name_refusal`), its Save held meanwhile; the notes are sent on
     Return and on leaving the field. Forget is asked first, names the accounts that draft in the
     style, says no mail is touched, and runs until the library is written.
@@ -273,7 +289,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 ### Failures, and what a client decides
 
 27. **A failure and its remedy are decided once, in the core** (`AiFailure`, `AiRemedy`); a client
-    words them and never shows a server's sentence. Stop is not a failure.
+    words them and never shows a server's sentence. Stop is not a failure. A remedy comes with its
+    control (`AiRemedyControl`), wherever it is drawn: held while the surface it sits on holds its
+    controls (a change to the library, on the page; Draft, for the composer's Try again) and never
+    running, since what it starts is drawn where it leads. A refusal by the gate names only what
+    the gate can refuse: a mode that refuses something and a class it refuses, never `all` and
+    never an endpoint declared EU-native.
 
     | Failure | Remedy |
     |---|---|

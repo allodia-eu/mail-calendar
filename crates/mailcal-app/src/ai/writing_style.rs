@@ -14,7 +14,7 @@ mod reveal;
 mod sent;
 mod work;
 
-pub use flow::{LearningIntent, Review};
+pub use flow::{LearningIntent, LearningTrailStage, Review};
 pub use learning::{LearnAccount, LearningStage, LearningStep, LearningView};
 pub use range::{LearnRange, LearnRanges, SentReach, learn_ranges};
 pub use reveal::{StyleFacts, WritingStyleDetailView, WritingStyleRevealView};
@@ -23,7 +23,7 @@ pub use work::{
     WritingStyleResult, WritingStyleWork, writing_style_name,
 };
 
-use super::AiFailure;
+use super::{AiFailure, RemedyControl};
 use crate::App;
 
 /// What a control on these surfaces is doing.
@@ -95,8 +95,13 @@ pub enum LearnBlock {
     /// No account is used for mail.
     NoMailAccount,
     /// There is nowhere to send, the gate refuses the endpoint as declared, or the Allodia
-    /// sign-in needs renewing; the remedy is the failure's.
-    CannotSend(AiFailure),
+    /// sign-in needs renewing.
+    CannotSend {
+        /// Why.
+        failure: AiFailure,
+        /// Its remedy, held while a change to the library runs.
+        remedy: Option<RemedyControl>,
+    },
 }
 
 /// The run the page draws in Learn's place.
@@ -112,7 +117,12 @@ pub enum PageRun {
         stop: StyleControl,
     },
     /// It failed after its host was closed; Learn opens the flow on the failure.
-    Failed(AiFailure),
+    Failed {
+        /// Why.
+        failure: AiFailure,
+        /// Its remedy, held while a change to the library runs.
+        remedy: Option<RemedyControl>,
+    },
 }
 
 /// Settings → Writing style.
@@ -188,9 +198,12 @@ impl<P: Provider> App<P> {
         let learn_blocked = if senders.is_empty() {
             Some(LearnBlock::NoMailAccount)
         } else {
-            self.ai_route().err().map(LearnBlock::CannotSend)
+            self.ai_route().err().map(|failure| LearnBlock::CannotSend {
+                failure,
+                remedy: failure.remedy_control(!busy),
+            })
         };
-        let run = self.learning_on_page();
+        let run = self.learning_on_page(busy);
         let held = busy || learn_blocked.is_some() || matches!(run, Some(PageRun::Learning { .. }));
         Some(WritingStylePageView {
             styles,
@@ -209,3 +222,5 @@ mod tests_flow;
 mod tests_page;
 #[cfg(test)]
 mod tests_support;
+#[cfg(test)]
+mod tests_trail;

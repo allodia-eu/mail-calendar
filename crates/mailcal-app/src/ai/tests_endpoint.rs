@@ -2,7 +2,7 @@
 //! save refuses by, Save and Remove running until written, the key kept in the keystore and never
 //! drawn back, and a refusal or a failed write said on the form.
 
-use mailcal_ai::{Class, Mode};
+use mailcal_ai::{Class, Mode, Refused};
 
 use super::{
     AiEndpointAddressGap, AiEndpointChange, AiEndpointChangeKind, AiEndpointDeclarationGap,
@@ -37,6 +37,7 @@ fn every_field_is_judged_at_once() {
             address: Some(AiEndpointAddressGap::Missing),
             model_missing: true,
             declaration: Some(AiEndpointDeclarationGap::Missing),
+            kept_key: None,
         }
     );
     assert_eq!(
@@ -49,10 +50,8 @@ fn every_field_is_judged_at_once() {
         AiEndpointGaps {
             address: Some(AiEndpointAddressGap::NeedsHttps),
             model_missing: false,
-            declaration: Some(AiEndpointDeclarationGap::Refused {
-                mode: Mode::EuNative,
-                class: Class::EuHosted,
-            }),
+            declaration: Some(AiEndpointDeclarationGap::Refused(Refused::EuHosted)),
+            kept_key: None,
         }
     );
     assert_eq!(

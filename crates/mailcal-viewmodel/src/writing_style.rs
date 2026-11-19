@@ -158,24 +158,63 @@ impl RevealPage {
     }
 }
 
-/// The reveal's pages, in order: a page about one language is left out when no language has
-/// anything for it.
+/// A section of a style about one language at a time: a page of the reveal, a part of the detail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevealSection {
+    /// A typical reply.
+    Letter,
+    /// Greetings and sign-offs.
+    Habits,
+    /// Tone and approach.
+    Voice,
+    /// Phrases used and avoided.
+    Phrases,
+}
+
+impl From<RevealSection> for RevealPage {
+    fn from(section: RevealSection) -> Self {
+        match section {
+            RevealSection::Letter => Self::Letter,
+            RevealSection::Habits => Self::Habits,
+            RevealSection::Voice => Self::Voice,
+            RevealSection::Phrases => Self::Phrases,
+        }
+    }
+}
+
+/// The sections a style has, in order: one is left out when no language has anything for it. The
+/// reveal's pages and the detail's parts both follow it.
+#[must_use]
+pub fn reveal_sections(languages: &[RevealLanguage]) -> Vec<RevealSection> {
+    let any = |has: fn(&RevealLanguage) -> bool| languages.iter().any(has);
+    [
+        (
+            RevealSection::Letter,
+            any(|language| language.letter.is_some()),
+        ),
+        (
+            RevealSection::Habits,
+            any(|language| language.habits.is_some()),
+        ),
+        (
+            RevealSection::Voice,
+            any(|language| !language.cards.is_empty()),
+        ),
+        (
+            RevealSection::Phrases,
+            any(|language| language.phrases.is_some()),
+        ),
+    ]
+    .into_iter()
+    .filter_map(|(section, has)| has.then_some(section))
+    .collect()
+}
+
+/// The reveal's pages, in order: what was read, the sections ([`reveal_sections`]), then the name.
 #[must_use]
 pub fn reveal_pages(languages: &[RevealLanguage]) -> Vec<RevealPage> {
-    let any = |has: fn(&RevealLanguage) -> bool| languages.iter().any(has);
     let mut pages = vec![RevealPage::Read];
-    if any(|language| language.letter.is_some()) {
-        pages.push(RevealPage::Letter);
-    }
-    if any(|language| language.habits.is_some()) {
-        pages.push(RevealPage::Habits);
-    }
-    if any(|language| !language.cards.is_empty()) {
-        pages.push(RevealPage::Voice);
-    }
-    if any(|language| language.phrases.is_some()) {
-        pages.push(RevealPage::Phrases);
-    }
+    pages.extend(reveal_sections(languages).into_iter().map(RevealPage::from));
     pages.push(RevealPage::Name);
     pages
 }

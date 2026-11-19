@@ -1,7 +1,7 @@
 //! What can go wrong for the writing assistant, and the one remedy each offers (`docs/ai.md`
 //! rule 27). Decided here once; a client words both and never shows a server's sentence.
 
-use mailcal_ai::{AiError, Class, Destination, Mode};
+use mailcal_ai::{AiError, Destination, Refused};
 
 /// Why learning or drafting did not happen. Stopping is not a failure, and has no value here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -11,12 +11,7 @@ pub enum AiFailure {
     /// The own endpoint refused its key.
     EndpointKeyRefused,
     /// The jurisdiction gate refuses the own endpoint as declared, under the mode in force.
-    Refused {
-        /// The mode in force.
-        mode: Mode,
-        /// The class the endpoint was declared as.
-        class: Class,
-    },
+    Refused(Refused),
     /// No own endpoint is set up and the relay cannot be asked.
     NowhereToSend,
     /// The destination could not be reached, or did not answer in time.
@@ -67,13 +62,33 @@ pub enum AiRemedy {
     ChooseStyle,
 }
 
+/// A failure's remedy as a surface draws it: which one, and whether it can be pressed now. It is
+/// held while the surface it sits on holds its controls, and never runs: what it starts is drawn
+/// where it leads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RemedyControl {
+    /// The remedy.
+    pub remedy: AiRemedy,
+    /// It can be pressed now.
+    pub enabled: bool,
+}
+
 impl AiFailure {
+    /// The remedy this failure offers, as a control that is `enabled` or held.
+    #[must_use]
+    pub const fn remedy_control(self, enabled: bool) -> Option<RemedyControl> {
+        match self.remedy() {
+            Some(remedy) => Some(RemedyControl { remedy, enabled }),
+            None => None,
+        }
+    }
+
     /// The one remedy this failure offers, or `None` when there is nothing the person can do here.
     #[must_use]
     pub const fn remedy(self) -> Option<AiRemedy> {
         match self {
             Self::RelaySignIn => Some(AiRemedy::SignInToAllodia),
-            Self::EndpointKeyRefused | Self::Refused { .. } | Self::NowhereToSend => {
+            Self::EndpointKeyRefused | Self::Refused(_) | Self::NowhereToSend => {
                 Some(AiRemedy::OpenAiEndpoint)
             }
             Self::Unreachable | Self::ServerError | Self::TooManyRequests | Self::Unreadable => {
@@ -102,10 +117,7 @@ impl AiFailure {
     pub const fn of_request(error: &AiError, destination: Destination) -> Option<Self> {
         Some(match error {
             AiError::Cancelled => return None,
-            AiError::Refused(refused) => Self::Refused {
-                mode: refused.mode,
-                class: refused.class,
-            },
+            AiError::Refused(refused) => Self::Refused(*refused),
             AiError::Unauthorized => match destination {
                 Destination::AllodiaRelay => Self::RelaySignIn,
                 Destination::OwnEndpoint { .. } => Self::EndpointKeyRefused,
@@ -124,7 +136,7 @@ impl AiFailure {
 
 #[cfg(test)]
 mod tests {
-    use mailcal_ai::{AiError, Class, Destination, Mode, Refused};
+    use mailcal_ai::{AiError, Class, Destination, Limit, Refused};
 
     use super::{AiFailure, AiRemedy};
 
@@ -142,10 +154,9 @@ mod tests {
                 Some(AiRemedy::OpenAiEndpoint),
             ),
             (
-                AiFailure::Refused {
-                    mode: Mode::EuNative,
-                    class: Class::NonEu,
-                },
+                AiFailure::Refused(Refused::NonEu {
+                    mode: Limit::EuNative,
+                }),
                 Some(AiRemedy::OpenAiEndpoint),
             ),
             (AiFailure::NowhereToSend, Some(AiRemedy::OpenAiEndpoint)),
@@ -193,17 +204,10 @@ mod tests {
     #[test]
     fn stopping_is_no_failure_and_every_other_error_has_one() {
         assert_eq!(AiFailure::of_request(&AiError::Cancelled, OWN), None);
-        let refused = Refused {
-            mode: Mode::EuNative,
-            class: Class::EuHosted,
-        };
         let cases = [
             (
-                AiError::Refused(refused),
-                AiFailure::Refused {
-                    mode: Mode::EuNative,
-                    class: Class::EuHosted,
-                },
+                AiError::Refused(Refused::EuHosted),
+                AiFailure::Refused(Refused::EuHosted),
             ),
             (AiError::OutOfCredits, AiFailure::OutOfCredits),
             (AiError::NotEntitled, AiFailure::NotEntitled),

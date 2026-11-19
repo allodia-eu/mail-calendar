@@ -15,8 +15,8 @@ use super::{
     ReplyDraftSuggestion, ReplyDraftTaskKind,
 };
 use crate::{
-    AiFailure, AiIntent, AiRemedy, ComposeOrigin, ComposerHostRequest, Intent, LogLevel,
-    MailcalApp,
+    AiFailure, AiIntent, AiRemedy, AiRemedyControl, ComposeOrigin, ComposerHostRequest, Intent,
+    LogLevel, MailcalApp,
     composer_host::parse_composer_host_request,
     tests::{ChannelObserver, NullLogger},
 };
@@ -125,7 +125,10 @@ fn the_record_numbers_its_items_and_names_each_hold_with_its_remedy() {
             enabled: false,
             running: false,
         },
-        held_by: Some(CoreFailure::NoStyleForAccount),
+        held_by: Some(mailcal_app::ai::ReplyDraftHold {
+            failure: CoreFailure::NoStyleForAccount,
+            remedy: CoreFailure::NoStyleForAccount.remedy_control(false),
+        }),
         suggestions: REPLY_DRAFT_SUGGESTIONS.to_vec(),
         instruction: "yes".to_owned(),
         ask_before_replacing: true,
@@ -154,8 +157,15 @@ fn the_record_numbers_its_items_and_names_each_hold_with_its_remedy() {
         record.held_by,
         Some(ReplyDraftHold {
             failure: AiFailure::NoStyleForAccount,
-            remedy: Some(AiRemedy::ChooseStyle),
-        })
+            remedy: Some(AiRemedyControl {
+                remedy: AiRemedy::ChooseStyle,
+                control: crate::ControlState {
+                    enabled: false,
+                    running: false,
+                },
+            }),
+        }),
+        "the remedy's control is the core's"
     );
     assert_eq!(
         record.suggestions,

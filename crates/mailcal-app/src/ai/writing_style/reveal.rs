@@ -6,8 +6,9 @@ use engine_api::Provider;
 use mailcal_account::{StoredWritingStyle, WritingStyleId};
 use mailcal_ai::{LanguageStyle, StyleGuide};
 use mailcal_viewmodel::writing_style::{
-    RevealCard, RevealHabits, RevealLanguage, RevealLetter, RevealPage, RevealPhrases, RevealTopic,
-    card_text, habit_rows, letter_lines, reveal_pages, reveal_runs,
+    RevealCard, RevealHabits, RevealLanguage, RevealLetter, RevealPage, RevealPhrases,
+    RevealSection, RevealTopic, card_text, habit_rows, letter_lines, reveal_pages, reveal_runs,
+    reveal_sections,
 };
 
 use super::{StyleControl, WritingStyleChangeKind, guide_of};
@@ -48,6 +49,8 @@ pub struct WritingStyleRevealView {
     pub save: StyleControl,
     /// Leaving without saving, which counts the reveal as shown.
     pub close: StyleControl,
+    /// Moving between the pages: held while a change to the library runs, never running.
+    pub paging: StyleControl,
 }
 
 /// An existing style's detail.
@@ -57,6 +60,8 @@ pub struct WritingStyleDetailView {
     pub id: WritingStyleId,
     /// What it was learned from.
     pub facts: StyleFacts,
+    /// The sections it has, in order, by the rule the reveal leaves a page out by.
+    pub sections: Vec<RevealSection>,
     /// The reveal's sections, per language, as one page.
     pub languages: Vec<RevealLanguage>,
     /// The name.
@@ -208,6 +213,7 @@ impl<P: Provider> App<P> {
         let guide = guide_of(&style.guide_json);
         let languages = sections(&guide);
         let control = self.style_controls(id);
+        let paging = StyleControl::of(!self.style_work_view().0.is_empty(), false);
         Some(WritingStyleRevealView {
             id: id.clone(),
             facts: facts(&style, &guide),
@@ -217,6 +223,7 @@ impl<P: Provider> App<P> {
             notes: guide.notes,
             save: control(WritingStyleChangeKind::SaveReveal),
             close: control(WritingStyleChangeKind::CloseReveal),
+            paging,
         })
     }
 
@@ -229,6 +236,7 @@ impl<P: Provider> App<P> {
         }
         let style = self.writing_style(id)?;
         let guide = guide_of(&style.guide_json);
+        let languages = sections(&guide);
         let control = self.style_controls(id);
         let drafting_accounts = self
             .accounts
@@ -240,7 +248,8 @@ impl<P: Provider> App<P> {
         Some(WritingStyleDetailView {
             id: id.clone(),
             facts: facts(&style, &guide),
-            languages: sections(&guide),
+            sections: reveal_sections(&languages),
+            languages,
             name: style.name,
             notes: guide.notes,
             rename: control(WritingStyleChangeKind::Rename),

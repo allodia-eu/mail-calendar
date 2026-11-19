@@ -13,7 +13,7 @@ use mailcal_ai::{Habit, LanguageCode, LanguageStyle, Provenance, StyleGuide};
 use crate::{
     AiIntent, Intent, LogLevel, MailcalApp, StyleLearningIntent, Surface, WritingStyleIntent,
     WritingStyleLearnBlock, WritingStyleOpens, WritingStylePage, WritingStyleRefusal,
-    WritingStyleResult, WritingStyleRevealPage, WritingStyleSpan,
+    WritingStyleResult, WritingStyleRevealPage, WritingStyleSection, WritingStyleSpan,
     tests::{ChannelObserver, NullLogger, RecordingCredentialStore, RecordingStoreHandle},
     writing_style_name_refusal,
 };
@@ -168,6 +168,14 @@ fn closing_the_reveal_counts_it_as_shown_and_forget_empties_the_library() {
             WritingStyleRevealPage::Habits,
             WritingStyleRevealPage::Name
         ]
+    );
+    let detail = app
+        .writing_style_detail(id.as_str().to_owned())
+        .expect("a detail");
+    assert_eq!(
+        detail.sections,
+        [WritingStyleSection::Letter, WritingStyleSection::Habits],
+        "the detail leaves out what the reveal leaves out"
     );
     assert_eq!(reveal.facts.messages, 9);
     let letter = reveal.languages[0].letter.as_ref().unwrap();
