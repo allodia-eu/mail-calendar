@@ -118,11 +118,13 @@ attention, human or agent alike. Write the fact, not the story around it.
 
 - **Sovereignty.** Every external dispatch (AI and model calls, voice, conferencing, connectors)
   must pass an in-process jurisdiction check **before data leaves**: never a perimeter it can route
-  around, never air-gapped-exempt. ⚠️ `JurisdictionGate` is the named seam and **is not yet in
-  code**, so the rule binds design rather than a call site: nothing new may ship a dispatch that
-  would have to route around it. Five carve-outs exist, each stated with the condition that ends it
-  in the doc
-  that owns it: connecting a mail account, and the video meetings that account's provider makes
+  around, never air-gapped-exempt. `JurisdictionGate` is the named seam: the gate itself is
+  [`crates/mailcal-jurisdiction`](crates/mailcal-jurisdiction), and an AI request is built to
+  leave only through `mailcal-ai`'s `GatedBackend`, which asks it first. ⚠️ **Nothing calls either
+  yet**: no client can dispatch an AI request, and no other kind of dispatch asks the gate, so the
+  rule still binds design: nothing new may ship a dispatch that would have to route around it. Five
+  carve-outs exist, each stated with the condition that ends it in the doc that owns it:
+  connecting a mail account, and the video meetings that account's provider makes
   ([`docs/provider-oauth.md`](docs/provider-oauth.md)), consented analytics
   ([`docs/analytics.md`](docs/analytics.md)), signing in to an Allodia account
   ([`allodia_license/entitlement.md`](allodia_license/entitlement.md)), the local MCP server

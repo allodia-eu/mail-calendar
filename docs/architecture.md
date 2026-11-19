@@ -99,7 +99,8 @@ flowchart TD
         COMP["<b>mailcal-composer</b><br/>ComposerDocument →<br/>deterministic HTML + text<br/>+ attachment/CID manifest"]
         TEL["<b>mailcal-telemetry</b><br/>consented analytics<br/>delivery: the core itself<br/>stays network-free"]
         MCP["<b>mailcal-mcp</b><br/>the agent adapter:<br/>JSON-RPC tools over<br/>query_* / act_*, the only<br/>crate that can listen"]
-        GATE["<b>JurisdictionGate</b><br/>planned<br/>gates every AI/model<br/>dispatch, in-process:<br/>all · eu-hosted · eu-native"]
+        AI["<b>mailcal-ai</b><br/>writing style · drafted replies<br/>GatedBackend: the one<br/>way a request leaves<br/>opens no socket"]
+        GATE["<b>mailcal-jurisdiction</b><br/>the gate, in-process:<br/>all · eu-hosted · eu-native<br/>decides, never sends"]
     end
 
     subgraph ENGINE["PIM sync engine: public repo"]
@@ -113,6 +114,7 @@ flowchart TD
     APP --> COMP
     APP -. TelemetrySink .-> TEL
     ACC --> OAUTH
+    AI --> GATE
     APP ==>|owns one| EAPI
     ACC -->|constructs| PROV
     EAPI -->|drives| PROV
@@ -124,8 +126,7 @@ flowchart TD
     classDef external fill:#e2e8f0,stroke:#64748b,color:#1e293b
 
     class FFI ffi
-    class APP,VM,ACC,OAUTH,COMP,TEL corec
-    class GATE planned
+    class APP,VM,ACC,OAUTH,COMP,TEL,AI,GATE corec
     class EAPI,PROV external
     style CORE fill:none,stroke:#94a3b8,stroke-dasharray: 6 4
     style ENGINE fill:none,stroke:#94a3b8,stroke-dasharray: 6 4
@@ -161,8 +162,15 @@ Reading the map:
   sign-in and is a complete mail and calendar client, which `cargo xtask check-license-dir`
   exists to keep true ([`../allodia_license/entitlement.md`](../allodia_license/entitlement.md),
   [`pledge.md`](pledge.md) promise 4).
-- **`JurisdictionGate`** is not yet in code. The sovereignty rule it will enforce is stated in
-  [`../AGENTS.md`](../AGENTS.md) → "Non-negotiables".
+- **`mailcal-jurisdiction`** is the jurisdiction gate that the sovereignty rule in
+  [`../AGENTS.md`](../AGENTS.md) → "Non-negotiables" names. It classifies a destination and
+  compares the class with the mode in force; it decides and never sends, so it has no network and
+  no I/O.
+- **`mailcal-ai`** shapes and reads AI requests for writing style and drafted replies, and opens
+  no socket: the host implements its transport port. Its `GatedBackend` is the only way a request
+  is built to leave: every function that dispatches takes one, and its `chat` asks the gate
+  before the backend behind it is reached. Nothing depends on the crate yet, so no client can
+  dispatch anything through it.
 
 ## What each platform plugs in: the host-service ports
 
