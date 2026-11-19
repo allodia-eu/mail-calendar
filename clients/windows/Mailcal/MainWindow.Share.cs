@@ -76,7 +76,7 @@ public sealed partial class MainWindow
             // cannot otherwise address a message. The files are the share's, added to the
             // composer like picked ones.
             var opened = await OpenComposerAsync(
-                new ComposeOrigin.New(Model.SelectedAccount),
+                new ComposeOrigin.New(null),
                 new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false, null),
                 prefill.Attachments.ToList());
             if (opened is not { } context)

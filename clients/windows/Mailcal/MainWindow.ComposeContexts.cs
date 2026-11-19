@@ -94,7 +94,7 @@ public sealed partial class MainWindow
             : null;
         return new ComposeContext(
             opening,
-            InitialFrom: Model.SendAccount(opening.Account)?.Id,
+            InitialFrom: opening.Account,
             QuoteStyle: quotes.Style,
             QuoteStylePerMessage: quotes.PerMessage,
             Quote: ComposeOpeningSeed.QuoteSeed(opening, words, ComposerQuote.Token(quotes.Style), opening.BodyText),

@@ -73,10 +73,10 @@ public sealed partial class MainWindow
             // like it did nothing.
             Model.ShowMail();
             // A link never names a sender, `from` is the header Gate 12 drops first, so it opens as
-            // a new message from the account the user is in, exactly as the New button does. A
+            // a new message from the account the core picks, exactly as the New button does. A
             // bare link brings no body, and the composer opens as blank as New does.
             var opened = await OpenComposerAsync(
-                new ComposeOrigin.New(Model.SelectedAccount),
+                new ComposeOrigin.New(null),
                 new ComposePrefill(prefill.To, prefill.Cc, prefill.Bcc, prefill.Subject, prefill.Body, false, null));
             if (opened is not { } context)
             {

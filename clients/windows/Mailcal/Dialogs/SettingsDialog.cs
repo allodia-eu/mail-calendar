@@ -372,38 +372,6 @@ public sealed partial class SettingsDialog : ContentDialog
         return panel;
     }
 
-    // Which account new mail composes from when the combined inbox is showing. Only meaningful
-    // with more than one account, so with a single one the card states the sender instead of
-    // offering a choice of one. The selection is read through SendAccount so a stored default
-    // naming a removed account shows the first configured one, what the core would actually use.
-    private UIElement SendAccountControl()
-    {
-        if (_model.Accounts.Count == 0)
-        {
-            return new TextBlock { Text = L10n.SettingsAccountsEmpty(), TextWrapping = TextWrapping.Wrap, Opacity = 0.7 };
-        }
-        var effective = _model.SendAccount(_model.DefaultSendAccount);
-        if (_model.Accounts.Count == 1)
-        {
-            return new TextBlock { Text = effective?.Email ?? string.Empty, Opacity = 0.7 };
-        }
-        var box = new ComboBox { MinWidth = 260, DisplayMemberPath = "Email" };
-        AutomationProperties.SetName(box, L10n.SettingsSendAccountHeading());
-        foreach (var account in _model.Accounts)
-        {
-            box.Items.Add(account);
-        }
-        box.SelectedItem = effective;
-        box.SelectionChanged += (_, _) =>
-        {
-            if (!_rebuilding && box.SelectedItem is AccountItem account)
-            {
-                _model.SetDefaultSendAccount(account.Id);
-            }
-        };
-        return box;
-    }
-
     // --- Advanced: AI assistant access + reset database (destructive) ---------
 
     private UIElement BuildAdvanced()

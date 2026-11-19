@@ -19,8 +19,8 @@ namespace Allodia.Mailcal.ViewModels;
 /// <summary>One open composer: the core's answer about the message it opens on, and what the host
 /// derived from it in the user's language.</summary>
 /// <param name="Opening">What the core opened the composer with, on the composition it joined.</param>
-/// <param name="InitialFrom">The account id the From picker opens on: the opening's account as a
-/// sending account.</param>
+/// <param name="InitialFrom">The account id the From picker opens on: the opening's account, which
+/// the core has already checked can send.</param>
 /// <param name="QuoteStyle">The style a fresh quote is seeded in (the persisted app default).</param>
 /// <param name="QuoteStylePerMessage">Whether the user opted into choosing the style per message,
 /// which is the only case where the composer shows a style picker at all.</param>
