@@ -77,8 +77,8 @@ public sealed partial class MailboxModel
     {
         var app = _app!;
         var server = string.IsNullOrWhiteSpace(serverUrl) ? null : serverUrl;
-        // IsSigningIn drives the (enabled) Cancel; IsSubmitting keeps the setup form's own buttons
-        // from firing twice (they bind to it) while the browser step is outstanding.
+        // IsSigningIn draws Cancel and keeps the sign-in buttons live until the redirect is in;
+        // IsSubmitting disables the form for the bounded exchange that follows (SignInButtonsEnabled).
         IsSigningIn = true;
         IsSubmitting = true;
         SetupError = null;
@@ -90,19 +90,23 @@ public sealed partial class MailboxModel
             // activation routed by Program into ProtocolAuthCallback.
             using var callback = ProtocolAuthCallback.Expect(JmapOAuthConfig.CallbackHost);
             // Discovery + dynamic client registration are several network round trips, so they
-            // block, off the UI thread with them.
-            var start = await Task.Run(() => app.BeginJmapLogin(email, server, JmapOAuthConfig.RedirectUri));
-            // Open the default browser (where the user is usually already signed in).
-            await ExternalLauncher.Open(new Uri(start.AuthorizationUrl));
-            var callbackUrl = await callback.WaitAsync(cancelToken);
-            // The token exchange blocks too.
+            // block, off the UI thread with them. Then the default browser (where the user is
+            // usually already signed in).
+            var (start, callbackUrl) = await BrowserHop.RunAsync(
+                () => Task.Run(() => app.BeginJmapLogin(email, server, JmapOAuthConfig.RedirectUri)),
+                begun => ExternalLauncher.Open(new Uri(begun.AuthorizationUrl)),
+                callback.WaitAsync,
+                () => IsSigningIn = false,
+                cancelToken);
+            // The token exchange blocks too. An attempt retired meanwhile adds nothing.
             configToml = await Task.Run(() => app.CompleteJmapLogin(start.Pending, callbackUrl));
+            cancelToken.ThrowIfCancellationRequested();
         }
         catch (OperationCanceledException)
         {
-            // The user pressed Cancel while the browser step was outstanding, return to the form
-            // quietly; the disposed callback slot ignores any late redirect.
-            Log.Info("jmap sign-in cancelled by user");
+            // Cancelled, or superseded by a newer sign-in: return to the form quietly; the disposed
+            // callback slot ignores any late redirect.
+            Log.Info("jmap sign-in cancelled");
             return JmapSignInOutcome.Cancelled;
         }
         catch (uniffi.mailcal_bindings.MailcalException.StaleSignIn)

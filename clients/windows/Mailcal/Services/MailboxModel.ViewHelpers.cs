@@ -82,6 +82,12 @@ public sealed partial class MailboxModel
     /// disables it, that call errors out on its own, but the unbounded browser wait must not.
     /// </summary>
     public bool CancelEnabled => IsSigningIn || NotSubmitting;
+    /// <summary>
+    /// Whether the setup form's sign-in buttons can be pressed: while nothing is submitting, and
+    /// while a sign-in is out, where a press supersedes it (docs/provider-oauth.md rule 13). Only
+    /// the bounded exchange after the redirect disables them.
+    /// </summary>
+    public bool SignInButtonsEnabled => SignInFlight.ButtonsLive(IsSigningIn, IsSubmitting);
     /// <summary>Whether nothing is in flight, gates the form's Cancel button.</summary>
     public bool NotSubmitting => !IsSubmitting;
     /// <summary>Show the setup form's connect spinner only while a connect/add is in flight.</summary>

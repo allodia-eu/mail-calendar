@@ -37,6 +37,13 @@ internal sealed class SignInFlight
     private Task _running = Task.CompletedTask;
 
     /// <summary>
+    /// Whether a sign-in button can be pressed: while a sign-in is out, beginning or waiting on the
+    /// browser, where a press supersedes it, and while nothing else is submitting. The exchange
+    /// after the redirect, a bounded call, is the only time it is disabled.
+    /// </summary>
+    public static bool ButtonsLive(bool signingIn, bool submitting) => signingIn || !submitting;
+
+    /// <summary>
     /// Cancels the outstanding sign-in, if any (the setup form's Cancel button). Safe to call when
     /// none is running. The awaiting flow unwinds cleanly and re-enables the form.
     /// </summary>

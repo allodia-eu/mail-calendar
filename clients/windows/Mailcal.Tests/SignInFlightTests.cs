@@ -196,4 +196,15 @@ public class SignInFlightTests
         }));
         Assert.True(ran);
     }
+
+    [Fact]
+    public void TheSignInButtonsStayLiveWhileASignInIsOutAndOnlyTheExchangeDisablesThem()
+    {
+        // Out in the browser, or still beginning: a press supersedes the attempt
+        // (docs/provider-oauth.md rule 13).
+        Assert.True(SignInFlight.ButtonsLive(signingIn: true, submitting: true));
+        // The exchange after the redirect is a bounded call, and so is a password connect.
+        Assert.False(SignInFlight.ButtonsLive(signingIn: false, submitting: true));
+        Assert.True(SignInFlight.ButtonsLive(signingIn: false, submitting: false));
+    }
 }
