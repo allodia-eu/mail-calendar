@@ -240,6 +240,7 @@ The order and names are [`settings.md`](settings.md). Windows draws none (Known 
 | Reading | `envelope.open` | `ic_mail` | — | `mailcal-mail-read-symbolic` (`mail-read`) |
 | Composing | `square.and.pencil` | `ic_edit` | — | `document-edit-symbolic` |
 | Signatures | `signature` | `ic_signature` | — | `mailcal-signature-symbolic` (`signature`) |
+| Writing style | — | — | — | `format-text-rich-symbolic` |
 | Notifications | `bell` | `ic_notifications` | — | `mailcal-bell-symbolic` (`bell`) |
 | Privacy | `hand.raised` | `ic_lock` | — | `channel-secure-symbolic` |
 | Accounts | `tray.2` | `ic_inbox` | — | `mailcal-inbox-symbolic` |

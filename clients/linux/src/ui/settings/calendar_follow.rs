@@ -1,5 +1,6 @@
-//! The pages drawn from what the calendars offer (Settings → Calendar's default calendar, Settings
-//! → Videoconferencing) follow the core's calendar and settings signals in place.
+//! The parts of pages that follow a core record in place, each set counted by its own signals: the
+//! pages drawn from what the calendars offer (Settings → Calendar's default calendar, Settings →
+//! Videoconferencing), the own AI endpoint's form, and Settings → Writing style.
 //!
 //! Each redraws only the part of its page whose record changed, so a check or picker the person
 //! just used keeps its focus and the Jitsi field keeps what is being typed. The window's own
@@ -40,18 +41,35 @@ impl Followers {
     pub(super) fn clear(&self) {
         self.redraws.borrow_mut().clear();
     }
+
+    /// Brings every part to the core's record, once for each read counted.
+    fn follow(&self, read: u64) {
+        if self.read.replace(read) == read {
+            return;
+        }
+        let redraws = self.redraws.borrow().clone();
+        for redraw in redraws {
+            redraw();
+        }
+    }
 }
 
 impl SettingsWindow {
     /// Brings the pages drawn from the calendars to the core's records, once for each read the
     /// model counted.
     pub(in crate::ui) fn follow_calendar(&self, read: u64) {
-        if self.calendar.read.replace(read) == read {
-            return;
-        }
-        let redraws = self.calendar.redraws.borrow().clone();
-        for redraw in redraws {
-            redraw();
-        }
+        self.calendar.follow(read);
+    }
+
+    /// Brings the own endpoint's form to the core's record (`Surface::AiEndpoint` and
+    /// `Surface::Settings`).
+    pub(in crate::ui) fn follow_ai_endpoint(&self, read: u64) {
+        self.ai_endpoint.follow(read);
+    }
+
+    /// Brings Settings → Writing style and its flows to the core's records
+    /// (`Surface::WritingStyle` and `Surface::Settings`).
+    pub(in crate::ui) fn follow_writing_style(&self, read: u64) {
+        self.writing_style.follow(read);
     }
 }

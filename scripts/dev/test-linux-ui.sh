@@ -29,7 +29,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sdk.sh"
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_session.sh"
-for part in agent app fixtures session legs_start legs_mail legs_calendar legs_people legs_desktop; do
+for part in agent app fixtures session legs_start legs_mail legs_calendar legs_people legs_desktop legs_ai; do
   source "$REPO_ROOT/scripts/dev/linux-ui/$part.sh"
 done
 

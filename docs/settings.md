@@ -45,7 +45,7 @@ cannot drift per client. The order below is the display order everywhere.
 | Linux | Sidebar (category list + icons) beside a detail panel, in a window of its own | `clients/linux/src/ui/settings.rs` + `clients/linux/src/ui/settings/` |
 
 Each category draws one glyph of its own, matched by meaning across platforms: person, gear,
-calendar, video camera, envelope, pencil, signature, bell, hand or lock, tray, wrench,
+calendar, video camera, envelope, pencil, signature, formatted text, bell, hand or lock, tray, wrench,
 stethoscope, info. Which
 glyph each platform draws, and from which set, is [`icons.md`](icons.md). Windows draws none yet.
 
