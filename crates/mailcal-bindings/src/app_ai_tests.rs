@@ -192,3 +192,44 @@ fn work_queued_runs_on_a_thread_of_its_own() {
     finished.recv_timeout(Duration::from_secs(5)).unwrap();
     assert!(*ran.lock().unwrap());
 }
+
+/// The showcase core every UI suite drives is a development build too, so it offers the form; its
+/// store keeps nothing, so a key is refused there and a save without one is kept.
+#[test]
+fn the_showcase_offers_the_form_and_refuses_a_key_its_store_cannot_keep() {
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_showcase(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Europe/Amsterdam".to_owned(),
+        crate::ShowcaseLocale::En,
+    );
+    assert!(app.ai_offer());
+
+    save(
+        &app,
+        "http://localhost:11434/v1",
+        JurisdictionClass::EuNative,
+        Some("sk-test"),
+    );
+    let form = form_after(&app, 0);
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::KeyNotStored)
+    );
+    assert!(!form.key_kept);
+
+    save(
+        &app,
+        "http://localhost:11434/v1",
+        JurisdictionClass::EuNative,
+        None,
+    );
+    let form = form_after(&app, 1);
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::Saved)
+    );
+    assert!(form.remove.enabled);
+}

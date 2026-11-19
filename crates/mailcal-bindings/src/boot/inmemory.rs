@@ -118,6 +118,9 @@ pub(crate) fn build_demo(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    // A development build offers the writing assistant to everyone (`docs/ai.md` rule 5), this
+    // one included. Its store keeps no key, so a key typed here is refused as the keystore's.
+    mailcal.install_ai(None);
     mailcal
 }
 
@@ -362,6 +365,9 @@ fn finish_showcase(
     // An account page's change runs on a thread of its own, which holds the app by this.
     mailcal.rediscovery.adopt(&mailcal);
     mailcal.read_mail_rows_ahead();
+    // A development build offers the writing assistant to everyone (`docs/ai.md` rule 5), this
+    // one included. Its store keeps no key, so a key typed here is refused as the keystore's.
+    mailcal.install_ai(None);
     mailcal
 }
 
