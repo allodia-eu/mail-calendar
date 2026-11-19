@@ -53,8 +53,9 @@ internal class AiEndpointFields(form: AiEndpointForm) {
     var declared by mutableStateOf(form.declared)
     var key by mutableStateOf("")
 
-    // Fields the person has changed, whose gaps are said; all of them once a save was refused.
-    var touched by mutableStateOf(emptySet<String>())
+    // Whether the gaps are said: from the person's first change to a field, so a form not yet
+    // touched is not drawn as wrong, and never Save held without its reason on screen after.
+    var saying by mutableStateOf(false)
 
     fun redraw(form: AiEndpointForm) {
         val before = drawn
@@ -62,10 +63,6 @@ internal class AiEndpointFields(form: AiEndpointForm) {
         if (model == before.model) model = form.model
         if (declared == before.declared) declared = form.declared
         drawn = form
-    }
-
-    fun touch(field: String) {
-        touched = touched + field
     }
 }
 
@@ -82,10 +79,10 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
         if (outcome == null || !serials.fresh(outcome.serial)) return@LaunchedEffect
         keyRefused = outcome.result == AiEndpointResult.KeyNotStored
         when (outcome.result) {
-            is AiEndpointResult.Refused -> fields.touched = setOf("address", "model", "where")
+            is AiEndpointResult.Refused -> fields.saying = true
             AiEndpointResult.Saved, AiEndpointResult.Removed -> {
                 fields.key = ""
-                fields.touched = emptySet()
+                fields.saying = false
             }
             AiEndpointResult.KeyNotStored, AiEndpointResult.NotWritten -> Unit
         }
@@ -95,12 +92,12 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
     SettingsGroupCard(L10n.ai_endpoint_title(ctx), L10n.ai_endpoint_intro(ctx)) {
         HeldFields(form.save) { enabled ->
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                val addressGap = gaps.address?.takeIf { "address" in fields.touched }
+                val addressGap = gaps.address?.takeIf { fields.saying }
                 OutlinedTextField(
                     value = fields.address,
                     onValueChange = {
                         fields.address = it
-                        fields.touch("address")
+                        fields.saying = true
                     },
                     enabled = enabled,
                     singleLine = true,
@@ -135,12 +132,12 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
                     },
                     modifier = Modifier.fillMaxWidth().testTag(AI_ENDPOINT_KEY_TAG),
                 )
-                val modelGap = gaps.modelMissing && "model" in fields.touched
+                val modelGap = gaps.modelMissing && fields.saying
                 OutlinedTextField(
                     value = fields.model,
                     onValueChange = {
                         fields.model = it
-                        fields.touch("model")
+                        fields.saying = true
                     },
                     enabled = enabled,
                     singleLine = true,
@@ -163,11 +160,11 @@ internal fun AiEndpointCard(ui: AiEndpointUi) {
                             tag = aiEndpointWhereTag(declared),
                         ) {
                             fields.declared = declared
-                            fields.touch("where")
+                            fields.saying = true
                         }
                     }
                 }
-                gaps.declaration?.takeIf { "where" in fields.touched }?.let {
+                gaps.declaration?.takeIf { fields.saying }?.let {
                     Text(
                         endpointDeclarationGapText(ctx, it),
                         style = MaterialTheme.typography.bodySmall,

@@ -88,8 +88,12 @@ class SettingsAiEndpointTest {
     fun each_gap_is_said_under_its_field_and_holds_save() {
         show()
         save().assertIsNotEnabled()
+        compose.onNodeWithText(L10n.ai_endpoint_gap_address_missing(ctx())).assertDoesNotExist()
         compose.onNodeWithTag(AI_ENDPOINT_ADDRESS_TAG).performTextInput("http://llm.test.local/v1")
         compose.onNodeWithText(L10n.ai_endpoint_gap_needs_https(ctx())).assertIsDisplayed()
+        // Once anything is typed every gap is said, so Save is never held without its reason.
+        compose.onNodeWithText(L10n.ai_endpoint_gap_model_missing(ctx())).assertExists()
+        compose.onNodeWithText(L10n.ai_endpoint_gap_where_missing(ctx())).assertExists()
 
         compose.onNodeWithTag(aiEndpointWhereTag(JurisdictionClass.NON_EU)).performScrollTo().performClick()
         compose.onNodeWithText(L10n.ai_endpoint_gap_refused_eu_native(ctx())).performScrollTo().assertIsDisplayed()
