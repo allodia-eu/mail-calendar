@@ -140,11 +140,7 @@ fn the_gate_refuses_an_endpoint_the_mode_in_force_does_not_admit() {
 #[test]
 fn work_sends_to_the_own_endpoint_with_its_key() {
     let fixture = Fixture::new(BuildKind::Development);
-    save(
-        &fixture,
-        " https://models.example.eu/v1/ ",
-        " sk-test ",
-    );
+    save(&fixture, " https://models.example.eu/v1/ ", " sk-test ");
     let seen = Arc::new(Mutex::new(None));
     let destination = Arc::clone(&seen);
     fixture

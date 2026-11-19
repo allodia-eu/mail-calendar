@@ -63,5 +63,8 @@ fn the_offered_assistant_sends_nothing() {
         body: "{}",
         timeout: Duration::from_secs(1),
     });
-    assert!(sent.is_err(), "an offline host answers every request as no answer");
+    assert!(
+        sent.is_err(),
+        "an offline host answers every request as no answer"
+    );
 }

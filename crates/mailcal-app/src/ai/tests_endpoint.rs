@@ -71,12 +71,7 @@ fn every_field_is_judged_at_once() {
 #[test]
 fn a_save_refuses_what_the_form_said_and_keeps_the_edit_on_the_form() {
     let fixture = Fixture::new(BuildKind::Development);
-    let refused = edit(
-        "http://models.example.eu/v1",
-        "",
-        Some(Class::NonEu),
-        "sk",
-    );
+    let refused = edit("http://models.example.eu/v1", "", Some(Class::NonEu), "sk");
     let predicted = fixture
         .app
         .ai_endpoint_gap(&refused.address, &refused.model, refused.declared);
@@ -216,9 +211,7 @@ fn remove_is_offered_while_an_endpoint_or_a_key_is_stored() {
     let fixture = Fixture::new(BuildKind::Development);
     assert!(!fixture.app.ai_endpoint().removable, "nothing to remove");
 
-    fixture
-        .app
-        .restore_ai_endpoint_key(Some("sk".to_owned()));
+    fixture.app.restore_ai_endpoint_key(Some("sk".to_owned()));
     assert!(fixture.app.ai_endpoint().removable, "a key alone");
 
     fixture.app.change_ai_endpoint_now(AiEndpointChange::Remove);

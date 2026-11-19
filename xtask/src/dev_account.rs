@@ -4,8 +4,8 @@
 //! `MAILCAL_DEV_ACCOUNT` swaps the developer's real mailbox for a throwaway loopback one, and its
 //! IMAP mode additionally teaches the core to trust a self-signed certificate. Both properties fail
 //! *silently* when they break: a drifted fixture just fails to log in, and a trust path that leaks
-//! into a shipped build looks like nothing at all. The staged hooks fail the same way: one read in a
-//! shipped build changes what a store capture or a user sees, and nothing on screen says why.
+//! into a shipped build looks like nothing at all. The staged hooks fail the same way: one read in
+//! a shipped build changes what a store capture or a user sees, and nothing on screen says why.
 
 use std::path::Path;
 
