@@ -76,6 +76,13 @@ impl MailcalApp {
                 self.runtime
                     .block_on(|| app.set_calendar_color(&account, &calendar, hex));
             }
+            PreferenceIntent::SetCalendarGroupExpanded { account, expanded } => {
+                app.set_calendar_group_expanded(&account, expanded);
+            }
+            PreferenceIntent::SetJitsiServer { server } => {
+                // A refusal is the page's to say (`VideoconferencingPage::jitsi_refused`).
+                let _ = app.set_jitsi_server(Some(&server));
+            }
             PreferenceIntent::SetDefaultMeeting { account, choice } => {
                 app.set_default_meeting(&account, choice.as_deref());
             }

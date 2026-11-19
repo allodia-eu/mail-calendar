@@ -1,127 +1,118 @@
-//! The size cap and media-type rule an image embedded in a signature must pass.
+//! A picture going into a signature: the core's rule asked of it, the `data:` URI it becomes, and
+//! the words for every answer.
 //!
 //! A signature stores its images inline as `data:` URIs: right for the library (one
 //! self-contained file) and what the core rewrites to a `cid:` part on send
-//! ([`docs/signatures.md`](../../../../docs/signatures.md)). The pure half lives here so both
-//! rules are testable without a file picker; the GTK half reads the bytes and shows the message.
+//! ([`docs/signatures.md`](../../../../docs/signatures.md)). Which pictures a signature may hold
+//! is the core's one rule (`signature_image_refusal`); this half is pure so it is testable without
+//! a file picker, and the GTK half reads the bytes and shows the message.
 
 use gtk::glib;
+use mailcal_bindings::{SignatureImageRefusal, SignatureRefusal};
 
-/// The cap on one embedded signature image, in bytes.
-///
-/// A signature rides in **every** message the account sends, so a 5 MB logo is 5 MB per mail,
-/// and base64 adds a third on top. 512 KB is generous for a logo and small enough that nobody
-/// notices it on the wire. Enforced where the file is picked, so the user is told; the core does
-/// not police it.
-pub(super) const LIMIT_BYTES: u64 = 512 * 1024;
+use crate::l10n;
 
-/// What picking a file for a signature yielded.
+/// What offering a picture to a signature yielded.
 #[derive(Debug, PartialEq, Eq)]
 pub(super) enum SignatureImage {
     /// A `data:image/…;base64,…` URI ready to insert at the caret, and the alt text to give it.
     DataUrl { value: String, alt_text: String },
-    /// The file is over [`LIMIT_BYTES`].
-    TooLarge,
-    /// The file could not be read, or is not an image.
+    /// The core's rule refused it.
+    Refused(SignatureImageRefusal),
+    /// It could not be read.
     Failed,
 }
 
-/// The outcome for `bytes` of `media_type`.
-///
-/// The size check is separate from the read failure so the user is told *which* problem it is.
-/// Anything that is not an `image/*` is refused here rather than embedded: the editor drops it
-/// anyway (it accepts only `data:image/`), and the picker is the last place the user can be told.
+/// Why the core would refuse a picture of `media_type` and `size` bytes, asked before a picked
+/// file is read. A picture whose type nobody reported is asked about with no type, which the core
+/// refuses as not a picture it takes.
+pub(super) fn refusal(media_type: Option<&str>, size: u64) -> Option<SignatureImageRefusal> {
+    mailcal_bindings::signature_image_refusal(media_type.unwrap_or_default().to_owned(), size)
+}
+
+/// `bytes` of `media_type` as a picture to insert, once the core's rule takes them.
 pub(super) fn signature_image(
     bytes: &[u8],
     media_type: Option<&str>,
     alt_text: &str,
 ) -> SignatureImage {
-    if bytes.len() as u64 > LIMIT_BYTES {
-        return SignatureImage::TooLarge;
+    if let Some(refused) = refusal(media_type, bytes.len() as u64) {
+        return SignatureImage::Refused(refused);
     }
-    let Some(media_type) =
-        media_type.filter(|kind| kind.to_ascii_lowercase().starts_with("image/"))
-    else {
+    let Some(media_type) = media_type.filter(|_| !bytes.is_empty()) else {
         return SignatureImage::Failed;
     };
-    if bytes.is_empty() {
-        return SignatureImage::Failed;
-    }
     SignatureImage::DataUrl {
-        value: format!(
-            "data:{};base64,{}",
-            media_type.to_ascii_lowercase(),
-            glib::base64_encode(bytes)
-        ),
+        value: format!("data:{media_type};base64,{}", glib::base64_encode(bytes)),
         alt_text: alt_text.to_owned(),
     }
 }
 
-/// The cap as the message names it, in the same words this client already gives a file size
-/// (the diagnostics log's size row) rather than a second convention.
-pub(super) fn format_limit() -> String {
-    glib::format_size(LIMIT_BYTES).into()
+/// What the person is told about a picture the core refused. The limit is the core's, named in
+/// the words this client gives any file size.
+pub(super) fn image_refusal_text(refusal: SignatureImageRefusal) -> String {
+    match refusal {
+        SignatureImageRefusal::Format => l10n::settings_signatures_image_format().to_owned(),
+        SignatureImageRefusal::TooLarge { limit_bytes } => {
+            l10n::settings_signatures_image_too_large(&glib::format_size(limit_bytes))
+        }
+    }
+}
+
+/// What the person is told about a save the core refused.
+pub(super) fn refusal_text(refusal: SignatureRefusal) -> String {
+    match refusal {
+        SignatureRefusal::BlankName => l10n::settings_signatures_name_required().to_owned(),
+        SignatureRefusal::Gone => l10n::settings_signatures_gone().to_owned(),
+        SignatureRefusal::Image { refusal } => image_refusal_text(refusal),
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{LIMIT_BYTES, SignatureImage, format_limit, signature_image};
+    use gtk::glib;
+    use mailcal_bindings::{SignatureImageRefusal, SignatureRefusal};
 
-    /// A picture pasted into a signature meets the **signature's** cap, not the message body's.
-    ///
-    /// The two differ by more than an order of magnitude on purpose: a picture in a message is sent
-    /// once, and a signature's is sent with every message the account ever sends. A paste reaching
-    /// the body's much larger cap here would put a megabyte behind every mail, so the rule a
-    /// pasted picture meets is this one, exactly as a picked file's is.
+    use super::{SignatureImage, image_refusal_text, refusal_text, signature_image};
+    use crate::l10n;
+
+    /// A pasted picture is offered through this function, so it meets the core's rule for a
+    /// signature: a type the message body would take and a signature does not is refused, and so
+    /// is a picture over the signature's limit.
     #[test]
-    fn a_pasted_picture_meets_the_signatures_own_cap() {
-        let over = usize::try_from(LIMIT_BYTES).expect("cap fits a usize") + 1;
+    fn a_pasted_picture_is_judged_by_the_cores_rule() {
         assert_eq!(
-            signature_image(&vec![0_u8; over], Some("image/png"), ""),
-            SignatureImage::TooLarge
+            signature_image(b"RIFF\0\0\0\0WEBP", Some("image/webp"), ""),
+            SignatureImage::Refused(SignatureImageRefusal::Format)
         );
-        // Well within the signature's cap, and far below the body's.
-        assert!(matches!(
-            signature_image(b"\x89PNG\r\n\x1a\n", Some("image/png"), ""),
-            SignatureImage::DataUrl { .. }
-        ));
-        // A clipboard that declares something a signature may not embed is refused, not embedded.
         assert_eq!(
             signature_image(b"%PDF-1.7", Some("application/pdf"), ""),
-            SignatureImage::Failed
+            SignatureImage::Refused(SignatureImageRefusal::Format)
+        );
+        assert_eq!(
+            signature_image(b"\x89PNG", None, ""),
+            SignatureImage::Refused(SignatureImageRefusal::Format)
+        );
+        let Some(SignatureImageRefusal::TooLarge { limit_bytes }) =
+            super::refusal(Some("image/png"), u64::MAX)
+        else {
+            panic!("the core caps a signature's picture");
+        };
+        let over = usize::try_from(limit_bytes + 1).expect("the limit fits a usize");
+        assert_eq!(
+            signature_image(&vec![0_u8; over], Some("image/png"), ""),
+            SignatureImage::Refused(SignatureImageRefusal::TooLarge { limit_bytes })
         );
     }
 
     #[test]
-    fn an_image_within_the_cap_becomes_a_self_contained_data_uri() {
-        let outcome = signature_image(&[0x01, 0x02, 0x03], Some("image/png"), "logo");
-
+    fn a_picture_the_core_takes_becomes_a_self_contained_data_uri() {
         assert_eq!(
-            outcome,
+            signature_image(&[0x01, 0x02, 0x03], Some("image/png"), "logo"),
             SignatureImage::DataUrl {
                 value: "data:image/png;base64,AQID".to_owned(),
                 alt_text: "logo".to_owned(),
             }
-        );
-    }
-
-    #[test]
-    fn the_cap_and_the_media_type_refusal_are_told_apart() {
-        let oversized = vec![0u8; usize::try_from(LIMIT_BYTES).expect("cap fits a usize") + 1];
-
-        // Two different messages for two different problems: "too large" names a cap the user can
-        // meet, "couldn't be read" does not.
-        assert_eq!(
-            signature_image(&oversized, Some("image/png"), "logo"),
-            SignatureImage::TooLarge
-        );
-        assert_eq!(
-            signature_image(&[0x01], Some("application/pdf"), "doc"),
-            SignatureImage::Failed
-        );
-        assert_eq!(
-            signature_image(&[0x01], None, "unknown"),
-            SignatureImage::Failed
         );
         assert_eq!(
             signature_image(&[], Some("image/png"), ""),
@@ -130,23 +121,31 @@ mod tests {
     }
 
     #[test]
-    fn a_media_type_the_server_shouted_still_matches() {
-        // `content_type_get_mime_type` answers from the shared MIME database, which is lower case
-        //; but the check must not be the thing that decides whether a logo embeds.
-        assert!(matches!(
-            signature_image(&[0x01], Some("IMAGE/PNG"), "logo"),
-            SignatureImage::DataUrl { ref value, .. } if value.starts_with("data:image/png;base64,")
-        ));
-    }
-
-    #[test]
-    fn the_cap_is_named_in_the_message() {
-        let limit = format_limit();
-
-        assert_ne!(limit, "");
-        assert!(
-            limit.contains(char::is_numeric),
-            "the message has to name a size the user can compare against: {limit}"
+    fn each_refusal_is_worded_from_the_catalog_with_the_cores_limit() {
+        assert_eq!(
+            image_refusal_text(SignatureImageRefusal::Format),
+            l10n::settings_signatures_image_format()
+        );
+        // The limit named is the one the core sent, not one this client knows.
+        for limit_bytes in [512 * 1024, 2_000_000] {
+            assert_eq!(
+                image_refusal_text(SignatureImageRefusal::TooLarge { limit_bytes }),
+                l10n::settings_signatures_image_too_large(&glib::format_size(limit_bytes))
+            );
+        }
+        assert_eq!(
+            refusal_text(SignatureRefusal::BlankName),
+            l10n::settings_signatures_name_required()
+        );
+        assert_eq!(
+            refusal_text(SignatureRefusal::Gone),
+            l10n::settings_signatures_gone()
+        );
+        assert_eq!(
+            refusal_text(SignatureRefusal::Image {
+                refusal: SignatureImageRefusal::Format
+            }),
+            l10n::settings_signatures_image_format()
         );
     }
 }

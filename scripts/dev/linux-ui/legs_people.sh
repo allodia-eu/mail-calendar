@@ -103,8 +103,8 @@ leg_signatures() {
   atspi wait --name "Write your signature" --showing --timeout 30
   capture signature-editor
   ui_press text=Save role=button window=Settings
-  # The row is the core's answer, not the editor's: the library is re-read from the snapshot after
-  # the create, so seeing it proves the whole round trip rather than a widget left on screen.
+  # The row is the core's answer, not the editor's: the page (`signatures_page`) is read again once
+  # the save has ended, so seeing it proves the whole round trip rather than a widget left on screen.
   ui_wait role=list-item text="New signature" window=Settings
   capture signature-created
 

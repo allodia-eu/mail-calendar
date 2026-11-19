@@ -1,8 +1,4 @@
-use std::{
-    fs,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{fs, sync::Arc};
 
 use mailcal_bindings::AccountCredentialStore;
 use oo7::{Keyring, Secret, file};
@@ -10,14 +6,11 @@ use tokio::{runtime::Builder, sync::RwLock};
 
 use super::{ACCOUNT_KIND, APPLICATION, SecretSink, SecretStore, block_on_runtime};
 
-fn scratch_keyring() -> std::path::PathBuf {
-    let nonce = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock after epoch")
-        .as_nanos();
-    let directory = std::env::temp_dir().join(format!("mailcal-linux-secrets-{nonce}"));
-    fs::create_dir_all(&directory).expect("create secure-store scratch directory");
-    directory.join("accounts.keyring")
+/// A keyring path in a directory of the test's own, removed when the returned guard drops.
+fn scratch_keyring() -> (tempfile::TempDir, std::path::PathBuf) {
+    let directory = tempfile::tempdir().expect("create secure-store scratch directory");
+    let path = directory.path().join("accounts.keyring");
+    (directory, path)
 }
 
 fn file_store(path: &std::path::Path, key: &[u8]) -> SecretStore {
@@ -49,7 +42,7 @@ fn namespaced_file_store(
 
 #[test]
 fn account_items_are_scoped_by_application_kind_and_id() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let store = file_store(&path, b"attribute-key");
     let attributes = store.account_attributes("alice@example.test@imap.example.test");
 
@@ -69,7 +62,7 @@ fn account_items_are_scoped_by_application_kind_and_id() {
 /// them on the next launch, and every account would appear to have vanished.
 #[test]
 fn the_real_store_tags_nothing_so_it_still_finds_what_is_already_stored() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let store = file_store(&path, b"real-key");
 
     assert!(
@@ -90,7 +83,7 @@ fn the_real_store_tags_nothing_so_it_still_finds_what_is_already_stored() {
 /// of testing without a Secret Service daemon rather than anything the app can hit.
 #[test]
 fn a_dev_namespace_and_the_real_accounts_never_see_each_other() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let key = b"shared-keyring-key";
     let real = "[allodia]\nemail = \"real@example.test\"\nrefresh_token = \"real\"\n";
     let harness = "[allodia]\nemail = \"harness@example.test\"\nrefresh_token = \"dev\"\n";
@@ -146,7 +139,7 @@ fn store_raw(store: &SecretStore, id: &str, value: &[u8]) {
 /// What reaches the keyring is one line, and an item stored before that still loads.
 #[test]
 fn a_multi_line_config_reaches_the_keyring_as_one_line() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let config = "capabilities = [\"mail\"]\n\n[imap]\nhost = \"imap.example.test\"\n";
     let legacy = "[jmap]\nemail = \"old@example.test\"\n";
     let store = file_store(&path, b"one-line-key");
@@ -166,13 +159,12 @@ fn a_multi_line_config_reaches_the_keyring_as_one_line() {
         store.configs().expect("configs"),
         [legacy.to_owned(), config.to_owned()]
     );
-    let _ = fs::remove_dir_all(path.parent().expect("keyring parent"));
 }
 
 /// One damaged item reaches the core as stored, for it to leave out alone; the rest still load.
 #[test]
 fn one_damaged_account_never_takes_the_others_with_it() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let config = "capabilities = [\"mail\"]\n\n[imap]\nhost = \"imap.example.test\"\n";
     let store = file_store(&path, b"damaged-key");
     store.save("damaged", "placeholder\n").expect("save");
@@ -186,13 +178,12 @@ fn one_damaged_account_never_takes_the_others_with_it() {
         stored.cut_short.is_empty(),
         "a damaged value is not one cut short"
     );
-    let _ = fs::remove_dir_all(path.parent().expect("keyring parent"));
 }
 
 /// A config the plain-text keyring cut to its first line is reported once and then removed.
 #[test]
 fn an_account_cut_short_is_reported_then_removed_with_its_index_entry() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let config = "capabilities = [\"mail\"]\n\n[imap]\nhost = \"imap.example.test\"\n";
     let store = file_store(&path, b"cut-short-key");
     store.save("cut", "placeholder\n").expect("save");
@@ -212,7 +203,6 @@ fn an_account_cut_short_is_reported_then_removed_with_its_index_entry() {
     assert_eq!(after.configs, [config.to_owned()]);
     assert_eq!(after.cut_short, [] as [String; 0]);
     assert_eq!(store.read_index().expect("index"), ["whole".to_owned()]);
-    let _ = fs::remove_dir_all(path.parent().expect("keyring parent"));
 }
 
 #[test]
@@ -236,7 +226,7 @@ fn credential_rotation_can_persist_from_inside_the_core_runtime() {
 
 #[test]
 fn encrypted_store_replaces_then_deletes_the_account_credential_and_index() {
-    let path = scratch_keyring();
+    let (_scratch, path) = scratch_keyring();
     let key = [0x5a; 64];
     let store = Arc::new(file_store(&path, &key));
     let sink = SecretSink::new(Arc::clone(&store));
@@ -274,6 +264,4 @@ fn encrypted_store_replaces_then_deletes_the_account_credential_and_index() {
         ["secret-two"],
         "the removed credential does not return on a cold open",
     );
-    let directory = path.parent().expect("keyring parent");
-    let _ = fs::remove_dir_all(directory);
 }

@@ -111,9 +111,8 @@ pub(crate) fn a_paste_shows_the_picture_and_a_drop_asks_about_it() {
     let files = tiles(&store);
     let shown = Rc::new(RefCell::new(Vec::<String>::new()));
 
-    let dir = std::env::temp_dir().join("mailcal-paste-inline-test");
-    std::fs::create_dir_all(&dir).expect("temp dir");
-    let picture = dir.join("holiday.png");
+    let dir = tempfile::tempdir().expect("temp dir");
+    let picture = dir.path().join("holiday.png");
     std::fs::write(&picture, b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR").expect("write");
 
     let recorder = {
@@ -151,6 +150,4 @@ pub(crate) fn a_paste_shows_the_picture_and_a_drop_asks_about_it() {
         shown.borrow().is_empty(),
         "a dropped picture waits for the user to say what it is for"
     );
-
-    std::fs::remove_dir_all(&dir).ok();
 }

@@ -82,6 +82,10 @@ fn stored(store: &Store) -> Vec<Option<Affiliation>> {
 }
 
 /// An account stored before its affiliation was recorded keeps the answer its first connect got.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn an_account_stored_without_an_affiliation_records_the_first_answer() {
     let (id, sink, store) = microsoft_account(None);
@@ -92,6 +96,10 @@ async fn an_account_stored_without_an_affiliation_records_the_first_answer() {
 }
 
 /// The same answer again writes nothing: a store write is a keychain prompt on some hosts.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn the_same_answer_is_not_written_twice() {
     let (id, sink, store) = microsoft_account(Some(Affiliation::Personal));
@@ -102,6 +110,10 @@ async fn the_same_answer_is_not_written_twice() {
 }
 
 /// A different answer replaces the stored one, as when an address moves into an organisation.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_different_answer_replaces_the_stored_one() {
     let (id, sink, store) = microsoft_account(Some(Affiliation::Personal));
@@ -115,6 +127,10 @@ async fn a_different_answer_replaces_the_stored_one() {
 }
 
 /// A Google account stored without an answer keeps the one its first connect got.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "tokio's test macro runs the test on a runtime of its own with `block_on`"
+)]
 #[tokio::test]
 async fn a_google_account_records_its_answer_too() {
     let config = GoogleConfig {

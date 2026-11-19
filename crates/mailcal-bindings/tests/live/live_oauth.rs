@@ -4,13 +4,7 @@
 //! Both tests run against the harness's sign-in server (`stalwart-oauth` in
 //! `docker/stalwart/docker-compose.yml`), where alice signs in with her harness password.
 
-// A test drives a runtime of its own from the test thread; see `src/lib.rs`.
-#![allow(clippy::disallowed_methods)]
-
-use std::{
-    fs,
-    sync::{Arc, Mutex, mpsc},
-};
+use std::sync::{Arc, Mutex, mpsc};
 
 use mailcal_bindings::{
     AccountCredentialStore, CredentialStoreError, DeviceClass, DeviceInfo, LogLevel, Logger,
@@ -58,19 +52,19 @@ impl AccountCredentialStore for RecordingStore {
     }
 }
 
-/// An account-less app in a fresh temp dir of its own.
-pub fn app(name: &str, store: RecordingStore) -> Arc<MailcalApp> {
-    let dir =
-        std::env::temp_dir().join(format!("mailcal-live-oauth-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).expect("a writable temp dir");
+/// An account-less app in a temp dir of its own, which is removed when the returned guard drops.
+pub fn app(name: &str, store: RecordingStore) -> (tempfile::TempDir, Arc<MailcalApp>) {
+    let dir = tempfile::Builder::new()
+        .prefix(&format!("mailcal-live-oauth-{name}-"))
+        .tempdir()
+        .expect("a writable temp dir");
     let (tx, _rx) = mpsc::channel();
-    MailcalApp::new_accounts(
+    let app = MailcalApp::new_accounts(
         Box::new(SilentObserver(tx)),
         Box::new(SilentLogger),
         LogLevel::Info,
         Vec::new(),
-        dir.to_string_lossy().into_owned(),
+        dir.path().to_string_lossy().into_owned(),
         "Etc/UTC".to_owned(),
         DeviceInfo {
             platform: Platform::Macos,
@@ -81,7 +75,8 @@ pub fn app(name: &str, store: RecordingStore) -> Arc<MailcalApp> {
         },
         Box::new(store),
     )
-    .expect("an account-less app boots")
+    .expect("an account-less app boots");
+    (dir, app)
 }
 
 /// The single value of query parameter `name`, failing the test when it is absent or repeated.
@@ -97,6 +92,10 @@ pub fn param(url: &url::Url, name: &str) -> String {
     value.into_owned()
 }
 
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a test drives a runtime of its own from the test harness's thread, never a host's"
+)]
 /// Signs in on the login page as the user would, and returns the redirect the browser would then
 /// follow back to the app at `redirect_uri`.
 ///

@@ -13,6 +13,7 @@ internal sealed class FolderFlow(App app)
     /// pane, so a row read before it may be stale.</summary>
     internal Element Row(string folder)
     {
+        app.ShowMail();
         var account = Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
             ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}");
         return Agent.Find(Filter.Named(folder, "ListItem") with { Under = account })

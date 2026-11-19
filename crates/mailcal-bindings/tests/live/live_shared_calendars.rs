@@ -208,7 +208,7 @@ fn a_jmap_account_opens_the_calendars_shared_with_it() {
         return;
     };
     let store = RecordingStore::default();
-    let app = app("shared-calendars-jmap", store.clone());
+    let (_dir, app) = app("shared-calendars-jmap", store.clone());
     let config = mailcal_bindings::jmap_account_config_toml(JmapSetup {
         email: "alice@test.local".to_owned(),
         server_url: Some(format!("http://{http}")),
@@ -226,7 +226,7 @@ fn a_caldav_account_opens_the_calendars_shared_with_it() {
         return;
     };
     let store = RecordingStore::default();
-    let app = app("shared-calendars-caldav", store.clone());
+    let (_dir, app) = app("shared-calendars-caldav", store.clone());
     let config = format!(
         "[caldav]\nbase_url = \"http://{http}\"\nusername = \"alice@test.local\"\n\
          password = \"harness-alice-pw\"\n"

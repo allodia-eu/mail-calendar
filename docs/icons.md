@@ -78,7 +78,7 @@ noted beside it, and the two without one are this app's own drawings.
 
 | Meaning | Apple | Android | Windows | Linux |
 |---|---|---|---|---|
-| Mail | `tray.full` | `ic_mail` | the `NavigationView`'s own | `mail-unread-symbolic` |
+| Mail | `tray.full` | `ic_mail` | `E8C3` Read | `mail-unread-symbolic` |
 | Calendar | `calendar` | `ic_calendar_month` | `E787` Calendar | `x-office-calendar-symbolic` |
 | Contacts | `person.2` | `ic_contacts` | `E716` People | `x-office-address-book-symbolic` |
 | Settings | `gearshape` | `ic_settings` | the `NavigationView`'s own | `preferences-system-symbolic` |
@@ -178,12 +178,12 @@ noted beside it, and the two without one are this app's own drawings.
 
 | Meaning | Apple | Android | Windows | Linux |
 |---|---|---|---|---|
-| Previous / next week | `chevron.left` / `chevron.right` | — | `E76B` ChevronLeft / `E76C` ChevronRight | `go-previous-symbolic` / `go-next-symbolic` |
+| Previous / next week, and the calendar pane's previous / next month | `chevron.left` / `chevron.right` | — | `E76B` ChevronLeft / `E76C` ChevronRight | `go-previous-symbolic` / `go-next-symbolic` |
 | Back to today | the numbered calendar symbol for today's date (15.calendar on the 15th); before iOS and macOS 26, the date drawn in a box | — | — | — |
 | New event | `plus` | `ic_add` | `E787` Calendar | — |
 | The view menu | `ellipsis` | `ic_more_vert` | — | — |
-| Manage calendars | — | — | `E8FD` BulletedList | — |
-| The chosen mode or calendar | `checkmark` | `ic_check` | — | — |
+| The chosen mode or calendar, and the tick in a shown calendar's check in the calendar pane | `checkmark` | `ic_check` | `E73E` CheckMark | — |
+| A calendar that cannot be written: the lock on its row in the calendar pane ([`calendar-pane.md`](calendar-pane.md), rule 8) | `lock` | — | `E72E` Lock | `changes-prevent-symbolic` |
 | An event in the agenda | `calendar` | `ic_calendar_month` | `E787` Calendar | — |
 | Open an event | — | — | — | `go-next-symbolic` |
 | Edit an event | `pencil` | `ic_edit` | — | — |

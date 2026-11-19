@@ -348,16 +348,11 @@ internal sealed partial class CalendarSurface
     /// </remarks>
     private void UpdatePeriodTitle(SurfaceMetrics m)
     {
-        if (m.DayWidth <= 0f)
+        if (Visible(m) is not { } visible)
         {
             return;
         }
-        var first = (int)MathF.Floor(_state.StripX / m.DayWidth);
-        var last = (int)MathF.Floor((_state.StripX + m.DayViewport - 1f) / m.DayWidth);
-        if (DateAt(first) is not { } from || DateAt(Math.Max(last, first)) is not { } to)
-        {
-            return;
-        }
+        var (from, to, _) = visible;
 
         var title = CalendarFormat.PeriodTitle(from, to, CultureInfo.CurrentCulture);
         if (title == PeriodTitle)
@@ -367,4 +362,30 @@ internal sealed partial class CalendarSurface
         PeriodTitle = title;
         PeriodChanged?.Invoke();
     }
+
+    /// <summary>The first and last days on screen, and how many there are; <c>null</c> before the
+    /// grid is laid out or while a page is missing.</summary>
+    private (DateOnly From, DateOnly To, int Count)? Visible(SurfaceMetrics m)
+    {
+        if (m.DayWidth <= 0f)
+        {
+            return null;
+        }
+        var first = (int)MathF.Floor(_state.StripX / m.DayWidth);
+        var last = Math.Max((int)MathF.Floor((_state.StripX + m.DayViewport - 1f) / m.DayWidth), first);
+        return DateAt(first) is { } from && DateAt(last) is { } to ? (from, to, last - first + 1) : null;
+    }
+
+    /// <summary>Tells the host where the grid has come to rest, when that is somewhere new.</summary>
+    private void ReportRest(SurfaceMetrics m)
+    {
+        if (_pendingRecentre || Visible(m) is not { } visible || (visible.From, visible.Count) == _rested)
+        {
+            return;
+        }
+        _rested = (visible.From, visible.Count);
+        CameToRest?.Invoke(visible.From, visible.Count);
+    }
+
+    private (DateOnly, int)? _rested;
 }

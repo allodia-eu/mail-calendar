@@ -23,7 +23,7 @@ public sealed class FolderLabelsTests(HarnessApp harness)
     private static HashSet<string> RowNames(App app)
     {
         // The mailbox, with alice's tree open: a suite before this one can leave the calendar on
-        // screen, which shuts every tree in the pane.
+        // screen, whose pane stands in the tree's place.
         app.RowsList();
         app.Agent.Expand(app.Agent.Find(Filter.Named(Harness.Alice, "ListItem") with { Window = app.Mailbox.Hwnd })
             ?? throw new InvalidOperationException($"the pane has no row for {Harness.Alice}"));

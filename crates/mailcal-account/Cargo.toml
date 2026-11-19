@@ -80,6 +80,7 @@ tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-th
 # certificate no trust anchor can rescue, and dials it through the real connect path.
 rcgen = { workspace = true }
 rustls = { workspace = true }
+tempfile = { workspace = true }
 
 # The probe binary drives the full engine sync against a real account; the library is
 # reused by the bindings to build the same providers.

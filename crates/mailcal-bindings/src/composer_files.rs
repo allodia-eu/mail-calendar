@@ -274,18 +274,16 @@ fn unique_value(prefix: &str, used: &mut HashSet<String>) -> String {
 mod tests {
     use super::*;
 
-    fn seed(name: &str, bytes: &[u8]) -> String {
-        let path = std::env::temp_dir().join(format!(
-            "mailcal-compose-attachment-{}-{name}",
-            std::process::id()
-        ));
+    fn seed(dir: &tempfile::TempDir, name: &str, bytes: &[u8]) -> String {
+        let path = dir.path().join(name);
         std::fs::write(&path, bytes).expect("seed attachment");
         path.to_string_lossy().into_owned()
     }
 
     #[test]
     fn prepare_with_files_appends_regular_attachment_and_sanitizes_metadata() {
-        let path = seed("append.txt", b"hello");
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let path = seed(&dir, "append.txt", b"hello");
         let prepared = prepare_with_files(
             r#"{"blocks":[],"attachments":[]}"#,
             vec![ComposerFileAttachment {
@@ -313,13 +311,13 @@ mod tests {
         let blobs = read_pending(prepared.pending).expect("read bytes");
         assert_eq!(blobs.len(), 1);
         assert_eq!(blobs[0].bytes, b"hello");
-        let _ = std::fs::remove_file(path);
     }
 
     #[test]
     fn prepare_with_files_assigns_unique_ids_across_multiple_files() {
-        let first = seed("first.txt", b"one");
-        let second = seed("second.txt", b"two");
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let first = seed(&dir, "first.txt", b"one");
+        let second = seed(&dir, "second.txt", b"two");
         let prepared = prepare_with_files(
             r#"{"blocks":[],"attachments":[]}"#,
             vec![
@@ -349,13 +347,12 @@ mod tests {
         assert_eq!(blobs.len(), 2);
         assert_eq!(blobs[0].bytes, b"one");
         assert_eq!(blobs[1].bytes, b"two");
-        let _ = std::fs::remove_file(first);
-        let _ = std::fs::remove_file(second);
     }
 
     #[test]
     fn prepare_with_files_rejects_a_document_referencing_unsupplied_bytes() {
-        let path = seed("reject.txt", b"hello");
+        let dir = tempfile::tempdir().expect("a scratch directory");
+        let path = seed(&dir, "reject.txt", b"hello");
         // A pre-existing attachment whose bytes this call cannot supply; must be rejected
         // synchronously rather than dispatched and failed asynchronously.
         let err = prepare_with_files(
@@ -368,6 +365,5 @@ mod tests {
         )
         .expect_err("must reject unsupplied blob");
         assert!(matches!(err, MailcalError::Composer(msg) if msg.contains("ghost")));
-        let _ = std::fs::remove_file(path);
     }
 }

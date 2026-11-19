@@ -159,8 +159,11 @@ pub enum EventEdge {
 #[derive(uniffi::Record)]
 pub struct GridDay {
     /// The local calendar date this column shows, `YYYY-MM-DD`. The client formats the
-    /// heading (weekday name, day number, week number): the core emits no localised text.
+    /// heading (weekday name, day number): the core emits no localised text.
     pub date: String,
+    /// The ISO 8601 week number the date falls in, whatever the week start.
+    #[uniffi(default = 0)]
+    pub week: u32,
 }
 
 /// A block drawn inside the grid: one day's worth of one event.

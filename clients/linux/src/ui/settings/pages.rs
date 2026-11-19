@@ -5,16 +5,19 @@
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    CalendarRow, Intent, PreferenceIntent, QuoteStyleKind, SwipeActionKind, SwipeDirection,
-    ViewMode, WeekStart,
+    Intent, PreferenceIntent, QuoteStyleKind, SwipeActionKind, SwipeDirection, ViewMode, WeekStart,
 };
 
 use super::{PageContext, choice, dialog_box, group, page_box};
+
+// A child of this module rather than of `settings.rs`, which is at its line limit.
+#[path = "default_calendar.rs"]
+mod default_calendar;
 use crate::{l10n, ui::preference};
 
 pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
     let content = page_box(l10n::settings_category_calendar());
-    content.append(&default_calendar(ctx));
+    content.append(&default_calendar::default_calendar(ctx));
     let display = ctx.app.display_settings();
     let week = group(
         l10n::settings_week_start_heading(),
@@ -70,94 +73,6 @@ pub(super) fn calendar(ctx: &PageContext) -> gtk::Box {
     horizon.add(&row);
     content.append(&horizon);
     content
-}
-
-fn default_calendar(ctx: &PageContext) -> adw::PreferencesGroup {
-    let group = group(
-        l10n::settings_default_calendar_heading(),
-        l10n::settings_default_calendar_description(),
-    );
-    let calendars = ctx
-        .app
-        .calendars()
-        .into_iter()
-        .filter(|calendar| calendar.can_write)
-        .collect::<Vec<_>>();
-    if calendars.is_empty() {
-        group.add(
-            &adw::ActionRow::builder()
-                .title(l10n::settings_default_calendar_none())
-                .use_markup(false)
-                .build(),
-        );
-        return group;
-    }
-    let mut calendars_by_account = std::collections::BTreeMap::<&str, Vec<&CalendarRow>>::new();
-    for calendar in &calendars {
-        calendars_by_account
-            .entry(&calendar.account)
-            .or_default()
-            .push(calendar);
-    }
-    let multiple_accounts = calendars_by_account.len() > 1;
-    let mut check_group: Option<gtk::CheckButton> = None;
-    for (account_id, calendars) in calendars_by_account {
-        if multiple_accounts {
-            // The core's address for the account: one used only for its calendar is in no mail
-            // list to look it up in.
-            let account = calendars
-                .first()
-                .map_or(account_id, |calendar| calendar.account_address.as_str());
-            let heading = adw::ActionRow::builder()
-                .title(account)
-                .sensitive(false)
-                .use_markup(false)
-                .build();
-            heading.add_css_class("property");
-            group.add(&heading);
-        }
-        for calendar in calendars {
-            group.add(&default_calendar_row(ctx, calendar, &mut check_group));
-        }
-    }
-    group
-}
-
-fn default_calendar_row(
-    ctx: &PageContext,
-    calendar: &CalendarRow,
-    check_group: &mut Option<gtk::CheckButton>,
-) -> adw::ActionRow {
-    let row = adw::ActionRow::builder()
-        .title(&calendar.name)
-        .use_markup(false)
-        .build();
-    let selected = gtk::CheckButton::builder()
-        .active(calendar.is_default)
-        .valign(gtk::Align::Center)
-        .build();
-    if let Some(first) = check_group {
-        selected.set_group(Some(first));
-    } else {
-        *check_group = Some(selected.clone());
-    }
-    let app = ctx.app.clone();
-    let account = calendar.account.clone();
-    let id = calendar.id.clone();
-    selected.connect_toggled(move |choice| {
-        if choice.is_active() {
-            preference::set(
-                &app,
-                PreferenceIntent::SetDefaultCalendar {
-                    account: Some(account.clone()),
-                    calendar: Some(id.clone()),
-                },
-            );
-        }
-    });
-    row.add_prefix(&selected);
-    row.set_activatable_widget(Some(&selected));
-    row
 }
 
 pub(super) fn reading(ctx: &PageContext) -> gtk::Box {

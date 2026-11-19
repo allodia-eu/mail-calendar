@@ -22,17 +22,15 @@ import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
 import uniffi.mailcal_bindings.AllodiaSubscriptionState
 import uniffi.mailcal_bindings.Appearance
-import uniffi.mailcal_bindings.CalendarRow
 import uniffi.mailcal_bindings.DisplaySettings
-import uniffi.mailcal_bindings.MeetingDefault
+import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
-import uniffi.mailcal_bindings.SignatureSlotKind
-import uniffi.mailcal_bindings.SignaturesSnapshot
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
 import uniffi.mailcal_bindings.TimeZoneSnapshot
+import uniffi.mailcal_bindings.VideoconferencingPage
 import uniffi.mailcal_bindings.ViewMode
 import uniffi.mailcal_bindings.WeekStart
 
@@ -48,16 +46,14 @@ internal fun CategoryDetail(
     onSetAppearance: (Appearance) -> Unit,
     onSetWeekStart: (WeekStart) -> Unit,
     onSetVisibleHours: (Int) -> Unit,
-    // Calendar, which calendar a new event is filed on. The rows carry `isDefault`, already
-    // resolved by the core against what exists, so there is no fallback rule on this side.
-    calendars: List<CalendarRow>,
+    // Calendar, which calendar a new event is filed on: the core's `newEventCalendars`, whose rows
+    // carry `isDefault` already resolved against what exists.
+    newEventCalendars: NewEventCalendars,
     onSetDefaultCalendar: (account: String?, calendar: String?) -> Unit,
-    // Videoconferencing, the person's Jitsi server: read when the row opens, and stored by the
-    // core, which answers `false` for an address it will not keep.
-    jitsiServer: () -> String?,
-    onSetJitsiServer: (String) -> Boolean,
-    // Videoconferencing, the video meeting each account's new events take, as the core lists it.
-    meetingDefaults: List<MeetingDefault>,
+    // Videoconferencing, the core's page: the Jitsi server, the text it last refused and each
+    // account's default meeting. Sending the field answers the page as the core left it.
+    videoconferencing: VideoconferencingPage,
+    onSetJitsiServer: (String) -> VideoconferencingPage,
     onSetDefaultMeeting: (account: String, choice: String?) -> Unit,
     mode: ViewMode,
     onSetMode: (ViewMode) -> Unit,
@@ -71,12 +67,7 @@ internal fun CategoryDetail(
     swipe: SwipeSettings,
     onSetSwipeLeft: (SwipeActionKind) -> Unit,
     onSetSwipeRight: (SwipeActionKind) -> Unit,
-    signatures: SignaturesSnapshot?,
-    signatureHtml: (String) -> String?,
-    onCreateSignature: (name: String, bodyHtml: String, bodyPlain: String) -> Unit,
-    onUpdateSignature: (id: String, name: String, bodyHtml: String, bodyPlain: String) -> Unit,
-    onDeleteSignature: (String) -> Unit,
-    onSetAccountSignature: (account: String, slot: SignatureSlotKind, signature: String?) -> Unit,
+    signatures: SignaturesUi,
     about: AboutInfo,
     analyticsEnabled: Boolean,
     onSetAnalytics: (Boolean) -> Unit,
@@ -142,7 +133,7 @@ internal fun CategoryDetail(
                 L10n.settings_default_calendar_description(ctx),
             ) {
                 DefaultCalendarSettingsRows(
-                    calendars = calendars,
+                    offered = newEventCalendars,
                     onSetDefaultCalendar = onSetDefaultCalendar,
                 )
             }
@@ -157,9 +148,9 @@ internal fun CategoryDetail(
                 L10n.settings_jitsi_server(ctx),
                 L10n.settings_jitsi_server_hint(ctx),
             ) {
-                JitsiServerRow(jitsiServer = jitsiServer, onSetJitsiServer = onSetJitsiServer)
+                JitsiServerRow(page = videoconferencing, onSetJitsiServer = onSetJitsiServer)
             }
-            DefaultMeetingCard(meetingDefaults, onSetDefaultMeeting)
+            DefaultMeetingCard(videoconferencing.defaults, onSetDefaultMeeting)
         }
 
         // Reading, conversation grouping (list <-> thread), the message-row swipe gestures and the
@@ -215,24 +206,14 @@ internal fun CategoryDetail(
                 L10n.settings_signatures_library_heading(ctx),
                 L10n.settings_signatures_library_description(ctx),
             ) {
-                SignatureLibraryCard(
-                    signatures = signatures?.signatures.orEmpty(),
-                    bodyHtmlFor = signatureHtml,
-                    onCreate = onCreateSignature,
-                    onUpdate = onUpdateSignature,
-                    onDelete = onDeleteSignature,
-                )
+                SignatureLibraryCard(signatures)
             }
             Spacer(modifier = Modifier.height(8.dp))
             SettingsGroupCard(
                 L10n.settings_signatures_defaults_heading(ctx),
                 L10n.settings_signatures_defaults_description(ctx),
             ) {
-                AccountSignatureDefaultsCard(
-                    accounts = signatures?.accounts.orEmpty(),
-                    signatures = signatures?.signatures.orEmpty(),
-                    onSet = onSetAccountSignature,
-                )
+                AccountSignatureDefaultsCard(signatures)
             }
         }
 

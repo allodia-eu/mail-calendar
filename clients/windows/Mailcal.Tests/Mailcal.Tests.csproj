@@ -235,6 +235,9 @@
          page change that redrew the calendar held the UI thread through the press. -->
     <Compile Include="..\Mailcal\Services\CalendarSettingsRules.cs" Link="Services\CalendarSettingsRules.cs" />
     <Compile Include="..\Mailcal\Services\MeetingAccountLabels.cs" Link="Services\MeetingAccountLabels.cs" />
+    <!-- When the Jitsi field says its address was refused, and which signals leave Settings →
+         Calendar's default list and Videoconferencing's defaults as drawn. -->
+    <Compile Include="..\Mailcal\Services\SettingsCalendarPages.cs" Link="Services\SettingsCalendarPages.cs" />
     <!-- An account's browser sign-in, which the core holds (docs/waiting.md): the redirect each
          kind starts with, the browser opened once per attempt, a redirect handed to the core
          rather than to a setup flow, and the line its section waits with. A redirect routed to the
@@ -343,8 +346,11 @@
     <!-- How a composer opens from the core's ComposeOpening: its kind, the quote seed, the
          attribution a reopened quote is completed with. Pure BCL over the generated records. -->
     <Compile Include="..\Mailcal\Services\ComposeOpeningSeed.cs" Link="Services\ComposeOpeningSeed.cs" />
-    <!-- The embedded-image cap and the media-type refusal, enforced client-side, where the user can
-         still be told, so the core never sees an oversized logo. Pure BCL. -->
+    <!-- The signature editor's half of Settings → Signatures (docs/signatures.md): the id it saves
+         under, Save's state, which outcome closes it and the words for a refusal, and a picked
+         picture as the data URI it inserts. WinUI-free and L10n-free, the words arrive as
+         parameters; it reads the generated SignaturesPage, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\Services\SignatureEditorRules.cs" Link="Services\SignatureEditorRules.cs" />
     <Compile Include="..\Mailcal\Services\SignatureImage.cs" Link="Services\SignatureImage.cs" />
     <!-- The debug-only harness send gate: which recipients count as outside test.local. Pure BCL. -->
     <Compile Include="..\Mailcal\Services\HarnessRecipientGate.cs" Link="Services\HarnessRecipientGate.cs" />
@@ -389,6 +395,10 @@
     <Compile Include="..\Mailcal\ViewModels\SidebarItem.cs" Link="ViewModels\SidebarItem.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarTree.cs" Link="ViewModels\SidebarTree.cs" />
     <Compile Include="..\Mailcal\ViewModels\SidebarMark.cs" Link="ViewModels\SidebarMark.cs" />
+    <!-- The calendar pane's paged month and the rules that draw the mini month
+         (docs/calendar-pane.md). WinUI-free and L10n-free, the words arrive as parameters. It reads
+         the generated pane records, so it needs the bindings below. -->
+    <Compile Include="..\Mailcal\ViewModels\CalendarPaneModel.cs" Link="ViewModels\CalendarPaneModel.cs" />
     <!-- Which of the core's notices is drawn where (docs/notices.md): the bar's notice for the
          screen on show, how many stand behind it, each account's mark, and what is announced once.
          Silent when wrong: a notice drawn on a screen it does not belong to, or one read aloud on

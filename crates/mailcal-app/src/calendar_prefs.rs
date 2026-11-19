@@ -19,6 +19,8 @@ pub(crate) struct CalendarPrefsState {
     /// Boxed: the app is held by value in many futures, and this is its largest field.
     prefs: Box<Preferences>,
     file: PreferencesFile,
+    /// The text last refused as the Jitsi server, until the next is sent; never written.
+    jitsi_refused: Option<String>,
 }
 
 impl CalendarPrefsState {
@@ -28,6 +30,7 @@ impl CalendarPrefsState {
         Self {
             prefs: Box::new(file.load()),
             file,
+            jitsi_refused: None,
         }
     }
 
@@ -55,6 +58,19 @@ impl CalendarPrefsState {
         self.persist();
     }
 
+    /// The text last refused as the Jitsi server, until the next is sent.
+    pub(crate) fn jitsi_refused(&self) -> Option<&str> {
+        self.jitsi_refused.as_deref()
+    }
+
+    /// Records what the last text sent as the Jitsi server came to: the text when it was refused,
+    /// `None` otherwise. Answers whether that changed what Settings draws.
+    pub(crate) fn note_jitsi_refused(&mut self, refused: Option<String>) -> bool {
+        let changed = self.jitsi_refused != refused;
+        self.jitsi_refused = refused;
+        changed
+    }
+
     /// The video meeting `account`'s new events take, as stored: it may name a choice no calendar
     /// of the account offers any more, which [`crate::calendar_colors`] resolves.
     pub(crate) fn default_meeting(&self, account: &str) -> Option<&str> {
@@ -71,6 +87,22 @@ impl CalendarPrefsState {
             None => self.prefs.default_meetings.remove(account),
         };
         self.persist();
+    }
+
+    /// Whether `account`'s group is open in the calendar pane.
+    pub(crate) fn group_expanded(&self, account: &str) -> bool {
+        self.prefs.calendar_group_expanded(account)
+    }
+
+    /// Records whether `account`'s group is open, and persists it. Returns whether anything
+    /// changed, so re-asserting the current state writes nothing and signals nothing.
+    pub(crate) fn set_group_expanded(&mut self, account: &str, expanded: bool) -> bool {
+        if self.prefs.calendar_group_expanded(account) == expanded {
+            return false;
+        }
+        self.prefs.set_calendar_group_expanded(account, expanded);
+        self.persist();
+        true
     }
 
     /// Records which calendar new events go to, and persists it.
@@ -109,7 +141,9 @@ impl CalendarPrefsState {
             );
             of != account && !through
         });
-        let named_it = named_it || self.prefs.default_meetings.len() != before;
+        // Evaluated before the `||` below so it always runs.
+        let shut_group = self.prefs.remove_calendar_group(account);
+        let named_it = named_it || self.prefs.default_meetings.len() != before || shut_group;
         if self.prefs.remove_account_calendars(account) || named_it {
             self.persist();
         }
@@ -122,7 +156,11 @@ impl CalendarPrefsState {
         let default_calendar = self.prefs.default_calendar.clone();
         let jitsi_server = self.prefs.jitsi_server.clone();
         let default_meetings = self.prefs.default_meetings.clone();
+        let collapsed_groups = self.prefs.collapsed_calendar_groups.clone();
         self.file.edit(move |on_disk| {
+            on_disk
+                .collapsed_calendar_groups
+                .clone_from(&collapsed_groups);
             on_disk.calendars.clone_from(&calendars);
             on_disk.default_calendar.clone_from(&default_calendar);
             on_disk.jitsi_server.clone_from(&jitsi_server);

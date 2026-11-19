@@ -119,11 +119,14 @@ mod tests {
     use super::prefill_arguments;
 
     /// A real file to hand the parser, since it refuses anything it cannot stat.
-    fn seed(name: &str) -> OsString {
-        let path =
-            std::env::temp_dir().join(format!("mailcal-share-{}-{name}", std::process::id()));
+    fn seed(dir: &tempfile::TempDir, name: &str) -> OsString {
+        let path = dir.path().join(name);
         std::fs::write(&path, b"bytes").expect("seed a shared file");
         path.into_os_string()
+    }
+
+    fn scratch() -> tempfile::TempDir {
+        tempfile::tempdir().expect("a scratch directory")
     }
 
     fn argv(rest: &[OsString]) -> Vec<OsString> {
@@ -134,7 +137,8 @@ mod tests {
 
     #[test]
     fn an_open_with_launch_attaches_what_it_names() {
-        let file = seed("open-with.pdf");
+        let dir = scratch();
+        let file = seed(&dir, "open-with.pdf");
         let prefill = prefill_arguments(&argv(std::slice::from_ref(&file))).expect("a share");
         assert_eq!(prefill.attachments.len(), 1);
         assert_eq!(prefill.attachments[0].path, file.to_string_lossy());
@@ -145,7 +149,8 @@ mod tests {
     #[test]
     fn a_file_uri_is_a_path_like_any_other() {
         // What `Exec=mailcal %U` actually delivers.
-        let file = seed("uri.txt");
+        let dir = scratch();
+        let file = seed(&dir, "uri.txt");
         let uri = OsString::from(format!("file://{}", file.to_string_lossy()));
         let prefill = prefill_arguments(&argv(&[uri])).expect("a share");
         assert_eq!(prefill.attachments[0].path, file.to_string_lossy());
@@ -153,7 +158,8 @@ mod tests {
 
     #[test]
     fn the_attach_flag_takes_the_argument_after_it() {
-        let file = seed("flagged.txt");
+        let dir = scratch();
+        let file = seed(&dir, "flagged.txt");
         let prefill =
             prefill_arguments(&argv(&[OsString::from("--attach"), file.clone()])).expect("a share");
         assert_eq!(prefill.attachments.len(), 1);
@@ -162,8 +168,9 @@ mod tests {
 
     #[test]
     fn several_files_keep_the_order_they_were_given_in() {
-        let first = seed("a.txt");
-        let second = seed("b.txt");
+        let dir = scratch();
+        let first = seed(&dir, "a.txt");
+        let second = seed(&dir, "b.txt");
         let prefill = prefill_arguments(&argv(&[first, second])).expect("a share");
         assert_eq!(prefill.attachments.len(), 2);
         assert!(prefill.attachments[0].file_name.ends_with("a.txt"));
@@ -192,7 +199,8 @@ mod tests {
         // The regression this guards: only `--attach` takes a value, so stepping over an unknown
         // flag *and* the token after it would drop the user's file the day a boolean flag is added
         // here, as the Windows client already has one. The file must survive the flag.
-        let file = seed("after-flag.txt");
+        let dir = scratch();
+        let file = seed(&dir, "after-flag.txt");
         let arguments = argv(&[OsString::from("--calendar"), file.clone()]);
         let prefill = prefill_arguments(&arguments).expect("a share");
         assert_eq!(prefill.attachments.len(), 1);

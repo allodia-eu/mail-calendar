@@ -14,9 +14,8 @@ fn missing_file_loads_defaults() {
 
 #[test]
 fn save_then_load_round_trips_the_preferences() {
-    let dir = std::env::temp_dir().join("mailcal-prefs-test-roundtrip");
-    let _ = fs::remove_dir_all(&dir);
-    let path = dir.join("nested/preferences.toml");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nested/preferences.toml");
     let prefs = Preferences {
         display_timezone: Some("Europe/Amsterdam".to_owned()),
         default_send_account: Some("me@imap.example.com".to_owned()),
@@ -93,11 +92,11 @@ fn save_then_load_round_trips_the_preferences() {
             "me@imap.example.com".to_owned(),
             BTreeSet::from(["Archive".to_owned()]),
         )]),
+        collapsed_calendar_groups: BTreeSet::from(["me@imap.example.com".to_owned()]),
     };
     // Saving creates the nested parent dirs and the load reads the values back.
     save_preferences(&path, &prefs).unwrap();
     assert_eq!(load_preferences(&path), prefs);
-    let _ = fs::remove_dir_all(&dir);
 }
 
 #[test]
@@ -350,13 +349,10 @@ fn an_older_preferences_file_without_accounts_defaults_to_empty() {
 
 #[test]
 fn corrupt_file_falls_back_to_defaults() {
-    let dir = std::env::temp_dir().join("mailcal-prefs-test-corrupt");
-    let _ = fs::remove_dir_all(&dir);
-    let path = dir.join("preferences.toml");
-    fs::create_dir_all(&dir).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("preferences.toml");
     fs::write(&path, "this is = not valid = toml =").unwrap();
     assert_eq!(load_preferences(&path), Preferences::default());
-    let _ = fs::remove_dir_all(&dir);
 }
 
 /// Settings offers the same horizons on every platform, and the one a pinch left the grid at
@@ -373,9 +369,8 @@ fn the_horizon_choices_are_the_stops_and_the_current_horizon() {
 /// the defaults; nothing is left beside it.
 #[test]
 fn a_save_replaces_the_file_whole() {
-    let dir = std::env::temp_dir().join("mailcal-prefs-save-whole");
-    let _ = fs::remove_dir_all(&dir);
-    let path = dir.join("preferences.toml");
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("preferences.toml");
     let prefs = Preferences {
         week_start: WeekStart::Sunday,
         ..Preferences::default()
@@ -383,10 +378,9 @@ fn a_save_replaces_the_file_whole() {
     save_preferences(&path, &prefs).unwrap();
     save_preferences(&path, &prefs).unwrap();
     assert_eq!(load_preferences(&path).week_start, WeekStart::Sunday);
-    let names: Vec<_> = fs::read_dir(&dir)
+    let names: Vec<_> = fs::read_dir(dir.path())
         .unwrap()
         .map(|entry| entry.unwrap().file_name())
         .collect();
     assert_eq!(names, ["preferences.toml"]);
-    let _ = fs::remove_dir_all(&dir);
 }

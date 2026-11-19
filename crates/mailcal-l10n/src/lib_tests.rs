@@ -61,8 +61,8 @@ fn to_map(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
 fn regenerating_identical_content_leaves_the_file_untouched() {
     // Every client build downstream of this decides what to recompile from mtimes, so a
     // byte-identical rewrite costs a full rebuild of the WinUI app for no reason.
-    let dir = std::env::temp_dir().join("mailcal-l10n-unchanged-file-test");
-    let _ = std::fs::remove_dir_all(&dir);
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let dir = scratch.path();
     let resw = || {
         vec![(
             "Strings/en/Resources.resw".to_string(),
@@ -70,7 +70,7 @@ fn regenerating_identical_content_leaves_the_file_untouched() {
         )]
     };
 
-    let first = write_files(&dir, resw()).expect("the first pass creates the file");
+    let first = write_files(dir, resw()).expect("the first pass creates the file");
     assert!(
         first[0].rewritten,
         "a file that did not exist yet is written"
@@ -79,7 +79,7 @@ fn regenerating_identical_content_leaves_the_file_untouched() {
         .and_then(|m| m.modified())
         .expect("the written file has a modification time");
 
-    let again = write_files(&dir, resw()).expect("a second identical pass succeeds");
+    let again = write_files(dir, resw()).expect("a second identical pass succeeds");
     assert!(
         !again[0].rewritten,
         "identical content must not be rewritten"
@@ -96,13 +96,12 @@ fn regenerating_identical_content_leaves_the_file_untouched() {
         "Strings/en/Resources.resw".to_string(),
         "<root>x</root>".to_string(),
     )];
-    let changed = write_files(&dir, edited).expect("changed content is written");
+    let changed = write_files(dir, edited).expect("changed content is written");
     assert!(changed[0].rewritten, "changed content is written");
     assert_eq!(
         std::fs::read_to_string(&changed[0].path).expect("the file reads back"),
         "<root>x</root>"
     );
-    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

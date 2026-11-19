@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The calendar pane, in the folder pane's column while the calendar is showing
+     (docs/calendar-pane.md): the mini month, then the calendars. The destinations under it are the
+     NavigationView's own footer, so the column reads as the one pane it is. Everything is drawn from
+     the core's pull in the code-behind; the rows take the folder pane's height, type and hover. -->
+<UserControl
+    x:Class="Allodia.Mailcal.Views.CalendarPane"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:l10n="using:Allodia.Mailcal">
+
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <!-- The days the grid shows wear one soft accent band (rule 4). -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="PaneBandBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.16" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="PaneBandBrush" Color="{ThemeResource SystemAccentColorLight2}" Opacity="0.22" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="PaneBandBrush" Color="{ThemeResource SystemColorHighlightColor}" Opacity="0.4" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <!-- A row as a NavigationViewItem draws one: no fill at rest, the subtle fills on hover and
+                 press, the control corner radius, and a 36px row. -->
+            <Style x:Key="PaneRowStyle" TargetType="CheckBox">
+                <Setter Property="MinHeight" Value="36" />
+                <Setter Property="Padding" Value="12,0,12,0" />
+                <Setter Property="Margin" Value="4,2,4,2" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="CheckBox">
+                            <Border x:Name="Back" Background="Transparent" CornerRadius="{ThemeResource ControlCornerRadius}"
+                                    Padding="{TemplateBinding Padding}" MinHeight="{TemplateBinding MinHeight}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup x:Name="CombinedStates">
+                                        <VisualState x:Name="UncheckedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Back.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedPointerOver">
+                                            <VisualState.Setters>
+                                                <Setter Target="Back.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="UncheckedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Back.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                        <VisualState x:Name="CheckedPressed">
+                                            <VisualState.Setters>
+                                                <Setter Target="Back.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Stretch" />
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+
+            <!-- The mini month's cells, styled here so a theme change redraws them: code cannot ask for a
+                 theme resource in the theme an element is drawn in. -->
+            <Style x:Key="PaneBandStyle" TargetType="Border">
+                <Setter Property="Background" Value="{ThemeResource PaneBandBrush}" />
+            </Style>
+            <Style x:Key="PaneTodayStyle" TargetType="Ellipse">
+                <Setter Property="Fill" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+            </Style>
+            <Style x:Key="PaneDayTextStyle" TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="PaneOutsideTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PaneDayTextStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+            </Style>
+            <Style x:Key="PaneTodayTextStyle" TargetType="TextBlock" BasedOn="{StaticResource PaneDayTextStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextOnAccentFillColorPrimaryBrush}" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+            </Style>
+            <Style x:Key="PaneCaptionStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+                <Setter Property="HorizontalAlignment" Value="Center" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+            <Style x:Key="PaneWeekNumberStyle" TargetType="TextBlock" BasedOn="{StaticResource PaneCaptionStyle}">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorTertiaryBrush}" />
+            </Style>
+            <Style x:Key="PaneSecondaryIconStyle" TargetType="FontIcon">
+                <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Style>
+            <Style x:Key="PaneFlatButtonStyle" TargetType="Button" BasedOn="{StaticResource SubtleButtonStyle}">
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid x:Name="Root" SizeChanged="OnSizeChanged">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- The month and its arrows, which page the mini month alone (rule 3). -->
+        <Grid Grid.Row="0" Padding="16,4,8,4" ColumnSpacing="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="MonthTitle" VerticalAlignment="Center" FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis"
+                       AutomationProperties.AutomationId="CalendarPaneMonthTitle" />
+            <Button x:Name="PreviousMonth" Grid.Column="1" Style="{StaticResource PaneFlatButtonStyle}"
+                    Width="32" Height="32" CornerRadius="{ThemeResource ControlCornerRadius}" Click="OnPreviousMonth"
+                    AutomationProperties.AutomationId="CalendarPanePrevious"
+                    AutomationProperties.Name="{x:Bind l10n:L10n.CalendarPrevMonth(), Mode=OneTime}"
+                    ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarPrevMonth(), Mode=OneTime}">
+                <FontIcon Glyph="&#xE76B;" FontSize="12" HorizontalAlignment="Center" />
+            </Button>
+            <Button x:Name="NextMonth" Grid.Column="2" Style="{StaticResource PaneFlatButtonStyle}"
+                    Width="32" Height="32" CornerRadius="{ThemeResource ControlCornerRadius}" Click="OnNextMonth"
+                    AutomationProperties.AutomationId="CalendarPaneNext"
+                    AutomationProperties.Name="{x:Bind l10n:L10n.CalendarNextMonth(), Mode=OneTime}"
+                    ToolTipService.ToolTip="{x:Bind l10n:L10n.CalendarNextMonth(), Mode=OneTime}">
+                <FontIcon Glyph="&#xE76C;" FontSize="12" HorizontalAlignment="Center" />
+            </Button>
+        </Grid>
+
+        <!-- Six weeks under the weekday initials, led by the ISO week numbers (rule 2). One tab stop:
+             the arrow keys move between the days (rule 11). -->
+        <Grid x:Name="MonthGrid" Grid.Row="1" HorizontalAlignment="Center" Margin="0,0,0,8"
+              TabFocusNavigation="Once" />
+
+        <!-- The calendars, which take the height left and scroll on their own (rule 6). -->
+        <ScrollViewer x:Name="CalendarList" Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                      AutomationProperties.AutomationId="CalendarPaneCalendars"
+                      AutomationProperties.Name="{x:Bind l10n:L10n.CalendarPaneCalendars(), Mode=OneTime}">
+            <StackPanel x:Name="Groups" Padding="0,0,0,8" />
+        </ScrollViewer>
+    </Grid>
+</UserControl>

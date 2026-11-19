@@ -49,7 +49,12 @@ pub fn load_preferences(path: impl AsRef<Path>) -> Preferences {
 pub fn save_preferences(path: impl AsRef<Path>, prefs: &Preferences) -> io::Result<()> {
     let body =
         toml::to_string(prefs).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    let path = path.as_ref();
+    replace_file(path.as_ref(), &body)
+}
+
+/// Writes `body` beside `path` and renames it over the file, creating parent directories as
+/// needed, so a reader sees the old file or the new one and never one cut short.
+pub(crate) fn replace_file(path: &Path, body: &str) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

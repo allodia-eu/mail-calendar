@@ -45,12 +45,14 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             val before = displaySettings
             if (before != null && before.appearance != display.appearance) appearance = display.appearance
             displaySettings = display
-            signatures = app.signatures()
+            // An account added or removed changes the signatures page's rows.
+            signatures = app.signaturesPage()
             analyticsConsent = app.analyticsConsent()
             // Every account, mail or not: adding, removing, linking and signing one in again all
             // raise this signal (docs/accounts.md rule 11).
             refreshAccountsSnapshot()
             refreshSeparate()
+            settingsVersion += 1
         }
         // A change on an account's page started, waited or ended, or a server answered what the
         // page asked: the page, the list and the questions it shares with other screens are read
@@ -61,6 +63,8 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
             // An account's browser sign-in moved: its browser opens once the core waits on it.
             driveBrowserSignIn()
         }
+        // A change to the signature library started, ended or was refused, or a slot was assigned.
+        CoreSurface.SIGNATURES -> signatures = app.signaturesPage()
         // A pass over the person's other devices started or ended: their card moves, and the
         // first-run card's progress with it.
         CoreSurface.OTHER_DEVICES -> {

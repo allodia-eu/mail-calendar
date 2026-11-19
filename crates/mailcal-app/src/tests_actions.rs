@@ -172,11 +172,8 @@ async fn open_message_lists_and_saves_downloadable_attachments() {
     assert_eq!(reading.attachments[0].media_type, "application/pdf");
     assert_eq!(reading.attachments[0].size, 3);
 
-    let path = std::env::temp_dir().join(format!(
-        "mailcal-attachment-{}-{}.pdf",
-        std::process::id(),
-        reading.attachments[0].id
-    ));
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let path = scratch.path().join("report.pdf");
     app.save_attachment(
         msg("acct-1", "m1"),
         reading.attachments[0].id,
@@ -185,7 +182,6 @@ async fn open_message_lists_and_saves_downloadable_attachments() {
     .await
     .expect("save attachment");
     assert_eq!(std::fs::read(&path).expect("saved bytes"), b"PDF");
-    let _ = std::fs::remove_file(path);
 }
 
 #[tokio::test]
@@ -216,14 +212,14 @@ async fn an_exported_message_is_the_delivered_bytes_unaltered() {
     let html = reading.html.clone().expect("html body");
     assert!(!html.contains("onclick"), "{html}");
 
-    let path = std::env::temp_dir().join(format!("mailcal-export-{}.eml", std::process::id()));
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let path = scratch.path().join("export.eml");
     app.save_message_source(msg("acct-1", "m1"), path.to_str().expect("temp path"))
         .await
         .expect("save message source");
 
     // What the file holds: the original, including the part the sanitiser removed.
     assert_eq!(std::fs::read(&path).expect("saved bytes"), raw.as_bytes());
-    let _ = std::fs::remove_file(path);
 }
 
 #[tokio::test]
@@ -233,7 +229,8 @@ async fn exporting_a_message_that_is_gone_reports_it() {
     let app = app(vec![account("acct-1", provider)], &surfaces);
     app.dispatch(Intent::RefreshMail).await;
 
-    let path = std::env::temp_dir().join(format!("mailcal-absent-{}.eml", std::process::id()));
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let path = scratch.path().join("absent.eml");
     let outcome = app
         .save_message_source(msg("acct-1", "gone"), path.to_str().expect("temp path"))
         .await;

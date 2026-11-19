@@ -62,7 +62,7 @@ fn a_jmap_account_switches_to_signing_in_and_back() {
         return;
     };
     let store = RecordingStore::default();
-    let app = app("switch-jmap", store.clone());
+    let (_dir, app) = app("switch-jmap", store.clone());
     let row = app
         .add_account(format!(
             "[jmap]\nemail = \"{LOGIN}\"\nbase_url = \"http://{addr}\"\npassword = \"{PASSWORD}\"\n"
@@ -94,7 +94,7 @@ fn an_imap_sign_in_signs_in_again_and_keeps_its_grant_over_a_refused_password() 
         return;
     };
     let store = RecordingStore::default();
-    let app = app("switch-imap", store.clone());
+    let (_dir, app) = app("switch-imap", store.clone());
     let SetupRecommendation::Imap {
         imap_host,
         smtp_host,

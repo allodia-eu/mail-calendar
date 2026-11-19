@@ -149,3 +149,20 @@ fn a_work_week_is_the_first_five_days_of_an_aligned_week() {
         ]
     );
 }
+
+#[test]
+fn iso_weeks_follow_the_first_thursday_across_a_year_boundary() {
+    let week = |raw: &str| iso_week(day_number(date(raw)));
+    // 2026 starts on a Thursday, so it has 53 weeks and 1 January 2027 still belongs to it.
+    assert_eq!(week("2026-01-01"), 1);
+    assert_eq!(week("2026-12-28"), 53);
+    assert_eq!(week("2027-01-01"), 53);
+    assert_eq!(week("2027-01-03"), 53);
+    assert_eq!(week("2027-01-04"), 1);
+    // A year starting on a Friday hands its first days to the previous year's last week.
+    assert_eq!(week("2021-01-01"), 53);
+    assert_eq!(week("2021-01-04"), 1);
+    // And a late-December Monday can open the next year's week 1.
+    assert_eq!(week("2024-12-30"), 1);
+    assert_eq!(week("2026-11-18"), 47);
+}

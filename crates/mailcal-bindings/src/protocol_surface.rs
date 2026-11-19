@@ -24,6 +24,11 @@ pub enum Surface {
     /// shares with other screens). A change that stores something read elsewhere raises
     /// `Settings` besides, so a host redraws only what draws an account's page or its work.
     AccountPage,
+    /// The signature library and each account's two signatures (pulled via
+    /// `MailcalApp::signatures_page`): a signature saved or deleted, a change to them starting or
+    /// ending, and an account's assignment changing. A host redraws Settings → Signatures and the
+    /// composer's signature picker.
+    Signatures,
     /// The Allodia account's card (pulled via `MailcalApp::allodia_card`): its sign-in or
     /// sign-out moving, or the service refusing the stored sign-in. A host redraws Settings →
     /// Allodia account and the first-run card, and nothing else.

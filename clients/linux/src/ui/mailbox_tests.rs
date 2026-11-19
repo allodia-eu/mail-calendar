@@ -166,6 +166,14 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         an_unchanged_page_keeps_its_hit_targets_and_a_new_one_replaces_them();
     crate::ui::calendar::dialog_tests::neither_series_question_states_its_title_twice();
     crate::ui::calendar::dialog_tests::the_editor_never_pre_empts_the_scope_question();
+    crate::ui::calendar::side_pane_widget_tests::
+        the_mini_month_marks_today_and_the_shown_days_and_asks_for_a_seat();
+    crate::ui::calendar::side_pane_widget_tests::
+        the_calendars_list_toggles_through_the_core_and_draws_only_what_changed();
+    crate::ui::calendar::side_pane_widget_tests::
+        a_calendar_group_heading_carries_its_accounts_notice_mark();
+    crate::ui::calendar::side_pane_widget_tests::
+        the_folder_column_holds_the_calendar_pane_beside_the_calendar_only();
     crate::ui::calendar::views_tests::
         an_unchanged_agenda_keeps_its_rows_and_a_changed_one_is_drawn_again();
     crate::ui::calendar::views_tests::
@@ -428,6 +436,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     search::the_field_is_separate_from_the_list_details();
 
     signatures::a_signatures_own_text_is_never_parsed_as_markup();
+    signatures::the_page_is_drawn_from_the_cores_record_and_asks_only_what_the_person_did();
+    signatures::an_empty_library_says_so_and_new_signature_opens_the_editor();
 
     invitation::an_invitations_own_text_is_never_parsed_as_markup();
     invitation::an_address_in_the_description_is_a_link();

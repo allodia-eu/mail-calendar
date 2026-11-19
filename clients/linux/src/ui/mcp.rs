@@ -355,15 +355,14 @@ mod tests {
     }
 
     fn relay_beside(test: &str, file_name: &str) -> (std::path::PathBuf, String) {
-        let directory = std::env::temp_dir().join(format!(
-            "mailcal-mcp-endpoint-{test}-{}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&directory).expect("create temp directory");
+        let scratch = tempfile::Builder::new()
+            .prefix(&format!("mailcal-mcp-endpoint-{test}-"))
+            .tempdir()
+            .expect("create temp directory");
+        let directory = scratch.path();
         let relay = directory.join(file_name);
         fs::write(&relay, []).expect("create relay marker");
-        let command = unpackaged_invocation(Some(&directory)).command;
-        fs::remove_dir_all(&directory).expect("remove temp directory");
+        let command = unpackaged_invocation(Some(directory)).command;
         (relay, command)
     }
 

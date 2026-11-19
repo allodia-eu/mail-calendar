@@ -16,10 +16,7 @@
 //!
 //! For the same reason the whole thing is **one** `#[test]`: two cases here would race each other.
 
-use std::{
-    fs,
-    sync::{Arc, Mutex, mpsc},
-};
+use std::sync::{Arc, Mutex, mpsc};
 
 use mailcal_bindings::{
     AccountCredentialStore, CredentialStoreError, DeviceClass, DeviceInfo, LogLevel, Logger,
@@ -98,13 +95,6 @@ fn jmap_config_toml() -> String {
     )
 }
 
-fn temp_dir(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("mailcal-credlog-{name}-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&dir);
-    fs::create_dir_all(&dir).expect("a writable temp dir");
-    dir
-}
-
 fn app(
     lines: &Arc<Mutex<Vec<String>>>,
     store: Box<dyn AccountCredentialStore>,
@@ -147,8 +137,8 @@ fn the_account_lifecycle_is_readable_from_the_log_and_carries_no_address() {
     // The case a support log most needs to explain, and the one that used to produce a log in
     // which nothing had happened: `add_account` had no log statements at all, so an IMAP/JMAP add
     // appeared only as raw `connect[…]` steps, and an add that *hung* appeared as nothing.
-    let failed_dir = temp_dir("failed-add");
-    let failed = app(&lines, Box::new(AcceptingStore), &failed_dir);
+    let failed_dir = tempfile::tempdir().expect("a writable temp dir");
+    let failed = app(&lines, Box::new(AcceptingStore), failed_dir.path());
     assert!(
         failed.add_account(jmap_config_toml()).is_err(),
         "nothing is listening on 127.0.0.1:1",
@@ -178,8 +168,8 @@ fn the_account_lifecycle_is_readable_from_the_log_and_carries_no_address() {
     // A zombie in the making: the account is gone from the app, its credential is not, and the
     // next launch brings it back with nothing to explain it. That has to be in the log, because
     // it is the only place it will ever be visible.
-    let refusing_dir = temp_dir("refusing");
-    let refusing = app(&lines, Box::new(RefusingStore), &refusing_dir);
+    let refusing_dir = tempfile::tempdir().expect("a writable temp dir");
+    let refusing = app(&lines, Box::new(RefusingStore), refusing_dir.path());
     assert!(
         refusing.remove_account(account_id.clone()).is_err(),
         "a refused erase reaches the caller",
@@ -210,8 +200,6 @@ fn the_account_lifecycle_is_readable_from_the_log_and_carries_no_address() {
 
     drop(failed);
     drop(refusing);
-    let _ = fs::remove_dir_all(failed_dir);
-    let _ = fs::remove_dir_all(refusing_dir);
 }
 
 /// Takes everything captured so far, empties the buffer for the next phase, and keeps a copy in

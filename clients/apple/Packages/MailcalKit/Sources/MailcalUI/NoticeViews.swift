@@ -226,3 +226,24 @@ struct NoticeStrip: View {
     }
 }
 #endif
+
+/// The line under an account's name wherever a pane names the account: the folder tree's account
+/// row and the calendar pane's group heading. The first notice's glyph and a few words, readable
+/// without a pointer and never wrapping; the sentences are in the notice and on the account's page
+/// (`docs/notices.md`, rule 6). Draws nothing for an account with no notice.
+struct AccountNoticeLine: View {
+    let about: [Notice]
+
+    var body: some View {
+        if let first = about.first, let label = NoticeRules.rowLabel(about) {
+            HStack(spacing: 5) {
+                NoticeGlyph(severity: first.severity).imageScale(.small)
+                Text(label).lineLimit(1).truncationMode(.tail)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(about.map { NoticeRules.text($0.title) }.joined(separator: " "))
+        }
+    }
+}

@@ -443,3 +443,8 @@ pub(super) fn stored_draft(key: &str) -> Message {
     message.has_attachment = true;
     message
 }
+
+/// A staging directory named `name` inside `scratch`, the test's own; nothing is there yet.
+pub(super) fn staging_dir(scratch: &tempfile::TempDir, name: &str) -> String {
+    scratch.path().join(name).to_string_lossy().into_owned()
+}

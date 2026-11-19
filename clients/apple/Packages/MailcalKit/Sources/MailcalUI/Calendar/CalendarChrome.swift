@@ -27,7 +27,8 @@ struct CalendarHeaderState {
     let onMode: (CalendarMode) -> Void
     let onBackToToday: () -> Void
     let onNewEvent: () -> Void
-    let onManage: () -> Void
+    /// The calendar manager, on a screen with no pane beside the calendar; nil where the pane is.
+    let onManage: (() -> Void)?
     let onRefresh: () -> Void
     let onPrevious: () -> Void
     let onNext: () -> Void

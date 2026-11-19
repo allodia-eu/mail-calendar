@@ -83,19 +83,6 @@ public class SidebarTreeTests
     }
 
     [Fact]
-    public void The_outbox_row_stays_on_the_calendar_and_contacts_destinations()
-    {
-        // It is not a folder, so the rule that takes the trees off screen there does not reach it:
-        // a message that has not gone is waiting whatever the user is looking at, and the count is
-        // the only thing that says so.
-        var target = new ObservableCollection<SidebarItem>();
-        Sync(target, Accounts("a"), showFolders: false, queued: 1);
-
-        Assert.Equal(SidebarTree.OutboxTag, target[0].Tag);
-        Assert.Equal(1u, target[0].Unread);
-    }
-
-    [Fact]
     public void The_unified_list_is_a_group_over_an_inbox_row_not_a_row_of_its_own()
     {
         // Rule 16 (docs/folder-pane.md): the unified scope is a tree like an account's, and the
@@ -240,36 +227,6 @@ public class SidebarTreeTests
 
         Assert.True(target[1].IsExpanded);
         Assert.False(target[2].IsExpanded);
-    }
-
-    [Fact]
-    public void Leaving_mail_hides_the_folders_without_forgetting_which_were_open()
-    {
-        var target = new ObservableCollection<SidebarItem>();
-        var accounts = new List<AccountItem> { Account("a", folders: Folders(3)) };
-        var toggles = new List<(string Id, bool Expanded)>();
-
-        Sync(target, accounts, showFolders: true, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
-        Sync(target, accounts, showFolders: false, onExpanded: i => toggles.Add((i.AccountId ?? i.Tag, i.IsExpanded)));
-
-        // Shut, not emptied. On screen those are the same thing, and only one of them leaves a
-        // row the framework has realised with nothing in it, which is a row that can be told it is
-        // open and then show nothing (SidebarTree.ApplyExpansion).
-        Assert.False(target[1].IsExpanded);
-        Assert.Equal(3, target[1].Children.Count);
-        // The All Accounts group goes with them: the unified Inbox is a folder, and the calendar
-        // is not what a folder pane is for.
-        Assert.False(target[0].IsExpanded);
-        Assert.Single(target[0].Children);
-        // Crucially, the core was never told the user shut anything, so coming back to mail
-        // restores the tree rather than reopening a collapsed one.
-        Assert.Empty(toggles);
-
-        Sync(target, accounts, showFolders: true);
-        Assert.True(target[1].IsExpanded);
-        Assert.Equal(3, target[1].Children.Count);
-        Assert.True(target[0].IsExpanded);
-        Assert.Single(target[0].Children);
     }
 
     [Fact]

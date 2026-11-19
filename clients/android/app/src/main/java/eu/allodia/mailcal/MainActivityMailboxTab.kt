@@ -153,6 +153,8 @@ internal fun MainActivity.MailboxTabContent(instance: MailcalApp) {
                                 weekStartFor = { date ->
                                     parseIsoDate(instance.weekStartDate(date.toString()))
                                 },
+                                calendarGroupsFor = { instance.calendarGroups() },
+                                newEventCalendarsFor = { instance.newEventCalendars() },
                                 display = display,
                                 calendarVersion = calendarVersion,
                                 events = events,

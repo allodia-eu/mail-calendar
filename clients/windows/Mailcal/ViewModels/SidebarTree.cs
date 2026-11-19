@@ -96,8 +96,6 @@ public static class SidebarTree
     /// <param name="target">The collection the NavigationView is bound to.</param>
     /// <param name="accounts">The configured accounts, in the core's order, each with its folders.</param>
     /// <param name="selectedAccount">The selected account's id, or <c>null</c> for the unified view.</param>
-    /// <param name="showFolders">Whether folders belong on screen at all, false on the calendar and
-    /// contacts destinations, where the mail tree is not what the pane is for.</param>
     /// <param name="unifiedUnread">The unified Inbox badge: every account's Inbox unread, summed.</param>
     /// <param name="unifiedExpanded">Whether the All Accounts group's tree is open, the core's own
     /// value (<c>MailboxListSnapshot.UnifiedExpanded</c>).</param>
@@ -112,7 +110,6 @@ public static class SidebarTree
         ObservableCollection<SidebarItem> target,
         IReadOnlyList<AccountItem> accounts,
         string? selectedAccount,
-        bool showFolders,
         uint unifiedUnread,
         bool unifiedExpanded,
         uint queued,
@@ -155,7 +152,7 @@ public static class SidebarTree
         };
         group.Content = labels.AllAccounts;
         ReconcileUnified(group.Children, unifiedUnread, labels, glyphs);
-        expansion.Add((group, showFolders && unifiedExpanded));
+        expansion.Add((group, unifiedExpanded));
         wanted.Add(group);
 
         foreach (var account in accounts)
@@ -186,7 +183,7 @@ public static class SidebarTree
                 labels,
                 glyphs,
                 expansion);
-            expansion.Add((item, showFolders && account.Expanded));
+            expansion.Add((item, account.Expanded));
             wanted.Add(item);
         }
 

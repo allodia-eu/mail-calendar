@@ -7,15 +7,18 @@
 // ContentDialog is not allowed, the same constraint that made the destructive database reset
 // confirm in place.
 //
-// The one thing it does that the composer does not is insert an image as a self-contained `data:`
-// URI. That is what a signature stores (one file, no side-car blobs to lose) and what the core
-// rewrites to a `cid:` part on send, because Outlook's reader blocks `data:` images.
+// What it may save is the core's: Save is the page's, held besides while the core refuses the name
+// typed, a picture is asked about before it is read, and what a save came to is the page's outcome
+// (SignatureEditorSession). It inserts a picture as a self-contained `data:` URI, which is what a
+// signature stores and what the core rewrites to a `cid:` part on send.
 
+using Allodia.Mailcal.Controls;
 using Allodia.Mailcal.Services;
 using Allodia.Mailcal.Views;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.Windows.Storage.Pickers;
+using uniffi.mailcal_bindings;
 using Windows.Storage;
 
 namespace Allodia.Mailcal.Dialogs;
@@ -26,27 +29,22 @@ public sealed partial class SettingsDialog
     // dialog closes. A WebView2 dropped from the tree is not disposed by dropping it.
     private EditorWebViewHost? _signatureEditor;
 
+    // The open editor's parts a read of the page draws again, or null while none is open.
+    private SignatureEditorParts? _signatureParts;
+
     /// <summary>Releases the signature editor's WebView2, if one is up. Called before every detail
     /// rebuild and when the dialog closes.</summary>
     private void CloseSignatureEditor()
     {
         _signatureEditor?.Close();
         _signatureEditor = null;
+        _signatureParts = null;
     }
 
-    private UIElement BuildSignatureEditor(EditingSignature editing)
+    private UIElement BuildSignatureEditor(EditingSignature editing, SignaturesPage page)
     {
         var panel = new StackPanel { Spacing = 8 };
-        panel.Children.Add(Heading(editing.Id is null ? L10n.SettingsSignaturesAdd() : editing.Name));
-
-        // A signature with no name is a row the user cannot tell apart in the picker, so Save waits
-        // for one. Declared before the box so the TextChanged handler below can gate it.
-        var save = new Button
-        {
-            Content = L10n.SettingsSignaturesSave(),
-            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
-            IsEnabled = !string.IsNullOrWhiteSpace(editing.Name),
-        };
+        panel.Children.Add(Heading(editing.IsNew ? L10n.SettingsSignaturesAdd() : editing.Name));
 
         var nameBox = new TextBox
         {
@@ -56,7 +54,6 @@ public sealed partial class SettingsDialog
             MinWidth = 240,
             HorizontalAlignment = HorizontalAlignment.Left,
         };
-        nameBox.TextChanged += (_, _) => save.IsEnabled = !string.IsNullOrWhiteSpace(nameBox.Text);
         HistoryKeys.RedoOnShiftChord(nameBox);
         panel.Children.Add(nameBox);
 
@@ -77,7 +74,8 @@ public sealed partial class SettingsDialog
             Child = view,
         });
 
-        var imageError = new TextBlock
+        // What was refused, a picture or a save.
+        var said = new TextBlock
         {
             Visibility = Visibility.Collapsed,
             TextWrapping = TextWrapping.Wrap,
@@ -87,6 +85,8 @@ public sealed partial class SettingsDialog
 
         var host = new EditorWebViewHost(view);
         _signatureEditor = host;
+        var parts = new SignatureEditorParts(editing, host, nameBox, said, page);
+        _signatureParts = parts;
         // Always seed, even for a brand-new signature with no body: the call also carries the
         // placeholder, and the bundle's default ("Write your message") is the composer's wording,
         // which is a lie here. Doing it at page-ready, not right after the load, is what
@@ -105,14 +105,10 @@ public sealed partial class SettingsDialog
             view.Focus(FocusState.Programmatic);
             await host.RunAsync("window.focusComposerBody()");
         };
-        _ = LoadSignatureEditorAsync(host, imageError);
+        _ = LoadSignatureEditorAsync(host, said);
 
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var addImage = new Button { Content = L10n.SettingsSignaturesInsertImage() };
-        addImage.Click += async (_, _) => await InsertSignatureImageAsync(host, imageError);
-        actions.Children.Add(addImage);
-        panel.Children.Add(actions);
-        panel.Children.Add(imageError);
+        panel.Children.Add(parts.ImageSlot);
+        panel.Children.Add(said);
 
         var buttons = new StackPanel
         {
@@ -123,15 +119,69 @@ public sealed partial class SettingsDialog
         };
         var cancel = new Button { Content = L10n.ActionCancel() };
         cancel.Click += (_, _) => Apply(() => _editingSignature = null);
-        save.Click += async (_, _) => await SaveSignatureAsync(host, editing, nameBox.Text);
         buttons.Children.Add(cancel);
-        buttons.Children.Add(save);
+        buttons.Children.Add(parts.SaveSlot);
         panel.Children.Add(buttons);
 
+        nameBox.TextChanged += (_, _) => DrawSignatureControls(parts);
+        DrawSignatureControls(parts);
         return panel;
     }
 
-    private async Task LoadSignatureEditorAsync(EditorWebViewHost host, TextBlock imageError)
+    // The page moved while the editor is open: act on what a change came to, once, then draw its
+    // controls from the page. What is typed stays where it is.
+    private void RefreshSignatureEditor(EditingSignature editing, SignaturesPage page)
+    {
+        if (_signatureParts is not { } parts || parts.Editing != editing)
+        {
+            return;
+        }
+        parts.Page = page;
+        switch (editing.Session.Read(page.Outcome, out var reason))
+        {
+            case SignatureEditorStep.Close:
+                Apply(() => _editingSignature = null);
+                return;
+            case SignatureEditorStep.Refused:
+                if (reason is not null)
+                {
+                    Show(parts.Said, SignatureEditorSession.Say(reason, SignatureRefusalText()));
+                }
+                break;
+        }
+        DrawSignatureControls(parts);
+    }
+
+    // Save and Add image from the page, the name box held with them while a change runs. Save is
+    // held besides while the core refuses the name typed.
+    private void DrawSignatureControls(SignatureEditorParts parts)
+    {
+        ControlComponents.HoldFields(parts.Page.Save, parts.Name);
+        var save = SignatureEditorSession.SaveState(parts.Page.Save, MailboxModel.NameRefusal(parts.Name.Text));
+        if (save != parts.SaveDrawn)
+        {
+            parts.SaveDrawn = save;
+            parts.SaveSlot.Child = ControlComponents.Button(
+                L10n.SettingsSignaturesSave(),
+                save,
+                "SignatureSave",
+                () => _ = SaveSignatureAsync(parts),
+                (Style)Application.Current.Resources["AccentButtonStyle"]);
+        }
+        // Add image starts nothing in the core, so it never runs; it waits while a change does.
+        var addImage = parts.Page.Save with { Running = false };
+        if (addImage != parts.ImageDrawn)
+        {
+            parts.ImageDrawn = addImage;
+            parts.ImageSlot.Child = ControlComponents.Button(
+                L10n.SettingsSignaturesInsertImage(),
+                addImage,
+                "SignatureInsertImage",
+                () => _ = InsertSignatureImageAsync(parts));
+        }
+    }
+
+    private async Task LoadSignatureEditorAsync(EditorWebViewHost host, TextBlock said)
     {
         try
         {
@@ -140,18 +190,19 @@ public sealed partial class SettingsDialog
         catch (Exception ex)
         {
             Log.Warn($"signatures: couldn't load the WebView2 editor ({ex.GetType().Name})");
-            Show(imageError, L10n.SettingsSignaturesImageFailed());
+            Show(said, L10n.SettingsSignaturesImageFailed());
         }
     }
 
-    // Reads back what the user authored and stores it. The caller decided whether this is a create
-    // or an update when it opened the editor (it knows which signature that was).
-    private async Task SaveSignatureAsync(EditorWebViewHost host, EditingSignature editing, string name)
+    // Reads back what the user authored and asks the core to store it under the editor's id, with
+    // the name as typed: the core trims it and refuses a blank one.
+    private async Task SaveSignatureAsync(SignatureEditorParts parts)
     {
+        parts.Said.Visibility = Visibility.Collapsed;
         string? body;
         try
         {
-            body = await host.ReadStringAsync("window.signatureBody()");
+            body = await parts.Host.ReadStringAsync("window.signatureBody()");
         }
         catch (Exception ex)
         {
@@ -165,23 +216,17 @@ public sealed partial class SettingsDialog
             Log.Warn("signatures: save ignored, the editor has not loaded yet");
             return;
         }
-        var trimmed = name.Trim();
-        if (editing.Id is { } id)
-        {
-            _model.UpdateSignature(id, trimmed, draft.BodyHtml, draft.BodyPlain);
-        }
-        else
-        {
-            _model.CreateSignature(trimmed, draft.BodyHtml, draft.BodyPlain);
-        }
-        Apply(() => _editingSignature = null);
+        _model.ChangeSignatures(new SignatureIntent.Save(
+            parts.Editing.Session.Id, parts.Name.Text, draft.BodyHtml, draft.BodyPlain));
     }
 
-    private async Task InsertSignatureImageAsync(EditorWebViewHost host, TextBlock imageError)
+    // Offers PNG, JPEG and GIF, asks the core about the picked file's type and size before reading
+    // it, and inserts it at the caret.
+    private async Task InsertSignatureImageAsync(SignatureEditorParts parts)
     {
-        imageError.Visibility = Visibility.Collapsed;
-        var picker = new FileOpenPicker(PickerOwner.For(imageError));
-        foreach (var extension in new[] { ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp" })
+        parts.Said.Visibility = Visibility.Collapsed;
+        var picker = new FileOpenPicker(PickerOwner.For(parts.Said));
+        foreach (var extension in new[] { ".png", ".jpg", ".jpeg", ".gif" })
         {
             picker.FileTypeFilter.Add(extension);
         }
@@ -190,74 +235,80 @@ public sealed partial class SettingsDialog
         {
             return;
         }
-        // Opened as a StorageFile for the content type the system knows it by, which the read
-        // below hands to the core alongside the bytes.
         StorageFile file;
+        ulong size;
         try
         {
             file = await StorageFile.GetFileFromPathAsync(path);
+            size = (await file.GetBasicPropertiesAsync()).Size;
         }
         catch (Exception ex)
         {
             Log.Warn($"signature image unreadable: {ex.GetType().Name}");
-            Show(imageError, L10n.SettingsSignaturesImageFailed());
+            Show(parts.Said, L10n.SettingsSignaturesImageFailed());
             return;
         }
-        switch (await ReadSignatureImageAsync(file))
+        if (MailboxModel.ImageRefusal(file.ContentType, size) is { } refusal)
         {
-            case SignatureImageOutcome.DataUrl picked:
-                await host.RunAsync(
-                    "window.insertSignatureImage("
-                    + EditorWebViewHost.Arg(SignatureImagePayload(picked))
-                    + ")");
-                break;
-            case SignatureImageOutcome.TooLarge tooLarge:
-                Show(imageError, L10n.SettingsSignaturesImageTooLarge(
-                    SignatureImage.FormatLimit(tooLarge.LimitBytes)));
-                break;
-            default:
-                Show(imageError, L10n.SettingsSignaturesImageFailed());
-                break;
+            Show(parts.Said, SignatureEditorSession.Say(refusal, SignatureRefusalText()));
+            return;
         }
-    }
-
-    // Reads at most one byte past the cap: the user may pick a 4 GB file from a cloud provider, and
-    // pulling all of it into memory to then refuse it is not a thing to do on the UI thread.
-    private static async Task<SignatureImageOutcome> ReadSignatureImageAsync(StorageFile file)
-    {
+        byte[] bytes;
         try
         {
-            var buffer = new byte[SignatureImage.LimitBytes + 1];
-            int read;
-            await using (var stream = File.OpenRead(file.Path))
-            {
-                read = await stream.ReadAtLeastAsync(buffer, buffer.Length, throwOnEndOfStream: false);
-            }
-            return SignatureImage.From(
-                buffer.AsSpan(0, read).ToArray(),
-                string.IsNullOrWhiteSpace(file.ContentType) ? null : file.ContentType,
-                Path.GetFileNameWithoutExtension(file.Name));
+            bytes = await File.ReadAllBytesAsync(file.Path);
         }
         catch (Exception ex)
         {
             Log.Warn($"signatures: couldn't read the picked image ({ex.GetType().Name})");
-            return new SignatureImageOutcome.Failed();
+            Show(parts.Said, L10n.SettingsSignaturesImageFailed());
+            return;
         }
+        // The editor closed while the picker was open: its WebView2 is gone.
+        if (_signatureParts != parts)
+        {
+            return;
+        }
+        var payload = SignatureImage.Payload(
+            SignatureImage.DataUrl(bytes, file.ContentType), Path.GetFileNameWithoutExtension(file.Name));
+        await parts.Host.RunAsync($"window.insertSignatureImage({EditorWebViewHost.Arg(payload)})");
     }
 
-    // The insertSignatureImage payload. The alt text rides as a property the editor assigns to
-    // node.alt, so it cannot carry markup into the attribute.
-    private static string SignatureImagePayload(SignatureImageOutcome.DataUrl image) =>
-        System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string>
-        {
-            ["data_url"] = image.Value,
-            ["alt_text"] = image.AltText,
-        });
+    // The catalog's words for a refused signature or picture.
+    private static SignatureRefusalWords SignatureRefusalText() => new(
+        L10n.SettingsSignaturesNameRequired(),
+        L10n.SettingsSignaturesGone(),
+        L10n.SettingsSignaturesImageFormat(),
+        L10n.SettingsSignaturesImageTooLarge);
 
     private static void Show(TextBlock target, string message)
     {
         target.Text = message;
         target.Visibility = Visibility.Visible;
+    }
+
+    // The open editor: what it edits, its host and fields, the page it last drew and the two slots
+    // its page-drawn buttons sit in.
+    private sealed class SignatureEditorParts(
+        EditingSignature editing, EditorWebViewHost host, TextBox name, TextBlock said, SignaturesPage page)
+    {
+        internal EditingSignature Editing { get; } = editing;
+
+        internal EditorWebViewHost Host { get; } = host;
+
+        internal TextBox Name { get; } = name;
+
+        internal TextBlock Said { get; } = said;
+
+        internal SignaturesPage Page { get; set; } = page;
+
+        internal Border SaveSlot { get; } = new();
+
+        internal Border ImageSlot { get; } = new() { HorizontalAlignment = HorizontalAlignment.Left };
+
+        internal ControlState? SaveDrawn { get; set; }
+
+        internal ControlState? ImageDrawn { get; set; }
     }
 
     // What window.signatureBody() hands back: the HTML to store and its plain-text rendering.
