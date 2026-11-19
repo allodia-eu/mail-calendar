@@ -14,14 +14,14 @@ use super::{
 };
 use crate::Surface;
 
-fn save(fixture: &Fixture, address: &str, key: Option<&str>) {
+fn save(fixture: &Fixture, address: &str, key: &str) {
     fixture
         .app
         .change_ai_endpoint_now(AiEndpointChange::Save(AiEndpointEdit {
             address: address.to_owned(),
             model: "local-model".to_owned(),
             declared: Some(Class::EuNative),
-            key: key.map(str::to_owned),
+            key: key.to_owned(),
         }));
 }
 
@@ -104,7 +104,7 @@ fn an_own_endpoint_wins_over_the_relay() {
     fixture
         .app
         .install_ai_relay(Arc::clone(&relay) as Arc<dyn AiRelay>);
-    save(&fixture, "https://models.example.eu/v1", None);
+    save(&fixture, "https://models.example.eu/v1", "");
     assert_eq!(
         fixture.app.ai_route(),
         Ok(AiRoute::OwnEndpoint {
@@ -143,7 +143,7 @@ fn work_sends_to_the_own_endpoint_with_its_key() {
     save(
         &fixture,
         " https://models.example.eu/v1/ ",
-        Some(" sk-test "),
+        " sk-test ",
     );
     let seen = Arc::new(Mutex::new(None));
     let destination = Arc::clone(&seen);

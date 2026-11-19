@@ -48,7 +48,7 @@ fn form_after(app: &MailcalApp, serial: u64) -> AiEndpointForm {
         let form = app.ai_endpoint_form().expect("offered");
         if form.outcome.is_some_and(|outcome| outcome.serial > serial)
             && !form.save.running
-            && !form.remove.running
+            && !form.remove.is_some_and(|remove| remove.running)
         {
             return form;
         }
@@ -57,14 +57,14 @@ fn form_after(app: &MailcalApp, serial: u64) -> AiEndpointForm {
     }
 }
 
-fn save(app: &MailcalApp, address: &str, declared: JurisdictionClass, key: Option<&str>) {
+fn save(app: &MailcalApp, address: &str, declared: JurisdictionClass, key: &str) {
     app.dispatch(Intent::Ai {
         intent: AiIntent::Endpoint {
             intent: AiEndpointIntent::Save {
                 address: address.to_owned(),
                 model: "local-model".to_owned(),
                 declared: Some(declared),
-                key: key.map(str::to_owned),
+                key: key.to_owned(),
             },
         },
     });
@@ -79,8 +79,38 @@ fn a_development_build_offers_the_form_with_nothing_set_up() {
     assert_eq!(form.address, "");
     assert!(!form.key_kept);
     assert!(form.save.enabled);
-    assert!(!form.remove.enabled, "nothing to remove");
-    assert_eq!(form.gaps.address, Some(AiEndpointAddressGap::Missing));
+    assert_eq!(form.remove, None, "nothing to remove, so no Remove");
+}
+
+/// A key kept from an earlier launch is something to remove, with no endpoint beside it.
+#[test]
+fn a_kept_key_alone_offers_remove() {
+    let (app, ..) = app(
+        "ai-key-alone",
+        vec!["[ai_endpoint]\nkey = \"sk-stored\"\n".to_owned()],
+    );
+    let form = app.ai_endpoint_form().expect("offered");
+    assert!(form.remove.is_some_and(|remove| remove.enabled));
+}
+
+/// An empty key field never reaches the keystore, whatever it would answer.
+#[test]
+fn an_empty_key_field_writes_nothing_to_the_keystore() {
+    let (app, store, _) = app("ai-empty-key", Vec::new());
+    save(
+        &app,
+        "https://models.example.eu/v1",
+        JurisdictionClass::EuNative,
+        " ",
+    );
+    let form = form_after(&app, 0);
+    assert_eq!(
+        form.outcome.map(|outcome| outcome.result),
+        Some(AiEndpointResult::Saved)
+    );
+    assert!(!form.key_kept);
+    assert!(store.persisted.lock().unwrap().is_empty());
+    assert!(store.deleted.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -90,7 +120,7 @@ fn a_save_dispatched_keeps_the_key_in_the_keystore_and_says_so_on_the_form() {
         &app,
         "https://models.example.eu/v1",
         JurisdictionClass::EuNative,
-        Some(" sk-test "),
+        " sk-test ",
     );
     let form = form_after(&app, 0);
 
@@ -101,7 +131,7 @@ fn a_save_dispatched_keeps_the_key_in_the_keystore_and_says_so_on_the_form() {
     assert_eq!(form.address, "https://models.example.eu/v1");
     assert_eq!(form.declared, Some(JurisdictionClass::EuNative));
     assert!(form.key_kept);
-    assert!(form.remove.enabled);
+    assert!(form.remove.is_some_and(|remove| remove.enabled));
     let persisted = store.persisted.lock().unwrap().clone();
     assert_eq!(persisted.len(), 1);
     assert_eq!(persisted[0].0, "ai-endpoint");
@@ -122,6 +152,7 @@ fn a_save_dispatched_keeps_the_key_in_the_keystore_and_says_so_on_the_form() {
         Some(AiEndpointResult::Removed)
     );
     assert_eq!(*store.deleted.lock().unwrap(), ["ai-endpoint"]);
+    assert_eq!(form.remove, None, "nothing left to remove");
 }
 
 /// The function the form asks as the person types is the one the save refuses by.
@@ -148,7 +179,7 @@ fn the_gap_the_form_shows_is_the_one_the_save_refuses_by() {
                 address: "http://models.example.eu/v1".to_owned(),
                 model: String::new(),
                 declared: Some(JurisdictionClass::NonEu),
-                key: Some("sk".to_owned()),
+                key: "sk".to_owned(),
             },
         },
     });
