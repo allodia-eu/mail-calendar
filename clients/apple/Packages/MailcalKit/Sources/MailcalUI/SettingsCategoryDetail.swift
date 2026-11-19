@@ -7,9 +7,7 @@
 import MailcalBindings
 import SwiftUI
 
-/// The detail for one category. `close` dismisses the whole settings surface (used after a
-/// destructive reset). The reset confirmation lives here so it travels with the Advanced category
-/// on every chrome.
+/// The detail for one category. `close` dismisses the whole settings surface.
 struct SettingsCategoryDetail: View {
     var model: MailboxModel
     let category: SettingsCategory
@@ -20,8 +18,6 @@ struct SettingsCategoryDetail: View {
     /// (the sidebar's context menu and the button below) must not mean two behaviours, skipping
     /// that cleanup leaves a removed account's message sitting in the reading pane.
     let removeAccount: (String) -> Void
-
-    @State private var confirmingReset = false
 
     var body: some View {
         switch category {
@@ -53,7 +49,7 @@ struct SettingsCategoryDetail: View {
         case .accounts:
             AccountsSettingsView(model: model, close: close, removeAccount: removeAccount)
         case .diagnostics: DiagnosticsSettingsView(model: model)
-        case .advanced: advancedDetail
+        case .advanced: AdvancedSettingsView(model: model)
         case .about: AboutSettingsView()
         }
     }
@@ -223,42 +219,6 @@ struct SettingsCategoryDetail: View {
     // MARK: Allodia account, not a mail account, so never among them
     // Only reachable in a build that carries the registration: `SettingsCategory.displayed` drops
     // the category otherwise, so this draws unconditionally.
-
-    // MARK: Advanced, AI assistant access (desktop) + reset database (destructive)
-    //
-    // Both belong to this category's character rather than its old one-line description:
-    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 8). The
-    // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here.
-
-    @ViewBuilder
-    private var advancedDetail: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            McpSettingsView(model: model)
-            resetGroup
-        }
-    }
-
-    @ViewBuilder
-    private var resetGroup: some View {
-        settingsGroup(L10n.action_reset_database(), L10n.settings_advanced_reset_description()) {
-            Button(L10n.action_reset_database(), role: .destructive) { confirmingReset = true }
-        }
-        // An `alert`, not a `confirmationDialog`: iPadOS presents the latter as a popover, and a
-        // popover DROPS the `.cancel`-role button, so this read as one destructive button with no
-        // way out. See the remove-account alert in Mailcal.swift for the full note.
-        .alert(
-            L10n.reset_title(),
-            isPresented: $confirmingReset
-        ) {
-            Button(L10n.reset_confirm(), role: .destructive) {
-                model.reset()
-                close()
-            }
-            Button(L10n.action_cancel(), role: .cancel) {}
-        } message: {
-            Text(L10n.reset_message())
-        }
-    }
 
     // MARK: A labelled GroupBox section (heading + description + content)
 
