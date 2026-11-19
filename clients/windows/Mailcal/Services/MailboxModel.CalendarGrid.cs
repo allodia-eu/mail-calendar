@@ -99,19 +99,34 @@ public sealed partial class MailboxModel
     internal EventDetail? EventDetail(string account, string key, string occurrence) =>
         _app?.EventDetail(account, key, occurrence);
 
-    /// <summary>
-    /// Every calendar across every account, for the manager, read off a page pull.
-    /// </summary>
-    /// <remarks>
-    /// There is no dedicated enumeration query: the calendar list (with each one's resolved colour and
-    /// visibility) rides on every page, exactly as Android reads it off the current page. Any range
-    /// returns the same full set, so this pulls a cheap in-memory week and takes its <c>calendars</c>.
-    /// </remarks>
-    internal CalendarRow[] Calendars()
+    /// <summary>Every calendar across every account, each with its resolved colour and visibility.</summary>
+    internal CalendarRow[] Calendars() => _app?.Calendars() ?? [];
+
+    /// <summary>Every calendar under its account, in the account order (docs/calendar-pane.md,
+    /// rule 6).</summary>
+    internal CalendarGroup[] CalendarGroups() => _app?.CalendarGroups() ?? [];
+
+    /// <summary>The calendar pane beside the grid <paramref name="query"/> describes: an in-memory
+    /// read, like the grid's page.</summary>
+    internal CalendarPane? CalendarPane(CalendarPaneQuery query) => _app?.CalendarPane(query);
+
+    /// <summary>Where pressing <paramref name="date"/> in the mini month puts a grid drawing
+    /// <paramref name="layout"/>.</summary>
+    internal CalendarSeat? CalendarSeat(DateOnly date, CalendarLayout layout) => _app?.CalendarSeat(Iso(date), layout);
+
+    /// <summary>Opens or shuts an account's calendars in the pane; the core persists it.</summary>
+    internal void SetCalendarGroupExpanded(string account, bool expanded)
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
-        return CalendarRange(WeekStart(today), 7)?.Calendars ?? [];
+        Log.Info($"cal: calendar group expanded={expanded}");
+        DispatchPreference(new PreferenceIntent.SetCalendarGroupExpanded(account, expanded));
     }
+
+    /// <summary>The wall clock in the display zone (<see cref="ActiveZone"/>), by this machine's
+    /// clock: what the calendar means by today and now.</summary>
+    internal DateTime WallClock() => TimeZones.WallClock(ActiveZone, DateTimeOffset.Now);
+
+    /// <summary>Today in the display zone.</summary>
+    internal DateOnly Today() => DateOnly.FromDateTime(WallClock());
 
     /// <summary>
     /// The first day of <paramref name="date"/>'s week, <b>from the core</b>.

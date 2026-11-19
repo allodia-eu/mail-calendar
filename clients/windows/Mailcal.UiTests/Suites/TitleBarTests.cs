@@ -42,9 +42,12 @@ public sealed class TitleBarTests(SystemAppearanceApp showcase) : IClassFixture<
             : throw new InvalidOperationException("the window's top row carries no search field (docs/search.md)");
 
     /// <summary>The sidebar's first entry's width: open, it spans the pane; collapsed, the icon strip.</summary>
-    private static double PaneItemWidth(App app) =>
-        app.Steady(app.Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = app.Mailbox.Hwnd })
+    private static double PaneItemWidth(App app)
+    {
+        app.ShowMail();
+        return app.Steady(app.Agent.Find(Filter.Named(Catalog.English("sidebar_all_accounts"), "ListItem") with { Window = app.Mailbox.Hwnd })
             ?? throw new InvalidOperationException("the sidebar has no All Accounts entry")).Width;
+    }
 
     [OfflineFact]
     public void TheCaptionIsTheAppsOwnTitleBarCarryingTheAppName() => showcase.Case(nameof(TheCaptionIsTheAppsOwnTitleBarCarryingTheAppName), app =>

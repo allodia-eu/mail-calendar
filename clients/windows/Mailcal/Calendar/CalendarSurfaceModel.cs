@@ -248,7 +248,8 @@ internal static class CalendarPaint
             moreSpoken[day] = n > 0 ? L10n.CalendarAllDayExpand(n) : string.Empty;
         }
 
-        var week = headings.Count > 0 ? IsoWeek(headings[0].Date) : 0;
+        // The core's ISO week number; 0 for a week it has not answered for, which draws none.
+        var week = page.Days.Length > 0 ? (int)page.Days[0].Week : 0;
 
         return new PagePaint(
             headings,
@@ -261,10 +262,6 @@ internal static class CalendarPaint
             moreSpoken,
             page.IsMaterialized);
     }
-
-    /// <summary>The ISO-8601 week number, the one the header shows.</summary>
-    internal static int IsoWeek(DateOnly date) =>
-        ISOWeek.GetWeekOfYear(date.ToDateTime(TimeOnly.MinValue));
 
     /// <summary>
     /// The event's spoken label: title, time, calendar, then the hold, the video meeting and the
