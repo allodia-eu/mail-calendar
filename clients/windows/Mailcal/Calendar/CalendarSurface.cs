@@ -114,8 +114,7 @@ internal sealed partial class CalendarSurface : UserControl
     /// the focus day (<see cref="CalendarPager.FramingColumn"/>).</summary>
     private CalendarMode _recentreMode = CalendarModes.Default;
 
-    /// <summary>The day the pending recentre frames on, today, or a specific day tapped in the month
-    /// grid. Null means today.</summary>
+    /// <summary>The day the pending recentre frames on: the focus date. Null means today.</summary>
     private DateOnly? _recentreFocus;
 
     /// <summary>The spoken nodes, and what they were built for. They must be STABLE across a tree
@@ -314,23 +313,29 @@ internal sealed partial class CalendarSurface : UserControl
             m.HourHeight * (Math.Max(NowMinutes() - 90, 0) / CalendarUnits.MinutesInHour),
             m);
 
-        // The day the grid frames on, today, or a specific day tapped in the month grid.
+        // The day the grid frames on: the focus date, or today.
         var focus = _recentreFocus ?? Today();
         var weekStart = WeekStartFor?.Invoke(focus) ?? focus;
         _state.FrameColumn(CalendarPager.FramingColumn(_recentreMode, focus, weekStart), m);
     }
 
     /// <summary>
-    /// Steps the grid by <paramref name="days"/>, the header's <c>&lt;</c> and <c>&gt;</c>.
+    /// Slides the grid until <paramref name="first"/> is the first day on screen, the header's
+    /// <c>&lt;</c> and <c>&gt;</c>.
     /// </summary>
     /// <remarks>
     /// The keyboard-and-mouse way to do what a swipe does, and the <i>only</i> way for the many mice
     /// that have no horizontal wheel at all. It animates rather than jumps, so the days visibly travel
-    /// and the user can see which way they went.
+    /// and the user can see which way they went; a press during the slide retargets it.
     /// </remarks>
-    internal void StepDays(int days)
+    internal void SlideTo(DateOnly first)
     {
-        _driver.SlideDays(days, _state.Metrics(Viewport()));
+        if (AnchorFor is null)
+        {
+            return;
+        }
+        var weeks = (float)(first.DayNumber - AnchorFor(0).DayNumber) / CalendarUnits.DaysInWeek;
+        _driver.SlideTo(weeks, _state.Metrics(Viewport()));
         Invalidate();
     }
 

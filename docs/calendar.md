@@ -282,7 +282,7 @@ landing is never a surprise, and a step into today's week or month lands on toda
 |---|---|
 | Linux | `clients/linux/src/ui/calendar/model_focus.rs`; the ring in `views.rs` and `side_pane_month.rs` |
 | Android | `CalendarPaging.kt` (the pager settles the focus as it turns); the ring in `CalendarMonth.kt` |
-| Windows | to follow |
+| Windows | `Calendar/CalendarFocus.cs` (the arrows step it and the strip slides to its seat; a swipe that takes the days off it takes it along); the ring in `MonthGridView.cs` and `CalendarPane.xaml.cs` |
 | Apple | to follow |
 
 ### "Back to today" appears only when it would move you: *unless it lives in a cluster*
@@ -1815,7 +1815,7 @@ see "Known gaps".
 ³ **Composed (XAML), not drawn**: like Android's month grid, and deliberately so: the "drawn, not
 composed" rule (§7) is a *time-grid* concern, a property of the pinch and the fling, which the month
 has neither of. It is paged by header chevrons rather than a swipe (a month is not a week-stride),
-and a tapped day drops into the day zoom.
+and a tapped day becomes the focus date ("The focus date").
 ⁴ **The strip, and where it rests.** See §6, "The days are one strip". Windows, macOS and
 iOS/iPadOS all draw one continuous strip that comes to rest on a **day**, at every zoom and for every
 input: wheel, trackpad and finger alike. There is no page turn: a flick coasts and lands on the day it

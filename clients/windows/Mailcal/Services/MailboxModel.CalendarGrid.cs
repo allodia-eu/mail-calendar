@@ -119,6 +119,21 @@ public sealed partial class MailboxModel
     /// <paramref name="layout"/>.</summary>
     internal CalendarSeat? CalendarSeat(DateOnly date, CalendarLayout layout) => _app?.CalendarSeat(Iso(date), layout);
 
+    /// <summary>Puts the calendar's focus date on <paramref name="date"/> (docs/calendar.md, "The
+    /// focus date").</summary>
+    internal void SetCalendarFocus(DateOnly date) => _app?.SetCalendarFocus(Iso(date));
+
+    /// <summary>Moves the focus <paramref name="steps"/> periods of <paramref name="layout"/>, the
+    /// core's rule, and returns where it landed; <paramref name="today"/> without a core.</summary>
+    internal DateOnly StepCalendarFocus(CalendarLayout layout, int steps, DateOnly today)
+    {
+        var iso = _app?.StepCalendarFocus(layout, steps, Iso(today));
+        return iso is not null
+            && DateOnly.TryParseExact(iso, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var landed)
+            ? landed
+            : today;
+    }
+
     /// <summary>Opens or shuts an account's calendars in the pane; the core persists it.</summary>
     internal void SetCalendarGroupExpanded(string account, bool expanded)
     {

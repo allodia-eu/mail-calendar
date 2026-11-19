@@ -32,6 +32,10 @@ public sealed partial class CalendarView : UserControl
     private readonly CalendarLoadingPill _loading = new(L10n.CalendarLoadingRange(), spoken: false, "CalendarGridLoading");
     private CalendarPager _pager = new(DateOnly.FromDateTime(DateTime.Now));
 
+    /// <summary>The calendar's focus date, the day every view is drawn around (docs/calendar.md, "The
+    /// focus date"); <c>null</c> until <see cref="Init"/> binds the core.</summary>
+    private CalendarFocus? _focus;
+
     /// <summary>The month the month grid is showing, the 1st of it. The month is not the swipe-paged
     /// time grid, so it carries its own anchor rather than riding the pager's page counter.</summary>
     private DateOnly _monthAnchor = new(DateTime.Now.Year, DateTime.Now.Month, 1);
@@ -92,23 +96,6 @@ public sealed partial class CalendarView : UserControl
 
     private bool IsMonth => _pager.Mode == CalendarMode.Month;
 
-    /// <summary>
-    /// How far one chevron click moves, the <b>visible span</b>, so it never skips a day you could
-    /// not see.
-    /// </summary>
-    /// <remarks>
-    /// The work week steps a whole <i>week</i> rather than its five columns, and that is not an
-    /// inconsistency: a five-day step would land the next click on Saturday-to-Wednesday, and "work
-    /// week" means Monday to Friday or it means nothing. Seven keeps every click on the same five days
-    /// of the following week.
-    /// </remarks>
-    private static int StepFor(CalendarMode mode) => mode switch
-    {
-        CalendarMode.Day => 1,
-        CalendarMode.ThreeDay => 3,
-        _ => CalendarUnits.DaysInWeek,
-    };
-
     private static DateOnly FirstOfMonth(DateOnly d) => new(d.Year, d.Month, 1);
 
     /// <summary>Binds the view to the shared model.</summary>
@@ -116,6 +103,10 @@ public sealed partial class CalendarView : UserControl
     {
         Model = model;
         this.Bindings.Update();
+
+        // A launch opens on today: the focus is not persisted.
+        _focus = new CalendarFocus(new CoreCalendarFocus(model), model.Today());
+        _focus.Set(model.Today());
 
         // The grid's page query. A pull with an argument, so the CLIENT owns the anchor and the core
         // never learns where the user is, which is what makes it impossible for two quick swipes to
@@ -232,7 +223,7 @@ public sealed partial class CalendarView : UserControl
         _grid.Apply(display);
         if (mode == CalendarMode.Month)
         {
-            _monthAnchor = FirstOfMonth(Today());
+            _monthAnchor = FirstOfMonth(_focus?.Focus ?? Today());
             RefreshMonth();
         }
         _appliedDisplay = display;
@@ -267,8 +258,11 @@ public sealed partial class CalendarView : UserControl
         ApplyDisplaySettings(display);
         if (weekStartChanged)
         {
+            // The week moves under the focus, which stays where it is.
+            var focus = _focus?.Focus ?? Today();
             _pager = new CalendarPager(Today(), _pager.Mode, Model.WeekStart);
-            _grid.Recentre(_pager.Mode);
+            _pager.JumpTo(focus);
+            _grid.Recentre(_pager.Mode, focus);
         }
     }
 
@@ -376,43 +370,51 @@ public sealed partial class CalendarView : UserControl
 
     private void OnNextPeriod(object sender, RoutedEventArgs e) => Step(1);
 
-    /// <summary>One chevron click: a month in the month grid, the visible span in the time grid.</summary>
+    /// <summary>One chevron click: the core moves the focus one period of the view on screen, and the
+    /// view is drawn around where it landed.</summary>
     /// <remarks>
-    /// The grid's step is an <b>animated scroll of the same strip a swipe moves</b>, not a jump to a
-    /// new page, so it lands wherever it lands, obeys the same geometry, and can be scrolled straight
-    /// back. The month is the one shape a day-stride cannot express (months are 28–31 days long), so it
-    /// steps by calendar month, anchored on the 1st: adding months from, say, the 31st would otherwise
-    /// clamp to the 28th and lose a day every time.
+    /// The grid's step is an <b>animated scroll of the same strip a swipe moves</b>, to the first day of
+    /// the period the core seats the focus in, so it can be scrolled straight back and a burst of presses
+    /// lands on the last one. How far a step goes is the core's, a month on the same day of the month
+    /// included; nothing here counts days.
     /// </remarks>
     private void Step(int direction)
     {
-        if (IsMonth)
+        var mode = IsMonth ? CalendarMode.Month : _pager.Mode;
+        if (Model is null || _focus is null || !(mode.IsGrid() || mode.IsMonth()))
         {
-            _monthAnchor = _monthAnchor.AddMonths(direction);
+            return;
+        }
+        var focus = _focus.Step(mode, direction, Today());
+        if (mode.IsMonth())
+        {
+            _monthAnchor = FirstOfMonth(focus);
             RefreshMonth();
             return;
         }
-        if (_pager.Mode.IsGrid())
+        if (Model.CalendarSeat(focus, mode.ToLayout()) is { } seat)
         {
-            _grid.StepDays(direction * StepFor(_pager.Mode));
+            _grid.SlideTo(CalendarPaint.ParseDate(seat.Anchor));
         }
     }
 
-    // A day tapped in the month grid, drop into the day zoom on that day.
+    // A press on a month day's own space: the focus moves there and the month stays on screen.
     private void OnMonthDayPicked(DateOnly date)
     {
-        if (Model is null)
+        if (_focus is null)
         {
             return;
         }
-        Log.Info($"cal: open day {date:yyyy-MM-dd} from month");
-        ChooseLayout(CalendarMode.Day, date);
+        Log.Info("cal: focus a day in the month");
+        _focus.Set(date);
+        RefreshMonth();
     }
 
     private void OnBackToToday(object sender, RoutedEventArgs e)
     {
         var today = Today();
         Log.Info($"cal: back to today (mode={_pager.Mode})");
+        _focus?.Set(today);
         if (IsMonth)
         {
             _monthAnchor = FirstOfMonth(today);

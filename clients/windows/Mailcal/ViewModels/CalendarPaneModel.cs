@@ -16,6 +16,10 @@ namespace Allodia.Mailcal.ViewModels;
 /// <param name="Columns">How many days it shows; ignored by the core for the month and the agenda.</param>
 internal readonly record struct GridPlace(CalendarLayout Layout, DateOnly Anchor, uint Columns);
 
+/// <summary>The words a day button's spoken name adds to its date: today, the focus date, among the
+/// days shown.</summary>
+internal readonly record struct PaneDayWords(string Today, string Focus, string Shown);
+
 /// <summary>Which ends of a day's band are rounded within its row (rule 4).</summary>
 internal readonly record struct BandEnds(bool RoundStart, bool RoundEnd);
 
@@ -70,19 +74,23 @@ internal sealed class CalendarPaneModel
     }
 
     /// <summary>
-    /// A day button's spoken name: the full date, then <paramref name="today"/> and
-    /// <paramref name="shown"/> where they apply (rule 11).
+    /// A day button's spoken name: the full date, then whether it is today, the focus date and among
+    /// the days shown, where each applies (rule 11; docs/calendar.md, "The focus date").
     /// </summary>
-    internal static string DayName(MiniDay day, CultureInfo culture, string today, string shown)
+    internal static string DayName(MiniDay day, CultureInfo culture, PaneDayWords words)
     {
         var name = ParseDate(day.Date).ToString("D", culture);
         if (day.IsToday)
         {
-            name += ", " + today;
+            name += ", " + words.Today;
+        }
+        if (day.IsFocus)
+        {
+            name += ", " + words.Focus;
         }
         if (day.Shown != ShownSpan.Outside)
         {
-            name += ", " + shown;
+            name += ", " + words.Shown;
         }
         return name;
     }

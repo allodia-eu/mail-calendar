@@ -138,8 +138,7 @@ public sealed partial class CalendarPane : UserControl
             Place(Text(CalendarPaneModel.WeekdayInitial(month.Weekdays[c], culture), "PaneCaptionStyle", raw: true), 0, c + 1);
         }
 
-        var today = L10n.CalendarToday();
-        var shown = L10n.A11yCalendarPaneDayShown();
+        var words = new PaneDayWords(L10n.CalendarToday(), L10n.A11yCalendarFocusDay(), L10n.A11yCalendarPaneDayShown());
         for (var r = 0; r < month.Weeks.Length; r++)
         {
             var week = month.Weeks[r];
@@ -154,7 +153,7 @@ public sealed partial class CalendarPane : UserControl
                 {
                     Place(Band(ends, cell), r + 1, c + 1);
                 }
-                var button = DayButton(day, cell, CalendarPaneModel.DayName(day, culture, today, shown));
+                var button = DayButton(day, cell, CalendarPaneModel.DayName(day, culture, words));
                 _days.Add(button);
                 Place(button, r + 1, c + 1);
             }
@@ -182,6 +181,12 @@ public sealed partial class CalendarPane : UserControl
         {
             content.Children.Add(new Ellipse { Style = (Style)Resources["PaneTodayStyle"], Width = cell - 6, Height = cell - 6 });
         }
+        if (day.IsFocus)
+        {
+            // The focus date, the day every view is drawn around: a ring, outside today's disc so
+            // the two read together.
+            content.Children.Add(new Ellipse { Style = (Style)Resources["PaneFocusStyle"], Width = cell - 2, Height = cell - 2 });
+        }
         var style = day.IsToday ? "PaneTodayTextStyle" : day.InMonth ? "PaneDayTextStyle" : "PaneOutsideTextStyle";
         content.Children.Add(Text(day.Day.ToString(CultureInfo.CurrentCulture), style, raw: true));
 
@@ -201,7 +206,8 @@ public sealed partial class CalendarPane : UserControl
         return button;
     }
 
-    // A day pressed: where the core puts the grid for it, applied through the calendar's layout path.
+    // A day pressed: the focus moves there, and the calendar is drawn around it in the shape the core
+    // chose for it, through the calendar's layout path.
     private void Seat(string date)
     {
         if (_model is null || _calendar is null)
@@ -211,7 +217,7 @@ public sealed partial class CalendarPane : UserControl
         var at = CalendarPaneModel.ParseDate(date);
         if (_model.CalendarSeat(at, _calendar.Place.Layout) is { } seat)
         {
-            _calendar.ApplySeat(seat);
+            _calendar.ApplySeat(seat, at);
         }
     }
 

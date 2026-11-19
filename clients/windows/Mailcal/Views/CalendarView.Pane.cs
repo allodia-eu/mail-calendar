@@ -46,34 +46,38 @@ public sealed partial class CalendarView
     /// <summary>Today in the display zone, or by this machine's clock before a model is bound.</summary>
     private DateOnly Today() => Model?.Today() ?? DateOnly.FromDateTime(DateTime.Now);
 
-    /// <summary>A day pressed in the mini month: the seat the core chose for it, applied as the view
-    /// menu applies a choice.</summary>
-    internal void ApplySeat(CalendarSeat seat)
+    /// <summary>A day pressed in the mini month: the focus moves to <paramref name="pressed"/>, and the
+    /// shape the core chose for it is drawn around it as the view menu draws a choice.</summary>
+    internal void ApplySeat(CalendarSeat seat, DateOnly pressed)
     {
-        var anchor = CalendarPaint.ParseDate(seat.Anchor);
-        Log.Info($"cal: seat {seat.Layout} at {anchor:yyyy-MM-dd} from the pane");
-        ChooseLayout(seat.Layout.ToMode(), anchor);
+        Log.Info($"cal: seat {seat.Layout} from the pane");
+        ChooseLayout(seat.Layout.ToMode(), pressed);
     }
 
     /// <summary>
-    /// Draws <paramref name="mode"/> and persists it, on <paramref name="at"/> when given: the month
-    /// holding it, or a grid framed on it. Without one, the month opens on today's and a grid stays on
-    /// the period on screen, unless it is leaving the month, which has no page to carry.
+    /// Draws <paramref name="mode"/> around the focus and persists it, moving the focus to
+    /// <paramref name="at"/> first when given. A view switch alone never moves the focus, so the week,
+    /// then the month, then the week again comes back to the same week (docs/calendar.md, "The focus
+    /// date").
     /// </summary>
     private void ChooseLayout(CalendarMode mode, DateOnly? at)
     {
-        if (Model is null)
+        if (Model is null || _focus is null)
         {
             return;
         }
-        var wasMonth = IsMonth;
+        if (at is { } day)
+        {
+            _focus.Set(day);
+        }
+        var focus = _focus.Focus;
         Model.SetCalendarLayout(mode.ToLayout());
         ShowMode(mode);
 
         if (mode == CalendarMode.Month)
         {
             _pager.SetMode(CalendarMode.Month, 0);
-            _monthAnchor = FirstOfMonth(at ?? Today());
+            _monthAnchor = FirstOfMonth(focus);
             RefreshMonth();
             return;
         }
@@ -85,32 +89,39 @@ public sealed partial class CalendarView
             return;
         }
 
-        // A shape picked from the MENU re-seats the grid on the period you are looking at and re-seeds
-        // the day axis. A pinch does neither, that is the difference between SetMode and SetZoom, and
-        // it is why a zoom cannot make the days jump (§2, §3).
+        // A shape picked from the MENU re-seats the grid on the focus's week and re-seeds the day axis,
+        // framed as the shape frames: a week on its first day, a day and three days on the focus. A
+        // pinch does neither, that is the difference between SetMode and SetZoom, and it is why a zoom
+        // cannot make the days jump (§2, §3).
         _pager.SetMode(mode, 0);
-        if (at is { } day)
-        {
-            _pager.JumpTo(day);
-        }
-        else if (wasMonth)
-        {
-            _pager.JumpTo(Today());
-        }
+        _pager.JumpTo(focus);
         if (Model.CalendarDisplaySettings() is { } display)
         {
             _grid.Apply(display);
         }
-        _grid.Recentre(_pager.Mode, at);
+        _grid.Recentre(_pager.Mode, focus);
     }
 
     /// <summary>The time grid came to rest with <paramref name="count"/> days from
-    /// <paramref name="first"/> on screen.</summary>
+    /// <paramref name="first"/> on screen: the focus follows a gesture that took it off them.</summary>
     private void OnGridRest(DateOnly first, int count)
     {
         _rest = (first, count);
+        if (Model is { } model)
+        {
+            _focus?.Rest(_pager.Mode, first, count, Today(), model.WeekStart);
+        }
         ShownDaysMoved();
     }
 
     private void ShownDaysMoved() => ShownDaysChanged?.Invoke();
+}
+
+/// <summary>The app's <see cref="ICalendarFocusCore"/>: the core's own.</summary>
+internal sealed class CoreCalendarFocus(MailboxModel model) : ICalendarFocusCore
+{
+    public void Set(DateOnly date) => model.SetCalendarFocus(date);
+
+    public DateOnly Step(CalendarLayout layout, int steps, DateOnly today) =>
+        model.StepCalendarFocus(layout, steps, today);
 }
