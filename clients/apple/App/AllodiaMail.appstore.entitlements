@@ -50,6 +50,13 @@
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
 
+    <!-- Printing the open message (MessagePrint.swift, docs/reading-actions.md). Under the sandbox
+         AppKit refuses every print operation without this key and shows "This application does not
+         support printing" in place of the print sheet. The unsandboxed builds print without it, so
+         cargo xtask check-store-sandbox is what keeps this grant beside the code that needs it. -->
+    <key>com.apple.security.print</key>
+    <true/>
+
     <!-- Per-account credentials in the Keychain. This group is LOAD-BEARING on the Store build:
          KeychainHelper.swift enables kSecUseDataProtectionKeychain whenever the running build carries
          a keychain-access-group (this build, via its Mac App Store provisioning profile, and iOS),
