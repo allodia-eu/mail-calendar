@@ -61,7 +61,7 @@ pub enum LearningStage {
         /// How far back the device holds the account's mail.
         reach: SentReach,
         /// What was found.
-        review: Review,
+        state: Review,
         /// Where Learn would send, or why it cannot; `None` while nothing found is usable, since
         /// nothing will be sent.
         sends_to: Option<Result<AiRoute, AiFailure>>,
@@ -227,7 +227,7 @@ impl<P: Provider> App<P> {
                     address,
                     range: flow.range.unwrap_or(LearnRange::Everything),
                     reach,
-                    review: review.clone(),
+                    state: review.clone(),
                     sends_to: (!matches!(review, Review::NothingUsable(_))).then_some(route),
                     keyword_kept: flow
                         .reviewed

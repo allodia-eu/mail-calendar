@@ -135,7 +135,8 @@ pub enum StyleLearningStage {
         email: String,
         range: StyleLearnRange,
         reach: StyleSentReach,
-        review: StyleLearningReview,
+        /// What the review found.
+        state: StyleLearningReview,
         /// Where Learn sends; `None` when it cannot, and `cannot_send` says why. Both are `None`
         /// while the review is `NothingUsable`: nothing will be sent, so nothing is said about
         /// where.
@@ -263,14 +264,14 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
             address,
             range,
             reach,
-            review,
+            state,
             sends_to,
             keyword_kept,
         } => StyleLearningStage::Review {
             email: address,
             range: range.into(),
             reach: reach.into(),
-            review: match review {
+            state: match state {
                 core::Review::Reading => StyleLearningReview::Reading,
                 core::Review::Ready(found) => StyleLearningReview::Ready {
                     report: report(found),

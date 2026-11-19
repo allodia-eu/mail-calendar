@@ -16,7 +16,7 @@ use crate::{
 
 fn review(learner: &Learner) -> Review {
     match learner.view().stage {
-        LearningStage::Review { review, .. } => review,
+        LearningStage::Review { state, .. } => state,
         other => panic!("not on Review: {other:?}"),
     }
 }
@@ -34,7 +34,7 @@ async fn one_account_learns_from_its_sent_mail_after_the_consent() {
     let view = learner.view();
     let LearningStage::Review {
         address,
-        review: Review::Ready(report),
+        state: Review::Ready(report),
         sends_to,
         keyword_kept,
         ..
@@ -270,7 +270,7 @@ async fn stop_keeps_nothing_and_closing_leaves_the_run_on_the_page() {
     assert!(matches!(
         learner.view().stage,
         LearningStage::Review {
-            review: Review::Ready(_),
+            state: Review::Ready(_),
             ..
         }
     ));
