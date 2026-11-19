@@ -58,6 +58,7 @@ public sealed partial class SettingsDialog
     {
         var box = new ComboBox { MinWidth = 260 };
         AutomationProperties.SetName(box, L10n.SettingsSendAccountHeading());
+        AutomationProperties.SetAutomationId(box, "SendAccountPicker");
         foreach (var account in choose.Accounts)
         {
             box.Items.Add(new ComboBoxItem { Content = account.Email, Tag = account.Id });
