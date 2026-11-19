@@ -7,9 +7,9 @@ use mailcal_bindings::{AgentDraft, ComposeOrigin, ComposePrefill, MailtoPrefill}
 use super::{AppInput, AppModel, PrimaryView, composer_open::ComposerTarget};
 
 impl AppModel {
-    /// Opens a mail link's composer: a new message from the folder's account, pre-filled with
-    /// what the link named (`docs/os-integration.md`). One arriving before the first account is
-    /// kept until there is one.
+    /// Opens a mail link's composer: a new message from the account the core decides, pre-filled
+    /// with what the link named (`docs/os-integration.md`). One arriving before the first account
+    /// is kept until there is one.
     pub(super) fn open_mailto(&mut self, prefill: MailtoPrefill, sender: &relm4::Sender<AppInput>) {
         if self.snapshot.accounts.is_empty() {
             self.pending_mailto = Some(prefill);
@@ -17,9 +17,7 @@ impl AppModel {
             return;
         }
         self.open_composer_on(
-            ComposeOrigin::New {
-                account: self.snapshot.selected_account.clone(),
-            },
+            ComposeOrigin::New { account: None },
             Some(mailto_prefill(prefill)),
             ComposerTarget::Pane,
             Vec::new(),
@@ -32,7 +30,7 @@ impl AppModel {
     pub(super) fn open_agent_draft(&mut self, draft: AgentDraft, sender: &relm4::Sender<AppInput>) {
         // The composer lives in the mail surface, and a draft can arrive while another is up.
         self.primary = PrimaryView::Mail;
-        let origin = agent_origin(&draft, self.snapshot.selected_account.as_deref());
+        let origin = agent_origin(&draft);
         self.open_composer_on(
             origin,
             Some(agent_prefill(draft)),
@@ -67,7 +65,7 @@ fn mailto_prefill(prefill: MailtoPrefill) -> ComposePrefill {
 
 /// What an assistant's draft opens on: a reply to the message it names, else a new message from
 /// the account it names, else from the folder's.
-fn agent_origin(draft: &AgentDraft, selected_account: Option<&str>) -> ComposeOrigin {
+fn agent_origin(draft: &AgentDraft) -> ComposeOrigin {
     match (&draft.reply_to_account, &draft.reply_to_key) {
         (Some(account), Some(key)) => ComposeOrigin::Reply {
             account: account.clone(),
@@ -75,10 +73,7 @@ fn agent_origin(draft: &AgentDraft, selected_account: Option<&str>) -> ComposeOr
             all: false,
         },
         _ => ComposeOrigin::New {
-            account: draft
-                .account
-                .clone()
-                .or_else(|| selected_account.map(str::to_owned)),
+            account: draft.account.clone(),
         },
     }
 }
@@ -144,7 +139,7 @@ mod tests {
     #[test]
     fn an_assistant_reply_opens_as_a_reply_to_the_message_it_names() {
         assert_eq!(
-            agent_origin(&draft(Some("work"), Some("original")), Some("selected")),
+            agent_origin(&draft(Some("work"), Some("original"))),
             ComposeOrigin::Reply {
                 account: "work".to_owned(),
                 key: "original".to_owned(),
@@ -156,7 +151,7 @@ mod tests {
     #[test]
     fn an_assistant_draft_naming_no_message_is_new_mail_from_its_account() {
         assert_eq!(
-            agent_origin(&draft(Some("work"), None), Some("selected")),
+            agent_origin(&draft(Some("work"), None)),
             ComposeOrigin::New {
                 account: Some("work".to_owned())
             },
@@ -167,10 +162,9 @@ mod tests {
             ..draft(None, None)
         };
         assert_eq!(
-            agent_origin(&unnamed, Some("selected")),
-            ComposeOrigin::New {
-                account: Some("selected".to_owned())
-            }
+            agent_origin(&unnamed),
+            ComposeOrigin::New { account: None },
+            "naming none, the core decides"
         );
     }
 

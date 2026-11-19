@@ -40,6 +40,39 @@ pub struct QuoteSettings {
     pub per_message: bool,
 }
 
+/// Settings → Composing's default send account (from
+/// [`crate::MailcalApp::send_account_setting`]): which account a new message is written from when
+/// no mailbox on screen names one. Only accounts used for mail are in it, and the account it names
+/// is the one a new message would actually come from. A client draws each variant as it is and
+/// keeps no rule of its own about which account that is.
+#[derive(uniffi::Enum, Debug, Clone, PartialEq, Eq)]
+pub enum SendAccountSetting {
+    /// No account is used for mail: say there are no accounts.
+    NoAccount,
+    /// One account is used for mail: show its address, with nothing to choose.
+    Only {
+        /// Its address.
+        email: String,
+    },
+    /// Two or more are: a picker over `accounts`, on `selected`, whose choice is sent as
+    /// [`PreferenceIntent::SetDefaultSendAccount`](crate::PreferenceIntent::SetDefaultSendAccount).
+    Choose {
+        /// Every account used for mail, in the order the host stored them.
+        accounts: Vec<SendAccountOption>,
+        /// The id of the one a new message is written from.
+        selected: String,
+    },
+}
+
+/// One account [`SendAccountSetting::Choose`] offers.
+#[derive(uniffi::Record, Debug, Clone, PartialEq, Eq)]
+pub struct SendAccountOption {
+    /// The account's id, what the intent stores.
+    pub id: String,
+    /// Its address, which is what Settings shows.
+    pub email: String,
+}
+
 /// What a swipe across a message row does (from [`crate::MailcalApp::swipe_settings`]). The two
 /// directions are configured independently in the settings screen.
 #[derive(uniffi::Enum)]

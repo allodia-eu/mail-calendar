@@ -161,6 +161,31 @@ notice and says the same thing with a button; two notices for one event is noise
 variant exists for is to stop a client rendering the plain "Message sent" over a send that did
 not leave a copy.
 
+## Which account a message comes from
+
+A reply, a forward and a stored draft open on the account holding the message. A new message
+opens on the account the core decides: the **selected** account, whose mailbox is on screen, else
+the **default send account** chosen in Settings → Composing, else the first account. Only an
+account used for mail is ever one of them ([`accounts.md`](accounts.md)): one kept for its
+calendar or contacts alone sends nothing.
+
+1. **The composer opens on `ComposeOpening::account` as it is.** The core has already checked it
+   against the accounts used for mail, so a client never resolves it again: a second copy of the
+   order above is a second answer, and the two disagree as soon as one of them changes.
+2. **A client names an account only when the context does.** New Mail, a mail link and a share
+   open `ComposeOrigin::New { account: None }`; an assistant's draft names the account it was
+   written for, which the core takes only when that account sends.
+3. **Settings → Composing draws `send_account_setting()`.** No account, one address with nothing
+   to choose, or a choice over every account used for mail, opening on the one a new message
+   would take, so a stored choice that names a removed account never shows as blank.
+
+| Platform | Composer opens on the core's account | No client account for a new message | Settings draws the core's record |
+|---|---|---|---|
+| macOS / iOS / iPadOS | ✅ | ✅ | ✅ |
+| Android | ✅ | ✅ | ✅ |
+| Windows | ✅ | ✅ | ✅ |
+| Linux | ✅ | ✅ | ✅ |
+
 ## The sender's name
 
 Mail goes out as `Name <address>`, and the `Name` is the account's, set by the person who owns

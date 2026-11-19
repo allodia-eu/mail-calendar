@@ -6,9 +6,8 @@
 // (`docs/reading-window.md`).
 //
 // Every composer is built the same way, from what the core opened it with, whichever route reached
-// it: the From dropdown opens on the opening's account as a sending account
-// (`model.sendAccount(preferring:)`), and every composer sends through `submitComposition` on the
-// composition it opened on.
+// it: the From dropdown opens on the opening's account, which the core has already checked can
+// send, and every composer sends through `submitComposition` on the composition it opened on.
 
 import MailcalBindings
 import SwiftUI

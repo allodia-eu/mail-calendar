@@ -31,9 +31,8 @@ public sealed partial class MainWindow
     /// <summary>Opens the composer for a brand-new message.</summary>
     internal async void ComposeNew()
     {
-        // Composing while one mailbox is open sends from that account; in the combined inbox there
-        // is no such context, and the core decides.
-        if (await OpenComposerAsync(new ComposeOrigin.New(Model.SelectedAccount)) is { } context)
+        // The core picks the account: the mailbox on screen, else the default send account.
+        if (await OpenComposerAsync(new ComposeOrigin.New(null)) is { } context)
         {
             BeginCompose(context);
         }
@@ -84,7 +83,7 @@ public sealed partial class MainWindow
         Model.ShowMail();
         ComposeOrigin origin = draft is { ReplyToAccount: { } account, ReplyToKey: { } key }
             ? new ComposeOrigin.Reply(account, key, false)
-            : new ComposeOrigin.New(draft.Account ?? Model.SelectedAccount);
+            : new ComposeOrigin.New(draft.Account);
         // Signed: the assistant chose how to sign its words, so the account's signature is not seeded
         // under them (docs/mcp.md).
         var prefill = new ComposePrefill(draft.To, draft.Cc, draft.Bcc, draft.Subject, draft.BodyText, true, draft.Account);

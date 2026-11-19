@@ -112,8 +112,8 @@ private fun MainActivity.showcaseReplyPrefill(origin: ComposeOrigin): ComposePre
  * the link or the files stay pending until then, so neither can replace a draft the user is in the
  * middle of. Drawn by the mailbox, so neither opens over the welcome or setup screens.
  *
- * Both open as a new message on the selected account, with what they named laid over it; the core
- * has already dropped every header a link may not set, and named every shared file.
+ * Both open as a new message on the account the core decides, with what they named laid over it;
+ * the core has already dropped every header a link may not set, and named every shared file.
  */
 @Composable
 internal fun MainActivity.LinkAndShareComposers(instance: MailcalApp) {
@@ -124,7 +124,7 @@ internal fun MainActivity.LinkAndShareComposers(instance: MailcalApp) {
             pendingMailto = null
             openComposer(
                 instance,
-                ComposeOrigin.New(selectedAccount),
+                ComposeOrigin.New(null),
                 ComposePrefill(link.to, link.cc, link.bcc, link.subject, link.body, false, null),
             )
         }
@@ -135,7 +135,7 @@ internal fun MainActivity.LinkAndShareComposers(instance: MailcalApp) {
             pendingShare = null
             openComposer(
                 instance,
-                ComposeOrigin.New(selectedAccount),
+                ComposeOrigin.New(null),
                 ComposePrefill(share.to, share.cc, share.bcc, share.subject, share.body, false, null),
                 share.attachments,
             )
@@ -193,7 +193,7 @@ private fun MainActivity.ComposerFor(
         composeContext(
             ctx = ctx,
             opening = opening,
-            initialFrom = sendAccountFor(opening.account, defaultSendAccount, accounts),
+            initialFrom = opening.account,
             quoteSettings = quotes,
             dateText = { localDateTime(it, zone, use24Hour) },
         )

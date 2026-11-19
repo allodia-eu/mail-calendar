@@ -24,10 +24,11 @@ internal fun MailcalApp.setPreference(intent: PreferenceIntent) = dispatch(Inten
 // The unified Settings screen, swapped in over the mailbox.
 @Composable
 internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
-    // All three are pulled in the same step that sets the core, so none is null here.
+    // All four are pulled in the same step that sets the core, so none is null here.
     val display = displaySettings ?: return
     val quotes = quoteSettings ?: return
     val swipes = swipeSettings ?: return
+    val sendAccount = sendAccountSetting ?: return
     SettingsScreen(
                             about = aboutInfo(AboutPlatform.ANDROID),
                             // General, time zone.
@@ -74,8 +75,7 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             quoteSettings = quotes,
                             onSetQuoteStyle = { instance.setPreference(PreferenceIntent.SetQuoteStyle(it)) },
                             onSetQuoteStylePerMessage = { instance.setPreference(PreferenceIntent.SetQuoteStylePerMessage(it)) },
-                            accounts = accounts,
-                            defaultSendAccount = defaultSendAccount,
+                            sendAccount = sendAccount,
                             onSetDefaultSendAccount = { instance.setPreference(PreferenceIntent.SetDefaultSendAccount(it)) },
                             swipe = swipes,
                             onSetSwipeLeft = { instance.setPreference(PreferenceIntent.SetSwipeAction(SwipeDirection.LEFT, it)) },

@@ -70,7 +70,7 @@ impl<P: Provider> App<P> {
     /// Sends a plain-text message from the active account (the selected one, else the first)
     /// through the durable outbox, then re-syncs so the filed Sent copy appears.
     pub(super) async fn submit_mail(&self, to: String, subject: String, body: String) {
-        let Some(account) = self.compose_account().await else {
+        let Some(account) = self.compose_account() else {
             return;
         };
         let Some(identity) = self.sender_identity(&account).await else {
@@ -274,26 +274,6 @@ impl<P: Provider> App<P> {
             .unwrap_or_default()
             .into_iter()
             .next()
-    }
-
-    /// The account a new message composes from when the host names none explicitly, in order:
-    /// the **selected** account (its mailbox is showing, so it scopes the choice), else the
-    /// persisted **default send account** (the unified all-inboxes fallback), else the first
-    /// configured account.
-    ///
-    /// The stored default is validated against the configured set, so an account removed after
-    /// being chosen degrades to "the first account" rather than dropping the send.
-    pub(crate) async fn compose_account(&self) -> Option<AccountId> {
-        if let Some(account) = self.scope.lock().expect("scope mutex poisoned").account() {
-            return Some(account.clone());
-        }
-        let accounts = self.accounts.read().await;
-        if let Some(preferred) = self.default_send_account()
-            && let Some(account) = accounts.iter().find(|a| a.id.as_str() == preferred)
-        {
-            return Some(account.id.clone());
-        }
-        accounts.first().map(|a| a.id.clone())
     }
 
     /// The send-from identity for `account`, **failing the send** when it names no configured

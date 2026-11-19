@@ -320,11 +320,10 @@ class OutboxTest {
             bodyText = "One o'clock?",
             seedsSignature = false,
         )
-        val accounts = listOf(account("work"), account("home"))
         val request = composeContext(
             ctx = ctx(),
             opening = opening,
-            initialFrom = sendAccountFor(opening.account, defaultSendAccount = "work", accounts = accounts),
+            initialFrom = opening.account,
             quoteSettings = QuoteSettings(QuoteStyleKind.INDENTED, perMessage = false),
             dateText = { it },
         )
@@ -338,8 +337,6 @@ class OutboxTest {
         val library = ComposerSignatures(library = emptyList(), forAccount = { _, _ -> null }, byId = { null })
         assertNull(ComposeOpeningSeed.signing(library, opening))
     }
-
-    private fun account(id: String) = AccountRow(id = id, email = "$id@example.test", name = "", expanded = false)
 
     /** A refused message says where it now is, rather than only that it failed. */
     @Test

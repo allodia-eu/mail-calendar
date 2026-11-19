@@ -312,7 +312,12 @@ public sealed partial class SettingsDialog
         // this runs on every settings and notices signal. An account is removed from the
         // Accounts category, so that is where the last one goes. Videoconferencing lists the
         // accounts that make meetings, from the same snapshot, and says a refused Jitsi server;
-        // Calendar's default list follows a default chosen.
+        // Calendar's default list and Composing's send account follow a default or an account.
+        if (!_rebuilding && CurrentCategory() == "composing")
+        {
+            RefreshSendAccount();
+            return;
+        }
         if (!_rebuilding && CurrentCategory() == "videoconferencing")
         {
             RefreshMeetingAccounts();

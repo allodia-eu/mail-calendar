@@ -358,9 +358,9 @@ internal fun MailboxScreen(
         }
         // The familiar bottom-right floating action button for composing a new message.
         FloatingActionButton(
-            // A new message on the selected account; in the unified inbox the core decides, from
-            // the app-level default send account.
-            onClick = { onCompose(ComposeOrigin.New(selectedAccount)) },
+            // A new message; the core opens it on the selected account, else the default send
+            // account.
+            onClick = { onCompose(ComposeOrigin.New(null)) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp),

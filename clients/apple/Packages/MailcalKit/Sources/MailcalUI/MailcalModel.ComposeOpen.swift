@@ -72,7 +72,7 @@ extension MailboxModel {
         }
         return ComposeContext(
             opening: opening,
-            initialFrom: sendAccount(preferring: opening.account)?.id,
+            initialFrom: opening.account,
             quoteStyle: settings.style,
             quoteStylePerMessage: settings.perMessage,
             quote: ComposeOpeningSeed.quoteSeed(

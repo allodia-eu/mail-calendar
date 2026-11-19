@@ -45,6 +45,37 @@ pub struct QuoteSettings {
     pub per_message: bool,
 }
 
+/// Settings → Composing's default send account: which account a new message is written from
+/// when no mailbox on screen names one. Only accounts used for mail are in it, and the account it
+/// names is the one a new message would actually come from, so a stored choice that no longer
+/// names one of them reads as the first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SendAccountSetting {
+    /// No account is used for mail.
+    NoAccount,
+    /// One account is used for mail, so there is nothing to choose: it sends everything.
+    Only {
+        /// Its address.
+        email: String,
+    },
+    /// Two or more accounts are used for mail, and the person picks one.
+    Choose {
+        /// Every account used for mail, in the order the host stored them.
+        accounts: Vec<SendAccountOption>,
+        /// The id of the one a new message is written from.
+        selected: String,
+    },
+}
+
+/// One account [`SendAccountSetting::Choose`] offers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SendAccountOption {
+    /// The account's id, what `SetDefaultSendAccount` stores.
+    pub id: String,
+    /// Its address, which is what Settings shows.
+    pub email: String,
+}
+
 /// What a swipe across a message row does, as the host renders it in settings. Mirrors the
 /// persisted `mailcal_account::SwipeAction`, kept here so the view-model crate stays free of an
 /// account-layer dependency.

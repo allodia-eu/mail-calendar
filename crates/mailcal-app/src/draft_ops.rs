@@ -126,7 +126,7 @@ impl<P: Provider> App<P> {
         // `Composition::account`.
         let account = match self.composition_account(composition) {
             Some(account) => account,
-            None => match from.or(self.compose_account().await) {
+            None => match from.or_else(|| self.compose_account()) {
                 Some(account) => account,
                 None => return self.fail_draft(composition, "no account to save a draft to"),
             },

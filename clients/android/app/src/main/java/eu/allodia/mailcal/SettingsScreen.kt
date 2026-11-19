@@ -43,7 +43,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
-import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
@@ -52,6 +51,7 @@ import uniffi.mailcal_bindings.DisplaySettings
 import uniffi.mailcal_bindings.NewEventCalendars
 import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.QuoteStyleKind
+import uniffi.mailcal_bindings.SendAccountSetting
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
@@ -89,8 +89,7 @@ internal fun SettingsScreen(
     quoteSettings: QuoteSettings,
     onSetQuoteStyle: (QuoteStyleKind) -> Unit,
     onSetQuoteStylePerMessage: (Boolean) -> Unit,
-    accounts: List<AccountRow>,
-    defaultSendAccount: String?,
+    sendAccount: SendAccountSetting,
     onSetDefaultSendAccount: (String?) -> Unit,
     swipe: SwipeSettings,
     onSetSwipeLeft: (SwipeActionKind) -> Unit,
@@ -214,8 +213,7 @@ internal fun SettingsScreen(
                     quoteSettings = quoteSettings,
                     onSetQuoteStyle = onSetQuoteStyle,
                     onSetQuoteStylePerMessage = onSetQuoteStylePerMessage,
-                    accounts = accounts,
-                    defaultSendAccount = defaultSendAccount,
+                    sendAccount = sendAccount,
                     onSetDefaultSendAccount = onSetDefaultSendAccount,
                     swipe = swipe,
                     onSetSwipeLeft = onSetSwipeLeft,

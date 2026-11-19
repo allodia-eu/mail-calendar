@@ -44,6 +44,7 @@ import uniffi.mailcal_bindings.QuoteSettings
 import uniffi.mailcal_bindings.ReadingSnapshot
 import uniffi.mailcal_bindings.SearchHorizon
 import uniffi.mailcal_bindings.SharePrefill
+import uniffi.mailcal_bindings.SendAccountSetting
 import uniffi.mailcal_bindings.SendStatus
 import uniffi.mailcal_bindings.SignaturesPage
 import uniffi.mailcal_bindings.SnapshotRow
@@ -123,11 +124,11 @@ class MainActivity : AppCompatActivity() {
     // exists: the core holds the defaults, so nothing is shown on a guess.
     internal var quoteSettings by mutableStateOf<QuoteSettings?>(null)
 
-    // The persisted per-direction swipe actions and the default send account, pulled alongside the
-    // quote style on every SETTINGS signal. The swipes bind the message rows' gestures; the send
-    // account seeds the composer's From dropdown in the unified inbox.
+    // The persisted per-direction swipe actions and Settings → Composing's send account, pulled
+    // alongside the quote style on every SETTINGS signal. The swipes bind the message rows'
+    // gestures; the send account is only drawn, since the core opens each composer on its account.
     internal var swipeSettings by mutableStateOf<SwipeSettings?>(null)
-    internal var defaultSendAccount by mutableStateOf<String?>(null)
+    internal var sendAccountSetting by mutableStateOf<SendAccountSetting?>(null)
 
     // Settings → Signatures as the core draws it, read on connect and on every SIGNATURES and
     // SETTINGS signal; the composer's per-message picker lists its library too (docs/signatures.md).

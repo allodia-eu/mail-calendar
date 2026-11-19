@@ -109,7 +109,7 @@ impl<P: Provider> App<P> {
         staging_directory: &str,
     ) -> Result<ComposeOpening, String> {
         let mut opening = match origin {
-            ComposeOrigin::New { account } => self.new_message(account).await?,
+            ComposeOrigin::New { account } => self.new_message(account)?,
             ComposeOrigin::Reply { message, all } => match self.reply_to(&message, all).await {
                 Ok(opening) => opening,
                 Err(err) if prefill.is_some() => {
@@ -117,7 +117,7 @@ impl<P: Provider> App<P> {
                         "composer: the message a prefilled reply answers cannot be found ({err}); \
                          it opens as a new message"
                     );
-                    self.new_message(None).await?
+                    self.new_message(None)?
                 }
                 Err(err) => return Err(err),
             },
@@ -129,20 +129,18 @@ impl<P: Provider> App<P> {
             }
             ComposeOrigin::Moved { state } => return self.moved_composer(&composition, *state),
         };
-        if let Some(prefill) = prefill {
+        if let Some(mut prefill) = prefill {
+            // An assistant may name an account that sends nothing; the origin's stands then.
+            prefill.account = prefill.account.filter(|account| self.is_sender(account));
             lay_over(&mut opening, prefill);
         }
         Ok(self.open_composition(&composition, opening))
     }
 
-    async fn new_message(&self, account: Option<AccountId>) -> Result<Opening, String> {
-        let account = match account {
-            Some(account) => account,
-            None => self
-                .compose_account()
-                .await
-                .ok_or_else(|| "there is no account to write from".to_owned())?,
-        };
+    fn new_message(&self, account: Option<AccountId>) -> Result<Opening, String> {
+        let account = self
+            .sender_or_default(account)
+            .ok_or_else(|| "there is no account to write from".to_owned())?;
         Ok(Opening {
             kind: ComposeKind::New,
             ..blank(account, fresh_message_id()?)

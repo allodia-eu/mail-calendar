@@ -252,8 +252,8 @@ pub use records::{
     ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
         AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, McpAccountRow, McpSettings,
-        QuoteSettings, QuoteStyleKind, SwipeActionKind, SwipeDirection, SwipeSettings,
-        SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
+        QuoteSettings, QuoteStyleKind, SendAccountOption, SendAccountSetting, SwipeActionKind,
+        SwipeDirection, SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
 // Every record of an account's page crosses the FFI, so the module is exported whole.
@@ -472,6 +472,9 @@ mod tests_showcase_meeting;
 
 #[cfg(test)]
 mod tests_showcase_sender_name;
+
+#[cfg(test)]
+mod tests_send_account;
 
 #[cfg(test)]
 mod tests_boot;

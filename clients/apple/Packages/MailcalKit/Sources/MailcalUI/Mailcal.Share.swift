@@ -177,7 +177,7 @@ extension ContentView {
         }
         let share = request.prefill
         beginCompose(
-            .new(account: model.selectedAccount),
+            .new(account: nil),
             prefill: ComposePrefill(
                 to: share.to, cc: share.cc, bcc: share.bcc, subject: share.subject,
                 bodyText: share.body, signed: false, account: nil

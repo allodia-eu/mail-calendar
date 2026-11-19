@@ -87,9 +87,9 @@ public sealed partial class ComposerView : UserControl
         _onDone = onDone;
 
         TitleText.Text = request.Title;
-        // The From dropdown opens on the request's account, falling back to the first configured
-        // one, so the shown sender is always the one the send will actually go out as (a blank From
-        // field would be the failure the picker exists to prevent). With one account there is
+        // The From dropdown opens on the account the core opened the composer on; the first is only
+        // what a list that has not yet caught up with the core falls to, because a blank From field
+        // would be the failure the picker exists to prevent. With one account there is
         // nothing to choose, so the read-only row shows in its place; the dropdown is still
         // populated and selected behind it, because OnSend reads the account off it either way.
         foreach (var account in model.Accounts)

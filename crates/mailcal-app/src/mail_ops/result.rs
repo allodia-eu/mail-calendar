@@ -161,7 +161,6 @@ impl<P: Provider> App<P> {
             Some(account) => account.clone(),
             None => self
                 .compose_account()
-                .await
                 .ok_or(SendActionError::UnknownAccount)?,
         };
         let identity = self

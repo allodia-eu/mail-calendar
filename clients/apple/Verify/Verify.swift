@@ -62,20 +62,21 @@ func waitForStableMailbox(_ app: MailcalApp, quiet: TimeInterval, timeout: TimeI
     return nil
 }
 
-/// Proves the two app-level preferences the composer's From dropdown and the settings screens
-/// depend on cross the FFI and round-trip: the default send account (unset until chosen, and
-/// clearable) and the per-direction swipe actions (both Delete before the setting is touched, and
-/// independently settable). DEMO ONLY, the demo app persists nothing, whereas the real-account
-/// mode writes the developer's own preferences file, which a gate must never rewrite.
+/// Proves the two app-level preferences the settings screens depend on cross the FFI: Settings →
+/// Composing's send account and the per-direction swipe actions (both Delete before the setting is
+/// touched, and independently settable). DEMO ONLY, the demo app persists nothing, whereas the
+/// real-account mode writes the developer's own preferences file, which a gate must never rewrite.
 func verifySendAndSwipeSettings(_ app: MailcalApp) -> Bool {
-    // Unset until the user picks one, the core then falls back to the first configured account.
-    let initiallyUnset = app.defaultSendAccount() == nil
+    // The demo has one account used for mail, so there is nothing to choose: its address is the
+    // setting, before a default is stored and after one is.
+    let only = SendAccountSetting.only(email: "demo@allodia.local")
+    let single = app.sendAccountSetting() == only
     // A preference takes effect before `dispatch` returns, so the read that follows sees it.
-    app.dispatch(intent: .preferences(intent: .setDefaultSendAccount(account: "acct-1")))
-    let stored = app.defaultSendAccount() == "acct-1"
-    // Clearing restores "the first configured account" rather than dropping the send.
-    app.dispatch(intent: .preferences(intent: .setDefaultSendAccount(account: nil)))
-    let cleared = app.defaultSendAccount() == nil
+    app.dispatch(intent: .preferences(intent: .setDefaultSendAccount(account: "demo")))
+    let stored = app.sendAccountSetting() == only
+    // A default naming no account still reads as the one account that can send.
+    app.dispatch(intent: .preferences(intent: .setDefaultSendAccount(account: "acct-gone")))
+    let stale = app.sendAccountSetting() == only
 
     // Both directions default to Delete: the behaviour before the setting existed.
     var swipe = app.swipeSettings()
@@ -85,8 +86,8 @@ func verifySendAndSwipeSettings(_ app: MailcalApp) -> Bool {
     swipe = app.swipeSettings()
     let independent = swipe.left == .archive && swipe.right == .delete
 
-    let ok = initiallyUnset && stored && cleared && defaulted && independent
-    print("send/swipe settings: unset=\(initiallyUnset) stored=\(stored) cleared=\(cleared) "
+    let ok = single && stored && stale && defaulted && independent
+    print("send/swipe settings: single=\(single) stored=\(stored) stale=\(stale) "
         + "defaulted=\(defaulted) independent=\(independent)")
     return ok
 }

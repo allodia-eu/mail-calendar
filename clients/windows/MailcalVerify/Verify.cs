@@ -228,10 +228,10 @@ internal static class Verifier
     }
 
     /// <summary>
-    /// Proves the two app-level preferences the composer's From dropdown and the settings dialog
-    /// depend on cross the FFI and round-trip: the default send account (unset until chosen, and
-    /// clearable) and the per-direction swipe actions (both Delete before the setting is touched,
-    /// and independently settable). Windows itself has no swipe gesture, but it consumes the same
+    /// Proves the app-level preferences the settings dialog draws cross the FFI and round-trip:
+    /// the default send account (the demo's one account used for mail, whatever default is
+    /// stored, a removed account's included) and the per-direction swipe actions (both Delete
+    /// before the setting is touched, and independently settable). Windows itself has no swipe gesture, but it consumes the same
     /// generated binding, so this catches a generator or signature regression on the CI gate.
     /// The demo app persists nothing, so this mutates no developer preferences file.
     /// </summary>
@@ -241,13 +241,18 @@ internal static class Verifier
         static void Prefer(MailcalApp target, PreferenceIntent change) =>
             target.Dispatch(new Intent.Preferences(change));
 
-        // Unset until the user picks one, the core then falls back to the first configured account.
-        var initiallyUnset = app.DefaultSendAccount() is null;
-        Prefer(app, new PreferenceIntent.SetDefaultSendAccount("acct-1"));
-        var stored = app.DefaultSendAccount() == "acct-1";
-        // Clearing restores "the first configured account" rather than dropping the send.
+        // The demo has one account used for mail, so Settings shows its address with nothing to
+        // choose: before a default is stored, with it stored, with one naming an account that does
+        // not exist, and once it is cleared again.
+        static bool OnlyTheDemo(MailcalApp target) =>
+            target.SendAccountSetting() is SendAccountSetting.Only { Email: "demo@allodia.local" };
+        var initiallyUnset = OnlyTheDemo(app);
+        Prefer(app, new PreferenceIntent.SetDefaultSendAccount("demo"));
+        var stored = OnlyTheDemo(app);
+        Prefer(app, new PreferenceIntent.SetDefaultSendAccount("acct-removed"));
+        var stale = OnlyTheDemo(app);
         Prefer(app, new PreferenceIntent.SetDefaultSendAccount(null));
-        var cleared = app.DefaultSendAccount() is null;
+        var cleared = OnlyTheDemo(app);
 
         // Both directions default to Delete: the behaviour before the setting existed.
         var swipe = app.SwipeSettings();
@@ -269,9 +274,9 @@ internal static class Verifier
         quoting = app.QuoteSettings();
         var quoteIndependent = quoting.Style == QuoteStyleKind.LineAndHeader && !quoting.PerMessage;
 
-        var ok = initiallyUnset && stored && cleared && defaulted && independent
+        var ok = initiallyUnset && stored && stale && cleared && defaulted && independent
             && quoteDefaulted && quoteStored && quoteIndependent;
-        Console.WriteLine($"send/swipe settings: unset={initiallyUnset} stored={stored} "
+        Console.WriteLine($"send/swipe settings: unset={initiallyUnset} stored={stored} stale={stale} "
             + $"cleared={cleared} defaulted={defaulted} independent={independent}");
         Console.WriteLine($"quote settings: defaulted={quoteDefaulted} stored={quoteStored} "
             + $"independent={quoteIndependent}");

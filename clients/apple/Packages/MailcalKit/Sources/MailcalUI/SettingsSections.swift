@@ -1,44 +1,45 @@
 // The two settings controls the categorised macOS screen and the simpler iOS sheet both mount:
-// the default send account (which account new mail in the combined inbox goes out from) and the
-// per-direction swipe actions. State lives in the Rust core (persisted preferences); these render
-// it and dispatch the setters, which re-signal `Surface::Settings`. Their Android twins are
-// SettingsComposing.kt, keep the wording and the rules in step.
+// the default send account (which account a new message is written from when no mailbox on screen
+// names one) and the per-direction swipe actions. State lives in the Rust core (persisted
+// preferences); these render it and dispatch the setters, which re-signal `Surface::Settings`.
+// Their Android twins are SettingsComposing.kt; keep the wording in step.
 
 import MailcalBindings
 import SwiftUI
 
-/// Which account new mail composes from when the combined inbox is showing. Only meaningful with
-/// more than one account, so with a single account it states the sender instead of offering a
-/// choice of one. The picker binds to the *stored* id, which may name an account that has since
-/// been removed, `sendAccount(preferring:)` is what resolves that to a real one.
+/// Settings → Composing's default send account, drawn as the core decides it
+/// (`sendAccountSetting`): no account, the one account's address, or a picker over the accounts
+/// used for mail on the one a new message is written from.
 struct DefaultSendAccountPicker: View {
     var model: MailboxModel
 
     var body: some View {
-        if model.accounts.count > 1 {
-            Picker(L10n.settings_send_account_heading(), selection: binding) {
-                ForEach(model.accounts, id: \.id) { account in
-                    Text(account.email).tag(Optional(account.id))
+        switch model.sendAccountSetting {
+        case .noAccount:
+            sender(L10n.settings_accounts_empty())
+        case let .only(email):
+            sender(email)
+        case let .choose(accounts, selected):
+            Picker(L10n.settings_send_account_heading(), selection: binding(selected)) {
+                ForEach(accounts, id: \.id) { account in
+                    Text(account.email).tag(account.id)
                 }
             }
             .pickerStyle(.menu)
             .labelsHidden()
-        } else {
-            Text(model.accounts.first?.email ?? L10n.settings_accounts_empty())
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
         }
     }
 
-    /// Reads the *effective* account so the menu never opens on a blank row when the stored
-    /// default names a removed account; writing always stores the explicit choice.
-    private var binding: Binding<String?> {
-        Binding(
-            get: { model.sendAccount(preferring: model.defaultSendAccount)?.id },
-            set: { model.setDefaultSendAccount($0) }
-        )
+    private func sender(_ text: String) -> some View {
+        Text(text)
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+    }
+
+    private func binding(_ selected: String) -> Binding<String> {
+        Binding(get: { selected }, set: { model.setDefaultSendAccount($0) })
     }
 }
 

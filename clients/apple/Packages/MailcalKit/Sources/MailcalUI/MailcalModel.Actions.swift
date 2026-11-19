@@ -209,9 +209,8 @@ extension MailboxModel {
         preference(.setQuoteStylePerMessage(perMessage: perMessage))
     }
 
-    /// Sets the app-level default send account (`nil` clears it, restoring "the first configured
-    /// account").
-    func setDefaultSendAccount(_ id: String?) {
+    /// Sets the app-level default send account, the one Settings → Composing offers.
+    func setDefaultSendAccount(_ id: String) {
         preference(.setDefaultSendAccount(account: id))
     }
 
@@ -228,21 +227,6 @@ extension MailboxModel {
     /// Sets what one swipe direction does. The two directions are independent.
     func setSwipeAction(_ direction: SwipeDirection, _ action: SwipeActionKind) {
         preference(.setSwipeAction(direction: direction, action: action))
-    }
-
-    /// The account the composer's From dropdown opens on, resolved against the accounts that
-    /// actually exist. `preferred` is the context's own choice, the account that received the
-    /// mail being replied to/forwarded, or the selected mailbox's account for a new message.
-    /// Falling back: the app-level default send account, then the first configured one. A stored
-    /// default naming a removed account therefore degrades to the first rather than to nothing,
-    /// which is the core's own resolution order (`App::compose_account`).
-    func sendAccount(preferring preferred: String?) -> AccountRow? {
-        for candidate in [preferred, defaultSendAccount] {
-            if let candidate, let match = accounts.first(where: { $0.id == candidate }) {
-                return match
-            }
-        }
-        return accounts.first
     }
 
     /// Mark a message read or unread (by key, on its owning `account`), then re-sync.
