@@ -113,10 +113,11 @@ fn a_reply_drafts_from_the_canned_answer_and_fails_as_unreachable_on_another_mod
         .mailbox_list()
         .rows
         .into_iter()
-        .find_map(|row| match row {
-            SnapshotRow::Flat { row } => Some((row.account, row.key)),
-            SnapshotRow::Thread { row } => Some((row.account, row.latest_key)),
+        .map(|row| match row {
+            SnapshotRow::Flat { row } => (row.account, row.key),
+            SnapshotRow::Thread { row } => (row.account, row.latest_key),
         })
+        .next()
         .expect("the inbox is seeded");
     let staging = crate::tests::temp_data_dir("showcase-ai-draft");
     app.open_composer(
