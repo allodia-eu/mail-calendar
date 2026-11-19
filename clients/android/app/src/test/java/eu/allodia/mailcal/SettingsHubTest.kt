@@ -42,6 +42,7 @@ import uniffi.mailcal_bindings.AllodiaAccount
 import uniffi.mailcal_bindings.AllodiaCardState
 import uniffi.mailcal_bindings.Attribution
 import uniffi.mailcal_bindings.QuoteStyleKind
+import uniffi.mailcal_bindings.SendAccountSetting
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 import uniffi.mailcal_bindings.TimeFormat
@@ -126,8 +127,7 @@ class SettingsHubTest {
                 quoteSettings = QuoteSettings(QuoteStyleKind.INDENTED, perMessage = false),
                 onSetQuoteStyle = {},
                 onSetQuoteStylePerMessage = {},
-                accounts = emptyList(),
-                defaultSendAccount = null,
+                sendAccount = SendAccountSetting.NoAccount,
                 onSetDefaultSendAccount = {},
                 swipe = SwipeSettings(SwipeActionKind.ARCHIVE, SwipeActionKind.DELETE),
                 onSetSwipeLeft = {},

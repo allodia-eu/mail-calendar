@@ -1,5 +1,5 @@
 // The Composing-section settings cards that go beyond the quote style: the default send account
-// (which account new mail in the combined inbox goes out from) and the two swipe-action pickers.
+// and the two swipe-action pickers.
 // State lives in the Rust core (persisted preferences); these render it and dispatch the setters,
 // which re-signal SETTINGS. Kept out of SettingsViews.kt so each file stays small (gradle
 // auto-globs the package).
@@ -23,43 +23,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
-import uniffi.mailcal_bindings.AccountRow
+import uniffi.mailcal_bindings.SendAccountSetting
 import uniffi.mailcal_bindings.SwipeActionKind
 import uniffi.mailcal_bindings.SwipeSettings
 
-// Which account new mail composes from when the combined inbox is showing. Only meaningful with
-// more than one account, so with a single account the card explains itself instead of offering a
-// choice of one. `selected` is the STORED id, which may name an account that has since been removed
-// the core then falls back to the first, which is what we show.
+// Which account a new message is written from when no mailbox on screen names one, drawn as the
+// core decides it: no account, the only one, or a choice among the accounts used for mail.
 @Composable
 internal fun DefaultSendAccountCard(
-    accounts: List<AccountRow>,
-    selected: String?,
+    setting: SendAccountSetting,
     onSelect: (String?) -> Unit,
 ) {
     val ctx = LocalContext.current
-    var expanded by remember { mutableStateOf(false) }
-    val effective = accounts.firstOrNull { it.id == selected } ?: accounts.firstOrNull()
-    if (accounts.size <= 1) {
-        Text(
-            text = effective?.email ?: L10n.settings_accounts_empty(ctx),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        return
+    when (setting) {
+        is SendAccountSetting.NoAccount -> SendAccountText(L10n.settings_accounts_empty(ctx))
+        is SendAccountSetting.Only -> SendAccountText(setting.email)
+        is SendAccountSetting.Choose -> SendAccountPicker(setting, onSelect)
     }
+}
+
+@Composable
+private fun SendAccountText(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@Composable
+private fun SendAccountPicker(choose: SendAccountSetting.Choose, onSelect: (String?) -> Unit) {
+    val ctx = LocalContext.current
+    var expanded by remember { mutableStateOf(false) }
+    val selected = choose.accounts.firstOrNull { it.id == choose.selected }
     Box {
         TextButton(onClick = { expanded = true }) {
-            Text(effective?.email.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(selected?.email.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Icon(
                 painter = painterResource(R.drawable.ic_arrow_drop_down),
                 contentDescription = L10n.settings_send_account_heading(ctx),
             )
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            accounts.forEach { account ->
+            choose.accounts.forEach { account ->
                 DropdownMenuItem(
                     text = { Text(account.email) },
                     onClick = {

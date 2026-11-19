@@ -2,9 +2,8 @@
 // sends as, and through, that account (its identity AND its outbox), so this is an account
 // picker, not a free-text From header.
 //
-// The caller decides which account it opens on: the one that received the mail being replied
-// to/forwarded, else the selected mailbox's account, else the app-level default send account
-// (Settings → Composing). Kept in its own file so RichComposeScreen.kt stays small.
+// It opens on the account the core opened the composer on (`ComposeOpening.account`). Kept in its
+// own file so RichComposeScreen.kt stays small.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Box

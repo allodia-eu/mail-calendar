@@ -8,7 +8,6 @@ import android.content.Context
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
-import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposeKind
 import uniffi.mailcal_bindings.ComposeOpening
 import uniffi.mailcal_bindings.QuoteSettings
@@ -27,7 +26,7 @@ internal data class QuoteWords(val line: String, val headers: List<Pair<String, 
  */
 internal data class ComposeContext(
     val opening: ComposeOpening,
-    /** The account id the From dropdown opens on (`sendAccountFor`). */
+    /** The account id the From dropdown opens on: the opening's own account. */
     val initialFrom: String?,
     /** The style a fresh quote is seeded in: the app default. */
     val quoteStyle: QuoteStyleKind = QuoteStyleKind.INDENTED,
@@ -85,20 +84,6 @@ internal fun composeContext(
         quoteAttribution = ComposeOpeningSeed.attributionCompletion(opening, words),
     )
 }
-
-/**
- * The account the From dropdown opens on: `preferred` (the opening's account), else the app-level
- * default send account, else the first configured one. A stored default naming a removed account
- * degrades to the first rather than to nothing, which is the core's own resolution order.
- */
-internal fun sendAccountFor(
-    preferred: String?,
-    defaultSendAccount: String?,
-    accounts: List<AccountRow>,
-): String? = listOfNotNull(preferred, defaultSendAccount)
-    .firstNotNullOfOrNull { id -> accounts.firstOrNull { it.id == id } }
-    ?.id
-    ?: accounts.firstOrNull()?.id
 
 internal object ComposeOpeningSeed {
     fun modeOf(kind: ComposeKind): RichComposeMode = when (kind) {

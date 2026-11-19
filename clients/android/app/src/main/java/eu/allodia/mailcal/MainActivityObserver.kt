@@ -38,7 +38,7 @@ internal fun MainActivity.pullFor(surface: CoreSurface, app: MailcalApp) {
         CoreSurface.SETTINGS -> {
             quoteSettings = app.quoteSettings()
             swipeSettings = app.swipeSettings()
-            defaultSendAccount = app.defaultSendAccount()
+            sendAccountSetting = app.sendAccountSetting()
             val display = app.displaySettings()
             // The painted appearance follows a change to the stored one, and only a change: the
             // launch read the stored one already, and a debug override holds until a pick.

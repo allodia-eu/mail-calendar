@@ -1,6 +1,6 @@
 // How a composer opens from the core's `ComposeOpening`: which kind it is, which one seed the editor
 // gets, whether it may touch the signature, the attribution a reopened quote is completed with, the
-// style a reopened quote's picker opens on, and the account From opens on (docs/drafts.md).
+// style a reopened quote's picker opens on (docs/drafts.md).
 //
 // Each fails silently on screen: a reply titled as a new message, a second signature under a
 // stored one, a picker showing the wrong style. Robolectric, for org.json and the L10n catalog.
@@ -18,7 +18,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import uniffi.mailcal_bindings.AccountRow
 import uniffi.mailcal_bindings.ComposeKind
 import uniffi.mailcal_bindings.ComposeOpening
 import uniffi.mailcal_bindings.QuoteSettings
@@ -38,8 +37,6 @@ class ComposeOpeningSeedTest {
         quoteSettings = QuoteSettings(QuoteStyleKind.INDENTED, perMessage = true),
         dateText = { "2026-07-10 15:34" },
     )
-
-    private fun account(id: String) = AccountRow(id = id, email = "$id@example.test", name = "", expanded = false)
 
     @Test
     fun `the heading follows the kind the core names, a resumed reply included`() {
@@ -133,16 +130,6 @@ class ComposeOpeningSeedTest {
         assertNull(ComposeOpeningSeed.quoteStyleOf("""{"blocks":[{"Paragraph":{}}]}"""))
         assertNull(ComposeOpeningSeed.quoteStyleOf("not json"))
         assertNull(ComposeOpeningSeed.quoteStyleOf(null))
-    }
-
-    @Test
-    fun `from opens on the opening's account, then the default, then the first`() {
-        val accounts = listOf(account("work"), account("home"))
-
-        assertEquals("home", sendAccountFor("home", defaultSendAccount = "work", accounts = accounts))
-        assertEquals("work", sendAccountFor("gone", defaultSendAccount = "work", accounts = accounts))
-        assertEquals("work", sendAccountFor(null, defaultSendAccount = "removed", accounts = accounts))
-        assertNull(sendAccountFor("home", defaultSendAccount = null, accounts = emptyList()))
     }
 
     @Test

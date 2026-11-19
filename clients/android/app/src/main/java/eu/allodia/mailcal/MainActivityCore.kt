@@ -146,7 +146,7 @@ internal fun MainActivity.connect(
                 activity.timeZone = connected.timezoneSettings()
                 activity.quoteSettings = connected.quoteSettings()
                 activity.swipeSettings = connected.swipeSettings()
-                activity.defaultSendAccount = connected.defaultSendAccount()
+                activity.sendAccountSetting = connected.sendAccountSetting()
                 activity.displaySettings = connected.displaySettings()
                 activity.signatures = connected.signaturesPage()
                 // Is the usage-statistics question settled? `asked == false` puts the welcome
@@ -238,7 +238,7 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.timeZone = connected.timezoneSettings()
             activity.quoteSettings = connected.quoteSettings()
             activity.swipeSettings = connected.swipeSettings()
-            activity.defaultSendAccount = connected.defaultSendAccount()
+            activity.sendAccountSetting = connected.sendAccountSetting()
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signaturesPage()
             activity.refreshAccountsSnapshot()
