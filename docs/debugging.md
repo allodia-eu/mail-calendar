@@ -350,6 +350,31 @@ re-pointing the reverse back at the harness instead fails the next dial with `Un
 is still trusting the proxy). One thing it cannot do: make one folder of an *already-connected*
 account fail, because IMAP keeps its authenticated session (`docs/provider-oauth.md` → Known gaps).
 
+### Learning a writing style and drafting a reply against the harness
+
+Learning reads the account's Sent folder, so the seed appends eight of alice's own replies to her
+`Sent Items`, five in English and three in Dutch, one quoting the message it answers and one
+signed (`docker/stalwart/seed/sent/`). Each is dated a number of days before the seed day, so it
+stays inside a new account's sync window, and is appended after the row-menu conversations, so
+they are the newest rows in `Sent Items`; no harness expectation reads that folder's newest rows
+or its count. Every recipient is on `@test.local` and none is a harness account, so a reply to one
+that a run does send stays inside the container and lands in no seeded inbox.
+
+A model to send to is [`ai-mock.py`](../scripts/dev/ai-mock.py), a canned OpenAI-compatible
+endpoint on loopback only:
+
+```sh
+scripts/dev/ai-mock.py                      # http://127.0.0.1:28434/v1; --delay, --status, --key
+adb reverse tcp:28434 tcp:28434             # Android only: plain HTTP is admitted to this device alone
+```
+
+Set it up under Settings → Advanced → Own AI endpoint as `http://127.0.0.1:28434/v1`, any model,
+declared as run in the EU by a European company. A draft gets a reply with one `[date]` gap, a
+summary and a task of each other kind, in Dutch where the request asks for Dutch; learning gets one
+fixed description. `--delay` holds each answer so the progress states can be seen, `--status`
+answers every request with that status (402, 429, 500), and `--key` refuses any other bearer. It
+prints a line per request and never what the request carried.
+
 ## 3. Read logs in the background
 
 Run the log tail as a background job so records stream while you drive the app:
@@ -727,11 +752,20 @@ MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
 # Every platform, showcase (either dataset) and the demo only: the writing assistant offered
-# (docs/ai.md rule 5), so the own endpoint's form under Settings → Advanced and Settings → Writing
-# style can be driven. Reads in the CORE, like the three above. Without it an in-memory boot offers
-# the feature to nobody, which keeps it out of the store captures. Nothing it would send leaves the
-# device: every request answers as unreachable, and a key typed is refused, since these boots keep
-# none. The Writing style page has no learned style to show.
+# (docs/ai.md rule 5), so the own endpoint's form under Settings → Advanced, Settings → Writing
+# style and Draft a reply can be driven. Reads in the CORE, like the three above. Without it an
+# in-memory boot offers the feature to nobody and stages nothing, which keeps it out of the store
+# captures. On a boot with an account it also stages, for the first account:
+#   - two learned styles: "Work", its reveal shown, so its row opens the detail, and the style the
+#     account drafts in; "Newly learned", its reveal not shown, so its row opens the reveal, with
+#     every page in English and Dutch and German holding greetings and sign-offs alone;
+#   - an own endpoint on this device, http://localhost:11434/v1, model `showcase-canned`, declared
+#     EU-native, so Learn and Draft are offered.
+# Nothing leaves the device. A draft asked of `showcase-canned` gets a canned reply with a summary
+# and one checklist item of each kind (a [delivery date] gap, a file to attach, a task), so Draft a
+# reply reaches Drafted once the editor reports the draft in; save the form with any other model
+# and Draft ends in Failed, unreachable. Learning always fails as unreachable, and a key typed is
+# refused, since these boots keep none.
 MAILCAL_OFFER_AI=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the

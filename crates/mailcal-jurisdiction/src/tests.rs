@@ -1,4 +1,4 @@
-use super::{Class, Destination, Mode, Refused, classify, gate};
+use super::{Class, Destination, Limit, Mode, Refused, classify, gate};
 
 /// The whole table, written out rather than derived, so a change to the rule has to change a
 /// line a reviewer reads.
@@ -30,15 +30,48 @@ fn a_refusal_names_the_mode_and_the_class_it_did_not_admit() {
     let refused = gate(Mode::EuNative, Class::NonEu).unwrap_err();
     assert_eq!(
         refused,
-        Refused {
-            mode: Mode::EuNative,
-            class: Class::NonEu,
+        Refused::NonEu {
+            mode: Limit::EuNative
         }
     );
     assert_eq!(
         refused.to_string(),
         "a non-eu destination is not admitted under eu-native"
     );
+}
+
+/// Each refusal the gate gives reads back as the mode and the class it was asked with, and each
+/// of the five a refusal can express is given by some pair.
+#[test]
+fn a_refusal_expresses_exactly_what_the_gate_refuses() {
+    let mut given = Vec::new();
+    for mode in Mode::ALL {
+        for class in Class::ALL {
+            if let Err(refused) = gate(mode, class) {
+                assert_eq!((refused.mode(), refused.class()), (mode, class));
+                given.push(refused);
+            }
+        }
+    }
+    let expressible = [
+        Refused::EuHosted,
+        Refused::NonEu {
+            mode: Limit::EuHosted,
+        },
+        Refused::NonEu {
+            mode: Limit::EuNative,
+        },
+        Refused::Unknown {
+            mode: Limit::EuHosted,
+        },
+        Refused::Unknown {
+            mode: Limit::EuNative,
+        },
+    ];
+    assert_eq!(given.len(), expressible.len());
+    for refused in expressible {
+        assert!(given.contains(&refused), "{refused:?} is never given");
+    }
 }
 
 #[test]

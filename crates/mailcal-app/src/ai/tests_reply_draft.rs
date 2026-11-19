@@ -19,7 +19,9 @@ use super::{
 };
 use crate::{
     App, ComposeOrigin, CompositionId, Intent,
-    ai::{AiFailure, AiQueued, AiRemedy, BuildKind, ReplyDraftState},
+    ai::{
+        AiFailure, AiQueued, AiRemedy, BuildKind, RemedyControl, ReplyDraftHold, ReplyDraftState,
+    },
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -240,10 +242,42 @@ async fn what_the_relay_refused_is_a_failure_with_its_remedy() {
         failed.state,
         ReplyDraftState::Failed {
             failure: AiFailure::RelaySignIn,
-            remedy: Some(AiRemedy::SignInToAllodia),
+            remedy: Some(RemedyControl {
+                remedy: AiRemedy::SignInToAllodia,
+                enabled: true,
+            }),
         }
     );
     assert!(failed.draft.enabled, "it can be asked again");
+}
+
+/// Try again is Draft again, so it is held exactly when Draft is.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn try_again_is_held_with_draft() {
+    let relay = ScriptedRelay::answering(Err(AiError::Unreachable));
+    let (app, _) = assistant(ThreadProvider::with(vec![original_message("m1")]), &relay).await;
+    let reply = open_reply(&app, "reply").await;
+    app.take_reply_draft_report(&reply, report(0, LeadText::Empty, false, vec![], 0), 0);
+    app.draft_reply(&reply, start(false));
+    run(&app).await;
+    let try_again = |app: &App<ThreadProvider>| match view(app, &reply).state {
+        ReplyDraftState::Failed {
+            failure: AiFailure::Unreachable,
+            remedy: Some(remedy),
+        } => remedy,
+        other => panic!("failed and offering Try again, not {other:?}"),
+    };
+    assert_eq!(try_again(&app).remedy, AiRemedy::TryAgain);
+    assert!(try_again(&app).enabled);
+
+    app.assign_writing_style("acct-1", None);
+    let held = view(&app, &reply);
+    assert!(!held.draft.enabled);
+    assert!(!try_again(&app).enabled, "held with Draft");
+    assert_eq!(
+        held.held_by.map(|hold| hold.failure),
+        Some(AiFailure::NoStyleForAccount)
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -260,7 +294,10 @@ async fn it_says_why_it_cannot_draft_and_is_offered_on_a_reply_only() {
         BuildKind::Development,
     );
     let unavailable = |app: &App<ThreadProvider>| match view(app, &reply).state {
-        ReplyDraftState::Unavailable { failure, remedy } => (failure, remedy),
+        ReplyDraftState::Unavailable { failure, remedy } => {
+            assert!(remedy.is_none_or(|remedy| remedy.enabled), "{remedy:?}");
+            (failure, remedy.map(|remedy| remedy.remedy))
+        }
         other => panic!("unavailable, not {other:?}"),
     };
     assert_eq!(
@@ -273,7 +310,16 @@ async fn it_says_why_it_cannot_draft_and_is_offered_on_a_reply_only() {
         "pressed, it opens the input with the reason"
     );
     assert!(!control.draft.enabled);
-    assert_eq!(control.held_by, Some(AiFailure::NoStyle));
+    assert_eq!(
+        control.held_by,
+        Some(ReplyDraftHold {
+            failure: AiFailure::NoStyle,
+            remedy: Some(RemedyControl {
+                remedy: AiRemedy::LearnStyle,
+                enabled: true,
+            }),
+        })
+    );
 
     learn_a_style(&app);
     app.assign_writing_style("acct-1", None);

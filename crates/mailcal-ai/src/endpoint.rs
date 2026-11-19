@@ -151,6 +151,18 @@ fn address_error(base_url: &str) -> Result<(), EndpointError> {
     }
 }
 
+/// Whether two addresses reach the same server: the same host and port as the URL parser
+/// normalises them, a scheme's default port counting as none given, so a change of path or of
+/// scheme alone keeps the server. An address that is not a URL reaches none.
+#[must_use]
+pub fn same_server(a: &str, b: &str) -> bool {
+    let server = |address: &str| {
+        let url = url::Url::parse(address.trim()).ok()?;
+        Some((url.host()?.to_owned(), url.port()))
+    };
+    matches!((server(a), server(b)), (Some(a), Some(b)) if a == b)
+}
+
 /// Whether a URL's host is this device.
 fn is_this_device(url: &url::Url) -> bool {
     match url.host() {

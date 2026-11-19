@@ -55,8 +55,8 @@ fn nothing_reaches_the_backend_unless_the_gate_admits_it() {
                 Ok(_) => assert!(admitted),
                 Err(AiError::Refused(refused)) => {
                     assert!(!admitted);
-                    assert_eq!(refused.mode, mode);
-                    assert_eq!(refused.class, classify(&destination));
+                    assert_eq!(refused.mode(), mode);
+                    assert_eq!(refused.class(), classify(&destination));
                 }
                 Err(other) => panic!("unexpected {other:?}"),
             }

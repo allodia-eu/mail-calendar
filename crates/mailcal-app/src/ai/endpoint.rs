@@ -9,7 +9,7 @@ use std::fmt;
 
 use engine_api::Provider;
 use mailcal_account::AiEndpoint;
-use mailcal_ai::{Class, EndpointError, Mode, OwnEndpoint, endpoint_errors};
+use mailcal_ai::{Class, EndpointError, Mode, OwnEndpoint, Refused, endpoint_errors, same_server};
 
 use super::KeyNotStored;
 use crate::App;
@@ -31,15 +31,21 @@ pub enum AiEndpointDeclarationGap {
     /// Nothing was declared.
     Missing,
     /// The gate refuses what was declared under the mode in force.
-    Refused {
-        /// The mode in force.
-        mode: Mode,
-        /// The class declared.
-        class: Class,
-    },
+    Refused(Refused),
 }
 
-/// Every field's problem at once; a field with none has none here.
+/// What a save with the key field empty does to the key kept (`docs/ai.md` rule 7).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AiEndpointKeptKey {
+    /// It stays: the address is on the stored endpoint's server.
+    Carried,
+    /// It is taken out: the address is on another server, or none is stored, and the key was
+    /// given for that one.
+    Dropped,
+}
+
+/// Every field's problem at once; a field with none has none here. Beside them, what the save
+/// would do to the key kept, which refuses nothing.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AiEndpointGaps {
     /// The address's.
@@ -48,6 +54,8 @@ pub struct AiEndpointGaps {
     pub model_missing: bool,
     /// The declaration's.
     pub declaration: Option<AiEndpointDeclarationGap>,
+    /// What a save with the key field empty does to the key kept; `None` while none is kept.
+    pub kept_key: Option<AiEndpointKeptKey>,
 }
 
 impl AiEndpointGaps {
@@ -59,6 +67,7 @@ impl AiEndpointGaps {
 }
 
 /// What a save of these fields would refuse, under `mode`. The key is not judged: it may be empty.
+/// What the save does to a key kept is the app's to say ([`App::ai_endpoint_gap`]).
 #[must_use]
 pub fn ai_endpoint_gaps(
     address: &str,
@@ -79,10 +88,7 @@ pub fn ai_endpoint_gaps(
         None => Some(AiEndpointDeclarationGap::Missing),
         Some(class) => mailcal_jurisdiction::gate(mode, class)
             .err()
-            .map(|refused| AiEndpointDeclarationGap::Refused {
-                mode: refused.mode,
-                class: refused.class,
-            }),
+            .map(AiEndpointDeclarationGap::Refused),
     };
     gaps
 }
@@ -96,8 +102,9 @@ pub struct AiEndpointEdit {
     pub model: String,
     /// Where the person declared it runs.
     pub declared: Option<Class>,
-    /// The key as typed, which replaces the one kept. Empty leaves the kept key as it is and
-    /// writes nothing to the keystore (`docs/ai.md` rule 7).
+    /// The key as typed, which replaces the one kept. Empty keeps the kept key while the address
+    /// stays on the stored endpoint's server, writing nothing to the keystore, and takes it out
+    /// otherwise (`docs/ai.md` rule 7).
     pub key: String,
 }
 
@@ -177,7 +184,8 @@ pub struct AiEndpointFields {
     pub model: String,
     /// Where it runs.
     pub declared: Option<Class>,
-    /// Whether a key is kept. The key itself is never drawn back.
+    /// Whether a key is kept, which Remove takes out. The key itself is never drawn back, and
+    /// whether a save keeps it is [`AiEndpointGaps::kept_key`], asked of the address as typed.
     pub key_kept: bool,
 }
 
@@ -286,8 +294,8 @@ impl<P: Provider> App<P> {
         }
     }
 
-    /// What a save of these fields would refuse under the mode in force: [`ai_endpoint_gaps`]
-    /// with the mode read here.
+    /// What a save of these fields would refuse under the mode in force, [`ai_endpoint_gaps`]
+    /// with the mode read here, and what it would do to the key kept.
     #[must_use]
     pub fn ai_endpoint_gap(
         &self,
@@ -295,7 +303,24 @@ impl<P: Provider> App<P> {
         model: &str,
         declared: Option<Class>,
     ) -> AiEndpointGaps {
-        ai_endpoint_gaps(address, model, declared, self.ai_mode())
+        AiEndpointGaps {
+            kept_key: self.kept_key_for(address),
+            ..ai_endpoint_gaps(address, model, declared, self.ai_mode())
+        }
+    }
+
+    /// What a save of `address` with the key field empty does to the key kept, or `None` while
+    /// none is kept. A key goes only to the server it was given for.
+    fn kept_key_for(&self, address: &str) -> Option<AiEndpointKeptKey> {
+        self.ai.ports().key.as_ref()?;
+        let stored = self.ai.settings().endpoint.clone();
+        Some(
+            if stored.is_some_and(|stored| same_server(&stored.base_url, address)) {
+                AiEndpointKeptKey::Carried
+            } else {
+                AiEndpointKeptKey::Dropped
+            },
+        )
     }
 
     /// Queues a change to the own endpoint and signals [`crate::Surface::AiEndpoint`]. Whether the
@@ -356,7 +381,15 @@ impl<P: Provider> App<P> {
                         }
                     };
                 let key = edit.key.trim();
-                if !key.is_empty() && self.write_endpoint_key(Some(key)).is_err() {
+                let written = if !key.is_empty() {
+                    self.write_endpoint_key(Some(key))
+                } else if gaps.kept_key == Some(AiEndpointKeptKey::Dropped) {
+                    log::info!("ai: the endpoint moved to another server, so its key was dropped");
+                    self.write_endpoint_key(None)
+                } else {
+                    Ok(())
+                };
+                if written.is_err() {
                     self.endpoint_work().refused = Some(edit);
                     return AiEndpointResult::KeyNotStored;
                 }

@@ -3,7 +3,7 @@
 use std::sync::{Arc, Mutex};
 
 use mailcal_ai::{
-    Class, Destination, Mode,
+    Class, Destination, Limit, Mode, Refused,
     wire::{ChatMessage, ChatRequest, Purpose},
 };
 
@@ -128,10 +128,9 @@ fn the_gate_refuses_an_endpoint_the_mode_in_force_does_not_admit() {
     assert_eq!(fixture.app.ai_mode(), Mode::EuNative);
     assert_eq!(
         fixture.app.ai_route(),
-        Err(AiFailure::Refused {
-            mode: Mode::EuNative,
-            class: Class::NonEu,
-        })
+        Err(AiFailure::Refused(Refused::NonEu {
+            mode: Limit::EuNative,
+        }))
     );
 }
 

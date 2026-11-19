@@ -10,7 +10,7 @@ use super::{
 };
 use crate::{
     Surface,
-    ai::{AiFailure, AiRemedy, AiRoute},
+    ai::{AiFailure, AiRemedy, AiRoute, RemedyControl},
     tests_fakes::FakeProvider,
 };
 
@@ -165,11 +165,13 @@ async fn a_failed_run_offers_its_remedy_and_try_again_learns() {
     assert_eq!(
         view.stage,
         LearningStage::Failed {
-            failure: AiFailure::ServerError
+            failure: AiFailure::ServerError,
+            remedy: Some(RemedyControl {
+                remedy: AiRemedy::TryAgain,
+                enabled: true,
+            }),
         }
     );
-    assert_eq!(AiFailure::ServerError.remedy(), Some(AiRemedy::TryAgain));
-    assert!(view.remedy.is_some_and(|remedy| remedy.enabled));
     assert!(view.back.is_some());
 
     *learner.host.answer.lock().unwrap() = Answer::Describe;
@@ -210,7 +212,13 @@ async fn an_account_without_a_sent_folder_fails_and_offers_another() {
     let failure = AiFailure::NoSentFolder {
         another_account: true,
     };
-    assert_eq!(learner.view().stage, LearningStage::Failed { failure });
+    assert_eq!(
+        learner.view().stage,
+        LearningStage::Failed {
+            failure,
+            remedy: failure.remedy_control(true),
+        }
+    );
     learner.press(LearningIntent::Remedy).await;
     assert!(matches!(
         learner.view().stage,
@@ -229,7 +237,8 @@ async fn nowhere_to_send_reads_nothing_and_offers_the_endpoint() {
     assert_eq!(
         learner.view().stage,
         LearningStage::Failed {
-            failure: AiFailure::NowhereToSend
+            failure: AiFailure::NowhereToSend,
+            remedy: AiFailure::NowhereToSend.remedy_control(true),
         }
     );
     assert_eq!(

@@ -16,7 +16,7 @@ use std::{
 use engine_api::Provider;
 use mailcal_account::AiPreferences;
 use mailcal_ai::ModeSource;
-pub use mailcal_ai::{Class, Mode};
+pub use mailcal_ai::{Class, Limit, Mode, Refused};
 
 mod drafted;
 mod endpoint;
@@ -34,17 +34,17 @@ mod writing_style;
 
 pub use endpoint::{
     AiEndpointAddressGap, AiEndpointChange, AiEndpointChangeKind, AiEndpointDeclarationGap,
-    AiEndpointEdit, AiEndpointFields, AiEndpointGaps, AiEndpointOutcome, AiEndpointResult,
-    AiEndpointView, ai_endpoint_gaps,
+    AiEndpointEdit, AiEndpointFields, AiEndpointGaps, AiEndpointKeptKey, AiEndpointOutcome,
+    AiEndpointResult, AiEndpointView, ai_endpoint_gaps,
 };
-pub use failure::{AiFailure, AiRemedy};
+pub use failure::{AiFailure, AiRemedy, RemedyControl};
 pub use host::{AiCancel, AiHost, AiRelay, KeyNotStored, RelayStatus};
 pub use mailcal_account::{DRAFTED_REPLY_KEYWORD, StoredWritingStyle, WritingStyleId};
 pub use offer::{AiEntitlement, BuildKind, ai_offered};
 pub(crate) use reply_draft::ReplyDraftHeld;
 pub use reply_draft::{
-    REPLY_DRAFT_SUGGESTIONS, ReplyDraftControl, ReplyDraftItem, ReplyDraftScript, ReplyDraftState,
-    ReplyDraftSuggestion, ReplyDraftView,
+    REPLY_DRAFT_SUGGESTIONS, ReplyDraftControl, ReplyDraftHold, ReplyDraftItem, ReplyDraftScript,
+    ReplyDraftState, ReplyDraftSuggestion, ReplyDraftView,
 };
 pub use reply_draft_flow::ReplyDraftStart;
 pub use route::AiRoute;
@@ -197,6 +197,8 @@ impl<P: Provider> App<P> {
 
 #[cfg(test)]
 mod tests_endpoint;
+#[cfg(test)]
+mod tests_endpoint_key;
 #[cfg(test)]
 mod tests_route;
 #[cfg(test)]
