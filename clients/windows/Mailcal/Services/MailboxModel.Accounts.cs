@@ -52,12 +52,13 @@ public sealed partial class MailboxModel
         // connecting so a connect failure's own NeedsSetup is not overwritten, and so a successful
         // first-run connect (account-less engine) keeps the form up until the user adds an account.
         //
-        // The Allodia grant lives in this same store under a reserved id, so the length of this
-        // array is not the number of mail accounts. Somebody who signs in on the first-run screen
-        // and quits before adding a mailbox would otherwise be met at the next launch by an empty
-        // inbox and no way back to setup. The core routes that entry out before anything reads it
-        // as a mailbox; this asks it the same question.
-        NeedsSetup = configs.All(MailcalBindingsMethods.IsAllodiaAccountConfig);
+        // The core keeps entries of its own in this same store under reserved ids (the Allodia
+        // grant, the own AI endpoint's key), so the length of this array is not the number of mail
+        // accounts. Somebody who signs in on the first-run screen, or saves an endpoint, and quits
+        // before adding a mailbox would otherwise be met at the next launch by an empty inbox and
+        // no way back to setup. The core routes those entries out before anything reads them as a
+        // mailbox; this asks it the same question.
+        NeedsSetup = configs.All(MailcalBindingsMethods.IsReservedConfig);
         Log.Info(configs.Length == 0
             ? "no stored account, bringing up an account-less app for setup"
             : $"{configs.Length} stored account(s), connecting");
