@@ -12,7 +12,7 @@ use std::{
     fmt,
 };
 
-use crate::language;
+use crate::language::{self, LanguageCode};
 
 mod sample;
 mod strip;
@@ -116,7 +116,7 @@ impl fmt::Debug for CorpusMessage {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Corpus {
     /// The sampled messages per ISO 639-1 code, oldest first.
-    pub languages: BTreeMap<String, Vec<CorpusMessage>>,
+    pub languages: BTreeMap<LanguageCode, Vec<CorpusMessage>>,
     /// What was found.
     pub report: CorpusReport,
 }
@@ -141,10 +141,10 @@ pub struct CorpusReport {
 }
 
 /// One language's share of the corpus.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LanguageReport {
-    /// ISO 639-1 code.
-    pub language: String,
+    /// The language.
+    pub language: LanguageCode,
     /// Usable messages in it.
     pub usable: u32,
     /// How many the sample holds.
@@ -170,7 +170,7 @@ pub fn build(messages: Vec<SentMessage>, options: &CorpusOptions) -> Corpus {
         ..CorpusReport::default()
     };
     let mut seen = HashSet::new();
-    let mut by_language: BTreeMap<String, Vec<CorpusMessage>> = BTreeMap::new();
+    let mut by_language: BTreeMap<LanguageCode, Vec<CorpusMessage>> = BTreeMap::new();
     for message in messages {
         if message.calendar || is_automatic(&message.subject) {
             continue;
@@ -189,7 +189,7 @@ pub fn build(messages: Vec<SentMessage>, options: &CorpusOptions) -> Corpus {
             continue;
         };
         by_language
-            .entry(language.to_owned())
+            .entry(language)
             .or_default()
             .push(CorpusMessage {
                 key: message.key,

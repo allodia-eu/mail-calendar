@@ -132,3 +132,10 @@ impl HttpTransport for CannedTransport {
         }
     }
 }
+
+/// `code` as a language code that lives as long as the test, for a request's borrowed fields.
+pub(crate) fn lang(code: &str) -> &'static crate::LanguageCode {
+    Box::leak(Box::new(
+        crate::LanguageCode::new(code).expect("a two-letter code"),
+    ))
+}

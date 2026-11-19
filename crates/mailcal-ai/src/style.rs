@@ -15,6 +15,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::language::LanguageCode;
+
 /// The schema version this crate writes.
 pub const SCHEMA_VERSION: u32 = 1;
 
@@ -24,9 +26,9 @@ pub const SCHEMA_VERSION: u32 = 1;
 pub struct StyleGuide {
     /// The schema version the guide was written under.
     pub schema_version: u32,
-    /// One entry per language the person writes in, keyed by its ISO 639-1 code.
+    /// One entry per language the person writes in.
     #[serde(default)]
-    pub languages: BTreeMap<String, LanguageStyle>,
+    pub languages: BTreeMap<LanguageCode, LanguageStyle>,
     /// What the person added or corrected, in their own words. Sent with every draft.
     #[serde(default)]
     pub notes: String,
@@ -54,7 +56,7 @@ impl StyleGuide {
     /// The language a reply is written in when nothing better is known: the one most messages
     /// were learned from.
     #[must_use]
-    pub fn main_language(&self) -> Option<&str> {
+    pub fn main_language(&self) -> Option<&LanguageCode> {
         self.learned
             .as_ref()
             .and_then(|learned| {
@@ -62,9 +64,9 @@ impl StyleGuide {
                     .messages_per_language
                     .iter()
                     .max_by_key(|(_, count)| **count)
-                    .map(|(language, _)| language.as_str())
+                    .map(|(language, _)| language)
             })
-            .or_else(|| self.languages.keys().next().map(String::as_str))
+            .or_else(|| self.languages.keys().next())
     }
 }
 
@@ -96,7 +98,7 @@ pub struct Provenance {
     pub newest: Option<i64>,
     /// How many messages each language was learned from.
     #[serde(default)]
-    pub messages_per_language: BTreeMap<String, u32>,
+    pub messages_per_language: BTreeMap<LanguageCode, u32>,
     /// When it was learned, as seconds since the Unix epoch.
     #[serde(default)]
     pub learned_at: i64,
@@ -261,9 +263,9 @@ fn truncate(text: &str, cap: usize) -> String {
 pub struct Exemplars {
     /// The schema version they were written under.
     pub schema_version: u32,
-    /// The passages, keyed by ISO 639-1 code.
+    /// The passages, per language.
     #[serde(default)]
-    pub languages: BTreeMap<String, Vec<String>>,
+    pub languages: BTreeMap<LanguageCode, Vec<String>>,
     /// Fields a newer version wrote.
     #[serde(flatten)]
     pub unknown: Map<String, Value>,

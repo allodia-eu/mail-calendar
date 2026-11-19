@@ -9,7 +9,7 @@ use mailcal_jurisdiction::{Class, Mode};
 use super::{DraftRequest, ThreadMessage, draft_reply};
 use crate::{
     AiError, Exemplars, GatedBackend, Habit, LanguageStyle, OwnEndpoint, StyleGuide,
-    test_support::{CannedTransport, gated, text_answer},
+    test_support::{CannedTransport, gated, lang, text_answer},
     wire::{ChatRequest, ChatResponse},
 };
 
@@ -18,7 +18,7 @@ const SIGNATURE: &str = "Met vriendelijke groet,\nSanne de Vries\nAllodia";
 fn guide() -> StyleGuide {
     let mut guide = StyleGuide::new();
     guide.languages.insert(
-        "nl".to_owned(),
+        lang("nl").clone(),
         LanguageStyle {
             sign_offs: vec![
                 Habit {
@@ -59,9 +59,9 @@ fn request<'a>(
         exemplars,
         recipient_messages,
         intent: None,
-        language: Some("nl"),
+        language: Some(lang("nl")),
         signature,
-        ui_language: "en",
+        ui_language: lang("en"),
     }
 }
 

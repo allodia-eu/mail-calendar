@@ -244,3 +244,31 @@ fn any_other_refusal_is_not_repeated() {
         assert_eq!(sent.lock().unwrap().len(), 1, "{body}");
     }
 }
+
+#[test]
+fn every_field_is_judged_at_once_and_the_constructor_refuses_by_the_first() {
+    use super::endpoint_errors;
+    assert_eq!(
+        endpoint_errors("  ", " "),
+        [EndpointError::NoAddress, EndpointError::NoModel]
+    );
+    assert_eq!(
+        endpoint_errors("http://models.example.eu/v1", ""),
+        [EndpointError::NotHttps, EndpointError::NoModel]
+    );
+    assert_eq!(
+        endpoint_errors("ftp://models.example.eu", "m"),
+        [EndpointError::InvalidUrl]
+    );
+    assert_eq!(endpoint_errors(" https://models.example.eu/v1 ", " m "), []);
+    assert_eq!(
+        OwnEndpoint::new("", None, "", None),
+        Err(EndpointError::NoAddress)
+    );
+}
+
+#[test]
+fn the_host_is_the_name_alone() {
+    let endpoint = OwnEndpoint::new("https://models.example.eu:8443/v1", None, "m", None).unwrap();
+    assert_eq!(endpoint.host(), "models.example.eu");
+}

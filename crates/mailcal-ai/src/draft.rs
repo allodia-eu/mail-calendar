@@ -12,7 +12,8 @@ use std::fmt;
 use crate::{
     AiError, Exemplars, GatedBackend, LanguageStyle, StyleGuide,
     checklist::{self, Answered, DraftTask},
-    closing, draft_instructions, language,
+    closing, draft_instructions,
+    language::{self, LanguageCode},
     lean::lean,
     prompt::fence,
     tool,
@@ -62,11 +63,11 @@ pub struct DraftRequest<'a> {
     pub intent: Option<&'a str>,
     /// The language to answer in; `None` answers in the language of the message being answered,
     /// or the guide's main language when that cannot be told.
-    pub language: Option<&'a str>,
+    pub language: Option<&'a LanguageCode>,
     /// The plain text of the signature block the composer adds below the body.
     pub signature: Option<&'a str>,
     /// The catalog locale the app is shown in; the summary and the checklist are written in it.
-    pub ui_language: &'a str,
+    pub ui_language: &'a LanguageCode,
 }
 
 impl fmt::Debug for DraftRequest<'_> {
@@ -92,7 +93,7 @@ pub struct Draft {
     /// What the person still has to do before sending: the gaps, then what to attach and do.
     pub tasks: Vec<DraftTask>,
     /// The language it was written in.
-    pub language: String,
+    pub language: LanguageCode,
     /// What the relay charged and the balance after; `None` from an own endpoint.
     pub metering: Option<Metering>,
     /// The tokens the request read and wrote, when the server said.
@@ -120,15 +121,15 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     let answering = request.thread.last().ok_or(AiError::Malformed)?;
     let language = request
         .language
+        .cloned()
         .or_else(|| language::detect(&answering.body))
-        .or_else(|| request.guide.main_language())
-        .unwrap_or("en")
-        .to_owned();
+        .or_else(|| request.guide.main_language().cloned())
+        .unwrap_or_else(|| LanguageCode::new("en").expect("a two-letter code"));
     let style = style_for(request.guide, &language);
     let passages = request
         .exemplars
         .languages
-        .get(&language)
+        .get(language.as_str())
         .map_or(&[][..], Vec::as_slice);
 
     let (tool, choice) =
@@ -137,8 +138,8 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
         purpose: Purpose::Draft,
         messages: vec![
             ChatMessage::system(draft_instructions::render(
-                &language,
-                request.ui_language,
+                language.as_str(),
+                request.ui_language.as_str(),
                 style,
                 request.signature,
             )),
@@ -246,7 +247,7 @@ fn quotes(text: &str, instructions: &str) -> bool {
 
 /// The guide's section for `language`, or for its main language when it has none: a person who
 /// writes Dutch is still themselves in a German reply.
-fn style_for<'a>(guide: &'a StyleGuide, language: &str) -> Option<&'a LanguageStyle> {
+fn style_for<'a>(guide: &'a StyleGuide, language: &LanguageCode) -> Option<&'a LanguageStyle> {
     guide.languages.get(language).or_else(|| {
         guide
             .main_language()

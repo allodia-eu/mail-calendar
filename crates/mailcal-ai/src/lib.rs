@@ -38,8 +38,9 @@ mod test_support;
 pub use backend::{AiBackend, AiError};
 pub use checklist::{DraftTask, TaskKind};
 pub use draft::{Draft, DraftRequest, THREAD_CHARS, ThreadMessage, draft_reply};
-pub use endpoint::{EndpointError, OwnEndpoint};
+pub use endpoint::{EndpointError, OwnEndpoint, endpoint_errors};
 pub use gated::{GatedBackend, ModeSource, admit};
+pub use language::LanguageCode;
 pub use lean::lean;
 pub use learn::{
     LearnError, LearnOptions, LearnProgress, Learned, REQUEST_BUDGET_TOKENS, learn_style,

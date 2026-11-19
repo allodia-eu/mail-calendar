@@ -1,7 +1,7 @@
 use super::{DraftRequest, ThreadMessage, draft_reply, gaps};
 use crate::{
     AiError, DraftTask, Exemplars, LanguageStyle, StyleGuide, TaskKind,
-    test_support::{gated, text_answer, tool_answer},
+    test_support::{gated, lang, text_answer, tool_answer},
     wire::Purpose,
 };
 
@@ -10,7 +10,7 @@ fn guide() -> StyleGuide {
     guide.notes = "Never use exclamation marks.".to_owned();
     for (language, name) in [("nl", "Sanne"), ("en", "D.")] {
         guide.languages.insert(
-            language.to_owned(),
+            lang(language).clone(),
             LanguageStyle {
                 signs_as: name.to_owned(),
                 typical_words: 60,
@@ -26,10 +26,10 @@ fn exemplars() -> Exemplars {
     let mut exemplars = Exemplars::new();
     exemplars
         .languages
-        .insert("nl".to_owned(), vec!["Hoi Anna, prima zo.".to_owned()]);
+        .insert(lang("nl").clone(), vec!["Hoi Anna, prima zo.".to_owned()]);
     exemplars
         .languages
-        .insert("en".to_owned(), vec!["Hi Anna, fine by me.".to_owned()]);
+        .insert(lang("en").clone(), vec!["Hi Anna, fine by me.".to_owned()]);
     exemplars
 }
 
@@ -69,7 +69,7 @@ fn a_reply_is_drafted_in_the_language_it_answers_with_that_language_s_style() {
             intent: Some("ja, maar pas volgende week"),
             language: None,
             signature: Some("Sanne de Vries\nAllodia"),
-            ui_language: "en",
+            ui_language: lang("en"),
         },
         &backend,
     )
@@ -121,9 +121,9 @@ fn a_chosen_language_wins_and_a_missing_section_falls_back_to_the_main_one() {
             exemplars: &Exemplars::new(),
             recipient_messages: &[],
             intent: None,
-            language: Some("fr"),
+            language: Some(lang("fr")),
             signature: None,
-            ui_language: "en",
+            ui_language: lang("en"),
         },
         &backend,
     )
@@ -160,9 +160,9 @@ fn a_thread_cannot_close_its_own_fence() {
             exemplars: &Exemplars::new(),
             recipient_messages: &[],
             intent: None,
-            language: Some("en"),
+            language: Some(lang("en")),
             signature: None,
-            ui_language: "en",
+            ui_language: lang("en"),
         },
         &backend,
     )
@@ -184,9 +184,9 @@ fn a_code_fence_around_the_answer_is_taken_off() {
             exemplars: &Exemplars::new(),
             recipient_messages: &[],
             intent: None,
-            language: Some("en"),
+            language: Some(lang("en")),
             signature: None,
-            ui_language: "en",
+            ui_language: lang("en"),
         },
         &backend,
     )
@@ -206,9 +206,9 @@ fn an_empty_thread_or_an_empty_answer_is_malformed() {
                 exemplars: &Exemplars::new(),
                 recipient_messages: &[],
                 intent: None,
-                language: Some("en"),
+                language: Some(lang("en")),
                 signature: None,
-                ui_language: "en",
+                ui_language: lang("en"),
             },
             &backend,
         )
@@ -242,9 +242,9 @@ fn a_draft_prints_no_text() {
             exemplars: &Exemplars::new(),
             recipient_messages: &[],
             intent: Some("secret intent"),
-            language: Some("en"),
+            language: Some(lang("en")),
             signature: None,
-            ui_language: "en",
+            ui_language: lang("en"),
         },
         &backend,
     )
@@ -274,7 +274,7 @@ fn a_draft_comes_with_what_the_message_asks_and_what_is_left_to_do() {
             intent: None,
             language: None,
             signature: None,
-            ui_language: "en",
+            ui_language: lang("en"),
         },
         &backend,
     )
