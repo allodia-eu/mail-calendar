@@ -23,7 +23,7 @@ public class AiEndpointRulesTests
     private static readonly AiEndpointTyped Typed = new("https://ai.example.eu/v1", string.Empty, "model", JurisdictionClass.EuNative);
 
     private static AiEndpointForm Form(AiEndpointOutcome? outcome = null) =>
-        new(string.Empty, string.Empty, null, false, None, Free, new ControlState(false, false), outcome);
+        new(string.Empty, string.Empty, null, false, Free, null, outcome);
 
     private static AiEndpointOutcome Outcome(ulong serial, AiEndpointResult result) =>
         new(serial, AiEndpointChangeKind.Save, result);
@@ -65,13 +65,6 @@ public class AiEndpointRulesTests
         Assert.Equal(new ControlState(false, false), AiEndpointRules.SaveState(Free, None with { ModelMissing = true }));
         Assert.Equal(Running, AiEndpointRules.SaveState(Running, None));
     }
-
-    // An empty field keeps the kept key: sending one would take it out.
-    [Theory]
-    [InlineData("", null)]
-    [InlineData("   ", null)]
-    [InlineData("sk-1", "sk-1")]
-    public void AnEmptyKeyFieldSendsNoKey(string typed, string? sent) => Assert.Equal(sent, AiEndpointRules.Key(typed));
 
     [Fact]
     public void TheKeyFieldSaysWhetherOneIsKept()

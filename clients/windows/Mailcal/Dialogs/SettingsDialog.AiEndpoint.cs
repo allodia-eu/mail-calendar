@@ -140,15 +140,17 @@ public sealed partial class SettingsDialog
         ControlComponents.HoldFields(form.Save, parts.Address, parts.Key, parts.Model, parts.Where);
         parts.Said.Message = _aiEndpointSaid ?? string.Empty;
         parts.Said.IsOpen = _aiEndpointSaid is not null;
+        // Remove is drawn only while there is something to remove.
         if (form.Remove != parts.RemoveDrawn)
         {
             parts.RemoveDrawn = form.Remove;
-            parts.RemoveSlot.Child = ControlComponents.Button(
-                L10n.AiEndpointRemove(), form.Remove, "AiEndpointRemove", () =>
+            parts.RemoveSlot.Child = form.Remove is { } remove
+                ? ControlComponents.Button(L10n.AiEndpointRemove(), remove, "AiEndpointRemove", () =>
                 {
                     SayAiEndpointNothing(parts);
                     _model.ChangeAiEndpoint(new AiEndpointIntent.Remove());
-                });
+                })
+                : null;
         }
         DrawAiEndpointTyped(parts);
     }
@@ -184,8 +186,8 @@ public sealed partial class SettingsDialog
     {
         var typed = parts.Typed();
         SayAiEndpointNothing(parts);
-        _model.ChangeAiEndpoint(new AiEndpointIntent.Save(
-            typed.Address, typed.Model, typed.Declared, AiEndpointRules.Key(typed.Key)));
+        // The key as typed: an empty one leaves the kept key, and only Remove takes it out.
+        _model.ChangeAiEndpoint(new AiEndpointIntent.Save(typed.Address, typed.Model, typed.Declared, typed.Key));
     }
 
     // A change starting takes down what the last one came to.

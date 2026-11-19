@@ -83,11 +83,6 @@ internal static class AiEndpointRules
     internal static ControlState SaveState(ControlState save, AiEndpointGaps typed) =>
         new(save.Enabled && Complete(typed), save.Running);
 
-    /// <summary>The key a save sends: what was typed, or <c>null</c> for a field left empty, which
-    /// keeps the key the form says is kept and stores none where none is. Spaces alone are an empty
-    /// field: sent, the core would trim them to nothing and take the kept key out.</summary>
-    internal static string? Key(string typed) => typed.Trim().Length == 0 ? null : typed;
-
     /// <summary>The line under the key field.</summary>
     internal static string KeyNote(bool kept, AiEndpointWords words) => kept ? words.KeyKept : words.KeyHint;
 

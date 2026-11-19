@@ -39,10 +39,10 @@ public sealed class AiEndpointSlowKeystoreTests(SlowKeystoreHarnessApp harness) 
                 TimeSpan.FromSeconds(5)), "Save shows its ring from the press");
             Assert.False(AiEndpointFormTests.Save(app, form).Enabled, "a running Save cannot be pressed again");
             Assert.False(AiEndpointFormTests.Field(app, form, "AiEndpointAddress").Enabled, "the fields are held with Save");
-            Assert.False(AiEndpointFormTests.Field(app, form, "AiEndpointRemove").Enabled, "Remove is held while Save runs");
+            Assert.True(AiEndpointFormTests.Line(app, form, "AiEndpointRemove") is not { Enabled: true }, "Remove cannot be pressed while Save runs");
 
             Assert.True(App.Eventually(
-                () => AiEndpointFormTests.Field(app, AiEndpointFormTests.Form(app), "AiEndpointRemove").Enabled,
+                () => AiEndpointFormTests.Line(app, AiEndpointFormTests.Form(app), "AiEndpointRemove") is { Enabled: true },
                 TimeSpan.FromSeconds(15)), "the save ends, and an endpoint stored is one Remove is offered for");
             form = AiEndpointFormTests.Form(app);
             Assert.True(app.Agent.Find(new Filter { Id = "AiEndpointSave_Running", Under = form }) is null, "the ring goes with the work");
@@ -68,7 +68,7 @@ public sealed class AiEndpointRefusingKeystoreTests(RefusingKeystoreHarnessApp h
                 && app.Agent.FindAll(new Filter { Under = said }).Any(e => e.Name == refused), TimeSpan.FromSeconds(10)),
                 "a key the keystore refused is said on the form");
             Assert.Equal(AiEndpointFormTests.Address, app.Agent.Read(AiEndpointFormTests.Field(app, form, "AiEndpointAddress")).Value);
-            Assert.False(AiEndpointFormTests.Field(app, form, "AiEndpointRemove").Enabled, "nothing was stored, so there is nothing to remove");
+            Assert.True(AiEndpointFormTests.Line(app, form, "AiEndpointRemove") is null, "nothing was stored, so Remove is not drawn");
 
             app.Agent.Invoke(app.Agent.Find(new Filter { Id = "CloseButton", Under = said })
                 ?? throw new InvalidOperationException("what the save came to cannot be closed"));

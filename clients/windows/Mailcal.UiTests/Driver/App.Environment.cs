@@ -25,6 +25,7 @@ internal sealed partial class App
             ["MAILCAL_FAKE_SYNC_PROGRESS"] = null,
             ["MAILCAL_RELEASE_PROBE"] = null,
             ["MAILCAL_FLOW_PREVIEW"] = null,
+            ["MAILCAL_OFFER_AI"] = null,
             ["MAILCAL_FAKE_KEYSTORE"] = null,
             ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = null,
             ["MAILCAL_DEV_ACCOUNT"] = dataset switch
