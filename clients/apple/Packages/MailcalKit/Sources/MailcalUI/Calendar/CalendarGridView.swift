@@ -114,7 +114,7 @@ struct CalendarGridView: View, Animatable {
         // Resolved **once** per frame and handed down, never re-read from a computed property.
         // Every entry is a page pulled across the FFI, and a landing evaluates this body per frame
         // (see `Animatable` above), so a computed `weeks` read by the headings, the banner, its lane
-        // count, the loading row and the grid rebuilds the same week five times for one picture.
+        // count, the loading pill and the grid rebuilds the same week five times for one picture.
         let weeks = strip.visibleWeeks(dayViewport: dayViewport, dayWidth: dayWidth)
             .compactMap(weekAt)
         let lanes = bannerLanes(weeks)
@@ -139,18 +139,6 @@ struct CalendarGridView: View, Animatable {
                 )
             }
             Divider()
-            if weeks.contains(where: { !$0.page.isMaterialized }) {
-                // `isMaterialized == false` does NOT mean "no events", it means the engine has not
-                // expanded this far yet. Drawing a confidently empty week here would be a lie that
-                // looks exactly like a real answer, so the page says so, in words.
-                HStack(spacing: 6) {
-                    ProgressView().controlSize(.small)
-                    Text(L10n.calendar_loading_range())
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 3)
-            }
             HStack(alignment: .top, spacing: 0) {
                 // Chrome, not content: drawn once and pinned, with the days scrolling past it. A
                 // ruler that belonged to a page would slide out with it, which is what made a week
@@ -163,6 +151,10 @@ struct CalendarGridView: View, Animatable {
             }
             .frame(maxHeight: .infinity, alignment: .top)
             .clipped()
+            // `isMaterialized == false` does NOT mean "no events", it means the engine has not
+            // expanded this far yet, so the week keeps what it has and says it is loading. The
+            // hours scroll by offset inside this frame, so the pill stays where the day opened.
+            .calendarLoadingPill(weeks.contains { !$0.page.isMaterialized })
             .contentShape(Rectangle())
             .gesture(gridGesture)
             // A desktop scrolls a calendar with the wheel or two fingers, not by dragging it, and so
