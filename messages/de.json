@@ -1381,5 +1381,7 @@
 	"learn_report_horizon_all": "Dieses Gerät enthält alle Ihre gesendeten E-Mails.",
 	"learn_report_dates": "Geschrieben zwischen {oldest} und {newest}",
 	"learn_keyword_not_kept": "Der Server dieses Kontos kennzeichnet für Sie entworfene Antworten nicht, daher können Ihre anderen Geräte sie nicht von Ihren eigenen unterscheiden.",
-	"reveal_nothing_in_language": "In dieser Sprache ist nichts aufgefallen."
+	"reveal_nothing_in_language": "In dieser Sprache ist nichts aufgefallen.",
+	"learn_progress_starting": "Lernen, wie Sie schreiben…",
+	"a11y_reveal_language": "Sprache"
 }

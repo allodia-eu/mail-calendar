@@ -57,6 +57,8 @@ pub(crate) mod destinations;
 mod detached;
 pub(crate) mod dns;
 mod editor_paste;
+mod flow_host;
+mod flow_pager;
 mod folder_actions;
 mod folder_dialogs;
 mod folder_drag;
@@ -255,6 +257,14 @@ pub(crate) struct AppModel {
     /// Counts the signals Settings' calendar pages follow (`Surface::Calendar` and
     /// `Surface::Settings`), so each part drawn from the calendars reads its record once for each.
     calendar_settings_read: u64,
+    /// Counts the reads Settings → Writing style and its flows follow (`Surface::WritingStyle` and
+    /// `Surface::Settings`), and those the own endpoint's form follows (`Surface::AiEndpoint` and
+    /// `Surface::Settings`).
+    writing_style_read: u64,
+    ai_endpoint_read: u64,
+    /// Whether the core offered the writing assistant at the last read: Settings is drawn again
+    /// when it moves, since the category and the form come and go with it.
+    ai_offered: bool,
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeContext>,
     composer_generation: u64,

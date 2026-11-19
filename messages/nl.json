@@ -1381,5 +1381,7 @@
 	"learn_report_horizon_all": "Dit apparaat heeft al je verstuurde mail.",
 	"learn_report_dates": "Geschreven tussen {oldest} en {newest}",
 	"learn_keyword_not_kept": "De server van dit account bewaart geen markering op antwoorden die voor je zijn opgesteld, dus je andere apparaten kunnen ze niet van je eigen antwoorden onderscheiden.",
-	"reveal_nothing_in_language": "In deze taal viel niets op."
+	"reveal_nothing_in_language": "In deze taal viel niets op.",
+	"learn_progress_starting": "Leren hoe je schrijft…",
+	"a11y_reveal_language": "Taal"
 }

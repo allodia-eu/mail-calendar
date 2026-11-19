@@ -286,6 +286,54 @@ pub(super) fn text_row(
     row
 }
 
+/// A full-width text row titled `title`, which tells `committed` what was typed on Return and when
+/// it loses focus, once for each edit, as [`text_row`] does: for text longer than a field beside
+/// its title can show.
+pub(super) fn entry_row(
+    title: &str,
+    text: &str,
+    control: ControlState,
+    committed: impl Fn(String) + 'static,
+) -> adw::EntryRow {
+    let row = adw::EntryRow::new();
+    row.set_use_markup(false);
+    row.set_title(title);
+    row.set_text(text);
+    row.set_sensitive(control.enabled);
+    if let Some(spinner) = spinner(control) {
+        row.add_suffix(&spinner);
+    }
+    row.add_css_class(SENDS_ITSELF);
+    let sent = std::rc::Rc::new(std::cell::RefCell::new(text.to_owned()));
+    let unsent_now = sent.clone();
+    row.connect_changed(move |row| {
+        if row.text() == unsent_now.borrow().as_str() {
+            row.remove_css_class(UNSENT);
+        } else {
+            row.add_css_class(UNSENT);
+        }
+    });
+    let commit = std::rc::Rc::new(move |row: &adw::EntryRow| {
+        let typed = row.text().to_string();
+        if typed != *sent.borrow() {
+            sent.replace(typed.clone());
+            row.remove_css_class(UNSENT);
+            committed(typed);
+        }
+    });
+    let on_activate = commit.clone();
+    row.connect_entry_activated(move |row| on_activate(row));
+    let focus = gtk::EventControllerFocus::new();
+    let left = row.downgrade();
+    focus.connect_leave(move |_| {
+        if let Some(row) = left.upgrade() {
+            commit(&row);
+        }
+    });
+    row.add_controller(focus);
+    row
+}
+
 /// A row that picks one of `labels`. `picked` is told the position the person picked, and never
 /// the one it was drawn with.
 pub(super) fn picker_row(

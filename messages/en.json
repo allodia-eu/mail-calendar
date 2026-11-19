@@ -1381,5 +1381,7 @@
 	"learn_report_horizon_all": "This device holds all your sent mail.",
 	"learn_report_dates": "Written between {oldest} and {newest}",
 	"learn_keyword_not_kept": "This account’s server keeps no mark on replies drafted for you, so your other devices cannot tell them from your own.",
-	"reveal_nothing_in_language": "Nothing stood out in this language."
+	"reveal_nothing_in_language": "Nothing stood out in this language.",
+	"learn_progress_starting": "Learning how you write…",
+	"a11y_reveal_language": "Language"
 }

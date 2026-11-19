@@ -70,6 +70,9 @@ impl AppModel {
             Surface::Settings => {
                 // An account added or removed changes the signature slots listed.
                 self.signatures_read = self.signatures_read.wrapping_add(1);
+                self.writing_style_read = self.writing_style_read.wrapping_add(1);
+                self.ai_endpoint_read = self.ai_endpoint_read.wrapping_add(1);
+                self.follow_ai_offer(&app);
                 self.calendar_settings_read = self.calendar_settings_read.wrapping_add(1);
                 self.calendar.refresh_settings(&app);
                 // The week start moves the mini month's columns.
@@ -99,8 +102,17 @@ impl AppModel {
             // The signature library or an account's signatures moved, or a change to them started
             // or ended.
             Surface::Signatures => self.signatures_read = self.signatures_read.wrapping_add(1),
-            // The writing assistant's surfaces: no screen of this client draws them.
-            Surface::WritingStyle | Surface::ReplyDraft | Surface::AiEndpoint => {}
+            // Settings → Writing style, its flows, and the own endpoint's form.
+            Surface::WritingStyle => {
+                self.writing_style_read = self.writing_style_read.wrapping_add(1);
+                self.follow_ai_offer(&app);
+            }
+            Surface::AiEndpoint => {
+                self.ai_endpoint_read = self.ai_endpoint_read.wrapping_add(1);
+                self.follow_ai_offer(&app);
+            }
+            // Draft a reply: no screen of this client draws it yet.
+            Surface::ReplyDraft => {}
             // The Allodia account's card moved: its sign-in or sign-out, or the service refusing
             // the stored sign-in.
             Surface::Allodia => self.allodia_signalled(),
@@ -116,6 +128,16 @@ impl AppModel {
                 // A lookup that replaced the question on screen arrives as a connectivity fact.
                 self.server_change_signalled();
             }
+        }
+    }
+
+    /// Draws Settings again when the writing assistant comes or goes, since its category and the
+    /// own endpoint's form come and go with it.
+    fn follow_ai_offer(&mut self, app: &mailcal_bindings::MailcalApp) {
+        let offered = app.ai_offer();
+        if self.ai_offered != offered {
+            self.ai_offered = offered;
+            self.settings.refresh_in_place();
         }
     }
 }
