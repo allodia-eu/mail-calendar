@@ -87,10 +87,20 @@ import Testing
 
     /// In a dark app the button opens the trailing group, every button of the row is wholly on the
     /// screen and a finger wide, and a press turns the sun into the moon.
+    ///
+    /// The preference is the core's, so the model holds a demo core: without one a press changes
+    /// nothing. The app reads preferences back on the `Surface::Settings` signal; this core's
+    /// signal goes nowhere, so the test reads them back itself.
     @Test(arguments: widths)
     func aDarkAppDrawsTheButtonBeforeArchiveAndKeepsTheRowOnScreen(_ width: Width) throws {
         let model = MailboxModel()
+        let app = MailcalApp.newDemo(
+            observer: Unobserved(), logger: Unobserved(), logLevel: .error,
+            deviceTimezone: "Europe/Amsterdam"
+        )
+        model.app = app
         model.setDarkMessageBackground(true)
+        model.reloadPreferences(app, repaint: false)
         let screen = screen(.dark, width, model: model)
         let row = ["Reply", "Reply all", "Forward", toLight, "Archive", "Delete", "More actions"]
         let order = screen.leftToRight(row)
@@ -106,8 +116,15 @@ import Testing
 
         let sun = try #require(screen.elements(toLight).first)
         _ = try AgentPlatform.activate(sun.object)
+        model.reloadPreferences(app, repaint: false)
         screen.settle()
         #expect(!screen.elements(toDark).isEmpty, "pressing the sun did not bring the moon")
     }
+}
+
+/// A demo core's observer and logger, for a test that reads the core back itself.
+private final class Unobserved: Observer, MailcalBindings.Logger {
+    func surfaceChanged(surface _: Surface) {}
+    func log(level _: LogLevel, target _: String, message _: String) {}
 }
 #endif
