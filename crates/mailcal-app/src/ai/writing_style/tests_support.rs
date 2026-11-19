@@ -177,7 +177,7 @@ impl Learner {
             address: "https://models.example.eu/v1".to_owned(),
             model: "m".to_owned(),
             declared: Some(Class::EuNative),
-            key: None,
+            key: String::new(),
         }));
         surfaces.lock().unwrap().clear();
         Self {

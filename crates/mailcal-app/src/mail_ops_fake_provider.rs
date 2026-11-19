@@ -1,7 +1,7 @@
 //! The submitting provider fake the send tests drive: it records what it was asked to submit,
 //! and can be told to fail the send, to deliver without filing the sender's copy, or to fail
 //! the after-the-fact repair as well. It stores drafts too, moving the key on every save the
-//! way three of the four real adapters do.
+//! way the IMAP and JMAP adapters do.
 //!
 //! Split from [`super`] (the tests themselves) so each file stays under the 500-line limit.
 
@@ -301,8 +301,8 @@ impl Provider for SubmitProvider {
         Ok(SubmissionReceipt::filed(key, id, &handed))
     }
 
-    /// Stores a draft, answering with a key that **moves on every save**, which is what
-    /// three of the four real adapters do. A fake echoing the key back would let a caller
+    /// Stores a draft, answering with a key that **moves on every save**, which is what the
+    /// IMAP and JMAP adapters do. A fake echoing the key back would let a caller
     /// that never passes `replacing` pass this suite and store a second copy per save
     /// against a real server.
     async fn put_draft(

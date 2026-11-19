@@ -5,9 +5,13 @@ use std::{
     sync::Arc,
 };
 
-use engine_api::{AccountId, Importance, InlinePart, MessageIdHeader, PendingOpId, ProviderKey};
+use engine_api::{
+    AccountId, Importance, InlinePart, MessageIdHeader, PendingOpId, Provider, ProviderKey,
+};
 
-use crate::{ComposeKind, CompositionId, DraftStatus};
+use crate::{
+    App, ComposeKind, CompositionId, DraftStatus, ai::ReplyDraftHeld, reference::MessageRef,
+};
 
 /// What the core knows about one composition, for as long as its composer is open.
 pub(super) struct Composition {
@@ -47,6 +51,10 @@ pub(super) struct Composition {
     /// The importance it opened with: a stored draft's own, else normal. What
     /// [`ComposerImportance::changed`](crate::ComposerImportance::changed) compares against.
     pub(super) opened_importance: Importance,
+    /// The message a reply opened on answers, when the composer was opened on it.
+    pub(super) answering: Option<MessageRef>,
+    /// Its drafted reply (`docs/ai.md` rules 17 to 25).
+    pub(super) reply_draft: ReplyDraftHeld,
 }
 
 impl Composition {
@@ -63,7 +71,45 @@ impl Composition {
             kind: ComposeKind::New,
             importance: Importance::Normal,
             opened_importance: Importance::Normal,
+            answering: None,
+            reply_draft: ReplyDraftHeld::default(),
         }
+    }
+}
+
+/// What a drafted reply reads of its composition, and its held state to change.
+pub(crate) struct ReplyOf<'a> {
+    /// The account the composition opened on.
+    pub(crate) account: &'a AccountId,
+    pub(crate) kind: ComposeKind,
+    /// The message answered, when the composer was opened on it.
+    pub(crate) answering: Option<&'a MessageRef>,
+    /// The `Message-ID` it answers, from its headers: a reply resumed from Drafts names its
+    /// original only by this.
+    pub(crate) in_reply_to: Option<&'a MessageIdHeader>,
+    pub(crate) held: &'a mut ReplyDraftHeld,
+}
+
+impl<P: Provider> App<P> {
+    /// `change` over what a drafted reply holds of `composition`, or `None` for a composition the
+    /// core was never told of or has forgotten.
+    pub(crate) fn reply_of<T>(
+        &self,
+        composition: &CompositionId,
+        change: impl FnOnce(ReplyOf<'_>) -> T,
+    ) -> Option<T> {
+        let mut state = self.drafts.lock().expect("drafts mutex poisoned");
+        let open = state.open.get_mut(composition)?;
+        Some(change(ReplyOf {
+            account: &open.account,
+            kind: open.kind,
+            answering: open.answering.as_ref(),
+            in_reply_to: open
+                .threading
+                .as_ref()
+                .and_then(|threading| threading.in_reply_to.as_ref()),
+            held: &mut open.reply_draft,
+        }))
     }
 }
 

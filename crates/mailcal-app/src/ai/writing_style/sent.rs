@@ -1,19 +1,16 @@
 //! Reading an account's sent mail for learning (`docs/ai.md` rule 14), on the device.
 //!
-//! Only the person's own words: every drafted reply is left out, whether it carries the drafted
-//! keyword (which reaches every device where the provider keeps one) or is in this device's log
-//! (rule 25). Bodies come through the engine's body read, which answers from the local cache for
-//! what the body warm has reached and fetches the rest once, as opening it would; the text is a
-//! message's own text part, or the text of its sanitised HTML, never the HTML.
+//! Only the person's own words: every drafted reply is left out, as
+//! [`App::is_drafted_message`] recognises it (rule 25). Bodies are read as
+//! `App::message_text` reads them, the text a draft's context is read as too.
 
 use std::cmp::Reverse;
 
 use engine_api::{AccountId, Message, Provider, UtcDateTime, find_calendar_part};
-use mailcal_account::drafted_reply_keyword;
 use mailcal_ai::corpus::SentMessage;
 
 use super::range::admits;
-use crate::{App, mail_ops::sent_keys, query::plain_text_of};
+use crate::{App, mail_ops::sent_keys};
 
 /// The most sent messages one learning run reads. The sampler keeps far fewer; this bounds the
 /// time spent reading bodies on a mailbox with years of sent mail.
@@ -60,16 +57,6 @@ pub(super) fn learnable(
 }
 
 impl<P: Provider> App<P> {
-    /// Whether `message` is a drafted reply: it carries the keyword, or this device logged it.
-    pub(super) fn drafted(&self, message: &Message) -> bool {
-        message.has_keyword(&drafted_reply_keyword())
-            || message
-                .envelope
-                .message_id
-                .iter()
-                .any(|id| self.is_drafted_reply(id))
-    }
-
     /// The account's sent mail inside `bounds` as the corpus builder takes it, with the oldest
     /// sent message the device holds; `None` when the account has no Sent folder.
     pub(super) async fn learnable_sent_mail(
@@ -83,11 +70,12 @@ impl<P: Provider> App<P> {
             return None;
         }
         let messages = self.engine.messages(account).await.unwrap_or_default();
-        let (messages, horizon) =
-            learnable(messages, &sent, bounds, |message| self.drafted(message));
+        let (messages, horizon) = learnable(messages, &sent, bounds, |message| {
+            self.is_drafted_message(message)
+        });
         let mut out = Vec::with_capacity(messages.len());
         for message in messages {
-            let Some(body) = self.plain_body(account, &message).await else {
+            let Some(body) = self.message_text(account, &message).await else {
                 continue;
             };
             out.push(SentMessage {
@@ -108,23 +96,6 @@ impl<P: Provider> App<P> {
         }
         log::info!("ai: read {} sent message(s) on this device", out.len());
         Some((out, horizon))
-    }
-
-    /// A message's body as plain text, or `None` when it cannot be read.
-    async fn plain_body(&self, account: &AccountId, message: &Message) -> Option<String> {
-        let handle = self.account_handle(account).await?;
-        let provider = handle.providers.first()?;
-        let body = self
-            .engine
-            .message_body(provider, account, message)
-            .await
-            .ok()?;
-        match body.plain() {
-            Some(plain) if !plain.trim().is_empty() => Some(plain.to_owned()),
-            _ => body
-                .html()
-                .map(|html| plain_text_of(&engine_html::sanitize(html).into_html())),
-        }
     }
 
     /// Whether the account's provider keeps the drafted keyword on a Sent copy, so every device

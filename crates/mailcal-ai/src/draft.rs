@@ -3,9 +3,8 @@
 //! The draft is the body only: it opens with the person's greeting and ends with their sign-off,
 //! and the account's signature block follows it as it would any reply. Where the reply needs a
 //! fact that is in neither the thread nor the person's instructions, the model writes a short
-//! bracketed gap (`[date]`) instead of inventing one, and [`Draft::gaps`] lists them so a client
-//! can say "check the parts in brackets". Nothing here sends mail: the draft goes into a composer
-//! the person edits.
+//! bracketed gap (`[date]`) instead of inventing one, and [`Draft::tasks`] opens with an item for
+//! each. Nothing here sends mail: the draft goes into a composer the person edits.
 
 use std::fmt;
 
@@ -85,12 +84,13 @@ impl fmt::Debug for DraftRequest<'_> {
 pub struct Draft {
     /// The body, ready to go above the quote.
     pub text: String,
-    /// The bracketed gaps in it, in order, each once.
-    pub gaps: Vec<String>,
     /// What the message being answered asks, in a sentence or two, in the interface language;
     /// empty when the model gave none.
     pub summary: String,
-    /// What the person still has to do before sending: the gaps, then what to attach and do.
+    /// What the person still has to do before sending: a [`TaskKind::FillIn`] for each bracketed
+    /// gap in the body, in order and each once, then what to attach and do.
+    ///
+    /// [`TaskKind::FillIn`]: crate::TaskKind::FillIn
     pub tasks: Vec<DraftTask>,
     /// The language it was written in.
     pub language: LanguageCode,
@@ -104,7 +104,6 @@ impl fmt::Debug for Draft {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Draft")
             .field("text_len", &self.text.len())
-            .field("gaps", &self.gaps.len())
             .field("tasks", &self.tasks.len())
             .field("language", &self.language)
             .finish_non_exhaustive()
@@ -170,8 +169,7 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     ))
     .filter(|text| !text.is_empty())
     .ok_or(AiError::Malformed)?;
-    let gaps = gaps(&text);
-    let tasks = checklist::checklist(&gaps, answered.tasks);
+    let tasks = checklist::checklist(&gaps(&text), answered.tasks);
     log::info!(
         "ai: drafted a reply of {} word(s), with {} item(s) to do",
         text.split_whitespace().count(),
@@ -180,7 +178,6 @@ pub fn draft_reply(request: &DraftRequest<'_>, backend: &GatedBackend) -> Result
     Ok(Draft {
         summary: checklist::summary(&answered.summary),
         tasks,
-        gaps,
         text,
         language,
         metering: response.allodia,

@@ -726,6 +726,14 @@ MAILCAL_SHOWCASE_REAUTH=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 # message and meeting are not in the store.
 MAILCAL_SHOWCASE_QUESTIONS=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
 
+# Every platform, showcase (either dataset) and the demo only: the writing assistant offered
+# (docs/ai.md rule 5), so the own endpoint's form under Settings → Advanced and Settings → Writing
+# style can be driven. Reads in the CORE, like the three above. Without it an in-memory boot offers
+# the feature to nobody, which keeps it out of the store captures. Nothing it would send leaves the
+# device: every request answers as unreachable, and a key typed is refused, since these boots keep
+# none. The Writing style page has no learned style to show.
+MAILCAL_OFFER_AI=1 MAILCAL_SHOWCASE=1 scripts/dev/boot.sh macos
+
 # Every platform: come up light or dark whatever the machine is set to (`system` forces the
 # machine's own setting back on). It pins how the run STARTS; a pick in Settings still wins for
 # the rest of the session, and nothing is persisted. Android has no env vars, so build-and-run.sh

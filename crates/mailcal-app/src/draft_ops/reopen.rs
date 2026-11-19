@@ -18,6 +18,7 @@ use engine_api::{
 use super::{Composition, Threading};
 use crate::{
     App, ComposeKind, ComposeOpening, CompositionId, QuoteSource, protocol::StagedAttachment,
+    reference::MessageRef,
 };
 
 /// A composer about to open, gathered by whichever path found what it opens on.
@@ -49,6 +50,8 @@ pub(super) struct Opening {
     /// The importance it goes out with until the user picks another: a stored message's own, and
     /// normal for anything new.
     pub(super) importance: Importance,
+    /// The message a reply answers, when the composer is opened on it.
+    pub(super) answering: Option<MessageRef>,
 }
 
 impl<P: Provider> App<P> {
@@ -79,6 +82,7 @@ impl<P: Provider> App<P> {
             attachments_failed,
             seeds_signature,
             importance,
+            answering,
         } = opening;
         let body_html = html
             .filter(|html| !html.trim().is_empty())
@@ -99,6 +103,7 @@ impl<P: Provider> App<P> {
                 kind,
                 importance,
                 opened_importance: importance,
+                answering,
                 ..Composition::new(account.clone(), message_id)
             },
         );

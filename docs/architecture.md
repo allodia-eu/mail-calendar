@@ -169,8 +169,9 @@ Reading the map:
 - **`mailcal-ai`** shapes and reads AI requests for writing style and drafted replies, and opens
   no socket: the host implements its transport port. Its `GatedBackend` is the only way a request
   is built to leave: every function that dispatches takes one, and its `chat` asks the gate
-  before the backend behind it is reached. Nothing depends on the crate yet, so no client can
-  dispatch anything through it.
+  before the backend behind it is reached. `mailcal-app` learns a style and drafts a reply
+  through it, over the transport `mailcal-bindings` implements ([`ai.md`](ai.md)); no client draws
+  either yet.
 
 ## What each platform plugs in: the host-service ports
 

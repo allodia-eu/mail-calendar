@@ -34,6 +34,7 @@ use crate::{App, reference::MessageRef};
 mod list;
 mod search;
 mod text;
+pub(crate) use text::to_plain;
 
 /// The deepest store read a query will drive, in messages.
 ///
@@ -189,10 +190,4 @@ pub(crate) fn format_instant(instant: UtcDateTime) -> String {
         instant.minute(),
         instant.second(),
     )
-}
-
-/// The readable text of a message's sanitised HTML, for a body with no text part: what a model
-/// is handed in place of the HTML, never the HTML itself.
-pub(crate) fn plain_text_of(html: &str) -> String {
-    text::to_plain(html)
 }

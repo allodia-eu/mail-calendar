@@ -97,14 +97,13 @@ pub struct AiEndpointForm {
     /// Whether a key is kept. The key is never drawn back: the field says one is kept and stays
     /// empty, and leaving it empty keeps it.
     pub key_kept: bool,
-    /// What a save of the fields drawn would refuse. As the person types, a client asks
-    /// [`crate::MailcalApp::ai_endpoint_gap`] of the fields typed and says each beside its field.
-    pub gaps: AiEndpointGaps,
-    /// Save: running while a save runs. A client holds it besides while `ai_endpoint_gap` names a
-    /// gap in the fields typed.
+    /// Save: running while a save runs. A client holds it besides while
+    /// [`crate::MailcalApp::ai_endpoint_gap`], which it asks of the fields as typed and says
+    /// beside each field, names a gap.
     pub save: ControlState,
-    /// Remove: offered while an endpoint is stored, running while a removal runs.
-    pub remove: ControlState,
+    /// Remove: `None` while there is nothing to remove, which is when neither an endpoint nor a
+    /// key is stored; running while a removal runs.
+    pub remove: Option<ControlState>,
     /// What the last change came to, until the next starts.
     pub outcome: Option<AiEndpointOutcome>,
 }
@@ -269,7 +268,7 @@ impl From<core::AiEndpointGaps> for AiEndpointGaps {
 }
 
 /// The form for `view`: while a change runs or waits, both controls are held, and the one that
-/// started it runs (`docs/waiting.md`).
+/// started it runs (`docs/waiting.md`); Remove is drawn only while there is something to remove.
 pub(crate) fn endpoint_form(view: core::AiEndpointView) -> Option<AiEndpointForm> {
     if !view.offered {
         return None;
@@ -281,15 +280,14 @@ pub(crate) fn endpoint_form(view: core::AiEndpointView) -> Option<AiEndpointForm
         model: view.fields.model.clone(),
         declared: view.fields.declared.map(Into::into),
         key_kept: view.fields.key_kept,
-        gaps: view.gaps.into(),
         save: ControlState {
             enabled: !busy,
             running: runs(core::AiEndpointChangeKind::Save),
         },
-        remove: ControlState {
-            enabled: !busy && view.stored,
+        remove: view.removable.then(|| ControlState {
+            enabled: !busy,
             running: runs(core::AiEndpointChangeKind::Remove),
-        },
+        }),
         outcome: view.outcome.map(|outcome| AiEndpointOutcome {
             serial: outcome.serial,
             kind: match outcome.kind {
