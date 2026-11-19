@@ -14,7 +14,7 @@ use std::{
 use adw::prelude::*;
 use gtk::glib;
 use mailcal_bindings::{
-    AiIntent, AiRemedy, Intent, StyleLearningIntent, WritingStyleChangeKind, WritingStyleDetail,
+    AiIntent, Intent, StyleLearningIntent, WritingStyleChangeKind, WritingStyleDetail,
     WritingStyleIntent, WritingStyleOpens, WritingStylePage, WritingStyleResult,
 };
 
@@ -27,9 +27,11 @@ use super::{
 };
 use crate::{
     l10n,
-    ui::{AppInput, controls, flow_host::FlowHost},
+    ui::{controls, flow_host::FlowHost},
 };
 
+#[path = "writing_style_remedy.rs"]
+mod remedy;
 #[cfg(test)]
 #[path = "writing_style_tests.rs"]
 pub(crate) mod tests;
@@ -426,36 +428,6 @@ impl View {
 
     fn learning_intent(&self, intent: StyleLearningIntent) {
         self.send(WritingStyleIntent::Learning { intent });
-    }
-
-    /// The remedy of a run that failed with its host closed. The flow takes it first, as it does
-    /// in the host; one that is a step of the flow opens the host on that step.
-    fn run_remedy(&self, remedy: AiRemedy) {
-        if matches!(remedy, AiRemedy::ChooseAccount | AiRemedy::ChooseRange) {
-            self.learning_intent(StyleLearningIntent::Open);
-        }
-        self.learning_intent(StyleLearningIntent::Remedy);
-        self.open_remedy(remedy);
-    }
-
-    /// Opens what a remedy names outside the flow: the Allodia sign-in, over the flow when it is
-    /// up (which waits on its review meanwhile) and from its category when it is not, or the
-    /// endpoint form under Advanced.
-    fn open_remedy(&self, remedy: AiRemedy) {
-        match remedy {
-            AiRemedy::SignInToAllodia => {
-                if self.learning.borrow().is_none() {
-                    self.ctx.sidebar.show(Category::Allodia);
-                }
-                self.ctx.sender.emit(AppInput::StartAllodiaSignIn);
-            }
-            AiRemedy::OpenAiEndpoint => self.ctx.sidebar.show(Category::Advanced),
-            AiRemedy::TryAgain
-            | AiRemedy::ChooseAccount
-            | AiRemedy::ChooseRange
-            | AiRemedy::LearnStyle
-            | AiRemedy::ChooseStyle => {}
-        }
     }
 
     /// Closing the window closes a flow on it, as Cancel would.
