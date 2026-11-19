@@ -22,6 +22,7 @@ use mailcal_composer::ComposerDocument;
 
 use crate::{
     App, ComposerBlob, CompositionId, DraftStatus, DraftsIntent, Surface,
+    ai::AiWorkKey,
     draft_ops::digest::digest,
     helpers::new_message_id,
     mail_compose::{parse_addresses, rich_draft},
@@ -407,11 +408,16 @@ impl<P: Provider> App<P> {
     /// Drops the composition and its hint, answering with what was known about it.
     ///
     /// The hint goes with it: a host that reuses a composition id must not open a fresh
-    /// composer already saying the last one had saved.
+    /// composer already saying the last one had saved. So does a draft of its reply still being
+    /// made.
     fn forget(&self, composition: &CompositionId) -> Option<Composition> {
-        let mut state = self.drafts.lock().expect("drafts mutex poisoned");
-        state.status.remove(composition);
-        state.open.remove(composition)
+        let forgotten = {
+            let mut state = self.drafts.lock().expect("drafts mutex poisoned");
+            state.status.remove(composition);
+            state.open.remove(composition)
+        };
+        self.cancel_ai_work(&AiWorkKey::Drafting(composition.clone()));
+        forgotten
     }
 
     /// Reports a save that never reached a provider call.

@@ -48,6 +48,7 @@ impl MailcalApp {
     pub(crate) fn dispatch_ai(&self, intent: AiIntent) {
         match intent {
             AiIntent::Endpoint { intent } => self.dispatch_ai_endpoint(intent),
+            AiIntent::ReplyDraft { intent } => self.dispatch_reply_draft(intent),
         }
     }
 

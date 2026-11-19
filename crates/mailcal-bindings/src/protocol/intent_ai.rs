@@ -8,6 +8,10 @@ use crate::JurisdictionClass;
 pub enum AiIntent {
     /// A change to the own endpoint ([`AiEndpointIntent`]).
     Endpoint { intent: AiEndpointIntent },
+    /// A change to a composer's Draft a reply ([`crate::reply_draft::ReplyDraftIntent`]).
+    ReplyDraft {
+        intent: crate::reply_draft::ReplyDraftIntent,
+    },
 }
 
 /// A change to the own endpoint, from its form under Settings → Advanced. Each runs off the host's

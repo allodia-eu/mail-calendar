@@ -147,6 +147,7 @@ mod records_notices;
 mod records_outbox;
 mod records_signatures;
 mod records_video_meeting;
+pub mod reply_draft;
 mod retry;
 pub mod sync_state;
 mod talk_offer;

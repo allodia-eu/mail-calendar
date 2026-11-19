@@ -134,8 +134,10 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     | `Failed` | to the stage its remedy names, otherwise `Review` | ends the flow |
     | `Learned` | none | the reveal counts as shown; the style keeps its default name |
 
-13. **One run at a time**, as queued work, on the one queue learning and drafting share. Opening the flow while one runs opens it on `Learning`;
-    an answer for a range or an account the person has since left is dropped by the core.
+13. **One run at a time**, as queued work. A run and a draft never wait for each other: each
+    kind of work keeps to its own lane (rule 20). Opening the flow while one runs opens it on
+    `Learning`; an answer for a range or an account the person has since left is dropped by the
+    core.
 14. **Only the person's words are read**: each sent message cut to what its author wrote, without
     quote or signature, and calendar answers, automatic replies, repeats, anything under forty words
     of its own and every drafted reply (rule 25) left out.
@@ -162,61 +164,78 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 ### Draft a reply
 
 17. **Offered on a reply and a reply all, for the account it is sent from.** The composer reads
-    `composer_reply_draft(composition)`, again on `Surface::ReplyDraft` and `Surface::WritingStyle`,
-    so a From change or a style learned meanwhile reaches an open composer. It is `None` when the
-    feature is not offered or the composition is not a reply; otherwise `Unavailable { reason }`,
-    `Ready`, `Drafting`, `Drafted { summary, checklist }` or `Failed { reason, remedy }`. The control
-    sits in the composer's action row, beside Signature.
+    `composer_reply_draft(composition, from)` with its From, again on `Surface::ReplyDraft` and
+    `Surface::WritingStyle` and when From changes, so a From change or a style learned meanwhile
+    reaches an open composer. It is `None` when the feature is not offered or the composition is
+    not a reply; otherwise its `state` is `Unavailable { failure, remedy }`, `Ready`, `Drafting`,
+    `Drafted { summary, checklist }` or `Failed { failure, remedy }`. A reply resumed from Drafts or
+    the Outbox is a reply too, its message found by the `Message-ID` it answers. The control sits in
+    the composer's action row, beside Signature.
 18. **A Draft a reply that cannot draft says why where the person looks**, never in a tooltip
     alone. For a reason they can act on (no style yet, this account drafts in none, nowhere to send,
     the endpoint refused by the gate, the Allodia sign-in to renew) the control can be pressed and
-    opens the instruction input with the reason and its remedy in place of the field. For one they
-    cannot (the message answered is no longer on this device) the control is held and the reason is
-    a line among the composer's notes.
+    opens the instruction input with the reason (`held_by`) and its remedy in place of the field.
+    For one they cannot (the message answered is no longer on this device, found when a draft is
+    asked for) the control is held and the reason is a line among the composer's notes.
 19. **The instruction is one optional line, in the platform's own control** (the flow host table),
     with the core's suggestions under it: yes, no, more information needed, a holding reply. A
-    suggestion fills the line; Draft, or Return in the line, starts the draft.
+    suggestion fills the line; Draft, or Return in the line, starts the draft. The core trims the
+    line, and the input opens holding the one the last draft was asked with (`instruction`).
 20. **Drafting returns at once and can be stopped.** `ReplyDraftIntent::Draft` starts it and `Stop`
-    abandons it, the request in flight included; the composer stays usable, and `Drafting` draws
-    among its notes with Stop. A draft asked for while a style is being learned waits for the run,
-    the two sharing one queue.
-21. **A draft goes in above the signature and the quote, as one undo step.** The client hands the
-    text to the editor once per draft (`setComposerDraftText`); the bundle replaces only what is
-    above those two regions, builds its formatting as elements (`**bold**`, `*italic*`, list lines,
-    a `#` line drawn bold) without parsing markup, and leaves the caret at its end. The insertion is
-    one step of the editor's history ([`undo.md`](undo.md) rule 4), so one undo takes it out whole
-    and one redo brings it back. It is neither a seeded body (undo rule 7) nor a host change kept
-    outside the history (undo rule 8): the card follows the step, gone while it is undone and back
-    when it is redone, so the control and the message never disagree.
-22. **Replacing what is there is asked first.** When the text above the signature and the quote
-    holds anything the person wrote, an edited draft included, the record says so and the client
-    asks before the request goes; a draft arriving after the person wrote meanwhile is asked about
-    again. Cancel keeps their text and drops the draft.
+    abandons it, the request in flight included, and an answer that comes after Stop is dropped;
+    the composer stays usable, and `Drafting` draws among its notes with Stop. A draft never waits
+    for a style being learned or for another composer's draft: a composition drafts one reply at a
+    time, and closing it stops its draft.
+21. **A draft goes in above the signature and the quote, as one undo step.** The client runs the
+    record's `editor_script` (`setComposerDraftText`) once per `serial` in each editor; the bundle
+    replaces only what is above those two regions, builds its formatting as elements (`**bold**`,
+    `*italic*`, list lines, a `#` line drawn bold) without parsing markup, and leaves the caret at
+    its end. The insertion is one step of the editor's history ([`undo.md`](undo.md) rule 4), so
+    one undo takes it out whole and one redo brings it back. It is neither a seeded body (undo rule
+    7) nor a host change kept outside the history (undo rule 8): the editor reports after each
+    change whether the draft is in, and the card follows the step, gone while it is undone and back
+    when it is redone, so the control and the message never disagree. Until the editor reports the
+    draft in, the record is `Drafting`; from then the script only has an editor opened later on the
+    same composition (a composer moved into a window of its own) follow the draft in its body.
+22. **Replacing what is there is asked first.** After each change the editor reports what the text
+    above the signature and the quote holds: nothing, the draft untouched, or anything else, which
+    is the person's. A client hands every message on the editor's channel to
+    `composer_reply_draft_report`, which takes that report and nothing else. While the text holds
+    the person's words, an edited draft included, or before the editor has reported,
+    `ask_before_replacing` holds and the client asks before Draft; `Draft { replace }` carries the
+    answer, and the core refuses a press that would replace unasked. A draft arriving after the
+    person wrote there meanwhile waits (`replace_arrived`) and is asked about again
+    (`AnswerArrived`). Cancel keeps their text and drops the draft.
 23. **The card says what the message asks and what is left to do.** It sits among the composer's
     notes ([`composer-layout.md`](composer-layout.md) rule 1), is never part of the mail, saved or
     sent, and holds a summary of a sentence or two and a checklist. The checklist names each gap the
     draft left in brackets, listed by the core from the reply itself, then files to attach and
-    things to do elsewhere, at most six. A gap ticks while its text is gone from the reply and unticks when an undo brings it
-    back: after each change above the signature and the quote the editor reports the gaps left on
-    its host channel, and the core re-derives the ticks from that, never on a timer. An attach item
-    ticks once a file is added after the draft; the person ticks the rest, through the core.
-24. **Send asks once while the checklist has open items.** `submit_composition` asks the function
-    the card is drawn from, so the two cannot disagree: while an item is open and the question has
-    not been asked in this composition, it answers that the question is due rather than sending.
-    **Send anyway** sends, **Keep editing** goes back, and neither is asked again in this
-    composition.
+    things to do elsewhere, at most six. Whether an item is done is one function,
+    `mailcal_ai::tasks_done`: a gap while its text is gone from the reply, open again when an undo
+    brings it back; an attach item once as many files were added after the draft went in as there
+    are attach items, since which file answers which item cannot be told, or once ticked; the rest
+    once the person ticks them (`ReplyDraftIntent::Tick`). A gap is never ticked by hand. After each
+    change above the signature and the quote the editor reports which of the draft's gaps are left,
+    by their place in its list, and the core re-derives the ticks from that, never on a timer.
+24. **Send asks once while the checklist has open items.** The record's `send_question` and
+    `submit_composition` read the same function, so the two cannot disagree: while the question is
+    due a client asks before it submits, and `submit_composition` refuses without sending.
+    **Send anyway** and **Keep editing** both send `SendQuestionAnswered`, applied before `dispatch`
+    returns; Send anyway then submits. Neither is asked again in this composition.
 25. **A drafted reply is never learned from, nor shown to a later draft as the person's words.** A
-    composition a draft was put into stays drafted, even once undone or rewritten, since what is
-    sent may still carry its words; the core holds that on the composition, never in the editor's
-    document. The send logs the `Message-ID` on this device and asks for the keyword
-    `writing-assistant` on the Sent copy, fixed and untranslated so every device recognises it.
-    Gmail keeps it as a label and Outlook as a category, which the person sees: created as
-    "Writing assistant" and recognised under its name in every catalog locale, one table in
-    `mailcal-account` holding all seven (`drafted_keyword.rs`). A
-    save puts it on the stored draft, so a resumed draft opens drafted. A message is drafted when it
-    carries the keyword **or** is in the log. A keyword never delays or fails a send or a save. On a
-    server that keeps no keyword the log is the only sign, so another device can take that reply
-    for the person's own, and the Review says so for such an account.
+    composition a draft went into stays drafted, even once undone or rewritten, since what is sent
+    may still carry its words; the core holds that on the composition for as long as it is open,
+    never in the editor's document. The send logs the `Message-ID` on this device and asks for the
+    keyword `writing-assistant` on the Sent copy (the engine's `sent_copy_keywords`), fixed and
+    untranslated so every device recognises it. Gmail keeps it as a label and Outlook as a
+    category, which the person sees: created as "Writing assistant" and recognised under its name
+    in every catalog locale, one table in `mailcal-account` holding all seven
+    (`drafted_keyword.rs`). The engine sets no keyword on a draft it stores, so a stored draft
+    carries none: a drafted reply saved, closed and resumed opens as not drafted, and is marked
+    only if a draft goes into it again. A message is drafted when its listing carries the keyword
+    **or** the log names it. A keyword never delays or fails a send or a save. On a server that
+    keeps no keyword the log is the only sign, so another device can take that reply for the
+    person's own, and the Review says so for such an account.
 26. **A draft is the body only**, in the message's language when the style has it, otherwise the
     style's main one; under a signature it ends at its last sentence. The thread it answers is the
     message with the history it quotes, which is what the composer shows. Working notes or an
@@ -289,10 +308,10 @@ own server, which is not a dispatch of this feature.
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Learning in the flow host, with Back, Stop and one remedy (11 to 14) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The draft as one undo step, replacing asked first (21, 22) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The card, ticks from the editor's changes, asked once at Send (23, 24) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| A drafted reply never learned from: the log, the keyword on the Sent copy and the stored draft (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The Allodia relay | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 No platform ships the feature yet, and one ships it only once every row is ✅ there, each driven

@@ -23,6 +23,9 @@ mod endpoint;
 mod failure;
 mod host;
 mod offer;
+mod reply_draft;
+mod reply_draft_flow;
+mod reply_draft_work;
 mod route;
 mod styles;
 mod worker;
@@ -36,6 +39,12 @@ pub use failure::{AiFailure, AiRemedy};
 pub use host::{AiCancel, AiHost, AiRelay, KeyNotStored, RelayStatus};
 pub use mailcal_account::{DRAFTED_REPLY_KEYWORD, StoredWritingStyle, WritingStyleId};
 pub use offer::{AiEntitlement, BuildKind, ai_offered};
+pub(crate) use reply_draft::ReplyDraftHeld;
+pub use reply_draft::{
+    REPLY_DRAFT_SUGGESTIONS, ReplyDraftControl, ReplyDraftItem, ReplyDraftScript, ReplyDraftState,
+    ReplyDraftSuggestion, ReplyDraftView,
+};
+pub use reply_draft_flow::ReplyDraftStart;
 pub use route::AiRoute;
 pub use styles::StylesWritten;
 pub use worker::{AiQueued, AiRun, AiWork, AiWorkKey};
