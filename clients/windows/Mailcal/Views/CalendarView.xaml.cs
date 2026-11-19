@@ -327,6 +327,13 @@ public sealed partial class CalendarView : UserControl
             return;
         }
 
+        // The month titles the header itself, and the grid raises PeriodChanged only when its own title
+        // changes, so a grid returning to the days it last showed would leave the month's name over them.
+        if (grid && _grid.PeriodTitle.Length > 0)
+        {
+            PeriodText.Text = _grid.PeriodTitle;
+        }
+
         // Spoken as what it does *here*: "next day" in the day zoom, "next 3 days", "next week", "next
         // month". A screen-reader user gets told how far the button will move them, which is the only
         // thing about it worth knowing.
