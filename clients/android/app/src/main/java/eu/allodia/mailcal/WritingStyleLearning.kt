@@ -230,7 +230,7 @@ private fun LearningProgress(done: UInt, total: UInt) {
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
-                        painterResource(R.drawable.ic_stylus_note),
+                        painterResource(R.drawable.ic_text_format),
                         contentDescription = null,
                         tint = colours.onPrimaryContainer,
                         modifier = Modifier.size(52.dp),

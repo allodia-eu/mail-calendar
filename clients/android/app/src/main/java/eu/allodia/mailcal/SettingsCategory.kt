@@ -79,7 +79,7 @@ internal enum class SettingsCategory {
             READING -> R.drawable.ic_mail
             COMPOSING -> R.drawable.ic_edit
             SIGNATURES -> R.drawable.ic_signature
-            WRITING_STYLE -> R.drawable.ic_stylus_note
+            WRITING_STYLE -> R.drawable.ic_text_format
             NOTIFICATIONS -> R.drawable.ic_notifications
             PRIVACY -> R.drawable.ic_lock
             ACCOUNTS -> R.drawable.ic_inbox

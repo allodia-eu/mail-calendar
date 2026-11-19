@@ -144,7 +144,7 @@ private fun EmptyLibrary(page: WritingStylePage, ui: WritingStyleUi, remedy: (Ai
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    painterResource(R.drawable.ic_stylus_note),
+                    painterResource(R.drawable.ic_text_format),
                     contentDescription = null,
                     tint = colours.onPrimaryContainer,
                     modifier = Modifier.size(52.dp),
@@ -263,7 +263,7 @@ private fun StyleLibrary(page: WritingStylePage, ui: WritingStyleUi, onOpen: (Wr
             note = styleFactsText(ctx, entry.facts, ui.zone, locale),
             control = entry.open,
             tag = writingStyleRowTag(entry.id),
-            icon = R.drawable.ic_stylus_note,
+            icon = R.drawable.ic_text_format,
         ) { onOpen(entry) }
     }
 }
