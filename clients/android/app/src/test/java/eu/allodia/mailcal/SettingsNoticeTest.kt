@@ -140,6 +140,7 @@ class SettingsNoticeTest {
                 allodiaDevices = null,
                 onAllodiaSetUp = {},
                 onOpenDiagnostics = {},
+                advanced = ADVANCED_FREE,
                 onReset = {},
                 onBack = {},
                 initialCategory = category,

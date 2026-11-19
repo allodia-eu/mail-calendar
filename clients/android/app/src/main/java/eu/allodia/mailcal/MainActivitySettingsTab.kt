@@ -24,11 +24,12 @@ internal fun MailcalApp.setPreference(intent: PreferenceIntent) = dispatch(Inten
 // The unified Settings screen, swapped in over the mailbox.
 @Composable
 internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
-    // All four are pulled in the same step that sets the core, so none is null here.
+    // All five are pulled in the same step that sets the core, so none is null here.
     val display = displaySettings ?: return
     val quotes = quoteSettings ?: return
     val swipes = swipeSettings ?: return
     val sendAccount = sendAccountSetting ?: return
+    val advanced = advancedPage ?: return
     SettingsScreen(
                             about = aboutInfo(AboutPlatform.ANDROID),
                             // General, time zone.
@@ -117,8 +118,10 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp) {
                             },
                             // Diagnostics, the log viewer/share + debug-detail screen.
                             onOpenDiagnostics = { showingDiagnostics = true },
-                            // Advanced, reset the local cache.
-                            onReset = { instance.reset() },
+                            // Advanced, the core's page, read again on SETTINGS, which the
+                            // reset raises as it starts and as it ends.
+                            advanced = advanced,
+                            onReset = { instance.dispatch(Intent.ResetDatabase) },
                             onBack = {
                                 showingSettings = false
                                 settingsCategory = null
