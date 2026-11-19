@@ -284,8 +284,8 @@ own server, which is not a dispatch of this feature.
 | Capability | Core | macOS | iOS/iPadOS | Windows | Android | Linux |
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | The gate before anything is read or sent (rules 1 to 3) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The three surfaces offered together, under early access (4, 5) | 🚧 | 🚧 | 🚧 | ⬜ | ⬜ | ⬜ |
+| The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | 🚧 | 🚧 | ⬜ | ⬜ | ⬜ |
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Learning in the flow host, with Back, Stop and one remedy (11 to 14) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |

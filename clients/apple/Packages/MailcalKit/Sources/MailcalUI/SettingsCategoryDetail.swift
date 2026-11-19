@@ -224,16 +224,18 @@ struct SettingsCategoryDetail: View {
     // Only reachable in a build that carries the registration: `SettingsCategory.displayed` drops
     // the category otherwise, so this draws unconditionally.
 
-    // MARK: Advanced, AI assistant access (desktop) + reset database (destructive)
+    // MARK: Advanced, AI assistant access (desktop), own AI endpoint, reset database (destructive)
     //
-    // Both belong to this category's character rather than its old one-line description:
-    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 8). The
-    // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here.
+    // Each belongs to this category's character rather than its old one-line description:
+    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 11). The
+    // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here, and
+    // the endpoint form nothing while the writing assistant is not offered.
 
     @ViewBuilder
     private var advancedDetail: some View {
         VStack(alignment: .leading, spacing: 20) {
             McpSettingsView(model: model)
+            AiEndpointSettings(model: model)
             resetGroup
         }
     }

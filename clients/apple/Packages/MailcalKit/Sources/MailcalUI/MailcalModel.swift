@@ -190,6 +190,8 @@ final class MailboxModel {
     /// is fetched one at a time (`signatureHTML`). Its library is also what the composer's
     /// override picker lists.
     var signatures = SignaturesPage.empty
+    /// The own endpoint's form under Settings → Advanced (MailcalModel.Ai.swift).
+    var aiEndpoint: AiEndpointForm?
     /// The account whose "your name" step is open, or `nil` when none is.
     ///
     /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a

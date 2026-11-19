@@ -69,6 +69,11 @@ extension MailboxModel {
             signatures = app?.signaturesPage() ?? .empty
             return
         }
+        // The own endpoint's form: a change to it starting or ending, and nothing else.
+        if case .aiEndpoint = surface {
+            aiEndpoint = app?.aiEndpointForm()
+            return
+        }
         // A queued message the user asked to edit. The core has moved it back into Drafts,
         // withdrawn it from the Outbox and joined it to the composition the opening names, so it
         // opens through the same context every composer does: the composer saves over that copy,
@@ -88,6 +93,7 @@ extension MailboxModel {
             timezone = app?.timezoneSettings()
             if let app { reloadPreferences(app) }
             signatures = app?.signaturesPage() ?? .empty
+            aiEndpoint = app?.aiEndpointForm()
             mcpSettings = app?.mcpSettings()
             refreshAccountsSnapshot()
             return
