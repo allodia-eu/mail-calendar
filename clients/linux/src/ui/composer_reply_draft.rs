@@ -87,18 +87,6 @@ impl ReplyDraft {
             read: Cell::new(0),
         });
         let weak = Rc::downgrade(&draft);
-        draft.popover.connect_show(move |_| {
-            if let Some(draft) = weak.upgrade() {
-                draft.open_input();
-            }
-        });
-        let weak = Rc::downgrade(&draft);
-        draft.popover.connect_closed(move |_| {
-            if let Some(draft) = weak.upgrade() {
-                draft.input.replace(None);
-            }
-        });
-        let weak = Rc::downgrade(&draft);
         editor.connect_load_changed(move |_, event| {
             if event == LoadEvent::Finished
                 && let Some(draft) = weak.upgrade()
@@ -147,8 +135,13 @@ impl ReplyDraft {
         self.notes.set_visible(true);
         self.record.replace(Some(record.clone()));
         self.draw_button(record.control);
-        if let Some(input) = self.input.borrow().as_ref() {
-            input.update(&record);
+        // The popover holds its content before it is shown, which is when GTK looks inside it for
+        // the focus; while it is open only Draft follows, so what is being typed stays.
+        let open = self.popover.is_visible();
+        let input = self.input.borrow().clone();
+        match input {
+            Some(input) if open => input.update(&record),
+            _ => self.open_input(),
         }
         if self.noted.borrow().as_ref() != Some(&record) {
             notes::draw(&self.notes, &record, &self.note_actions());
@@ -223,8 +216,8 @@ impl ReplyDraft {
         self.button.replace(Some((control, button)));
     }
 
-    /// Fills the popover from the record as it opens: the line holding the last instruction, or
-    /// why it cannot draft with its remedy.
+    /// Fills the popover from the record: the line holding the last instruction, or why it cannot
+    /// draft with its remedy.
     fn open_input(self: &Rc<Self>) {
         let Some(record) = self.record.borrow().clone() else {
             return;

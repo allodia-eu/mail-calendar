@@ -328,7 +328,7 @@ stack; it never breaks inside a word.
 | iOS/iPadOS | a sheet holding a `NavigationStack`, full height on iPhone, a page sheet on iPad | each stage pushed; the back button and the edge swipe are Back, Cancel at the leading toolbar placement, the primary at the confirmation placement | a paged `TabView` with its page indicator | a popover from the control on iPad; a sheet at half height on iPhone |
 | Windows | the Settings dialog's detail panel, since WinUI forbids a nested `ContentDialog` | a footer: Cancel, then Back, then the primary in the accent style | a `PipsPager` in the footer | a `Flyout` from the control |
 | Android | a full-screen dialog over Settings, as the signature editor is | a top app bar with Close; system back and its predictive gesture are Back where the stage has one; the primary in a bar at the foot | a `HorizontalPager` with a page indicator | a `ModalBottomSheet`, never an `AlertDialog` |
-| Linux | the Settings window's detail, never a second toplevel ([`signatures.md`](signatures.md)) | an `AdwNavigationView`, a page per stage: its header bar's back button is Back, Cancel at the start, the primary a suggested action at the end | an `AdwCarousel` with `AdwCarouselIndicatorDots`, moved only by the buttons | a `GtkPopover` from a `GtkMenuButton` |
+| Linux | the Settings window's detail, never a second toplevel ([`signatures.md`](signatures.md)), its header bar standing in for the window's own while the flow is up | an `AdwNavigationView` whose stack is the record's trail with the stage on top: its header bar's back button is Back where the stage has one, Cancel stands at the start where it has none, and the primary is a suggested action at the end | an `AdwCarousel` with `AdwCarouselIndicatorDots` under it, moved only by the buttons: a back button at the start turns back a page, and Close stands there on the first | a `GtkPopover` from a `GtkMenuButton` |
 
 ## Storage
 
@@ -353,13 +353,13 @@ local or air-gapped deployment is exempt. Learning reads only the sent mail the 
 |---|:---:|:---:|:---:|:---:|:---:|:---:|
 | The gate before anything is read or sent (rules 1 to 3) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Learning in the flow host, with Back, Stop and one remedy (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
+| Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
+| Learning in the flow host, with Back, Stop and one remedy (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
+| The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
+| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
+| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
+| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | 🚧 |
 | A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 

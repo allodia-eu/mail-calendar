@@ -11,7 +11,7 @@ LEGS=(
   welcome zone-question mailbox settings mcp notifications reply forward print search
   calendar jitsi events meeting answer invitations contacts autosuggest mail-actions
   conversation-menu draft-resume signatures mailto-warm contacts-merge mailto-cold
-  notification-click server-change reauth-notices question-notices
+  notification-click server-change reauth-notices question-notices writing-style
 )
 
 declare -A LEG_ABOUT=(
@@ -44,6 +44,7 @@ declare -A LEG_ABOUT=(
   [server-change]="the showcase's paused calendar: Escape and Return refuse, Allow is refused"
   [reauth-notices]="the showcase's sign-in notices on the mail and calendar screens"
   [question-notices]="the showcase's three questions, answered from Issues and the banner"
+  [writing-style]="the writing assistant on the showcase: styles, the reveal, the endpoint, a draft"
 )
 
 # What a leg needs to have run first, beyond the welcome and the time zone question.
