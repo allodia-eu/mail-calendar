@@ -184,7 +184,7 @@ noted beside it, and the two without one are this app's own drawings.
 | The view menu | `ellipsis` | `ic_more_vert` | — | — |
 | Manage calendars | — | — | `E8FD` BulletedList | — |
 | The chosen mode or calendar | `checkmark` | `ic_check` | — | — |
-| A calendar that cannot be written: the lock on its row in the calendar pane ([`calendar-pane.md`](calendar-pane.md), rule 8) | `lock` | — | — | — |
+| A calendar that cannot be written: the lock on its row in the calendar pane ([`calendar-pane.md`](calendar-pane.md), rule 8) | `lock` | — | — | `changes-prevent-symbolic` |
 | An event in the agenda | `calendar` | `ic_calendar_month` | `E787` Calendar | — |
 | Open an event | — | — | — | `go-next-symbolic` |
 | Edit an event | `pencil` | `ic_edit` | — | — |

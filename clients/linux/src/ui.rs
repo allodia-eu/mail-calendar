@@ -299,7 +299,8 @@ pub(crate) struct AppModel {
     calendar_refresh: calendar_actions::CalendarRefreshGate,
     /// The unified Inbox unread on the app's icon in a dock (`docs/app-badge.md`).
     launcher_badge: launcher_badge::LauncherBadge,
-    calendar_manager_generation: u64,
+    /// The calendar pane's last pull, and the month it was paged to.
+    calendar_side: calendar::CalendarSide,
     setup: SetupState,
     /// What the next Settings render should show, and whether it opens the window or only redraws
     /// an open one ([`settings::SettingsState`]).

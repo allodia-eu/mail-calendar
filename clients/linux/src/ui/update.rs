@@ -7,8 +7,8 @@ use relm4::ComponentSender;
 
 use super::{
     AppInput, AppModel, AppWindow, PrimaryView, allodia_subscription::SubscriptionInput,
-    composer_model::ComposeKind, notification_open::present_main_window, reader::ReadingSource,
-    settings::Category, setup_model,
+    calendar::CalendarModel, composer_model::ComposeKind, notification_open::present_main_window,
+    reader::ReadingSource, settings::Category, setup_model,
 };
 use crate::l10n;
 
@@ -94,27 +94,15 @@ impl AppModel {
             AppInput::SubmitContactForm(intent) => self.submit_contact_form(*intent),
             AppInput::DismissContactEditor => self.dismiss_contact_editor(),
             AppInput::SetCalendarMode(mode) => {
-                if let Some(app) = &self.app {
-                    self.calendar.set_mode(app, mode);
-                }
+                self.move_calendar(|calendar, app| calendar.set_mode(app, mode));
             }
             AppInput::StepCalendar(direction) => {
-                if let Some(app) = &self.app {
-                    self.calendar.step(app, direction);
-                }
+                self.move_calendar(|calendar, app| calendar.step(app, direction));
             }
-            AppInput::CalendarToday => {
-                if let Some(app) = &self.app {
-                    self.calendar.jump_today(app);
-                }
-            }
-            AppInput::ManageCalendars => {
-                self.calendar_manager_generation = self.calendar_manager_generation.wrapping_add(1);
-            }
+            AppInput::CalendarToday => self.move_calendar(CalendarModel::jump_today),
+            AppInput::CalendarPane(input) => self.calendar_pane(input),
             AppInput::ShowCalendarDay(date) => {
-                if let Some(app) = &self.app {
-                    self.calendar.show_day(app, &date);
-                }
+                self.move_calendar(|calendar, app| calendar.show_day(app, &date));
             }
             AppInput::ToggleAllDay => self.calendar.toggle_all_day(),
             AppInput::OpenCalendarEvent(event) => {

@@ -10,7 +10,7 @@ use mailcal_bindings::{
 
 use super::{
     allodia_subscription::SubscriptionInput,
-    calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity},
+    calendar::{CalendarMode, CreateSlot, EventForm, EventIdentity, PaneInput},
     composer_model::ComposerSubmission,
     composer_open::ComposerOpened,
     composer_pop_out::PoppedOut,
@@ -76,7 +76,8 @@ pub(crate) enum AppInput {
     SetCalendarMode(CalendarMode),
     StepCalendar(i32),
     CalendarToday,
-    ManageCalendars,
+    /// The calendar pane paged its mini month, or a day in it was pressed.
+    CalendarPane(PaneInput),
     ShowCalendarDay(String),
     ToggleAllDay,
     OpenCalendarEvent(EventIdentity),

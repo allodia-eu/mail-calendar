@@ -225,7 +225,7 @@ impl AppModel {
             webview_available: true,
             calendar_refresh: calendar_actions::CalendarRefreshGate::default(),
             launcher_badge: launcher_badge::LauncherBadge::default(),
-            calendar_manager_generation: 0,
+            calendar_side: super::calendar::CalendarSide::default(),
             setup,
             settings: settings::SettingsState::default(),
             host_tasks: HostTasks::new(welcome_pending, flow.setup_after_welcome),

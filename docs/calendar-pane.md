@@ -47,7 +47,7 @@ tri-state check on the group heading; "show only this calendar".
 | macOS | ✅ `sidebarColumn` → `CalendarPane.swift` | ✅ `CalendarPaneMonth.swift` | ✅ `CalendarPaneList` | ✅ `sidebarDestinations` | ✅ no menu item or toolbar entry; `CalendarManagerView` is the phone's |
 | iPadOS (regular width) | ✅ the same pane, in the split view's sidebar column | ✅ the same | ✅ the same | ✅ the same bar | ✅ at regular width; compact width keeps the manager |
 | Windows | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Linux | ⬜ | ⬜ | ⬜ | ✅ `DestinationBar` | ⬜ |
+| Linux | ✅ a `gtk::Stack` in the sidebar column (`side_pane.rs`) | ✅ a `gtk::Grid` of flat buttons (`side_pane_month.rs`) | ✅ navigation-sidebar rows, the menu in `side_pane_menu.rs` (`side_pane_list.rs`) | ✅ `DestinationBar` | ✅ `manager.rs` and its header button deleted |
 | iOS (iPhone) | — | — | — | — | — |
 | Android | — | — | — | — | — |
 
