@@ -15,7 +15,7 @@ pub enum WritingStyleIntent {
     /// `writing_style_name_refusal`'s rule.
     Rename { style: String, name: String },
     /// Replaces a style's notes, from its detail: sent on Return and on leaving the field.
-    Notes { style: String, notes: String },
+    SetNotes { style: String, notes: String },
     /// Sets the style an account drafts in, or none, from the page's slot picker.
     Assign {
         account: String,

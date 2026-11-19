@@ -57,7 +57,7 @@ pub struct WritingStyleDetail {
     /// The name's Save (`WritingStyleIntent::Rename`), held besides while
     /// `writing_style_name_refusal` refuses the name typed.
     pub rename: ControlState,
-    /// The notes field (`WritingStyleIntent::Notes`), sent on Return and on leaving it.
+    /// The notes field (`WritingStyleIntent::SetNotes`), sent on Return and on leaving it.
     pub notes_control: ControlState,
     /// Forget (`WritingStyleIntent::Forget`), asked first.
     pub forget: ControlState,

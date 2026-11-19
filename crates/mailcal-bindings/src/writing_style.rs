@@ -47,7 +47,7 @@ impl MailcalApp {
             WritingStyleIntent::Rename { style, name } => {
                 style_id(style).map(|id| WritingStyleChange::Rename { id, name })
             }
-            WritingStyleIntent::Notes { style, notes } => {
+            WritingStyleIntent::SetNotes { style, notes } => {
                 style_id(style).map(|id| WritingStyleChange::Notes { id, notes })
             }
             WritingStyleIntent::Assign { account, style } => Some(WritingStyleChange::Assign {
