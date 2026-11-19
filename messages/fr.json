@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "{count} point de la liste est encore ouvert.",
 	"composer_send_anyway": "Envoyer quand même",
 	"composer_keep_editing": "Continuer à modifier",
-	"composer_draft_stop": "Arrêter"
+	"composer_draft_stop": "Arrêter",
+	"ai_endpoint_key_dropped": "La clé conservée appartient au serveur enregistré auparavant. Saisissez la clé de cette adresse, ou laissez vide si aucune n’est nécessaire.",
+	"ai_failure_refused_undeclared": "Le style d’écriture n’envoie du courrier qu’à une IA dont l’emplacement est connu, et votre propre point d’accès n’indique pas où il fonctionne."
 }

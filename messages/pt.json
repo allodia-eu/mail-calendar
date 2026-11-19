@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "{count} ponto da lista ainda está por fazer.",
 	"composer_send_anyway": "Enviar mesmo assim",
 	"composer_keep_editing": "Continuar a editar",
-	"composer_draft_stop": "Parar"
+	"composer_draft_stop": "Parar",
+	"ai_endpoint_key_dropped": "A chave guardada pertence ao servidor guardado antes. Introduza a chave deste endereço, ou deixe vazio se não for precisa nenhuma.",
+	"ai_failure_refused_undeclared": "O estilo de escrita só envia correio para uma IA cuja localização é conhecida, e o seu próprio endpoint não indica onde funciona."
 }

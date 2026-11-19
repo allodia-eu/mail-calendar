@@ -8,8 +8,9 @@ use std::{
 };
 
 use mailcal_bindings::{
-    AiRemedy, ControlState, StyleLearningIntent, StyleLearningStage, WritingStyleIntent,
-    WritingStyleLearning, WritingStyleOutcome, WritingStyleReveal,
+    AiRemedy, AiRemedyControl, ControlState, StyleLearningIntent, StyleLearningStage,
+    StyleLearningTrailStage, WritingStyleIntent, WritingStyleLearning, WritingStyleOutcome,
+    WritingStyleReveal,
 };
 
 use super::{
@@ -19,7 +20,7 @@ use super::{
 };
 use crate::{
     l10n,
-    ui::flow_host::{FlowAction, FlowHost, FlowStep, Pressed},
+    ui::flow_host::{FlowAction, FlowHost, FlowLeave, FlowStep, FlowTrailStep, Pressed},
 };
 
 /// What the flow needs from outside the host.
@@ -96,8 +97,9 @@ impl Learning {
             return;
         }
         let step = self.step(&record);
+        let trail = trail(&record.trail);
         self.drawn.replace(Some(record));
-        self.host.show(step);
+        self.host.show(&trail, step);
     }
 
     fn draw_reveal(self: &Rc<Self>, style: &str, outcome: Option<&WritingStyleOutcome>) {
@@ -116,59 +118,55 @@ impl Learning {
         } else {
             let seen = outcome.map_or(0, |outcome| outcome.serial);
             let shown = Reveal::new(record, seen, Rc::clone(&self.wiring.style));
-            let (weak, host) = (Rc::downgrade(&shown), Rc::downgrade(&self.host));
+            let (weak, flow) = (Rc::downgrade(&shown), Rc::downgrade(self));
             shown.on_reshow(Rc::new(move || {
-                if let (Some(shown), Some(host)) = (weak.upgrade(), host.upgrade()) {
-                    host.show(shown.step());
+                if let (Some(shown), Some(flow)) = (weak.upgrade(), flow.upgrade()) {
+                    flow.show_reveal(&shown);
                 }
             }));
             self.reveal.replace(Some(Rc::clone(&shown)));
             shown
         };
-        self.host.show(shown.step());
+        self.show_reveal(&shown);
+    }
+
+    /// The reveal stands on the trail the record gives it, the review it was learned from.
+    fn show_reveal(&self, shown: &Rc<Reveal>) {
+        let trail = self
+            .drawn
+            .borrow()
+            .as_ref()
+            .map(|record| trail(&record.trail))
+            .unwrap_or_default();
+        self.host.show(&trail, shown.step());
     }
 
     fn step(self: &Rc<Self>, record: &WritingStyleLearning) -> FlowStep {
         let send = &self.wiring.send;
-        let (tag, title, content, primary) = match &record.stage {
+        let (tag, content, primary) = match &record.stage {
             StyleLearningStage::ChooseAccount { accounts, selected } => (
-                "account",
-                l10n::learn_account_title(),
+                ACCOUNT,
                 stages::choose_account(accounts, selected.as_deref(), send),
-                self.action(
-                    record.next,
-                    l10n::wizard_next(),
-                    true,
-                    StyleLearningIntent::Next,
-                ),
+                self.action(record.next, l10n::wizard_next(), StyleLearningIntent::Next),
             ),
             StyleLearningStage::ChooseRange {
                 email,
                 presets,
-                earliest,
-                latest,
                 selected,
                 reach,
+                ..
             } => (
-                "range",
-                l10n::learn_range_title(),
+                RANGE,
                 stages::choose_range(
                     &Range {
                         email,
                         presets,
-                        earliest: earliest.as_deref(),
-                        latest,
                         selected: selected.as_ref(),
                         reach,
                     },
                     send,
                 ),
-                self.action(
-                    record.next,
-                    l10n::wizard_next(),
-                    true,
-                    StyleLearningIntent::Next,
-                ),
+                self.action(record.next, l10n::wizard_next(), StyleLearningIntent::Next),
             ),
             StyleLearningStage::Review {
                 email,
@@ -179,8 +177,7 @@ impl Learning {
                 cannot_send,
                 keyword_kept,
             } => (
-                "review",
-                l10n::writing_style_learn(),
+                REVIEW,
                 stages::review(&Review {
                     email,
                     range,
@@ -193,7 +190,6 @@ impl Learning {
                 self.action(
                     record.learn,
                     l10n::learn_consent_confirm(),
-                    true,
                     StyleLearningIntent::Learn {
                         name: l10n::writing_style_default_name().to_owned(),
                         language: l10n::active_locale().to_owned(),
@@ -202,7 +198,6 @@ impl Learning {
             ),
             StyleLearningStage::Learning { done, total } => (
                 "learning",
-                l10n::writing_style_learn(),
                 stages::learning(*done, *total),
                 record.stop.map(|stop| {
                     let send = Rc::clone(send);
@@ -210,32 +205,30 @@ impl Learning {
                         label: l10n::learn_stop().to_owned(),
                         control: stop,
                         suggested: false,
-                        advances: false,
                         pressed: Rc::new(move || send(StyleLearningIntent::Stop)),
                     }
                 }),
             ),
             StyleLearningStage::Failed { failure, remedy } => (
                 "failed",
-                l10n::writing_style_learn(),
                 stages::failed(*failure),
-                record
-                    .remedy
-                    .zip(*remedy)
-                    .map(|(control, remedy)| self.remedy(control, remedy)),
+                remedy.map(|remedy| self.remedy(remedy)),
             ),
             StyleLearningStage::Learned { .. } => unreachable!("a learned style is its reveal"),
         };
         FlowStep {
             tag,
-            title: title.to_owned(),
+            title: l10n::writing_style_learn().to_owned(),
             title_widget: None,
             content,
             back: record.back,
+            leave: FlowLeave {
+                label: l10n::action_cancel().to_owned(),
+                control: record.close,
+            },
+            own_back: None,
             primary,
-            close: record.close,
             footer: None,
-            start: None,
         }
     }
 
@@ -244,7 +237,6 @@ impl Learning {
         &self,
         control: Option<ControlState>,
         label: &str,
-        advances: bool,
         intent: StyleLearningIntent,
     ) -> Option<FlowAction> {
         let control = control?;
@@ -253,14 +245,14 @@ impl Learning {
             label: label.to_owned(),
             control,
             suggested: true,
-            advances,
             pressed: Rc::new(move || send(clone_intent(&intent))),
         })
     }
 
     /// The failure's remedy: one the flow moves to is sent to it, any other is opened where it
     /// lives once the flow is closed.
-    fn remedy(&self, control: ControlState, remedy: AiRemedy) -> FlowAction {
+    fn remedy(&self, remedy: AiRemedyControl) -> FlowAction {
+        let AiRemedyControl { remedy, control } = remedy;
         let (send, open) = (
             Rc::clone(&self.wiring.send),
             Rc::clone(&self.wiring.open_remedy),
@@ -278,10 +270,28 @@ impl Learning {
             label: words::remedy(remedy).to_owned(),
             control,
             suggested: true,
-            advances: false,
             pressed,
         }
     }
+}
+
+const ACCOUNT: &str = "account";
+const RANGE: &str = "range";
+const REVIEW: &str = "review";
+
+/// The pages under the stage on screen, as the record's trail names them.
+fn trail(stages: &[StyleLearningTrailStage]) -> Vec<FlowTrailStep> {
+    stages
+        .iter()
+        .map(|stage| FlowTrailStep {
+            tag: match stage {
+                StyleLearningTrailStage::ChooseAccount => ACCOUNT,
+                StyleLearningTrailStage::ChooseRange => RANGE,
+                StyleLearningTrailStage::Review => REVIEW,
+            },
+            title: l10n::writing_style_learn().to_owned(),
+        })
+        .collect()
 }
 
 /// The intents a press sends carry only strings, so a press can send its own again.

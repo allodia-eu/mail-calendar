@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "{count} punto dell’elenco è ancora aperto.",
 	"composer_send_anyway": "Invia comunque",
 	"composer_keep_editing": "Continua a modificare",
-	"composer_draft_stop": "Interrompi"
+	"composer_draft_stop": "Interrompi",
+	"ai_endpoint_key_dropped": "La chiave conservata appartiene al server salvato in precedenza. Inserisci la chiave per questo indirizzo, o lascia vuoto se non ne serve una.",
+	"ai_failure_refused_undeclared": "Lo stile di scrittura invia la posta solo a un’IA di cui si conosce la posizione, e il tuo endpoint non indica dove funziona."
 }

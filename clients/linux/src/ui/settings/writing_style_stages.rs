@@ -37,6 +37,17 @@ pub(super) fn column(content: &gtk::Box) -> gtk::Widget {
     scroll.upcast()
 }
 
+/// A stage composed as GNOME composes one: its question as a title, centred, what it is about under
+/// it, and the stage's own controls beneath, no wider than reads well.
+fn composed(title: &str, description: Option<&str>, child: &gtk::Box) -> gtk::Widget {
+    let page = status(title, description);
+    let clamp = adw::Clamp::new();
+    clamp.set_maximum_size(520);
+    clamp.set_child(Some(child));
+    page.set_child(Some(&clamp));
+    page.upcast()
+}
+
 pub(super) fn text(value: &str) -> gtk::Label {
     let label = gtk::Label::new(Some(value));
     label.set_wrap(true);
@@ -115,39 +126,21 @@ pub(super) fn choose_account(
             });
         }
     }));
-    column(&content)
+    composed(l10n::learn_account_title(), None, &content)
 }
 
-/// The range stage: the core's presets, and for a range of the person's own its two days.
+/// The range stage: the core's presets, the last a range of the person's own with its two days.
 pub(super) struct Range<'a> {
     pub(super) email: &'a str,
     pub(super) presets: &'a [StyleLearnRange],
-    pub(super) earliest: Option<&'a str>,
-    pub(super) latest: &'a str,
     pub(super) selected: Option<&'a StyleLearnRange>,
     pub(super) reach: &'a StyleSentReach,
 }
 
 pub(super) fn choose_range(range: &Range<'_>, send: &Send) -> gtk::Widget {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
-    content.append(&dim(&format!(
-        "{}\n{}",
-        range.email,
-        words::reach(range.reach)
-    )));
-    // The presets, then a range of the person's own, which is always offered within the bounds.
-    let own = StyleLearnRange::Between {
-        since: range.earliest.unwrap_or(range.latest).to_owned(),
-        until: range.latest.to_owned(),
-    };
-    let offered = range
+    let rows = range
         .presets
-        .iter()
-        .filter(|preset| !matches!(preset, StyleLearnRange::Between { .. }))
-        .cloned()
-        .chain(std::iter::once(own))
-        .collect::<Vec<_>>();
-    let rows = offered
         .iter()
         .map(|choice| {
             let hint = matches!(choice, StyleLearnRange::UntilEndOfLastYear)
@@ -156,24 +149,18 @@ pub(super) fn choose_range(range: &Range<'_>, send: &Send) -> gtk::Widget {
         })
         .collect::<Vec<_>>();
     let at = range.selected.and_then(|selected| {
-        offered
+        range
+            .presets
             .iter()
             .position(|choice| std::mem::discriminant(choice) == std::mem::discriminant(selected))
     });
-    let (chosen, pick) = (range.selected.cloned(), Rc::clone(send));
+    let (presets, pick) = (range.presets.to_vec(), Rc::clone(send));
     content.append(&choices(&rows, at, move |position| {
-        let Some(choice) = offered.get(position) else {
-            return;
-        };
-        // A range of the person's own opens on the one already chosen, or on the widest the core
-        // allows.
-        let range = match (choice, &chosen) {
-            (StyleLearnRange::Between { .. }, Some(kept @ StyleLearnRange::Between { .. })) => {
-                kept.clone()
-            }
-            (other, _) => other.clone(),
-        };
-        pick(StyleLearningIntent::SelectRange { range });
+        if let Some(choice) = presets.get(position) {
+            pick(StyleLearningIntent::SelectRange {
+                range: choice.clone(),
+            });
+        }
     }));
     if let Some(StyleLearnRange::Between { since, until }) = range.selected {
         let days = gtk::ListBox::new();
@@ -203,7 +190,8 @@ pub(super) fn choose_range(range: &Range<'_>, send: &Send) -> gtk::Widget {
         ));
         content.append(&days);
     }
-    column(&content)
+    let about = format!("{}\n{}", range.email, words::reach(range.reach));
+    composed(l10n::learn_range_title(), Some(&about), &content)
 }
 
 /// A row naming a day, which opens a calendar to pick another. A day the core does not admit is
@@ -262,52 +250,57 @@ pub(super) struct Review<'a> {
 }
 
 pub(super) fn review(review: &Review<'_>) -> gtk::Widget {
-    let content = gtk::Box::new(gtk::Orientation::Vertical, 18);
+    let report = match review.state {
+        StyleLearningReview::Reading => {
+            let page = status(l10n::learn_reading(), None);
+            page.set_paintable(Some(&adw::SpinnerPaintable::new(Some(&page))));
+            return page.upcast();
+        }
+        StyleLearningReview::Ready { report } | StyleLearningReview::NothingUsable { report } => {
+            report
+        }
+    };
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
     content.append(&dim(&format!(
         "{} · {}",
         review.email,
         words::range_chosen(review.range)
     )));
-    match review.state {
-        StyleLearningReview::Reading => {
-            let reading = gtk::Box::new(gtk::Orientation::Horizontal, 12);
-            let spinner = adw::Spinner::new();
-            reading.append(&spinner);
-            reading.append(&text(l10n::learn_reading()));
-            content.append(&reading);
-        }
-        StyleLearningReview::Ready { report } => content.append(&report_list(report)),
-        StyleLearningReview::NothingUsable { report } => {
-            content.append(&report_list(report));
-            let nothing = text(l10n::learn_report_nothing());
-            nothing.add_css_class("warning");
-            content.append(&nothing);
-        }
+    content.append(&report_list(report));
+    if matches!(review.state, StyleLearningReview::NothingUsable { .. }) {
+        let nothing = text(l10n::learn_report_nothing());
+        nothing.add_css_class("warning");
+        content.append(&nothing);
     }
     content.append(&dim(&words::reach(review.reach)));
-    let sending = gtk::Box::new(gtk::Orientation::Vertical, 8);
-    let heading = text(l10n::learn_consent_title());
-    heading.add_css_class("heading");
-    heading.set_accessible_role(gtk::AccessibleRole::Heading);
-    sending.append(&heading);
-    match (review.sends_to, review.cannot_send) {
+    if !review.keyword_kept {
+        content.append(&dim(l10n::learn_keyword_not_kept()));
+    }
+    // The question Learn answers: what is sent, and where. Pressing Learn is the consent.
+    let (sent, refused) = match (review.sends_to, review.cannot_send) {
         (Some(StyleLearningDestination::Relay), _) => {
-            sending.append(&text(l10n::learn_consent_relay()));
+            (l10n::learn_consent_relay().to_owned(), false)
         }
         (Some(StyleLearningDestination::OwnEndpoint { host }), _) => {
-            sending.append(&text(&l10n::learn_consent_own(host)));
+            (l10n::learn_consent_own(host), false)
         }
-        (None, failure) => {
-            let said = text(failure.map_or_else(l10n::ai_failure_nowhere_to_send, words::failure));
-            said.add_css_class("error");
-            sending.append(&said);
-        }
+        (None, failure) => (
+            failure
+                .map_or_else(l10n::ai_failure_nowhere_to_send, words::failure)
+                .to_owned(),
+            true,
+        ),
+    };
+    let page = status(l10n::learn_consent_title(), Some(&sent));
+    if refused {
+        // Learn is held; the reason stands where the destination would.
+        page.add_css_class("dim-label");
     }
-    if !review.keyword_kept {
-        sending.append(&dim(l10n::learn_keyword_not_kept()));
-    }
-    content.append(&sending);
-    column(&content)
+    let clamp = adw::Clamp::new();
+    clamp.set_maximum_size(520);
+    clamp.set_child(Some(&content));
+    page.set_child(Some(&clamp));
+    page.upcast()
 }
 
 fn report_list(report: &StyleLearningReport) -> gtk::ListBox {
@@ -353,7 +346,8 @@ fn report_list(report: &StyleLearningReport) -> gtk::ListBox {
 /// A stage that says one thing large: the run under way, or what it came to.
 fn status(title: &str, description: Option<&str>) -> adw::StatusPage {
     let page = adw::StatusPage::new();
-    page.set_title(&gtk::glib::markup_escape_text(title));
+    // The title is text; the description is markup, so it is escaped.
+    page.set_title(title);
     if let Some(description) = description {
         page.set_description(Some(&gtk::glib::markup_escape_text(description)));
     }
@@ -378,5 +372,7 @@ pub(super) fn learning(done: u32, total: u32) -> gtk::Widget {
 pub(super) fn failed(failure: AiFailure) -> gtk::Widget {
     let page = status(l10n::learn_failed_title(), Some(words::failure(failure)));
     page.set_icon_name(Some(icons::WARNING));
+    // A failure is said at the size of what it says, not of a welcome screen.
+    page.add_css_class("compact");
     page.upcast()
 }

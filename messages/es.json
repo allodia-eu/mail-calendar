@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "Queda {count} punto pendiente en la lista.",
 	"composer_send_anyway": "Enviar de todos modos",
 	"composer_keep_editing": "Seguir editando",
-	"composer_draft_stop": "Detener"
+	"composer_draft_stop": "Detener",
+	"ai_endpoint_key_dropped": "La clave guardada es del servidor guardado antes. Escribe la clave de esta dirección, o déjalo vacío si no necesita ninguna.",
+	"ai_failure_refused_undeclared": "El estilo de escritura solo envía correo a una IA cuya ubicación se conoce, y tu propio punto de acceso no indica dónde funciona."
 }

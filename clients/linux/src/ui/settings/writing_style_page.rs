@@ -6,14 +6,14 @@ use std::rc::Rc;
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AiFailure, AiRemedy, ControlState, WritingStyleEntry, WritingStyleLearnBlock,
+    AiFailure, AiRemedy, AiRemedyControl, WritingStyleEntry, WritingStyleLearnBlock,
     WritingStyleOpens, WritingStylePage, WritingStyleRun, WritingStyleSlot,
 };
 
 use super::{group, writing_style_words as words};
 use crate::{
     l10n,
-    ui::{controls, mailbox::plain_text_row},
+    ui::{controls, icons, mailbox::plain_text_row},
 };
 
 /// What the page's controls ask for.
@@ -24,12 +24,6 @@ pub(super) struct Actions {
     pub(super) stop: Rc<dyn Fn()>,
     pub(super) remedy: Rc<dyn Fn(AiRemedy)>,
 }
-
-/// A remedy opens a page or a sign-in and starts no work here, so it is never drawn running.
-const OPENS: ControlState = ControlState {
-    enabled: true,
-    running: false,
-};
 
 /// Draws `page` into `body`, saying `refused` when the last change on it was refused.
 pub(super) fn draw(
@@ -113,8 +107,8 @@ fn learn_area(page: &WritingStylePage, actions: &Actions) -> gtk::Box {
             area.append(&list);
             return area;
         }
-        Some(WritingStyleRun::Failed { failure, .. }) => {
-            area.append(&failed_row(failure));
+        Some(WritingStyleRun::Failed { failure, remedy }) => {
+            area.append(&failed_row(failure, remedy, actions));
         }
         None => {}
     }
@@ -129,15 +123,7 @@ fn learn_area(page: &WritingStylePage, actions: &Actions) -> gtk::Box {
         let row = plain_text_row();
         row.set_title(said);
         if let Some(remedy) = remedy {
-            let open = Rc::clone(&actions.remedy);
-            row.add_suffix(&controls::button(
-                words::remedy(remedy),
-                OPENS,
-                false,
-                move || {
-                    open(remedy);
-                },
-            ));
+            row.add_suffix(&remedy_button(remedy, actions));
         }
         list.append(&row);
         area.append(&list);
@@ -153,15 +139,35 @@ fn learn_area(page: &WritingStylePage, actions: &Actions) -> gtk::Box {
     area
 }
 
-/// A run that failed after its host was closed: Learn reopens the flow on it.
-fn failed_row(failure: AiFailure) -> gtk::ListBox {
+/// A run that failed after its host was closed, with its remedy: Learn reopens the flow on it.
+fn failed_row(
+    failure: AiFailure,
+    remedy: Option<AiRemedyControl>,
+    actions: &Actions,
+) -> gtk::ListBox {
     let list = boxed();
     let row = plain_text_row();
     row.set_title(l10n::writing_style_run_failed());
     row.set_subtitle(words::failure(failure));
-    row.add_css_class("error");
+    let mark = gtk::Image::from_icon_name(icons::WARNING);
+    mark.add_css_class("warning");
+    row.add_prefix(&mark);
+    if let Some(remedy) = remedy {
+        row.add_suffix(&remedy_button(remedy, actions));
+    }
     list.append(&row);
     list
+}
+
+/// A failure's remedy, drawn from its control: it opens where it leads and never runs here.
+fn remedy_button(remedy: AiRemedyControl, actions: &Actions) -> gtk::Button {
+    let open = Rc::clone(&actions.remedy);
+    controls::button(
+        words::remedy(remedy.remedy),
+        remedy.control,
+        false,
+        move || open(remedy.remedy),
+    )
 }
 
 fn boxed() -> gtk::ListBox {

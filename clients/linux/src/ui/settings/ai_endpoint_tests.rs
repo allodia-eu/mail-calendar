@@ -6,7 +6,7 @@ use std::{cell::RefCell, rc::Rc};
 use adw::prelude::*;
 use mailcal_bindings::{
     AiEndpointAddressGap, AiEndpointChangeKind, AiEndpointForm, AiEndpointGaps, AiEndpointIntent,
-    AiEndpointOutcome, AiEndpointResult, ControlState, JurisdictionClass,
+    AiEndpointKeptKey, AiEndpointOutcome, AiEndpointResult, ControlState, JurisdictionClass,
 };
 
 use super::Form;
@@ -19,10 +19,6 @@ const FREE: ControlState = ControlState {
     enabled: true,
     running: false,
 };
-const HELD: ControlState = ControlState {
-    enabled: false,
-    running: false,
-};
 
 fn record() -> AiEndpointForm {
     AiEndpointForm {
@@ -30,18 +26,14 @@ fn record() -> AiEndpointForm {
         model: "mock".to_owned(),
         declared: Some(JurisdictionClass::EuNative),
         key_kept: true,
-        gaps: AiEndpointGaps {
-            address: None,
-            model_missing: false,
-            declaration: None,
-        },
         save: FREE,
-        remove: FREE,
+        remove: Some(FREE),
         outcome: None,
     }
 }
 
-/// The core's rule as a test can state it: no address is missing, anything else is complete.
+/// The core's rule as a test can state it: no address is missing, anything else is complete, and
+/// the key kept is carried to the stored endpoint's server alone.
 fn form(sent: &Rc<RefCell<Vec<String>>>) -> Rc<Form> {
     let sent = Rc::clone(sent);
     Form::new(
@@ -51,6 +43,11 @@ fn form(sent: &Rc<RefCell<Vec<String>>>) -> Rc<Form> {
             declaration: declared
                 .is_none()
                 .then_some(mailcal_bindings::AiEndpointDeclarationGap::Missing),
+            kept_key: Some(if address.contains("localhost:28434") {
+                AiEndpointKeptKey::Carried
+            } else {
+                AiEndpointKeptKey::Dropped
+            }),
         }),
         Rc::new(move |intent| {
             sent.borrow_mut().push(match intent {
@@ -92,8 +89,8 @@ pub(crate) fn the_form_is_absent_while_the_core_offers_none() {
     assert!(form.root.is_visible());
 }
 
-/// The fields are the record's, a kept key is said and never drawn back, and an empty key field
-/// sends no key.
+/// The fields are the record's, a kept key is said and never drawn back, an empty key field sends
+/// an empty key, and an address on another server says the key must be typed again.
 pub(crate) fn save_sends_the_fields_as_typed_and_no_key_for_an_empty_field() {
     let sent = Rc::default();
     let form = form(&sent);
@@ -107,8 +104,10 @@ pub(crate) fn save_sends_the_fields_as_typed_and_no_key_for_an_empty_field() {
         .emit_clicked();
     assert_eq!(
         *sent.borrow(),
-        ["save http://localhost:28434/v1 None Some(EuNative)"]
+        ["save http://localhost:28434/v1 \"\" Some(EuNative)"]
     );
+    form.address.set_text("https://api.example.eu/v1");
+    assert_eq!(form.key_note.text(), l10n::ai_endpoint_key_dropped());
 }
 
 /// A gap is said under its field as the person types, and Save is held while one is named.
@@ -140,16 +139,13 @@ pub(crate) fn a_running_save_holds_the_form_and_a_refused_key_is_said() {
             enabled: false,
             running: true,
         },
-        remove: HELD,
+        remove: None,
         ..record()
     }));
     let root = form.root.upcast_ref::<gtk::Widget>();
     let save = button(root, l10n::ai_endpoint_save()).expect("Save");
     assert!(spins(&save) && !save.is_sensitive());
-    assert!(
-        button(root, l10n::ai_endpoint_remove()).is_none(),
-        "nothing stored, no Remove"
-    );
+    assert!(!form.removal.is_visible(), "nothing to remove, no Remove");
     assert!(!form.address.is_sensitive() && !form.model.is_sensitive());
     form.draw(Some(AiEndpointForm {
         outcome: Some(AiEndpointOutcome {

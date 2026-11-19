@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "{count} item on the list is still open.",
 	"composer_send_anyway": "Send anyway",
 	"composer_keep_editing": "Keep editing",
-	"composer_draft_stop": "Stop"
+	"composer_draft_stop": "Stop",
+	"ai_endpoint_key_dropped": "The key kept belongs to the server saved before. Enter the key for this address, or leave it empty if it needs none.",
+	"ai_failure_refused_undeclared": "Writing style only sends mail to AI whose location is known, and your own endpoint does not say where it runs."
 }

@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "{count} punt op de lijst staat nog open.",
 	"composer_send_anyway": "Toch versturen",
 	"composer_keep_editing": "Verder bewerken",
-	"composer_draft_stop": "Stoppen"
+	"composer_draft_stop": "Stoppen",
+	"ai_endpoint_key_dropped": "De bewaarde sleutel hoort bij de server die eerder was opgeslagen. Vul de sleutel voor dit adres in, of laat het leeg als er geen nodig is.",
+	"ai_failure_refused_undeclared": "Schrijfstijl stuurt mail alleen naar AI waarvan bekend is waar die draait, en bij je eigen endpoint staat niet waar het draait."
 }

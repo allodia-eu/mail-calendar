@@ -23,7 +23,8 @@ use super::{
 use crate::{
     l10n,
     ui::{
-        flow_host::{FlowAction, FlowStep},
+        controls,
+        flow_host::{FlowAction, FlowLeave, FlowStep},
         flow_pager::FlowPager,
     },
 };
@@ -145,6 +146,7 @@ impl Reveal {
     /// The step the host draws, on the page on screen.
     pub(super) fn step(self: &Rc<Self>) -> FlowStep {
         let record = self.record.borrow();
+        controls::hold_field(self.pager.back(), record.paging);
         let on = record
             .pages
             .get(usize::try_from(self.pager.index()).unwrap_or_default())
@@ -160,7 +162,6 @@ impl Reveal {
                 label: l10n::reveal_save().to_owned(),
                 control: save_control(record.save, &self.name.text()),
                 suggested: true,
-                advances: false,
                 pressed: Rc::new(move || {
                     if let Some(reveal) = weak.upgrade() {
                         reveal.save();
@@ -171,13 +172,8 @@ impl Reveal {
             let weak = Rc::downgrade(self);
             FlowAction {
                 label: l10n::wizard_next().to_owned(),
-                // Turning a page starts no work and waits on nothing.
-                control: ControlState {
-                    enabled: true,
-                    running: false,
-                },
+                control: record.paging,
                 suggested: true,
-                advances: false,
                 pressed: Rc::new(move || {
                     if let Some(reveal) = weak.upgrade() {
                         reveal.pager.turn(true);
@@ -196,10 +192,13 @@ impl Reveal {
                 .map(gtk::Box::upcast),
             content: self.pager.carousel().clone().upcast(),
             back: None,
+            leave: FlowLeave {
+                label: l10n::action_close().to_owned(),
+                control: record.close,
+            },
+            own_back: Some(self.pager.back().clone()),
             primary: Some(primary),
-            close: record.close,
             footer: Some(self.pager.footer().clone().upcast()),
-            start: Some(self.pager.back().clone().upcast()),
         }
     }
 

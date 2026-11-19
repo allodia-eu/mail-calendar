@@ -107,6 +107,14 @@ impl Drop for View {
         if let Some(handler) = self.closing.take() {
             self.ctx.window.disconnect(handler);
         }
+        title_bar(&self.ctx.window, true);
+    }
+}
+
+/// Shows or hides `window`'s own title bar.
+fn title_bar(window: &gtk::Window, shown: bool) {
+    if let Some(bar) = window.titlebar() {
+        bar.set_visible(shown);
     }
 }
 
@@ -336,10 +344,10 @@ impl View {
                 let (weak, shown) = (Rc::downgrade(&reveal), Rc::downgrade(&host));
                 reveal.on_reshow(Rc::new(move || {
                     if let (Some(reveal), Some(host)) = (weak.upgrade(), shown.upgrade()) {
-                        host.show(reveal.step());
+                        host.show(&[], reveal.step());
                     }
                 }));
-                host.show(reveal.step());
+                host.show(&[], reveal.step());
                 self.present(host.widget().upcast_ref());
                 self.reveal.replace(Some((host, reveal)));
             }
@@ -353,7 +361,7 @@ impl View {
         match self.ctx.app.writing_style_reveal(reveal.id.clone()) {
             Some(record) if !reveal.outcome(outcome) => {
                 reveal.update(record);
-                host.show(reveal.step());
+                host.show(&[], reveal.step());
             }
             _ => {
                 host.dismiss();
@@ -422,11 +430,13 @@ impl View {
                 self.ctx.sender.emit(AppInput::StartAllodiaSignIn);
             }
             AiRemedy::OpenAiEndpoint => self.ctx.sidebar.show(Category::Advanced),
-            AiRemedy::TryAgain
-            | AiRemedy::ChooseAccount
-            | AiRemedy::ChooseRange
-            | AiRemedy::LearnStyle
-            | AiRemedy::ChooseStyle => {}
+            // A step of the flow, from a run that failed with its host closed: the flow opens on
+            // the failure and takes it.
+            AiRemedy::TryAgain | AiRemedy::ChooseAccount | AiRemedy::ChooseRange => {
+                self.learning_intent(StyleLearningIntent::Open);
+                self.learning_intent(StyleLearningIntent::Remedy);
+            }
+            AiRemedy::LearnStyle | AiRemedy::ChooseStyle => {}
         }
     }
 
@@ -450,6 +460,9 @@ impl View {
         }
         navigation.add_named(host, Some(FLOW));
         navigation.set_visible_child_name(FLOW);
+        // The flow's header bar stands in for the window's own while it is up: one bar, with the
+        // window's controls at its end.
+        title_bar(&self.ctx.window, false);
     }
 
     /// Puts the Settings pages back in place of the host, on the next turn of the loop: the call
@@ -465,6 +478,9 @@ impl View {
             }
             navigation.set_visible_child_name("settings");
             navigation.remove(&host);
+            if let Some(window) = navigation.root().and_downcast::<gtk::Window>() {
+                title_bar(&window, true);
+            }
         });
     }
 }

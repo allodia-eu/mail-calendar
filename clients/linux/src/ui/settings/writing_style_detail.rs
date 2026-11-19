@@ -6,7 +6,9 @@
 use std::rc::Rc;
 
 use adw::prelude::*;
-use mailcal_bindings::{ControlState, WritingStyleDetail, WritingStyleRevealPage};
+use mailcal_bindings::{
+    ControlState, WritingStyleDetail, WritingStyleRevealPage, WritingStyleSection,
+};
 
 use super::{
     writing_style_reveal::save_control,
@@ -28,15 +30,15 @@ pub(super) struct Actions {
     pub(super) language: Rc<dyn Fn(usize)>,
 }
 
-/// The sections the detail shows, in the reveal's order.
-type Section = (WritingStyleRevealPage, fn() -> &'static str);
-
-const SECTIONS: [Section; 4] = [
-    (WritingStyleRevealPage::Letter, l10n::reveal_step_letter),
-    (WritingStyleRevealPage::Habits, l10n::reveal_step_habits),
-    (WritingStyleRevealPage::Voice, l10n::reveal_step_voice),
-    (WritingStyleRevealPage::Phrases, l10n::reveal_phrases),
-];
+/// A section as the reveal's page about it, and its heading.
+fn section_of(section: WritingStyleSection) -> (WritingStyleRevealPage, &'static str) {
+    match section {
+        WritingStyleSection::Letter => (WritingStyleRevealPage::Letter, l10n::reveal_step_letter()),
+        WritingStyleSection::Habits => (WritingStyleRevealPage::Habits, l10n::reveal_step_habits()),
+        WritingStyleSection::Voice => (WritingStyleRevealPage::Voice, l10n::reveal_step_voice()),
+        WritingStyleSection::Phrases => (WritingStyleRevealPage::Phrases, l10n::reveal_phrases()),
+    }
+}
 
 /// Draws `detail` into `body`, on the language at `language`, saying `refused` when the last
 /// change to it was refused.
@@ -80,9 +82,9 @@ pub(super) fn draw(
         .get(language)
         .or_else(|| detail.languages.first())
     {
-        for (page, title) in SECTIONS {
+        for (page, title) in detail.sections.iter().copied().map(section_of) {
             let part = gtk::Box::new(gtk::Orientation::Vertical, 12);
-            let named = heading(title());
+            let named = heading(title);
             named.add_css_class("title-4");
             part.append(&named);
             section(&part, page, shown);

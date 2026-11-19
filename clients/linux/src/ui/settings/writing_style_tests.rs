@@ -6,12 +6,13 @@ use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AiFailure, AiRemedy, ControlState, StyleLearnRange, StyleLearningAccount,
+    AiFailure, AiRemedy, AiRemedyControl, ControlState, StyleLearnRange, StyleLearningAccount,
     StyleLearningDestination, StyleLearningIntent, StyleLearningReport, StyleLearningReview,
-    StyleLearningStage, StyleSentReach, WritingStyleChangeKind, WritingStyleEntry,
-    WritingStyleFacts, WritingStyleLearnBlock, WritingStyleLearning, WritingStyleOpens,
-    WritingStyleOutcome, WritingStylePage, WritingStyleRefusal, WritingStyleResult,
-    WritingStyleReveal, WritingStyleRevealPage, WritingStyleRun, WritingStyleSlot,
+    StyleLearningStage, StyleLearningTrailStage, StyleSentReach, WritingStyleChangeKind,
+    WritingStyleEntry, WritingStyleFacts, WritingStyleLearnBlock, WritingStyleLearning,
+    WritingStyleOpens, WritingStyleOutcome, WritingStylePage, WritingStyleRefusal,
+    WritingStyleResult, WritingStyleReveal, WritingStyleRevealPage, WritingStyleRun,
+    WritingStyleSlot,
 };
 
 use crate::{
@@ -51,8 +52,8 @@ pub(crate) fn all() {
     endpoint::save_sends_the_fields_as_typed_and_no_key_for_an_empty_field();
     endpoint::a_gap_is_said_under_its_field_and_holds_save();
     endpoint::a_running_save_holds_the_form_and_a_refused_key_is_said();
-    flow_host::a_step_forward_is_pushed_and_one_below_is_popped_back_to();
-    flow_host::a_first_step_that_offers_back_still_draws_it();
+    flow_host::the_stack_is_the_trail_with_the_step_on_top();
+    flow_host::the_start_holds_back_or_the_way_out();
     flow_host::a_step_draws_only_the_controls_it_is_given();
 }
 
@@ -163,7 +164,10 @@ fn learn_says_why_it_is_held_with_its_one_remedy() {
             learn: HELD,
             learn_blocked: Some(WritingStyleLearnBlock::CannotSend {
                 failure: AiFailure::NowhereToSend,
-                remedy: Some(AiRemedy::OpenAiEndpoint),
+                remedy: Some(AiRemedyControl {
+                    remedy: AiRemedy::OpenAiEndpoint,
+                    control: FREE,
+                }),
             }),
             ..page()
         },
@@ -222,7 +226,10 @@ fn a_run_that_failed_says_so_and_learn_reopens_it() {
         &WritingStylePage {
             run: Some(WritingStyleRun::Failed {
                 failure: AiFailure::Unreachable,
-                remedy: Some(AiRemedy::TryAgain),
+                remedy: Some(AiRemedyControl {
+                    remedy: AiRemedy::TryAgain,
+                    control: FREE,
+                }),
             }),
             ..page()
         },
@@ -262,8 +269,8 @@ fn record(stage: StyleLearningStage) -> WritingStyleLearning {
         next: None,
         learn: None,
         stop: None,
-        remedy: None,
         close: FREE,
+        trail: Vec::new(),
     }
 }
 
@@ -386,10 +393,13 @@ fn a_remedy_the_flow_moves_to_is_sent_and_any_other_is_opened() {
         flow.draw(
             WritingStyleLearning {
                 back: Some(FREE),
-                remedy: Some(FREE),
+                trail: vec![StyleLearningTrailStage::Review],
                 ..record(StyleLearningStage::Failed {
                     failure: AiFailure::NothingToLearn,
-                    remedy: Some(remedy),
+                    remedy: Some(AiRemedyControl {
+                        remedy,
+                        control: FREE,
+                    }),
                 })
             },
             None,
@@ -421,6 +431,7 @@ fn the_reveal_acts_on_an_outcome_once() {
             notes: String::new(),
             save: FREE,
             close: FREE,
+            paging: FREE,
         },
         2,
         Rc::new(|_| {}),

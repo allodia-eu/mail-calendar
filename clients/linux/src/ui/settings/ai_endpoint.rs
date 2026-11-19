@@ -12,8 +12,8 @@ use std::{
 
 use adw::prelude::*;
 use mailcal_bindings::{
-    AiEndpointForm, AiEndpointGaps, AiEndpointIntent, AiEndpointResult, AiIntent, ControlState,
-    Intent, JurisdictionClass,
+    AiEndpointForm, AiEndpointGaps, AiEndpointIntent, AiEndpointKeptKey, AiEndpointResult,
+    AiIntent, ControlState, Intent, JurisdictionClass,
 };
 
 use super::{Category, PageContext, group, writing_style_words as words};
@@ -66,8 +66,10 @@ pub(super) struct Form {
     where_note: gtk::Label,
     failed: gtk::Label,
     buttons: gtk::Box,
+    /// Remove, apart from Save: a destructive action in a list of its own under the form.
+    removal: gtk::ListBox,
     /// Save and Remove as last drawn, so a button is built again only when it moves.
-    buttons_drawn: Cell<Option<(ControlState, ControlState)>>,
+    buttons_drawn: Cell<Option<(ControlState, Option<ControlState>)>>,
     /// The fields as last drawn or sent: typing away from them makes the fields the person's.
     baseline: RefCell<Typed>,
     drawn: RefCell<Option<AiEndpointForm>>,
@@ -126,6 +128,11 @@ impl Form {
         let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 8);
         buttons.set_halign(gtk::Align::End);
         fields.append(&buttons);
+        let removal = gtk::ListBox::new();
+        removal.add_css_class("boxed-list");
+        removal.set_selection_mode(gtk::SelectionMode::None);
+        removal.set_margin_top(12);
+        fields.append(&removal);
         section.add(&fields);
         root.append(&section);
 
@@ -141,6 +148,7 @@ impl Form {
             where_note,
             failed,
             buttons,
+            removal,
             buttons_drawn: Cell::new(None),
             baseline: RefCell::default(),
             drawn: RefCell::new(None),
@@ -213,11 +221,6 @@ impl Form {
             }
             self.baseline.replace(typed);
         }
-        self.key_note.set_text(if record.key_kept {
-            l10n::ai_endpoint_key_stored()
-        } else {
-            l10n::ai_endpoint_key_hint()
-        });
         let held = ControlState {
             running: false,
             ..record.save
@@ -300,6 +303,12 @@ impl Form {
             None,
             gaps.declaration == Some(mailcal_bindings::AiEndpointDeclarationGap::Missing),
         );
+        // What a save with the key field empty does to the key kept, asked of the address typed.
+        self.key_note.set_text(match gaps.kept_key {
+            Some(AiEndpointKeptKey::Carried) => l10n::ai_endpoint_key_stored(),
+            Some(AiEndpointKeptKey::Dropped) => l10n::ai_endpoint_key_dropped(),
+            None => l10n::ai_endpoint_key_hint(),
+        });
         let complete = gaps.address.is_none() && !gaps.model_missing && gaps.declaration.is_none();
         let save = ControlState {
             enabled: record.save.enabled && complete,
@@ -311,18 +320,17 @@ impl Form {
         while let Some(child) = self.buttons.first_child() {
             self.buttons.remove(&child);
         }
-        if record.remove.enabled || record.remove.running {
+        self.removal.remove_all();
+        self.removal.set_visible(record.remove.is_some());
+        if let Some(remove) = record.remove {
             let weak = Rc::downgrade(self);
-            self.buttons.append(&controls::button(
-                l10n::ai_endpoint_remove(),
-                record.remove,
-                true,
-                move || {
-                    if let Some(form) = weak.upgrade() {
-                        (form.send)(AiEndpointIntent::Remove);
-                    }
-                },
-            ));
+            let row = controls::work_row(l10n::ai_endpoint_remove(), remove, move || {
+                if let Some(form) = weak.upgrade() {
+                    (form.send)(AiEndpointIntent::Remove);
+                }
+            });
+            row.add_css_class("destructive-action");
+            self.removal.append(&row);
         }
         let weak = Rc::downgrade(self);
         let button = controls::button(l10n::ai_endpoint_save(), save, false, move || {
@@ -345,7 +353,7 @@ impl Form {
         }
     }
 
-    /// Sends the fields as typed. An empty key field sends no key, which keeps the one stored.
+    /// Sends the fields as typed. An empty key field leaves the key kept as the core says.
     fn save(&self) {
         let typed = self.typed();
         let key = self.key.text().to_string();
@@ -355,7 +363,7 @@ impl Form {
             address: typed.address,
             model: typed.model,
             declared: typed.declared,
-            key: (!key.is_empty()).then_some(key),
+            key,
         });
     }
 }

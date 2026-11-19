@@ -1403,5 +1403,7 @@
 	"composer_send_open_message_one": "{count} Punkt auf der Liste ist noch offen.",
 	"composer_send_anyway": "Trotzdem senden",
 	"composer_keep_editing": "Weiter bearbeiten",
-	"composer_draft_stop": "Stoppen"
+	"composer_draft_stop": "Stoppen",
+	"ai_endpoint_key_dropped": "Der gespeicherte Schlüssel gehört zum zuvor gespeicherten Server. Geben Sie den Schlüssel für diese Adresse ein, oder lassen Sie das Feld leer, wenn keiner nötig ist.",
+	"ai_failure_refused_undeclared": "Schreibstil sendet E-Mails nur an KI, deren Standort bekannt ist, und für Ihren eigenen Endpunkt ist nicht angegeben, wo er läuft."
 }

@@ -3,8 +3,8 @@
 
 use mailcal_bindings::{
     AiEndpointAddressGap, AiEndpointDeclarationGap, AiFailure, AiRemedy, JurisdictionClass,
-    JurisdictionMode, StyleLearnRange, StyleSentReach, WritingStyleFacts, WritingStyleFrequency,
-    WritingStyleRefusal, WritingStyleTopic,
+    JurisdictionLimit, JurisdictionRefusal, StyleLearnRange, StyleSentReach, WritingStyleFacts,
+    WritingStyleFrequency, WritingStyleRefusal, WritingStyleTopic,
 };
 
 use crate::{l10n, ui::timestamps};
@@ -13,13 +13,15 @@ pub(in crate::ui) fn failure(failure: AiFailure) -> &'static str {
     match failure {
         AiFailure::RelaySignIn => l10n::ai_failure_relay_sign_in(),
         AiFailure::EndpointKeyRefused => l10n::ai_failure_key_refused(),
-        AiFailure::Refused { mode, .. } => match mode {
-            JurisdictionMode::EuNative => l10n::ai_failure_refused_eu_native(),
-            // The gate refuses nothing under `All`; the narrower wording is the true one for
-            // anything it could refuse.
-            JurisdictionMode::EuHosted | JurisdictionMode::All => {
-                l10n::ai_failure_refused_eu_hosted()
-            }
+        AiFailure::Refused { refusal } => match refusal {
+            JurisdictionRefusal::EuHosted
+            | JurisdictionRefusal::NonEu {
+                mode: JurisdictionLimit::EuNative,
+            } => l10n::ai_failure_refused_eu_native(),
+            JurisdictionRefusal::NonEu {
+                mode: JurisdictionLimit::EuHosted,
+            } => l10n::ai_failure_refused_eu_hosted(),
+            JurisdictionRefusal::Unknown { .. } => l10n::ai_failure_refused_undeclared(),
         },
         AiFailure::NowhereToSend => l10n::ai_failure_nowhere_to_send(),
         AiFailure::Unreachable => l10n::ai_failure_unreachable(),
@@ -60,11 +62,15 @@ pub(super) fn address_gap(gap: AiEndpointAddressGap) -> &'static str {
 pub(super) fn declaration_gap(gap: AiEndpointDeclarationGap) -> &'static str {
     match gap {
         AiEndpointDeclarationGap::Missing => l10n::ai_endpoint_gap_where_missing(),
-        AiEndpointDeclarationGap::Refused { mode, .. } => match mode {
-            JurisdictionMode::EuNative => l10n::ai_endpoint_gap_refused_eu_native(),
-            JurisdictionMode::EuHosted | JurisdictionMode::All => {
-                l10n::ai_endpoint_gap_refused_eu_hosted()
-            }
+        AiEndpointDeclarationGap::Refused { refusal } => match refusal {
+            JurisdictionRefusal::EuHosted
+            | JurisdictionRefusal::NonEu {
+                mode: JurisdictionLimit::EuNative,
+            } => l10n::ai_endpoint_gap_refused_eu_native(),
+            JurisdictionRefusal::NonEu {
+                mode: JurisdictionLimit::EuHosted,
+            } => l10n::ai_endpoint_gap_refused_eu_hosted(),
+            JurisdictionRefusal::Unknown { .. } => l10n::ai_endpoint_gap_where_missing(),
         },
     }
 }

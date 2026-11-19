@@ -1,13 +1,14 @@
-//! What the flow host promises: a step is drawn from the controls it is given and nothing else,
-//! a step forward is pushed, a step already below is popped back to, and the header bar draws Back
-//! exactly while the step offers it. Called from the crate's single `gtk::init` test.
+//! What the flow host promises: its stack is the record's trail with the step on top, a step draws
+//! the controls it is given and nothing else, and the start of the header holds Back where the
+//! step offers it and the one way out where it does not. Called from the crate's single
+//! `gtk::init` test.
 
 use std::{cell::RefCell, rc::Rc};
 
 use adw::prelude::*;
 use mailcal_bindings::ControlState;
 
-use super::{FlowAction, FlowHost, FlowStep};
+use super::{FlowAction, FlowHost, FlowLeave, FlowStep, FlowTrailStep};
 use crate::ui::{controls::tests::spins, mailbox::tests::rendered_labels};
 
 const FREE: ControlState = ControlState {
@@ -22,11 +23,23 @@ fn step(tag: &'static str, back: Option<ControlState>, primary: Option<FlowActio
         title_widget: None,
         content: gtk::Label::new(Some(tag)).upcast(),
         back,
+        leave: FlowLeave {
+            label: "Cancel".to_owned(),
+            control: FREE,
+        },
+        own_back: None,
         primary,
-        close: FREE,
         footer: None,
-        start: None,
     }
+}
+
+fn trail(tags: &[&'static str]) -> Vec<FlowTrailStep> {
+    tags.iter()
+        .map(|tag| FlowTrailStep {
+            tag,
+            title: (*tag).to_owned(),
+        })
+        .collect()
 }
 
 fn next(asked: &Rc<RefCell<Vec<&'static str>>>, control: ControlState) -> FlowAction {
@@ -35,7 +48,6 @@ fn next(asked: &Rc<RefCell<Vec<&'static str>>>, control: ControlState) -> FlowAc
         label: "Next".to_owned(),
         control,
         suggested: true,
-        advances: true,
         pressed: Rc::new(move || asked.borrow_mut().push("next")),
     }
 }
@@ -68,49 +80,57 @@ fn labelled(root: &gtk::Widget, label: &str) -> Option<gtk::Button> {
     })
 }
 
-pub(crate) fn a_step_forward_is_pushed_and_one_below_is_popped_back_to() {
+pub(crate) fn the_stack_is_the_trail_with_the_step_on_top() {
     let asked = Rc::new(RefCell::new(Vec::new()));
     let backs = Rc::new(RefCell::new(0));
     let counted = Rc::clone(&backs);
     let host = FlowHost::new(Rc::new(move || *counted.borrow_mut() += 1), Rc::new(|| {}));
-    host.show(step("account", None, Some(next(&asked, FREE))));
+    host.show(&[], step("account", None, Some(next(&asked, FREE))));
     assert_eq!(tags(&host), ["account"]);
-
     let page = host.view.visible_page().expect("a page");
-    let pressed = labelled(page.upcast_ref(), "Next").expect("Next is drawn");
-    pressed.emit_clicked();
+    labelled(page.upcast_ref(), "Next")
+        .expect("Next is drawn")
+        .emit_clicked();
     assert_eq!(*asked.borrow(), ["next"]);
-    host.show(step("range", Some(FREE), Some(next(&asked, FREE))));
-    assert_eq!(
-        tags(&host),
-        ["account", "range"],
-        "a step forward is pushed"
-    );
+
+    host.show(&trail(&["account"]), step("range", Some(FREE), None));
+    assert_eq!(tags(&host), ["account", "range"], "one further is a push");
     assert!(host.view.visible_page().is_some_and(|page| page.can_pop()));
 
-    // The core moved on by itself: the step replaces the one on top.
-    host.show(step("review", Some(FREE), None));
-    assert_eq!(tags(&host), ["account", "review"]);
-    host.show(step("account", None, Some(next(&asked, FREE))));
+    host.show(
+        &trail(&["account", "range"]),
+        step("failed", Some(FREE), None),
+    );
+    host.show(&trail(&["account"]), step("review", Some(FREE), None));
+    assert_eq!(
+        tags(&host),
+        ["account", "review"],
+        "anything else is the record's stack"
+    );
+    host.show(&[], step("account", None, None));
     assert_eq!(tags(&host), ["account"], "a step below is popped back to");
+    host.show(&trail(&["range", "review"]), step("learning", None, None));
+    assert_eq!(tags(&host), ["range", "review", "learning"]);
     assert_eq!(
         *backs.borrow(),
         0,
-        "the host's own pops are not the person's Back"
+        "the host's own moves are not the person's Back"
     );
 }
 
-pub(crate) fn a_first_step_that_offers_back_still_draws_it() {
+/// Back is the header's back button where the step offers it, and the way out stands at the
+/// start where it does not: never both.
+pub(crate) fn the_start_holds_back_or_the_way_out() {
     let host = FlowHost::new(Rc::new(|| {}), Rc::new(|| {}));
-    host.show(step("failed", Some(FREE), None));
-    assert_eq!(tags(&host), [super::BELOW, "failed"]);
-    assert!(host.view.visible_page().is_some_and(|page| page.can_pop()));
-    host.show(step("learning", None, None));
-    assert_eq!(
-        tags(&host),
-        ["learning"],
-        "nothing to go back to: no back button"
-    );
+    host.show(&trail(&["review"]), step("failed", Some(FREE), None));
+    let page = host.view.visible_page().expect("a page");
+    assert!(page.can_pop());
+    assert!(labelled(page.upcast_ref(), "Cancel").is_none());
+
+    host.show(&trail(&["range", "review"]), step("learning", None, None));
+    let page = host.view.visible_page().expect("a page");
+    assert!(!page.can_pop(), "no Back where the step offers none");
+    assert!(labelled(page.upcast_ref(), "Cancel").is_some());
 }
 
 pub(crate) fn a_step_draws_only_the_controls_it_is_given() {
@@ -120,15 +140,12 @@ pub(crate) fn a_step_draws_only_the_controls_it_is_given() {
         enabled: false,
         running: true,
     };
-    host.show(step("learning", None, Some(next(&asked, running))));
+    host.show(&[], step("learning", None, Some(next(&asked, running))));
     let page = host.view.visible_page().expect("a page");
-    let root = page.upcast_ref::<gtk::Widget>();
-    let primary = labelled(root, "Next").expect("the primary");
+    let primary = labelled(page.upcast_ref(), "Next").expect("the primary");
     assert!(spins(&primary) && !primary.is_sensitive(), "its work runs");
-    assert!(!page.can_pop(), "no Back where the step offers none");
-    assert!(labelled(root, crate::l10n::action_cancel()).is_some());
 
-    host.show(step("learning", None, None));
+    host.show(&[], step("learning", None, None));
     let page = host.view.visible_page().expect("a page");
     assert!(
         labelled(page.upcast_ref(), "Next").is_none(),
