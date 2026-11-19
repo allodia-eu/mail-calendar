@@ -261,7 +261,9 @@ and **every view shows the period that contains it**.
    three, a week and a work week by seven, a month by one calendar month **keeping the day of the
    month**, the last day of a shorter month standing in for a day it lacks (the 31st of January, a
    month on, is the 28th of February). The 13th of September, a month on, is the 13th of October, so
-   the week opened from there is the week of the 13th.
+   the week opened from there is the week of the 13th. Android's and Apple's grids turn a week at
+   every zoom, a day and three days included (the Apple chevron row in "Known gaps"), so there the
+   focus steps a week, through the same core rule.
 3. **A step that lands on a week or a month holding today lands on today.** Paging back to this month
    and opening the week shows this week, not the week of the day carried there. A day and three days
    are anchored on the focus itself, so moving it would move the days shown; they carry it as it is.
