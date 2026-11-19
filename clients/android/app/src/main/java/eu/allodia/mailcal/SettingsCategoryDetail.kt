@@ -83,6 +83,12 @@ internal fun CategoryDetail(
     accountsUi: AccountsSettingsUi,
     // Videoconferencing's account rows open that account's page under Accounts.
     onOpenAccount: (String) -> Unit = {},
+    // Writing style and the own endpoint under Advanced, each null while the core does not offer
+    // the writing assistant (docs/ai.md rule 4).
+    writingStyle: WritingStyleUi? = null,
+    aiEndpoint: AiEndpointUi? = null,
+    // Another category, for a remedy that opens one: Writing style's way to the own endpoint.
+    onOpenCategory: (SettingsCategory) -> Unit = {},
 ) {
     val ctx = LocalContext.current
     when (category) {
@@ -216,6 +222,11 @@ internal fun CategoryDetail(
             }
         }
 
+        // Writing style: Learn, the library and each account's style (SettingsWritingStyle.kt).
+        SettingsCategory.WRITING_STYLE -> writingStyle?.let {
+            WritingStyleCategory(it) { onOpenCategory(SettingsCategory.ADVANCED) }
+        }
+
         // Notifications, the new-mail toggle + the battery-exemption card (SettingsNotifications.kt).
         SettingsCategory.NOTIFICATIONS -> NotificationsSettings()
 
@@ -260,8 +271,13 @@ internal fun CategoryDetail(
             },
         ) { entry, page -> AccountPage(entry, page, accountsUi) }
 
-        // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen).
+        // Advanced: the own AI endpoint while the assistant is offered (SettingsAiEndpoint.kt), then
+        // the reset of the local cache (destructive; confirmed by the dialog in SettingsScreen).
         SettingsCategory.ADVANCED -> {
+            if (aiEndpoint?.form != null) {
+                AiEndpointCard(aiEndpoint)
+                Spacer(modifier = Modifier.height(8.dp))
+            }
             SettingsGroupCard(L10n.action_reset_database(ctx), L10n.settings_advanced_reset_description(ctx)) {
                 TextButton(
                     onClick = onRequestReset,

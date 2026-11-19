@@ -127,6 +127,9 @@ internal fun SettingsScreen(
     initialCategory: SettingsCategory? = null,
     // Accounts: every account from the core's snapshot, and the page open (SettingsAccounts.kt).
     accountsUi: AccountsSettingsUi = remember { AccountsSettingsUi(AccountsUiState()) },
+    // Writing style and the own endpoint, null while the writing assistant is not offered.
+    writingStyle: WritingStyleUi? = null,
+    aiEndpoint: AiEndpointUi? = null,
 ) {
     val ctx = LocalContext.current
     var open by remember(initialCategory) { mutableStateOf(initialCategory) }
@@ -160,7 +163,7 @@ internal fun SettingsScreen(
             SettingsNotice(accountsUi.notices, page = null, accountsUi.noticeHandlers)
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Spacer(modifier = Modifier.height(4.dp))
-                SettingsCategory.shown(allodia.available).forEach { category ->
+                SettingsCategory.shown(allodia.available, writingStyle?.page != null).forEach { category ->
                     // Diagnostics is a full-screen log viewer swapped in at the activity level
                     // (DiagnosticsScreen.kt), not an inline CategoryDetail, so its hub row opens
                     // that screen rather than a detail pane.
@@ -235,6 +238,9 @@ internal fun SettingsScreen(
                         accountsUi.onOpenPage(id)
                         open = SettingsCategory.ACCOUNTS
                     },
+                    writingStyle = writingStyle,
+                    aiEndpoint = aiEndpoint,
+                    onOpenCategory = { open = it },
                 )
                 Spacer(modifier = Modifier.height(24.dp))
             }

@@ -135,6 +135,10 @@ class MainActivity : AppCompatActivity() {
     // Names only: a body is fetched one at a time. Null until the first read.
     internal var signatures by mutableStateOf<SignaturesPage?>(null)
 
+    // Settings → Writing style and the own endpoint's form as the core draws them, read on connect
+    // and on the WRITING_STYLE, AI_ENDPOINT and SETTINGS signals (MainActivityWritingStyle.kt).
+    internal val writingStyle = WritingStyleState()
+
     // The outgoing-send hint, pulled on a SENDING surface change: SENDING while a send is in
     // flight, then the terminal SENT/FAILED which auto-clears back to IDLE after a moment.
     internal var sendStatus by mutableStateOf(SendStatus.IDLE)

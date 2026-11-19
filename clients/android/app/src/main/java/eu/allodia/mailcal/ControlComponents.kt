@@ -4,7 +4,9 @@
 // the same way.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +17,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,7 +35,10 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
@@ -106,6 +114,8 @@ internal fun ControlNavRow(
     note: String,
     control: ControlState,
     tag: String,
+    // A glyph in a tonal circle at the start, for a row that stands for a thing of its own.
+    icon: Int? = null,
     onClick: () -> Unit,
 ) {
     Row(
@@ -116,6 +126,22 @@ internal fun ControlNavRow(
             .testTag(tag),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (icon != null) {
+            Box(
+                modifier = Modifier
+                    .padding(end = 16.dp)
+                    .size(40.dp)
+                    .background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(
@@ -143,8 +169,9 @@ internal fun HeldFields(control: ControlState, content: @Composable (enabled: Bo
 }
 
 /**
- * A button. A destructive one is drawn in the error colour. One that sends a form is also held
- * while the form is not [ready] to send.
+ * A button. A destructive one is drawn in the error colour, and an [outlined] one, for the lesser
+ * of two actions, in outline. One that sends a form is also held while the form is not [ready] to
+ * send. Its label wraps between words when the button is narrower than it.
  */
 @Composable
 internal fun ControlButton(
@@ -153,9 +180,28 @@ internal fun ControlButton(
     tag: String,
     modifier: Modifier = Modifier,
     destructive: Boolean = false,
+    outlined: Boolean = false,
     ready: Boolean = true,
     onClick: () -> Unit,
 ) {
+    val content: @Composable RowScope.() -> Unit = {
+        Running(control, tag)
+        Text(label, textAlign = TextAlign.Center)
+    }
+    if (outlined) {
+        OutlinedButton(
+            onClick = onClick,
+            enabled = control.enabled && ready,
+            colors = if (destructive) {
+                ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+            } else {
+                ButtonDefaults.outlinedButtonColors()
+            },
+            modifier = modifier.testTag(tag),
+            content = content,
+        )
+        return
+    }
     val colors = if (destructive) {
         ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.error,
@@ -169,10 +215,8 @@ internal fun ControlButton(
         enabled = control.enabled && ready,
         colors = colors,
         modifier = modifier.testTag(tag),
-    ) {
-        Running(control, tag)
-        Text(label)
-    }
+        content = content,
+    )
 }
 
 /** A text button, for an action beside a row rather than the row's own, led by [icon] if given. */
@@ -244,6 +288,9 @@ internal fun ControlTextField(
     text: String,
     control: ControlState,
     tag: String,
+    // More than one line makes room for a paragraph; Done still sends it.
+    minLines: Int = 1,
+    supporting: String? = null,
     onCommit: (String) -> Unit,
 ) {
     // Seeded again whenever the core draws another value, so a field never carries what an older
@@ -260,9 +307,11 @@ internal fun ControlTextField(
         OutlinedTextField(
             value = draft,
             onValueChange = { draft = it },
-            singleLine = true,
+            singleLine = minLines == 1,
+            minLines = minLines,
             enabled = control.enabled,
             label = { Text(title) },
+            supportingText = supporting?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { commit() }),
             modifier = Modifier
@@ -348,6 +397,56 @@ internal fun ControlSegmented(
                 ) { Text(label, maxLines = 1) }
             }
         }
+    }
+}
+
+/**
+ * An assist chip for an action offered beside what is being written, led by [icon]; the spinner
+ * takes the icon's place while its work runs.
+ */
+@Composable
+internal fun ControlAssistChip(label: String, icon: Int, control: ControlState, tag: String, onClick: () -> Unit) {
+    AssistChip(
+        onClick = onClick,
+        enabled = control.enabled,
+        label = { Text(label) },
+        leadingIcon = {
+            if (control.running) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(AssistChipDefaults.IconSize).testTag("$tag-running"),
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
+            }
+        },
+        modifier = Modifier.testTag(tag),
+    )
+}
+
+/**
+ * A checkbox row: the whole row is the checkbox, one target. [onChange] is told what the person
+ * ticked it to; a row whose [control] is held follows something else and cannot be ticked by hand.
+ */
+@Composable
+internal fun ControlCheckRow(
+    checked: Boolean,
+    control: ControlState,
+    tag: String,
+    content: @Composable RowScope.() -> Unit,
+    onChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .toggleable(value = checked, enabled = control.enabled, role = Role.Checkbox, onValueChange = onChange)
+            .padding(vertical = 2.dp)
+            .testTag(tag),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null, enabled = control.enabled)
+        Spacer(modifier = Modifier.width(4.dp))
+        content()
     }
 }
 

@@ -170,6 +170,7 @@ class SettingsHubTest {
                 SettingsCategory.READING,
                 SettingsCategory.COMPOSING,
                 SettingsCategory.SIGNATURES,
+                SettingsCategory.WRITING_STYLE,
                 SettingsCategory.NOTIFICATIONS,
                 SettingsCategory.PRIVACY,
                 SettingsCategory.ACCOUNTS,

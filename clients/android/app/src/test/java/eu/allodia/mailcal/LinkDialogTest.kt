@@ -74,8 +74,10 @@ class LinkDialogTest {
     fun aRequestReachesTheDialogThroughThePosterAndAnythingElseIsDropped() {
         val posted = mutableListOf<Runnable>()
         val opened = mutableListOf<LinkDialogRequest>()
+        val heard = mutableListOf<String>()
         val channel = ComposerHostChannel(
             onLink = { opened += it },
+            onMessage = { heard += it },
             parse = { message ->
                 if (message == "link") ComposerHostRequest.Link(7u, "docs", "", false) else null
             },
@@ -83,12 +85,16 @@ class LinkDialogTest {
         )
 
         channel.postMessage("something else")
-        assertTrue(posted.isEmpty())
+        posted.forEach(Runnable::run)
+        posted.clear()
+        assertTrue(opened.isEmpty())
 
         channel.postMessage("link")
         // Not delivered on the bridge thread: only once the poster runs it.
         assertTrue(opened.isEmpty())
-        posted.single().run()
+        posted.forEach(Runnable::run)
         assertEquals(listOf(LinkDialogRequest(7u, "docs", "", false)), opened)
+        // Every message reaches the core's own readers too, Draft a reply's report among them.
+        assertEquals(listOf("something else", "link"), heard)
     }
 }
