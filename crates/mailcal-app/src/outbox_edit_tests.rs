@@ -141,6 +141,38 @@ async fn editing_a_queued_send_moves_all_of_it_back_into_drafts() {
     );
 }
 
+/// A drafted reply moved back out of the Outbox stays drafted (`docs/ai.md` rule 25): the draft
+/// the edit makes and every save of its composer carry the mark, as its send will.
+#[tokio::test(start_paused = true)]
+async fn a_drafted_reply_moved_back_into_drafts_keeps_its_mark() {
+    let scratch = tempfile::tempdir().expect("a staging directory");
+    let provider = SubmitProvider::offline();
+    let keywords = provider.draft_keywords();
+    let app = app_over(provider);
+    let draft = Draft::new(
+        MessageIdHeader::new("drafted-reply@allodia.local").unwrap(),
+        EmailAddress::new("me@allodia.local"),
+        vec![EmailAddress::new("you@test.local")],
+        "Re: Plans",
+        "Friday works.",
+    )
+    .in_reply_to(MessageIdHeader::new("parent@remote").unwrap(), Vec::new())
+    .with_sent_copy_keyword(mailcal_account::drafted_reply_keyword());
+    app.send_draft(&AccountId::try_from("acct-1").unwrap(), &draft, None)
+        .await;
+    let row = outbox_holding(&app, 1).await.remove(0);
+
+    app.dispatch(edit(&row, &staging(&scratch))).await;
+    let request = app.compose_request().expect("the composer is offered");
+    let composition = CompositionId::new(&request.composition).unwrap();
+    assert!(app.composition_drafted(&composition));
+    app.dispatch(save(&request.composition, "Friday works, I think."))
+        .await;
+
+    let marked = std::collections::BTreeSet::from([mailcal_account::drafted_reply_keyword()]);
+    assert_eq!(*keywords.lock().unwrap(), [marked.clone(), marked]);
+}
+
 /// A message whose files cannot be written where the composer reads them stays where it is:
 /// opening a composer without them would have its first save take them off the draft.
 #[tokio::test(start_paused = true)]

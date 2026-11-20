@@ -206,15 +206,15 @@ fn an_empty_key_writes_nothing_to_the_keystore() {
 }
 
 #[test]
-fn remove_is_offered_while_an_endpoint_or_a_key_is_stored() {
+fn remove_is_offered_while_an_endpoint_is_stored() {
     let fixture = Fixture::new(BuildKind::Development);
     assert!(!fixture.app.ai_endpoint().removable, "nothing to remove");
 
     fixture.app.restore_ai_endpoint_key(Some("sk".to_owned()));
-    assert!(fixture.app.ai_endpoint().removable, "a key alone");
-
-    fixture.app.change_ai_endpoint_now(AiEndpointChange::Remove);
-    assert!(!fixture.app.ai_endpoint().removable);
+    assert!(
+        !fixture.app.ai_endpoint().removable,
+        "a key alone is taken out at launch"
+    );
 
     fixture
         .app

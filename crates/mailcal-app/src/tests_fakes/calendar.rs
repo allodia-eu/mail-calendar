@@ -11,8 +11,8 @@ use std::{
 };
 
 use engine_api::{
-    AccountId, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine, InviteePatch,
-    MeetingDraft, TimeZoneId,
+    AccountId, CalendarSync, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine,
+    InviteePatch, MeetingDraft, TimeZoneId,
 };
 use engine_core::{
     calendar::{Calendar, Event},
@@ -272,6 +272,42 @@ impl CalendarFake {
     pub(crate) fn syncs(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.syncs)
     }
+
+    /// What the calendar's server answers for `calendar`'s events, whatever window was named.
+    fn fetch_events(
+        &self,
+        calendar: &CalendarId,
+        cursor: Option<&SyncState>,
+    ) -> ProviderResult<ScopeSync<Event>> {
+        self.syncs.fetch_add(1, Ordering::Relaxed);
+        self.event_fetches
+            .lock()
+            .unwrap()
+            .push(calendar.as_str().to_owned());
+        if self.unreachable.load(Ordering::Relaxed) {
+            return Err(ProviderError::retryable("the server could not be reached"));
+        }
+        if cursor.is_some() {
+            if self.reject_event_delta {
+                return Err(ProviderError::invalid_state("the event delta failed"));
+            }
+            return Ok(ScopeSync::new(
+                SyncUpdate::delta(Vec::new(), Vec::new()),
+                SyncState::new("ev-2"),
+            ));
+        }
+        let events: Vec<Event> = self
+            .events
+            .iter()
+            .filter(|event| !self.per_calendar || event.calendars.contains(calendar))
+            .cloned()
+            .collect();
+        let present = events.iter().map(|e| e.id.key().clone()).collect();
+        Ok(ScopeSync::new(
+            SyncUpdate::snapshot(events, present),
+            SyncState::new("ev-1"),
+        ))
+    }
 }
 
 #[async_trait::async_trait]
@@ -279,7 +315,10 @@ impl Provider for CalendarFake {
     fn connection_info(&self) -> ConnectionInfo {
         ConnectionInfo::new(self.caps)
     }
+}
 
+#[async_trait::async_trait]
+impl CalendarSync for CalendarFake {
     async fn sync_calendars(
         &self,
         _account: &AccountId,
@@ -336,44 +375,6 @@ impl Provider for CalendarFake {
         } else {
             sync
         })
-    }
-}
-
-impl CalendarFake {
-    /// What the calendar's server answers for `calendar`'s events, whatever window was named.
-    fn fetch_events(
-        &self,
-        calendar: &CalendarId,
-        cursor: Option<&SyncState>,
-    ) -> ProviderResult<ScopeSync<Event>> {
-        self.syncs.fetch_add(1, Ordering::Relaxed);
-        self.event_fetches
-            .lock()
-            .unwrap()
-            .push(calendar.as_str().to_owned());
-        if self.unreachable.load(Ordering::Relaxed) {
-            return Err(ProviderError::retryable("the server could not be reached"));
-        }
-        if cursor.is_some() {
-            if self.reject_event_delta {
-                return Err(ProviderError::invalid_state("the event delta failed"));
-            }
-            return Ok(ScopeSync::new(
-                SyncUpdate::delta(Vec::new(), Vec::new()),
-                SyncState::new("ev-2"),
-            ));
-        }
-        let events: Vec<Event> = self
-            .events
-            .iter()
-            .filter(|event| !self.per_calendar || event.calendars.contains(calendar))
-            .cloned()
-            .collect();
-        let present = events.iter().map(|e| e.id.key().clone()).collect();
-        Ok(ScopeSync::new(
-            SyncUpdate::snapshot(events, present),
-            SyncState::new("ev-1"),
-        ))
     }
 }
 

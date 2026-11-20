@@ -8,9 +8,9 @@ use std::{
 };
 
 use crate::{
-    AiFailure, AiIntent, Intent, LogLevel, MailcalApp, ShowcaseLocale, StyleLearningDestination,
-    StyleLearningIntent, StyleLearningReview, StyleLearningStage, WritingStyleIntent,
-    WritingStyleLearning, device_zone, showcase_data,
+    AiFailure, AiIntent, Intent, LogLevel, MailcalApp, ShowcaseLocale, StyleLearnRange,
+    StyleLearningDestination, StyleLearningIntent, StyleLearningReview, StyleLearningStage,
+    StyleRangeFetch, WritingStyleIntent, WritingStyleLearning, device_zone, showcase_data,
     tests::{ChannelObserver, NullLogger},
 };
 
@@ -68,8 +68,32 @@ fn review(app: &MailcalApp, account: &str) -> WritingStyleLearning {
         },
     );
     press(app, StyleLearningIntent::Next);
-    eventually(app, |flow| {
+    let range = eventually(app, |flow| {
         matches!(flow.stage, StyleLearningStage::ChooseRange { .. })
+    });
+    let StyleLearningStage::ChooseRange {
+        presets, selected, ..
+    } = range.stage
+    else {
+        unreachable!()
+    };
+    assert_eq!(presets.first(), Some(&StyleLearnRange::LastTwelveMonths));
+    assert_eq!(selected, Some(StyleLearnRange::LastTwelveMonths));
+    press(
+        app,
+        StyleLearningIntent::SelectRange {
+            range: StyleLearnRange::Everything,
+        },
+    );
+    eventually(app, |flow| {
+        matches!(
+            flow.stage,
+            StyleLearningStage::ChooseRange {
+                selected: Some(StyleLearnRange::Everything),
+                fetch: StyleRangeFetch::Nothing | StyleRangeFetch::WholeHistory,
+                ..
+            }
+        )
     });
     press(app, StyleLearningIntent::Next);
     eventually(app, |flow| {

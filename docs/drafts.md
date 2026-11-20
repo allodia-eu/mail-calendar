@@ -93,11 +93,11 @@ instead, it would hold whatever was typed before that sample, and a short reply 
 after opening would never be saved. Taken before the seeds, the quote and the signature would read
 as an edit and every composer would save moments after opening.
 
-**An unchanged draft costs no write.** The core compares what it is given against what it last
-put on the server and returns without calling the provider when they match. Pressing "Save as
-draft" twice, or an idle timer firing on a composer nobody touched, reaches no server. A
-composition with a save still queued never matches: the drain is on its way to change what the
-server holds, so nothing there is settled enough to compare against.
+**An unchanged draft costs no write.** The core compares what it is given, with the keywords it
+asks for, against what it last put on the server and returns without calling the provider when
+they match. Pressing "Save as draft" twice, or an idle timer firing on a composer nobody touched,
+reaches no server. A composition with a save still queued never matches: the drain is on its way
+to change what the server holds, so nothing there is settled enough to compare against.
 
 **Two saves of one composition never overlap.** A composer has two triggers, the idle timer and
 the Save button, and nothing stops both firing. Each save reads the stored key before it writes,
@@ -114,6 +114,20 @@ failure would have been quiet rather than an error.
 that left an attachment out would take it off a draft the user is still writing. A composer
 holding files, whether the user picked them or a resume opened with them, saves through the
 path that reads their bytes.
+
+**A save carries every keyword the stored copy is to have, on every save.** Most transports store
+a new message on a re-save, so a keyword one save leaves out is gone from the copy. The one this
+app asks for is the drafted-reply mark: on every save of a composition a drafted reply went into,
+and on none otherwise ([`ai.md`](ai.md) rule 25). A resume reads it back from the synced
+message. Each save's answer says whether the server kept it, and a server may decline it without
+failing the save:
+
+| Transport | Kept as | Declined when |
+|---|---|---|
+| IMAP | a keyword on the stored message | the Drafts folder takes no keyword of a client's own (`PERMANENTFLAGS` without `\*`), so the server would drop it |
+| JMAP | a keyword on the stored message | never on a server that stores drafts |
+| Graph | a category, set after the save | the write that sets it is refused; the draft is saved all the same |
+| Gmail | a hidden label, set on the message each save stores | the write that sets it is refused; the draft is saved all the same |
 
 **Saving is never something the user waits for.** It has no modal, no blocking spinner and no
 error the composer refuses to be dismissed over. `DraftStatus` is a hint, on the same footing as

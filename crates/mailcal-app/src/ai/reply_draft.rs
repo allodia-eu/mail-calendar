@@ -38,9 +38,11 @@ pub(crate) struct ReplyDraftHeld {
 
 impl ReplyDraftHeld {
     /// What a composition starts with. `opened_blank` is false when its composer opened holding a
-    /// body of its own: a stored draft's, or a prefill's text.
-    pub(crate) fn opening(opened_blank: bool) -> Self {
+    /// body of its own: a stored draft's, or a prefill's text. `drafted` when what it opened on
+    /// carries the drafted-reply mark (rule 25); the card it had is not stored, so none is drawn.
+    pub(crate) fn opening(opened_blank: bool, drafted: bool) -> Self {
         Self {
+            drafted,
             opened_blank,
             ..Self::default()
         }

@@ -11,6 +11,7 @@
 use std::path::Path;
 
 use engine_api::{AccountId, Draft, DraftAttachmentDisposition, InlinePart, PendingOpId, Provider};
+use mailcal_account::drafted_reply_keyword;
 
 use super::reopen::{Opening, kind_of, threading_of};
 use crate::{App, ComposeOpening, CompositionId, protocol::StagedAttachment};
@@ -92,17 +93,25 @@ impl<P: Provider> App<P> {
                 seeds_signature: false,
                 importance: draft.importance,
                 answering: None,
+                drafted: draft.sent_copy_keywords.contains(&drafted_reply_keyword())
+                    || self.is_drafted_reply(&draft.message_id),
             },
         );
-        match self.put_draft(account, draft, None).await {
+        let keywords = self.draft_keywords(&composition);
+        match self.put_draft(account, draft, None, &keywords).await {
             // No digest: the composer's first save renders its own document, which is not
             // byte for byte this one, so it must write.
-            Some(Ok(key)) => self.adopt_saved_key(&composition, key),
+            Some(Ok(saved)) => {
+                let kept = Some(&saved.keywords);
+                self.drafted_save_settled(account, &draft.message_id, &keywords, kept);
+                self.adopt_saved_key(&composition, saved.key);
+            }
             Some(Err(err)) => {
                 let Some(queued) = self.queued_save(account, draft).await else {
                     self.close_composition(&composition);
                     return Err(NotMoved::Save(err.to_string()));
                 };
+                self.drafted_save_settled(account, &draft.message_id, &keywords, None);
                 self.record_queued(&composition, queued);
             }
             None => {

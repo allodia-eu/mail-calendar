@@ -14,14 +14,15 @@
 use std::sync::{Arc, Mutex};
 
 use engine_api::{
-    AccountId, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine, TimeZoneId,
+    AccountId, CalendarSync, CalendarUserAddresses, CalendarWrites, EmailAddress, Engine,
+    TimeZoneId,
 };
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{CalendarId, MailboxId},
     mail::Mailbox,
     raw::RawMime,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
     version::{ETag, RevisionTokens},
 };
 use engine_provider::{
@@ -238,7 +239,7 @@ impl Provider for InvitationFake {
         &'a self,
         _account: &'a AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -264,6 +265,24 @@ impl Provider for InvitationFake {
         ))
     }
 
+    async fn submit_email(
+        &self,
+        _account: &AccountId,
+        draft: &Draft,
+        hand_over: &engine_provider::HandOver<'_>,
+    ) -> ProviderResult<SubmissionReceipt> {
+        self.sends.lock().unwrap().push(draft.clone());
+        let handed = hand_over.commit().await?;
+        Ok(SubmissionReceipt::filed(
+            engine_core::ids::ProviderKey::new("sent-1").unwrap(),
+            draft.message_id.clone(),
+            &handed,
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl CalendarSync for InvitationFake {
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
         SyncScope::JmapType {
             account: account.clone(),
@@ -318,21 +337,6 @@ impl Provider for InvitationFake {
         Ok(ScopeSync::new(
             SyncUpdate::snapshot(vec![event.clone()], [event.id.key().clone()].into()),
             SyncState::new("ev-1"),
-        ))
-    }
-
-    async fn submit_email(
-        &self,
-        _account: &AccountId,
-        draft: &Draft,
-        hand_over: &engine_provider::HandOver<'_>,
-    ) -> ProviderResult<SubmissionReceipt> {
-        self.sends.lock().unwrap().push(draft.clone());
-        let handed = hand_over.commit().await?;
-        Ok(SubmissionReceipt::filed(
-            engine_core::ids::ProviderKey::new("sent-1").unwrap(),
-            draft.message_id.clone(),
-            &handed,
         ))
     }
 }

@@ -22,7 +22,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
+use engine_api::{CalendarSync, CalendarWrites};
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
@@ -148,7 +148,10 @@ impl Provider for RefreshingGoogleCalendarProvider {
                 |(_, provider)| provider.connection_info(),
             )
     }
+}
 
+#[async_trait]
+impl CalendarSync for RefreshingGoogleCalendarProvider {
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
         SyncScope::GoogleCalendarList {
             account: account.clone(),
@@ -315,19 +318,19 @@ mod tests {
 
     use super::*;
     use crate::graph::test_support::{
-        assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint, source_at,
+        assert_calendar_reaches_the_delegate, dead_grant_token_endpoint, source_at,
     };
 
-    /// The Google sibling of the Graph wrapper's test: an answer to an invitation reaches the
-    /// adapter rather than the trait's unsupported default.
+    /// The Google sibling of the Graph wrapper's test: a calendar fetch and an answer to an
+    /// invitation reach the adapter rather than the traits' unsupported defaults.
     #[tokio::test]
-    async fn invitation_answers_are_forwarded_to_google() {
+    async fn calendar_calls_are_forwarded_to_google() {
         let (endpoint, _hits) = dead_grant_token_endpoint();
         let provider = RefreshingGoogleCalendarProvider::new(
             source_at(endpoint, None),
             tls_with(&[]).unwrap(),
         );
-        assert_calendar_answers_reach_the_delegate(&provider).await;
+        assert_calendar_reaches_the_delegate(&provider).await;
     }
 
     fn google_source() -> Arc<GraphTokenSource> {
