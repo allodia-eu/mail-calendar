@@ -197,7 +197,15 @@ open_settings() { # [category]
   [[ -z "${1:-}" ]] || ui_press text="$1" role=toggle-button window=Settings
 }
 
+# Waits for a slide between two of a flow's stages in Settings to end. Each stage is a page with a
+# header bar of its own, the window's close at its end, and while the slide runs both pages are
+# mapped, so two closes are: one at rest and one moving off the window's edge.
+settings_slid() {
+  ui_gone icon=window-close-symbolic window=Settings index=1
+}
+
 close_settings() {
+  settings_slid
   ui_press icon=window-close-symbolic window=Settings
   ui_gone type=GtkWindow text=Settings
 }
