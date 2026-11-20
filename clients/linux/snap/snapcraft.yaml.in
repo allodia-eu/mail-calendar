@@ -92,8 +92,11 @@ parts:
 
       # `--locked` builds the committed Cargo.lock. Default features, plus the Allodia sign-in when
       # the registration is present, so `dev-harness` and the debug-only fixtures cannot be linked.
-      cargo build --release --locked -p mailcal-linux@CARGO_FEATURES@
+      # The core is packaged, so a development core fails to compile, and the binary is read for a
+      # production core before it is installed (crates/mailcal-bindings/src/core_build.rs).
+      MAILCAL_PACKAGED_CORE=1 cargo build --release --locked -p mailcal-linux@CARGO_FEATURES@
       cargo build --release --locked -p mailcal-mcp-shim --bin mailcal-mcp
+      bash scripts/dev/check-core-build.sh target/release/mailcal-linux
       install -Dm755 target/release/mailcal-linux "$CRAFT_PART_INSTALL/bin/mailcal"
       install -Dm755 target/release/mailcal-mcp "$CRAFT_PART_INSTALL/bin/@MCP_RELAY_NAME@"
 

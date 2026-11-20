@@ -486,6 +486,46 @@ val checkCoreLibrary = tasks.register<CheckCoreLibraryTask>("checkCoreLibrary") 
     abis.set(provider { android.defaultConfig.ndk.abiFilters.sorted() })
 }
 
+// A release variant run directly packages whatever src/main/jniLibs holds, and the debug loop leaves
+// a `dev-harness` core there: a development core, which offers the writing assistant to everyone
+// (docs/ai.md rule 5). So every release reads each core it is about to merge for the marker the
+// core compiles in (crates/mailcal-bindings/src/core_build.rs), the two strings
+// scripts/dev/check-core-build.sh reads too, and fails on any but a production core. No core at
+// all is left to check-android-native-libs.sh, as above.
+abstract class CheckProductionCoreTask : DefaultTask() {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val libraries: ConfigurableFileCollection
+
+    @TaskAction
+    fun check() {
+        for (library in libraries.files) {
+            // ISO-8859-1 maps every byte to one character, so the ASCII marker is found anywhere.
+            val bytes = String(library.readBytes(), Charsets.ISO_8859_1)
+            val problem = when {
+                "mailcal-core-build:development" in bytes ->
+                    "is a DEVELOPMENT core (a debug build, or one with dev-harness), which offers " +
+                        "the writing assistant to everyone"
+                "mailcal-core-build:production" !in bytes -> "carries no production core marker"
+                else -> continue
+            }
+            throw GradleException(
+                "src/main/jniLibs/${library.parentFile.name}/${library.name} $problem. A release " +
+                    "must not package it: build the core with clients/android/build-release.sh.",
+            )
+        }
+    }
+}
+
+val checkProductionCore = tasks.register<CheckProductionCoreTask>("checkProductionCore") {
+    description = "Fails a release that would package a development core."
+    libraries.from(
+        layout.projectDirectory.dir("src/main/jniLibs").asFileTree.matching {
+            include("*/libmailcal_bindings.so")
+        },
+    )
+}
+
 // The unit tests run against the debug variant only. Compose's test rule hosts its content in the
 // empty ComponentActivity that `ui-test-manifest` contributes, and that artifact is a
 // `debugImplementation`, adding it to release would merge a test activity into the shipped
@@ -507,6 +547,9 @@ androidComponents {
         variant.artifacts.use(coreNativeSymbols)
             .wiredWith(CoreNativeSymbolsTask::outputDir)
             .toAppendTo(MultipleArtifact.NATIVE_SYMBOL_TABLES)
+        // Every way a release packages native code, the APK and the bundle, merges it here first.
+        val merge = "merge" + variant.name.replaceFirstChar { it.uppercase() } + "NativeLibs"
+        tasks.configureEach { if (name == merge) dependsOn(checkProductionCore) }
     }
 }
 

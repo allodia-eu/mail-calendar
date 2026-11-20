@@ -50,7 +50,16 @@ try {
   # The Allodia sign-in, when this build was given the registration that turns it on, derived from
   # that registration rather than asked for separately (core-features.ps1, BUILDING.md).
   $featureArgs = Get-CoreCargoFeatures -Root $root
-  & cargo build -p mailcal-ffi -p mailcal-mcp-shim --release @targetArgs @featureArgs
+  # The core built here is the one packaged, so a development core fails to compile
+  # (crates/mailcal-bindings/build.rs). Set for this line alone, so a debug build run later in
+  # the same session is not refused.
+  $env:MAILCAL_PACKAGED_CORE = '1'
+  try {
+    & cargo build -p mailcal-ffi -p mailcal-mcp-shim --release @targetArgs @featureArgs
+  }
+  finally {
+    Remove-Item Env:MAILCAL_PACKAGED_CORE -ErrorAction SilentlyContinue
+  }
   if ($LASTEXITCODE -ne 0) { throw "cargo build failed" }
   foreach ($triple in $triples) {
     Assert-StaticCrt (Join-Path $root "target/$triple/release/mailcal_bindings.dll")

@@ -295,13 +295,15 @@ out, so the Stalwart certificate is refused as well. What survives one step furt
 which is `cfg(any(debug_assertions, feature = "dev-harness"))`:
 
 ```sh
-clients/linux/package.sh --features dev-harness --install
+clients/linux/package.sh --development-core --install
 flatpak run --env=MAILCAL_SHOWCASE=en <app-id>          # or nl, de, fr, es, it, pt
 ```
 
 That is a real Flatpak on the seeded showcase dataset, with no keyring and no real mail, which is
 what a store video or a sandbox-only bug wants. `MAILCAL_DEV_ACCOUNT` still refuses in this build and
-says so; showcase is the only fixture an optimised build offers.
+says so; showcase is the only fixture an optimised build offers. It is a development core, which
+offers the writing assistant to everyone, so it is asked for by that name and never shipped
+([`BUILDING.md`](../../BUILDING.md), "A package never carries a development core").
 
 The manifest that publishes Allodia's build is deliberately not in this tree. It states an
 application id and a download host as literals, which is the one thing `branding/` exists to

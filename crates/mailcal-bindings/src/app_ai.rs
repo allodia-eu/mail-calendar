@@ -8,7 +8,8 @@ use mailcal_app::ai::{AiEndpointChange, AiEndpointEdit, AiHost, AiQueued, AiWork
 
 use crate::{
     AiEndpointForm, AiEndpointGaps, AiEndpointIntent, AiIntent, JurisdictionClass, MailcalApp,
-    ai_host::{BindingsAiHost, build_kind},
+    ai_host::BindingsAiHost,
+    core_build::build_kind,
     records_ai::endpoint_form,
 };
 

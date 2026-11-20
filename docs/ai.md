@@ -77,7 +77,9 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    without it never does, so it is production without `ai`.
 5. **Early access: a development build offers it to everyone, a production build only while the
    Allodia entitlement carries `ai`.** A development build is a debug build, or the Android
-   development build, whose core carries `dev-harness`. The entitlement is read as
+   development build, whose core carries `dev-harness`. No package carries a development core:
+   the build refuses one it is told is packaged, and every packager reads the core it ships for
+   the marker naming its kind ([`BUILDING.md`](../BUILDING.md)). The entitlement is read as
    [`entitlement.md`](../allodia_license/entitlement.md) says, and an answer without `ai` takes
    effect at once: the stored answer inside its grace, never a read anyone waits for, published to
    the offer at launch, after each read, on each refresh trigger and at sign-out, so a grace that
