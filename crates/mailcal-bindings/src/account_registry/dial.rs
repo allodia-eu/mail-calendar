@@ -274,6 +274,8 @@ pub(crate) enum AccountDial {
         /// Whether the account was stored before its affiliation was recorded and its grant can
         /// ask, so the dial asks.
         affiliation_unknown: bool,
+        /// Whether Gmail names the drafted-reply keyword, the registry's ([`Self::named_by`]).
+        naming: mailcal_account::GmailKeywordNaming,
     },
     /// A JMAP account: dial its account-wide mail provider (+ calendar when advertised) from its
     /// config, minting a fresh access token first when the account is OAuth.
@@ -323,6 +325,7 @@ impl AccountDial {
                 identity: config.identity(),
                 capabilities: entry.opened_capabilities(),
                 affiliation_unknown: config.affiliation.is_none() && config.can_ask_affiliation(),
+                naming: mailcal_account::GmailKeywordNaming::default(),
             },
             ConnectedAccount::Jmap {
                 config,
@@ -336,6 +339,14 @@ impl AccountDial {
                 shared: None,
             },
         }
+    }
+
+    /// The dial with the install's Gmail keyword naming, which every Gmail provider shares.
+    pub(super) fn named_by(mut self, shared: &mailcal_account::GmailKeywordNaming) -> Self {
+        if let Self::Google { naming, .. } = &mut self {
+            shared.clone_into(naming);
+        }
+        self
     }
 
     /// What the account is used for.
@@ -416,8 +427,11 @@ impl AccountDial {
             // Gmail's provider is account-wide (one scope covers every label), so (like JMAP) the
             // reconnected provider serves any `mailbox_key`; there is no per-folder binding.
             Self::Google {
-                tokens, identity, ..
-            } => mailcal_account::connect_google_folder(tokens, None, &identity).ok(),
+                tokens,
+                identity,
+                naming,
+                ..
+            } => mailcal_account::connect_google_folder(tokens, None, &identity, naming).ok(),
             // JMAP's provider is account-wide for the same reason.
             Self::Jmap { config, tokens, .. } => {
                 mailcal_account::connect_jmap_folder(&config, tokens.as_ref(), shared.as_ref())

@@ -139,6 +139,7 @@ impl MailcalApp {
         } else {
             AiEntitlement::NotGranted
         });
+        self.name_gmail_keyword_once_offered();
     }
 }
 

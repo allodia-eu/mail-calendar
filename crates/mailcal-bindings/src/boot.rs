@@ -141,6 +141,14 @@ pub(crate) fn build_accounts(
     let ai_key = crate::ai_host::take_stored(&mut configs);
 
     let registry = AccountRegistry::new();
+    // Before any Gmail account is dialed, so a launch on an install the writing assistant has
+    // reached builds every one with the keyword's names (`docs/ai.md` rule 25).
+    if mailcal_account::load_preferences(&prefs_path)
+        .ai
+        .gmail_keyword_named
+    {
+        registry.gmail_keyword_naming().turn_on();
+    }
     // Before any account is registered, so each one's learned DAV principals come with it.
     registry.keep_dav_starts_in(mailcal_account::DavStartsFile::in_dir(&base));
     // The token sink every OAuth account's refresh shares, built over the host's store before

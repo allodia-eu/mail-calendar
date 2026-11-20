@@ -357,7 +357,15 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     keyword `writing-assistant`, fixed and untranslated so every device recognises it. Gmail
     keeps it as a label and Outlook as a category, which the person sees: created as "Writing
     assistant" and recognised under its name in every catalog locale, one table in
-    `mailcal-account` holding all seven (`drafted_keyword.rs`). It goes on the message in both places the message is kept:
+    `mailcal-account` holding all seven (`drafted_keyword.rs`). A Gmail label read as the keyword
+    leaves the folder pane, so Gmail registers the names only on an install the feature has
+    reached: from the first time it is offered there, and for good, recorded in the preferences
+    and read before any account is dialed. A label the person made under one of the names stays
+    theirs for everyone the feature never reached. When the names come on, each Gmail account's
+    mail is read again from its server, since a pass reads only what changed and what other
+    devices marked before would otherwise not carry the keyword. Outlook draws no category in
+    the folder pane, so Graph registers the names always. It goes on the message in both places
+    the message is kept:
     - **The stored draft.** Every save of a drafted composition asks for the keyword, and a
       composition that is not drafted asks for none; the whole set goes with every save (the
       engine's `put_draft` keywords), since one a save leaves out is taken off the stored copy.
@@ -440,7 +448,7 @@ stack; it never breaks inside a word.
 | What | Where |
 |---|---|
 | The library: names, descriptions, notes, passages, order, whether each reveal was shown | `writing_styles.toml`, read once at launch and written behind each change, as `signatures.toml` is |
-| Each account's slot; the endpoint's address, model and declaration; the jurisdiction mode | `preferences.toml`, the `[ai]` table |
+| Each account's slot; the endpoint's address, model and declaration; the jurisdiction mode; whether the feature has reached this install (rule 25) | `preferences.toml`, the `[ai]` table |
 | The endpoint's key | the platform keystore, id `ai-endpoint` |
 | The `Message-ID`s of drafted replies sent from this device, and of drafted drafts whose server has not said it kept the keyword | `drafted_replies.toml`, this device only: never capped, kept when a style is forgotten, gone with their account |
 

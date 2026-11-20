@@ -87,6 +87,38 @@ fn drawn(app: &MailcalApp) -> Drawn {
     }
 }
 
+/// Gmail names the drafted-reply keyword only on an install the feature has reached, so a label
+/// the person made under one of its names stays in the folder pane for everyone else; once it has
+/// been offered the names stay, so what other devices marked is still read (`docs/ai.md` rule 25).
+#[test]
+fn gmail_names_the_keyword_only_once_offered_and_then_for_good() {
+    let (tx, _rx) = mpsc::channel();
+    let app = MailcalApp::new_showcase(
+        Box::new(ChannelObserver { tx }),
+        Box::new(NullLogger),
+        LogLevel::Info,
+        "Europe/Amsterdam".to_owned(),
+        ShowcaseLocale::En,
+    );
+    let naming = app.registry.gmail_keyword_naming();
+    super::super::offer_ai_in_production(&app);
+    app.name_gmail_keyword_once_offered();
+    assert!(!naming.is_on());
+    assert!(!app.app.gmail_keyword_named());
+
+    app.app.set_ai_entitlement(AiEntitlement::Granted);
+    app.name_gmail_keyword_once_offered();
+    assert!(naming.is_on());
+    assert!(
+        app.app.gmail_keyword_named(),
+        "recorded for every launch after"
+    );
+
+    app.app.set_ai_entitlement(AiEntitlement::NotGranted);
+    app.name_gmail_keyword_once_offered();
+    assert!(naming.is_on(), "never turned off");
+}
+
 #[test]
 fn not_offered_every_record_is_absent() {
     let (app, _, styles) = staged();

@@ -75,6 +75,21 @@ fn a_replacement_never_makes_a_style_that_has_gone() {
     assert_eq!(app.writing_styles().len(), 1);
 }
 
+/// Once offered, an install names the drafted-reply keyword on Gmail at every launch after.
+#[test]
+fn an_install_the_feature_reached_names_the_keyword_for_good() {
+    let mut fixture = Fixture::stored(BuildKind::Production, |_| {});
+    assert!(!fixture.app.gmail_keyword_named());
+    fixture.app.note_gmail_keyword_named();
+    assert!(fixture.app.gmail_keyword_named());
+    fixture.app.settle_preferences();
+    let dir = fixture.dir.take().unwrap();
+    drop(fixture);
+
+    let relaunched = Fixture::reopened(dir, BuildKind::Production);
+    assert!(relaunched.app.gmail_keyword_named());
+}
+
 #[test]
 fn the_library_the_slots_and_the_drafted_replies_survive_a_relaunch() {
     let mut fixture = Fixture::stored(BuildKind::Development, |_| {});
