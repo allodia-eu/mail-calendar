@@ -60,6 +60,7 @@ fn save_then_load_round_trips_the_preferences() {
             "me@imap.example.com".to_owned(),
             "2026-06-01T09:30:00Z".to_owned(),
         )]),
+        new_mail_notifications: false,
         analytics_consent: Some(true),
         default_mail_app_offer: Some(false),
         analytics_install_id: Some("k7VqZ3mQ0pR1sT2uV3wX4g".to_owned()),
@@ -110,6 +111,12 @@ fn save_then_load_round_trips_the_preferences() {
     // Saving creates the nested parent dirs and the load reads the values back.
     save_preferences(&path, &prefs).unwrap();
     assert_eq!(load_preferences(&path), prefs);
+}
+
+#[test]
+fn an_older_preferences_file_announces_new_mail() {
+    let prefs: Preferences = toml::from_str("display_timezone = \"Europe/Amsterdam\"").unwrap();
+    assert!(prefs.new_mail_notifications);
 }
 
 #[test]

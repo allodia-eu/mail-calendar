@@ -73,6 +73,9 @@ pub enum PreferenceIntent {
         account: String,
         choice: Option<String>,
     },
+    /// Whether new mail is announced (`NotificationsPage::new_mail`). Signals
+    /// `Surface::Settings`.
+    SetNewMailNotifications { on: bool },
     /// The analytics decision. Send `true` only from a deliberate, affirmative action (a switch
     /// the person moved, a button they pressed), never from a pre-checked box. Opting in mints
     /// the install id; opting out clears it and asks the backend to erase what it holds under

@@ -150,6 +150,10 @@ pub struct Preferences {
     /// mail. The product core writes these; a [`BTreeMap`] keeps the serialized order stable.
     #[serde(default)]
     pub notify_marks: BTreeMap<String, String>,
+    /// Whether a background pass announces the new mail it finds. On by default; off, the pass
+    /// still advances [`Preferences::notify_marks`], so turning it on announces only what follows.
+    #[serde(default = "default_true")]
+    pub new_mail_notifications: bool,
     /// Whether the user opted in to sending privacy-preserving product-usage statistics.
     ///
     /// `None` (the state on first boot) means they have **not been asked yet**. `Some(false)`
@@ -321,6 +325,7 @@ impl Default for Preferences {
             default_meetings: BTreeMap::new(),
             accounts: BTreeMap::new(),
             notify_marks: BTreeMap::new(),
+            new_mail_notifications: true,
             analytics_consent: None,
             default_mail_app_offer: None,
             analytics_install_id: None,
