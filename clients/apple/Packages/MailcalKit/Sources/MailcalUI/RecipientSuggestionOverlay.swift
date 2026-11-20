@@ -85,37 +85,45 @@ private struct RecipientSuggestionLayer: ViewModifier {
     @ViewBuilder
     private func list(_ open: RecipientSuggestionOverlay, in proxy: GeometryProxy) -> some View {
         let input = proxy[open.anchor]
+        let placement = recipientSuggestionPlacement(
+            field: input,
+            visibleTop: proxy.safeAreaInsets.top,
+            visibleBottom: visibleBottom(in: proxy)
+        )
         #if os(iOS)
-            // Clear of the on-screen keyboard and across the window (docs/contacts.md §4): the
-            // layer is a sibling of the form, so the keyboard does not resize the list, and nothing
-            // but this keeps it off the keyboard.
-            let keyboardTop = keyboard.map { $0.minY - proxy.frame(in: .global).minY } ?? .infinity
-            let placement = recipientSuggestionPlacement(
+            // Across the window (docs/contacts.md §4): a phone's field is narrower than most
+            // addresses.
+            let box = placement.box(
                 field: input,
-                visibleTop: proxy.safeAreaInsets.top,
-                visibleBottom: min(proxy.size.height, keyboardTop)
+                minX: suggestionSideMargin,
+                width: proxy.size.width - 2 * suggestionSideMargin
             )
-            RecipientSuggestionList(matches: open.matches, accept: open.accept)
-                // A box as tall as the room, with the list at the edge nearest the field: above,
-                // it then ends just over the input whatever its own height. The box's height is
-                // also what the list measures itself against, and scrolls past.
-                .frame(
-                    width: proxy.size.width - 2 * suggestionSideMargin,
-                    height: placement.maxHeight,
-                    alignment: placement.above ? .bottom : .top
-                )
-                .offset(
-                    x: suggestionSideMargin,
-                    y: placement.above
-                        ? input.minY - suggestionGap - placement.maxHeight
-                        : input.maxY + suggestionGap
-                )
         #else
-            // A desktop's window keeps its content on screen, so the list stays the input's own
-            // width, under it, and a long address cannot widen it past the field it belongs to.
-            RecipientSuggestionList(matches: open.matches, accept: open.accept)
-                .frame(width: input.width, alignment: .leading)
-                .offset(x: input.minX, y: input.maxY + suggestionGap)
+            // The input's own width, so a long address cannot widen the list past the field it
+            // belongs to.
+            let box = placement.box(field: input, minX: input.minX, width: input.width)
+        #endif
+        RecipientSuggestionList(matches: open.matches, accept: open.accept)
+            // A box as tall as the room, with the list at the edge nearest the field: above, it
+            // then ends just over the input whatever its own height. The box's height is also what
+            // the list measures itself against, and scrolls past.
+            .frame(width: box.width, height: box.height, alignment: placement.above ? .bottom : .top)
+            .offset(x: box.minX, y: box.minY)
+    }
+
+    /// Where the room for the list ends, in the layer's coordinates.
+    private func visibleBottom(in proxy: GeometryProxy) -> CGFloat {
+        #if os(iOS)
+            // Clear of the on-screen keyboard (docs/contacts.md §4): the layer is a sibling of the
+            // form, so the keyboard does not resize the list, and nothing but this keeps it off the
+            // keyboard.
+            let keyboardTop = keyboard.map { $0.minY - proxy.frame(in: .global).minY } ?? .infinity
+            return min(proxy.size.height, keyboardTop)
+        #else
+            // Clear of the bar a sheet draws over its content, Cancel and Save on it: the list is
+            // drawn in the window rather than as a window of its own, so the bar covers whatever
+            // reaches under it.
+            return proxy.size.height - proxy.safeAreaInsets.bottom
         #endif
     }
 }
@@ -125,20 +133,31 @@ private let suggestionGap: CGFloat = 4
 /// How far the list keeps from the window's sides on a phone or tablet.
 private let suggestionSideMargin: CGFloat = 8
 
-/// Where a field's list goes on a phone or tablet: which side of the input, and how tall it may be.
+/// Where a field's list goes: which side of the input, and how tall it may be.
 struct RecipientSuggestionPlacement: Equatable {
     let above: Bool
     let maxHeight: CGFloat
+
+    /// The box the list is drawn in: the whole room on the chosen side, `gap` away from the field.
+    func box(field: CGRect, minX: CGFloat, width: CGFloat, gap: CGFloat = suggestionGap) -> CGRect {
+        CGRect(
+            x: minX,
+            y: above ? field.minY - gap - maxHeight : field.maxY + gap,
+            width: width,
+            height: maxHeight
+        )
+    }
 }
 
 /// The side and height of a field's list, from the room the field leaves in the **visible** part
-/// of the window: the part the keyboard does not cover (docs/contacts.md §4). Android's
-/// `suggestionPlacement` is the same rule.
+/// of the window: the part neither the keyboard nor the window's own bars cover
+/// (docs/contacts.md §4). Android's `suggestionPlacement` is the same rule.
 ///
 /// Under the field when there is room for about three suggestions there (`minRoom`), or at least
 /// as much as above it; otherwise above. Either way no taller than that room, so the list never
-/// reaches under the keyboard and scrolls instead. The event editor's invitee field is the case
-/// that needs the other side: the form scrolls it to just above the keyboard, which leaves no room
+/// reaches under the keyboard or a bar and scrolls instead. The event editor's invitee field is
+/// the case that needs the other side: on a phone the form scrolls it to just above the keyboard,
+/// and on a Mac it is the sheet's last field, just above Cancel and Save. Either leaves little room
 /// under it.
 func recipientSuggestionPlacement(
     field: CGRect,
