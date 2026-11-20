@@ -126,6 +126,16 @@ pub(crate) fn the_start_holds_back_or_the_way_out() {
     let page = host.view.visible_page().expect("a page");
     assert!(page.can_pop());
     assert!(labelled(page.upcast_ref(), "Cancel").is_none());
+    let bar = host
+        .frames
+        .borrow()
+        .get("failed")
+        .map(|frame| frame.header.clone());
+    let bar = bar.expect("the step's bar");
+    assert!(
+        bar.shows_end_title_buttons() && !bar.shows_start_title_buttons(),
+        "the bar stands in for the window's own: its close is the way out beside Back"
+    );
 
     host.show(&trail(&["range", "review"]), step("learning", None, None));
     let page = host.view.visible_page().expect("a page");
