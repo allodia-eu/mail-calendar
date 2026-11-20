@@ -102,11 +102,20 @@ fn asked(answers: Vec<Result<Answer, Error>>, mints: bool) -> (Outcome, Vec<Stri
 fn a_refusal_is_asked_once_more_with_a_fresh_token() {
     assert_eq!(
         asked(vec![Err(Error::Unauthorized), Ok(paid())], true),
-        (Outcome::Answered(paid()), vec!["held".to_owned(), "fresh".to_owned()])
+        (
+            Outcome::Answered(paid()),
+            vec!["held".to_owned(), "fresh".to_owned()]
+        )
     );
     assert_eq!(
-        asked(vec![Err(Error::Unauthorized), Err(Error::Unauthorized)], true),
-        (Outcome::Refused, vec!["held".to_owned(), "fresh".to_owned()])
+        asked(
+            vec![Err(Error::Unauthorized), Err(Error::Unauthorized)],
+            true
+        ),
+        (
+            Outcome::Refused,
+            vec!["held".to_owned(), "fresh".to_owned()]
+        )
     );
     assert_eq!(
         asked(vec![Err(Error::Unauthorized)], false),
@@ -121,7 +130,10 @@ fn a_refusal_is_asked_once_more_with_a_fresh_token() {
             ],
             true
         ),
-        (Outcome::Unreachable, vec!["held".to_owned(), "fresh".to_owned()])
+        (
+            Outcome::Unreachable,
+            vec!["held".to_owned(), "fresh".to_owned()]
+        )
     );
     assert_eq!(
         asked(vec![Err(Error::Transport("down".to_owned()))], true),

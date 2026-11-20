@@ -9,10 +9,7 @@ use mailcal_app::{App, Intent as AppIntent, ai::AiHost};
 use time::OffsetDateTime;
 
 use crate::{
-    MailcalApp,
-    ai_host::BindingsAiHost,
-    core_build::build_kind,
-    runtime::FfiRuntime,
+    MailcalApp, ai_host::BindingsAiHost, core_build::build_kind, runtime::FfiRuntime,
     showcase_data::AccountSeed,
 };
 

@@ -109,7 +109,10 @@ fn a_library_change_is_refused_while_the_assistant_is_not_offered() {
     let [style] = page.styles.as_slice() else {
         panic!("the one style");
     };
-    assert_eq!((style.id.clone(), style.name.as_str()), (id.clone(), "Work"));
+    assert_eq!(
+        (style.id.clone(), style.name.as_str()),
+        (id.clone(), "Work")
+    );
     assert_eq!(fixture.app.writing_style_slot("acct-1"), Some(id));
 }
 

@@ -18,9 +18,7 @@ use std::{
     },
 };
 
-use allodia_license::{
-    AccountService, Answer, Cache, Capability, Error, Feature, Outcome, Stored,
-};
+use allodia_license::{AccountService, Answer, Cache, Capability, Error, Feature, Outcome, Stored};
 
 use crate::{AllodiaGrantHealth, MailcalApp, allodia_transport::HttpsTransport};
 
