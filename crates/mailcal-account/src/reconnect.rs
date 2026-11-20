@@ -17,19 +17,20 @@
 //! [`RefreshingGraphProvider`]: crate::graph
 
 use std::{
+    collections::BTreeSet,
     future::Future,
     pin::Pin,
     sync::{Arc, Mutex},
 };
 
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, ProviderKey};
+use engine_api::{CalendarWrites, DraftReceipt, Keyword, ProviderKey};
 use engine_core::{
     error::FailureClass,
     ids::{AccountId, MailboxId},
     mail::{Mailbox, Message},
     raw::RawMime,
-    sync::{SyncScope, SyncState, SyncWindow},
+    sync::{MailboxWindows, SyncScope, SyncState},
 };
 use engine_provider::{
     ConnectionInfo, Draft, EmailStream, HandOver, MailEdit, MailEditReceipt, MailboxEdit,
@@ -185,7 +186,7 @@ impl Provider for ReconnectingImapProvider {
         &'a self,
         account: &'a AccountId,
         cursor: Option<&'a SyncState>,
-        window: SyncWindow,
+        window: MailboxWindows,
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -299,9 +300,13 @@ impl Provider for ReconnectingImapProvider {
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         let provider = self.delegate().await?;
-        match provider.put_draft(account, draft, replacing).await {
+        match provider
+            .put_draft(account, draft, replacing, keywords)
+            .await
+        {
             Err(err) if err.class() == FailureClass::Retryable => {
                 self.invalidate();
                 Err(err)
@@ -367,6 +372,7 @@ impl Provider for ReconnectingImapProvider {
     }
 }
 
+impl engine_api::CalendarSync for ReconnectingImapProvider {}
 impl CalendarWrites for ReconnectingImapProvider {}
 
 /// A folder change is **not** auto-retried on a dropped socket, unlike [`edit_mail`]: a

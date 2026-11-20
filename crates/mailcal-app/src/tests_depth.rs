@@ -5,7 +5,7 @@ use engine_core::{
     ids::{MailboxId, MessageId},
     mail::{Mailbox, MailboxRole, Message},
     membership::Memberships,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate, SyncWindow},
     time::{CalendarDate, UtcDateTime},
 };
 use engine_provider::{
@@ -90,7 +90,7 @@ impl Provider for WindowProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        window: SyncWindow,
+        window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -110,7 +110,7 @@ impl Provider for WindowProvider {
         let messages: Vec<Message> = self
             .messages
             .iter()
-            .filter(|message| in_window(message, window))
+            .filter(|message| in_window(message, window.account()))
             .cloned()
             .collect();
         let present = messages.iter().map(|m| m.id.key().clone()).collect();
@@ -124,6 +124,7 @@ impl Provider for WindowProvider {
 }
 
 impl engine_api::MailboxWrites for WindowProvider {}
+impl engine_api::CalendarSync for WindowProvider {}
 impl CalendarWrites for WindowProvider {}
 
 /// What a new account should start at on the target running the suite.

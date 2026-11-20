@@ -13,6 +13,7 @@ use std::sync::{
 use engine_core::{
     ids::MailboxId,
     mail::{Mailbox, MailboxRole, Message},
+    sync::MailboxWindows,
 };
 use engine_provider::{
     Capabilities, MailEdit, MessageReport, ProviderError, ReportControls, ReportEvidence,
@@ -85,7 +86,16 @@ impl FakeProvider {
             throttle_wait_secs: None,
             tree: None,
             edit_gate: None,
+            windowed: None,
         }
+    }
+
+    /// A provider whose first pass of a scope fetches only what its windows admit, as a real
+    /// adapter's snapshot does, with the windows each pass asked for.
+    pub(crate) fn windowed(mut self) -> (Self, Arc<Mutex<Vec<MailboxWindows>>>) {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        self.windowed = Some(Arc::clone(&seen));
+        (self, seen)
     }
 
     /// A provider that yields its first email chunk, then waits until `finish` is notified.

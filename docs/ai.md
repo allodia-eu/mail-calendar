@@ -98,14 +98,17 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    is stored. A stored key is never drawn back. A key typed replaces it. **A key goes only to the
    server it was given for**: a save whose address is on another host or port than the stored
    endpoint's, compared as the URL parser normalises them with a scheme's default port counting as
-   none given, takes the kept key out unless a key is typed in the same save, and a key kept with
-   no endpoint stored goes to no address; a change of path or of scheme alone keeps it, writing
-   nothing to the keystore. What a save would do to it is said before Save is pressed, by the same
-   `ai_endpoint_gap`, for the address as typed (`kept_key`: carried or dropped), and the key field
-   says a key is kept only while it would be carried. A key the keystore refused, to store or to
-   take out, is said on the form and changes nothing. **Remove** is the same kind of change, drawn
-   only while an endpoint or a key is stored, and takes both out. Saving dials nothing; the first
-   request says whether the endpoint answers.
+   none given, takes the kept key out unless a key is typed in the same save; a change of path or
+   of scheme alone keeps it, writing nothing to the keystore. What a save would do to it is said
+   before Save is pressed, by the same `ai_endpoint_gap`, for the address as typed (`kept_key`:
+   carried or dropped), and the key field says a key is kept only while it would be carried. A key
+   the keystore refused, to store or to take out, is said on the form and changes nothing. **A key
+   is held only with an endpoint.** The keystore outlives the preferences, so after they are reset
+   it can hold a key no endpoint names; that key goes to no address, so at launch the core does not
+   hold it and asks the keystore to let it go, again at each launch until it does, and the form
+   says nothing of it. **Remove** is the same kind of change, drawn only while an endpoint is
+   stored, and takes it and its key out. Saving dials nothing; the first request says whether the
+   endpoint answers.
 
 ### Settings → Writing style
 
@@ -129,25 +132,61 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 
 11. **The flow is one record, `writing_style_learning()`, whose stage the core moves:**
     - `ChooseAccount`, only with more than one account used for mail, each named by its address.
-    - `ChooseRange`, from the core's presets (`learn_ranges`): everything the device holds;
-      everything up to the end of last year, to leave out mail written with an assistant's help;
-      or a range of the person's own within days the core bounds, offered last and carrying the
-      days it starts from (the earliest day the device holds, or a year back when it holds
-      everything, to today). Only what the device holds is offered: the record says how far back that is (the account's sync depth), the end of last
-      year is offered only when the device holds mail from before this year, and a range of the
-      person's own starts no earlier. A day is a whole day in UTC, as a sync window's first day
-      is. A client converts no dates.
-    - `Review`: the core reads the range and stops before anything leaves: `Reading`, then `Ready`
-      (messages found, how many say enough to learn from per language, how many were left out in
-      other languages, the dates read) or `NothingUsable`. It says what is sent where, naming the
-      relay or the endpoint's host, and names no price, which only the relay knows. At
+    - `ChooseRange`, from the core's presets (`learn_ranges`), the same for every account and in
+      this order: **the last twelve months** (from the same day a year ago to today), which the
+      flow starts on, again each time an account is chosen; all the person's sent mail, as far
+      back as the server holds it; everything up to the end of last year, to leave out mail
+      written with an assistant's help; and a range of the person's own, offered last and
+      carrying the days it starts from (a year back to today), which may start on any day and
+      ends by today. **All of it is never the default**: on an account with many years of mail
+      its fetch takes long, so the person chooses it. A range is not bounded by what the device
+      holds: the review fetches what it reaches further back. The record says how far back the
+      device holds the account's mail (its sync depth) and, before Next is pressed, what Next
+      fetches for the range chosen (`fetch`, the function the review fetches by): `Nothing`,
+      `Older` mail back to the range's first day (`learn_range_fetch_older`), or the
+      `WholeHistory` for a range without a first day (`learn_range_fetch_all`). A client draws
+      that as one quiet line under the ranges, and none for `Nothing`. A day is a whole day in
+      UTC, as a sync window's first day is. A client converts no dates.
+    - `Review`: the core reads the range and stops before anything leaves. When the range reaches
+      back past what the device holds, it first fetches the account's older sent mail from its
+      server (`Fetching`, which can take a while, drawn with the platform's spinner from Next
+      until the read ends, [`waiting.md`](waiting.md) rule 1), then reads (`Reading`), then says
+      `Ready` (messages found, how many say enough to learn from per language, how many were left
+      out in other languages, the dates read) or `NothingUsable`. It says what is sent where,
+      naming the relay or the endpoint's host, and names no price, which only the relay knows. At
       `NothingUsable` Learn is held and nothing will be sent, so the record names neither a
       destination nor a reason it could not send (`sends_to` and `cannot_send` are both empty).
-      It says how far back the device holds the account's mail, and, for an account whose server
-      keeps no keyword, that only this device knows its drafted replies (rule 25). **Pressing
-      Learn there is the consent**; nothing asks anywhere else. Learn carries the default name the
+      It says how far back the device holds the account's mail, whether older mail the range
+      reaches could not be fetched (`older_not_fetched`), and, for an account whose server keeps
+      no keyword, that only this device knows its drafted replies (rule 25). **Pressing Learn
+      there is the consent**; nothing asks anywhere else. Learn carries the default name the
       style is stored under and the language the app is read in, both the client's, since the
       core has no words or locale of its own.
+    - **Older sent mail is fetched for the read and not kept.** The fetch holds the account's Sent
+      mailboxes further back than its sync window (back to the range's first day, or over their
+      whole history for a range without one) and syncs the account under that; every pass of the
+      account runs under the same deeper windows until the read ends, so a poll neither contends
+      with it nor reconciles the older mail away. It is a pass nobody started from the mail list,
+      so it says what [`sync-progress.md`](sync-progress.md) lets such a pass say: the hint once it
+      commits mail, never the bar, and a server that cannot be reached is the outage it always is.
+      On a transport whose mail is one scope for the whole account (JMAP, Gmail) holding Sent
+      further back starts that scope over, so the account's own window is fetched again too. The
+      fetch is complete when its pass ended with nothing failed, or when the Sent mail the device
+      then holds reaches the range's first day (the engine's `MailboxSpan::oldest`); after a
+      complete fetch, mail read that starts later than the range is all the person sent, and a
+      fetch that is not complete reads what the device holds and says so. Once the read has ended,
+      or the person has left the review, the account is narrowed back to its own window as a sync
+      depth reduction narrows it: the older mail is removed from the device, the account's mail
+      cursors are cleared and its mail synced again under its own window, since the cursors still
+      record the deeper fetch. It is never held deeper for good: the sync window is the person's
+      choice of what the device holds, one read of their sent mail is no reason to change it, and
+      years of mail kept after the read would cost the device's storage and every later pass of
+      the account. **A fetch under way is not stopped part way.** It is a pass of the whole
+      account, which brings the account's own mail too and on a single-scope transport starts that
+      scope over, so stopping it would leave the account's own window part synced, while the older
+      mail it brings is removed when it ends either way. Back or Close while it runs leaves it to
+      end; its answer is dropped and its mail removed as above. The run sends what the read kept
+      in memory and fetches nothing.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
     - `Failed { failure, remedy }`, with its one remedy (rule 27). A client sends `Remedy` for
@@ -166,7 +205,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     |---|---|---|
     | `ChooseAccount` | none | ends the flow, keeping nothing |
     | `ChooseRange` | to `ChooseAccount`, where it was shown | ends the flow |
-    | `Review` | to `ChooseRange`, dropping a read under way | ends the flow, dropping a read under way |
+    | `Review` | to `ChooseRange`, dropping a read under way; a fetch runs to its end and its answer is dropped | ends the flow, dropping a read under way; a fetch runs to its end and its answer is dropped |
     | `Learning` | none; Stop returns to `Review` | the run goes on, drawn on the page with its Stop ([`waiting.md`](waiting.md) rule 3) |
     | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
     | `Learned` | none | the reveal is left as its own Close leaves it (rule 15); the style keeps its default name |
@@ -300,19 +339,33 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     **Send anyway** and **Keep editing** both send `SendQuestionAnswered`, applied before `dispatch`
     returns; Send anyway then submits. Neither is asked again in this composition.
 25. **A drafted reply is never learned from, nor shown to a later draft as the person's words.** A
-    composition a draft went into stays drafted, even once undone or rewritten, since what is sent
-    may still carry its words; the core holds that on the composition for as long as it is open,
-    never in the editor's document. The send logs the `Message-ID` on this device and asks for the
-    keyword `writing-assistant` on the Sent copy (the engine's `sent_copy_keywords`), fixed and
-    untranslated so every device recognises it. Gmail keeps it as a label and Outlook as a
-    category, which the person sees: created as "Writing assistant" and recognised under its name
-    in every catalog locale, one table in `mailcal-account` holding all seven
-    (`drafted_keyword.rs`). The engine sets no keyword on a draft it stores, so a stored draft
-    carries none: a drafted reply saved, closed and resumed opens as not drafted, and is marked
-    only if a draft goes into it again. A message is drafted when its listing carries the keyword
+    composition a draft went into stays drafted, even once undone or rewritten, since a redo brings
+    the draft back and what is sent may still carry its words; the core holds that on the
+    composition for as long as it is open, never in the editor's document. The mark is the
+    keyword `writing-assistant`, fixed and untranslated so every device recognises it. Gmail
+    keeps it as a label and Outlook as a category, which the person sees: created as "Writing
+    assistant" and recognised under its name in every catalog locale, one table in
+    `mailcal-account` holding all seven (`drafted_keyword.rs`). It goes on the message in both places the message is kept:
+    - **The stored draft.** Every save of a drafted composition asks for the keyword, and a
+      composition that is not drafted asks for none; the whole set goes with every save (the
+      engine's `put_draft` keywords), since one a save leaves out is taken off the stored copy.
+      A composer opened on a stored draft, or on a send taken back from the Outbox, that carries
+      the mark opens drafted, on this device after a restart and on another device alike. The
+      card is the model's answer and never part of the mail (rule 23), so it is not stored: a
+      resumed drafted reply draws no card, Send asks nothing (rule 24), and Draft a reply is
+      offered as on any reply, the body being the person's (rule 22). Its saves and its send
+      carry the mark.
+    - **The Sent copy.** The send logs the `Message-ID` on this device and asks for the keyword
+      on the Sent copy (the engine's `sent_copy_keywords`).
+
+    A save's answer says whether the server kept the keyword. One it did not keep, and one a
+    save queued for later has not answered yet, is noted in this device's log as a send is: an
+    IMAP server keeps none on a draft where its Drafts folder takes no keyword of a client's own
+    (`PERMANENTFLAGS` without `\*`), and Graph and Gmail keep none when the write that sets the
+    category or the label is refused. A message is drafted when its listing carries the keyword
     **or** the log names it. A keyword never delays or fails a send or a save. On a server that
-    keeps no keyword the log is the only sign, so another device can take that reply for the
-    person's own, and the Review says so for such an account.
+    keeps no keyword the log is the only sign, so another device can take that reply, or resume
+    that draft, as the person's own, and the Review says so for such an account.
 26. **A draft is the body only**, in the message's language when the style has it, otherwise the
     style's main one; under a signature it ends at its last sentence. The thread it answers is the
     message with the history it quotes, which is what the composer shows. Working notes or an
@@ -377,7 +430,7 @@ stack; it never breaks inside a word.
 | The library: names, descriptions, notes, passages, order, whether each reveal was shown | `writing_styles.toml`, read once at launch and written behind each change, as `signatures.toml` is |
 | Each account's slot; the endpoint's address, model and declaration; the jurisdiction mode | `preferences.toml`, the `[ai]` table |
 | The endpoint's key | the platform keystore, id `ai-endpoint` |
-| The `Message-ID`s of drafted replies | `drafted_replies.toml`, this device only: never capped, kept when a style is forgotten, gone with their account |
+| The `Message-ID`s of drafted replies sent from this device, and of drafted drafts whose server has not said it kept the keyword | `drafted_replies.toml`, this device only: never capped, kept when a style is forgotten, gone with their account |
 
 ## Sovereignty scope
 
@@ -385,7 +438,9 @@ Learning and drafting **pass the jurisdiction gate**; neither is a carve-out
 ([`../AGENTS.md`](../AGENTS.md), "Non-negotiables"). The relay is `eu-native` by construction; an
 own endpoint is admitted as far as the person's declaration and the mode allow, an undeclared one
 only under `all`. A model on the person's own computer is declared like any other endpoint, so no
-local or air-gapped deployment is exempt. Learning reads only the sent mail the device holds.
+local or air-gapped deployment is exempt. Learning reads the sent mail on the device; older sent
+mail it fetches comes from the account's own server, as a sync does, and nothing goes to a model
+before Learn is pressed.
 
 ## Per-platform matrix
 
@@ -395,12 +450,12 @@ local or air-gapped deployment is exempt. Learning reads only the sent mail the 
 | The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| Learning in the flow host, with Back, Stop and one remedy (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
+| Learning in the flow host, with Back, Stop and one remedy; the last twelve months first, what a range fetches said before Next; older sent mail fetched for the review and removed after it (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
+| A drafted reply never learned from: the keyword on the stored draft and the Sent copy, the log (25) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
 | The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 No platform ships the feature yet, and one ships it only once every row is ✅ there, each driven

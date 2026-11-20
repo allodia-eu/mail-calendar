@@ -102,9 +102,13 @@ impl RefreshingGraphProvider {
                 // message rather than a calendar file (RFC 6047 §2.4).
                 .with_scheduling_submission()
                 // Every delegate is built with the drafted-reply category's names, which is what
-                // makes Graph keep a Sent copy's keyword; the receipt saying which it kept is
-                // forwarded.
+                // makes Graph keep a Sent copy's keyword. Graph files the copy after its send
+                // answers, so the keyword is applied afterwards by an edit the outbox queues
+                // (deferred), which this wrapper's `edit_mail` forwards.
                 .with_sent_copy_keywords()
+                .with_sent_copy_keywords_deferred()
+                // The same names keep a stored draft's keyword, forwarded with `put_draft`.
+                .with_draft_keywords()
                 // Forwarded below, and **read-only**: a Graph mailbox's display name is a
                 // directory attribute a tenant administrator owns, so claiming `Writable`
                 // here would put an editor in front of an edit that cannot land.
@@ -350,6 +354,13 @@ mod tests {
         assert!(provider.connection_info().capabilities.mail_writes());
         assert!(provider.connection_info().capabilities.submission());
         assert!(provider.connection_info().capabilities.sent_copy_keywords());
+        assert!(
+            provider
+                .connection_info()
+                .capabilities
+                .sent_copy_keywords_deferred()
+        );
+        assert!(provider.connection_info().capabilities.draft_keywords());
         // And specifically that it can send an *iMIP* message: a `Draft` carrying a
         // `text/calendar` part with `method=`. Sending ordinary mail is a different promise:
         // an account that can do the first and not the second cannot answer an invitation on

@@ -131,8 +131,8 @@ pub struct AiEndpointForm {
     /// [`crate::MailcalApp::ai_endpoint_gap`], which it asks of the fields as typed and says
     /// beside each field, names a gap.
     pub save: ControlState,
-    /// Remove: `None` while there is nothing to remove, which is when neither an endpoint nor a
-    /// key is stored; running while a removal runs.
+    /// Remove: `None` while there is nothing to remove, which is when no endpoint is stored (a key
+    /// is held only with one); running while a removal runs.
     pub remove: Option<ControlState>,
     /// What the last change came to, until the next starts.
     pub outcome: Option<AiEndpointOutcome>,

@@ -139,6 +139,8 @@ impl RefreshingGmailProvider {
                 // Every delegate is built with the drafted-reply label's names, which is what makes
                 // Gmail keep a Sent copy's keyword; the receipt saying which it kept is forwarded.
                 .with_sent_copy_keywords()
+                // The same names keep a stored draft's keyword, forwarded with `put_draft`.
+                .with_draft_keywords()
                 // Forwarded below. Gmail's send-as settings are the account holder's to
                 // change, so the name is `Writable` rather than a directory's to hand down.
                 .with_sender_identities(IdentityControls::Writable),
@@ -332,6 +334,7 @@ mod tests {
         assert!(provider.connection_info().capabilities.mail_writes());
         assert!(provider.connection_info().capabilities.submission());
         assert!(provider.connection_info().capabilities.sent_copy_keywords());
+        assert!(provider.connection_info().capabilities.draft_keywords());
         // Same rule, one capability further along: this wrapper reports its own set and never
         // the delegate's, so an iMIP capability missing here is missing from the account no
         // matter what Gmail advertises.

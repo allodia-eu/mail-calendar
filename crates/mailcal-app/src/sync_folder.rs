@@ -75,7 +75,12 @@ impl<P: Provider> App<P> {
             let report = loop {
                 let report = self
                     .engine
-                    .refresh_folders(core::slice::from_ref(&provider), id, tuning, &progress)
+                    .refresh_folders(
+                        core::slice::from_ref(&provider),
+                        id,
+                        tuning.clone(),
+                        &progress,
+                    )
                     .await;
                 let busy = report
                     .first_error()

@@ -299,6 +299,7 @@ mod tests {
     }
 
     impl engine_api::MailboxWrites for Prober {}
+    impl engine_provider::CalendarSync for Prober {}
     impl engine_provider::CalendarWrites for Prober {}
 
     struct Silent;

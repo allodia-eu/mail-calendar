@@ -132,19 +132,54 @@ fn another_server_with_a_new_key_keeps_the_new_key() {
     );
 }
 
+/// The keystore outlives the preferences: after a reset it can hold a key no endpoint names. That
+/// key goes to no address, so it is taken out at launch and the form never says one is kept.
 #[test]
-fn a_key_kept_with_no_endpoint_stored_goes_to_no_new_address() {
+fn a_key_found_with_no_endpoint_stored_is_taken_out_at_launch() {
     let fixture = Fixture::new(BuildKind::Development);
     fixture
         .app
         .restore_ai_endpoint_key(Some("sk-old".to_owned()));
-    assert_eq!(
-        kept_key(&fixture, "https://api.example.eu/v1"),
-        Some(AiEndpointKeptKey::Dropped)
-    );
+    assert_eq!(fixture.host.seen.lock().unwrap().keys, [None]);
+    let view = fixture.app.ai_endpoint();
+    assert!(!view.fields.key_kept);
+    assert!(!view.removable, "nothing to remove");
+    assert_eq!(kept_key(&fixture, "https://api.example.eu/v1"), None);
     save(&fixture, "https://api.example.eu/v1", "");
     assert!(!fixture.app.ai_endpoint().fields.key_kept);
-    assert_eq!(fixture.host.seen.lock().unwrap().keys, [None]);
+    assert_eq!(
+        fixture.host.seen.lock().unwrap().keys,
+        [None],
+        "the save has no key to take out"
+    );
+}
+
+/// A keystore that will not let the key go is asked again at the next launch; meanwhile the key
+/// is not held, so it reaches no address and the form says nothing of it.
+#[test]
+fn a_key_the_keystore_will_not_let_go_is_still_not_held() {
+    let fixture = Fixture::new(BuildKind::Development);
+    *fixture.host.refuse_keys.lock().unwrap() = true;
+    fixture
+        .app
+        .restore_ai_endpoint_key(Some("sk-old".to_owned()));
+    let view = fixture.app.ai_endpoint();
+    assert!(!view.fields.key_kept);
+    assert!(!view.removable);
+}
+
+#[test]
+fn a_key_found_with_its_endpoint_is_kept() {
+    let fixture = with_a_kept_key();
+    fixture
+        .app
+        .restore_ai_endpoint_key(Some("sk-eu".to_owned()));
+    assert!(fixture.app.ai_endpoint().fields.key_kept);
+    assert_eq!(
+        fixture.host.seen.lock().unwrap().keys,
+        [Some("sk-eu".to_owned())],
+        "the keystore is not asked"
+    );
 }
 
 #[test]

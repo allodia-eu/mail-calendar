@@ -11,14 +11,16 @@
 //! Split from the sibling `refreshing` module (which owns the struct and its delegate cache)
 //! to keep both files under the 500-line cap.
 
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, ProviderKey};
+use engine_api::{CalendarSync, CalendarWrites, DraftReceipt, Keyword, ProviderKey};
 use engine_core::{
     calendar::Event,
     ids::{AccountId, CalendarId},
     mail::{Mailbox, Message},
     raw::RawMime,
-    sync::{SyncScope, SyncState, SyncWindow},
+    sync::{MailboxWindows, SyncScope, SyncState, SyncWindow},
     time::Horizon,
 };
 use engine_provider::{
@@ -77,7 +79,7 @@ impl Provider for RefreshingJmapProvider {
         &'a self,
         account: &'a AccountId,
         cursor: Option<&'a SyncState>,
-        window: SyncWindow,
+        window: MailboxWindows,
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -164,6 +166,68 @@ impl Provider for RefreshingJmapProvider {
         })
     }
 
+    /// The identities the session's submission account can send as, forwarded to the
+    /// session-backed delegate.
+    ///
+    /// This wrapper reports the **session's own** capabilities rather than a capped set, so
+    /// `sender_identities` is advertised whenever the server advertised submission. Advertising
+    /// and forwarding move together: a verb left unforwarded here answers "unsupported" while
+    /// the capability says otherwise, and a host reading the capability would draw an editor
+    /// over it.
+    async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
+        self.delegate().await?.sender_identities(account).await
+    }
+
+    async fn set_sender_name(
+        &self,
+        account: &AccountId,
+        identity: &SenderIdentityId,
+        name: &str,
+    ) -> ProviderResult<()> {
+        self.delegate()
+            .await?
+            .set_sender_name(account, identity, name)
+            .await
+    }
+
+    /// Forwarded whenever the session advertised drafts, which is when this wrapper's capabilities
+    /// say so: advertising and forwarding move together (see `sender_identities`).
+    async fn put_draft(
+        &self,
+        account: &AccountId,
+        draft: &Draft,
+        replacing: Option<&ProviderKey>,
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
+        self.delegate()
+            .await?
+            .put_draft(account, draft, replacing, keywords)
+            .await
+    }
+
+    async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
+        self.delegate().await?.delete_draft(account, draft).await
+    }
+
+    /// JMAP reports a message by setting the RFC 8621 `$junk`/`$notjunk` keyword, forwarded to the
+    /// session-backed delegate exactly as [`edit_mail`](Provider::edit_mail) is.
+    async fn report_message(
+        &self,
+        account: &AccountId,
+        report: &MessageReport,
+    ) -> ProviderResult<ReportReceipt> {
+        self.delegate().await?.report_message(account, report).await
+    }
+
+    /// Forwarded, because this wrapper reports the session's own capabilities, which say whether
+    /// the session lists shared mailboxes (see `sender_identities`).
+    async fn list_shared_accounts(&self) -> ProviderResult<Vec<SharedAccount>> {
+        self.delegate().await?.list_shared_accounts().await
+    }
+}
+
+#[async_trait]
+impl CalendarSync for RefreshingJmapProvider {
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
         SyncScope::JmapType {
             account: account.clone(),
@@ -197,64 +261,6 @@ impl Provider for RefreshingJmapProvider {
             .await?
             .sync_events(account, calendar, cursor, window)
             .await
-    }
-
-    /// The identities the session's submission account can send as, forwarded to the
-    /// session-backed delegate.
-    ///
-    /// This wrapper reports the **session's own** capabilities rather than a capped set, so
-    /// `sender_identities` is advertised whenever the server advertised submission. Advertising
-    /// and forwarding move together: a verb left unforwarded here answers "unsupported" while
-    /// the capability says otherwise, and a host reading the capability would draw an editor
-    /// over it.
-    async fn sender_identities(&self, account: &AccountId) -> ProviderResult<Vec<SenderIdentity>> {
-        self.delegate().await?.sender_identities(account).await
-    }
-
-    async fn set_sender_name(
-        &self,
-        account: &AccountId,
-        identity: &SenderIdentityId,
-        name: &str,
-    ) -> ProviderResult<()> {
-        self.delegate()
-            .await?
-            .set_sender_name(account, identity, name)
-            .await
-    }
-
-    /// Forwarded whenever the session advertised drafts, which is when this wrapper's capabilities
-    /// say so: advertising and forwarding move together (see `sender_identities`).
-    async fn put_draft(
-        &self,
-        account: &AccountId,
-        draft: &Draft,
-        replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
-        self.delegate()
-            .await?
-            .put_draft(account, draft, replacing)
-            .await
-    }
-
-    async fn delete_draft(&self, account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {
-        self.delegate().await?.delete_draft(account, draft).await
-    }
-
-    /// JMAP reports a message by setting the RFC 8621 `$junk`/`$notjunk` keyword, forwarded to the
-    /// session-backed delegate exactly as [`edit_mail`](Provider::edit_mail) is.
-    async fn report_message(
-        &self,
-        account: &AccountId,
-        report: &MessageReport,
-    ) -> ProviderResult<ReportReceipt> {
-        self.delegate().await?.report_message(account, report).await
-    }
-
-    /// Forwarded, because this wrapper reports the session's own capabilities, which say whether
-    /// the session lists shared mailboxes (see `sender_identities`).
-    async fn list_shared_accounts(&self) -> ProviderResult<Vec<SharedAccount>> {
-        self.delegate().await?.list_shared_accounts().await
     }
 }
 
@@ -339,17 +345,18 @@ mod tests {
 
     use super::*;
     use crate::graph::test_support::{
-        assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint, mock_token_endpoint,
+        assert_calendar_reaches_the_delegate, dead_grant_token_endpoint, mock_token_endpoint,
         source_at,
     };
 
     /// The smallest session a calendar account connects with.
     const SESSION: &str = r#"{"capabilities":{"urn:ietf:params:jmap:core":{},"urn:ietf:params:jmap:calendars":{}},"primaryAccounts":{"urn:ietf:params:jmap:calendars":"c"},"accounts":{"c":{"accountCapabilities":{"urn:ietf:params:jmap:calendars":{}}}},"apiUrl":"https://mail.example.com/jmap/"}"#;
 
-    /// An OAuth JMAP account answers invitations through this wrapper, which forwards each verb
-    /// by hand; one it leaves out answers with the trait's unsupported default.
+    /// An OAuth JMAP account syncs its calendars and answers invitations through this wrapper,
+    /// which forwards each verb by hand; one it leaves out answers with the trait's unsupported
+    /// default.
     #[tokio::test]
-    async fn invitation_answers_are_forwarded_to_jmap() {
+    async fn calendar_calls_are_forwarded_to_jmap() {
         let (server, _) = mock_token_endpoint(vec![SESSION.to_owned()]);
         let base_url = server.trim_end_matches("/token").to_owned();
         let initial = JmapProvider::connect(JmapConfig::new(
@@ -370,6 +377,6 @@ mod tests {
             capabilities,
             None,
         );
-        assert_calendar_answers_reach_the_delegate(&provider).await;
+        assert_calendar_reaches_the_delegate(&provider).await;
     }
 }

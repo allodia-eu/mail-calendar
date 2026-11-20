@@ -20,7 +20,7 @@ mod reveal_records;
 pub use learning_records::{
     StyleLearnRange, StyleLearningAccount, StyleLearningDestination, StyleLearningLanguage,
     StyleLearningReport, StyleLearningReview, StyleLearningStage, StyleLearningTrailStage,
-    StyleSentReach, WritingStyleLearning,
+    StyleRangeFetch, StyleSentReach, WritingStyleLearning,
 };
 pub use records::{
     WritingStyleChangeKind, WritingStyleEntry, WritingStyleLearnBlock, WritingStyleOpens,

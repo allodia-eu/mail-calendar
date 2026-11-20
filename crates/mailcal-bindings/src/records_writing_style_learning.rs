@@ -44,15 +44,30 @@ pub struct StyleLearningAccount {
     pub email: String,
 }
 
-/// Which sent mail to learn from. Days are `YYYY-MM-DD`, whole days in UTC.
+/// Which sent mail to learn from. Days are `YYYY-MM-DD`, whole days in UTC. A range may reach
+/// back past what the device holds: the review fetches the older sent mail first.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum StyleLearnRange {
-    /// Everything the device holds.
+    /// From the same day a year ago to today; the flow starts on it.
+    LastTwelveMonths,
+    /// All of it, as far back as the server holds it.
     Everything,
     /// Everything up to the end of last year.
     UntilEndOfLastYear,
-    /// A range of the person's own, both days included, within `ChooseRange`'s bounds.
+    /// A range of the person's own, both days included, ending by `ChooseRange`'s `latest`.
     Between { since: String, until: String },
+}
+
+/// What Next fetches from the account's server for the range chosen, before the review reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, uniffi::Enum)]
+pub enum StyleRangeFetch {
+    /// Nothing: the device holds all the range reaches.
+    Nothing,
+    /// The sent mail between the range's first day and what the device holds; this can take a
+    /// while.
+    Older,
+    /// The account's whole sent history; with many years of mail this can take a long time.
+    WholeHistory,
 }
 
 /// How far back the device holds an account's mail.
@@ -102,6 +117,9 @@ pub struct StyleLearningReport {
 /// The review's state.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum StyleLearningReview {
+    /// Fetching from the account's server the sent mail the range reaches and the device does not
+    /// hold, which can take a while; nothing has left the device.
+    Fetching,
     /// Reading on the device; nothing has left it.
     Reading,
     Ready {
@@ -122,21 +140,29 @@ pub enum StyleLearningStage {
     },
     ChooseRange {
         email: String,
-        /// The presets that can be honoured, in order. The last is always `Between`, carrying
-        /// the days a range of the person's own starts from before they change them.
+        /// The presets, in order. The first is the one the flow starts on; the last is always
+        /// `Between`, carrying the days a range of the person's own starts from before they
+        /// change them.
         presets: Vec<StyleLearnRange>,
-        /// The first day a range of the person's own may start on; `None` when the device holds
-        /// everything.
-        earliest: Option<String>,
-        /// The last day it may end on.
+        /// The last day a range of the person's own may end on; it may start on any day.
         latest: String,
         selected: Option<StyleLearnRange>,
+        /// How far back the device holds the account's mail; the review fetches what a range
+        /// reaches further back.
         reach: StyleSentReach,
+        /// What Next fetches for `selected`, said before it is pressed; `Nothing` while no range
+        /// is chosen.
+        fetch: StyleRangeFetch,
     },
     Review {
         email: String,
         range: StyleLearnRange,
+        /// How far back the device holds the account's mail; the report's dates say how far back
+        /// what was read reaches, older mail fetched for the review included.
         reach: StyleSentReach,
+        /// The range reaches back past what the device holds and the older sent mail could not be
+        /// fetched, so the review read only what the device holds, back to `reach`.
+        older_not_fetched: bool,
         /// What the review found.
         state: StyleLearningReview,
         /// Where Learn sends; `None` when it cannot, and `cannot_send` says why. Both are `None`
@@ -183,6 +209,7 @@ fn parse_day(text: &str) -> Option<time::Date> {
 impl From<core::LearnRange> for StyleLearnRange {
     fn from(range: core::LearnRange) -> Self {
         match range {
+            core::LearnRange::LastTwelveMonths => Self::LastTwelveMonths,
             core::LearnRange::Everything => Self::Everything,
             core::LearnRange::UntilEndOfLastYear => Self::UntilEndOfLastYear,
             core::LearnRange::Between { since, until } => Self::Between {
@@ -197,6 +224,7 @@ impl StyleLearnRange {
     /// The core's range, or `None` for a day that is not one.
     pub(crate) fn to_core(&self) -> Option<core::LearnRange> {
         Some(match self {
+            Self::LastTwelveMonths => core::LearnRange::LastTwelveMonths,
             Self::Everything => core::LearnRange::Everything,
             Self::UntilEndOfLastYear => core::LearnRange::UntilEndOfLastYear,
             Self::Between { since, until } => core::LearnRange::Between {
@@ -204,6 +232,16 @@ impl StyleLearnRange {
                 until: parse_day(until)?,
             },
         })
+    }
+}
+
+impl From<core::RangeFetch> for StyleRangeFetch {
+    fn from(fetch: core::RangeFetch) -> Self {
+        match fetch {
+            core::RangeFetch::Nothing => Self::Nothing,
+            core::RangeFetch::Older => Self::Older,
+            core::RangeFetch::WholeHistory => Self::WholeHistory,
+        }
     }
 }
 
@@ -254,18 +292,20 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
             ranges,
             selected,
             reach,
+            fetch,
         } => StyleLearningStage::ChooseRange {
             email: address,
             presets: ranges.presets.into_iter().map(Into::into).collect(),
-            earliest: ranges.earliest.map(day),
             latest: day(ranges.latest),
             selected: selected.map(Into::into),
             reach: reach.into(),
+            fetch: fetch.into(),
         },
         core::LearningStage::Review {
             address,
             range,
             reach,
+            older_not_fetched,
             state,
             sends_to,
             keyword_kept,
@@ -273,7 +313,9 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
             email: address,
             range: range.into(),
             reach: reach.into(),
+            older_not_fetched,
             state: match state {
+                core::Review::Fetching => StyleLearningReview::Fetching,
                 core::Review::Reading => StyleLearningReview::Reading,
                 core::Review::Ready(found) => StyleLearningReview::Ready {
                     report: report(found),
