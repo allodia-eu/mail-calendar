@@ -1,6 +1,7 @@
 //! Which sent mail a style is learned from (`docs/ai.md` rule 11, `ChooseRange`): the presets the
-//! core offers, so a client converts no dates. A range may reach back past what the device holds,
-//! since the review fetches the older Sent mail it needs from the server.
+//! core offers, so a client converts no dates, and what choosing one fetches from the server. A
+//! range may reach back past what the device holds, since the review fetches the older Sent mail
+//! it needs first.
 //!
 //! A day is a whole day in UTC, counted as the account's sync window counts its first day.
 
@@ -38,6 +39,8 @@ impl SentReach {
 /// Which sent mail to learn from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LearnRange {
+    /// From the same day a year ago to today.
+    LastTwelveMonths,
     /// All of it, as far back as the server holds it.
     Everything,
     /// Everything up to the end of last year, to leave out mail written with an assistant's
@@ -52,11 +55,22 @@ pub enum LearnRange {
     },
 }
 
+/// What choosing a range fetches from the account's server before its review reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RangeFetch {
+    /// Nothing: the device holds all the range reaches.
+    Nothing,
+    /// The sent mail between the range's first day and what the device holds.
+    Older,
+    /// The account's whole sent history, which on an account with many years of mail takes long.
+    WholeHistory,
+}
+
 /// The ranges offered for one account.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LearnRanges {
-    /// The presets, in the order they are offered, the range of the person's own last with the
-    /// days it starts from: a year back to today.
+    /// The presets, in the order they are offered: the default first, the range of the person's
+    /// own last with the days it starts from, a year back to today.
     pub presets: Vec<LearnRange>,
     /// The latest day a range of the person's own may end on: today. It may start on any day.
     pub latest: Date,
@@ -74,19 +88,24 @@ impl LearnRanges {
     }
 }
 
+/// The same day a year before `today`; the 28th of February for a leap day.
+fn a_year_back(today: Date) -> Date {
+    today
+        .replace_year(today.year() - 1)
+        .unwrap_or_else(|_| today - time::Duration::days(365))
+}
+
 /// The ranges offered on `today`. The one place a range is decided: a client draws whatever this
 /// offers.
 #[must_use]
 pub fn learn_ranges(today: Date) -> LearnRanges {
-    let a_year_back = today
-        .replace_year(today.year() - 1)
-        .unwrap_or_else(|_| today - time::Duration::days(365));
     LearnRanges {
         presets: vec![
+            LearnRange::DEFAULT,
             LearnRange::Everything,
             LearnRange::UntilEndOfLastYear,
             LearnRange::Between {
-                since: a_year_back,
+                since: a_year_back(today),
                 until: today,
             },
         ],
@@ -95,6 +114,10 @@ pub fn learn_ranges(today: Date) -> LearnRanges {
 }
 
 impl LearnRange {
+    /// The range the flow starts on. All of it is a deliberate choice: on an account with many
+    /// years of mail its fetch takes long.
+    pub const DEFAULT: Self = Self::LastTwelveMonths;
+
     /// The first and last second the range admits, in seconds since the Unix epoch, on `today`;
     /// an open end is `None`.
     #[must_use]
@@ -102,6 +125,7 @@ impl LearnRange {
         let start = |day: Date| day.with_time(Time::MIDNIGHT).assume_utc().unix_timestamp();
         let end = |day: Date| start(day) + 86_399;
         match self {
+            Self::LastTwelveMonths => (Some(start(a_year_back(today))), Some(end(today))),
             Self::Everything => (None, None),
             Self::UntilEndOfLastYear => {
                 let last = Date::from_calendar_date(today.year() - 1, Month::December, 31)
@@ -112,12 +136,27 @@ impl LearnRange {
         }
     }
 
-    /// The first day of sent mail the range reaches; `None` when it reaches all of it.
+    /// The first day of sent mail the range reaches on `today`; `None` when it reaches all of it.
     #[must_use]
-    pub const fn first_day(self) -> Option<Date> {
+    pub fn first_day(self, today: Date) -> Option<Date> {
         match self {
+            Self::LastTwelveMonths => Some(a_year_back(today)),
             Self::Everything | Self::UntilEndOfLastYear => None,
             Self::Between { since, .. } => Some(since),
+        }
+    }
+
+    /// What choosing the range on `today` fetches from the server, for a device holding `reach`.
+    /// The review fetches exactly when this is not `Nothing`.
+    #[must_use]
+    pub fn fetch(self, reach: SentReach, today: Date) -> RangeFetch {
+        let first_day = self.first_day(today);
+        if reach.covers(first_day) {
+            RangeFetch::Nothing
+        } else if first_day.is_none() {
+            RangeFetch::WholeHistory
+        } else {
+            RangeFetch::Older
         }
     }
 }
@@ -143,21 +182,23 @@ mod tests {
     use mailcal_account::SyncDepth;
     use time::{Date, Month};
 
-    use super::{LearnRange, SentReach, admits, learn_ranges};
+    use super::{LearnRange, RangeFetch, SentReach, admits, learn_ranges};
 
     fn day(year: i32, month: Month, day: u8) -> Date {
         Date::from_calendar_date(year, month, day).unwrap()
     }
 
-    /// The range step reaches before the sync window: every preset is offered whatever the device
-    /// holds, and a range of one's own may start on any day.
+    /// The last twelve months first, as the default; all of it later, as a deliberate choice; a
+    /// range of one's own last. Every preset is offered whatever the device holds, and a range of
+    /// one's own may start on any day.
     #[test]
-    fn every_preset_is_offered_whatever_the_device_holds() {
+    fn the_last_twelve_months_lead_and_every_preset_is_offered_whatever_the_device_holds() {
         let today = day(2026, Month::November, 19);
         let ranges = learn_ranges(today);
         assert_eq!(
             ranges.presets,
             [
+                LearnRange::LastTwelveMonths,
                 LearnRange::Everything,
                 LearnRange::UntilEndOfLastYear,
                 LearnRange::Between {
@@ -166,6 +207,7 @@ mod tests {
                 }
             ]
         );
+        assert_eq!(ranges.presets[0], LearnRange::DEFAULT);
         let between = |since, until| LearnRange::Between { since, until };
         assert!(ranges.admits(between(day(2015, Month::March, 1), today)));
         assert!(!ranges.admits(between(today, day(2026, Month::November, 20))));
@@ -173,6 +215,18 @@ mod tests {
             day(2026, Month::October, 2),
             day(2026, Month::October, 1)
         )));
+    }
+
+    #[test]
+    fn the_last_twelve_months_run_from_the_same_day_a_year_ago_to_today() {
+        let today = day(2026, Month::November, 19);
+        let range = LearnRange::LastTwelveMonths;
+        assert_eq!(range.first_day(today), Some(day(2025, Month::November, 19)));
+        let (since, until) = range.bounds(today);
+        assert_eq!(since, Some(1_763_510_400)); // 2025-11-19T00:00:00Z
+        assert_eq!(until, Some(1_795_132_799)); // 2026-11-19T23:59:59Z
+        let leap = day(2028, Month::February, 29);
+        assert!(range.first_day(leap).is_some_and(|first| first < leap));
     }
 
     #[test]
@@ -197,9 +251,36 @@ mod tests {
         assert!(held.covers(Some(day(2026, Month::September, 1))));
         assert!(held.covers(Some(day(2026, Month::August, 19))));
         assert!(!held.covers(Some(day(2026, Month::August, 18))));
-        assert!(!held.covers(LearnRange::Everything.first_day()));
-        assert!(!held.covers(LearnRange::UntilEndOfLastYear.first_day()));
+        assert!(!held.covers(LearnRange::Everything.first_day(today)));
+        assert!(!held.covers(LearnRange::UntilEndOfLastYear.first_day(today)));
         assert!(SentReach::Everything.covers(None));
+    }
+
+    /// What choosing a range fetches is said before Next: older mail back to its first day, or
+    /// the whole history for a range without one, and nothing the device already holds.
+    #[test]
+    fn a_range_says_what_it_fetches_before_it_is_read() {
+        let today = day(2026, Month::November, 19);
+        let held = SentReach::of(SyncDepth::default(), today);
+        let fetch = |range: LearnRange| range.fetch(held, today);
+        assert_eq!(fetch(LearnRange::LastTwelveMonths), RangeFetch::Older);
+        assert_eq!(fetch(LearnRange::Everything), RangeFetch::WholeHistory);
+        assert_eq!(
+            fetch(LearnRange::UntilEndOfLastYear),
+            RangeFetch::WholeHistory
+        );
+        let recent = LearnRange::Between {
+            since: day(2026, Month::October, 1),
+            until: today,
+        };
+        assert_eq!(fetch(recent), RangeFetch::Nothing);
+        for range in learn_ranges(today).presets {
+            assert_eq!(
+                range.fetch(SentReach::Everything, today),
+                RangeFetch::Nothing,
+                "{range:?} on a device holding everything"
+            );
+        }
     }
 
     #[test]

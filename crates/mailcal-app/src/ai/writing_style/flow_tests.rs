@@ -282,14 +282,41 @@ fn learn_needs_something_to_learn_from_and_a_range_the_account_can_honour() {
             range: LearnRange::UntilEndOfLastYear,
         },
         &accounts(&["a"]),
-        |_, range| range == LearnRange::Everything,
+        |_, range| range == LearnRange::DEFAULT,
         Ok(()),
     );
     assert_eq!(
         flows.flow.as_ref().unwrap().range,
-        Some(LearnRange::Everything),
+        Some(LearnRange::DEFAULT),
         "a range the account cannot honour is not taken"
     );
+}
+
+/// The flow starts on the last twelve months, and again for each account chosen; all of it is
+/// a choice the person makes.
+#[test]
+fn the_range_starts_on_the_last_twelve_months_for_every_account() {
+    let mut flows = Flows::default();
+    apply(&mut flows, LearningIntent::Open, &["a"]);
+    let range = |flows: &Flows| flows.flow.as_ref().unwrap().range;
+    assert_eq!(range(&flows), Some(LearnRange::LastTwelveMonths));
+
+    let mut flows = Flows::default();
+    apply(&mut flows, LearningIntent::Open, &["a", "b"]);
+    let select = |account: &str| LearningIntent::SelectAccount {
+        account: account.to_owned(),
+    };
+    apply(&mut flows, select("a"), &["a", "b"]);
+    assert_eq!(range(&flows), Some(LearnRange::LastTwelveMonths));
+    apply(&mut flows, LearningIntent::Next, &["a", "b"]);
+    let everything = LearningIntent::SelectRange {
+        range: LearnRange::Everything,
+    };
+    apply(&mut flows, everything, &["a", "b"]);
+    assert_eq!(range(&flows), Some(LearnRange::Everything));
+    apply(&mut flows, LearningIntent::Back, &["a", "b"]);
+    apply(&mut flows, select("b"), &["a", "b"]);
+    assert_eq!(range(&flows), Some(LearnRange::LastTwelveMonths));
 }
 
 #[test]

@@ -163,7 +163,7 @@ impl Flows {
             shown: true,
             asked_account: accounts.len() > 1,
             account,
-            range: Some(LearnRange::Everything),
+            range: Some(LearnRange::DEFAULT),
             stage,
             reviewed: None,
             older: OlderSent::NotNeeded,
@@ -195,7 +195,7 @@ impl Flows {
                     && flow.account.as_ref() != Some(chosen)
                 {
                     flow.account = Some(chosen.clone());
-                    flow.range = Some(LearnRange::Everything);
+                    flow.range = Some(LearnRange::DEFAULT);
                     flow.reviewed = None;
                 }
                 Start::Nothing

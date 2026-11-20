@@ -8,7 +8,7 @@ use time::{Date, Time};
 
 use super::{
     flow::{OlderSent, Review, Reviewed, Stage},
-    range::today,
+    range::{RangeFetch, today},
 };
 use crate::{App, Surface, ai::AiFailure};
 
@@ -39,9 +39,9 @@ impl<P: Provider> App<P> {
         // One read holding Sent further back at a time, so one's narrowing never runs under
         // another's read.
         let _one_at_a_time = self.ai.writing_style.fetching.lock().await;
-        let held = self.sent_reach(&account);
-        let first_day = range.first_day();
-        let fetch = !held.covers(first_day);
+        let today = today();
+        let first_day = range.first_day(today);
+        let fetch = range.fetch(self.sent_reach(&account), today) != RangeFetch::Nothing;
         let mut complete = true;
         if fetch {
             if !self.review_moves(ticket, &Review::Reading, Review::Fetching) {
@@ -53,7 +53,7 @@ impl<P: Provider> App<P> {
             }
         }
         let read = self
-            .learnable_sent_mail(&account, range.bounds(today()))
+            .learnable_sent_mail(&account, range.bounds(today))
             .await;
         let horizon = read.as_ref().and_then(|(_, horizon)| *horizon);
         let older = match fetch {

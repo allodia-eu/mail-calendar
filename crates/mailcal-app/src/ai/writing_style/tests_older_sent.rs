@@ -8,7 +8,7 @@ use engine_api::{AccountId, CalendarDate, MailboxId, MailboxWindows, SyncWindow}
 use time::{Date, Duration};
 
 use super::{
-    LearnRange, LearningIntent, LearningStage, Review, SentReach,
+    LearnRange, LearningIntent, LearningStage, RangeFetch, Review, SentReach,
     range::today,
     tests_support::{Learner, REPLY, sent},
 };
@@ -117,6 +117,66 @@ async fn a_range_before_the_sync_window_fetches_the_older_sent_mail_for_its_read
         0,
         "the account syncs under its own window again"
     );
+}
+
+/// What the range stage says Next fetches, for each range chosen, on an account holding the
+/// default sync depth.
+fn fetch_said(learner: &Learner) -> RangeFetch {
+    match learner.view().stage {
+        LearningStage::ChooseRange { fetch, .. } => fetch,
+        other => panic!("not on ChooseRange: {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn the_range_stage_says_what_next_fetches_before_it_is_pressed() {
+    let (learner, windows, _) = learner().await;
+    let passes = windows.lock().unwrap().len();
+    learner.press(LearningIntent::Open).await;
+    assert_eq!(
+        fetch_said(&learner),
+        RangeFetch::Older,
+        "the last twelve months"
+    );
+    let choose = |range| LearningIntent::SelectRange { range };
+    learner.press(choose(LearnRange::Everything)).await;
+    assert_eq!(fetch_said(&learner), RangeFetch::WholeHistory);
+    learner.press(choose(LearnRange::UntilEndOfLastYear)).await;
+    assert_eq!(fetch_said(&learner), RangeFetch::WholeHistory);
+    let recent = LearnRange::Between {
+        since: today() - Duration::days(10),
+        until: today(),
+    };
+    learner.press(choose(recent)).await;
+    assert_eq!(fetch_said(&learner), RangeFetch::Nothing);
+    assert_eq!(
+        windows.lock().unwrap().len(),
+        passes,
+        "choosing fetches nothing"
+    );
+}
+
+/// The default reads a year back: the older part of it is fetched, and mail older than a year
+/// is not read.
+#[tokio::test]
+async fn the_last_twelve_months_fetch_and_read_a_year_back() {
+    let (learner, windows, _) = learner().await;
+    learner.press(LearningIntent::Open).await;
+    learner.press(LearningIntent::Next).await;
+
+    let (state, older_not_fetched) = reviewed(&learner);
+    assert!(matches!(state, Review::Ready(report) if report.found == 1));
+    assert!(!older_not_fetched);
+    let a_year_back = LearnRange::LastTwelveMonths.first_day(today()).unwrap();
+    assert!(
+        windows
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|asked| asked.window_for(&sent_mailbox())
+                == SyncWindow::since(calendar_day(a_year_back)))
+    );
+    assert!(!holds(&learner, "s-old").await);
 }
 
 #[tokio::test]

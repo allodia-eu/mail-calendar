@@ -18,7 +18,7 @@ mod work;
 
 pub use flow::{LearningIntent, LearningTrailStage, Review};
 pub use learning::{LearnAccount, LearningStage, LearningStep, LearningView};
-pub use range::{LearnRange, LearnRanges, SentReach, learn_ranges};
+pub use range::{LearnRange, LearnRanges, RangeFetch, SentReach, learn_ranges};
 pub use reveal::{StyleFacts, WritingStyleDetailView, WritingStyleRevealView};
 pub use work::{
     WritingStyleChange, WritingStyleChangeKind, WritingStyleOutcome, WritingStyleRefusal,

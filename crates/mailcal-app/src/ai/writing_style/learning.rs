@@ -11,7 +11,7 @@ use mailcal_ai::{LearnOptions, LearnProgress, learn_style};
 use super::{
     PageRun, StyleControl, WritingStyleChange, WritingStyleChangeKind,
     flow::{Flow, Flows, LearningIntent, LearningTrailStage, OlderSent, Review, Stage, Start},
-    range::{LearnRange, LearnRanges, SentReach, learn_ranges, today},
+    range::{LearnRange, LearnRanges, RangeFetch, SentReach, learn_ranges, today},
 };
 use crate::{
     App, Surface,
@@ -48,6 +48,9 @@ pub enum LearningStage {
         /// How far back the device holds the account's mail; a range reaching further back has
         /// its older sent mail fetched by the review.
         reach: SentReach,
+        /// What Next fetches from the server for the range chosen, before anything is read;
+        /// `Nothing` while none is chosen.
+        fetch: RangeFetch,
     },
     /// What the range holds on this device, and what is sent where.
     Review {
@@ -207,7 +210,8 @@ impl<P: Provider> App<P> {
                 }
             }
             Stage::ChooseRange => {
-                let ranges = learn_ranges(today());
+                let today = today();
+                let ranges = learn_ranges(today);
                 view.back = flow.asked_account.then_some(StyleControl {
                     enabled: true,
                     running: false,
@@ -220,6 +224,9 @@ impl<P: Provider> App<P> {
                     ranges,
                     selected: flow.range,
                     reach,
+                    fetch: flow
+                        .range
+                        .map_or(RangeFetch::Nothing, |range| range.fetch(reach, today)),
                 }
             }
             Stage::Review(review) => {
@@ -227,7 +234,7 @@ impl<P: Provider> App<P> {
                 view.learn = Some(control(matches!(review, Review::Ready(_)) && route.is_ok()));
                 LearningStage::Review {
                     address,
-                    range: flow.range.unwrap_or(LearnRange::Everything),
+                    range: flow.range.unwrap_or(LearnRange::DEFAULT),
                     reach,
                     older_not_fetched: flow.older == OlderSent::NotFetched,
                     state: review.clone(),

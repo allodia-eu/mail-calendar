@@ -132,14 +132,21 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 
 11. **The flow is one record, `writing_style_learning()`, whose stage the core moves:**
     - `ChooseAccount`, only with more than one account used for mail, each named by its address.
-    - `ChooseRange`, from the core's presets (`learn_ranges`), the same for every account: all the
-      person's sent mail, as far back as the server holds it; everything up to the end of last
-      year, to leave out mail written with an assistant's help; or a range of the person's own,
-      offered last and carrying the days it starts from (a year back to today), which may start
-      on any day and ends by today. A range is not bounded by what the device holds: the review
-      fetches what it reaches further back. The record says how far back the device holds the
-      account's mail (its sync depth). A day is a whole day in UTC, as a sync window's first day
-      is. A client converts no dates.
+    - `ChooseRange`, from the core's presets (`learn_ranges`), the same for every account and in
+      this order: **the last twelve months** (from the same day a year ago to today), which the
+      flow starts on, again each time an account is chosen; all the person's sent mail, as far
+      back as the server holds it; everything up to the end of last year, to leave out mail
+      written with an assistant's help; and a range of the person's own, offered last and
+      carrying the days it starts from (a year back to today), which may start on any day and
+      ends by today. **All of it is never the default**: on an account with many years of mail
+      its fetch takes long, so the person chooses it. A range is not bounded by what the device
+      holds: the review fetches what it reaches further back. The record says how far back the
+      device holds the account's mail (its sync depth) and, before Next is pressed, what Next
+      fetches for the range chosen (`fetch`, the function the review fetches by): `Nothing`,
+      `Older` mail back to the range's first day (`learn_range_fetch_older`), or the
+      `WholeHistory` for a range without a first day (`learn_range_fetch_all`). A client draws
+      that as one quiet line under the ranges, and none for `Nothing`. A day is a whole day in
+      UTC, as a sync window's first day is. A client converts no dates.
     - `Review`: the core reads the range and stops before anything leaves. When the range reaches
       back past what the device holds, it first fetches the account's older sent mail from its
       server (`Fetching`, which can take a while, drawn with the platform's spinner from Next
@@ -171,9 +178,15 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
       or the person has left the review, the account is narrowed back to its own window as a sync
       depth reduction narrows it: the older mail is removed from the device, the account's mail
       cursors are cleared and its mail synced again under its own window, since the cursors still
-      record the deeper fetch. A pass cannot be stopped part way, so Back or Close while the fetch
-      runs leaves it to end, and its answer is dropped and its mail removed as above. The run sends
-      what the read kept in memory and fetches nothing.
+      record the deeper fetch. It is never held deeper for good: the sync window is the person's
+      choice of what the device holds, one read of their sent mail is no reason to change it, and
+      years of mail kept after the read would cost the device's storage and every later pass of
+      the account. **A fetch under way is not stopped part way.** It is a pass of the whole
+      account, which brings the account's own mail too and on a single-scope transport starts that
+      scope over, so stopping it would leave the account's own window part synced, while the older
+      mail it brings is removed when it ends either way. Back or Close while it runs leaves it to
+      end; its answer is dropped and its mail removed as above. The run sends what the read kept
+      in memory and fetches nothing.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
     - `Failed { failure, remedy }`, with its one remedy (rule 27). A client sends `Remedy` for
@@ -192,7 +205,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     |---|---|---|
     | `ChooseAccount` | none | ends the flow, keeping nothing |
     | `ChooseRange` | to `ChooseAccount`, where it was shown | ends the flow |
-    | `Review` | to `ChooseRange`, dropping a read under way, a fetch included | ends the flow, dropping a read under way, a fetch included |
+    | `Review` | to `ChooseRange`, dropping a read under way; a fetch runs to its end and its answer is dropped | ends the flow, dropping a read under way; a fetch runs to its end and its answer is dropped |
     | `Learning` | none; Stop returns to `Review` | the run goes on, drawn on the page with its Stop ([`waiting.md`](waiting.md) rule 3) |
     | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
     | `Learned` | none | the reveal is left as its own Close leaves it (rule 15); the style keeps its default name |
@@ -326,13 +339,13 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     **Send anyway** and **Keep editing** both send `SendQuestionAnswered`, applied before `dispatch`
     returns; Send anyway then submits. Neither is asked again in this composition.
 25. **A drafted reply is never learned from, nor shown to a later draft as the person's words.** A
-    composition a draft went into stays drafted, even once undone or rewritten, since what is sent
-    may still carry its words; the core holds that on the composition for as long as it is open,
-    never in the editor's document. The mark is the keyword `writing-assistant`, fixed and
-    untranslated so every device recognises it. Gmail keeps it as a label and Outlook as a
-    category, which the person sees: created as "Writing assistant" and recognised under its name
-    in every catalog locale, one table in `mailcal-account` holding all seven
-    (`drafted_keyword.rs`). It goes on the message in both places the message is kept:
+    composition a draft went into stays drafted, even once undone or rewritten, since a redo brings
+    the draft back and what is sent may still carry its words; the core holds that on the
+    composition for as long as it is open, never in the editor's document. The mark is the
+    keyword `writing-assistant`, fixed and untranslated so every device recognises it. Gmail
+    keeps it as a label and Outlook as a category, which the person sees: created as "Writing
+    assistant" and recognised under its name in every catalog locale, one table in
+    `mailcal-account` holding all seven (`drafted_keyword.rs`). It goes on the message in both places the message is kept:
     - **The stored draft.** Every save of a drafted composition asks for the keyword, and a
       composition that is not drafted asks for none; the whole set goes with every save (the
       engine's `put_draft` keywords), since one a save leaves out is taken off the stored copy.
@@ -437,7 +450,7 @@ before Learn is pressed.
 | The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Learning in the flow host, with Back, Stop and one remedy; older sent mail fetched for the review (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Learning in the flow host, with Back, Stop and one remedy; the last twelve months first, what a range fetches said before Next; older sent mail fetched for the review and removed after it (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
