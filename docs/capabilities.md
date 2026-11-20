@@ -212,7 +212,8 @@ the date or the badges), because bolding every line of an unread mailbox disting
 
 Not yet in any client, and on the roadmap: a writing style learned from your sent mail, and
 replies drafted in it ([docs](docs/ai.md)). The core learns and drafts through the jurisdiction
-gate (`mailcal-jurisdiction`); no client draws either yet. A client that draws them in development
-builds, as early access, is marked 🚧 here, never ✅ ([docs](docs/settings.md), Writing style).
+gate (`mailcal-jurisdiction`); macOS, iOS and iPadOS draw both in development builds, as early
+access, and no other client draws them yet. A client that draws them so is marked 🚧 here, never ✅
+([docs](docs/settings.md), Writing style).
 
 > Keeping this matrix current is a hard rule: see [`AGENTS.md`](AGENTS.md).
