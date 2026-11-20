@@ -259,8 +259,9 @@ fn real_app(
     )
     .map_err(|error| error.to_string())?;
     // A notifications choice this host stored itself goes to the core, which holds it from now
-    // on, before the first scan for new mail can run.
-    if preferences::global().take_notifications_choice() == Some(false) {
+    // on, before the first scan for new mail can run. Only into the person's own store: a dev
+    // account's store of its own is not where it belongs.
+    if data_subdir.is_none() && preferences::global().take_notifications_choice() == Some(false) {
         app.dispatch(Intent::Preferences {
             intent: PreferenceIntent::SetNewMailNotifications { on: false },
         });
