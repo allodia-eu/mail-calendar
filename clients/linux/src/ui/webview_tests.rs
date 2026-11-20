@@ -142,9 +142,7 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
     let level = web.widget().zoom_level();
     assert!(
         (level - 1.0).abs() < f64::EPSILON,
-        "the next message opens at its own fit, not the last one's zoom: {level} after {zoomed} \
-         (xft-dpi {:?})",
-        gtk::Settings::default().map(|settings| settings.gtk_xft_dpi())
+        "the next message opens at its own fit, not the last one's zoom: {level} after {zoomed}"
     );
 
     web.widget().set_zoom_level(2.5);
