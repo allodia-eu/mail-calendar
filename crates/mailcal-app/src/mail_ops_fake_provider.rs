@@ -5,12 +5,18 @@
 //!
 //! Split from [`super`] (the tests themselves) so each file stays under the 500-line limit.
 
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicBool, AtomicUsize, Ordering},
+use std::{
+    collections::BTreeSet,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
 };
 
-use engine_api::{AccountId, CalendarWrites, Draft, Mailbox, ProviderKey, SubmissionReceipt};
+use engine_api::{
+    AccountId, CalendarWrites, Draft, DraftReceipt, Keyword, Mailbox, ProviderKey,
+    SubmissionReceipt,
+};
 use engine_core::sync::SyncState;
 use engine_provider::{
     Capabilities, ConnectionInfo, HandOver, Provider, ProviderError, ProviderResult, ScopeSync,
@@ -310,7 +316,8 @@ impl Provider for SubmitProvider {
         _account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        _keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         {
             let mut offline = self.offline_saves.lock().unwrap();
             if *offline > 0 {
@@ -338,7 +345,7 @@ impl Provider for SubmitProvider {
         if let Some(gate) = &self.save_gate {
             gate.notified().await;
         }
-        Ok(key)
+        Ok(DraftReceipt::stored(key))
     }
 
     async fn delete_draft(&self, _account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {

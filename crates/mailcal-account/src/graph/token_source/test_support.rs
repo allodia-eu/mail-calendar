@@ -280,7 +280,7 @@ pub(crate) async fn assert_drafts_reach_the_delegate(provider: &dyn engine_provi
     let key = engine_core::ids::ProviderKey::new("draft-1").expect("valid key");
 
     let saved = provider
-        .put_draft(&account, &draft, None)
+        .put_draft(&account, &draft, None, &std::collections::BTreeSet::new())
         .await
         .unwrap_err();
     assert_eq!(saved.class(), FailureClass::Authentication, "{saved}");

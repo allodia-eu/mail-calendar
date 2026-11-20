@@ -9,7 +9,7 @@ use std::{future::Future, sync::Arc};
 use engine_core::{
     error::FailureClass,
     ids::AccountId,
-    sync::{SyncState, SyncWindow},
+    sync::{MailboxWindows, SyncState},
 };
 use engine_provider::{EmailStream, Provider, ProviderResult};
 use futures::StreamExt;
@@ -26,7 +26,7 @@ pub(crate) fn redialling_stream<'a, P, D, F>(
     invalidate: impl Fn() + Send + 'a,
     account: &AccountId,
     cursor: Option<&SyncState>,
-    window: SyncWindow,
+    window: MailboxWindows,
     fetch_batch: usize,
     chunk_size: usize,
 ) -> EmailStream<'a>
@@ -44,7 +44,7 @@ where
             let mut stream = provider.stream_email(
                 &account,
                 cursor.as_ref(),
-                window,
+                window.clone(),
                 fetch_batch,
                 chunk_size,
             );

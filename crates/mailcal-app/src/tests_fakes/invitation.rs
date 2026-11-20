@@ -21,7 +21,7 @@ use engine_core::{
     ids::{CalendarId, MailboxId},
     mail::Mailbox,
     raw::RawMime,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
     version::{ETag, RevisionTokens},
 };
 use engine_provider::{
@@ -238,7 +238,7 @@ impl Provider for InvitationFake {
         &'a self,
         _account: &'a AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {

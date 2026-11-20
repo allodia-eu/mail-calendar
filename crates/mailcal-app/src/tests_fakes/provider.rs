@@ -12,7 +12,7 @@ use engine_core::{
     ids::MailboxId,
     mail::{Mailbox, MailboxRole, Message},
     raw::RawMime,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, MailEdit, MailEditReceipt, MailboxEdit,
@@ -238,7 +238,7 @@ impl Provider for FakeProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {

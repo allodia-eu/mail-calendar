@@ -83,7 +83,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
     // first. What comes back is per scope, which is the whole reason this can still tell an
     // outage from a refused credential from a scope another pass is holding.
     let mut report = engine
-        .sync_mail(&account.providers, &account.id, tuning, observer)
+        .sync_mail(&account.providers, &account.id, tuning.clone(), observer)
         .await;
     // The folder list as this pass left it, when the pass read one: where the folders no
     // provider is bound to are found, and what tells a folder the server no longer has from one

@@ -183,7 +183,7 @@ async fn live_the_folder_pass_is_not_throttled_on_a_large_mailbox() {
     let account = &account;
     let messages = &AtomicUsize::new(0);
     let failures = futures::stream::iter(providers.iter().map(|provider| async move {
-        let mut stream = provider.stream_email(account, None, window(), 50, 200);
+        let mut stream = provider.stream_email(account, None, window().into(), 50, 200);
         while let Some(chunk) = stream.next().await {
             match chunk {
                 Ok(chunk) => {

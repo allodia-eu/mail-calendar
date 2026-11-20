@@ -11,14 +11,16 @@
 //! Split from the sibling `refreshing` module (which owns the struct and its delegate cache)
 //! to keep both files under the 500-line cap.
 
+use std::collections::BTreeSet;
+
 use async_trait::async_trait;
-use engine_api::{CalendarWrites, ProviderKey};
+use engine_api::{CalendarWrites, DraftReceipt, Keyword, ProviderKey};
 use engine_core::{
     calendar::Event,
     ids::{AccountId, CalendarId},
     mail::{Mailbox, Message},
     raw::RawMime,
-    sync::{SyncScope, SyncState, SyncWindow},
+    sync::{MailboxWindows, SyncScope, SyncState, SyncWindow},
     time::Horizon,
 };
 use engine_provider::{
@@ -77,7 +79,7 @@ impl Provider for RefreshingJmapProvider {
         &'a self,
         account: &'a AccountId,
         cursor: Option<&'a SyncState>,
-        window: SyncWindow,
+        window: MailboxWindows,
         fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -230,10 +232,11 @@ impl Provider for RefreshingJmapProvider {
         account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         self.delegate()
             .await?
-            .put_draft(account, draft, replacing)
+            .put_draft(account, draft, replacing, keywords)
             .await
     }
 
