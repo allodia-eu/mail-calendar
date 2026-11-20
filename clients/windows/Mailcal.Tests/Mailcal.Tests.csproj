@@ -391,6 +391,10 @@
          rather than per account, fails silently: a per-account tag is REPLACED by the next pass's
          toast, and the core's marks have already moved past the message it replaced. -->
     <Compile Include="..\Mailcal\Services\NewMailNotices.cs" Link="Services\NewMailNotices.cs" />
+    <!-- The new-mail notifications choice a launch carries from its file into the core, once. A
+         choice carried twice overwrites a later change in Settings, and one never carried notifies
+         a person who had turned notifications off; neither is visible until mail arrives. -->
+    <Compile Include="..\Mailcal\Services\NotificationsImport.cs" Link="Services\NotificationsImport.cs" />
     <!-- And the message a click on one opens: the pair a toast carries, and the reading of it.
          Pure BCL on purpose, so the writer and the reader can share the two argument keys and be
          pinned together here. The failure is silent either way round: a key spelled differently
