@@ -145,6 +145,27 @@ describe("what the editor tells its host", () => {
     expect(d.told.length).toBe(count);
   });
 
+  test("once its content is loaded, even when the text above the quote reads as it did", () => {
+    const d = drafting("");
+    d.draft.resend();
+    const count = d.told.length;
+    const answer = d.draft.loaded(() => {
+      d.editor.innerHTML = `<div><br></div>${SIGNATURE}${QUOTE}`;
+      return true;
+    });
+    expect(answer).toBe(true);
+    expect(d.told.length).toBe(count + 1);
+    expect(d.last()).toMatchObject({ serial: 0, lead: "empty", inserted: false });
+  });
+
+  test("a body loaded with words above the quote is written text", () => {
+    const d = drafting("");
+    d.draft.loaded(() => {
+      d.editor.innerHTML = `<div>Dear Anna, as promised:</div>${SIGNATURE}${QUOTE}`;
+    });
+    expect(d.last()?.lead).toBe("written");
+  });
+
   test("a picture the person put above the signature is written text", () => {
     const d = drafting(`<div><img src="cid:a"></div>${SIGNATURE}`);
     d.draft.resend();

@@ -31,6 +31,29 @@ pub(crate) struct ReplyDraftHeld {
     pub(super) drafted: bool,
     /// Whether Send asked about open items, whatever the answer.
     pub(super) send_asked: bool,
+    /// Whether the composer opened holding no body of its own, only what the core seeds: the
+    /// quoted original and the signature.
+    opened_blank: bool,
+}
+
+impl ReplyDraftHeld {
+    /// What a composition starts with. `opened_blank` is false when its composer opened holding a
+    /// body of its own: a stored draft's, or a prefill's text.
+    pub(crate) fn opening(opened_blank: bool) -> Self {
+        Self {
+            opened_blank,
+            ..Self::default()
+        }
+    }
+
+    /// Whether a press of Draft must ask first: while the person's own text is above the
+    /// signature and the quote, by what the editor last said, and before it has said, while the
+    /// composer opened holding a body of its own.
+    pub(super) fn asks_before_replacing(&self) -> bool {
+        self.report.as_ref().map_or(!self.opened_blank, |report| {
+            report.lead == LeadText::Written
+        })
+    }
 }
 
 #[derive(Default)]
@@ -229,12 +252,6 @@ pub struct ReplyDraftView {
     pub send_question: Option<u32>,
 }
 
-/// Whether a press of Draft must ask first, from what the editor last said: always until it has
-/// said, and while the person's own text is above the signature and the quote.
-pub(super) fn asks_before_replacing(report: Option<&ReplyDraftReport>) -> bool {
-    report.is_none_or(|report| report.lead == LeadText::Written)
-}
-
 /// Whether a draft arriving is asked about again: the person wrote above the signature and the
 /// quote since they pressed Draft, and it is theirs now.
 pub(super) fn asks_again(report: Option<&ReplyDraftReport>, edits_at_press: Option<u64>) -> bool {
@@ -378,7 +395,7 @@ fn held_view(held: &ReplyDraftHeld, files_added: &dyn Fn(u64) -> usize) -> HeldV
         state,
         drafting: held.busy(),
         instruction: held.instruction.clone(),
-        ask_before_replacing: asks_before_replacing(held.report.as_ref()),
+        ask_before_replacing: held.asks_before_replacing(),
         replace_arrived: matches!(held.phase, Phase::Arrived(_)),
         editor_script: held.draft.as_ref().map(editor_script),
         send_question: held.send_question(files_added),

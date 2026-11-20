@@ -228,16 +228,20 @@ window.pasteComposerHtml = (html) => {
   const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
   return markup !== null && insertHtml(markup);
 };
+// Each seed that loads the body (the quote, the signature, a body or a document, plain text) tells
+// the host where the reply stands once it has run (`docs/ai.md` rule 22).
 window.setComposerQuote = (quote) =>
-  history.restart(() => setComposerQuote(editor, parsed<QuoteSeed>(quote)));
+  replyDraft.loaded(() => history.restart(() => setComposerQuote(editor, parsed<QuoteSeed>(quote))));
 window.setComposerQuoteStyle = (style) => history.outside(() => setComposerQuoteStyle(editor, style));
 window.completeComposerQuoteAttribution = (attribution) =>
   history.outside(() =>
     completeComposerQuoteAttribution(editor, parsed<Partial<QuoteAttribution>>(attribution) ?? {}),
   );
 window.setComposerSignature = (signature) =>
-  history.outside(() =>
-    setComposerSignature(editor, signature == null ? null : parsed<SignatureValue>(signature)),
+  replyDraft.loaded(() =>
+    history.outside(() =>
+      setComposerSignature(editor, signature == null ? null : parsed<SignatureValue>(signature)),
+    ),
   );
 window.setSignatureBody = (html, placeholder) =>
   history.restart(() => setSignatureBody(editor, html, placeholder));
@@ -248,11 +252,15 @@ window.signatureBody = () => JSON.stringify(signatureBody(editor));
 // focus alone neither raises the keyboard nor makes the web view first responder, and stole the
 // caret out of To on macOS the moment the bundle finished parsing.
 window.focusComposerBody = () => focusComposerBody(editor);
-window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
+window.setPlainText = (text) => replyDraft.loaded(() => history.restart(() => setPlainText(editor, text)));
 window.setComposerBody = (seed) =>
-  history.restart(() => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {}));
+  replyDraft.loaded(() =>
+    history.restart(() => setComposerBody(editor, attachments, parsed<BodySeed>(seed) ?? {})),
+  );
 window.setComposerDocument = (document) =>
-  history.restart(() => setComposerDocument(editor, attachments, parsed<ComposerDocument>(document) ?? {}));
+  replyDraft.loaded(() =>
+    history.restart(() => setComposerDocument(editor, attachments, parsed<ComposerDocument>(document) ?? {})),
+  );
 /// An assistant's draft, from the script the core builds (`docs/ai.md` rule 21): above the
 /// signature and the quote, as one step of the history. Answers whether it was taken.
 window.setComposerDraftText = (seed) => replyDraft.setDraft(seed);
