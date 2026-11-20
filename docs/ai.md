@@ -84,8 +84,12 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    runs out takes the offer with it. A read the service refuses grants nothing, and a sign-in it
    refused takes the offer at once, grace or not, since the own endpoint needs nothing of Allodia
    ([`entitlement.md`](../allodia_license/entitlement.md)). Relay and own endpoint are offered
-   together under it. Early access ends before the relay is sold; from then the own endpoint is in every build, as the relay's free counterpart
-   ([`pledge.md`](pledge.md)).
+   together under it, and enforced differently: the relay by the service on every request, the
+   own endpoint, which never reaches Allodia, by this check alone, which a modified build or an
+   edited stored answer passes. That is accepted, since the software is GPL and anyone may build
+   it to talk to their own endpoint; the check keeps the feature out of sight in the builds
+   Allodia ships, and claims nothing more. Early access ends before the relay is sold; from then
+   the own endpoint is in every build, as the relay's free counterpart ([`pledge.md`](pledge.md)).
 
 ### The own endpoint, under Settings → Advanced
 
