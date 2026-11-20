@@ -68,4 +68,13 @@ impl InvitationFake {
             .with_calendar_rsvp(SERVER_SCHEDULED);
         self
     }
+
+    /// Serves the invitation addressed to every attendee, the account's own identity last
+    /// (`imip_source_to_every_attendee`).
+    pub(crate) fn addressed_to_every_attendee(mut self) -> Self {
+        self.source = Some(std::sync::Arc::new(
+            super::meeting::imip_source_to_every_attendee(),
+        ));
+        self
+    }
 }

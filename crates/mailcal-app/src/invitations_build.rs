@@ -23,7 +23,7 @@ use crate::{
     App,
     invitations::{
         Delivery, DiaryEntry, count_conflicts, delivery, description, diary_participation,
-        location, matched_attendee, my_response, organizer_line, proposed_hold, summary, tally,
+        location, my_response, organizer_line, proposed_hold, summary, tally,
     },
     reference::MessageRef,
 };
@@ -44,13 +44,11 @@ impl<P: Provider> App<P> {
         let scheduling = self.fetch_scheduling(message, original).await?;
         let event = &scheduling.message.event;
 
-        // The address set: the account's primary identity, its configured aliases, and the
-        // addresses this very message was delivered to. The third is what makes an invitation
-        // to an alias work with no setup at all (§4 source 2).
-        let mut addresses = self.account_address_set(&message.account).await;
-        addresses.extend(scheduling.delivery_recipients.iter().cloned());
-
-        let matched = matched_attendee(event, &addresses);
+        // Which attendee this mailbox is (§4), and the address set that reads "my" answer: the
+        // account's own addresses plus that attendee, never every address the mail named.
+        let own = self.account_address_set(&message.account).await;
+        let matched = crate::invitations_identity::invited_attendee(event, &own, &scheduling);
+        let addresses = crate::invitations_identity::addresses_with(&own, matched.as_deref());
         let kind = crate::invitations::classify(&scheduling.message.method, matched.is_some())?;
 
         let zone = self.active_zone();

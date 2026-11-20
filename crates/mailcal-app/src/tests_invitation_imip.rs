@@ -152,6 +152,35 @@ async fn the_stored_document_is_the_invitation_minus_its_method() {
 }
 
 #[tokio::test]
+async fn an_invitation_to_every_attendee_is_answered_as_the_account_not_the_first_of_them() {
+    // Exchange puts every attendee in `To:`. Taking each `To:` address as one of ours answered
+    // as the first attendee listed, a colleague: the server refused a sender the login does not
+    // own, and the reply sat in the Outbox while the calendar said the meeting was accepted.
+    let answered = Box::pin(answer(
+        InvitationFake::new()
+            .without_server_scheduling()
+            .addressed_to_every_attendee(),
+        InvitationResponse::Accept,
+        None,
+        true,
+        None,
+    ))
+    .await;
+
+    let drafts = answered.sends.lock().unwrap();
+    let draft = drafts.first().expect("a draft was submitted");
+    assert_eq!(draft.from.email, "me@test.local");
+    drop(drafts);
+
+    let (_, ical) = itip_of(&answered.sends);
+    assert!(
+        ical.contains("PARTSTAT=ACCEPTED:mailto:me@test.local"),
+        "the REPLY must answer for the account's own ATTENDEE line: {ical}"
+    );
+    assert!(!ical.contains("board@test.local"), "{ical}");
+}
+
+#[tokio::test]
 async fn the_reply_is_addressed_from_the_alias_the_invitation_matched() {
     // The same alias rule as the stored answer, now on the envelope. An organiser's scheduler
     // that finds no `ATTENDEE` matching the sender is entitled to ignore the reply: so sending
