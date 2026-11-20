@@ -214,6 +214,8 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         every_mail_row_leads_with_its_chevron_column_the_dot_and_the_avatar();
     crate::ui::detached::widget_tests::a_reading_window_is_the_mailbox_peer_and_not_a_second_app();
     crate::ui::detached::widget_tests::closing_a_composer_window_asks_no_question();
+    crate::ui::detached::widget_tests::a_closed_reading_window_is_freed();
+    crate::ui::detached::widget_tests::a_closed_composer_window_is_freed();
     crate::ui::reading::canvas::tests::the_drawn_canvas_paints_the_page_the_core_names();
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
@@ -233,6 +235,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         opening_the_outbox_moves_a_highlight_the_selection_cache_would_have_held();
     crate::ui::outbox::tests::an_emptied_outbox_says_so_rather_than_going_blank();
     crate::ui::settings::tests::the_window_is_on_screen_only_while_it_should_be();
+    crate::ui::settings::tests::a_closed_signature_editor_frees_its_view();
     crate::ui::settings::allodia::tests::the_card_names_the_account_by_address_and_offers_a_way_out(
     );
     crate::ui::settings::allodia::tests::a_nameless_account_gets_no_empty_second_line();

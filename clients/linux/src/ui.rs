@@ -47,6 +47,7 @@ mod composer_quote;
 mod composer_quote_style;
 mod composer_revision;
 mod composer_scheme;
+mod composer_seed;
 mod composer_share;
 mod composer_signature;
 mod connectivity;

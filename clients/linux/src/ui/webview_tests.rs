@@ -130,6 +130,7 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
 
     web.load(document, false);
     web.widget().set_zoom_level(2.5);
+    let zoomed = web.widget().zoom_level();
 
     // A different document: the same one is deduplicated by `load` and must not reset anything,
     // since that is one message being re-rendered (the remote-images opt-in) rather than another
@@ -138,9 +139,10 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
         "<!doctype html><html><body>another message</body></html>",
         false,
     );
+    let level = web.widget().zoom_level();
     assert!(
-        (web.widget().zoom_level() - 1.0).abs() < f64::EPSILON,
-        "the next message opens at its own fit, not the last one's zoom"
+        (level - 1.0).abs() < f64::EPSILON,
+        "the next message opens at its own fit, not the last one's zoom: {level} after {zoomed}"
     );
 
     web.widget().set_zoom_level(2.5);
