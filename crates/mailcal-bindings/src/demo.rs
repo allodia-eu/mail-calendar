@@ -9,7 +9,7 @@ use engine_core::{
     mail::{Mailbox, MailboxRole, Message},
     membership::Memberships,
     raw::RawMime,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, Provider, ProviderResult, ScopeSync,
@@ -128,7 +128,7 @@ impl Provider for DemoProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -172,4 +172,5 @@ impl Provider for DemoProvider {
 }
 
 impl engine_api::MailboxWrites for DemoProvider {}
+impl engine_api::CalendarSync for DemoProvider {}
 impl CalendarWrites for DemoProvider {}

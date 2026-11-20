@@ -23,9 +23,12 @@ internal sealed record WritingStyleWords(
     string RefusedGone,
     string ProgressStarting,
     Func<int, int, string> Progress,
+    string RangeLastTwelveMonths,
     string RangeEverything,
     string RangeUntilEndOfLastYear,
     string RangeBetween,
+    string FetchOlder,
+    string FetchWholeHistory,
     string FrequencyMostly,
     string FrequencyOften,
     string FrequencySometimes);
@@ -88,10 +91,20 @@ internal static class WritingStyleRules
     /// its days drawn by its own fields.</summary>
     internal static string Range(StyleLearnRange range, WritingStyleWords words) => range switch
     {
+        StyleLearnRange.LastTwelveMonths => words.RangeLastTwelveMonths,
         StyleLearnRange.Everything => words.RangeEverything,
         StyleLearnRange.UntilEndOfLastYear => words.RangeUntilEndOfLastYear,
         StyleLearnRange.Between => words.RangeBetween,
         _ => throw new ArgumentOutOfRangeException(nameof(range), range, null),
+    };
+
+    /// <summary>The line under the ranges saying what Next fetches for the range chosen, or
+    /// <c>null</c> when it fetches nothing.</summary>
+    internal static string? Fetch(StyleRangeFetch fetch, WritingStyleWords words) => fetch switch
+    {
+        StyleRangeFetch.Older => words.FetchOlder,
+        StyleRangeFetch.WholeHistory => words.FetchWholeHistory,
+        _ => null,
     };
 
     /// <summary>How often a greeting or sign-off is used, in words.</summary>

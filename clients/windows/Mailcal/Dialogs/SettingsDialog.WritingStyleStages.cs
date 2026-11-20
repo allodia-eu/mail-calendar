@@ -33,15 +33,21 @@ public sealed partial class SettingsDialog
         panel.Children.Add(choice);
 
         var latest = WritingStyleRules.Day(stage.Latest) ?? DateOnly.FromDateTime(DateTime.Today);
-        var earliest = stage.Earliest is { } first ? WritingStyleRules.Day(first) : null;
         switch (stage.Selected)
         {
             case StyleLearnRange.UntilEndOfLastYear:
                 panel.Children.Add(Description(L10n.LearnRangeUntilHint()));
                 break;
             case StyleLearnRange.Between between:
-                panel.Children.Add(BetweenDays(between, earliest, latest));
+                panel.Children.Add(BetweenDays(between, latest));
                 break;
+        }
+        // What Next fetches for the range chosen, said before it is pressed.
+        if (WritingStyleRules.Fetch(stage.Fetch, words) is { } fetch)
+        {
+            var line = Description(fetch);
+            AutomationProperties.SetAutomationId(line, "WritingStyleFlowFetch");
+            panel.Children.Add(line);
         }
         choice.SelectionChanged += (_, _) =>
         {
@@ -54,8 +60,9 @@ public sealed partial class SettingsDialog
         return panel;
     }
 
-    // The two days of a range of the person's own, each held to the days the core allows.
-    private UIElement BetweenDays(StyleLearnRange.Between between, DateOnly? earliest, DateOnly latest)
+    // The two days of a range of the person's own: either may be any day up to the last the core
+    // allows.
+    private UIElement BetweenDays(StyleLearnRange.Between between, DateOnly latest)
     {
         var since = WritingStyleRules.Day(between.Since) ?? latest;
         var until = WritingStyleRules.Day(between.Until) ?? latest;
@@ -68,10 +75,6 @@ public sealed partial class SettingsDialog
                 Date = new DateTimeOffset(day.ToDateTime(TimeOnly.MinValue)),
                 MaxDate = new DateTimeOffset(latest.ToDateTime(TimeOnly.MinValue)),
             };
-            if (earliest is { } first)
-            {
-                picker.MinDate = new DateTimeOffset(first.ToDateTime(TimeOnly.MinValue));
-            }
             AutomationProperties.SetName(picker, header);
             AutomationProperties.SetAutomationId(picker, id);
             return picker;
@@ -102,13 +105,17 @@ public sealed partial class SettingsDialog
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(Line(stage.Email, "WritingStyleFlowAccount"));
         panel.Children.Add(Description(Reach(stage.Reach)));
+        if (stage.OlderNotFetched)
+        {
+            panel.Children.Add(Line(L10n.LearnOlderNotFetched(), "WritingStyleFlowOlderNotFetched"));
+        }
         switch (stage.State)
         {
+            case StyleLearningReview.Fetching:
+                panel.Children.Add(Working(L10n.LearnFetching(), "WritingStyleFlowFetching"));
+                return panel;
             case StyleLearningReview.Reading:
-                var reading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-                reading.Children.Add(new ProgressRing { IsActive = true, Width = 20, Height = 20 });
-                reading.Children.Add(Line(L10n.LearnReading(), "WritingStyleFlowReading"));
-                panel.Children.Add(reading);
+                panel.Children.Add(Working(L10n.LearnReading(), "WritingStyleFlowReading"));
                 return panel;
             case StyleLearningReview.Ready ready:
                 panel.Children.Add(Card(Report(ready.Report), new RevealInk(_brushes)));
@@ -134,6 +141,15 @@ public sealed partial class SettingsDialog
             panel.Children.Add(Description(L10n.LearnKeywordNotKept()));
         }
         return panel;
+    }
+
+    // The platform's spinner beside what the review is doing, from Next until the read ends.
+    private static StackPanel Working(string text, string automationId)
+    {
+        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        row.Children.Add(new ProgressRing { IsActive = true, Width = 20, Height = 20 });
+        row.Children.Add(Line(text, automationId));
+        return row;
     }
 
     // What the review read: how many messages, how many say enough, in which languages, and over

@@ -17,7 +17,8 @@ public class WritingStyleRulesTests
 
     private static readonly WritingStyleWords Words = new(
         "give it a name", "gone", "learning…", (done, total) => $"learning ({done} of {total})…",
-        "everything", "until last year", "between", "mostly", "often", "sometimes");
+        "last twelve months", "everything", "until last year", "between", "fetches older", "fetches all",
+        "mostly", "often", "sometimes");
 
     private static WritingStylePage Page(WritingStyleOutcome? outcome = null) =>
         new([], [], Free, null, null, outcome);
@@ -78,9 +79,18 @@ public class WritingStyleRulesTests
     [Fact]
     public void EachRangeIsLabelledByTheChoiceItIs()
     {
+        Assert.Equal("last twelve months", WritingStyleRules.Range(new StyleLearnRange.LastTwelveMonths(), Words));
         Assert.Equal("everything", WritingStyleRules.Range(new StyleLearnRange.Everything(), Words));
         Assert.Equal("until last year", WritingStyleRules.Range(new StyleLearnRange.UntilEndOfLastYear(), Words));
         Assert.Equal("between", WritingStyleRules.Range(new StyleLearnRange.Between("2026-01-01", "2026-03-31"), Words));
+    }
+
+    [Fact]
+    public void WhatARangeFetchesIsOneLineAndNothingFetchedIsNone()
+    {
+        Assert.Null(WritingStyleRules.Fetch(StyleRangeFetch.Nothing, Words));
+        Assert.Equal("fetches older", WritingStyleRules.Fetch(StyleRangeFetch.Older, Words));
+        Assert.Equal("fetches all", WritingStyleRules.Fetch(StyleRangeFetch.WholeHistory, Words));
     }
 
     [Fact]

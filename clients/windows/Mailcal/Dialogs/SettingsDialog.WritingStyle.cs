@@ -41,9 +41,12 @@ public sealed partial class SettingsDialog
         L10n.WritingStyleRefusedGone(),
         L10n.LearnProgressStarting(),
         (done, total) => L10n.LearnProgress(Number(done), Number(total)),
+        L10n.LearnRangeLastTwelveMonths(),
         L10n.LearnRangeAll(),
         L10n.LearnRangeUntilLastYear(),
         L10n.LearnRangeBetween(),
+        L10n.LearnRangeFetchOlder(),
+        L10n.LearnRangeFetchAll(),
         L10n.RevealFrequencyMostly(),
         L10n.RevealFrequencyOften(),
         L10n.RevealFrequencySometimes());

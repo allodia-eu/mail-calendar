@@ -106,8 +106,8 @@ public sealed partial class SettingsDialog
     private static string StageKey(StyleLearningStage stage) => stage switch
     {
         StyleLearningStage.ChooseAccount choose => $"account:{choose.Selected}:{choose.Accounts.Length}",
-        StyleLearningStage.ChooseRange range => $"range:{range.Email}:{RangeKey(range.Selected)}",
-        StyleLearningStage.Review review => $"review:{review.State.GetType().Name}:{RangeKey(review.Range)}:{review.SendsTo}:{review.CannotSend}",
+        StyleLearningStage.ChooseRange range => $"range:{range.Email}:{RangeKey(range.Selected)}:{range.Fetch}",
+        StyleLearningStage.Review review => $"review:{review.State.GetType().Name}:{RangeKey(review.Range)}:{review.OlderNotFetched}:{review.SendsTo}:{review.CannotSend}",
         StyleLearningStage.Learning learning => $"learning:{learning.Done}:{learning.Total}",
         StyleLearningStage.Failed failed => $"failed:{failed.Failure}:{failed.Remedy}",
         _ => stage.GetType().Name,

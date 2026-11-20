@@ -39,8 +39,7 @@ pub enum AiEndpointDeclarationGap {
 pub enum AiEndpointKeptKey {
     /// It stays: the address is on the stored endpoint's server.
     Carried,
-    /// It is taken out: the address is on another server, or none is stored, and the key was
-    /// given for that one.
+    /// It is taken out: the address is on another server, and the key was given for that one.
     Dropped,
 }
 
@@ -208,7 +207,8 @@ pub struct AiEndpointView {
     pub fields: AiEndpointFields,
     /// Whether an endpoint is stored.
     pub stored: bool,
-    /// Whether Remove is offered: an endpoint or a key is stored, or a removal runs or waits.
+    /// Whether Remove is offered: an endpoint is stored, or a removal runs or waits. A key is held
+    /// only with an endpoint ([`App::restore_ai_endpoint_key`]).
     pub removable: bool,
     /// The change running, then any waiting behind it.
     pub work: Vec<AiEndpointChangeKind>,
@@ -284,9 +284,7 @@ impl<P: Provider> App<P> {
             .collect();
         AiEndpointView {
             offered: self.ai_offer(),
-            removable: stored.is_some()
-                || fields.key_kept
-                || queued.contains(&AiEndpointChangeKind::Remove),
+            removable: stored.is_some() || queued.contains(&AiEndpointChangeKind::Remove),
             fields,
             stored: stored.is_some(),
             work: queued,

@@ -25,6 +25,10 @@ use super::{
 };
 use crate::{App, CompositionId, Intent, ai::AiQueued};
 
+// What the mark does on a stored draft, beside what it does on a send.
+#[path = "tests_drafted_draft.rs"]
+mod drafted_draft;
+
 fn send(composition: &CompositionId) -> Intent {
     Intent::SubmitRichMail {
         from: None,
