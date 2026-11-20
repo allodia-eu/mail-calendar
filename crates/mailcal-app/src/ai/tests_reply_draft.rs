@@ -18,7 +18,7 @@ use super::{
     },
 };
 use crate::{
-    App, ComposeOrigin, CompositionId, Intent,
+    App, ComposeOrigin, ComposePrefill, CompositionId, Intent, MessageRef,
     ai::{
         AiFailure, AiQueued, AiRemedy, BuildKind, RemedyControl, ReplyDraftHold, ReplyDraftState,
     },
@@ -162,8 +162,6 @@ async fn replacing_the_persons_text_is_asked_first_and_again_when_they_wrote_mea
     let (app, _) = assistant(ThreadProvider::with(vec![original_message("m1")]), &relay).await;
     let reply = open_reply(&app, "reply").await;
 
-    // Until the editor has said, it asks.
-    assert!(view(&app, &reply).ask_before_replacing);
     app.take_reply_draft_report(&reply, report(0, LeadText::Written, false, vec![], 5), 0);
     assert!(view(&app, &reply).ask_before_replacing);
     assert_eq!(
@@ -200,6 +198,54 @@ async fn replacing_the_persons_text_is_asked_first_and_again_when_they_wrote_mea
     run(&app).await;
     app.answer_reply_draft_arrived(&reply, true);
     assert!(view(&app, &reply).editor_script.is_some());
+}
+
+/// The quote and the signature a reply opens with are not the person's writing, so the first press
+/// on a fresh reply drafts without asking, whether or not the editor has said anything yet.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_fresh_reply_drafts_without_asking_before_the_editor_has_said() {
+    let relay = ScriptedRelay::answering(Ok(drafted()));
+    let (app, _) = assistant(ThreadProvider::with(vec![original_message("m1")]), &relay).await;
+    let reply = open_reply(&app, "reply").await;
+
+    assert!(!view(&app, &reply).ask_before_replacing);
+    assert_eq!(app.draft_reply(&reply, start(false)), Some(AiQueued::Run));
+    run(&app).await;
+    assert!(view(&app, &reply).editor_script.is_some());
+}
+
+/// A reply that opened holding a body of its own is asked about until the editor says what is
+/// above the signature and the quote, and from then on by what it says.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_reply_opened_holding_text_asks_until_the_editor_has_said() {
+    let relay = ScriptedRelay::answering(Ok(drafted()));
+    let (app, _) = assistant(ThreadProvider::with(vec![original_message("m1")]), &relay).await;
+    let scratch = tempfile::tempdir().unwrap();
+    let reply = CompositionId::new("prefilled").unwrap();
+    app.open_composer(
+        reply.clone(),
+        ComposeOrigin::Reply {
+            message: MessageRef::from_parts("acct-1", "m1".to_owned()).unwrap(),
+            all: false,
+        },
+        Some(ComposePrefill {
+            body_text: "Thanks, I will look at it on Monday.".to_owned(),
+            ..ComposePrefill::default()
+        }),
+        &staging_dir(&scratch, "prefilled"),
+    )
+    .await
+    .expect("the reply opens");
+
+    assert!(view(&app, &reply).ask_before_replacing);
+    assert_eq!(
+        app.draft_reply(&reply, start(false)),
+        None,
+        "not without asking"
+    );
+    app.take_reply_draft_report(&reply, report(0, LeadText::Empty, false, vec![], 1), 0);
+    assert!(!view(&app, &reply).ask_before_replacing);
+    assert_eq!(app.draft_reply(&reply, start(false)), Some(AiQueued::Run));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

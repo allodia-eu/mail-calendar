@@ -264,13 +264,18 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     when it is redone, so the control and the message never disagree. Until the editor reports the
     draft in, the record is `Drafting`; from then the script only has an editor opened later on the
     same composition (a composer moved into a window of its own) follow the draft in its body.
-22. **Replacing what is there is asked first.** After each change the editor reports what the text
-    above the signature and the quote holds: nothing, the draft untouched, or anything else, which
-    is the person's. A client hands every message on the editor's channel to
-    `composer_reply_draft_report`, which takes that report and nothing else. While the text holds
-    the person's words, an edited draft included, or before the editor has reported,
-    `ask_before_replacing` holds and the client asks before Draft; `Draft { replace }` carries the
-    answer, and the core refuses a press that would replace unasked. A draft arriving after the
+22. **Replacing what is there is asked first.** Once each seed that loads the body has run, and
+    after each change, the editor reports what the text above the signature and the quote holds:
+    nothing, the draft untouched, or anything else, which is the person's. The quoted original and
+    the signature a reply opens with are not the person's writing. A client hands every message on
+    the editor's channel to `composer_reply_draft_report`, which takes that report and nothing
+    else. While the text holds the person's words, an edited draft included,
+    `ask_before_replacing` holds and the client asks before Draft. Before the editor has reported,
+    the core goes by what the composer opened with: a fresh reply is not asked about, while one
+    opened holding a body of its own (a stored draft resumed, a prefill's text, a message taken
+    back from the Outbox) is asked about until the editor says what that body holds.
+    `Draft { replace }` carries the answer, and the core refuses a press that would replace
+    unasked. A draft arriving after the
     person wrote there meanwhile waits (`replace_arrived`) and is asked about again
     (`AnswerArrived`). Cancel keeps their text and drops the draft.
 23. **The card says what the message asks and what is left to do.** It sits among the composer's
@@ -286,7 +291,9 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     mark that cannot be pressed), never as a disabled checkbox, which would read as unavailable
     rather than as following the reply. After each change above the signature and the quote the
     editor reports which of the draft's gaps are left, by their place in its list, and the core
-    re-derives the ticks from that, never on a timer.
+    re-derives the ticks from that, never on a timer. A file added to or removed from the
+    composition signals `Surface::ReplyDraft` when it changes an item or the question Send asks
+    (rule 24), so a client reads the record again on that signal and on nothing of its own.
 24. **Send asks once while the checklist has open items.** The record's `send_question` and
     `submit_composition` read the same function, so the two cannot disagree: while the question is
     due a client asks before it submits, and `submit_composition` refuses without sending.
