@@ -179,7 +179,7 @@ pub(crate) fn the_composer_is_one_column_in_the_contracts_order(window: &adw::Ap
     pane.teardown();
 }
 
-fn reply(host: ComposerHost) -> ComposeContext {
+pub(crate) fn reply(host: ComposerHost) -> ComposeContext {
     ComposeContext {
         kind: ComposeKind::Reply,
         host,

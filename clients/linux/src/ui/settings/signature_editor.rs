@@ -310,8 +310,12 @@ fn seed_body(web: &SecureWebView, body_html: &str, host: &gtk::Frame) {
     let labels = editor_labels();
     let body = json!(body_html).to_string();
     let placeholder = json!(l10n::settings_signatures_placeholder()).to_string();
-    let host = host.clone();
+    // Weak: the frame holds the view this closure is attached to.
+    let host = host.downgrade();
     web.connect_finished(move |view| {
+        let Some(host) = host.upgrade() else {
+            return;
+        };
         host.update_property(&[gtk::accessible::Property::Label(
             l10n::settings_signatures_placeholder(),
         )]);

@@ -69,7 +69,8 @@ ran. Closing is not an `Intent`: it moves nothing, marks nothing and signals not
 refers to it or to anything it held, its view and its web view included. A closed window that is
 still held draws nothing, and where closing a web view ends its process regardless (WebView2 does)
 even a process count stays flat, so only a count of what the app holds can see it; on Windows that
-is `Mailcal.UiTests/Suites/ReleaseProbeTests.cs`.
+is `Mailcal.UiTests/Suites/ReleaseProbeTests.cs`, on Linux the weak references in
+`clients/linux/src/ui/detached_tests.rs`.
 
 **A window's reader id is the host's to mint, and cannot name the pane.** The pane's slot is a
 different kind of thing in the core, not a reserved string, so no host bug can empty the pane by
@@ -214,7 +215,7 @@ capability matrix claims.
 | Reply / forward → composer window | ✅ | ✅ | ✅ | — | — |
 | The pane's composer pops out into a window, holding all it held | ✅ | ✅ | ✅ | — | — |
 | Main window closing sweeps both | ✅ | ✅ | ✅ | — | — |
-| A closed window is freed, with what it held | composer ✅; reading window not yet checked | ✅ | ❌ | — | — |
+| A closed window is freed, with what it held | composer ✅; reading window not yet checked | ✅ | ✅ | — | — |
 | A window stays in front of the mailbox | ✅ | ✅ | ✅ | — | — |
 | The mailbox can be raised back over it | ✅ | ✅ | ✅ | — | — |
 | The windows are all one application's | ✅ | ✅ | ✅ | — | — |

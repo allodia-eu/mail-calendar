@@ -357,22 +357,50 @@ fn install_navigation_gates(
     });
 }
 
+thread_local! {
+    /// The filter each kind compiled first, which every later view of that kind is given: its
+    /// source is fixed, so compiling and writing it again for every view only costs time.
+    static COMPILED: std::cell::RefCell<[Option<UserContentFilter>; 2]> =
+        const { std::cell::RefCell::new([None, None]) };
+}
+
+/// Where a view's filter comes from: one this kind compiled already, or a store to compile it in.
+enum FilterSource {
+    Compiled(UserContentFilter),
+    Compile(UserContentFilterStore),
+}
+
 fn compile_filter(setup: &FilterSetup, sender: relm4::Sender<AppInput>, kind: DocumentKind) {
-    let directory = glib::user_cache_dir().join("mailcal/webkit-filters");
-    if std::fs::create_dir_all(&directory).is_err() {
-        setup.failed.set(true);
-        sender.emit(AppInput::WebViewUnavailable);
-        return;
-    }
-    let store = UserContentFilterStore::new(&directory.to_string_lossy());
-    let source = glib::Bytes::from_static(network_block_filter().as_bytes());
-    let setup = setup.clone();
+    let slot = usize::from(kind == DocumentKind::Composer);
     let identifier = match kind {
         DocumentKind::Reading => "mailcal-reading-network-block-v1",
         DocumentKind::Composer => "mailcal-composer-network-block-v1",
     };
+    let source = if let Some(filter) = COMPILED.with_borrow(|compiled| compiled[slot].clone()) {
+        FilterSource::Compiled(filter)
+    } else {
+        let directory = glib::user_cache_dir().join("mailcal/webkit-filters");
+        if std::fs::create_dir_all(&directory).is_err() {
+            setup.failed.set(true);
+            sender.emit(AppInput::WebViewUnavailable);
+            return;
+        }
+        FilterSource::Compile(UserContentFilterStore::new(&directory.to_string_lossy()))
+    };
+    let setup = setup.clone();
     glib::MainContext::default().spawn_local(async move {
-        if let Ok(filter) = store.save_future(identifier, &source).await {
+        let filter = match source {
+            FilterSource::Compiled(filter) => Ok(filter),
+            FilterSource::Compile(store) => {
+                let rules = glib::Bytes::from_static(network_block_filter().as_bytes());
+                let saved = store.save_future(identifier, &rules).await;
+                if let Ok(filter) = &saved {
+                    COMPILED.with_borrow_mut(|compiled| compiled[slot] = Some(filter.clone()));
+                }
+                saved
+            }
+        };
+        if let Ok(filter) = filter {
             setup.filter.replace(Some(filter));
             setup.ready.set(true);
             if let Some((document, allow_remote_images)) = setup.last_document.borrow().clone() {
