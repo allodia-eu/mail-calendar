@@ -14,50 +14,90 @@ struct ReplyDraftInput: View {
     let remedy: (AiRemedy) -> Void
 
     @FocusState private var focused: Bool
+    @Environment(\.dismiss) private var dismiss
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    #endif
 
     var body: some View {
+        #if os(macOS)
         VStack(alignment: .leading, spacing: 14) {
             Text(L10n.composer_draft_reply())
                 .font(.headline)
                 .accessibilityAddTraits(.isHeader)
-            if let held = record.heldBy {
-                Label(AiWords.failure(held.failure), systemImage: "info.circle")
-                    .fixedSize(horizontal: false, vertical: true)
-                if let fix = held.remedy {
-                    ControlButton(title: AiWords.remedy(fix.remedy), control: fix.control) {
-                        remedy(fix.remedy)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            } else {
-                TextField(L10n.composer_draft_intent_hint(), text: $line, axis: .vertical)
-                    .textFieldStyle(.roundedBorder)
-                    .lineLimit(1...3)
-                    .focused($focused)
-                    .onSubmit(draft)
-                    .submitLabel(.go)
-                    .accessibilityIdentifier("composer.draftInstruction")
-                suggestions
+            content
+            if record.heldBy == nil {
                 HStack {
                     Spacer()
-                    ControlButton(
-                        title: L10n.composer_draft_create(), control: record.draft,
-                        shortcut: .defaultAction, action: draft
-                    )
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("composer.draftCreate")
+                    draftButton
                 }
             }
         }
         .padding(18)
-        #if os(macOS)
         .frame(width: 360)
-        #else
-        // At the top of the sheet, which grows for the keyboard; centred, the line would float
-        // away from the edge it is pulled up by.
-        .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        #endif
         .onAppear { focused = record.heldBy == nil }
+        #else
+        // An iPhone's sheet keeps only what the keyboard leaves of half the screen, so Cancel and
+        // Draft go in its bar, which the keyboard never covers, as the link sheet has them.
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) { content }
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .navigationTitle(L10n.composer_draft_reply())
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // A popover closes with a tap outside it; only the sheet it becomes in a compact
+                // width needs a way out of its own.
+                if sizeClass == .compact {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button(L10n.action_cancel(), role: .cancel) { dismiss() }
+                    }
+                }
+                if record.heldBy == nil {
+                    ToolbarItem(placement: .confirmationAction) { draftButton }
+                }
+            }
+        }
+        // The size an iPad's popover takes; a sheet fills its detent instead.
+        .frame(minWidth: 320, idealWidth: 380, minHeight: 200, idealHeight: 230)
+        .onAppear { focused = record.heldBy == nil }
+        #endif
+    }
+
+    /// Why Draft cannot be pressed, with its one remedy; otherwise the line and the suggestions.
+    @ViewBuilder private var content: some View {
+        if let held = record.heldBy {
+            Label(AiWords.failure(held.failure), systemImage: "info.circle")
+                .fixedSize(horizontal: false, vertical: true)
+            if let fix = held.remedy {
+                ControlButton(title: AiWords.remedy(fix.remedy), control: fix.control) {
+                    remedy(fix.remedy)
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        } else {
+            TextField(L10n.composer_draft_intent_hint(), text: $line, axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...3)
+                .focused($focused)
+                .onSubmit(draft)
+                .submitLabel(.go)
+                .accessibilityIdentifier("composer.draftInstruction")
+            suggestions
+        }
+    }
+
+    private var draftButton: some View {
+        ControlButton(
+            title: L10n.composer_draft_create(), control: record.draft, shortcut: .defaultAction,
+            action: draft
+        )
+        #if os(macOS)
+        .buttonStyle(.borderedProminent)
+        #endif
+        .accessibilityIdentifier("composer.draftCreate")
     }
 
     /// The core's suggestions, each filling the line with its words: a flow of capsules that

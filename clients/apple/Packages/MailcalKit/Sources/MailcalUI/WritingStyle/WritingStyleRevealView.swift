@@ -205,6 +205,9 @@ struct WritingStyleNotesEditor: View {
     @Binding var notes: String
 
     @Environment(\.colorScheme) private var scheme
+    /// A few lines of the text it holds, at whatever size the text is.
+    @ScaledMetric(relativeTo: .body) private var minHeight: CGFloat = 92
+    @ScaledMetric(relativeTo: .body) private var maxHeight: CGFloat = 160
 
     var body: some View {
         let palette = RevealPalette(scheme)
@@ -222,7 +225,7 @@ struct WritingStyleNotesEditor: View {
                 .font(RevealFont.text)
                 .scrollContentBackground(.hidden)
                 .padding(4)
-                .frame(minHeight: 92, maxHeight: 160)
+                .frame(minHeight: minHeight, maxHeight: maxHeight)
                 .background(palette.paper, in: RoundedRectangle(cornerRadius: 7))
                 .overlay(
                     RoundedRectangle(cornerRadius: 7).strokeBorder(palette.separator, lineWidth: 0.5))

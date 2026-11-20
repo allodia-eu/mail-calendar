@@ -124,6 +124,7 @@ struct ControlCheck: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Image(systemName: done ? "checkmark.circle.fill" : "circle")
                 .foregroundStyle(done ? Color.accentColor : Color.secondary)
+                .frame(width: iconWidth)
                 .accessibilityHidden(true)
             Image(systemName: symbol)
                 .foregroundStyle(.secondary)

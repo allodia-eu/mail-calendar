@@ -36,6 +36,8 @@ struct RevealFactsSection: View {
             statsRow(numeral)
             statsRow(numeral * 0.78)
             statsRow(numeral * 0.6)
+            // At the largest text sizes the labels alone outgrow a phone's width.
+            statsColumn(numeral * 0.6)
         }
         if let since {
             row
@@ -48,17 +50,21 @@ struct RevealFactsSection: View {
         }
     }
 
+    private func statFont(_ size: CGFloat) -> Font {
+        Font.system(size: size, weight: .semibold, design: .rounded).monospacedDigit()
+    }
+
     private func statsRow(_ size: CGFloat) -> some View {
-        let font = Font.system(size: size, weight: .semibold, design: .rounded).monospacedDigit()
+        let font = statFont(size)
         return HStack(alignment: .top, spacing: 0) {
-            stat(L10n.reveal_stat_messages(), first: true, delay: 0) {
+            stat(L10n.reveal_stat_messages(), ruled: false, delay: 0) {
                 counting(Int(facts.messages), font: font, delay: 0)
             }
-            stat(L10n.reveal_stat_languages(), first: false, delay: 0.12) {
+            stat(L10n.reveal_stat_languages(), ruled: true, delay: 0.12) {
                 counting(facts.languages.count, font: font, delay: 0.12)
             }
             if let since {
-                stat(L10n.reveal_stat_since(), first: false, delay: 0.24) {
+                stat(L10n.reveal_stat_since(), ruled: true, delay: 0.24) {
                     Text(since).font(font).tracking(-size * 0.025)
                 }
             }
@@ -66,17 +72,36 @@ struct RevealFactsSection: View {
         .fixedSize()
     }
 
+    /// The same figures one under another, the date free to wrap.
+    private func statsColumn(_ size: CGFloat) -> some View {
+        let font = statFont(size)
+        return VStack(alignment: .leading, spacing: 12) {
+            stat(L10n.reveal_stat_messages(), ruled: false, delay: 0) {
+                counting(Int(facts.messages), font: font, delay: 0)
+            }
+            stat(L10n.reveal_stat_languages(), ruled: false, delay: 0.12) {
+                counting(facts.languages.count, font: font, delay: 0.12)
+            }
+            if let since {
+                stat(L10n.reveal_stat_since(), ruled: false, delay: 0.24) {
+                    Text(since).font(font).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    /// One figure under its label; `ruled` draws the rule that parts it from the one before.
     private func stat(
-        _ label: String, first: Bool, delay: Double, @ViewBuilder value: () -> some View
+        _ label: String, ruled: Bool, delay: Double, @ViewBuilder value: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label).font(RevealFont.label).foregroundStyle(.secondary)
             value()
         }
-        .padding(.leading, first ? 0 : 22)
+        .padding(.leading, ruled ? 22 : 0)
         .padding(.trailing, 22)
         .overlay(alignment: .leading) {
-            if !first {
+            if ruled {
                 Rectangle().fill(RevealPalette(scheme).separator).frame(width: 0.5)
             }
         }
@@ -318,13 +343,23 @@ struct RevealHabitsSection: View {
 
     private func row(_ habit: WritingStyleHabit, top: Bool, delay: Double) -> some View {
         let palette = RevealPalette(scheme)
-        return HStack(spacing: 12) {
-            RevealRunsText(runs: habit.runs, font: RevealFont.habit)
-            Spacer(minLength: 8)
-            Text(WritingStyleWords.frequency(habit.frequency))
-                .font(RevealFont.small)
-                .foregroundStyle(.secondary)
-                .fixedSize()
+        let runs = RevealRunsText(runs: habit.runs, font: RevealFont.habit)
+        let frequency = Text(WritingStyleWords.frequency(habit.frequency))
+            .font(RevealFont.small)
+            .foregroundStyle(.secondary)
+            .fixedSize()
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 12) {
+                runs
+                Spacer(minLength: 8)
+                frequency
+            }
+            // At the largest text sizes the two no longer share a line without breaking words.
+            VStack(alignment: .leading, spacing: 2) {
+                runs
+                frequency
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
