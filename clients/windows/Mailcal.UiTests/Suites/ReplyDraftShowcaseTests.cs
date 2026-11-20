@@ -41,6 +41,11 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
         app.Agent.Wait(Filter.ById("ComposerDraftReply", "Button"), TimeSpan.FromSeconds(10))
             ?? throw new InvalidOperationException("a reply's composer draws no Draft a reply while the writing assistant is offered");
 
+    /// <summary>The button <paramref name="filter"/> names, once it is drawn: a question's buttons
+    /// and the input's Draft arrive a layout after the title or the line a case waited for.</summary>
+    internal static Element Pressable(App app, Filter filter, string why) =>
+        app.Agent.Wait(filter, TimeSpan.FromSeconds(5)) ?? throw new InvalidOperationException(why);
+
     /// <summary>Opens the instruction's input from the control.</summary>
     internal static void OpenInput(App app)
     {
@@ -55,8 +60,7 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
     {
         OpenInput(app);
         app.Agent.SetText(app.Agent.Find(new Filter { Id = "ComposerDraftInstruction" })!, instruction);
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("ComposerDraftCreate", "Button"))
-            ?? throw new InvalidOperationException("the input offers no Draft"));
+        app.Agent.Invoke(Pressable(app, Filter.ById("ComposerDraftCreate", "Button"), "the input offers no Draft"));
         Assert.True(app.Agent.Wait(new Filter { Id = "ComposerDraftSummary" }, TimeSpan.FromSeconds(30)) is not null,
             "the draft went in and its card came: the editor reported it to the core");
         Assert.True(app.Agent.Find(Filter.Named(Catalog.English("composer_draft_replace_title"))) is null,
@@ -127,8 +131,7 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
             var title = Catalog.English("composer_send_open_title");
             var question = app.Agent.Wait(Filter.Named(title), TimeSpan.FromSeconds(10)) ?? throw new InvalidOperationException("Send with open items did not ask");
             Assert.NotNull(question);
-            app.Agent.Invoke(app.Agent.Find(Filter.Named(Catalog.English("composer_keep_editing"), "Button"))
-                ?? throw new InvalidOperationException("the question offers no Keep editing"));
+            app.Agent.Invoke(Pressable(app, Filter.Named(Catalog.English("composer_keep_editing"), "Button"), "the question offers no Keep editing"));
             Assert.True(app.Agent.WaitGone(Filter.Named(title), TimeSpan.FromSeconds(5)), "Keep editing closes the question");
             Assert.True(app.Agent.Find(Filter.ById("SendButton", "Button")) is not null, "and the composer stays");
 
@@ -153,17 +156,17 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
         var title = Catalog.English("composer_draft_replace_title");
 
         OpenInput(app);
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("ComposerDraftCreate", "Button"))!);
+        app.Agent.Invoke(Pressable(app, Filter.ById("ComposerDraftCreate", "Button"), "the input offers no Draft"));
         Assert.True(app.Agent.Wait(Filter.Named(title), TimeSpan.FromSeconds(10)) is not null, "Draft over the person's own words asks first");
-        app.Agent.Invoke(app.Agent.Find(Filter.Named(Catalog.English("action_cancel"), "Button"))!);
+        app.Agent.Invoke(Pressable(app, Filter.Named(Catalog.English("action_cancel"), "Button"), "the question offers no Cancel"));
         Assert.True(app.Agent.WaitGone(Filter.Named(title), TimeSpan.FromSeconds(5)), "Cancel closes the question");
         Assert.True(app.Agent.Find(new Filter { Id = "ComposerDraftSummary" }) is null && app.Agent.Find(new Filter { Id = "ComposerDrafting" }) is null,
             "and drafts nothing");
 
         OpenInput(app);
-        app.Agent.Invoke(app.Agent.Find(Filter.ById("ComposerDraftCreate", "Button"))!);
+        app.Agent.Invoke(Pressable(app, Filter.ById("ComposerDraftCreate", "Button"), "the input offers no Draft"));
         Assert.True(app.Agent.Wait(Filter.Named(title), TimeSpan.FromSeconds(10)) is not null, "asked again on the next Draft");
-        app.Agent.Invoke(app.Agent.Find(Filter.Named(Catalog.English("composer_draft_replace"), "Button"))!);
+        app.Agent.Invoke(Pressable(app, Filter.Named(Catalog.English("composer_draft_replace"), "Button"), "the question offers no Replace"));
         Assert.True(app.Agent.Wait(new Filter { Id = "ComposerDraftSummary" }, TimeSpan.FromSeconds(30)) is not null, "Replace drafts");
     });
 
@@ -175,8 +178,7 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
         app.Agent.Invoke(app.Agent.Find(Filter.ById("SendButton", "Button"))!);
         var title = Catalog.English("composer_send_open_title");
         Assert.True(app.Agent.Wait(Filter.Named(title), TimeSpan.FromSeconds(10)) is not null, "Send with open items asks");
-        app.Agent.Invoke(app.Agent.Find(Filter.Named(Catalog.English("composer_send_anyway"), "Button"))
-            ?? throw new InvalidOperationException("the question offers no Send anyway"));
+        app.Agent.Invoke(Pressable(app, Filter.Named(Catalog.English("composer_send_anyway"), "Button"), "the question offers no Send anyway"));
         Assert.True(app.Agent.WaitGone(Filter.ById("SendButton", "Button"), TimeSpan.FromSeconds(15)), "Send anyway sends, and the composer goes");
     });
 
