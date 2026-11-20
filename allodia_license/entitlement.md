@@ -90,6 +90,10 @@ what a paid capability turns on is inert without Allodia's servers anyway, so an
 a stale *yes* grants the use of something that cannot work regardless. Being wrong in the other
 direction takes a capability from someone who paid for it, during an outage that is Allodia's fault.
 
+**An answer dated after the device's clock has no age**, so it is stale and due: it grants nothing
+and is read again at the next trigger. A clock set back, or a stored file edited, would otherwise
+keep it granting for as long as the clock stays behind it, past any grace.
+
 ## The distinction that matters
 
 **"You are not entitled" and "I could not ask" are different answers, and a client must never

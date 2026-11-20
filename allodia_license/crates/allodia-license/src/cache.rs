@@ -80,17 +80,24 @@ impl Cache {
 
     /// What to draw right now.
     ///
-    /// Anything that is not a stored answer inside its grace is the free app: nothing stored, or a
-    /// stored answer past grace. What a stored answer *grants* is its capability list, which the
-    /// service has already degraded for a lapsed plan.
+    /// Anything that is not a stored answer inside its grace is the free app: nothing stored, a
+    /// stored answer past grace, or one dated after `now`, whose age cannot be known. What a
+    /// stored answer *grants* is its capability list, which the service has already degraded for
+    /// a lapsed plan.
     #[must_use]
     pub fn effective(&self, now: i64) -> Entitlement {
-        match &self.stored {
-            Some(stored) if now.saturating_sub(stored.fetched_at) < GRACE_SECONDS => {
-                stored.answer.entitlement.clone()
-            }
+        match (&self.stored, self.age(now)) {
+            (Some(stored), Some(age)) if age < GRACE_SECONDS => stored.answer.entitlement.clone(),
             _ => Entitlement::free(),
         }
+    }
+
+    /// How long ago the stored answer was taken, or `None` when nothing is stored or it is dated
+    /// after `now`: a clock that went back, or a file somebody edited. Such an answer is treated
+    /// as stale, never as fresh, so it cannot grant for as long as the clock stays behind it.
+    fn age(&self, now: i64) -> Option<i64> {
+        let stored = self.stored.as_ref()?;
+        (now >= stored.fetched_at).then(|| now.saturating_sub(stored.fetched_at))
     }
 
     /// Whether the stored answer grants a paid capability and its grace ends within
@@ -101,13 +108,10 @@ impl Cache {
     /// one every plan carries, and never a label this version does not know.
     #[must_use]
     pub fn lapses_soon(&self, now: i64) -> bool {
-        let Some(stored) = &self.stored else {
+        let (Some(stored), Some(age)) = (&self.stored, self.age(now)) else {
             return false;
         };
-        let left = stored
-            .fetched_at
-            .saturating_add(GRACE_SECONDS)
-            .saturating_sub(now);
+        let left = GRACE_SECONDS - age;
         left > 0
             && left <= LAPSE_WARNING_SECONDS
             && stored
@@ -120,16 +124,14 @@ impl Cache {
 
     /// Whether it is time to ask again.
     ///
-    /// True when there is nothing stored, and once the server's own interval has elapsed. A client
-    /// asks in the background and never waits for the answer, so a `true` here is a hint to start
-    /// a refresh, never a reason to hold a screen.
+    /// True when there is nothing stored, when the stored answer is dated after `now`, and once
+    /// the server's own interval has elapsed. A client asks in the background and never waits for
+    /// the answer, so a `true` here is a hint to start a refresh, never a reason to hold a screen.
     #[must_use]
     pub fn should_refresh(&self, now: i64) -> bool {
-        match &self.stored {
-            None => true,
-            Some(stored) => {
-                now.saturating_sub(stored.fetched_at) >= stored.answer.refresh_after_seconds
-            }
+        match (&self.stored, self.age(now)) {
+            (Some(stored), Some(age)) => age >= stored.answer.refresh_after_seconds,
+            _ => true,
         }
     }
 

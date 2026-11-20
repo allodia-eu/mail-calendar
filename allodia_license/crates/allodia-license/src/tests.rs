@@ -369,15 +369,29 @@ fn an_answer_stored_before_payment_status_existed_still_reads() {
 }
 
 #[test]
-fn a_clock_that_went_backwards_does_not_grant_forever_or_panic() {
-    // Device clocks move. A stored answer from "the future" must not underflow the subtraction or
-    // read as infinitely fresh.
+fn an_answer_dated_after_now_is_stale_and_due() {
+    // Device clocks move, and a stored file can be edited. An answer taken "in the future" has no
+    // age that can be trusted, so it grants nothing and is asked again at once; otherwise it would
+    // grant for as long as the clock stays behind it, past any grace.
     let mut cache = Cache::default();
     cache.apply(Outcome::Answered(paid()), NOW);
 
-    let earlier = NOW - 400 * DAY;
-    assert!(cache.effective(earlier).grants(&Capability::Push));
-    assert!(!cache.should_refresh(earlier));
+    for earlier in [NOW - 1, NOW - 400 * DAY, i64::MIN] {
+        assert!(!cache.effective(earlier).grants(&Capability::Push));
+        assert!(cache.should_refresh(earlier));
+        assert!(!cache.lapses_soon(earlier));
+    }
+    assert!(
+        cache.effective(NOW).grants(&Capability::Push),
+        "the moment it was taken"
+    );
+
+    let restored = Cache::restore(Some(Stored {
+        answer: paid(),
+        fetched_at: NOW + 400 * DAY,
+    }));
+    assert!(!restored.effective(NOW).grants(&Capability::Push));
+    assert!(restored.should_refresh(NOW));
 }
 
 // --- The sovereignty carve-out's own premises
