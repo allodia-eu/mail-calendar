@@ -4,7 +4,8 @@
 # Sourced by test-linux-ui.sh.
 
 # Settings → Writing style's rows, a style's detail, a new style's reveal page by page, the own
-# endpoint's form under Advanced, and Draft a reply in a reply composer through to the card and the
+# endpoint's form under Advanced, learning from the first account until it fails with its remedy,
+# and Draft a reply in a reply composer through to the card and the
 # question Send asks while its checklist has open items. Nothing leaves the machine: the staged
 # endpoint answers inside the core.
 leg_writing_style() {
@@ -51,6 +52,27 @@ leg_writing_style() {
   ui_wait type=AdwEntryRow text="http://localhost:11434/v1" window=Settings
   ui_wait text="Leave empty if the server needs none." window=Settings
   capture writing-style-endpoint
+
+  # Learning, from the first account, whose staged sent mail reads as Ready and whose run cannot
+  # reach the staged endpoint: the flow ends on Failed with its one remedy.
+  ui_press text="Writing style" role=toggle-button window=Settings
+  ui_press text="Learn my writing style" role=button window=Settings
+  ui_wait text="Learn from which account?" window=Settings
+  ui_press text=eva.jansen@example.com window=Settings
+  ui_press text=Next role=button window=Settings
+  ui_wait text="Which sent mail?" window=Settings
+  # The account's page stays under the range's in the stack; its Next is on screen until the
+  # navigation has slid it away.
+  ui_gone text="Learn from which account?" window=Settings
+  ui_press text=Next role=button window=Settings
+  ui_wait text="What is sent, and where" window=Settings timeoutMs=30000
+  capture writing-style-review
+  ui_press text=Learn role=button window=Settings
+  ui_wait text="No style was learned" window=Settings timeoutMs=60000
+  ui_wait text="The AI service could not be reached." window=Settings
+  ui_wait text="Try again" role=button window=Settings
+  capture writing-style-failed
+  # Closing the window closes the flow, as Cancel would.
   close_settings
 
   stop_app
