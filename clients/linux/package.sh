@@ -7,11 +7,15 @@
 #   clients/linux/package.sh --install --run # …and launch it
 #   clients/linux/package.sh --bundle        # also write a single-file target/flatpak/mailcal.flatpak
 #   clients/linux/package.sh --features X,Y  # extra cargo features, ADDED to the derived ones
+#   clients/linux/package.sh --development-core --install  # a bundle NOT to ship (below)
 #
-# `--features dev-harness` is the one anybody needs: it builds a bundle that still answers
+# `--development-core` builds the core with `dev-harness`: a bundle that still answers
 # MAILCAL_SHOWCASE, which is how a Flatpak is recorded or photographed without a real mailbox. It
-# is deliberately not the default and it says so on every run. A release build is what proves the
-# debug fixtures are absent, and this one puts them back while looking identical from the outside.
+# is also a development core, which offers the writing assistant to everyone (docs/ai.md rule 5),
+# so every other build refuses one: the manifest tells the core's build it is packaging, and the
+# built binary is checked for a production core before it is bundled or installed. This flag is
+# the only way past both, it is named for what it builds, and it says so on every run.
+# `--features dev-harness` without it is refused.
 #
 # Everything about the app's identity, copy and version is decided elsewhere and generated during
 # the build (see flatpak/org.mailcal.client.yml); nothing here is retyped from a document.
@@ -42,6 +46,7 @@ INSTALL=0
 RUN=0
 BUNDLE=0
 EXTRA_FEATURES=""
+DEVELOPMENT_CORE=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --install) INSTALL=1 ;;
@@ -55,11 +60,28 @@ while [[ $# -gt 0 ]]; do
       EXTRA_FEATURES="$2"
       shift
       ;;
-    -h | --help) sed -n '2,21p' "$0"; exit 0 ;;
+    --development-core) DEVELOPMENT_CORE=1 ;;
+    -h | --help) sed -n '2,25p' "$0"; exit 0 ;;
     *) echo "package.sh: unknown option '$1'" >&2; exit 2 ;;
   esac
   shift
 done
+
+if [[ ",$EXTRA_FEATURES," == *,dev-harness,* && "$DEVELOPMENT_CORE" != "1" ]]; then
+  echo "package.sh: dev-harness builds a development core, which offers the writing assistant to" >&2
+  echo "            everyone (docs/ai.md rule 5). Ask for that bundle by name: --development-core" >&2
+  exit 2
+fi
+if [[ "$DEVELOPMENT_CORE" == "1" && ",$EXTRA_FEATURES," != *,dev-harness,* ]]; then
+  EXTRA_FEATURES="${EXTRA_FEATURES:+$EXTRA_FEATURES,}dev-harness"
+fi
+development_core_warning() {
+  if [[ "$DEVELOPMENT_CORE" == "1" ]]; then
+    echo "==> DEVELOPMENT CORE: this bundle offers the writing assistant to everyone and carries the"
+    echo "    harness fixtures. Never upload it, submit it or hand it to anyone."
+  fi
+}
+development_core_warning
 
 command -v flatpak-builder >/dev/null ||
   { echo "package.sh: need flatpak-builder (see the prerequisites in clients/linux/README.md)" >&2; exit 1; }
@@ -82,6 +104,7 @@ MAILCAL_ENV_FILE="$ROOT/.env"
 WROTE_ENV_FILE=0
 MANIFEST_WITH_REQUIREMENT=""
 MANIFEST_WITH_FEATURES=""
+MANIFEST_FOR_DEVELOPMENT=""
 BRANDED_MANIFEST=""
 cleanup_generated() {
   if [[ "$WROTE_ENV_FILE" == "1" ]]; then
@@ -92,6 +115,9 @@ cleanup_generated() {
   fi
   if [[ -n "$MANIFEST_WITH_FEATURES" ]]; then
     rm -f "$MANIFEST_WITH_FEATURES"
+  fi
+  if [[ -n "$MANIFEST_FOR_DEVELOPMENT" ]]; then
+    rm -f "$MANIFEST_FOR_DEVELOPMENT"
   fi
   if [[ -n "$BRANDED_MANIFEST" ]]; then
     rm -f "$BRANDED_MANIFEST"
@@ -229,12 +255,32 @@ if [[ -n "${MAILCAL_REQUIRE_INJECTED_CONFIG:-}" ]]; then
   echo "==> credentials: required: the build inside the sandbox will refuse to compile without them"
 fi
 
+# The manifest tells the core's build it is packaging, so a development core fails to compile
+# (crates/mailcal-bindings/build.rs). A manifest that stopped saying so would let one through
+# behind a green build; only --development-core takes the line out.
+PACKAGED_LINE='^[[:space:]]*MAILCAL_PACKAGED_CORE: "1"$'
+if [[ "$DEVELOPMENT_CORE" == "1" ]]; then
+  MANIFEST_FOR_DEVELOPMENT="$(dirname "$MANIFEST")/.package-sh-development-core.yml"
+  grep -v -e "$PACKAGED_LINE" "$MANIFEST" > "$MANIFEST_FOR_DEVELOPMENT"
+  MANIFEST="$MANIFEST_FOR_DEVELOPMENT"
+elif ! grep -q -e "$PACKAGED_LINE" "$MANIFEST"; then
+  echo "package.sh: $MANIFEST no longer sets MAILCAL_PACKAGED_CORE, so a development core would" >&2
+  echo "            build: put it back in the module's build-options env" >&2
+  exit 1
+fi
+
 flatpak-builder \
   --user --force-clean --disable-rofiles-fuse \
   --state-dir "$OUT/state" \
   --repo "$OUT/repo" \
   "$OUT/build" \
   "$MANIFEST"
+
+# The binary the bundle carries, read for its core's marker before it is bundled or installed: the
+# build's refusal rests on the manifest, and this rests on what was built.
+if [[ "$DEVELOPMENT_CORE" != "1" ]]; then
+  "$ROOT/scripts/dev/check-core-build.sh" "$OUT/build/files/bin/mailcal"
+fi
 
 if [[ "$BUNDLE" == "1" ]]; then
   # `build-bundle` takes the branch as an argument and falls back to `master`, which is the
@@ -264,6 +310,8 @@ if [[ "$INSTALL" == "1" ]]; then
   flatpak install --user --noninteractive --assumeyes --reinstall mailcal-local "$APP_ID"
   echo "==> installed $APP_ID ($(flatpak info --show-metadata "$APP_ID" >/dev/null 2>&1 && echo ok))"
 fi
+
+development_core_warning
 
 if [[ "$RUN" == "1" ]]; then
   # GTK single-instances on the application id, so a debug build already holding it would swallow

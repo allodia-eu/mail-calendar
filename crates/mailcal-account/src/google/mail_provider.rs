@@ -37,7 +37,7 @@ impl Provider for RefreshingGmailProvider {
                         .lock()
                         .expect("gmail delegate mutex poisoned")
                         .as_ref()
-                        .map(|(_, provider)| provider.connection_info())
+                        .map(|(_, _, provider)| provider.connection_info())
                 }),
         )
     }

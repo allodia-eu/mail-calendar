@@ -7,10 +7,12 @@ use std::{
     time::{Duration, Instant},
 };
 
+use mailcal_app::ai::AiEntitlement;
+
 use crate::{
     AiIntent, ComposeOrigin, ComposerFileAttachment, ComposerReplyDraft, Intent, LogLevel,
-    MailcalApp, ReplyDraftIntent, ReplyDraftState, ReplyDraftTaskKind, ShowcaseLocale, SnapshotRow,
-    Surface,
+    MailcalApp, Recipients, ReplyDraftIntent, ReplyDraftState, ReplyDraftTaskKind, ShowcaseLocale,
+    SnapshotRow, Surface,
     tests::{ChannelObserver, NullLogger},
 };
 
@@ -172,4 +174,54 @@ fn a_file_signals_the_record_only_when_it_changes_the_card() {
         .expect("removed");
     assert_eq!(signalled(&rx), 1, "the item is open again");
     assert!(!attached(&app));
+}
+
+/// The showcase as [`staged`] leaves it, in a production build whose entitlement carries the
+/// assistant.
+fn staged_in_production() -> Arc<MailcalApp> {
+    let (app, _rx) = staged();
+    super::super::offer_ai_in_production(&app);
+    app.app.set_ai_entitlement(AiEntitlement::Granted);
+    app
+}
+
+fn submit(app: &MailcalApp) -> Result<(), crate::MailcalError> {
+    app.submit_composition(
+        "reply".to_owned(),
+        Recipients {
+            to: "someone@test.local".to_owned(),
+            cc: String::new(),
+            bcc: String::new(),
+        },
+        "Re: Order".to_owned(),
+        DOCUMENT.to_owned(),
+        None,
+    )
+}
+
+const DOCUMENT: &str = r#"{"blocks":[{"Paragraph":{"content":[{"Text":{"text":"Hello","bold":false,"italic":false,"underline":false}}]}}],"attachments":[]}"#;
+
+/// An entitlement withdrawn while a drafted reply with open items is open takes the question at
+/// Send with it: no client draws it while the record is `None`, so no send is held for it
+/// (`docs/ai.md` rules 4 and 24).
+#[test]
+fn a_withdrawn_entitlement_holds_no_send_for_the_checklist() {
+    let app = staged_in_production();
+    open_reply(&app, "withdrawn-reply");
+    draft(&app);
+    let script = eventually(|| record(&app).and_then(|record| record.editor_script));
+    let report = format!(
+        r#"{{"id":0,"request":{{"reply_draft":{{"serial":{},"lead":"draft","inserted":true,"left":[0],"edits":0}}}}}}"#,
+        script.serial
+    );
+    assert!(app.composer_reply_draft_report("reply".to_owned(), report));
+    assert!(
+        record(&app).is_some_and(|record| record.send_question.is_some()),
+        "the checklist has open items"
+    );
+    assert!(submit(&app).is_err(), "asked first while offered");
+
+    app.app.set_ai_entitlement(AiEntitlement::NotGranted);
+    assert_eq!(record(&app), None);
+    submit(&app).expect("the send is accepted");
 }

@@ -23,6 +23,10 @@ pub struct AiPreferences {
     /// to change it.
     #[serde(default)]
     pub jurisdiction: Mode,
+    /// Whether the assistant has been offered on this install, so its Gmail accounts name the
+    /// drafted-reply keyword (`crate::GmailKeywordNaming`). Never turned off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gmail_keyword_named: bool,
 }
 
 /// An own endpoint's settings, as saved: the address and model trimmed, and where the person

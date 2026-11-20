@@ -33,7 +33,9 @@ use engine_core::{
     sync::SyncUpdate,
 };
 use engine_provider::{Draft, HandOver, MailEdit, Provider, Unrecorded};
-use mailcal_account::{GoogleConfig, Secret, connect_google_mail_providers, google_token_source};
+use mailcal_account::{
+    GmailKeywordNaming, GoogleConfig, Secret, connect_google_mail_providers, google_token_source,
+};
 
 /// The test account's own address, from `GOOGLE_TEST_ADDRESS`. Every live send is
 /// self-addressed, so nothing leaves the mailbox.
@@ -95,9 +97,14 @@ async fn the_product_gmail_wrapper_advertises_and_forwards_writes_and_sends() {
         mailcal_account::CredentialOrigin::FreshSignIn,
     )
     .expect("token source");
-    let providers = connect_google_mail_providers(tokens, None, &config.identity())
-        .await
-        .expect("connect gmail");
+    let providers = connect_google_mail_providers(
+        tokens,
+        None,
+        &config.identity(),
+        GmailKeywordNaming::new(true),
+    )
+    .await
+    .expect("connect gmail");
     let provider = providers.first().expect("one account-global mail provider");
 
     // The wrapper must *advertise* what it forwards: the app never attempts a capability

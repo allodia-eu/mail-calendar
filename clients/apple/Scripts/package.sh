@@ -51,6 +51,9 @@ ROOT="$(cd "$HERE/../.." && pwd)"              # repo root (worktree)
 # or Microsoft sign-in, which is exactly why a *shipped* one has to be refused rather than
 # produced: it would look correct everywhere except in front of a user.
 export MAILCAL_REQUIRE_INJECTED_CONFIG=1
+# And the core it builds is the one packaged, so a development core fails to compile
+# (crates/mailcal-bindings/build.rs). Nothing else this script builds links the core.
+export MAILCAL_PACKAGED_CORE=1
 
 # The app's name and bundle id, which project.yml takes from the environment (docs/branding.md).
 # XcodeGen leaves the placeholder text behind when they are absent, so this has to happen before
@@ -614,6 +617,13 @@ xcodebuild \
   "${VERSION_ARGS[@]}" \
   "${EXPORT_EXTRA[@]}" \
   archive
+
+# The archive links whatever artifacts/Mailcal.xcframework holds, which --no-core leaves as the
+# last build left it, a debug core from the dev loop included; a development core offers the
+# writing assistant to everyone (docs/ai.md rule 5). Read from the archived app itself, every flow.
+echo "==> Checking the archived app carries a production core"
+"$ROOT/scripts/dev/check-core-build.sh" "$ARCHIVE/Products/Applications/$APP_NAME" \
+  || fail "the archive carries no production core; rebuild it without --no-core."
 
 # ---- Flow D: iOS/iPadOS device export (.ipa you can install) -----------------------------------
 # The SAME Release archive as Flow C, only the export signing differs. A development export embeds

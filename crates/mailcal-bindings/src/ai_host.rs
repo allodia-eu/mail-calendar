@@ -10,7 +10,7 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use mailcal_ai::HttpTransport;
-use mailcal_app::ai::{AiCancel, AiHost, BuildKind, KeyNotStored};
+use mailcal_app::ai::{AiCancel, AiHost, KeyNotStored};
 use serde::{Deserialize, Serialize};
 
 use crate::{ai_transport::AiTransport, credential_store::AccountCredentialStore};
@@ -60,15 +60,6 @@ pub(crate) fn take_stored(configs: &mut Vec<String>) -> Option<String> {
 #[uniffi::export]
 pub fn is_reserved_config(config: String) -> bool {
     from_toml(&config).is_some() || crate::allodia::is_allodia_account_config(config)
-}
-
-/// The build this core is, for the offer (`docs/ai.md` rule 5).
-pub(crate) const fn build_kind() -> BuildKind {
-    if cfg!(any(debug_assertions, feature = "dev-harness")) {
-        BuildKind::Development
-    } else {
-        BuildKind::Production
-    }
 }
 
 /// The host the assistant runs on.

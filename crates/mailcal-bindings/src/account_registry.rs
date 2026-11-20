@@ -94,6 +94,8 @@ pub(crate) struct AccountRegistry {
     dav_dialled: Mutex<HashMap<String, std::time::Instant>>,
     /// The accounts a refresh's wider grant opened a use for (`widened.rs`).
     widened: widened::Widened,
+    /// Whether every Gmail account here names the drafted-reply keyword (`docs/ai.md` rule 25).
+    gmail_naming: mailcal_account::GmailKeywordNaming,
 }
 
 /// What one rotation did to the registry, for the token sink to report and persist.
@@ -166,8 +168,13 @@ impl AccountRegistry {
             .lock()
             .expect("account registry mutex poisoned")
             .get(id)
-            .map(AccountDial::from_entry);
+            .map(|entry| AccountDial::from_entry(entry).named_by(&self.gmail_naming));
         own.or_else(|| self.dial_shared(id))
+    }
+
+    /// Whether the Gmail accounts this registry dials name the drafted-reply keyword.
+    pub(crate) const fn gmail_keyword_naming(&self) -> &mailcal_account::GmailKeywordNaming {
+        &self.gmail_naming
     }
 
     /// What `id` stores beside its kind's own section, or `None` if it is not registered.
