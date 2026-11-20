@@ -185,7 +185,8 @@ private fun DraftCard(host: ReplyDraftHost, drafted: ReplyDraftState.Drafted) {
 
 // A gap, which the reply fills rather than a tick (docs/ai.md rule 23): a mark beside the text that
 // cannot be pressed, never a checkbox held, which would read as unavailable. TalkBack reads its
-// state and offers no action.
+// state and offers no action. The mark takes the 24dp a checkbox without its own touch target
+// takes, so a gap's words start where a tick's do.
 @Composable
 private fun GapRow(done: Boolean, tag: String, content: @Composable RowScope.() -> Unit) {
     val colours = MaterialTheme.colorScheme
@@ -204,7 +205,7 @@ private fun GapRow(done: Boolean, tag: String, content: @Composable RowScope.() 
             painterResource(if (done) R.drawable.ic_check_circle else R.drawable.ic_radio_button_unchecked),
             contentDescription = null,
             tint = if (done) colours.primary else colours.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 12.dp).size(22.dp),
+            modifier = Modifier.size(24.dp),
         )
         Spacer(modifier = Modifier.width(4.dp))
         content()

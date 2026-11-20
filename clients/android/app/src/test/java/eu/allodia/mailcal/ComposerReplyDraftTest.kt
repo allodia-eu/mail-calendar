@@ -16,6 +16,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -28,7 +29,9 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -36,6 +39,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 import uniffi.mailcal_bindings.AiFailure
 import uniffi.mailcal_bindings.AiRemedy
 import uniffi.mailcal_bindings.ComposerReplyDraft
@@ -168,6 +172,18 @@ class ComposerReplyDraftTest {
         )
     }
 
+    // At a large text size the sheet is taller than what the keyboard leaves, and Draft must still
+    // be reachable by scrolling it rather than cut off at the foot.
+    @Test
+    @Config(qualifiers = "w360dp-h420dp")
+    fun the_sheet_scrolls_to_draft_when_it_is_taller_than_the_room() {
+        RuntimeEnvironment.setFontScale(2f)
+        show()
+        compose.onNodeWithTag(REPLY_DRAFT_CONTROL_TAG).performClick()
+        compose.onNodeWithTag(REPLY_DRAFT_DRAFT_TAG).performScrollTo().assertIsDisplayed().performClick()
+        assertEquals(1, sent.size)
+    }
+
     @Test
     fun draft_asks_first_while_the_record_says_so_and_cancel_sends_nothing() {
         record = replyDraft(askBeforeReplacing = true)
@@ -228,6 +244,20 @@ class ComposerReplyDraftTest {
 
         compose.onNodeWithTag(replyDraftItemTag(1u)).performClick()
         assertEquals(listOf<ReplyDraftIntent>(ReplyDraftIntent.Tick(COMPOSITION, 1u, true)), sent)
+    }
+
+    @Test
+    fun a_gap_and_a_tick_line_up_in_one_column_at_one_height() {
+        record = replyDraft(state = DRAFTED)
+        show()
+        val texts = DRAFTED.checklist.map { item ->
+            compose.onNodeWithText(replyDraftItemText(ctx(), item), useUnmergedTree = true)
+                .fetchSemanticsNode().boundsInRoot.left
+        }
+        assertEquals("every item's words start where the others' do: $texts", 1, texts.distinct().size)
+        for (item in DRAFTED.checklist) {
+            compose.onNodeWithTag(replyDraftItemTag(item.index)).assertHeightIsAtLeast(48.dp)
+        }
     }
 
     @Test
