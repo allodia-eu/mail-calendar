@@ -55,8 +55,18 @@ public class WritingStyleRulesTests
             [Lines(3), Lines(2), Lines(4)],
             [new WritingStyleSpan("Best,", false)],
             "Eva", 70, 2, "Short paragraphs");
-        Assert.Equal("opens with Hi Name,, 70 words, 2 paragraphs, signs off with Best,, signed Eva",
+        Assert.Equal("opens with Hi Name, 70 words, 2 paragraphs, signs off with Best, signed Eva",
             WritingStyleRules.LetterSpoken(letter, Letter));
+    }
+
+    // A greeting's own comma is the one that joins it; one without a comma is given one.
+    [Fact]
+    public void APartEndingInACommaIsJoinedByItsOwnAndOneWithoutIsGivenOne()
+    {
+        var letter = new WritingStyleLetter(
+            [new WritingStyleSpan("Dear Bob ", false)], [Lines(2)], [new WritingStyleSpan("Cheers! ", false)],
+            "Eva", 0, 0, "");
+        Assert.Equal("opens with Dear Bob, signs off with Cheers!, signed Eva", WritingStyleRules.LetterSpoken(letter, Letter));
     }
 
     [Fact]

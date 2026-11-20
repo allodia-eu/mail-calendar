@@ -57,12 +57,13 @@ internal static class WritingStyleRules
     /// The miniature letter as it is spoken, one element whose grey lines are not read: how it
     /// opens, its length, its paragraphs, how it closes and the name, joined by a comma, each left
     /// out when it is empty or zero. A greeting or sign-off is its runs read as written, a
-    /// placeholder as its word; the paragraphs are the record's count, never the lines drawn.
+    /// placeholder as its word; the paragraphs are the record's count, never the lines drawn. A
+    /// part that already ends in a comma, as a greeting often does, is joined by its own.
     /// </summary>
     internal static string LetterSpoken(WritingStyleLetter letter, LetterWords words)
     {
         var parts = new List<string>();
-        var opening = string.Concat(letter.Opening.Select(run => run.Text));
+        var opening = string.Concat(letter.Opening.Select(run => run.Text)).Trim();
         if (opening.Length > 0)
         {
             parts.Add(words.Opening(opening));
@@ -75,16 +76,26 @@ internal static class WritingStyleRules
         {
             parts.Add(words.Paragraphs((int)letter.ParagraphCount));
         }
-        var closing = string.Concat(letter.Closing.Select(run => run.Text));
+        var closing = string.Concat(letter.Closing.Select(run => run.Text)).Trim();
         if (closing.Length > 0)
         {
             parts.Add(words.Closing(closing));
         }
-        if (letter.SignsAs.Length > 0)
+        var name = letter.SignsAs.Trim();
+        if (name.Length > 0)
         {
-            parts.Add(words.Name(letter.SignsAs));
+            parts.Add(words.Name(name));
         }
-        return string.Join(", ", parts);
+        var spoken = new System.Text.StringBuilder();
+        foreach (var part in parts)
+        {
+            if (spoken.Length > 0)
+            {
+                spoken.Append(spoken[^1] == ',' ? " " : ", ");
+            }
+            spoken.Append(part);
+        }
+        return spoken.ToString();
     }
 
     /// <summary>A preset range's label. A range of the person's own is labelled by the choice it is,
