@@ -256,6 +256,7 @@ impl Provider for RefreshingGraphProvider {
     }
 }
 
+impl engine_api::CalendarSync for RefreshingGraphProvider {}
 impl CalendarWrites for RefreshingGraphProvider {}
 
 /// A folder change is made **once**: the token is refreshed first, and a dropped connection

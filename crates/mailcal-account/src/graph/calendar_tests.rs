@@ -2,16 +2,17 @@
 
 use super::{
     super::token_source::test_support::{
-        assert_calendar_answers_reach_the_delegate, dead_grant_token_endpoint, mock_token_endpoint,
+        assert_calendar_reaches_the_delegate, dead_grant_token_endpoint, mock_token_endpoint,
         source_at,
     },
     *,
 };
 
 /// This wrapper forwards each verb by hand, and one it leaves out answers with the trait's
-/// default: an invitation answer refused as unsupported, although Graph answers it.
+/// default: a calendar fetch or an invitation answer refused as unsupported, although Graph
+/// answers both.
 #[tokio::test]
-async fn invitation_answers_are_forwarded_to_graph() {
+async fn calendar_calls_are_forwarded_to_graph() {
     let (endpoint, _hits) = dead_grant_token_endpoint();
     let provider = RefreshingGraphCalendarProvider::new(
         source_at(endpoint, None),
@@ -19,7 +20,7 @@ async fn invitation_answers_are_forwarded_to_graph() {
         tls_with(&[]).unwrap(),
         MailboxPrincipal::Me,
     );
-    assert_calendar_answers_reach_the_delegate(&provider).await;
+    assert_calendar_reaches_the_delegate(&provider).await;
 }
 
 #[test]

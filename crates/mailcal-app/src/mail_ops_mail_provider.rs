@@ -297,6 +297,7 @@ impl Provider for ThreadProvider {
 }
 
 impl engine_api::MailboxWrites for ThreadProvider {}
+impl engine_api::CalendarSync for ThreadProvider {}
 impl CalendarWrites for ThreadProvider {}
 
 /// Builds a one-account app over a [`ThreadProvider`] seeded with `messages`, returning

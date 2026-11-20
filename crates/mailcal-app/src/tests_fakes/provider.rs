@@ -446,6 +446,7 @@ impl engine_api::MailboxWrites for FakeProvider {
         })
     }
 }
+impl engine_api::CalendarSync for FakeProvider {}
 impl CalendarWrites for FakeProvider {}
 
 /// Splits `messages` the way a real adapter yields them: `chunk_size` per chunk, `0` meaning

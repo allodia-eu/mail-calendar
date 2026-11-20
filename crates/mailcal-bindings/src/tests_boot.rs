@@ -77,6 +77,7 @@ impl Provider for BlockingMailboxProvider {
 }
 
 impl engine_api::MailboxWrites for BlockingMailboxProvider {}
+impl engine_api::CalendarSync for BlockingMailboxProvider {}
 impl CalendarWrites for BlockingMailboxProvider {}
 
 #[expect(

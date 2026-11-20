@@ -372,6 +372,7 @@ impl Provider for ReconnectingImapProvider {
     }
 }
 
+impl engine_api::CalendarSync for ReconnectingImapProvider {}
 impl CalendarWrites for ReconnectingImapProvider {}
 
 /// A folder change is **not** auto-retried on a dropped socket, unlike [`edit_mail`]: a

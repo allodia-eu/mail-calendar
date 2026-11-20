@@ -12,7 +12,7 @@ use std::{
     sync::{Mutex, MutexGuard},
 };
 
-use engine_api::{AccountId, CalendarWrites};
+use engine_api::{AccountId, CalendarSync, CalendarWrites};
 use engine_core::{
     calendar::{Calendar, Event},
     mail::{Mailbox, Message},
@@ -128,6 +128,7 @@ impl Provider for ShowcaseMailProvider {
 }
 
 impl engine_api::MailboxWrites for ShowcaseMailProvider {}
+impl CalendarSync for ShowcaseMailProvider {}
 impl CalendarWrites for ShowcaseMailProvider {}
 
 /// A plain `text/html` body built from a message's preview, for the messages that carry no
@@ -207,7 +208,10 @@ impl Provider for ShowcaseCalendarProvider {
     fn connection_info(&self) -> ConnectionInfo {
         ConnectionInfo::new(self.caps)
     }
+}
 
+#[async_trait::async_trait]
+impl CalendarSync for ShowcaseCalendarProvider {
     async fn sync_calendars(
         &self,
         _account: &AccountId,

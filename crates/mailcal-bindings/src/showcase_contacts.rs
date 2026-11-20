@@ -65,6 +65,7 @@ impl Provider for ShowcaseContactsProvider {
 }
 
 impl engine_api::MailboxWrites for ShowcaseContactsProvider {}
+impl engine_api::CalendarSync for ShowcaseContactsProvider {}
 impl CalendarWrites for ShowcaseContactsProvider {}
 
 #[async_trait::async_trait]

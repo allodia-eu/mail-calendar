@@ -315,6 +315,7 @@ impl Provider for RefreshingGmailProvider {
     }
 }
 
+impl engine_api::CalendarSync for RefreshingGmailProvider {}
 impl CalendarWrites for RefreshingGmailProvider {}
 
 /// A folder change is made **once**: the token is refreshed first, and a dropped connection
