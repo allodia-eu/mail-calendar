@@ -228,5 +228,8 @@ fn waiting(address: &str) -> StoredWritingStyle {
 #[path = "showcase_ai_learning_tests.rs"]
 mod learning_tests;
 #[cfg(test)]
+#[path = "showcase_ai_reply_tests.rs"]
+mod reply_tests;
+#[cfg(test)]
 #[path = "showcase_ai_tests.rs"]
 mod tests;

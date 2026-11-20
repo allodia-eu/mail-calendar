@@ -49,7 +49,8 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
             || app.Agent.Wait(new Filter { Id = "ComposerDraftHeld" }, TimeSpan.FromSeconds(1)) is not null, "the control opens the instruction's input");
     }
 
-    /// <summary>Drafts with <paramref name="instruction"/> and waits for the card.</summary>
+    /// <summary>Drafts with <paramref name="instruction"/> on a reply nobody has typed in, and waits
+    /// for the card: with nothing of the person's above the quote, nothing is asked first.</summary>
     internal static void Draft(App app, string instruction = "")
     {
         OpenInput(app);
@@ -58,6 +59,8 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
             ?? throw new InvalidOperationException("the input offers no Draft"));
         Assert.True(app.Agent.Wait(new Filter { Id = "ComposerDraftSummary" }, TimeSpan.FromSeconds(30)) is not null,
             "the draft went in and its card came: the editor reported it to the core");
+        Assert.True(app.Agent.Find(Filter.Named(Catalog.English("composer_draft_replace_title"))) is null,
+            "a fresh reply's Draft asks nothing about replacing");
     }
 
     private static Element? Item(App app, int index) => app.Agent.Find(Filter.ById($"ComposerDraftItem_{index}", "CheckBox"));

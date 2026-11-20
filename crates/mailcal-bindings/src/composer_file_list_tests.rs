@@ -45,10 +45,12 @@ fn a_file_added_later_is_a_change_and_removing_it_is_not_one() {
     let lists = ComposerFileLists::default();
     let c = composition("c1");
     lists.open(&c, vec![file("/staged/a.pdf", "a.pdf")]);
-    let added = lists.add(&c, vec![file("/picked/c.png", "c.png")]);
+    let added = lists
+        .add(&c, vec![file("/picked/c.png", "c.png")], None)
+        .files;
     assert!(added.changed);
     let id = added.tiles[1].id.clone();
-    assert!(!lists.remove(&c, &id).changed);
+    assert!(!lists.remove(&c, &id, None).files.changed);
 }
 
 #[test]
@@ -59,7 +61,7 @@ fn removing_a_file_the_composer_opened_with_is_a_change() {
     let c = composition("c1");
     lists.open(&c, vec![file("/staged/a.pdf", "a.pdf")]);
     let id = lists.read(&c).tiles[0].id.clone();
-    let after = lists.remove(&c, &id);
+    let after = lists.remove(&c, &id, None).files;
     assert!(after.tiles.is_empty());
     assert!(after.changed);
 }
@@ -68,23 +70,30 @@ fn removing_a_file_the_composer_opened_with_is_a_change() {
 fn the_same_file_twice_is_two_tiles_with_their_own_ids() {
     let lists = ComposerFileLists::default();
     let c = composition("c1");
-    let files = lists.add(
-        &c,
-        vec![file("/p/a.pdf", "a.pdf"), file("/p/a.pdf", "a.pdf")],
-    );
+    let files = lists
+        .add(
+            &c,
+            vec![file("/p/a.pdf", "a.pdf"), file("/p/a.pdf", "a.pdf")],
+            None,
+        )
+        .files;
     assert_eq!(files.tiles.len(), 2);
     assert_ne!(files.tiles[0].id, files.tiles[1].id);
     let first = files.tiles[0].id.clone();
-    assert_eq!(lists.remove(&c, &first).tiles.len(), 1);
+    assert_eq!(lists.remove(&c, &first, None).files.tiles.len(), 1);
 }
 
 #[test]
 fn an_id_from_another_list_or_none_at_all_removes_nothing() {
     let lists = ComposerFileLists::default();
     let c = composition("c1");
-    lists.add(&c, vec![file("/p/a.pdf", "a.pdf")]);
+    lists.add(&c, vec![file("/p/a.pdf", "a.pdf")], None);
     for stranger in ["file-9", "file-", "a.pdf", ""] {
-        assert_eq!(lists.remove(&c, stranger).tiles.len(), 1, "{stranger:?}");
+        assert_eq!(
+            lists.remove(&c, stranger, None).files.tiles.len(),
+            1,
+            "{stranger:?}"
+        );
     }
 }
 
@@ -95,6 +104,7 @@ fn the_name_shown_is_the_one_the_message_carries() {
     lists.add(
         &c,
         vec![file("/p/report.pdf", ""), file("/p/x", "../../etc/passwd")],
+        None,
     );
     let shown = names(&lists, &c);
     assert_eq!(shown[0], "report.pdf");
@@ -114,13 +124,16 @@ fn a_readable_file_shows_its_size_and_an_unreadable_one_none() {
     std::fs::write(&path, b"forty-one bytes of a note, give or take..").expect("write");
     let lists = ComposerFileLists::default();
     let c = composition("c1");
-    let files = lists.add(
-        &c,
-        vec![
-            file(path.to_str().expect("utf-8"), "note.txt"),
-            file("/no/such/file.txt", "file.txt"),
-        ],
-    );
+    let files = lists
+        .add(
+            &c,
+            vec![
+                file(path.to_str().expect("utf-8"), "note.txt"),
+                file("/no/such/file.txt", "file.txt"),
+            ],
+            None,
+        )
+        .files;
     std::fs::remove_file(&path).expect("remove");
     assert_eq!(files.tiles[0].size, Some(41));
     assert_eq!(files.tiles[1].size, None);
@@ -139,14 +152,17 @@ fn a_picture_by_its_bytes_offers_a_preview_and_anything_else_none() {
     let paths = [&picture, &liar].map(|path| path.to_str().expect("utf-8").to_owned());
     let lists = ComposerFileLists::default();
     let c = composition("c1");
-    let files = lists.add(
-        &c,
-        vec![
-            file(&paths[0], "shot.png"),
-            file(&paths[1], "logo.png"),
-            file("/no/such/photo.jpg", "photo.jpg"),
-        ],
-    );
+    let files = lists
+        .add(
+            &c,
+            vec![
+                file(&paths[0], "shot.png"),
+                file(&paths[1], "logo.png"),
+                file("/no/such/photo.jpg", "photo.jpg"),
+            ],
+            None,
+        )
+        .files;
     drop(dir);
     assert_eq!(files.tiles[0].preview.as_deref(), Some(paths[0].as_str()));
     assert_eq!(files.tiles[1].preview, None);
@@ -161,9 +177,11 @@ fn the_total_follows_a_file_taken_off() {
     let text = path.to_str().expect("utf-8");
     let lists = ComposerFileLists::default();
     let c = composition("c1");
-    let files = lists.add(&c, vec![file(text, "a.txt"), file(text, "b.txt")]);
+    let files = lists
+        .add(&c, vec![file(text, "a.txt"), file(text, "b.txt")], None)
+        .files;
     assert_eq!(files.total_size, 200);
-    let after = lists.remove(&c, &files.tiles[0].id);
+    let after = lists.remove(&c, &files.tiles[0].id, None).files;
     std::fs::remove_file(&path).expect("remove");
     assert_eq!(after.total_size, 100);
     assert_eq!(lists.read(&composition("none")).total_size, 0);
@@ -173,8 +191,8 @@ fn the_total_follows_a_file_taken_off() {
 fn each_composition_keeps_its_own_list_and_a_forgotten_one_holds_none() {
     let lists = ComposerFileLists::default();
     let (one, two) = (composition("c1"), composition("c2"));
-    lists.add(&one, vec![file("/p/a.pdf", "a.pdf")]);
-    lists.add(&two, vec![file("/p/b.pdf", "b.pdf")]);
+    lists.add(&one, vec![file("/p/a.pdf", "a.pdf")], None);
+    lists.add(&two, vec![file("/p/b.pdf", "b.pdf")], None);
     assert_eq!(names(&lists, &one), ["a.pdf"]);
     lists.forget(&one);
     assert!(lists.read(&one).tiles.is_empty());
@@ -186,7 +204,7 @@ fn each_composition_keeps_its_own_list_and_a_forgotten_one_holds_none() {
 fn every_tile_can_be_removed() {
     let lists = ComposerFileLists::default();
     let c = composition("c1");
-    let files = lists.add(&c, vec![file("/p/a.pdf", "a.pdf")]);
+    let files = lists.add(&c, vec![file("/p/a.pdf", "a.pdf")], None).files;
     assert!(files.tiles[0].remove.enabled);
     assert!(!files.tiles[0].remove.running);
 }
@@ -198,7 +216,7 @@ fn a_request_read_again_seeds_only_a_list_that_is_not_there_yet() {
     let lists = ComposerFileLists::default();
     let c = composition("edit");
     lists.open_if_absent(&c, vec![file("/staged/a.pdf", "a.pdf")]);
-    lists.add(&c, vec![file("/picked/b.pdf", "b.pdf")]);
+    lists.add(&c, vec![file("/picked/b.pdf", "b.pdf")], None);
     lists.open_if_absent(&c, vec![file("/staged/a.pdf", "a.pdf")]);
     assert_eq!(names(&lists, &c), ["a.pdf", "b.pdf"]);
     assert!(
@@ -213,7 +231,20 @@ fn a_remove_for_a_composition_that_has_gone_starts_no_list() {
     // forgotten; it must not start one again, empty, for the rest of the process.
     let lists = ComposerFileLists::default();
     let c = composition("gone");
-    let answer = lists.remove(&c, "file-0");
+    let answer = lists.remove(&c, "file-0", None).files;
     assert!(answer.tiles.is_empty());
     assert!(!lists.lock().contains_key(&c));
+}
+
+#[test]
+fn a_change_counts_the_files_added_since_a_mark_before_and_after_it() {
+    let lists = ComposerFileLists::default();
+    let c = composition("c1");
+    lists.open(&c, vec![file("/staged/a.pdf", "a.pdf")]);
+    let mark = lists.mark(&c);
+    let added = lists.add(&c, vec![file("/p/b.pdf", "b.pdf")], Some(mark));
+    assert_eq!(added.added, Some((0, 1)));
+    let opened = added.files.tiles[0].id.clone();
+    assert_eq!(lists.remove(&c, &opened, Some(mark)).added, Some((1, 1)));
+    assert_eq!(lists.add(&c, Vec::new(), None).added, None);
 }

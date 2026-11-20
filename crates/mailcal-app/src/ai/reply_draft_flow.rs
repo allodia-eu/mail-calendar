@@ -4,11 +4,12 @@
 
 use engine_api::{AccountId, Draft, Provider};
 use mailcal_account::drafted_reply_keyword;
+use mailcal_ai::{TaskKind, tasks_done};
 use mailcal_composer::ReplyDraftReport;
 
 use super::{
     AiFailure, AiQueued, AiWork, AiWorkKey,
-    reply_draft::{HeldDraft, Phase, asks_again, asks_before_replacing},
+    reply_draft::{HeldDraft, Phase, asks_again},
 };
 use crate::{App, ComposeKind, CompositionId, Surface};
 
@@ -64,8 +65,7 @@ impl<P: Provider> App<P> {
             let replying = matches!(reply.kind, ComposeKind::Reply | ComposeKind::ReplyAll);
             let held = reply.held;
             let busy = held.busy() || matches!(held.phase, Phase::Gone);
-            if !replying || busy || (asks_before_replacing(held.report.as_ref()) && !start.replace)
-            {
+            if !replying || busy || (held.asks_before_replacing() && !start.replace) {
                 return None;
             }
             held.serial += 1;
@@ -205,6 +205,45 @@ impl<P: Provider> App<P> {
         }
     }
 
+    /// Where `composition`'s file list is counted from while a file can change its record: a draft
+    /// with a file to attach is in the reply. `None` otherwise, when no file changes the record.
+    #[must_use]
+    pub fn reply_draft_files_mark(&self, composition: &CompositionId) -> Option<u64> {
+        self.reply_of(composition, |reply| {
+            let draft = reply.held.inserted()?;
+            let attaches = draft.tasks.iter().any(|task| task.kind == TaskKind::Attach);
+            attaches.then_some(draft.files_mark).flatten()
+        })
+        .flatten()
+    }
+
+    /// `composition`'s file list changed, from `before` files added since
+    /// [`App::reply_draft_files_mark`] to `after`. Signals [`Surface::ReplyDraft`] when that
+    /// changes what the record says: an item to attach done or open, or the question Send asks.
+    pub fn reply_draft_files_changed(
+        &self,
+        composition: &CompositionId,
+        before: usize,
+        after: usize,
+    ) {
+        let changed = self.reply_of(composition, |reply| {
+            let held = &*reply.held;
+            let Some(draft) = held.inserted() else {
+                return false;
+            };
+            let reads = |added: usize| {
+                (
+                    tasks_done(&draft.tasks, &held.progress(draft, added)),
+                    held.send_question(&|_| added),
+                )
+            };
+            reads(before) != reads(after)
+        });
+        if changed == Some(true) {
+            self.observer.surface_changed(Surface::ReplyDraft);
+        }
+    }
+
     /// The person's tick on item `index` of the draft in the reply. A gap follows the reply and is
     /// never ticked by hand.
     pub fn tick_reply_draft_item(&self, composition: &CompositionId, index: usize, done: bool) {
@@ -215,7 +254,7 @@ impl<P: Provider> App<P> {
             if draft
                 .tasks
                 .get(index)
-                .is_none_or(|task| task.kind == mailcal_ai::TaskKind::FillIn)
+                .is_none_or(|task| task.kind == TaskKind::FillIn)
             {
                 return false;
             }
