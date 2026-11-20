@@ -260,15 +260,14 @@ class MainActivity : AppCompatActivity() {
     // redirect back to onNewIntent. Separate from the Microsoft handle so the two flows can't
     // clobber each other. Not persisted.
     internal var pendingGoogleLogin: String? = null
-    // The equivalent handle for an in-flight JMAP sign-in. Separate again, so three concurrent
-    // flows can't clobber each other. Not persisted, it carries the PKCE verifier.
-    internal var pendingJmapLogin: String? = null
+    // The in-flight JMAP sign-in from the setup card: its spinner and its handle, separate so no
+    // two flows can clobber each other. Not persisted, the handle carries the PKCE verifier.
+    internal val jmapSignIn = SignInSlot()
+    // The same, for an in-flight IMAP sign-in from the setup card.
+    internal val imapSignIn = SignInSlot()
     // Which attempt of an existing account's browser sign-in, which the core runs, this host has
     // opened the browser for (MainActivityBrowserSignIn.kt).
     internal val browserSignIns = BrowserSignInDriver()
-    // The equivalent handle for an in-flight IMAP sign-in. Separate again, so no two flows can
-    // clobber each other. Not persisted, it carries the PKCE verifier.
-    internal var pendingImapLogin: String? = null
     // A notification deep-link (accountId + messageKey) waiting to be opened once the Rust app
     // has finished connecting. Set from the launch intent (cold start) or onNewIntent (resumed);
     // drained and cleared in connect() once `app` is ready.
@@ -285,12 +284,6 @@ class MainActivity : AppCompatActivity() {
     internal var signingInMicrosoft by mutableStateOf(false)
     // The same, for an in-flight Google sign-in.
     internal var signingInGoogle by mutableStateOf(false)
-    // The same, for an in-flight JMAP sign-in, set while discovery + registration run and the
-    // browser is open.
-    internal var signingInJmap by mutableStateOf(false)
-    // The same, for an in-flight IMAP sign-in, set while discovery and registration run and the
-    // browser is open.
-    internal var signingInImap by mutableStateOf(false)
     // The Allodia account's card as the core keeps it (`allodiaCard`), read again on every ALLODIA
     // signal: who is signed in, the sign-in out and what the last one came to
     // (MainActivityAllodia.kt).
@@ -320,11 +313,6 @@ class MainActivity : AppCompatActivity() {
     // The record behind that address when the flow was opened from an offer, so the setup
     // screen takes the route the other device wrote down rather than re-deriving one.
     internal var setupStartOffer by mutableStateOf<AllodiaAccountOffer?>(null)
-    // Set from the moment the redirect lands until the account is added: the token exchange is a
-    // network round trip, and without this the card renders its ordinary idle button for a second
-    // or two while work is plainly happening. A button you can press during a step that is
-    // already running is not just untidy, it invites a second attempt.
-    internal var completingJmap by mutableStateOf(false)
     internal val mainHandler = Handler(Looper.getMainLooper())
 
     // Requests POST_NOTIFICATIONS on Android 13+ (auto-granted below 33) so the background sync
