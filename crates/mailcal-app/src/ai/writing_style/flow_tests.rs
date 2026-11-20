@@ -343,3 +343,26 @@ fn a_remedy_that_leads_elsewhere_keeps_or_closes_the_flow_whatever_the_order() {
         assert!(flows.flow.is_none());
     }
 }
+
+/// Fetching older sent mail is part of the review: Back leaves it for the range, Close ends the
+/// flow, and Learn waits for what the read finds. Leaving it drops the fetch's answer.
+#[test]
+fn a_review_fetching_older_mail_goes_back_or_closes_as_a_review_does() {
+    for (intent, after) in [
+        (LearningIntent::Back, Some(Stage::ChooseRange)),
+        (LearningIntent::Close, None),
+        (learn(), Some(Stage::Review(Review::Fetching))),
+    ] {
+        let mut flows = Flows::default();
+        apply(&mut flows, LearningIntent::Open, &["a"]);
+        let Start::Read(ticket) = apply(&mut flows, LearningIntent::Next, &["a"]) else {
+            panic!("Next reads");
+        };
+        flows.current(ticket).unwrap().stage = Stage::Review(Review::Fetching);
+        let start = apply(&mut flows, intent.clone(), &["a"]);
+        assert!(matches!(start, Start::Nothing), "{intent:?}");
+        assert_eq!(stage(&flows), after, "{intent:?}");
+        let left = after != Some(Stage::Review(Review::Fetching));
+        assert_eq!(flows.current(ticket).is_none(), left, "{intent:?}");
+    }
+}

@@ -13,7 +13,7 @@ contract follows from that one line.
 | Surface | Belongs to | May take layout | What it says |
 |---|---|:---:|---|
 | **The bar** | A download the user **awaits**: adding an account, opening an unsynced folder, an explicit refetch, a cold first paint | ✅ its own row, **below** the message list | "Downloading 1,200 of 3,387…" |
-| **The hint** | A pass **nobody asked for**: a poll tick, an `IDLE`/push notification, a boot catch-up, and the body warm that follows a sync | ❌ never: it goes inside a status line the client already draws | "Syncing eva@example.com: 3 of 12 folders" |
+| **The hint** | A pass **nobody asked for**: a poll tick, an `IDLE`/push notification, a boot catch-up, the body warm that follows a sync, and the older sent mail a writing style review fetches ([`ai.md`](ai.md) rule 11) | ❌ never: it goes inside a status line the client already draws | "Syncing eva@example.com: 3 of 12 folders" |
 | **The pause** | An account whose **server asked to be left alone** for a while: a rate limit, not a fault | ❌ never: the same status line, in the hint's place | "Sync paused", with the wait behind a hover |
 
 They do not overlap. The core reports an awaited download in

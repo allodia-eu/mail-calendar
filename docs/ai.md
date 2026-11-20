@@ -132,25 +132,48 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 
 11. **The flow is one record, `writing_style_learning()`, whose stage the core moves:**
     - `ChooseAccount`, only with more than one account used for mail, each named by its address.
-    - `ChooseRange`, from the core's presets (`learn_ranges`): everything the device holds;
-      everything up to the end of last year, to leave out mail written with an assistant's help;
-      or a range of the person's own within days the core bounds, offered last and carrying the
-      days it starts from (the earliest day the device holds, or a year back when it holds
-      everything, to today). Only what the device holds is offered: the record says how far back that is (the account's sync depth), the end of last
-      year is offered only when the device holds mail from before this year, and a range of the
-      person's own starts no earlier. A day is a whole day in UTC, as a sync window's first day
+    - `ChooseRange`, from the core's presets (`learn_ranges`), the same for every account: all the
+      person's sent mail, as far back as the server holds it; everything up to the end of last
+      year, to leave out mail written with an assistant's help; or a range of the person's own,
+      offered last and carrying the days it starts from (a year back to today), which may start
+      on any day and ends by today. A range is not bounded by what the device holds: the review
+      fetches what it reaches further back. The record says how far back the device holds the
+      account's mail (its sync depth). A day is a whole day in UTC, as a sync window's first day
       is. A client converts no dates.
-    - `Review`: the core reads the range and stops before anything leaves: `Reading`, then `Ready`
-      (messages found, how many say enough to learn from per language, how many were left out in
-      other languages, the dates read) or `NothingUsable`. It says what is sent where, naming the
-      relay or the endpoint's host, and names no price, which only the relay knows. At
+    - `Review`: the core reads the range and stops before anything leaves. When the range reaches
+      back past what the device holds, it first fetches the account's older sent mail from its
+      server (`Fetching`, which can take a while, drawn with the platform's spinner from Next
+      until the read ends, [`waiting.md`](waiting.md) rule 1), then reads (`Reading`), then says
+      `Ready` (messages found, how many say enough to learn from per language, how many were left
+      out in other languages, the dates read) or `NothingUsable`. It says what is sent where,
+      naming the relay or the endpoint's host, and names no price, which only the relay knows. At
       `NothingUsable` Learn is held and nothing will be sent, so the record names neither a
       destination nor a reason it could not send (`sends_to` and `cannot_send` are both empty).
-      It says how far back the device holds the account's mail, and, for an account whose server
-      keeps no keyword, that only this device knows its drafted replies (rule 25). **Pressing
-      Learn there is the consent**; nothing asks anywhere else. Learn carries the default name the
+      It says how far back the device holds the account's mail, whether older mail the range
+      reaches could not be fetched (`older_not_fetched`), and, for an account whose server keeps
+      no keyword, that only this device knows its drafted replies (rule 25). **Pressing Learn
+      there is the consent**; nothing asks anywhere else. Learn carries the default name the
       style is stored under and the language the app is read in, both the client's, since the
       core has no words or locale of its own.
+    - **Older sent mail is fetched for the read and not kept.** The fetch holds the account's Sent
+      mailboxes further back than its sync window (back to the range's first day, or over their
+      whole history for a range without one) and syncs the account under that; every pass of the
+      account runs under the same deeper windows until the read ends, so a poll neither contends
+      with it nor reconciles the older mail away. It is a pass nobody started from the mail list,
+      so it says what [`sync-progress.md`](sync-progress.md) lets such a pass say: the hint once it
+      commits mail, never the bar, and a server that cannot be reached is the outage it always is.
+      On a transport whose mail is one scope for the whole account (JMAP, Gmail) holding Sent
+      further back starts that scope over, so the account's own window is fetched again too. The
+      fetch is complete when its pass ended with nothing failed, or when the Sent mail the device
+      then holds reaches the range's first day (the engine's `MailboxSpan::oldest`); after a
+      complete fetch, mail read that starts later than the range is all the person sent, and a
+      fetch that is not complete reads what the device holds and says so. Once the read has ended,
+      or the person has left the review, the account is narrowed back to its own window as a sync
+      depth reduction narrows it: the older mail is removed from the device, the account's mail
+      cursors are cleared and its mail synced again under its own window, since the cursors still
+      record the deeper fetch. A pass cannot be stopped part way, so Back or Close while the fetch
+      runs leaves it to end, and its answer is dropped and its mail removed as above. The run sends
+      what the read kept in memory and fetches nothing.
     - `Learning { done, total }`, one request per language and part, with **Stop**, which ends the
       run before the next request and keeps nothing.
     - `Failed { failure, remedy }`, with its one remedy (rule 27). A client sends `Remedy` for
@@ -169,7 +192,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     |---|---|---|
     | `ChooseAccount` | none | ends the flow, keeping nothing |
     | `ChooseRange` | to `ChooseAccount`, where it was shown | ends the flow |
-    | `Review` | to `ChooseRange`, dropping a read under way | ends the flow, dropping a read under way |
+    | `Review` | to `ChooseRange`, dropping a read under way, a fetch included | ends the flow, dropping a read under way, a fetch included |
     | `Learning` | none; Stop returns to `Review` | the run goes on, drawn on the page with its Stop ([`waiting.md`](waiting.md) rule 3) |
     | `Failed` | to the stage its remedy names, otherwise `Review`, or `ChooseRange` when nothing was read | ends the flow |
     | `Learned` | none | the reveal is left as its own Close leaves it (rule 15); the style keeps its default name |
@@ -402,7 +425,9 @@ Learning and drafting **pass the jurisdiction gate**; neither is a carve-out
 ([`../AGENTS.md`](../AGENTS.md), "Non-negotiables"). The relay is `eu-native` by construction; an
 own endpoint is admitted as far as the person's declaration and the mode allow, an undeclared one
 only under `all`. A model on the person's own computer is declared like any other endpoint, so no
-local or air-gapped deployment is exempt. Learning reads only the sent mail the device holds.
+local or air-gapped deployment is exempt. Learning reads the sent mail on the device; older sent
+mail it fetches comes from the account's own server, as a sync does, and nothing goes to a model
+before Learn is pressed.
 
 ## Per-platform matrix
 
@@ -412,7 +437,7 @@ local or air-gapped deployment is exempt. Learning reads only the sent mail the 
 | The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Learning in the flow host, with Back, Stop and one remedy (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| Learning in the flow host, with Back, Stop and one remedy; older sent mail fetched for the review (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |

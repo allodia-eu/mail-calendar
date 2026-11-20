@@ -43,6 +43,9 @@ pub(crate) struct SyncAccountOutcome {
     /// questions and neither implies the other: about two Gmail refusals in three state no
     /// instant at all, so a pause with no figure is the common case, not an edge one.
     pub(crate) throttled: Option<bool>,
+    /// Whether the folder list and every folder this pass attempted synced: none failed, was
+    /// busy or was refused. A folder the server no longer lists does not count against it.
+    pub(crate) complete: bool,
 }
 
 /// Syncs one account's mail **concurrently**: sync the folder list **once**, then stream
@@ -76,6 +79,7 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
             busy_scopes: 0,
             throttled_for: None,
             throttled: None,
+            complete: false,
         };
     }
 
@@ -130,6 +134,10 @@ pub(crate) async fn sync_account_providers<P: Provider, K: SyncObserver>(
             + folder_reaches.iter().filter(|r| **r == Reach::Busy).count(),
         throttled_for: longest_stated_wait(&report),
         throttled: throttled(list_reach, folder_reaches.iter().copied()),
+        complete: list_reach == Reach::Reached
+            && folder_reaches
+                .iter()
+                .all(|reach| matches!(reach, Reach::Reached | Reach::Gone)),
     }
 }
 

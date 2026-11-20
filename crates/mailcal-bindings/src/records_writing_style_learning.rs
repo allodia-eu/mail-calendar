@@ -44,14 +44,15 @@ pub struct StyleLearningAccount {
     pub email: String,
 }
 
-/// Which sent mail to learn from. Days are `YYYY-MM-DD`, whole days in UTC.
+/// Which sent mail to learn from. Days are `YYYY-MM-DD`, whole days in UTC. A range may reach
+/// back past what the device holds: the review fetches the older sent mail first.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum StyleLearnRange {
-    /// Everything the device holds.
+    /// All of it, as far back as the server holds it.
     Everything,
     /// Everything up to the end of last year.
     UntilEndOfLastYear,
-    /// A range of the person's own, both days included, within `ChooseRange`'s bounds.
+    /// A range of the person's own, both days included, ending by `ChooseRange`'s `latest`.
     Between { since: String, until: String },
 }
 
@@ -102,6 +103,9 @@ pub struct StyleLearningReport {
 /// The review's state.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Enum)]
 pub enum StyleLearningReview {
+    /// Fetching from the account's server the sent mail the range reaches and the device does not
+    /// hold, which can take a while; nothing has left the device.
+    Fetching,
     /// Reading on the device; nothing has left it.
     Reading,
     Ready {
@@ -122,21 +126,25 @@ pub enum StyleLearningStage {
     },
     ChooseRange {
         email: String,
-        /// The presets that can be honoured, in order. The last is always `Between`, carrying
-        /// the days a range of the person's own starts from before they change them.
+        /// The presets, in order. The last is always `Between`, carrying the days a range of the
+        /// person's own starts from before they change them.
         presets: Vec<StyleLearnRange>,
-        /// The first day a range of the person's own may start on; `None` when the device holds
-        /// everything.
-        earliest: Option<String>,
-        /// The last day it may end on.
+        /// The last day a range of the person's own may end on; it may start on any day.
         latest: String,
         selected: Option<StyleLearnRange>,
+        /// How far back the device holds the account's mail; the review fetches what a range
+        /// reaches further back.
         reach: StyleSentReach,
     },
     Review {
         email: String,
         range: StyleLearnRange,
+        /// How far back the device holds the account's mail; the report's dates say how far back
+        /// what was read reaches, older mail fetched for the review included.
         reach: StyleSentReach,
+        /// The range reaches back past what the device holds and the older sent mail could not be
+        /// fetched, so the review read only what the device holds, back to `reach`.
+        older_not_fetched: bool,
         /// What the review found.
         state: StyleLearningReview,
         /// Where Learn sends; `None` when it cannot, and `cannot_send` says why. Both are `None`
@@ -257,7 +265,6 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
         } => StyleLearningStage::ChooseRange {
             email: address,
             presets: ranges.presets.into_iter().map(Into::into).collect(),
-            earliest: ranges.earliest.map(day),
             latest: day(ranges.latest),
             selected: selected.map(Into::into),
             reach: reach.into(),
@@ -266,6 +273,7 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
             address,
             range,
             reach,
+            older_not_fetched,
             state,
             sends_to,
             keyword_kept,
@@ -273,7 +281,9 @@ pub(crate) fn learning(view: core::LearningView) -> WritingStyleLearning {
             email: address,
             range: range.into(),
             reach: reach.into(),
+            older_not_fetched,
             state: match state {
+                core::Review::Fetching => StyleLearningReview::Fetching,
                 core::Review::Reading => StyleLearningReview::Reading,
                 core::Review::Ready(found) => StyleLearningReview::Ready {
                     report: report(found),

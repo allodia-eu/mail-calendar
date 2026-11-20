@@ -1,20 +1,16 @@
 //! The learning flow as the core holds it (`docs/ai.md` rules 11 to 14): the record a host draws,
-//! the intents that move it, the read the review runs and the run the consent queues.
+//! the intents that move it, and the run the consent queues. The review's read is in
+//! [`super::review`].
 //!
-//! The read is an engine read and sends nothing, so it runs on the host's runtime beside the
-//! queue; the run sends, so it is queued work under [`AiWorkKey::Learning`], one at a time.
+//! The run sends, so it is queued work under [`AiWorkKey::Learning`], one at a time.
 
 use engine_api::{AccountId, Provider};
 use mailcal_account::{StoredWritingStyle, WritingStyleId};
-use mailcal_ai::{
-    LearnOptions, LearnProgress,
-    corpus::{self, CorpusOptions},
-    learn_style,
-};
+use mailcal_ai::{LearnOptions, LearnProgress, learn_style};
 
 use super::{
     PageRun, StyleControl, WritingStyleChange, WritingStyleChangeKind,
-    flow::{Flow, Flows, LearningIntent, LearningTrailStage, Review, Reviewed, Stage, Start},
+    flow::{Flow, Flows, LearningIntent, LearningTrailStage, OlderSent, Review, Stage, Start},
     range::{LearnRange, LearnRanges, SentReach, learn_ranges, today},
 };
 use crate::{
@@ -49,7 +45,8 @@ pub enum LearningStage {
         ranges: LearnRanges,
         /// The range chosen.
         selected: Option<LearnRange>,
-        /// How far back the device holds the account's mail.
+        /// How far back the device holds the account's mail; a range reaching further back has
+        /// its older sent mail fetched by the review.
         reach: SentReach,
     },
     /// What the range holds on this device, and what is sent where.
@@ -58,8 +55,12 @@ pub enum LearningStage {
         address: String,
         /// The range read.
         range: LearnRange,
-        /// How far back the device holds the account's mail.
+        /// How far back the device holds the account's mail; the report's dates say how far back
+        /// what was read reaches.
         reach: SentReach,
+        /// The range reaches back past what the device holds and the older sent mail could not
+        /// be fetched, so only what it holds was read.
+        older_not_fetched: bool,
         /// What was found.
         state: Review,
         /// Where Learn would send, or why it cannot; `None` while nothing found is usable, since
@@ -142,7 +143,7 @@ const fn control(enabled: bool) -> StyleControl {
 }
 
 impl<P: Provider> App<P> {
-    fn flows(&self) -> std::sync::MutexGuard<'_, Flows> {
+    pub(super) fn flows(&self) -> std::sync::MutexGuard<'_, Flows> {
         self.ai
             .writing_style
             .flows
@@ -151,7 +152,7 @@ impl<P: Provider> App<P> {
     }
 
     /// How far back the device holds `account`'s mail.
-    fn sent_reach(&self, account: &AccountId) -> SentReach {
+    pub(super) fn sent_reach(&self, account: &AccountId) -> SentReach {
         SentReach::of(self.effective_sync_depth(account.as_str()), today())
     }
 
@@ -206,7 +207,7 @@ impl<P: Provider> App<P> {
                 }
             }
             Stage::ChooseRange => {
-                let ranges = learn_ranges(reach, today());
+                let ranges = learn_ranges(today());
                 view.back = flow.asked_account.then_some(StyleControl {
                     enabled: true,
                     running: false,
@@ -228,6 +229,7 @@ impl<P: Provider> App<P> {
                     address,
                     range: flow.range.unwrap_or(LearnRange::Everything),
                     reach,
+                    older_not_fetched: flow.older == OlderSent::NotFetched,
                     state: review.clone(),
                     sends_to: (!matches!(review, Review::NothingUsable(_))).then_some(route),
                     keyword_kept: flow
@@ -299,7 +301,7 @@ impl<P: Provider> App<P> {
         let start = self.flows().apply(
             intent,
             &accounts,
-            |account, range| learn_ranges(self.sent_reach(account), today).admits(range),
+            |_, range| learn_ranges(today).admits(range),
             route,
         );
         if stopping {
@@ -315,70 +317,6 @@ impl<P: Provider> App<P> {
             )),
             Start::RevealClosed(id) => LearningStep::Change(WritingStyleChange::CloseReveal { id }),
         }
-    }
-
-    /// Reads what the review under `ticket` found, on the device; an answer for a review the
-    /// person has since left is dropped. Sends nothing.
-    pub async fn read_learning_review(&self, ticket: u64) {
-        let asked = self.flows().current(ticket).and_then(|flow| {
-            (flow.stage == Stage::Review(Review::Reading))
-                .then(|| Some((flow.account.clone()?.0, flow.range?)))
-                .flatten()
-        });
-        let Some((account, range)) = asked else {
-            return;
-        };
-        let another_account = self.accounts.senders().len() > 1;
-        let read = self
-            .learnable_sent_mail(&account, range.bounds(today()))
-            .await;
-        let keyword_kept = self.keeps_drafted_keyword(&account).await;
-        let found = read.map(|(messages, horizon)| {
-            let signatures = self.signature_plain_texts();
-            corpus::build(
-                messages,
-                &CorpusOptions {
-                    signatures,
-                    horizon,
-                },
-            )
-        });
-        {
-            let mut flows = self.flows();
-            let Some(flow) = flows
-                .current(ticket)
-                .filter(|flow| flow.stage == Stage::Review(Review::Reading))
-            else {
-                return;
-            };
-            match found {
-                None => flow.stage = Stage::Failed(AiFailure::NoSentFolder { another_account }),
-                Some(corpus) if corpus.languages.values().all(Vec::is_empty) => {
-                    flow.stage = Stage::Review(Review::NothingUsable(corpus.report));
-                }
-                Some(corpus) => {
-                    flow.stage = Stage::Review(Review::Ready(corpus.report.clone()));
-                    flow.reviewed = Some(Reviewed {
-                        corpus,
-                        keyword_kept,
-                    });
-                }
-            }
-        }
-        self.observer.surface_changed(Surface::WritingStyle);
-    }
-
-    /// The plain text of every signature in the library, which the corpus cuts from a message
-    /// where its client wrote no delimiter above it.
-    fn signature_plain_texts(&self) -> Vec<String> {
-        self.signatures
-            .lock()
-            .expect("signatures mutex poisoned")
-            .library
-            .entries
-            .values()
-            .map(|signature| signature.body_plain.clone())
-            .collect()
     }
 
     /// The run the consent under `ticket` queued: what the review read, sent behind the gate.

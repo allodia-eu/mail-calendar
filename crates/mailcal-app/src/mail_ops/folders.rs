@@ -111,14 +111,17 @@ pub(super) fn folder_name_matches_role(name: &str, role: &MailboxRole) -> bool {
 /// conventional Sent name. A conversation's move takes nothing out of any of them
 /// (`docs/row-actions.md`).
 pub(crate) fn sent_keys(mailboxes: &[Mailbox]) -> Vec<String> {
-    mailboxes
-        .iter()
-        .filter(|mailbox| {
-            mailbox.role.as_ref() == Some(&MailboxRole::Sent)
-                || folder_name_matches_role(&mailbox.name, &MailboxRole::Sent)
-        })
+    sent_mailboxes(mailboxes)
         .map(|mailbox| mailbox.id.key().as_str().to_owned())
         .collect()
+}
+
+/// The account's Sent mailboxes: by role, or by a name that says Sent.
+pub(crate) fn sent_mailboxes(mailboxes: &[Mailbox]) -> impl Iterator<Item = &Mailbox> {
+    mailboxes.iter().filter(|mailbox| {
+        mailbox.role.as_ref() == Some(&MailboxRole::Sent)
+            || folder_name_matches_role(&mailbox.name, &MailboxRole::Sent)
+    })
 }
 
 /// Where `account`'s moves land, resolved exactly as the writes resolve them, for the row menu

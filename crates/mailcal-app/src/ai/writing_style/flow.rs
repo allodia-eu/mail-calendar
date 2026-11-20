@@ -52,7 +52,10 @@ pub enum LearningIntent {
 /// What the review found on the device.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Review {
-    /// Reading; nothing has left the device.
+    /// Fetching the account's sent mail the range reaches from its server, since the device does
+    /// not hold it; nothing has left the device.
+    Fetching,
+    /// Reading on the device; nothing has left it.
     Reading,
     /// Something to learn from.
     Ready(mailcal_ai::corpus::CorpusReport),
@@ -83,6 +86,17 @@ pub enum LearningTrailStage {
     Review,
 }
 
+/// What a review's read made of sent mail older than the device holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum OlderSent {
+    /// The range reaches nothing older, or nothing has been read yet.
+    NotNeeded,
+    /// It was fetched from the server for the read.
+    Fetched,
+    /// It could not be fetched, so only what the device holds was read.
+    NotFetched,
+}
+
 /// What the review read, kept so the run sends exactly it and Stop returns to it.
 pub(super) struct Reviewed {
     pub(super) corpus: Corpus,
@@ -100,6 +114,8 @@ pub(super) struct Flow {
     pub(super) range: Option<LearnRange>,
     pub(super) stage: Stage,
     pub(super) reviewed: Option<Reviewed>,
+    /// What the last read made of sent mail older than the device holds.
+    pub(super) older: OlderSent,
     /// The name and language the last Learn gave, for Try again.
     pub(super) learn_as: Option<(String, LanguageCode)>,
     /// Whether the failure shown came from the run rather than the read.
@@ -150,6 +166,7 @@ impl Flows {
             range: Some(LearnRange::Everything),
             stage,
             reviewed: None,
+            older: OlderSent::NotNeeded,
             learn_as: None,
             run_failed: false,
         });
@@ -349,6 +366,7 @@ impl Flow {
             return Start::Nothing;
         }
         self.reviewed = None;
+        self.older = OlderSent::NotNeeded;
         self.stage = Stage::Review(Review::Reading);
         Start::Read(0)
     }

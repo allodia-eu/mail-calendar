@@ -9,8 +9,10 @@ use mailcal_ai::StyleGuide;
 
 mod flow;
 mod learning;
+mod older_sent;
 mod range;
 mod reveal;
+mod review;
 mod sent;
 mod work;
 
@@ -45,11 +47,14 @@ impl StyleControl {
     }
 }
 
-/// The library's changes and the learning flow.
+/// The library's changes, the learning flow, and the Sent mail a review holds further back.
 #[derive(Default)]
 pub(crate) struct WritingStyleState {
     work: Mutex<work::Work>,
     flows: Mutex<flow::Flows>,
+    deeper: Mutex<older_sent::HeldDeeper>,
+    /// Held by a review's read from its fetch to its narrowing.
+    fetching: tokio::sync::Mutex<()>,
 }
 
 /// What a row opens.
@@ -220,6 +225,8 @@ impl<P: Provider> App<P> {
 
 #[cfg(test)]
 mod tests_flow;
+#[cfg(test)]
+mod tests_older_sent;
 #[cfg(test)]
 mod tests_page;
 #[cfg(test)]

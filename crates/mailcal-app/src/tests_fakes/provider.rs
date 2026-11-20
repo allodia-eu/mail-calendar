@@ -26,7 +26,10 @@ use super::message;
 
 #[path = "provider_builders.rs"]
 mod builders;
+#[path = "provider_chunks.rs"]
+mod chunks;
 pub(crate) use builders::SourceFailure;
+use chunks::{pages, reconcile_chunks};
 
 /// A minimal JMAP-shaped fake: one Inbox and a configurable set of messages, a snapshot on
 /// first sync of a scope and an empty delta afterwards. Records the edits it receives so a
@@ -102,6 +105,9 @@ pub(crate) struct FakeProvider {
     /// and every folder change is applied to it, with ids that survive a rename (the JMAP
     /// shape). `None` is a provider without folder writes.
     tree: Option<Arc<Mutex<Vec<Mailbox>>>>,
+    /// When set, a scope's first pass fetches only what its windows admit, as a real adapter's
+    /// snapshot does, and each pass's windows are recorded here.
+    windowed: Option<Arc<Mutex<Vec<MailboxWindows>>>>,
 }
 
 /// Decrements the in-flight count however a source fetch leaves.
@@ -238,11 +244,20 @@ impl Provider for FakeProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        _window: MailboxWindows,
+        window: MailboxWindows,
         _fetch_batch: usize,
         chunk_size: usize,
     ) -> EmailStream<'a> {
         self.syncs.fetch_add(1, Ordering::SeqCst);
+        let messages: Vec<Message> = match &self.windowed {
+            Some(seen) => {
+                seen.lock().unwrap().push(window.clone());
+                let date = |m: &Message| m.received_at.or(m.sent_at);
+                let admits = |m: &&Message| window.admits(m.mailboxes.iter(), date(m));
+                self.messages.iter().filter(admits).cloned().collect()
+            }
+            None => self.messages.clone(),
+        };
         if self.refuses_signin {
             return Box::pin(futures::stream::iter(vec![Err(
                 ProviderError::authentication("authentication failed"),
@@ -266,18 +281,18 @@ impl Provider for FakeProvider {
                 SyncState::new("email-2"),
             )]
         } else if self.stream_gate.is_some() {
-            pages(&self.messages, chunk_size)
+            pages(&messages, chunk_size)
                 .map(|page| {
                     EmailChunk::additive(
                         page.to_vec(),
                         Vec::new(),
-                        Some(self.messages.len()),
+                        Some(messages.len()),
                         SyncState::new("email-1"),
                     )
                 })
                 .collect()
         } else {
-            reconcile_chunks(&self.messages, chunk_size)
+            reconcile_chunks(&messages, chunk_size)
         };
         if let Some(gate) = &self.stream_gate {
             let after_commit = Arc::clone(&gate.after_commit);
@@ -447,47 +462,3 @@ impl engine_api::MailboxWrites for FakeProvider {
     }
 }
 impl CalendarWrites for FakeProvider {}
-
-/// Splits `messages` the way a real adapter yields them: `chunk_size` per chunk, `0` meaning
-/// one chunk for the lot (what [`StreamTuning`](engine_api::StreamTuning) documents).
-///
-/// A fake that hands the whole mailbox over in one chunk cannot see the core's commit
-/// granularity at all, and that granularity is what a streamed pass costs, because the core
-/// re-projects its cached list once per commit. So the parameter under test is honoured here
-/// rather than ignored.
-///
-/// An empty mailbox still yields one (empty) chunk: a pass that finds nothing still has a final
-/// chunk to reconcile the store against.
-fn pages(messages: &[Message], chunk_size: usize) -> impl Iterator<Item = &[Message]> {
-    let pages: Vec<&[Message]> = match chunk_size {
-        _ if messages.is_empty() => vec![&[]],
-        0 => vec![messages],
-        size => messages.chunks(size).collect(),
-    };
-    pages.into_iter()
-}
-
-/// `messages` as a reconciling pass's chunks: intermediate pages hold the cursor and carry the
-/// keys they cover, and only the last advances it and tombstones what no page named.
-fn reconcile_chunks(messages: &[Message], chunk_size: usize) -> Vec<EmailChunk> {
-    let total = messages.len();
-    let pages: Vec<&[Message]> = pages(messages, chunk_size).collect();
-    let last = pages.len() - 1;
-    pages
-        .into_iter()
-        .enumerate()
-        .map(|(index, page)| {
-            let present = page.iter().map(|m| m.id.key().clone()).collect();
-            if index == last {
-                EmailChunk::reconcile_last(
-                    page.to_vec(),
-                    present,
-                    Some(total),
-                    SyncState::new("email-1"),
-                )
-            } else {
-                EmailChunk::reconcile_page(page.to_vec(), present, Some(total))
-            }
-        })
-        .collect()
-}
