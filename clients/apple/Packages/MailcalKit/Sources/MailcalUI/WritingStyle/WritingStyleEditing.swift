@@ -120,8 +120,8 @@ extension StyleLearnRange {
     /// Whether this is the same preset as `other`, whatever days a range of the person's own has.
     func samePreset(as other: StyleLearnRange?) -> Bool {
         switch (self, other) {
-        case (.everything, .everything?), (.untilEndOfLastYear, .untilEndOfLastYear?),
-             (.between, .between?):
+        case (.lastTwelveMonths, .lastTwelveMonths?), (.everything, .everything?),
+             (.untilEndOfLastYear, .untilEndOfLastYear?), (.between, .between?):
             true
         default:
             false

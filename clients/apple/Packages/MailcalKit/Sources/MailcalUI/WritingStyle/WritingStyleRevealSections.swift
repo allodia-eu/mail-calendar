@@ -240,14 +240,16 @@ struct RevealLetterSection: View {
         .revealCard(palette, radius: 12)
         .shadow(color: palette.shadow, radius: 14, y: 10)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(spoken)
+        .accessibilityLabel(Self.spoken(letter))
     }
 
     /// The letter as VoiceOver reads it, one element in the contract's order: how it opens, its
     /// length, its paragraphs, how it closes and the name, each part only when the record has it.
-    private var spoken: String {
+    /// A greeting's or a sign-off's own comma is left out, since the parts are joined by one.
+    static func spoken(_ letter: WritingStyleLetter) -> String {
         func words(_ spans: [WritingStyleSpan]) -> String {
-            spans.map(\.text).joined().trimmingCharacters(in: .whitespaces)
+            spans.map(\.text).joined()
+                .trimmingCharacters(in: .whitespaces.union(CharacterSet(charactersIn: ",")))
         }
         var parts: [String] = []
         if !letter.opening.isEmpty { parts.append(L10n.a11y_letter_opening(greeting: words(letter.opening))) }

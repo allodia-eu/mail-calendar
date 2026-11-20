@@ -62,6 +62,7 @@ enum WritingStyleWords {
     /// A preset range's label.
     static func range(_ range: StyleLearnRange) -> String {
         switch range {
+        case .lastTwelveMonths: L10n.learn_range_last_twelve_months()
         case .everything: L10n.learn_range_all()
         case .untilEndOfLastYear: L10n.learn_range_until_last_year()
         case .between: L10n.learn_range_between()
@@ -77,6 +78,15 @@ enum WritingStyleWords {
         var style = Date.IntervalFormatStyle(date: .long, time: .omitted, locale: locale)
         style.timeZone = utc
         return (from..<to.addingTimeInterval(1)).formatted(style)
+    }
+
+    /// What Next fetches for the range chosen, said under the ranges; `nil` when it fetches nothing.
+    static func fetch(_ fetch: StyleRangeFetch) -> String? {
+        switch fetch {
+        case .nothing: nil
+        case .older: L10n.learn_range_fetch_older()
+        case .wholeHistory: L10n.learn_range_fetch_all()
+        }
     }
 
     /// How far back the device holds the account's sent mail.

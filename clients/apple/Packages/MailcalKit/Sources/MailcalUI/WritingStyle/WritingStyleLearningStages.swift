@@ -18,14 +18,16 @@ struct WritingStyleLearningStage: View {
                     options: accounts.map { StyleChoice(id: $0.accountId, title: $0.email) },
                     selected: selected
                 ) { model.learnStyle(.selectAccount(account: $0)) }
-            case let .chooseRange(email, presets, earliest, latest, selected, reach):
+            case let .chooseRange(email, presets, latest, selected, reach, fetch):
                 StyleRangeStage(
-                    model: model, email: email, presets: presets, earliest: earliest,
-                    latest: latest, selected: selected, reach: reach)
-            case let .review(email, range, reach, review, sendsTo, cannotSend, keywordKept):
+                    model: model, email: email, presets: presets, latest: latest,
+                    selected: selected, reach: reach, fetch: fetch)
+            case let .review(
+                email, range, reach, olderNotFetched, review, sendsTo, cannotSend, keywordKept):
                 StyleReviewStage(
-                    email: email, range: range, reach: reach, review: review, sendsTo: sendsTo,
-                    cannotSend: cannotSend, keywordKept: keywordKept)
+                    email: email, range: range, reach: reach, olderNotFetched: olderNotFetched,
+                    review: review, sendsTo: sendsTo, cannotSend: cannotSend,
+                    keywordKept: keywordKept)
             case let .learning(done, total):
                 StyleProgress(done: done, total: total)
             case let .failed(failure, _):
@@ -109,15 +111,16 @@ struct StyleChoiceList: View {
     }
 }
 
-/// Which sent mail: the core's presets, and a range of the person's own within its bounds.
+/// Which sent mail: the core's presets, a range of the person's own ending by its last day, and
+/// what Next fetches for the one chosen.
 private struct StyleRangeStage: View {
     var model: MailboxModel
     let email: String
     let presets: [StyleLearnRange]
-    let earliest: String?
     let latest: String
     let selected: StyleLearnRange?
     let reach: StyleSentReach
+    let fetch: StyleRangeFetch
 
     var body: some View {
         Text(email).font(.callout).foregroundStyle(.secondary)
@@ -126,6 +129,12 @@ private struct StyleRangeStage: View {
         }
         if case let .between(since, until)? = selected {
             betweenDays(since: since, until: until)
+        }
+        if let fetch = WritingStyleWords.fetch(fetch) {
+            Text(fetch)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         Text(WritingStyleWords.reach(reach))
             .font(.callout)
@@ -146,10 +155,10 @@ private struct StyleRangeStage: View {
         presets.firstIndex { $0.samePreset(as: selected) }.map(String.init)
     }
 
-    /// The two days of a range of the person's own, each bounded by the other and by what the
-    /// device holds. A day is the core's `YYYY-MM-DD`, in UTC.
+    /// The two days of a range of the person's own, each bounded by the other and the second by
+    /// the core's last day. A day is the core's `YYYY-MM-DD`, in UTC.
     private func betweenDays(since: String, until: String) -> some View {
-        let low = earliest.flatMap(WritingStyleWords.dayDate) ?? .distantPast
+        let low = Date.distantPast
         let high = WritingStyleWords.dayDate(latest) ?? .distantFuture
         let from = WritingStyleWords.dayDate(since) ?? low
         let to = WritingStyleWords.dayDate(until) ?? high
@@ -179,6 +188,7 @@ private struct StyleReviewStage: View {
     let email: String
     let range: StyleLearnRange
     let reach: StyleSentReach
+    let olderNotFetched: Bool
     let review: StyleLearningReview
     let sendsTo: StyleLearningDestination?
     let cannotSend: AiFailure?
@@ -190,11 +200,10 @@ private struct StyleReviewStage: View {
             Text(WritingStyleWords.rangeRead(range)).font(.callout).foregroundStyle(.secondary)
         }
         switch review {
+        case .fetching:
+            working(L10n.learn_fetching())
         case .reading:
-            HStack(spacing: 10) {
-                ProgressView().controlSize(.small)
-                Text(L10n.learn_reading()).foregroundStyle(.secondary)
-            }
+            working(L10n.learn_reading())
         case let .ready(report):
             reportView(report)
         case let .nothingUsable(report):
@@ -207,12 +216,26 @@ private struct StyleReviewStage: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+        if olderNotFetched {
+            Label(L10n.learn_older_not_fetched(), systemImage: "exclamationmark.circle")
+                .font(.callout)
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         consent
         if !keywordKept {
             Label(L10n.learn_keyword_not_kept(), systemImage: "info.circle")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    /// Work on the way, said beside the platform's spinner.
+    private func working(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            ProgressView().controlSize(.small)
+            Text(text).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 

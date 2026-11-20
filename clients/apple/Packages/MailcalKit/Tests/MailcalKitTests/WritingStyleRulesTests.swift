@@ -85,6 +85,28 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
         #expect(one.samePreset(as: .between(since: "2025-01-01", until: "2025-12-31")))
         #expect(!one.samePreset(as: .everything))
         #expect(!StyleLearnRange.everything.samePreset(as: nil))
+        #expect(StyleLearnRange.lastTwelveMonths.samePreset(as: .lastTwelveMonths))
+        #expect(!StyleLearnRange.lastTwelveMonths.samePreset(as: .everything))
+    }
+
+    @Test func aRangeSaysWhatNextFetchesOnlyWhenItFetches() {
+        #expect(WritingStyleWords.fetch(.nothing) == nil)
+        #expect(WritingStyleWords.fetch(.older) == L10n.learn_range_fetch_older())
+        #expect(WritingStyleWords.fetch(.wholeHistory) == L10n.learn_range_fetch_all())
+    }
+
+    @Test func theSpokenLetterJoinsItsPartsWithOneComma() {
+        // A greeting and a sign-off carry their own comma, and the parts are joined by one.
+        func span(_ text: String) -> [WritingStyleSpan] {
+            [WritingStyleSpan(text: text, placeholder: false)]
+        }
+        let letter = WritingStyleLetter(
+            opening: span("Hi Bob,"), paragraphs: [], closing: span("Best regards, "),
+            signsAs: "Alice", words: 120, paragraphCount: 3, shape: "")
+        let spoken = RevealLetterSection.spoken(letter)
+        #expect(!spoken.contains(",,"))
+        #expect(spoken.hasPrefix(L10n.a11y_letter_opening(greeting: "Hi Bob") + ", "))
+        #expect(spoken.contains(L10n.a11y_letter_closing(sign_off: "Best regards") + ", "))
     }
 }
 

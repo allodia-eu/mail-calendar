@@ -73,6 +73,8 @@ final class WritingStyleSettingsTests: XCTestCase {
         try app.wait(.text("Learn from which account?"), "Back did not return to the accounts")
         try app.press(.button("Next"))
         try app.wait(.text("Which sent mail?"))
+        try app.wait(.button("The last twelve months"), "the range does not offer the last year")
+        try app.wait(.button("All your sent mail"), "the range does not offer all sent mail")
         try app.wait(.button("Between two dates"), "the range of the person's own is not offered")
         try app.press(.button("Next"))
 
