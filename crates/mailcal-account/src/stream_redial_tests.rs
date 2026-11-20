@@ -85,6 +85,7 @@ impl Provider for StreamDelegate {
 }
 
 impl engine_api::MailboxWrites for StreamDelegate {}
+impl engine_api::CalendarSync for StreamDelegate {}
 impl CalendarWrites for StreamDelegate {}
 
 fn account() -> AccountId {

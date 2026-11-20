@@ -172,4 +172,5 @@ impl Provider for DemoProvider {
 }
 
 impl engine_api::MailboxWrites for DemoProvider {}
+impl engine_api::CalendarSync for DemoProvider {}
 impl CalendarWrites for DemoProvider {}

@@ -43,6 +43,7 @@ impl engine_provider::Provider for CalendarServer {
 }
 
 impl engine_api::MailboxWrites for CalendarServer {}
+impl engine_provider::CalendarSync for CalendarServer {}
 
 #[async_trait::async_trait]
 impl engine_provider::CalendarWrites for CalendarServer {

@@ -18,7 +18,7 @@
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
-use engine_api::CalendarWrites;
+use engine_api::{CalendarSync, CalendarWrites};
 use engine_core::{
     calendar::{Calendar, Event},
     ids::{AccountId, CalendarId},
@@ -171,6 +171,15 @@ impl Provider for RefreshingGraphCalendarProvider {
             )
     }
 
+    /// Forwarded, because this wrapper advertises `ByAddress`: Graph checks an address with a
+    /// calendar probe.
+    async fn resolve_shared_account(&self, address: &str) -> ProviderResult<SharedAccount> {
+        self.delegate().await?.resolve_shared_account(address).await
+    }
+}
+
+#[async_trait]
+impl CalendarSync for RefreshingGraphCalendarProvider {
     fn calendar_scope(&self, account: &AccountId) -> SyncScope {
         SyncScope::GraphCalendarList {
             account: account.clone(),
@@ -227,12 +236,6 @@ impl Provider for RefreshingGraphCalendarProvider {
                 Err(err) => return Err(err),
             }
         }
-    }
-
-    /// Forwarded, because this wrapper advertises `ByAddress`: Graph checks an address with a
-    /// calendar probe.
-    async fn resolve_shared_account(&self, address: &str) -> ProviderResult<SharedAccount> {
-        self.delegate().await?.resolve_shared_account(address).await
     }
 }
 

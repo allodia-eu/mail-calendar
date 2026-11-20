@@ -461,4 +461,5 @@ impl engine_api::MailboxWrites for FakeProvider {
         })
     }
 }
+impl engine_api::CalendarSync for FakeProvider {}
 impl CalendarWrites for FakeProvider {}
