@@ -198,5 +198,6 @@ extension MailboxModel {
         swipeSettings = app.swipeSettings()
         analyticsConsent = app.analyticsConsent()
         videoconferencing = app.videoconferencingPage()
+        notificationsPage = app.notificationsPage()
     }
 }

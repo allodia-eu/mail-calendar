@@ -190,9 +190,8 @@ struct SettingsCategoryDetail: View {
 
     // MARK: Notifications, the new-mail notification toggle
 
-    /// The app-level "new-mail notifications" toggle. A client-side preference, the scan still runs
-    /// and advances the core's marks when off, so re-enabling never floods with a backlog. Copy
-    /// comes from the shared catalog, like its Android twin (SettingsNotifications.kt).
+    /// The app-level "new-mail notifications" toggle, the core's `NotificationsPage`. Copy comes
+    /// from the shared catalog, like its Android twin (SettingsNotifications.kt).
     @ViewBuilder
     private var notificationsDetail: some View {
         settingsGroup(
@@ -205,7 +204,10 @@ struct SettingsCategoryDetail: View {
     }
 
     private var notificationsBinding: Binding<Bool> {
-        Binding(get: { NotificationPrefs.enabled }, set: { NotificationPrefs.enabled = $0 })
+        Binding(
+            get: { model.notificationsPage.newMail },
+            set: { model.preference(.setNewMailNotifications(on: $0)) }
+        )
     }
 
     // MARK: Privacy, the usage-statistics opt-in, withdrawable in one click (GDPR Art. 7(3))

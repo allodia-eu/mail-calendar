@@ -1,6 +1,6 @@
 // The user's "include more detail" (DEBUG) diagnostics choice, stored in UserDefaults. A
-// client-side preference, mirroring NotificationPrefs: the core owns the *current* level via
-// `setLogLevel`, but forgets it on relaunch, so the choice is persisted here and re-applied as
+// client-side preference: the core owns the *current* level via `setLogLevel`, but forgets it
+// on relaunch, so the choice is persisted here and re-applied as
 // the `logLevel:` argument at every core-construction site (foreground boot, the iOS background
 // refresh's cold worker, the debug/dev boots). OFF is the contract's INFO default
 // (docs/logging.md), which keeps the rotating file log useful over a long window.
