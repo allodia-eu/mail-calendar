@@ -271,9 +271,12 @@ impl ComposerPane {
         self.root.append(&toolbar);
 
         send_button.set_sensitive(!recipients::is_empty(&to.text()));
-        let sensitive_button = send_button.clone();
+        // Weak: Send's own handler holds this field, through the composer's fields.
+        let sensitive_button = send_button.downgrade();
         to.connect_changed(move |field| {
-            sensitive_button.set_sensitive(!recipients::is_empty(field));
+            if let Some(button) = sensitive_button.upgrade() {
+                button.set_sensitive(!recipients::is_empty(field));
+            }
         });
         let fields = ComposerFields {
             request: request.clone(),
@@ -418,10 +421,15 @@ fn seed_editor(
     // Read here, not in the closure: the request is borrowed, the closure outlives this call.
     let opens_in_body = request.opens_in_body();
     let moved_signature = request.moved.as_ref().map(|moved| moved.signature.clone());
-    let editor_host = editor_host.clone();
+    // Weak: the host holds the view this closure is attached to, so a strong reference would keep
+    // the view, and its web process, alive after the composer is gone.
+    let editor_host = editor_host.downgrade();
     // Weak: the control owns the view this closure is attached to.
     let signature = signature.map(Rc::downgrade);
     web.connect_finished(move |view| {
+        let Some(editor_host) = editor_host.upgrade() else {
+            return;
+        };
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
         script.push_str(&super::composer_scheme::current_script());

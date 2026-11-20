@@ -256,8 +256,12 @@ fn place_in_message(
 /// Hands one picture to the shared editor, which inserts it at the caret and records the inline
 /// attachment the core turns into a `cid:` part on send.
 pub(super) fn show_in_message(editor: &webkit6::WebView) -> ShowPicture {
-    let editor = editor.clone();
+    // Weak: the editor's own context menu holds this, through the paste answer.
+    let editor = editor.downgrade();
     Rc::new(move |path: &Path, data_url: &str| {
+        let Some(editor) = editor.upgrade() else {
+            return;
+        };
         let payload = json!({
             "data_url": data_url,
             "file_name": path.file_name().and_then(|name| name.to_str()).unwrap_or_default(),

@@ -150,3 +150,26 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
         "an emptied pane keeps no zoom for whatever is opened next"
     );
 }
+
+/// A view of either kind that nothing holds is freed, and its web process with it. Every reading
+/// window and every print makes one, so a handler of its own that holds it keeps a web process
+/// running for each.
+pub(crate) fn a_view_nobody_holds_is_freed() {
+    for kind in [DocumentKind::Reading, DocumentKind::Composer] {
+        let (sender, _receiver) = relm4::channel::<super::AppInput>();
+        let web = SecureWebView::new(kind, sender);
+        let view = web.widget().downgrade();
+        drop(web);
+        // The content filter is compiled asynchronously, and the compile holds the view until it
+        // answers.
+        let context = gtk::glib::MainContext::default();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while view.upgrade().is_some() && std::time::Instant::now() < deadline {
+            context.iteration(false);
+        }
+        assert!(
+            view.upgrade().is_none(),
+            "a {kind:?} view outlived its host"
+        );
+    }
+}
