@@ -17,8 +17,8 @@ use engine_api::{
 
 use super::{Composition, Threading};
 use crate::{
-    App, ComposeKind, ComposeOpening, CompositionId, QuoteSource, protocol::StagedAttachment,
-    reference::MessageRef,
+    App, ComposeKind, ComposeOpening, CompositionId, QuoteSource, ai::ReplyDraftHeld,
+    protocol::StagedAttachment, reference::MessageRef,
 };
 
 /// A composer about to open, gathered by whichever path found what it opens on.
@@ -88,6 +88,7 @@ impl<P: Provider> App<P> {
             .filter(|html| !html.trim().is_empty())
             .map(|html| engine_html::sanitize_for_composer(&html, &pictures))
             .unwrap_or_default();
+        let reply_draft = ReplyDraftHeld::opening(body_html.is_empty() && text.trim().is_empty());
         let mut state = self.drafts.lock().expect("drafts mutex poisoned");
         // A composer that has just opened has saved nothing, whatever a composition of this
         // name did before it: the hint is per composer, and one reading "Saved" on a draft
@@ -104,6 +105,7 @@ impl<P: Provider> App<P> {
                 importance,
                 opened_importance: importance,
                 answering,
+                reply_draft,
                 ..Composition::new(account.clone(), message_id)
             },
         );

@@ -3977,7 +3977,12 @@
         report(false);
         return true;
       },
-      resend: () => report(true)
+      resend: () => report(true),
+      loaded(load) {
+        const result = load();
+        report(true);
+        return result;
+      }
     };
   }
   function replaceLead(editor, blocks) {
@@ -5458,16 +5463,16 @@
     const markup = pastedHtml(doc, typeof html === "string" ? html : "", caretHoldsInlineOnly(), attachments);
     return markup !== null && insertHtml(markup);
   };
-  window.setComposerQuote = (quote) => history.restart(() => setComposerQuote(editor, parsed(quote)));
+  window.setComposerQuote = (quote) => replyDraft.loaded(() => history.restart(() => setComposerQuote(editor, parsed(quote))));
   window.setComposerQuoteStyle = (style) => history.outside(() => setComposerQuoteStyle(editor, style));
   window.completeComposerQuoteAttribution = (attribution) => history.outside(() => completeComposerQuoteAttribution(editor, parsed(attribution) ?? {}));
-  window.setComposerSignature = (signature) => history.outside(() => setComposerSignature(editor, signature == null ? null : parsed(signature)));
+  window.setComposerSignature = (signature) => replyDraft.loaded(() => history.outside(() => setComposerSignature(editor, signature == null ? null : parsed(signature))));
   window.setSignatureBody = (html, placeholder) => history.restart(() => setSignatureBody(editor, html, placeholder));
   window.signatureBody = () => JSON.stringify(signatureBody(editor));
   window.focusComposerBody = () => focusComposerBody(editor);
-  window.setPlainText = (text) => history.restart(() => setPlainText(editor, text));
-  window.setComposerBody = (seed) => history.restart(() => setComposerBody(editor, attachments, parsed(seed) ?? {}));
-  window.setComposerDocument = (document2) => history.restart(() => setComposerDocument(editor, attachments, parsed(document2) ?? {}));
+  window.setPlainText = (text) => replyDraft.loaded(() => history.restart(() => setPlainText(editor, text)));
+  window.setComposerBody = (seed) => replyDraft.loaded(() => history.restart(() => setComposerBody(editor, attachments, parsed(seed) ?? {})));
+  window.setComposerDocument = (document2) => replyDraft.loaded(() => history.restart(() => setComposerDocument(editor, attachments, parsed(document2) ?? {})));
   window.setComposerDraftText = (seed) => replyDraft.setDraft(seed);
   window.composerHistorySteps = () => JSON.stringify(history.steps());
   window.stepComposerHistory = (step) => step === "undo" ? history.undo() : step === "redo" ? history.redo() : false;

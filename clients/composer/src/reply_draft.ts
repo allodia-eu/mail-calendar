@@ -3,9 +3,9 @@
 // The host hands a draft over once (`setComposerDraftText`), with the number the core gave it and
 // its gaps. It goes in above the signature and the quoted original, replacing what is there, as one
 // step of the editor's own history, so one undo takes it out whole and one redo brings it back.
-// After every change to the body the editor tells the host what the text above those two holds,
-// whether the draft is in it and which of its gaps are left; the host hands that to the core, which
-// decides the card's ticks and whether to ask before replacing. Nothing here carries the reply's
+// Once the host has loaded the body, and after every change to it, the editor tells the host what
+// the text above those two holds, whether the draft is in it and which of its gaps are left; the
+// host hands that to the core, which decides the card's ticks and whether to ask before replacing. Nothing here carries the reply's
 // text: a gap is named by its place in the list the host gave.
 //
 // The draft is untrusted model output: `drafttext.ts` builds it as elements and text nodes, and no
@@ -92,6 +92,10 @@ export interface ReplyDraft {
   setDraft(seed: unknown): boolean;
   /// Tells the host where the reply stands now, even when nothing changed since it was last told.
   resend(): void;
+  /// Runs `load`, which puts the host's content in the body, then tells the host where the reply
+  /// stands, even when it reads as before: a fresh reply's quote and signature leave the text above
+  /// them as empty as it was, and a report sent before the load may not have reached the core.
+  loaded<T>(load: () => T): T;
 }
 
 /// Follows `editor`'s reply for `tell`, putting drafts in through `history`.
@@ -152,6 +156,11 @@ export function installReplyDraft(
       return true;
     },
     resend: () => report(true),
+    loaded(load) {
+      const result = load();
+      report(true);
+      return result;
+    },
   };
 }
 
