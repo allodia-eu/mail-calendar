@@ -40,6 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.Measurable
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -183,10 +184,21 @@ private fun FlowFoot(chrome: FlowChrome) {
     ) { (backSlot, indicatorSlot, primarySlot), constraints ->
         val gap = 12.dp.roundToPx()
         val width = constraints.maxWidth
-        val natural = listOf(backSlot, indicatorSlot, primarySlot)
-            .sumOf { slot -> slot.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) } }
+        val natural = { slot: List<Measurable> ->
+            slot.sumOf { it.maxIntrinsicWidth(Constraints.Infinity) }
+        }
+        val back = natural(backSlot)
+        val indicator = natural(indicatorSlot)
+        val primary = natural(primarySlot)
+        // The indicator is centred on the foot, so with one each button must fit in the half of
+        // the row beside it, not merely in what the other two leave.
+        val fits = if (indicatorSlot.isEmpty()) {
+            back + primary + 2 * gap <= width
+        } else {
+            2 * maxOf(back, primary) + indicator + 2 * gap <= width
+        }
         val loose = constraints.copy(minWidth = 0, minHeight = 0)
-        if (natural + 2 * gap <= width) {
+        if (fits) {
             val placedBack = backSlot.map { it.measure(loose) }
             val placedIndicator = indicatorSlot.map { it.measure(loose) }
             val placedPrimary = primarySlot.map { it.measure(loose) }

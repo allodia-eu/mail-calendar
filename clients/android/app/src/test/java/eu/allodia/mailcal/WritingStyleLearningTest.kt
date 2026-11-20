@@ -8,6 +8,7 @@ import androidx.activity.OnBackPressedDispatcher
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
@@ -18,6 +19,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -276,6 +279,25 @@ class WritingStyleLearningTest {
         val back = compose.onNodeWithTag(FLOW_BACK_TAG).getUnclippedBoundsInRoot()
         assertTrue("the primary sits above Back: $primary over $back", primary.bottom <= back.top)
         assertEquals("both span the foot", (primary.right - primary.left).value, (back.right - back.left).value, 1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun at_a_large_text_size_a_day_s_label_keeps_its_words_whole() {
+        RuntimeEnvironment.setFontScale(2f)
+        show(learning(chooseRange(selected = StyleLearnRange.Between("2025-08-20", "2026-11-19")), next = FREE))
+        for (label in listOf(L10n.learn_range_from(ctx()), L10n.learn_range_until_label(ctx()))) {
+            val layouts = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(label).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            val layout = layouts.single()
+            val words = label.split(' ').size
+            assertTrue("\"$label\" wraps only between words: ${layout.lineCount} lines", layout.lineCount <= words)
+            for (line in 0 until layout.lineCount) {
+                val end = layout.getLineEnd(line)
+                assertTrue("\"$label\" breaks inside a word at $end", end == label.length || label[end - 1] == ' ')
+            }
+        }
     }
 
     @Test

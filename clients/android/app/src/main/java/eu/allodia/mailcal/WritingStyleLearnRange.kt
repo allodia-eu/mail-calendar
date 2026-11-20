@@ -3,8 +3,11 @@
 // whole days in UTC, the date picker's own reckoning, so no day moves between the two.
 package eu.allodia.mailcal
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -72,14 +75,20 @@ internal fun LearnRangeChoice(stage: StyleLearningStage.ChooseRange, send: (Styl
 }
 
 // A day's label and a button showing it, which opens the date picker bounded by the core's days.
-@OptIn(ExperimentalMaterial3Api::class)
+// Side by side while both fit; otherwise the button goes under its label, which is never squeezed
+// into breaking inside a word.
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun DayButton(label: String, day: String, stage: StyleLearningStage.ChooseRange, tag: String, onPick: (String) -> Unit) {
     val ctx = LocalContext.current
     val locale = catalogLocale(LocalContext.current)
     var picking by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+    FlowRow(
+        horizontalArrangement = Arrangement.SpaceBetween,
+        itemVerticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(end = 8.dp))
         OutlinedButton(onClick = { picking = true }, modifier = Modifier.testTag(tag)) { Text(dayText(day, locale)) }
     }
     if (!picking) return
