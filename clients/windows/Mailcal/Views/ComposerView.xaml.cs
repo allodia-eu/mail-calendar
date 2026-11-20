@@ -53,12 +53,6 @@ public sealed partial class ComposerView : UserControl
     /// WinUI raises after the tracking is armed. Null until the composer is bound.</summary>
     private OpeningTextEcho? _subjectEcho;
 
-    /// <summary>How many of the files the composer opened holding are not the user's own work: a
-    /// forward's staged originals, which are still in the mailbox. The baseline the live count is
-    /// measured against; zero for a share, whose files the user chose and would have to share
-    /// again.</summary>
-    private int _baselineAttachments;
-
     /// <summary>Whether the editor bundle has parsed, so its <c>window.*</c> hooks exist. Anything
     /// the user can trigger that talks to the editor gates on this.</summary>
     private bool _editorReady;
