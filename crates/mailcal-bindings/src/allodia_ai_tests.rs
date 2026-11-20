@@ -179,6 +179,44 @@ fn an_answer_without_ai_takes_it_away_at_once() {
     assert_eq!(app.app.ai_route(), Err(AiFailure::NotEntitled));
 }
 
+/// The own endpoint needs nothing of Allodia, so the grace a stored answer has through an outage
+/// is no reason to offer it once the service has refused the sign-in: the offer goes at once and
+/// comes back with a sign-in the service takes.
+#[test]
+fn a_refused_sign_in_takes_the_offer_at_once() {
+    let (app, rx) = app("ai-offer-refused");
+    as_production(&app);
+    sign_in(&app, Some(WITH_AI));
+    // The health publishes on the clock, so the answer is taken on it too.
+    let now = time::OffsetDateTime::now_utc().unix_timestamp();
+    app.allodia_entitlement
+        .record(answer(&[Capability::Ai]), now);
+    app.publish_ai_entitlement_at(now);
+    assert!(app.ai_offer());
+    rx.try_iter().for_each(drop);
+
+    app.note_allodia_health(AllodiaGrantHealth::SignedOut);
+    assert!(!app.ai_offer());
+    every_ai_surface_signalled(&rx);
+
+    app.note_allodia_health(AllodiaGrantHealth::Ok);
+    assert!(app.ai_offer());
+}
+
+/// A read the service refuses with a fresh token is its answer: the stored one is gone, and with
+/// it the offer, whatever grace it had left.
+#[test]
+fn a_refused_read_takes_the_stored_answer_and_the_offer() {
+    let (app, _) = app("ai-offer-refused-read");
+    as_production(&app);
+    sign_in(&app, Some(WITH_AI));
+    app.allodia_entitlement
+        .record(answer(&[Capability::Ai]), NOW);
+    app.allodia_entitlement.record(Outcome::Refused, NOW + 1);
+    app.publish_ai_entitlement_at(NOW + 1);
+    assert!(!app.ai_offer());
+}
+
 #[test]
 fn signing_out_takes_the_offer_and_the_relay_with_it() {
     let (app, rx) = app("ai-offer-sign-out");

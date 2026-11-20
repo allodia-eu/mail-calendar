@@ -74,6 +74,11 @@ rule 5) from memory, never by a read: at launch, after each read, on each trigge
 not a read is due, and at sign-out. The last of those is what lets a stored answer's grace run out
 on a device that is never answered. A relay request refused as `not_entitled` reads the
 entitlement again at once, interval or not, since the stored answer is then known to be stale.
+**A sign-in the service refused grants the offer nothing**, though the stored answer otherwise
+stands through grace while the grant is refused (the notice below): the grace rests on a paid
+capability being inert without Allodia, and the own endpoint is not. The refusal is known from
+memory, so after a relaunch the offer follows the stored answer until the launch's first call to
+the service is refused again.
 A label a stored answer holds as unknown is read again by a version that knows it, so a capability
 granted before an update grants after it without waiting for the next read.
 
@@ -102,6 +107,11 @@ collapse them.**
 - The service replied, and what it sent no longer grants: a cancellation, a lapsed card, a plan
   that ended, all of which arrive as `free` with the free capabilities. It takes
   effect **immediately**. The stored answer is replaced by what the server said.
+- The service refused to read it (`401` or `403`) for a token minted for the read. That is a reply
+  too, about this account, and it grants nothing: the stored answer is erased at once and the next
+  trigger asks again. The token held for the process may be one the service stopped taking, so a
+  refusal of it is first asked once more with a fresh one; a fresh token that cannot be had
+  learns nothing, as an outage does.
 - The request did not arrive: an outage, a captive portal, a plane. The stored answer **stands**,
   until grace runs out.
 

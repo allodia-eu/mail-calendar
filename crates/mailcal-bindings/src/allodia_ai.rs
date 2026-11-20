@@ -125,9 +125,15 @@ impl MailcalApp {
     }
 
     /// As [`Self::publish_ai_entitlement`], at `now` in Unix seconds.
+    ///
+    /// A sign-in the service refused grants nothing here, unlike everywhere else the stored answer
+    /// is read: the grace exists because a paid capability cannot work without Allodia, and the
+    /// own endpoint can.
     pub(crate) fn publish_ai_entitlement_at(&self, now: i64) {
         let signed_in = self.allodia.lock().expect("allodia account lock").is_some();
-        let granted = signed_in && self.allodia_entitlement.grants(&Capability::Ai, now);
+        let refused = self.allodia_health() == AllodiaGrantHealth::SignedOut;
+        let granted =
+            signed_in && !refused && self.allodia_entitlement.grants(&Capability::Ai, now);
         self.app.set_ai_entitlement(if granted {
             AiEntitlement::Granted
         } else {

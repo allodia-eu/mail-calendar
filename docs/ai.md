@@ -81,8 +81,10 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    [`entitlement.md`](../allodia_license/entitlement.md) says, and an answer without `ai` takes
    effect at once: the stored answer inside its grace, never a read anyone waits for, published to
    the offer at launch, after each read, on each refresh trigger and at sign-out, so a grace that
-   runs out takes the offer with it. Relay and own endpoint are offered together under it. Early access ends before
-   the relay is sold; from then the own endpoint is in every build, as the relay's free counterpart
+   runs out takes the offer with it. A read the service refuses grants nothing, and a sign-in it
+   refused takes the offer at once, grace or not, since the own endpoint needs nothing of Allodia
+   ([`entitlement.md`](../allodia_license/entitlement.md)). Relay and own endpoint are offered
+   together under it. Early access ends before the relay is sold; from then the own endpoint is in every build, as the relay's free counterpart
    ([`pledge.md`](pledge.md)).
 
 ### The own endpoint, under Settings → Advanced

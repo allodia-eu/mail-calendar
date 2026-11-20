@@ -27,6 +27,9 @@ pub const LAPSE_WARNING_SECONDS: i64 = 7 * 24 * 60 * 60;
 pub enum Outcome {
     /// The service replied. Whatever it said is the truth from now on, including "not entitled".
     Answered(Answer),
+    /// The service refused to answer a token minted for it: a reply too, and one that grants
+    /// nothing from now on.
+    Refused,
     /// The request did not arrive. Says nothing about the entitlement.
     Unreachable,
 }
@@ -138,10 +141,10 @@ impl Cache {
     /// Fold in what happened when the client last tried.
     ///
     /// **The distinction this method exists for.** A reply replaces the stored answer whatever it
-    /// says, so a cancellation takes effect at once. A failure to reach the service changes
-    /// nothing, so an outage does not take a capability away. Collapsing the two either honours a
-    /// cancellation a month late or cuts off every paying customer during a bad afternoon, and
-    /// neither failure produces anything a person would report.
+    /// says, so a cancellation takes effect at once, and a refusal leaves none. A failure to reach
+    /// the service changes nothing, so an outage does not take a capability away. Collapsing the
+    /// two either honours a cancellation a month late or cuts off every paying customer during a
+    /// bad afternoon, and neither failure produces anything a person would report.
     pub fn apply(&mut self, outcome: Outcome, now: i64) {
         match outcome {
             Outcome::Answered(answer) => {
@@ -150,6 +153,7 @@ impl Cache {
                     fetched_at: now,
                 });
             }
+            Outcome::Refused => self.stored = None,
             Outcome::Unreachable => {}
         }
     }
