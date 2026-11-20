@@ -70,6 +70,9 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    category, Draft a reply and the own endpoint form are drawn exactly when `ai_offer()` says the
    feature is offered; each surface's record reads it, so no client asks apart. Not offered, no
    request can be built (the route answers `NotEntitled`), and an endpoint set up earlier is kept.
+   No intent of the feature changes anything either: a change to the endpoint or to the library
+   is dropped before it is queued, with no outcome and no notice, since nothing is drawn to say
+   what it came to; learning and drafting start nothing.
    The licence side tells the core what the entitlement says (`set_ai_entitlement`); a build
    without it never does, so it is production without `ai`.
 5. **Early access: a development build offers it to everyone, a production build only while the
