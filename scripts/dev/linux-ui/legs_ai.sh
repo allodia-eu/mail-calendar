@@ -85,6 +85,7 @@ leg_writing_style() {
   ui_wait text="No style was learned" window=Settings timeoutMs=60000
   ui_wait text="The AI service could not be reached." window=Settings
   ui_wait text="Try again" role=button window=Settings
+  settings_slid
   capture writing-style-failed
   # Closing the window closes the flow, as Cancel would.
   close_settings
