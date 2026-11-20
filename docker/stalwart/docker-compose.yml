@@ -74,6 +74,11 @@ services:
       - "127.0.0.1:12587:587" # SMTP submission (STARTTLS), entrypoint adds this listener
       - "127.0.0.1:12993:993" # IMAP (implicit TLS)
       - "127.0.0.1:12143:143" # IMAP (STARTTLS), entrypoint adds this listener
+      # The same IMAP and submission over IPv6 loopback, for a server typed as `::1`. Docker's
+      # proxy takes the IPv6 connection on the host and reaches the container over IPv4, so no
+      # IPv6 network is needed.
+      - "[::1]:12993:993"
+      - "[::1]:12465:465"
     # Healthy only once the shared dataset is seeded: the marker is written at
     # the end of the entrypoint, and HTTP liveness must also answer. This is the
     # real readiness signal tests wait on, not a sleep.
