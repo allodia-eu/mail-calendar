@@ -97,6 +97,8 @@ impl<P: Provider> App<P> {
             seeds_signature: false,
             importance: envelope.importance,
             answering: None,
+            // Read from the synced message, so another device's mark reaches this one.
+            drafted: self.is_drafted_message(&stored),
         })
     }
 

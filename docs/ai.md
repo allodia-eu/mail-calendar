@@ -302,17 +302,31 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
 25. **A drafted reply is never learned from, nor shown to a later draft as the person's words.** A
     composition a draft went into stays drafted, even once undone or rewritten, since what is sent
     may still carry its words; the core holds that on the composition for as long as it is open,
-    never in the editor's document. The send logs the `Message-ID` on this device and asks for the
-    keyword `writing-assistant` on the Sent copy (the engine's `sent_copy_keywords`), fixed and
+    never in the editor's document. The mark is the keyword `writing-assistant`, fixed and
     untranslated so every device recognises it. Gmail keeps it as a label and Outlook as a
     category, which the person sees: created as "Writing assistant" and recognised under its name
     in every catalog locale, one table in `mailcal-account` holding all seven
-    (`drafted_keyword.rs`). The engine sets no keyword on a draft it stores, so a stored draft
-    carries none: a drafted reply saved, closed and resumed opens as not drafted, and is marked
-    only if a draft goes into it again. A message is drafted when its listing carries the keyword
+    (`drafted_keyword.rs`). It goes on the message in both places the message is kept:
+    - **The stored draft.** Every save of a drafted composition asks for the keyword, and a
+      composition that is not drafted asks for none; the whole set goes with every save (the
+      engine's `put_draft` keywords), since one a save leaves out is taken off the stored copy.
+      A composer opened on a stored draft, or on a send taken back from the Outbox, that carries
+      the mark opens drafted, on this device after a restart and on another device alike. The
+      card is the model's answer and never part of the mail (rule 23), so it is not stored: a
+      resumed drafted reply draws no card, Send asks nothing (rule 24), and Draft a reply is
+      offered as on any reply, the body being the person's (rule 22). Its saves and its send
+      carry the mark.
+    - **The Sent copy.** The send logs the `Message-ID` on this device and asks for the keyword
+      on the Sent copy (the engine's `sent_copy_keywords`).
+
+    A save's answer says whether the server kept the keyword. One it did not keep, and one a
+    save queued for later has not answered yet, is noted in this device's log as a send is: an
+    IMAP server keeps none on a draft where its Drafts folder takes no keyword of a client's own
+    (`PERMANENTFLAGS` without `\*`), and Graph and Gmail keep none when the write that sets the
+    category or the label is refused. A message is drafted when its listing carries the keyword
     **or** the log names it. A keyword never delays or fails a send or a save. On a server that
-    keeps no keyword the log is the only sign, so another device can take that reply for the
-    person's own, and the Review says so for such an account.
+    keeps no keyword the log is the only sign, so another device can take that reply, or resume
+    that draft, as the person's own, and the Review says so for such an account.
 26. **A draft is the body only**, in the message's language when the style has it, otherwise the
     style's main one; under a signature it ends at its last sentence. The thread it answers is the
     message with the history it quotes, which is what the composer shows. Working notes or an
@@ -377,7 +391,7 @@ stack; it never breaks inside a word.
 | The library: names, descriptions, notes, passages, order, whether each reveal was shown | `writing_styles.toml`, read once at launch and written behind each change, as `signatures.toml` is |
 | Each account's slot; the endpoint's address, model and declaration; the jurisdiction mode | `preferences.toml`, the `[ai]` table |
 | The endpoint's key | the platform keystore, id `ai-endpoint` |
-| The `Message-ID`s of drafted replies | `drafted_replies.toml`, this device only: never capped, kept when a style is forgotten, gone with their account |
+| The `Message-ID`s of drafted replies sent from this device, and of drafted drafts whose server has not said it kept the keyword | `drafted_replies.toml`, this device only: never capped, kept when a style is forgotten, gone with their account |
 
 ## Sovereignty scope
 
@@ -400,7 +414,7 @@ local or air-gapped deployment is exempt. Learning reads only the sent mail the 
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| A drafted reply never learned from: the keyword on the stored draft and the Sent copy, the log (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 | The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 No platform ships the feature yet, and one ships it only once every row is ✅ there, each driven

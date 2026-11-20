@@ -107,6 +107,8 @@ impl RefreshingGraphProvider {
                 // (deferred), which this wrapper's `edit_mail` forwards.
                 .with_sent_copy_keywords()
                 .with_sent_copy_keywords_deferred()
+                // The same names keep a stored draft's keyword, forwarded with `put_draft`.
+                .with_draft_keywords()
                 // Forwarded below, and **read-only**: a Graph mailbox's display name is a
                 // directory attribute a tenant administrator owns, so claiming `Writable`
                 // here would put an editor in front of an edit that cannot land.
@@ -358,6 +360,7 @@ mod tests {
                 .capabilities
                 .sent_copy_keywords_deferred()
         );
+        assert!(provider.connection_info().capabilities.draft_keywords());
         // And specifically that it can send an *iMIP* message: a `Draft` carrying a
         // `text/calendar` part with `method=`. Sending ordinary mail is a different promise:
         // an account that can do the first and not the second cannot answer an invitation on

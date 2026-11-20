@@ -299,6 +299,7 @@ fn blank(account: AccountId, message_id: MessageIdHeader) -> Opening {
         // sender's word about that message, not about this one.
         importance: Importance::Normal,
         answering: None,
+        drafted: false,
     }
 }
 

@@ -52,6 +52,9 @@ pub(super) struct Opening {
     pub(super) importance: Importance,
     /// The message a reply answers, when the composer is opened on it.
     pub(super) answering: Option<MessageRef>,
+    /// Whether it is a drafted reply already (`docs/ai.md` rule 25): a stored draft or a queued
+    /// send carrying the mark.
+    pub(super) drafted: bool,
 }
 
 impl<P: Provider> App<P> {
@@ -83,12 +86,14 @@ impl<P: Provider> App<P> {
             seeds_signature,
             importance,
             answering,
+            drafted,
         } = opening;
         let body_html = html
             .filter(|html| !html.trim().is_empty())
             .map(|html| engine_html::sanitize_for_composer(&html, &pictures))
             .unwrap_or_default();
-        let reply_draft = ReplyDraftHeld::opening(body_html.is_empty() && text.trim().is_empty());
+        let reply_draft =
+            ReplyDraftHeld::opening(body_html.is_empty() && text.trim().is_empty(), drafted);
         let mut state = self.drafts.lock().expect("drafts mutex poisoned");
         // A composer that has just opened has saved nothing, whatever a composition of this
         // name did before it: the hint is per composer, and one reading "Saved" on a draft
