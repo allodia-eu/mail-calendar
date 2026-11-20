@@ -453,10 +453,10 @@ before Learn is pressed.
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | 🚧 |
 | Learning in the flow host, with Back, Stop and one remedy; the last twelve months first, what a range fetches said before Next; older sent mail fetched for the review and removed after it (11 to 14) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | 🚧 |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | 🚧 |
-| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| A drafted reply never learned from: the keyword on the stored draft and the Sent copy, the log (25) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
+| Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | 🚧 |
+| The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | 🚧 |
+| The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | 🚧 |
+| A drafted reply never learned from: the keyword on the stored draft and the Sent copy, the log (25) | 🚧 | ⬜ | ⬜ | 🚧 | 🚧 | ⬜ |
 | The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 No platform ships the feature yet, and one ships it only once every row is ✅ there, each driven
