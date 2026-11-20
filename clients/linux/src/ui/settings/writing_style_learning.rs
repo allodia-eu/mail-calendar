@@ -154,6 +154,7 @@ impl Learning {
                 presets,
                 selected,
                 reach,
+                fetch,
                 ..
             } => (
                 RANGE,
@@ -163,6 +164,7 @@ impl Learning {
                         presets,
                         selected: selected.as_ref(),
                         reach,
+                        fetch: *fetch,
                     },
                     send,
                 ),
@@ -172,6 +174,7 @@ impl Learning {
                 email,
                 range,
                 reach,
+                older_not_fetched,
                 state,
                 sends_to,
                 cannot_send,
@@ -182,6 +185,7 @@ impl Learning {
                     email,
                     range,
                     reach,
+                    older_not_fetched: *older_not_fetched,
                     state,
                     sends_to: sends_to.as_ref(),
                     cannot_send: *cannot_send,

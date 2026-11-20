@@ -148,6 +148,7 @@ pub(super) fn range_chosen(range: &StyleLearnRange) -> String {
 
 pub(super) fn range(range: &StyleLearnRange) -> &'static str {
     match range {
+        StyleLearnRange::LastTwelveMonths => l10n::learn_range_last_twelve_months(),
         StyleLearnRange::Everything => l10n::learn_range_all(),
         StyleLearnRange::UntilEndOfLastYear => l10n::learn_range_until_last_year(),
         StyleLearnRange::Between { .. } => l10n::learn_range_between(),
@@ -172,18 +173,25 @@ pub(super) fn progress(done: u32, total: u32) -> String {
 }
 
 /// The miniature letter as one sentence for a screen reader (`docs/ai.md` rule 15): opening,
-/// length, paragraphs, closing and name, each left out when it is empty or zero.
+/// length, paragraphs, closing and name, each left out when it is empty or zero. A greeting or a
+/// sign-off is spoken without the comma, semicolon, colon or full stop it ends on, since the comma
+/// joining the parts follows it.
 pub(super) fn letter(letter: &WritingStyleLetter) -> String {
-    let said = |spans: &[WritingStyleSpan]| spans.iter().map(|span| span.text.as_str()).collect();
-    let opening: String = said(&letter.opening);
-    let closing: String = said(&letter.closing);
+    let said = |spans: &[WritingStyleSpan]| {
+        let text: String = spans.iter().map(|span| span.text.as_str()).collect();
+        text.trim_end_matches(|c: char| matches!(c, ',' | ';' | ':' | '.') || c.is_whitespace())
+            .trim_start()
+            .to_owned()
+    };
+    let opening = said(&letter.opening);
+    let closing = said(&letter.closing);
     let name = letter.signs_as.trim();
     [
-        (!opening.trim().is_empty()).then(|| l10n::a11y_letter_opening(opening.trim())),
+        (!opening.is_empty()).then(|| l10n::a11y_letter_opening(&opening)),
         (letter.words > 0).then(|| l10n::a11y_letter_words(i64::from(letter.words))),
         (letter.paragraph_count > 0)
             .then(|| l10n::a11y_letter_paragraphs(i64::from(letter.paragraph_count))),
-        (!closing.trim().is_empty()).then(|| l10n::a11y_letter_closing(closing.trim())),
+        (!closing.is_empty()).then(|| l10n::a11y_letter_closing(&closing)),
         (!name.is_empty()).then(|| l10n::a11y_letter_name(name)),
     ]
     .into_iter()

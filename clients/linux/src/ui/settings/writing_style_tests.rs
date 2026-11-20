@@ -48,6 +48,8 @@ pub(crate) fn all() {
     a_run_is_drawn_in_learns_place_with_stop();
     a_run_that_failed_says_so_and_learn_reopens_it();
     each_stage_draws_exactly_the_controls_its_record_gives();
+    flow_tests::the_range_says_what_next_fetches();
+    flow_tests::the_review_fetches_with_a_spinner_and_says_what_it_could_not();
     flow_tests::every_remedy_is_sent_alone_and_one_leading_elsewhere_opened();
     flow_tests::nothing_usable_names_no_destination();
     flow_tests::the_letter_is_spoken_as_one_sentence();
@@ -346,6 +348,7 @@ fn each_stage_draws_exactly_the_controls_its_record_gives() {
                 email: "alice@test.local".to_owned(),
                 range: StyleLearnRange::Everything,
                 reach: StyleSentReach::Everything,
+                older_not_fetched: false,
                 state: StyleLearningReview::Ready { report },
                 sends_to: Some(StyleLearningDestination::OwnEndpoint {
                     host: "localhost".to_owned(),

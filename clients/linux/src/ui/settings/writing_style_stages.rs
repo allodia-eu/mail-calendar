@@ -7,7 +7,8 @@ use std::rc::Rc;
 use adw::prelude::*;
 use mailcal_bindings::{
     AiFailure, StyleLearnRange, StyleLearningAccount, StyleLearningDestination,
-    StyleLearningIntent, StyleLearningReport, StyleLearningReview, StyleSentReach,
+    StyleLearningIntent, StyleLearningReport, StyleLearningReview, StyleRangeFetch,
+    StyleSentReach,
 };
 
 use super::writing_style_words as words;
@@ -129,12 +130,14 @@ pub(super) fn choose_account(
     composed(l10n::learn_account_title(), None, &content)
 }
 
-/// The range stage: the core's presets, the last a range of the person's own with its two days.
+/// The range stage: the core's presets, the last a range of the person's own with its two days,
+/// and what Next fetches for the one selected.
 pub(super) struct Range<'a> {
     pub(super) email: &'a str,
     pub(super) presets: &'a [StyleLearnRange],
     pub(super) selected: Option<&'a StyleLearnRange>,
     pub(super) reach: &'a StyleSentReach,
+    pub(super) fetch: StyleRangeFetch,
 }
 
 pub(super) fn choose_range(range: &Range<'_>, send: &Send) -> gtk::Widget {
@@ -190,6 +193,14 @@ pub(super) fn choose_range(range: &Range<'_>, send: &Send) -> gtk::Widget {
         ));
         content.append(&days);
     }
+    let fetch = match range.fetch {
+        StyleRangeFetch::Nothing => None,
+        StyleRangeFetch::Older => Some(l10n::learn_range_fetch_older()),
+        StyleRangeFetch::WholeHistory => Some(l10n::learn_range_fetch_all()),
+    };
+    if let Some(fetch) = fetch {
+        content.append(&dim(fetch));
+    }
     let about = format!("{}\n{}", range.email, words::reach(range.reach));
     composed(l10n::learn_range_title(), Some(&about), &content)
 }
@@ -243,6 +254,7 @@ pub(super) struct Review<'a> {
     pub(super) email: &'a str,
     pub(super) range: &'a StyleLearnRange,
     pub(super) reach: &'a StyleSentReach,
+    pub(super) older_not_fetched: bool,
     pub(super) state: &'a StyleLearningReview,
     pub(super) sends_to: Option<&'a StyleLearningDestination>,
     pub(super) cannot_send: Option<AiFailure>,
@@ -251,11 +263,8 @@ pub(super) struct Review<'a> {
 
 pub(super) fn review(review: &Review<'_>) -> gtk::Widget {
     let report = match review.state {
-        StyleLearningReview::Reading => {
-            let page = status(l10n::learn_reading(), None);
-            page.set_paintable(Some(&adw::SpinnerPaintable::new(Some(&page))));
-            return page.upcast();
-        }
+        StyleLearningReview::Fetching => return working(l10n::learn_fetching()),
+        StyleLearningReview::Reading => return working(l10n::learn_reading()),
         StyleLearningReview::Ready { report } | StyleLearningReview::NothingUsable { report } => {
             report
         }
@@ -273,6 +282,9 @@ pub(super) fn review(review: &Review<'_>) -> gtk::Widget {
         content.append(&nothing);
     }
     content.append(&dim(&words::reach(review.reach)));
+    if review.older_not_fetched {
+        content.append(&dim(l10n::learn_older_not_fetched()));
+    }
     if !review.keyword_kept {
         content.append(&dim(l10n::learn_keyword_not_kept()));
     }
@@ -352,6 +364,13 @@ fn status(title: &str, description: Option<&str>) -> adw::StatusPage {
     }
     page.set_vexpand(true);
     page
+}
+
+/// Work the review waits on, said with the platform's spinner.
+fn working(title: &str) -> gtk::Widget {
+    let page = status(title, None);
+    page.set_paintable(Some(&adw::SpinnerPaintable::new(Some(&page))));
+    page.upcast()
 }
 
 pub(super) fn learning(done: u32, total: u32) -> gtk::Widget {

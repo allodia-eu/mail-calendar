@@ -3,8 +3,12 @@
 # whose core stages two styles, an own endpoint on this device and a canned draft (docs/debugging.md).
 # Sourced by test-linux-ui.sh.
 
+LEARN_FETCH_OLDER="Older sent mail is fetched from the server first, which can take a while."
+LEARN_FETCH_ALL="All your sent mail is fetched from the server first. With many years of mail, this can take a long time."
+
 # Settings → Writing style's rows, a style's detail, a new style's reveal page by page, the own
-# endpoint's form under Advanced, learning from the first account until it fails with its remedy,
+# endpoint's form under Advanced, learning from the first account (the range saying what Next
+# fetches) until it fails with its remedy,
 # and Draft a reply in a reply composer through to the card and the
 # question Send asks while its checklist has open items. Nothing leaves the machine: the staged
 # endpoint answers inside the core.
@@ -64,6 +68,16 @@ leg_writing_style() {
   # The account's page stays under the range's in the stack; its Next is on screen until the
   # navigation has slid it away.
   ui_gone text="Learn from which account?" window=Settings
+  # The last twelve months come first and start chosen. The device holds three months, so Next
+  # fetches older sent mail first, which the page says under the ranges, following each choice.
+  ui_wait text="The last twelve months" window=Settings
+  ui_wait text="$LEARN_FETCH_OLDER" window=Settings
+  ui_press text="All your sent mail" window=Settings
+  ui_wait text="$LEARN_FETCH_ALL" window=Settings
+  ui_gone text="$LEARN_FETCH_OLDER" window=Settings
+  ui_press text="The last twelve months" window=Settings
+  ui_wait text="$LEARN_FETCH_OLDER" window=Settings
+  capture writing-style-range
   ui_press text=Next role=button window=Settings
   ui_wait text="What is sent, and where" window=Settings timeoutMs=30000
   capture writing-style-review
