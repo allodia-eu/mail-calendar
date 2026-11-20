@@ -1,8 +1,9 @@
 // The flow host (Controls/FlowHost.cs; docs/ai.md, "The flow host"), through its debug-only preview:
 // with MAILCAL_FLOW_PREVIEW=1, Settings → Advanced draws the host over two sample stages, one whose
-// flow gives a step count and one whose flow gives none, its primary running. What is pinned is what
-// the host puts on screen from a frame: the footer's order, a control drawn as its state says, and
-// pips only for a count.
+// flow gives a step count and one whose flow gives none, its primary running, and under it a
+// learning review fetching older sent mail. What is pinned is what the host puts on screen from a
+// frame: the footer's order, a control drawn as its state says, and pips only for a count; and what
+// the review draws while it fetches.
 
 using Allodia.Mailcal.UiTests.Driver;
 using Xunit;
@@ -66,5 +67,24 @@ public sealed class FlowHostTests(FlowPreviewApp showcase) : IClassFixture<FlowP
             app.Agent.Invoke(back);
             Assert.True(App.Eventually(() => Part(app, host, "Steps") is not null, TimeSpan.FromSeconds(5)),
                 "Back draws the stage the frame names, its pips with it");
+        }, app => app.CloseDialogs());
+
+    // docs/ai.md rule 11: a review fetching older sent mail draws the platform's spinner with its
+    // line, as reading does, and one whose older mail could not be fetched says so.
+    [OfflineFact]
+    public void AReviewFetchingOlderMailShowsItsSpinnerAndSaysWhatCouldNotBeFetched() =>
+        showcase.Case(nameof(AReviewFetchingOlderMailShowsItsSpinnerAndSaysWhatCouldNotBeFetched), app =>
+        {
+            // The preview's first stage runs nothing, so every spinner on the page is a review's: one
+            // fetching, one reading after its fetch failed.
+            var dialog = Host(app);
+            Element? Under(string id) => app.Agent.Find(new Filter { Id = id, Under = dialog });
+            Assert.Equal(Catalog.English("learn_fetching"), Under("WritingStyleFlowFetching")?.Name);
+            Assert.Equal(Catalog.English("learn_reading"), Under("WritingStyleFlowReading")?.Name);
+            var spinners = app.Agent.FindAll(new Filter { Type = "ProgressBar", Under = dialog }).Count;
+            Assert.True(spinners == 2, $"fetching and reading each draw the platform's spinner; the page draws {spinners}");
+            Assert.Equal(Catalog.English("learn_older_not_fetched"), Under("WritingStyleFlowOlderNotFetched")?.Name);
+            Assert.True(app.Agent.FindAll(new Filter { Id = "WritingStyleFlowOlderNotFetched", Under = dialog }).Count == 1,
+                "only the review whose fetch failed says so");
         }, app => app.CloseDialogs());
 }

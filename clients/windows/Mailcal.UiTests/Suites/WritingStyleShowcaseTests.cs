@@ -200,12 +200,26 @@ public sealed class WritingStyleShowcaseTests(OfferAiShowcaseApp showcase)
             app.Agent.Select(Radio(app, Wait(app, dialog, "WritingStyleFlowAccounts", "no accounts are offered"), NothingToLearn));
             Press(app, dialog, "WritingStyleFlowPrimary");
 
-            // The core's presets, the last a range of one's own drawn with its two days.
+            // The core's presets in its order, starting on the last twelve months, the last a range of
+            // one's own drawn with its two days.
             WaitStage(app, dialog, "learn_range_title");
-            app.Agent.Select(NamedRadio(app, Wait(app, dialog, "WritingStyleFlowRanges", "no ranges are offered"), "learn_range_between"));
+            var ranges = Wait(app, dialog, "WritingStyleFlowRanges", "no ranges are offered");
+            Assert.Equal(
+                new[] { "learn_range_last_twelve_months", "learn_range_all", "learn_range_until_last_year", "learn_range_between" }.Select(Catalog.English),
+                app.Agent.FindAll(new Filter { Type = "RadioButton", Under = ranges }).Select(range => range.Name));
+            Assert.True(app.Agent.Read(NamedRadio(app, ranges, "learn_range_last_twelve_months")).Selected == true,
+                "the flow starts on the last twelve months");
+
+            // What Next fetches is said under the ranges: the showcase holds three months of sent
+            // mail, so a year back fetches older mail, and all of it the whole history.
+            Assert.True(App.Eventually(() => Find(app, dialog, "WritingStyleFlowFetch")?.Name == Catalog.English("learn_range_fetch_older"),
+                TimeSpan.FromSeconds(5)), $"a year back says older mail is fetched; the line reads '{Find(app, dialog, "WritingStyleFlowFetch")?.Name}'");
+            app.Agent.Select(NamedRadio(app, ranges, "learn_range_between"));
             Assert.True(app.Agent.Wait(new Filter { Id = "WritingStyleFlowSince", Under = dialog }, TimeSpan.FromSeconds(5)) is not null,
                 "a range of one's own is drawn with its two days");
             app.Agent.Select(NamedRadio(app, Wait(app, dialog, "WritingStyleFlowRanges", "no ranges are offered"), "learn_range_all"));
+            Assert.True(App.Eventually(() => Find(app, dialog, "WritingStyleFlowFetch")?.Name == Catalog.English("learn_range_fetch_all"),
+                TimeSpan.FromSeconds(5)), $"all of it says the whole history is fetched; the line reads '{Find(app, dialog, "WritingStyleFlowFetch")?.Name}'");
             Press(app, dialog, "WritingStyleFlowPrimary");
 
             // The review reads on the device. This account's sent mail says too little to learn from,

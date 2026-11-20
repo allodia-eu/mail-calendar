@@ -1,8 +1,10 @@
 // A preview of the flow host (Controls/FlowHost.cs) for the UI suite, debug builds only: with
 // MAILCAL_FLOW_PREVIEW=1 at launch, Settings → Advanced draws the host over two sample stages in
-// place of its own content. The host has no flow of its own to draw yet, and Mailcal.Tests cannot
-// draw a window, so this is how a suite sees what it puts on screen. Its words are samples and
-// are not in the catalog; nothing here is compiled into a release build.
+// place of its own content, and under it the learning flow's review as it fetches older sent mail
+// and as it reads once that fetch failed, states the showcase and the harness pass through too
+// quickly to read, or never reach. Mailcal.Tests cannot draw a window, so this is how a suite sees
+// what each puts on screen. The host's words are samples and are not in the catalog; nothing here
+// is compiled into a release build.
 
 #if DEBUG
 using Allodia.Mailcal.Controls;
@@ -45,7 +47,17 @@ public sealed partial class SettingsDialog
                 Primary: new FlowAction("Learn from these messages", new ControlState(false, true), () => { })),
             open);
         Counted(0);
-        return host.Root;
+
+        // The review as the core sends it while it fetches older sent mail, and as it reads once that
+        // fetch has failed.
+        var preview = new StackPanel { Spacing = 24 };
+        preview.Children.Add(host.Root);
+        StyleLearningStage.Review Review(bool olderNotFetched, StyleLearningReview state) => new(
+            "eva@example.com", new StyleLearnRange.LastTwelveMonths(), new StyleSentReach.Since("2026-08-20"),
+            olderNotFetched, state, null, null, KeywordKept: true);
+        preview.Children.Add(ReviewStage(Review(false, new StyleLearningReview.Fetching())));
+        preview.Children.Add(ReviewStage(Review(true, new StyleLearningReview.Reading())));
+        return preview;
     }
 }
 #endif

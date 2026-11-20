@@ -45,7 +45,7 @@ public sealed class WritingStyleHarnessTests(WritingStyleHarnessApp harness) : I
             .FirstOrDefault(e => e.Id.StartsWith("WritingStyleRow_", StringComparison.Ordinal) && e.Name.StartsWith(name + ",", StringComparison.Ordinal));
 
     /// <summary>Sets the canned endpoint up, opens the flow on the page and walks it to the review
-    /// of everything on the device, ready to learn.</summary>
+    /// of the range it starts on, the last twelve months, ready to learn.</summary>
     private static Element ToReview(App app)
     {
         AiEndpointFormTests.SaveEndpoint(app, AiMock.Address);
