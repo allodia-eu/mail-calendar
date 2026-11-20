@@ -10,6 +10,7 @@ import uniffi.mailcal_bindings.AiRemedyControl
 import uniffi.mailcal_bindings.ControlState
 import uniffi.mailcal_bindings.JurisdictionClass
 import uniffi.mailcal_bindings.StyleLearnRange
+import uniffi.mailcal_bindings.StyleRangeFetch
 import uniffi.mailcal_bindings.StyleLearningAccount
 import uniffi.mailcal_bindings.StyleLearningIntent
 import uniffi.mailcal_bindings.StyleLearningStage
@@ -82,20 +83,22 @@ internal fun chooseAccount(selected: String? = null) = StyleLearningStage.Choose
 )
 
 internal fun chooseRange(
-    selected: StyleLearnRange? = StyleLearnRange.Everything,
+    selected: StyleLearnRange? = StyleLearnRange.LastTwelveMonths,
     presets: List<StyleLearnRange> = listOf(
+        StyleLearnRange.LastTwelveMonths,
         StyleLearnRange.Everything,
         StyleLearnRange.UntilEndOfLastYear,
-        StyleLearnRange.Between("2025-03-01", "2026-11-19"),
+        StyleLearnRange.Between("2025-11-19", "2026-11-19"),
     ),
-    earliest: String? = "2025-03-01",
+    reach: StyleSentReach = StyleSentReach.Since("2026-08-19"),
+    fetch: StyleRangeFetch = StyleRangeFetch.OLDER,
 ) = StyleLearningStage.ChooseRange(
     email = "alice@test.local",
     presets = presets,
-    earliest = earliest,
     latest = "2026-11-19",
     selected = selected,
-    reach = earliest?.let { StyleSentReach.Since(it) } ?: StyleSentReach.Everything,
+    reach = reach,
+    fetch = fetch,
 )
 
 internal fun span(text: String, placeholder: Boolean = false) = WritingStyleSpan(text, placeholder)

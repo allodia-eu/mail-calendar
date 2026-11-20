@@ -54,6 +54,7 @@ internal const val LEARN_PROGRESS_TAG = "learn-progress"
 internal fun learnAccountTag(id: String) = "learn-account-$id"
 
 internal fun learnRangeTag(range: StyleLearnRange) = when (range) {
+    StyleLearnRange.LastTwelveMonths -> "learn-range-last-twelve-months"
     StyleLearnRange.Everything -> "learn-range-everything"
     StyleLearnRange.UntilEndOfLastYear -> "learn-range-until-last-year"
     is StyleLearnRange.Between -> "learn-range-between"
@@ -127,8 +128,17 @@ internal fun LearningStageView(stage: StyleLearningStage, zone: ZoneId, send: (S
 }
 
 @Composable
-private fun Supporting(text: String) {
+internal fun Supporting(text: String) {
     Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+// Work the review waits on, with the platform's spinner beside what it is doing.
+@Composable
+private fun Working(text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
 }
 
 // What the core read on the device, then what Learn would send where. Nothing has left yet.
@@ -137,11 +147,12 @@ private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
     val ctx = LocalContext.current
     val locale = catalogLocale(LocalContext.current)
     val report = when (val review = stage.state) {
+        StyleLearningReview.Fetching -> {
+            Working(L10n.learn_fetching(ctx))
+            null
+        }
         StyleLearningReview.Reading -> {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                Text(L10n.learn_reading(ctx), style = MaterialTheme.typography.bodyMedium)
-            }
+            Working(L10n.learn_reading(ctx))
             null
         }
         is StyleLearningReview.Ready -> review.report
@@ -158,6 +169,7 @@ private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
         }
     }
     Supporting(sentReachText(ctx, stage.reach, locale))
+    if (stage.olderNotFetched) Supporting(L10n.learn_older_not_fetched(ctx))
     if (stage.state is StyleLearningReview.NothingUsable) {
         Text(L10n.learn_report_nothing(ctx), style = MaterialTheme.typography.bodyLarge)
     }

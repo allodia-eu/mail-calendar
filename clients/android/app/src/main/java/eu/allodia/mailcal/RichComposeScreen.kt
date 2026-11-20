@@ -329,6 +329,7 @@ internal fun RichComposeMessageDialog(
                         onDiscard = (exits::discard).takeIf { drafts != null },
                         sendEnabled = to.isNotBlank() && from != null,
                         onSend = { draft?.send(send) ?: send() },
+                        replyDraft = draft?.let { host -> { ComposerReplyDraftControl(host) } },
                     )
                 },
             ) { padding ->

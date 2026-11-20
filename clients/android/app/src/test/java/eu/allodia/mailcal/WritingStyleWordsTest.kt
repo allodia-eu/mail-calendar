@@ -50,10 +50,11 @@ class WritingStyleWordsTest {
         val letter = checkNotNull(styleLanguage("en").letter)
         assertEquals(
             listOf(
-                L10n.a11y_letter_opening(ctx(), "Hi Name,"),
+                // The comma joining the parts stands in for the one the greeting and sign-off end on.
+                L10n.a11y_letter_opening(ctx(), "Hi Name"),
                 L10n.a11y_letter_words(ctx(), 80),
                 L10n.a11y_letter_paragraphs(ctx(), 3),
-                L10n.a11y_letter_closing(ctx(), "Best,"),
+                L10n.a11y_letter_closing(ctx(), "Best"),
                 L10n.a11y_letter_name(ctx(), "Alice"),
             ).joinToString(", "),
             letterSpoken(ctx(), letter),
@@ -61,7 +62,7 @@ class WritingStyleWordsTest {
         val bare = letter.copy(opening = emptyList(), words = 0u, paragraphCount = 0u, signsAs = "")
         assertEquals(
             "the paragraphs are the record's count, never the lines drawn",
-            L10n.a11y_letter_closing(ctx(), "Best,"),
+            L10n.a11y_letter_closing(ctx(), "Best"),
             letterSpoken(ctx(), bare),
         )
     }

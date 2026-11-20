@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -55,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.ControlState
 
@@ -244,9 +243,10 @@ internal fun ControlTextButton(
 }
 
 /**
- * An icon button, for an action beside a row where a label would take the row's room. [label] is
- * what assistive technology announces; the spinner takes the icon's place while its work runs. A
- * destructive one draws its icon in the error colour.
+ * An icon button, for an action beside a row where a label would take the row's room, or in an app
+ * bar's actions ([iconSize] 24dp, as the bar's own icons). [label] is what assistive technology
+ * announces; the spinner takes the icon's place while its work runs. A destructive one draws its
+ * icon in the error colour.
  */
 @Composable
 internal fun ControlIconButton(
@@ -256,6 +256,7 @@ internal fun ControlIconButton(
     tag: String,
     modifier: Modifier = Modifier,
     destructive: Boolean = false,
+    iconSize: Dp = 20.dp,
     onClick: () -> Unit,
 ) {
     IconButton(onClick = onClick, enabled = control.enabled, modifier = modifier.testTag(tag)) {
@@ -265,7 +266,7 @@ internal fun ControlIconButton(
             Icon(
                 painter = painterResource(icon),
                 contentDescription = label,
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier.size(iconSize),
                 tint = if (destructive && control.enabled) {
                     MaterialTheme.colorScheme.error
                 } else {
@@ -399,30 +400,6 @@ internal fun ControlSegmented(
             }
         }
     }
-}
-
-/**
- * An assist chip for an action offered beside what is being written, led by [icon]; the spinner
- * takes the icon's place while its work runs.
- */
-@Composable
-internal fun ControlAssistChip(label: String, icon: Int, control: ControlState, tag: String, onClick: () -> Unit) {
-    AssistChip(
-        onClick = onClick,
-        enabled = control.enabled,
-        label = { Text(label) },
-        leadingIcon = {
-            if (control.running) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(AssistChipDefaults.IconSize).testTag("$tag-running"),
-                    strokeWidth = 2.dp,
-                )
-            } else {
-                Icon(painterResource(icon), contentDescription = null, modifier = Modifier.size(AssistChipDefaults.IconSize))
-            }
-        },
-        modifier = Modifier.testTag(tag),
-    )
 }
 
 /**

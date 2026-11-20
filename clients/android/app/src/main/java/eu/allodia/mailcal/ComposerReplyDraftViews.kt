@@ -1,6 +1,7 @@
-// Draft a reply among the composer's notes (docs/ai.md rules 17, 18, 20 and 23), under the address
-// fields and above the message: the control, then what the record says now. A drafting line with
-// Stop, a failure with its one remedy, or the card a draft brought, which is never part of the mail.
+// Draft a reply (docs/ai.md rules 17, 18, 20 and 23): the control in the composer's app bar, and
+// among the notes, under the address fields and above the message, what the record says now. A
+// drafting line with Stop, a failure with its one remedy, or the card a draft brought, which is
+// never part of the mail.
 package eu.allodia.mailcal
 
 import android.content.Context
@@ -56,52 +57,57 @@ internal fun replyDraftItemText(ctx: Context, item: ReplyDraftItem): String = wh
     ReplyDraftTaskKind.ATTACH, ReplyDraftTaskKind.DO -> item.text
 }
 
+/** Draft a reply, in the composer's app bar: it opens the instruction's sheet and runs while drafting. */
+@Composable
+internal fun ComposerReplyDraftControl(host: ReplyDraftHost) {
+    ControlIconButton(
+        icon = R.drawable.ic_stylus_note,
+        label = L10n.composer_draft_reply(LocalContext.current),
+        control = host.record.control,
+        tag = REPLY_DRAFT_CONTROL_TAG,
+        iconSize = 24.dp,
+    ) { host.open() }
+}
+
 @Composable
 internal fun ComposerReplyDraftNotes(host: ReplyDraftHost) {
     val ctx = LocalContext.current
     val record = host.record
     val reduced = rememberReducedMotion()
-    Column(modifier = Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ControlAssistChip(
-            label = L10n.composer_draft_reply(ctx),
-            icon = R.drawable.ic_stylus_note,
-            control = record.control,
-            tag = REPLY_DRAFT_CONTROL_TAG,
-        ) { host.open() }
-        AnimatedContent(
-            targetState = record.state,
-            contentKey = { it::class },
-            transitionSpec = {
-                if (reduced) {
-                    fadeIn(tween(0)) togetherWith fadeOut(tween(0))
-                } else {
-                    fadeIn(tween(220, 80)) togetherWith fadeOut(tween(120))
-                }
-            },
-            label = "reply-draft",
-        ) { state ->
-            when (state) {
-                is ReplyDraftState.Unavailable -> if (state.failure == AiFailure.MessageGone) {
-                    Text(
-                        aiFailureText(ctx, state.failure),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                ReplyDraftState.Ready -> Unit
-                ReplyDraftState.Drafting -> DraftingLine(host)
-                is ReplyDraftState.Drafted -> DraftCard(host, state)
-                is ReplyDraftState.Failed -> NoteSurface(MaterialTheme.colorScheme.errorContainer) {
-                    Text(
-                        aiFailureText(ctx, state.failure),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.weight(1f),
-                    )
-                    state.remedy?.let { offered ->
-                        ControlTextButton(aiRemedyText(ctx, offered.remedy), offered.control, REPLY_DRAFT_REMEDY_TAG) {
-                            host.remedy(offered.remedy)
-                        }
+    AnimatedContent(
+        targetState = record.state,
+        contentKey = { it::class },
+        transitionSpec = {
+            if (reduced) {
+                fadeIn(tween(0)) togetherWith fadeOut(tween(0))
+            } else {
+                fadeIn(tween(220, 80)) togetherWith fadeOut(tween(120))
+            }
+        },
+        label = "reply-draft",
+    ) { state ->
+        when (state) {
+            is ReplyDraftState.Unavailable -> if (state.failure == AiFailure.MessageGone) {
+                Text(
+                    aiFailureText(ctx, state.failure),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            ReplyDraftState.Ready -> Unit
+            ReplyDraftState.Drafting -> DraftingLine(host)
+            is ReplyDraftState.Drafted -> DraftCard(host, state)
+            is ReplyDraftState.Failed -> NoteSurface(MaterialTheme.colorScheme.errorContainer) {
+                Text(
+                    aiFailureText(ctx, state.failure),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.weight(1f),
+                )
+                state.remedy?.let { offered ->
+                    ControlTextButton(aiRemedyText(ctx, offered.remedy), offered.control, REPLY_DRAFT_REMEDY_TAG) {
+                        host.remedy(offered.remedy)
                     }
                 }
             }
@@ -111,7 +117,7 @@ internal fun ComposerReplyDraftNotes(host: ReplyDraftHost) {
 
 @Composable
 private fun NoteSurface(colour: Color, content: @Composable RowScope.() -> Unit) {
-    Surface(color = colour, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+    Surface(color = colour, shape = RoundedCornerShape(16.dp), modifier = Modifier.padding(top = 8.dp).fillMaxWidth()) {
         Row(
             modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -123,7 +129,8 @@ private fun NoteSurface(colour: Color, content: @Composable RowScope.() -> Unit)
 @Composable
 private fun DraftingLine(host: ReplyDraftHost) {
     val ctx = LocalContext.current
-    // No spinner of its own: Draft a reply above runs while the draft is made, and one is enough.
+    // No spinner of its own: Draft a reply in the app bar runs while the draft is made, and one is
+    // enough.
     NoteSurface(MaterialTheme.colorScheme.secondaryContainer) {
         Text(
             L10n.composer_drafting(ctx),
@@ -143,7 +150,7 @@ private fun DraftCard(host: ReplyDraftHost, drafted: ReplyDraftState.Drafted) {
     Surface(
         color = colours.surfaceContainerHigh,
         shape = RoundedCornerShape(16.dp),
-        modifier = Modifier.fillMaxWidth().testTag(REPLY_DRAFT_CARD_TAG),
+        modifier = Modifier.padding(top = 8.dp).fillMaxWidth().testTag(REPLY_DRAFT_CARD_TAG),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (drafted.summary.isNotEmpty()) {

@@ -1,6 +1,7 @@
 // Which sent mail to learn from (docs/ai.md rule 11, `ChooseRange`): the core's presets, then a
-// range of the person's own between two days the core bounds. Days arrive and leave as `YYYY-MM-DD`
-// whole days in UTC, the date picker's own reckoning, so no day moves between the two.
+// range of the person's own, which may start on any day and ends by the core's last, and under
+// them what Next fetches for the range chosen. Days arrive and leave as `YYYY-MM-DD` whole days in
+// UTC, the date picker's own reckoning, so no day moves between the two.
 package eu.allodia.mailcal
 
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import java.time.ZoneOffset
 import uniffi.mailcal_bindings.StyleLearnRange
 import uniffi.mailcal_bindings.StyleLearningIntent
 import uniffi.mailcal_bindings.StyleLearningStage
+import uniffi.mailcal_bindings.StyleRangeFetch
 
 internal const val LEARN_SINCE_TAG = "learn-range-since"
 internal const val LEARN_UNTIL_TAG = "learn-range-until"
@@ -44,6 +46,15 @@ internal fun dayMillis(day: String): Long? =
 
 /** The day the date picker chose, as the core reads one. */
 internal fun millisDay(millis: Long): String = Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC).toLocalDate().toString()
+
+/** The days a range of one's own may take: any day up to [latest]. */
+@OptIn(ExperimentalMaterial3Api::class)
+internal fun learnRangeDays(latest: String): SelectableDates {
+    val last = dayMillis(latest)
+    return object : SelectableDates {
+        override fun isSelectableDate(utcTimeMillis: Long): Boolean = last == null || utcTimeMillis <= last
+    }
+}
 
 @Composable
 internal fun LearnRangeChoice(stage: StyleLearningStage.ChooseRange, send: (StyleLearningIntent) -> Unit) {
@@ -71,6 +82,11 @@ internal fun LearnRangeChoice(stage: StyleLearningStage.ChooseRange, send: (Styl
                 }
             }
         }
+        when (stage.fetch) {
+            StyleRangeFetch.NOTHING -> null
+            StyleRangeFetch.OLDER -> L10n.learn_range_fetch_older(ctx)
+            StyleRangeFetch.WHOLE_HISTORY -> L10n.learn_range_fetch_all(ctx)
+        }?.let { Supporting(it) }
     }
 }
 
@@ -92,14 +108,9 @@ private fun DayButton(label: String, day: String, stage: StyleLearningStage.Choo
         OutlinedButton(onClick = { picking = true }, modifier = Modifier.testTag(tag)) { Text(dayText(day, locale)) }
     }
     if (!picking) return
-    val first = stage.earliest?.let(::dayMillis)
-    val last = dayMillis(stage.latest)
     val state = rememberDatePickerState(
         initialSelectedDateMillis = dayMillis(day),
-        selectableDates = object : SelectableDates {
-            override fun isSelectableDate(utcTimeMillis: Long): Boolean =
-                (first == null || utcTimeMillis >= first) && (last == null || utcTimeMillis <= last)
-        },
+        selectableDates = learnRangeDays(stage.latest),
     )
     DatePickerDialog(
         onDismissRequest = { picking = false },

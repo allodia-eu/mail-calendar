@@ -1,6 +1,10 @@
-// The composer's app bar: Close on the left; Attach, Send and the overflow menu on the right. Close
-// is leaving, which keeps the draft; Discard, in the overflow, is the one control that throws it
-// away (docs/drafts.md, "Leaving a composer").
+// The composer's app bar: Close on the left; Draft a reply on a reply, Attach, Send and the
+// overflow menu on the right. Close is leaving, which keeps the draft; Discard, in the overflow, is
+// the one control that throws it away (docs/drafts.md, "Leaving a composer").
+//
+// Draft a reply is in the bar rather than behind More with Signature and Importance, beside which
+// docs/ai.md rule 17 puts it: it runs while a draft is made, and its spinner is the one the person
+// watches (docs/waiting.md rule 1), which a closed menu would hide.
 //
 // Attach and Send are what nearly every message needs, so they are the two drawn in the bar. Saving
 // a draft by hand, changing this message's signature and throwing the message away are exceptions,
@@ -54,6 +58,8 @@ internal fun ComposerTopBar(
     onDiscard: (() -> Unit)?,
     sendEnabled: Boolean,
     onSend: () -> Unit,
+    // Draft a reply (`ComposerReplyDraftControl`), or null while the core offers none here.
+    replyDraft: (@Composable () -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
     TopAppBar(
@@ -67,6 +73,7 @@ internal fun ComposerTopBar(
             }
         },
         actions = {
+            replyDraft?.invoke()
             IconButton(onClick = onAttach) {
                 Icon(
                     painter = painterResource(R.drawable.ic_attachment),

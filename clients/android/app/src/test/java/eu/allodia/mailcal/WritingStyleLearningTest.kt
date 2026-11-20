@@ -8,20 +8,27 @@ import androidx.activity.OnBackPressedDispatcher
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.text.TextLayoutResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -40,6 +47,7 @@ import uniffi.mailcal_bindings.StyleLearningLanguage
 import uniffi.mailcal_bindings.StyleLearningReport
 import uniffi.mailcal_bindings.StyleLearningReview
 import uniffi.mailcal_bindings.StyleLearningStage
+import uniffi.mailcal_bindings.StyleRangeFetch
 import uniffi.mailcal_bindings.StyleSentReach
 import uniffi.mailcal_bindings.WritingStyleIntent
 import uniffi.mailcal_bindings.WritingStyleLearning
@@ -58,10 +66,12 @@ private fun review(
     sendsTo: StyleLearningDestination? = StyleLearningDestination.Relay,
     cannotSend: AiFailure? = null,
     keywordKept: Boolean = true,
+    olderNotFetched: Boolean = false,
 ) = StyleLearningStage.Review(
     email = "alice@test.local",
     range = StyleLearnRange.Everything,
     reach = StyleSentReach.Since("2025-03-01"),
+    olderNotFetched = olderNotFetched,
     state = state,
     sendsTo = sendsTo,
     cannotSend = cannotSend,
@@ -112,6 +122,43 @@ class WritingStyleLearningTest {
     }
 
     @Test
+    fun the_last_twelve_months_come_first_and_start_selected() {
+        show(learning(chooseRange(), back = FREE, next = FREE))
+        compose.onNodeWithTag(learnRangeTag(StyleLearnRange.LastTwelveMonths))
+            .assertIsSelected()
+            .assert(hasText(L10n.learn_range_last_twelve_months(ctx()), substring = false))
+        val first = compose.onNodeWithTag(learnRangeTag(StyleLearnRange.LastTwelveMonths)).getUnclippedBoundsInRoot()
+        val all = compose.onNodeWithTag(learnRangeTag(StyleLearnRange.Everything)).getUnclippedBoundsInRoot()
+        assertTrue("the core's first preset is drawn first", first.bottom <= all.top)
+    }
+
+    @Test
+    fun the_range_says_what_next_fetches_and_nothing_when_it_fetches_nothing() {
+        show(learning(chooseRange(fetch = StyleRangeFetch.OLDER), back = FREE, next = FREE))
+        compose.onNodeWithText(L10n.learn_range_fetch_older(ctx())).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(L10n.learn_range_fetch_all(ctx())).assertDoesNotExist()
+
+        record = learning(chooseRange(StyleLearnRange.Everything, fetch = StyleRangeFetch.WHOLE_HISTORY), back = FREE, next = FREE)
+        compose.waitForIdle()
+        compose.onNodeWithText(L10n.learn_range_fetch_all(ctx())).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(L10n.learn_range_fetch_older(ctx())).assertDoesNotExist()
+
+        record = learning(chooseRange(StyleLearnRange.UntilEndOfLastYear, fetch = StyleRangeFetch.NOTHING), back = FREE, next = FREE)
+        compose.waitForIdle()
+        compose.onNodeWithText(L10n.learn_range_fetch_all(ctx())).assertDoesNotExist()
+        compose.onNodeWithText(L10n.learn_range_fetch_older(ctx())).assertDoesNotExist()
+        assertEquals("drawing sends nothing", emptyList<StyleLearningIntent>(), intents())
+    }
+
+    @Test
+    fun a_range_of_ones_own_may_start_on_any_day_and_ends_by_the_core_s_last() {
+        val days = learnRangeDays("2026-11-19")
+        assertTrue("a day long before the device's mail", days.isSelectableDate(checkNotNull(dayMillis("1998-02-03"))))
+        assertTrue("the last day", days.isSelectableDate(checkNotNull(dayMillis("2026-11-19"))))
+        assertFalse("a day after it", days.isSelectableDate(checkNotNull(dayMillis("2026-11-20"))))
+    }
+
+    @Test
     fun choose_range_offers_the_presets_and_a_range_of_ones_own_within_the_core_s_days() {
         show(learning(chooseRange(), back = FREE, next = FREE))
         compose.onNodeWithText(L10n.learn_range_all(ctx())).assertIsDisplayed()
@@ -122,7 +169,7 @@ class WritingStyleLearningTest {
         compose.onNodeWithTag(learnRangeTag(StyleLearnRange.UntilEndOfLastYear)).performClick()
         assertEquals(
             listOf(
-                StyleLearningIntent.SelectRange(StyleLearnRange.Between("2025-03-01", "2026-11-19")),
+                StyleLearningIntent.SelectRange(StyleLearnRange.Between("2025-11-19", "2026-11-19")),
                 StyleLearningIntent.SelectRange(StyleLearnRange.UntilEndOfLastYear),
             ),
             intents(),
@@ -147,6 +194,24 @@ class WritingStyleLearningTest {
         show(learning(review(state = StyleLearningReview.Reading), back = FREE, learn = HELD))
         compose.onNodeWithText(L10n.learn_reading(ctx())).assertIsDisplayed()
         compose.onNodeWithTag(FLOW_PRIMARY_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun the_review_fetches_older_mail_first_with_the_one_spinner() {
+        show(learning(review(state = StyleLearningReview.Fetching), back = FREE, learn = HELD))
+        compose.onNodeWithText(L10n.learn_fetching(ctx())).assertIsDisplayed()
+        compose.onAllNodes(hasProgressBarRangeInfo(ProgressBarRangeInfo.Indeterminate)).assertCountEquals(1)
+        compose.onNodeWithTag(FLOW_PRIMARY_TAG).assertIsNotEnabled()
+        compose.onNodeWithTag(FLOW_BACK_TAG).assertIsEnabled()
+    }
+
+    @Test
+    fun older_mail_that_could_not_be_fetched_is_said() {
+        show(learning(review(olderNotFetched = true), back = FREE, learn = FREE))
+        compose.onNodeWithText(L10n.learn_older_not_fetched(ctx())).assertExists()
+        record = learning(review(), back = FREE, learn = FREE)
+        compose.waitForIdle()
+        compose.onNodeWithText(L10n.learn_older_not_fetched(ctx())).assertDoesNotExist()
     }
 
     @Test

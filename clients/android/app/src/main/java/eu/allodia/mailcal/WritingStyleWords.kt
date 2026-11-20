@@ -25,6 +25,7 @@ import uniffi.mailcal_bindings.WritingStyleFrequency
 import uniffi.mailcal_bindings.WritingStyleLetter
 import uniffi.mailcal_bindings.WritingStyleRefusal
 import uniffi.mailcal_bindings.WritingStyleRevealPage
+import uniffi.mailcal_bindings.WritingStyleSpan
 import uniffi.mailcal_bindings.WritingStyleTopic
 
 /** Why learning did not happen, in the person's words; never a server's sentence. */
@@ -141,6 +142,7 @@ internal fun epochDayText(seconds: Long, zone: ZoneId, locale: Locale): String =
 
 /** A range the stage offers, as its choice is labelled. */
 internal fun learnRangeText(ctx: Context, range: StyleLearnRange, locale: Locale): String = when (range) {
+    StyleLearnRange.LastTwelveMonths -> L10n.learn_range_last_twelve_months(ctx)
     StyleLearnRange.Everything -> L10n.learn_range_all(ctx)
     StyleLearnRange.UntilEndOfLastYear -> L10n.learn_range_until_last_year(ctx)
     is StyleLearnRange.Between -> L10n.learn_range_between(ctx)
@@ -253,12 +255,16 @@ internal fun appLanguage(ctx: Context): String =
 /**
  * The miniature letter as one sentence for TalkBack (docs/ai.md rule 15): opening, length,
  * paragraphs, closing and name, each left out when it is empty or zero. A greeting or a sign-off is
- * its runs' text as written, a placeholder as its word; the paragraphs are the record's count,
- * never the lines drawn.
+ * its runs' text as written, a placeholder as its word, without the comma, semicolon, colon or full
+ * stop it ends on, since the comma joining the parts follows it; the paragraphs are the record's
+ * count, never the lines drawn.
  */
 internal fun letterSpoken(ctx: Context, letter: WritingStyleLetter): String {
-    val opening = letter.opening.joinToString("") { it.text }.trim()
-    val closing = letter.closing.joinToString("") { it.text }.trim()
+    val said = { spans: List<WritingStyleSpan> ->
+        spans.joinToString("") { it.text }.trimEnd { it in ",;:." || it.isWhitespace() }.trimStart()
+    }
+    val opening = said(letter.opening)
+    val closing = said(letter.closing)
     val name = letter.signsAs.trim()
     return listOfNotNull(
         opening.takeIf { it.isNotEmpty() }?.let { L10n.a11y_letter_opening(ctx, it) },

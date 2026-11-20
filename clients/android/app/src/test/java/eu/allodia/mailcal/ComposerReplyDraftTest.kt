@@ -1,5 +1,5 @@
 // Draft a reply in the composer as the core's record draws it (docs/ai.md rules 17 to 24): the
-// control, each state among the notes, the instruction's bottom sheet with its suggestions, the
+// control in the app bar before More, each state among the notes, the instruction's bottom sheet with its suggestions, the
 // replace question before a draft and when one arrives, the Send question asked once, and the
 // editor handed each draft once. Driven through the real composables; every press is an intent.
 package eu.allodia.mailcal
@@ -15,6 +15,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertIsDisplayed
@@ -23,8 +24,11 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasProgressBarRangeInfo
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -34,6 +38,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -119,6 +124,17 @@ class ComposerReplyDraftTest {
                 val host = rememberReplyDraft(ui, COMPOSITION, from = "acct-1", editor = null)
                 if (host != null) {
                     Column {
+                        ComposerTopBar(
+                            title = "Re: Thursday",
+                            onClose = {},
+                            onAttach = {},
+                            signatureMenu = null,
+                            onSaveDraft = {},
+                            onDiscard = {},
+                            sendEnabled = true,
+                            onSend = {},
+                            replyDraft = { ComposerReplyDraftControl(host) },
+                        )
                         ComposerReplyDraftNotes(host)
                         ComposerReplyDraftDialogs(host) { submitted++ }
                         Button(onClick = { host.send { submitted++ } }) {
@@ -142,6 +158,23 @@ class ComposerReplyDraftTest {
         record = null
         show()
         compose.onNodeWithTag(REPLY_DRAFT_CONTROL_TAG).assertDoesNotExist()
+    }
+
+    // Rule 17: in the composer's action row, which on this platform is the app bar, ahead of the
+    // overflow that holds Signature and Importance; drawn there and nowhere among the notes.
+    @Test
+    fun the_control_is_in_the_app_bar_before_more_and_says_what_it_does() {
+        show()
+        val control = compose.onNodeWithTag(REPLY_DRAFT_CONTROL_TAG)
+            .assertIsDisplayed()
+            .assertContentDescriptionEquals(L10n.composer_draft_reply(ctx()))
+            .getUnclippedBoundsInRoot()
+        val more = compose.onNodeWithTag(COMPOSER_OVERFLOW_TAG).getUnclippedBoundsInRoot()
+        val attach = compose.onNodeWithContentDescription(L10n.action_attach(ctx())).getUnclippedBoundsInRoot()
+        assertTrue("before More: $control, $more", control.right <= more.left)
+        assertTrue("first of the bar's actions: $control, $attach", control.right <= attach.left)
+        assertEquals("in the bar's row", attach.top.value, control.top.value, 1f)
+        compose.onAllNodesWithTag(REPLY_DRAFT_CONTROL_TAG).assertCountEquals(1)
     }
 
     @Test
