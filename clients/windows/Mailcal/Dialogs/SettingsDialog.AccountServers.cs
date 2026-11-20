@@ -113,7 +113,7 @@ public sealed partial class SettingsDialog
         ushort Standard(ConnectionSecurity chosen) => MailcalBindingsMethods.StandardPort(kind, chosen);
         var field = ManualServerField.For(kind);
         field.AdoptDetected(address, security);
-        var hostText = ManualServerField.SplitHost(address).Host;
+        var hostText = ServerAddressing.Core.Split(address).Host;
         var portText = field.Port;
         var grid = new Grid { ColumnSpacing = 12 };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -149,7 +149,8 @@ public sealed partial class SettingsDialog
         public ConnectionSecurity Security() =>
             Picker.SelectedIndex == 1 ? ConnectionSecurity.StartTls : ConnectionSecurity.ImplicitTls;
 
-        public string Address() => AccountEndpointEdit.Joined(Host.Text, Port.Text, Security(), Standard);
+        public string Address() =>
+            AccountEndpointEdit.Joined(Host.Text, Port.Text, Security(), Standard, ServerAddressing.Core);
     }
 
     /// <summary>Removing the account, confirmed inline and naming the accounts that lose their

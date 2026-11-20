@@ -21,23 +21,31 @@ public sealed class SettingsSendAccountTests(ShowcaseApp showcase)
 
     private static string? Chosen(App app, SetupFlow settings) => app.Agent.Read(Picker(app, settings)).Selection;
 
-    /// <summary>The open list's items. A closed picker exposes none; an open one lists them under
-    /// itself as well, and the ones drawn are those that appeared elsewhere when it opened.</summary>
+    /// <summary>The open list's items. An open picker lists its items under itself as well, and
+    /// the ones drawn are the items elsewhere that carry those names and are drawn over the picker
+    /// itself. The window holds other lists: the Settings navigation, and behind the dialog the
+    /// folder pane, whose account rows carry the same addresses. A picker still opening lists
+    /// nothing under itself, so both are read once it is open.</summary>
     private static List<Element> OpenItems(App app, Element picker)
     {
-        var before = app.Agent.FindAll(new Filter { Type = "ListItem" }).Select(e => e.Handle).ToHashSet();
         app.Agent.Expand(picker);
         List<Element> items = [];
         Assert.True(App.Eventually(() =>
         {
-            var own = app.Agent.FindAll(new Filter { Type = "ListItem", Under = picker }).Select(e => e.Handle).ToHashSet();
+            var listed = app.Agent.FindAll(new Filter { Type = "ListItem", Under = picker }).ToList();
+            var options = listed.Select(e => e.Name).ToHashSet();
+            var under = listed.Select(e => e.Handle).ToHashSet();
             items = app.Agent.FindAll(new Filter { Type = "ListItem" })
-                .Where(i => !before.Contains(i.Handle) && !own.Contains(i.Handle))
+                .Where(e => !under.Contains(e.Handle) && options.Contains(e.Name) && e.Rendered && Over(picker, e))
                 .ToList();
-            return items.Count > 0;
+            return listed.Count > 0 && items.Count >= listed.Count;
         }, TimeSpan.FromSeconds(5)), "the picker opens a list");
         return items;
     }
+
+    /// <summary>Whether <paramref name="item"/> is drawn in the picker's column, as its open list is.</summary>
+    private static bool Over(Element picker, Element item) =>
+        item.X < picker.X + picker.Width && picker.X < item.X + item.Width;
 
     /// <summary>The addresses the picker offers, in its order.</summary>
     private static List<string> Offered(App app, Element picker)
