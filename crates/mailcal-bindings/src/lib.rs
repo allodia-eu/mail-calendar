@@ -210,9 +210,7 @@ pub use autodetect::{
     SetupRecommendation, SrvRecord, SrvResolution,
 };
 use background::BackgroundManager;
-pub use background_sync::{
-    AccountNewMail, BackgroundSyncOutcome, NewMailPreview, NotificationsPage,
-};
+pub use background_sync::*;
 pub use command_bar::{Command, CommandBar, CommandItem, CommandSection};
 pub use composer::{ComposerBlob, Recipients, render_composer_document_json, reply_subject};
 pub use composer_file_list::{ComposerFileTile, ComposerFiles};

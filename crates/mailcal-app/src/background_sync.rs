@@ -186,6 +186,10 @@ impl<P: engine_api::Provider> App<P> {
         if marks_changed {
             self.persist_marks();
         }
+        // A pass can be the last thing its process does, and a mark that never reached the disk
+        // announces the same mail again; a choice changed as the core was built, before this
+        // pass, would be lost with it. So nothing is left to write when a pass returns.
+        self.settle_preferences();
         out
     }
 
@@ -236,7 +240,7 @@ impl<P: engine_api::Provider> App<P> {
             .set(id, mark);
     }
 
-    /// Writes all advanced marks to the preferences file in a single read-modify-write.
+    /// Hands every advanced mark to the preferences file, in a single read-modify-write.
     fn persist_marks(&self) {
         self.notify_marks
             .lock()
@@ -390,10 +394,9 @@ impl NotifyMarksState {
         self.marks.insert(id.to_owned(), mark);
     }
 
-    /// Writes every in-memory mark to the preferences file, and waits for the write: a pass can
-    /// be the last thing its process does, and a mark that never reached the disk notifies the
-    /// same mail again. A failed write keeps the marks for this session. Call once per pass, not
-    /// per account, so a multi-account pass rewrites the file once.
+    /// Hands every in-memory mark to the preferences file, which writes it behind. A failed
+    /// write keeps the marks for this session. Call once per pass, not per account, so a
+    /// multi-account pass rewrites the file once.
     fn persist(&self) {
         let marks: BTreeMap<String, String> = self
             .marks
@@ -402,7 +405,6 @@ impl NotifyMarksState {
             .collect();
         self.prefs
             .edit(move |prefs| prefs.notify_marks.clone_from(&marks));
-        self.prefs.settle();
     }
 }
 
