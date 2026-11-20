@@ -166,6 +166,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Save as draft | `tray.and.arrow.down` | `ic_save_draft` | text | text |
 | Attach | `paperclip` | `ic_attachment` | text | text |
 | Choose a signature | `signature` | `ic_signature` | text | text |
+| A gap still in the reply / filled in, a state that cannot be pressed | — | — | `EA3A` CircleRing / `E930` Completed | — |
 | The draft's actions (Save as draft, Discard), on iPhone and iPad | `ellipsis` | — | — | — |
 | The chosen signature | — | `ic_check` | — | — |
 | Show / hide Cc and Bcc | `chevron.down`, turned | `ic_keyboard_arrow_down`, turned | `E70D` ChevronDown / `E70E` ChevronUp | `pan-down-symbolic` / `pan-up-symbolic` |

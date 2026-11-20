@@ -102,7 +102,7 @@ public sealed partial class SettingsDialog
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(Line(stage.Email, "WritingStyleFlowAccount"));
         panel.Children.Add(Description(Reach(stage.Reach)));
-        switch (stage.ReviewValue)
+        switch (stage.State)
         {
             case StyleLearningReview.Reading:
                 var reading = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };

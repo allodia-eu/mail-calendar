@@ -40,6 +40,33 @@ public class WritingStyleRulesTests
         Assert.Equal(Running, WritingStyleRules.NameSave(Running, null));
     }
 
+    private static readonly LetterWords Letter = new(
+        greeting => $"opens with {greeting}", count => $"{count} words", count => $"{count} paragraphs",
+        signOff => $"signs off with {signOff}", name => $"signed {name}");
+
+    private static WritingStyleParagraph Lines(int count) => new(Enumerable.Repeat(0.8, count).ToArray());
+
+    [Fact]
+    public void TheLetterIsSpokenInOrderWithAPlaceholderAsItsWordAndTheRecordsParagraphCount()
+    {
+        var letter = new WritingStyleLetter(
+            [new WritingStyleSpan("Hi ", false), new WritingStyleSpan("Name", true), new WritingStyleSpan(",", false)],
+            [Lines(3), Lines(2), Lines(4)],
+            [new WritingStyleSpan("Best,", false)],
+            "Eva", 70, 2, "Short paragraphs");
+        Assert.Equal("opens with Hi Name,, 70 words, 2 paragraphs, signs off with Best,, signed Eva",
+            WritingStyleRules.LetterSpoken(letter, Letter));
+    }
+
+    [Fact]
+    public void WhatTheLetterDoesNotKnowIsLeftOutOfWhatIsSpoken()
+    {
+        var letter = new WritingStyleLetter([], [Lines(2), Lines(2)], [], "", 0, 0, "");
+        Assert.Equal(string.Empty, WritingStyleRules.LetterSpoken(letter, Letter));
+        var signed = letter with { SignsAs = "Eva", Words = 40 };
+        Assert.Equal("40 words, signed Eva", WritingStyleRules.LetterSpoken(signed, Letter));
+    }
+
     // Zero is "not known yet": a fraction then would read as nothing done of nothing.
     [Fact]
     public void TheRunSaysNoFractionUntilItKnowsItsTotal()

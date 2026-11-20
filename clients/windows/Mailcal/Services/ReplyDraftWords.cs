@@ -7,9 +7,14 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
-/// <summary>The catalog's <c>composer_draft_chip_*</c> words.</summary>
-internal sealed record ReplyDraftWords(string Yes, string No, string MoreInformation, string Holding)
+/// <summary>The catalog's <c>composer_draft_chip_*</c> words, and <c>composer_task_fill_in</c>
+/// given a gap's text.</summary>
+internal sealed record ReplyDraftWords(string Yes, string No, string MoreInformation, string Holding, Func<string, string> FillIn)
 {
+    /// <summary>A checklist item's line: a gap to fill in named as the reply carries it, any other
+    /// item as the core wrote it.</summary>
+    internal string Of(ReplyDraftItem item) => item.Kind == ReplyDraftTaskKind.FillIn ? FillIn(item.Text) : item.Text;
+
     /// <summary>The line a suggestion puts in the instruction.</summary>
     internal string Of(ReplyDraftSuggestion suggestion) => suggestion switch
     {
@@ -33,8 +38,11 @@ internal enum ReplyDraftRemedyPlace
     /// <summary>Settings → Advanced, where the own endpoint is set up.</summary>
     Endpoint,
 
-    /// <summary>Settings → Writing style, where a style is learned or an account's chosen.</summary>
+    /// <summary>Settings → Writing style, where an account's style is chosen.</summary>
     WritingStyle,
+
+    /// <summary>The learning flow, opened in Settings → Writing style.</summary>
+    Learn,
 }
 
 internal static class ReplyDraftRemedies
@@ -44,7 +52,8 @@ internal static class ReplyDraftRemedies
         AiRemedy.TryAgain => ReplyDraftRemedyPlace.Retry,
         AiRemedy.SignInToAllodia => ReplyDraftRemedyPlace.SignIn,
         AiRemedy.OpenAiEndpoint => ReplyDraftRemedyPlace.Endpoint,
-        AiRemedy.LearnStyle or AiRemedy.ChooseStyle or AiRemedy.ChooseAccount or AiRemedy.ChooseRange => ReplyDraftRemedyPlace.WritingStyle,
+        AiRemedy.LearnStyle => ReplyDraftRemedyPlace.Learn,
+        AiRemedy.ChooseStyle or AiRemedy.ChooseAccount or AiRemedy.ChooseRange => ReplyDraftRemedyPlace.WritingStyle,
         _ => throw new ArgumentOutOfRangeException(nameof(remedy), remedy, null),
     };
 }

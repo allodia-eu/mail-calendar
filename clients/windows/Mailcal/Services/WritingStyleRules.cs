@@ -9,11 +9,19 @@ using uniffi.mailcal_bindings;
 
 namespace Allodia.Mailcal.Services;
 
+/// <summary>The catalog's <c>a11y_letter_*</c> sentences, each given its value.</summary>
+internal sealed record LetterWords(
+    Func<string, string> Opening,
+    Func<int, string> Words,
+    Func<int, string> Paragraphs,
+    Func<string, string> Closing,
+    Func<string, string> Name);
+
 /// <summary>The catalog's words these rules choose between.</summary>
 internal sealed record WritingStyleWords(
     string RefusedBlankName,
     string RefusedGone,
-    string ProgressUnknown,
+    string ProgressStarting,
     Func<int, int, string> Progress,
     string RangeEverything,
     string RangeUntilEndOfLastYear,
@@ -40,7 +48,41 @@ internal static class WritingStyleRules
     /// <summary>The run's line: done of total once the run knows how many requests it makes, and
     /// no fraction before.</summary>
     internal static string Progress(uint done, uint total, WritingStyleWords words) =>
-        total == 0 ? words.ProgressUnknown : words.Progress((int)done, (int)total);
+        total == 0 ? words.ProgressStarting : words.Progress((int)done, (int)total);
+
+    /// <summary>
+    /// The miniature letter as it is spoken, one element whose grey lines are not read: how it
+    /// opens, its length, its paragraphs, how it closes and the name, joined by a comma, each left
+    /// out when it is empty or zero. A greeting or sign-off is its runs read as written, a
+    /// placeholder as its word; the paragraphs are the record's count, never the lines drawn.
+    /// </summary>
+    internal static string LetterSpoken(WritingStyleLetter letter, LetterWords words)
+    {
+        var parts = new List<string>();
+        var opening = string.Concat(letter.Opening.Select(run => run.Text));
+        if (opening.Length > 0)
+        {
+            parts.Add(words.Opening(opening));
+        }
+        if (letter.Words > 0)
+        {
+            parts.Add(words.Words((int)letter.Words));
+        }
+        if (letter.ParagraphCount > 0)
+        {
+            parts.Add(words.Paragraphs((int)letter.ParagraphCount));
+        }
+        var closing = string.Concat(letter.Closing.Select(run => run.Text));
+        if (closing.Length > 0)
+        {
+            parts.Add(words.Closing(closing));
+        }
+        if (letter.SignsAs.Length > 0)
+        {
+            parts.Add(words.Name(letter.SignsAs));
+        }
+        return string.Join(", ", parts);
+    }
 
     /// <summary>A preset range's label. A range of the person's own is labelled by the choice it is,
     /// its days drawn by its own fields.</summary>

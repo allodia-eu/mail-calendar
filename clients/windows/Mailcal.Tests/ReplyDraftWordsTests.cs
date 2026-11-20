@@ -10,7 +10,15 @@ namespace Allodia.Mailcal.Tests;
 
 public class ReplyDraftWordsTests
 {
-    private static readonly ReplyDraftWords Words = new("yes", "no", "more information", "holding");
+    private static readonly ReplyDraftWords Words = new("yes", "no", "more information", "holding", gap => $"fill in {gap}");
+
+    [Fact]
+    public void AGapToFillInIsNamedAsTheReplyCarriesItAndAnyOtherItemAsWritten()
+    {
+        Assert.Equal("fill in [date]", Words.Of(new ReplyDraftItem(0, ReplyDraftTaskKind.FillIn, "[date]", false, null)));
+        Assert.Equal("Attach the agenda", Words.Of(new ReplyDraftItem(1, ReplyDraftTaskKind.Attach, "Attach the agenda", false, null)));
+        Assert.Equal("Book a room", Words.Of(new ReplyDraftItem(2, ReplyDraftTaskKind.Do, "Book a room", false, new ControlState(true, false))));
+    }
 
     [Fact]
     public void EachSuggestionIsWordedByItsOwnKey()
@@ -32,7 +40,7 @@ public class ReplyDraftWordsTests
     public void ARemedyTheComposerCannotTakeOpensSettingsWhereItCanBe()
     {
         Assert.Equal(ReplyDraftRemedyPlace.Endpoint, ReplyDraftRemedies.PlaceOf(AiRemedy.OpenAiEndpoint));
-        Assert.Equal(ReplyDraftRemedyPlace.WritingStyle, ReplyDraftRemedies.PlaceOf(AiRemedy.LearnStyle));
+        Assert.Equal(ReplyDraftRemedyPlace.Learn, ReplyDraftRemedies.PlaceOf(AiRemedy.LearnStyle));
         Assert.Equal(ReplyDraftRemedyPlace.WritingStyle, ReplyDraftRemedies.PlaceOf(AiRemedy.ChooseStyle));
     }
 

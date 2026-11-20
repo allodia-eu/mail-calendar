@@ -47,9 +47,30 @@ public sealed class WritingStyleShowcaseTests(OfferAiShowcaseApp showcase)
         app.Agent.FindAll(new Filter { Type = "Button", Under = dialog })
             .FirstOrDefault(e => e.Id.StartsWith("WritingStyleRow_", StringComparison.Ordinal) && e.Name.StartsWith(name + ",", StringComparison.Ordinal));
 
-    private static Element NamedRadio(App app, Element under, string key) =>
-        app.Agent.Find(new Filter { Name = Catalog.English(key), Type = "RadioButton", Under = under })
-            ?? throw new InvalidOperationException($"no '{Catalog.English(key)}' is offered");
+    private static Element NamedRadio(App app, Element under, string key) => Radio(app, under, Catalog.English(key));
+
+    private static Element Radio(App app, Element under, string name) =>
+        app.Agent.Find(new Filter { Name = name, Type = "RadioButton", Under = under })
+            ?? throw new InvalidOperationException($"no '{name}' is offered");
+
+    // The staged accounts: the first has sent mail enough to learn from, the second has none.
+    private const string Learnable = "eva.jansen@example.com";
+    private const string NothingToLearn = "eva@northwind.example";
+
+    /// <summary>Opens the flow and takes <paramref name="account"/> over all its mail to the review.</summary>
+    private static Element Review(App app, string account)
+    {
+        var dialog = Page(app);
+        Press(app, dialog, "WritingStyleLearn");
+        WaitStage(app, dialog, "learn_account_title");
+        app.Agent.Select(Radio(app, Wait(app, dialog, "WritingStyleFlowAccounts", "no accounts are offered"), account));
+        Press(app, dialog, "WritingStyleFlowPrimary");
+        WaitStage(app, dialog, "learn_range_title");
+        app.Agent.Select(NamedRadio(app, Wait(app, dialog, "WritingStyleFlowRanges", "no ranges are offered"), "learn_range_all"));
+        Press(app, dialog, "WritingStyleFlowPrimary");
+        WaitStage(app, dialog, "learn_consent_title");
+        return dialog;
+    }
 
     /// <summary>Closes a flow left open.</summary>
     private static void CloseFlow(App app)
@@ -116,6 +137,21 @@ public sealed class WritingStyleShowcaseTests(OfferAiShowcaseApp showcase)
                 TimeSpan.FromSeconds(5)), "the pips say which page is on screen");
             Assert.True(Find(app, dialog, "WritingStyleRevealBack") is null, "the first page has no Back");
 
+            // The miniature letter is one element, spoken from its values with its grey lines unread.
+            var letter = Catalog.English("reveal_step_letter");
+            for (var page = 0; page < 6 && Find(app, dialog, "WritingStyleRevealTitle")?.Name != letter; page++)
+            {
+                Press(app, dialog, "WritingStyleRevealPrimary");
+                app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(300));
+            }
+            WaitStage(app, dialog, "reveal_step_letter", "WritingStyleReveal");
+            var opens = Catalog.English("a11y_letter_opening").Split('{')[0];
+            var words = Catalog.English("a11y_letter_words").Split('{')[0];
+            var spoken = app.Agent.FindAll(new Filter { Type = "Text", Under = dialog })
+                .FirstOrDefault(e => e.Name.StartsWith(opens, StringComparison.Ordinal))
+                ?? throw new InvalidOperationException($"the letter is not spoken as one element opening '{opens}'");
+            Assert.Contains(", " + words, spoken.Name, StringComparison.Ordinal);
+
             // A page per language, its control naming each. German was learned for its greetings
             // alone, so on tone and approach it says nothing stood out.
             var voice = Catalog.English("reveal_step_voice");
@@ -161,8 +197,7 @@ public sealed class WritingStyleShowcaseTests(OfferAiShowcaseApp showcase)
             WaitStage(app, dialog, "learn_account_title");
             Assert.False(Wait(app, dialog, "WritingStyleFlowPrimary", "the stage has no Next").Enabled, "Next is held until an account is chosen");
             Assert.True(Find(app, dialog, "WritingStyleFlowBack") is null, "the first stage has no Back");
-            app.Agent.Select(app.Agent.Find(new Filter { Type = "RadioButton", Under = Wait(app, dialog, "WritingStyleFlowAccounts", "no accounts are offered") })
-                ?? throw new InvalidOperationException("the account stage offers no account"));
+            app.Agent.Select(Radio(app, Wait(app, dialog, "WritingStyleFlowAccounts", "no accounts are offered"), NothingToLearn));
             Press(app, dialog, "WritingStyleFlowPrimary");
 
             // The core's presets, the last a range of one's own drawn with its two days.
@@ -173,15 +208,40 @@ public sealed class WritingStyleShowcaseTests(OfferAiShowcaseApp showcase)
             app.Agent.Select(NamedRadio(app, Wait(app, dialog, "WritingStyleFlowRanges", "no ranges are offered"), "learn_range_all"));
             Press(app, dialog, "WritingStyleFlowPrimary");
 
-            // The review reads on the device. The showcase's sent mail says too little to learn from,
-            // so it says so and Learn is held; a run, and a run that fails, are the harness's.
+            // The review reads on the device. This account's sent mail says too little to learn from,
+            // so it says so, names nowhere it would send, and Learn is held.
             WaitStage(app, dialog, "learn_consent_title");
             Wait(app, dialog, "WritingStyleFlowNothing", "the review never said nothing here is long enough");
             Assert.True(Find(app, dialog, "WritingStyleFlowFound") is not null, "the review says how many messages it found");
             Assert.True(Find(app, dialog, "WritingStyleFlowPrimary") is not { Enabled: true }, "Learn is held when nothing can be learned from");
+            Assert.True(Find(app, dialog, "WritingStyleFlowConsent") is null, "a review with nothing to send names no destination");
 
             Press(app, dialog, "WritingStyleFlowBack");
             WaitStage(app, dialog, "learn_range_title");
+            Press(app, dialog, "WritingStyleFlowClose");
+            Assert.True(App.Eventually(() => Find(app, dialog, "WritingStyleLearn") is not null, TimeSpan.FromSeconds(10)), "closing the flow goes back to the page");
+        }, CloseFlow);
+
+    [OfflineFact]
+    public void AReviewWithMailToLearnFromNamesTheEndpointAndARunThatCannotReachItOffersTryAgain() =>
+        showcase.Case(nameof(AReviewWithMailToLearnFromNamesTheEndpointAndARunThatCannotReachItOffersTryAgain), app =>
+        {
+            var dialog = Review(app, Learnable);
+            var consent = Wait(app, dialog, "WritingStyleFlowConsent", "the review never said where Learn sends");
+            Assert.StartsWith(Catalog.English("learn_consent_own").Split('{')[0], consent.Name, StringComparison.Ordinal);
+            Assert.Contains("localhost", consent.Name, StringComparison.Ordinal);
+            Assert.Equal(Catalog.English("learn_consent_confirm"), Wait(app, dialog, "WritingStyleFlowPrimary", "the review has no Learn").Name);
+
+            // The staged endpoint answers drafts only, so the run fails as unreachable, with its one
+            // remedy as the stage's action; Try again runs it again and fails the same way.
+            Press(app, dialog, "WritingStyleFlowPrimary");
+            WaitStage(app, dialog, "learn_failed_title");
+            Assert.Equal(Catalog.English("ai_failure_unreachable"), Wait(app, dialog, "WritingStyleFlowFailure", "the failure is not said").Name);
+            Assert.Equal(Catalog.English("ai_remedy_try_again"), Wait(app, dialog, "WritingStyleFlowPrimary", "the failure offers no remedy").Name);
+            Press(app, dialog, "WritingStyleFlowPrimary");
+            WaitStage(app, dialog, "learn_failed_title");
+            Assert.Equal(Catalog.English("ai_remedy_try_again"), Wait(app, dialog, "WritingStyleFlowPrimary", "the failure offers no remedy").Name);
+
             Press(app, dialog, "WritingStyleFlowClose");
             Assert.True(App.Eventually(() => Find(app, dialog, "WritingStyleLearn") is not null, TimeSpan.FromSeconds(10)), "closing the flow goes back to the page");
         }, CloseFlow);

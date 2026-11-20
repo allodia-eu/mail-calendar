@@ -11,7 +11,7 @@ pub struct AccountsSnapshot {
     /// Every account, mail or not.
     pub accounts: Vec<AccountEntry>,
     /// The accounts that can make video meetings, in the same order, as Settings →
-    /// Videoconferencing lists them (`docs/settings.md` category 4).
+    /// Videoconferencing lists them (`docs/settings.md`).
     #[uniffi(default = [])]
     pub meeting_accounts: Vec<crate::MeetingAccount>,
 }

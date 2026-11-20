@@ -161,6 +161,7 @@ fn language(code: &str, style: &LanguageStyle) -> RevealLanguage {
             closing: first_run(&style.sign_offs),
             signs_as: style.signs_as.clone(),
             words: style.typical_words,
+            paragraph_count: style.typical_paragraphs,
             shape: style.shape.clone(),
         }),
         habits: has_habits.then(|| RevealHabits {
@@ -187,7 +188,7 @@ pub(super) fn sections(guide: &StyleGuide) -> Vec<RevealLanguage> {
 impl<P: Provider> App<P> {
     /// The controls of a style's surfaces while the library's changes `work` run: all held, the
     /// one that started a change of `kind` on `id` running.
-    fn style_controls(
+    pub(super) fn style_controls(
         &self,
         id: &WritingStyleId,
     ) -> impl Fn(WritingStyleChangeKind) -> StyleControl {

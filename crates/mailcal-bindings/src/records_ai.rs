@@ -353,3 +353,7 @@ pub(crate) fn endpoint_form(view: core::AiEndpointView) -> Option<AiEndpointForm
         }),
     })
 }
+
+#[cfg(test)]
+#[path = "records_ai_words_tests.rs"]
+mod words_tests;

@@ -42,7 +42,8 @@ pub enum LearningIntent {
     },
     /// Stops the run.
     Stop,
-    /// Takes the failure's remedy, where it is a step of the flow.
+    /// Takes the failure's remedy: moves the flow for one that is a step of it, waits on the review
+    /// for the Allodia sign-in, and ends the flow for the own endpoint's form.
     Remedy,
     /// Closes the host.
     Close,
@@ -119,7 +120,8 @@ pub(super) enum Start {
     Read(u64),
     /// Run the learning under this ticket.
     Learn(u64),
-    /// The reveal of this style was left by closing.
+    /// The reveal of this style is left by closing, as `WritingStyleChange::CloseReveal` leaves
+    /// it.
     RevealClosed(WritingStyleId),
 }
 
@@ -216,8 +218,18 @@ impl Flows {
                 Start::Nothing
             }
             (LearningIntent::Remedy, Stage::Failed(failure)) => match failure.remedy() {
-                Some(AiRemedy::ChooseAccount | AiRemedy::ChooseRange) => {
+                // The sign-in is taken over the flow, which waits where Learn can be pressed
+                // again once the person is back.
+                Some(
+                    AiRemedy::ChooseAccount | AiRemedy::ChooseRange | AiRemedy::SignInToAllodia,
+                ) => {
                     flow.back();
+                    Start::Nothing
+                }
+                // The endpoint is set up under Settings → Advanced, which the flow's host gives
+                // way to: the flow ends, as Close ends it.
+                Some(AiRemedy::OpenAiEndpoint) => {
+                    self.flow = None;
                     Start::Nothing
                 }
                 Some(AiRemedy::TryAgain) if flow.run_failed && flow.reviewed.is_some() => {
@@ -231,10 +243,9 @@ impl Flows {
                 flow.shown = false;
                 Start::Nothing
             }
-            (LearningIntent::Close, Stage::Learned(style)) => {
-                self.flow = None;
-                Start::RevealClosed(style)
-            }
+            // Leaving the reveal is one change whichever Close arrives; the flow ends when it is
+            // written, as it does for the reveal's own Close.
+            (LearningIntent::Close, Stage::Learned(style)) => Start::RevealClosed(style),
             (LearningIntent::Close, _) => {
                 self.flow = None;
                 Start::Nothing

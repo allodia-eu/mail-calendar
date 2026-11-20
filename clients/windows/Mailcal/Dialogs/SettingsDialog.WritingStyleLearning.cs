@@ -77,7 +77,7 @@ public sealed partial class SettingsDialog
             ?? Action(learning.Learn, L10n.LearnConsentConfirm(), LearnNow)
             ?? Action(learning.Stop, L10n.LearnStop(), () => _model.MoveLearning(new StyleLearningIntent.Stop()))
             ?? (learning.Stage is StyleLearningStage.Failed { Remedy: { } remedy }
-                ? Action(remedy.Control, words.Of(remedy.Remedy), () => Remedy(remedy.Remedy))
+                ? Action(remedy.Control, words.Of(remedy.Remedy), () => TakeRemedy(remedy.Remedy, reopen: false))
                 : null);
         var back = Action(learning.Back, L10n.WizardBack(), () => _model.MoveLearning(new StyleLearningIntent.Back()));
         // The stages behind this one tell the host which side it comes in from.
@@ -91,18 +91,6 @@ public sealed partial class SettingsDialog
         var language = WritingStyleRules.AppLanguage(
             LanguageStore.Read(), System.Globalization.CultureInfo.InstalledUICulture.TwoLetterISOLanguageName, L10n.Locales);
         _model.MoveLearning(new StyleLearningIntent.Learn(L10n.WritingStyleDefaultName(), language));
-    }
-
-    // A remedy that moves the flow is the core's to carry out; one that names another part of
-    // Settings is opened here, which closes the flow.
-    private void Remedy(AiRemedy remedy)
-    {
-        if (RemedyOpens(remedy) is { } opens)
-        {
-            opens();
-            return;
-        }
-        _model.MoveLearning(new StyleLearningIntent.Remedy());
     }
 
     private static string StageTitle(StyleLearningStage stage) => stage switch
@@ -119,7 +107,7 @@ public sealed partial class SettingsDialog
     {
         StyleLearningStage.ChooseAccount choose => $"account:{choose.Selected}:{choose.Accounts.Length}",
         StyleLearningStage.ChooseRange range => $"range:{range.Email}:{RangeKey(range.Selected)}",
-        StyleLearningStage.Review review => $"review:{review.ReviewValue.GetType().Name}:{RangeKey(review.Range)}:{review.SendsTo}:{review.CannotSend}",
+        StyleLearningStage.Review review => $"review:{review.State.GetType().Name}:{RangeKey(review.Range)}:{review.SendsTo}:{review.CannotSend}",
         StyleLearningStage.Learning learning => $"learning:{learning.Done}:{learning.Total}",
         StyleLearningStage.Failed failed => $"failed:{failed.Failure}:{failed.Remedy}",
         _ => stage.GetType().Name,

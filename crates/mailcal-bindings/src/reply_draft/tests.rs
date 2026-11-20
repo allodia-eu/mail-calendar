@@ -106,7 +106,7 @@ fn the_record_numbers_its_items_and_names_each_hold_with_its_remedy() {
         kind,
         text: "[date]".to_owned(),
         done,
-        tick: ON,
+        tick: (kind != mailcal_ai::TaskKind::FillIn).then_some(ON),
     };
     let view = ReplyDraftView {
         state: CoreState::Drafted {
@@ -146,11 +146,11 @@ fn the_record_numbers_its_items_and_names_each_hold_with_its_remedy() {
     assert_eq!(
         checklist
             .iter()
-            .map(|item| (item.index, item.kind, item.done))
+            .map(|item| (item.index, item.kind, item.done, item.tick.is_some()))
             .collect::<Vec<_>>(),
         [
-            (0, ReplyDraftTaskKind::FillIn, true),
-            (1, ReplyDraftTaskKind::Do, false)
+            (0, ReplyDraftTaskKind::FillIn, true, false),
+            (1, ReplyDraftTaskKind::Do, false, true)
         ]
     );
     assert_eq!(

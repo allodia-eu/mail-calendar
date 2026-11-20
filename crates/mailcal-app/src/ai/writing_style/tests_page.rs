@@ -265,6 +265,12 @@ fn the_reveal_leaves_out_what_was_not_noticed_and_orders_languages_by_messages()
     assert_eq!(letter.opening[1].text, "Name");
     assert!(letter.opening[1].placeholder);
     assert_eq!(letter.signs_as, "Sam");
+    assert_eq!((letter.words, letter.paragraph_count), (80, 0));
+    assert_eq!(
+        letter.paragraphs.len(),
+        2,
+        "two are drawn where the count is not known, and none is said"
+    );
     let cards: Vec<(RevealTopic, &str, &str)> = english
         .cards
         .iter()

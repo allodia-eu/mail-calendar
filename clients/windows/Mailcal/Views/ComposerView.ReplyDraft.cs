@@ -168,7 +168,8 @@ public sealed partial class ComposerView
     }
 
     private static ReplyDraftWords Words => new(
-        L10n.ComposerDraftChipYes(), L10n.ComposerDraftChipNo(), L10n.ComposerDraftChipMoreInfo(), L10n.ComposerDraftChipLater());
+        L10n.ComposerDraftChipYes(), L10n.ComposerDraftChipNo(), L10n.ComposerDraftChipMoreInfo(), L10n.ComposerDraftChipLater(),
+        L10n.ComposerTaskFillIn);
 
     // Draft, asking first while what is above the signature and the quote is the person's own.
     private async Task DraftAsync(string instruction)
@@ -276,8 +277,9 @@ public sealed partial class ComposerView
         return send;
     }
 
-    // A failure's one remedy from its control: Try again reopens the input; a place in Settings,
-    // or the Allodia sign-in, is opened over the composer, which keeps the draft.
+    // A failure's one remedy from its control: Try again reopens the input; a place in Settings, the
+    // learning flow or the Allodia sign-in is opened over the composer, which keeps the draft and
+    // sends nothing for it: its record follows on Surface.WritingStyle.
     private StackPanel? DraftRemedy(AiRemedyControl? remedy, string automationId)
     {
         if (remedy is not { } given)
@@ -301,12 +303,17 @@ public sealed partial class ComposerView
                 case ReplyDraftRemedyPlace.WritingStyle:
                     App.Shell?.ShowSettings("writing_style");
                     break;
+                case ReplyDraftRemedyPlace.Learn:
+                    _model?.MoveLearning(new StyleLearningIntent.Open());
+                    App.Shell?.ShowSettings("writing_style");
+                    break;
             }
         });
     }
 
     // The notes Draft a reply adds under the action row: the message answered gone, a draft being
-    // made with its Stop, one that did not come with its remedy, or the card.
+    // made with its Stop, one that did not come with its remedy, or the card. The one spinner while
+    // drafting is the action row's control, which runs until the draft is in or stopped.
     private void DrawReplyDraftNotes(ComposerReplyDraft record)
     {
         ReplyDraftNotes.Children.Clear();
@@ -318,7 +325,6 @@ public sealed partial class ComposerView
         {
             case ReplyDraftState.Drafting:
                 var drafting = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-                drafting.Children.Add(new ProgressRing { IsActive = true, Width = 16, Height = 16 });
                 drafting.Children.Add(NoteLine(L10n.ComposerDrafting(), "ComposerDrafting"));
                 drafting.Children.Add(ControlComponents.Button(L10n.ComposerDraftStop(), record.Stop, "ComposerDraftStop", () =>
                     _model?.ChangeReplyDraft(new ReplyDraftIntent.Stop(_composition))));
@@ -359,8 +365,9 @@ public sealed partial class ComposerView
         return line;
     }
 
-    // The card: what the message asks, then what is left to do, each item ticked as its record
-    // says. It is drawn beside the editor, so it is never part of the mail.
+    // The card: what the message asks, then what is left to do. The person's items are ticks; a gap,
+    // which has no tick, is a mark the reply decides. It is drawn beside the editor, so it is never
+    // part of the mail.
     private Border DraftCard(ReplyDraftState.Drafted drafted)
     {
         var body = new StackPanel { Spacing = 6 };
@@ -379,8 +386,11 @@ public sealed partial class ComposerView
             foreach (var item in drafted.Checklist)
             {
                 var index = item.Index;
-                body.Children.Add(ControlComponents.CheckBox(item.Text, item.Done, item.Tick, $"ComposerDraftItem_{index}", done =>
-                    _model?.ChangeReplyDraft(new ReplyDraftIntent.Tick(_composition, index, done))));
+                var text = Words.Of(item);
+                body.Children.Add(item.Tick is { } tick
+                    ? ControlComponents.CheckBox(text, item.Done, tick, $"ComposerDraftItem_{index}", done =>
+                        _model?.ChangeReplyDraft(new ReplyDraftIntent.Tick(_composition, index, done)))
+                    : new StateMark(text, item.Done, $"ComposerDraftItem_{index}"));
             }
         }
         var card = new Border

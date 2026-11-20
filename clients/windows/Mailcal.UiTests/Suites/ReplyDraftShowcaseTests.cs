@@ -93,10 +93,15 @@ public sealed class ReplyDraftShowcaseTests(OfferAiShowcaseApp showcase)
             Reply(app, ToFirst);
             Draft(app);
             Assert.Equal(Catalog.English("composer_draft_summary_heading"), app.Agent.Find(Filter.Named(Catalog.English("composer_draft_summary_heading"), "Text"))?.Name);
-            var items = Enumerable.Range(0, 6).Select(index => Item(app, index)).OfType<Element>().ToList();
-            Assert.True(items.Count == 3, $"the canned draft's checklist has a gap, a file and a task; the card draws {items.Count}");
-            Assert.False(items[0].Enabled, "a gap in the reply is ticked by the core as it is filled, not by the person");
-            Assert.True(items[1].Enabled && items[2].Enabled, "a file and a task are the person's to tick");
+            // The gap is a mark the reply decides, read with its state and nothing to press; never a
+            // checkbox held, which would read as unavailable.
+            var gap = app.Agent.Find(Filter.ById("ComposerDraftItem_0", "Text")) ?? throw new InvalidOperationException("the card draws no mark for the gap");
+            Assert.StartsWith(Catalog.English("composer_task_fill_in").Split('{')[0], gap.Name, StringComparison.Ordinal);
+            Assert.True(app.Agent.Read(gap).Active == false, "the gap is open while the reply still carries it");
+            Assert.True(Item(app, 0) is null, "the gap is no checkbox");
+            var ticks = Enumerable.Range(1, 5).Select(index => Item(app, index)).OfType<Element>().ToList();
+            Assert.True(ticks.Count == 2, $"the canned draft's checklist has a file and a task to tick; the card draws {ticks.Count}");
+            Assert.True(ticks.All(tick => tick.Enabled), "a file and a task are the person's to tick");
         });
 
     [OfflineFact]

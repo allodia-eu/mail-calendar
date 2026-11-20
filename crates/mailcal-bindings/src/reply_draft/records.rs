@@ -13,12 +13,14 @@ use crate::{AiFailure, AiRemedyControl, ControlState};
 pub struct ComposerReplyDraft {
     /// Where it stands.
     pub state: ReplyDraftState,
-    /// Draft a reply in the action row, beside Signature. Running while a draft is made; held
-    /// only when the message answered is gone, and otherwise it opens the instruction's input.
+    /// Draft a reply in the action row, beside Signature. Running while a draft is made, and the
+    /// one control drawn with a spinner meanwhile; held only when the message answered is gone,
+    /// and otherwise it opens the instruction's input.
     pub control: ControlState,
     /// Draft in the instruction's input.
     pub draft: ControlState,
-    /// Stop, drawn among the composer's notes while a draft is made.
+    /// Stop, drawn among the composer's notes while a draft is made. Never running: Stop ends the
+    /// work at once.
     pub stop: ControlState,
     /// Why Draft cannot be pressed: said in the input in place of the field, with its remedy;
     /// for `MessageGone`, a line among the composer's notes.
@@ -57,7 +59,8 @@ pub enum ReplyDraftState {
     },
     /// It can draft.
     Ready,
-    /// A draft is being made, or waits for the replace question; drawn among the notes with Stop.
+    /// A draft is being made, or waits for the replace question; drawn among the notes as a line
+    /// with Stop and no spinner, since `control` shows the work.
     Drafting,
     /// A draft is in the reply: the card, among the composer's notes.
     Drafted {
@@ -82,8 +85,10 @@ pub struct ReplyDraftItem {
     /// A gap exactly as the reply carries it, or the task in the interface's language.
     pub text: String,
     pub done: bool,
-    /// The person's tick: held for a gap, which follows the reply.
-    pub tick: ControlState,
+    /// The person's tick (`ReplyDraftIntent::Tick`). `None` for a gap, whose `done` follows the
+    /// reply: a client draws it as a state that cannot be pressed (an open or a done mark beside
+    /// the text), never as a disabled checkbox.
+    pub tick: Option<ControlState>,
 }
 
 impl fmt::Debug for ReplyDraftItem {
@@ -196,7 +201,7 @@ impl From<core::ReplyDraftState> for ReplyDraftState {
                         },
                         text: item.text,
                         done: item.done,
-                        tick: control(item.tick),
+                        tick: item.tick.map(control),
                     })
                     .collect(),
             },

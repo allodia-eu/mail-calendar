@@ -90,8 +90,8 @@ public sealed partial class SettingsDialog
     }
 
     // A typical reply: the usual greeting, grey lines in the usual length and paragraphs, the usual
-    // sign-off and the name signed with; then its length and shape in words. The lines are a
-    // picture, so they are not read out.
+    // sign-off and the name signed with; then its length and shape in words. The letter is one
+    // element, spoken as the core's values say it, its grey lines not read.
     private UIElement LetterSection(WritingStyleLetter letter, RevealInk ink)
     {
         var panel = new StackPanel { Spacing = 10 };
@@ -114,7 +114,6 @@ public sealed partial class SettingsDialog
             }
             paragraphs.Children.Add(lines);
         }
-        AutomationProperties.SetAccessibilityView(paragraphs, AccessibilityView.Raw);
         body.Children.Add(paragraphs);
         var close = new StackPanel { Spacing = 2, Margin = new Thickness(0, 18, 0, 0) };
         if (letter.Closing.Length > 0)
@@ -129,7 +128,8 @@ public sealed partial class SettingsDialog
         {
             body.Children.Add(close);
         }
-        panel.Children.Add(Card(body, ink));
+        panel.Children.Add(Card(new SpokenPanel(body, WritingStyleRules.LetterSpoken(letter, new LetterWords(
+            L10n.A11yLetterOpening, L10n.A11yLetterWords, L10n.A11yLetterParagraphs, L10n.A11yLetterClosing, L10n.A11yLetterName))), ink));
         var caption = Muted(L10n.RevealLetterCaption(), ink);
         caption.Style = TextStyle("CaptionTextBlockStyle");
         panel.Children.Add(caption);

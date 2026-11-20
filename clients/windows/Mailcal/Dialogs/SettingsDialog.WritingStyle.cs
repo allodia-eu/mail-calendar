@@ -39,7 +39,7 @@ public sealed partial class SettingsDialog
     private static WritingStyleWords StyleWords() => new(
         L10n.WritingStyleRefusedBlankName(),
         L10n.WritingStyleRefusedGone(),
-        L10n.LearnProgressUnknown(),
+        L10n.LearnProgressStarting(),
         (done, total) => L10n.LearnProgress(Number(done), Number(total)),
         L10n.LearnRangeAll(),
         L10n.LearnRangeUntilLastYear(),
@@ -220,6 +220,7 @@ public sealed partial class SettingsDialog
         {
             var card = new StackPanel { Spacing = 12 };
             card.Children.Add(Progress(running.Done, running.Total, "WritingStyleRun"));
+            card.Children.Add(Line(L10n.LearnProgressAccount(running.Email), "WritingStyleRunAccount"));
             card.Children.Add(ControlComponents.Button(L10n.LearnStop(), running.Stop, "WritingStyleStop", () =>
                 _model.MoveLearning(new StyleLearningIntent.Stop())));
             area.Children.Add(Card(card, ink));
@@ -266,38 +267,39 @@ public sealed partial class SettingsDialog
         return bar;
     }
 
-    // A failure's one remedy, drawn from the control its record gives. One that names another part of
-    // Settings opens it; one that moves the flow is the flow's, which a run that failed with its host
-    // closed reopens on the failure first.
+    // A failure's one remedy, drawn from the control its record gives.
     private UIElement? RemedyButton(AiRemedyControl? remedy, AiWords words, string automationId, bool reopen)
     {
         if (remedy is not { } given)
         {
             return null;
         }
-        return ControlComponents.Button(words.Of(given.Remedy), given.Control, automationId, () =>
-        {
-            if (RemedyOpens(given.Remedy) is { } opens)
-            {
-                opens();
-                return;
-            }
-            if (reopen)
-            {
-                _model.MoveLearning(new StyleLearningIntent.Open());
-            }
-            _model.MoveLearning(new StyleLearningIntent.Remedy());
-        });
+        return ControlComponents.Button(words.Of(given.Remedy), given.Control, automationId, () => TakeRemedy(given.Remedy, reopen));
     }
 
-    // A remedy that opens another part of Settings, which the client does; the ones that move the
-    // flow are the flow's.
-    private Action? RemedyOpens(AiRemedy remedy) => remedy switch
+    // Every remedy is the flow's Remedy, which moves it, keeps it on the review for the Allodia
+    // sign-in, or ends it for the own endpoint's form; a run that failed with its host closed opens
+    // the host on the failure first, unless the remedy ends the flow. A remedy that names another
+    // part of Settings then opens it, leaving the flow as the remedy left it rather than closing it.
+    private void TakeRemedy(AiRemedy remedy, bool reopen)
     {
-        AiRemedy.OpenAiEndpoint => () => SelectCategory("advanced"),
-        AiRemedy.SignInToAllodia when Categories().Any(category => category.Tag == "allodia") => () => SelectCategory("allodia"),
-        _ => null,
-    };
+        if (reopen && remedy is not AiRemedy.OpenAiEndpoint)
+        {
+            _model.MoveLearning(new StyleLearningIntent.Open());
+        }
+        _model.MoveLearning(new StyleLearningIntent.Remedy());
+        var opens = remedy switch
+        {
+            AiRemedy.OpenAiEndpoint => "advanced",
+            AiRemedy.SignInToAllodia when Categories().Any(category => category.Tag == "allodia") => "allodia",
+            _ => null,
+        };
+        if (opens is not null)
+        {
+            _learningHost = null;
+            SelectCategory(opens);
+        }
+    }
 
     private static UIElement Progress(uint done, uint total, string automationId)
     {
