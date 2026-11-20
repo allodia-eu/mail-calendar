@@ -25,11 +25,21 @@ import Testing
             record: record, line: .constant(""), draft: {}, remedy: { _ in }))
     }
 
+    /// The fields alone: hosted in a window of their own, SwiftUI gives the agent nothing inside
+    /// the input's scroll view, though VoiceOver and the UI suite read it in the running app.
+    private func fields(_ record: ComposerReplyDraft) -> HostedScreen {
+        HostedScreen(VStack {
+            ReplyDraftFields(record: record, line: .constant(""), draft: {}, remedy: { _ in })
+        })
+    }
+
     @Test func draftIsFreeAndEverySuggestionIsOffered() {
         let shown = input(record())
         #expect(shown.elements(L10n.composer_draft_create()).first?.enabled == true, "\(shown.dump())")
+        let offered = fields(record())
+        #expect(offered.dump().contains("AXTextArea"), "\(offered.dump())")
         for words in [L10n.composer_draft_chip_yes(), L10n.composer_draft_chip_later()] {
-            #expect(!shown.elements(words).isEmpty, "\(words) is not offered: \(shown.dump())")
+            #expect(!offered.elements(words).isEmpty, "\(words) is not offered: \(offered.dump())")
         }
     }
 
@@ -43,7 +53,9 @@ import Testing
             failure: .noStyle, remedy: AiRemedyControl(remedy: .learnStyle, control: .free()))
         let shown = input(record(held: held))
         #expect(shown.elements(L10n.composer_draft_create()).isEmpty, "\(shown.dump())")
-        #expect(shown.elements(L10n.ai_remedy_learn_style()).first?.enabled == true)
+        let offered = fields(record(held: held))
+        #expect(offered.elements(L10n.ai_remedy_learn_style()).first?.enabled == true, "\(offered.dump())")
+        #expect(!offered.dump().contains("AXTextArea"), "the field is drawn while held")
     }
 
     @Test func aGapsTickFollowsTheReplyAndTheOthersAreThePersons() {

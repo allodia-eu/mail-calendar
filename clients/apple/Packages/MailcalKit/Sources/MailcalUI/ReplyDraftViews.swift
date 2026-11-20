@@ -13,7 +13,6 @@ struct ReplyDraftInput: View {
     let draft: () -> Void
     let remedy: (AiRemedy) -> Void
 
-    @FocusState private var focused: Bool
     @Environment(\.dismiss) private var dismiss
     #if os(iOS)
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -35,7 +34,6 @@ struct ReplyDraftInput: View {
         }
         .padding(18)
         .frame(width: 360)
-        .onAppear { focused = record.heldBy == nil }
         #else
         // An iPhone's sheet keeps only what the keyboard leaves of half the screen, so Cancel and
         // Draft go in its bar, which the keyboard never covers, as the link sheet has them.
@@ -62,12 +60,36 @@ struct ReplyDraftInput: View {
         }
         // The size an iPad's popover takes; a sheet fills its detent instead.
         .frame(minWidth: 320, idealWidth: 380, minHeight: 200, idealHeight: 230)
-        .onAppear { focused = record.heldBy == nil }
         #endif
     }
 
-    /// Why Draft cannot be pressed, with its one remedy; otherwise the line and the suggestions.
-    @ViewBuilder private var content: some View {
+    private var content: some View {
+        ReplyDraftFields(record: record, line: $line, draft: draft, remedy: remedy)
+    }
+
+    private var draftButton: some View {
+        ControlButton(
+            title: L10n.composer_draft_create(), control: record.draft, shortcut: .defaultAction,
+            action: draft
+        )
+        #if os(macOS)
+        .buttonStyle(.borderedProminent)
+        #endif
+        .accessibilityIdentifier("composer.draftCreate")
+    }
+}
+
+/// Why Draft cannot be pressed, with its one remedy; otherwise the line, focused, and the
+/// suggestions. What the input holds on every platform, around which each draws its own frame.
+struct ReplyDraftFields: View {
+    let record: ComposerReplyDraft
+    @Binding var line: String
+    let draft: () -> Void
+    let remedy: (AiRemedy) -> Void
+
+    @FocusState private var focused: Bool
+
+    var body: some View {
         if let held = record.heldBy {
             Label(AiWords.failure(held.failure), systemImage: "info.circle")
                 .fixedSize(horizontal: false, vertical: true)
@@ -85,19 +107,9 @@ struct ReplyDraftInput: View {
                 .onSubmit(draft)
                 .submitLabel(.go)
                 .accessibilityIdentifier("composer.draftInstruction")
+                .onAppear { focused = true }
             suggestions
         }
-    }
-
-    private var draftButton: some View {
-        ControlButton(
-            title: L10n.composer_draft_create(), control: record.draft, shortcut: .defaultAction,
-            action: draft
-        )
-        #if os(macOS)
-        .buttonStyle(.borderedProminent)
-        #endif
-        .accessibilityIdentifier("composer.draftCreate")
     }
 
     /// The core's suggestions, each filling the line with its words: a flow of capsules that
