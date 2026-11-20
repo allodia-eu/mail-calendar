@@ -8,8 +8,7 @@ use mailcal_app::ai::{AiEndpointChange, AiEndpointEdit, AiHost, AiQueued, AiWork
 
 use crate::{
     AiEndpointForm, AiEndpointGaps, AiEndpointIntent, AiIntent, JurisdictionClass, MailcalApp,
-    ai_host::{BindingsAiHost, build_kind},
-    records_ai::endpoint_form,
+    ai_host::BindingsAiHost, core_build::build_kind, records_ai::endpoint_form,
 };
 
 impl MailcalApp {
@@ -23,6 +22,26 @@ impl MailcalApp {
         self.app
             .install_ai_host(Arc::new(host) as Arc<dyn AiHost>, build_kind());
         self.app.restore_ai_endpoint_key(key);
+        self.name_gmail_keyword_once_offered();
+    }
+
+    /// Names the drafted-reply keyword on Gmail from the first time the feature is offered on this
+    /// install, and for good (`docs/ai.md` rule 25). Each Gmail account's mail is read again then,
+    /// so what other devices marked before carries the keyword: a pass under the names reads only
+    /// what changed since the last. Called wherever the offer may have moved.
+    pub(crate) fn name_gmail_keyword_once_offered(&self) {
+        if !self.app.ai_offer() || !self.registry.gmail_keyword_naming().turn_on() {
+            return;
+        }
+        self.app.note_gmail_keyword_named();
+        for id in self.app.account_ids() {
+            if self.registry.account_type(id.as_str()) == "google" {
+                log::info!("ai: reading a Gmail account's mail again under the keyword's name");
+                let app = Arc::clone(&self.app);
+                self.runtime
+                    .spawn(async move { app.read_mail_again(&id).await });
+            }
+        }
     }
 
     /// Queues a piece of the assistant's work, and runs it on a thread of its own when it starts

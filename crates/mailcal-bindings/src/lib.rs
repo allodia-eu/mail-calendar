@@ -94,6 +94,7 @@ mod convert_mailbox;
 mod convert_reading;
 mod convert_settings;
 mod convert_status;
+mod core_build;
 mod crash;
 mod credential_log;
 pub mod credential_store;

@@ -70,6 +70,52 @@ fn the_page_is_drawn_only_while_the_assistant_is_offered() {
     assert!(fixture.app.writing_style_page().is_some());
 }
 
+/// While not offered a change to the library is refused before it is queued: nothing is written,
+/// nothing is signalled and no outcome waits for a page nobody draws (rule 4).
+#[test]
+fn a_library_change_is_refused_while_the_assistant_is_not_offered() {
+    let fixture = Fixture::new(BuildKind::Production);
+    let id = fixture.app.add_writing_style(Some("acct-1"), stored());
+    fixture.forget_surfaces();
+    for change in [
+        WritingStyleChange::Rename {
+            id: id.clone(),
+            name: "Home".to_owned(),
+        },
+        WritingStyleChange::Notes {
+            id: id.clone(),
+            notes: "Short.".to_owned(),
+        },
+        WritingStyleChange::Assign {
+            account: "acct-1".to_owned(),
+            style: None,
+        },
+        WritingStyleChange::SaveReveal {
+            id: id.clone(),
+            name: "Home".to_owned(),
+            notes: String::new(),
+        },
+        WritingStyleChange::CloseReveal { id: id.clone() },
+        WritingStyleChange::Forget { id: id.clone() },
+    ] {
+        assert!(!fixture.app.queue_writing_style_change(change.clone()));
+        fixture.app.change_writing_style_now(change);
+    }
+    assert!(!fixture.signalled(crate::Surface::WritingStyle));
+
+    fixture.app.set_ai_entitlement(AiEntitlement::Granted);
+    let page = fixture.app.writing_style_page().unwrap();
+    assert_eq!(page.outcome, None);
+    let [style] = page.styles.as_slice() else {
+        panic!("the one style");
+    };
+    assert_eq!(
+        (style.id.clone(), style.name.as_str()),
+        (id.clone(), "Work")
+    );
+    assert_eq!(fixture.app.writing_style_slot("acct-1"), Some(id));
+}
+
 #[test]
 fn learn_says_why_it_cannot_be_pressed() {
     let fixture = Fixture::new(BuildKind::Development);

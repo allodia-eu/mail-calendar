@@ -23,8 +23,10 @@
 
 use std::{env, fs, path::PathBuf};
 
+mod packaged;
 mod worktree;
 
+pub use packaged::{PACKAGED_CORE_VAR, development_core_refusal};
 pub use worktree::main_checkout_env;
 
 /// Set this (to anything but `0`, `false`, `no` or empty) and a missing injected value fails the

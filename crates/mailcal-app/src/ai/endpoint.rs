@@ -323,8 +323,12 @@ impl<P: Provider> App<P> {
 
     /// Queues a change to the own endpoint and signals [`crate::Surface::AiEndpoint`]. Whether the
     /// caller is to run [`App::run_ai_endpoint_changes`] off its own thread: nothing else was
-    /// running. The same change asked for again while it runs or waits is dropped.
+    /// running. The same change asked for again while it runs or waits is dropped, and so is
+    /// every change while the feature is not offered: no form is drawn to say what it came to.
     pub fn queue_ai_endpoint_change(&self, change: AiEndpointChange) -> bool {
+        if !self.ai_offer() {
+            return false;
+        }
         let run = {
             let mut work = self.endpoint_work();
             if work.running.as_ref() == Some(&change) || work.waiting.contains(&change) {

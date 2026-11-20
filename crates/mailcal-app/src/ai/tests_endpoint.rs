@@ -29,6 +29,45 @@ fn result(fixture: &Fixture) -> AiEndpointResult {
         .result
 }
 
+/// While not offered a change to the endpoint is refused before it is queued: nothing reaches the
+/// preferences or the keystore, nothing is signalled and no outcome waits for a form nobody draws
+/// (rule 4). An endpoint already stored is kept.
+#[test]
+fn a_change_is_refused_while_the_assistant_is_not_offered() {
+    let fixture = Fixture::new(BuildKind::Production);
+    let save = AiEndpointChange::Save(edit(
+        "https://models.example.eu/v1",
+        "m",
+        Some(Class::EuNative),
+        "sk-test",
+    ));
+    for change in [save.clone(), AiEndpointChange::Remove] {
+        assert!(!fixture.app.queue_ai_endpoint_change(change.clone()));
+        fixture.app.change_ai_endpoint_now(change);
+    }
+    assert!(!fixture.signalled(Surface::AiEndpoint));
+    let view = fixture.app.ai_endpoint();
+    assert!(!view.offered);
+    assert!(!view.stored);
+    assert_eq!(view.outcome, None);
+    assert_eq!(view.work, []);
+    assert_eq!(
+        fixture.host.seen.lock().unwrap().keys,
+        Vec::<Option<String>>::new()
+    );
+
+    fixture
+        .app
+        .set_ai_entitlement(super::AiEntitlement::Granted);
+    fixture.app.change_ai_endpoint_now(save);
+    assert_eq!(result(&fixture), AiEndpointResult::Saved);
+    fixture
+        .app
+        .set_ai_entitlement(super::AiEntitlement::NotGranted);
+    fixture.app.change_ai_endpoint_now(AiEndpointChange::Remove);
+    assert!(fixture.app.ai_endpoint().stored, "kept while not offered");
+}
+
 #[test]
 fn every_field_is_judged_at_once() {
     assert_eq!(

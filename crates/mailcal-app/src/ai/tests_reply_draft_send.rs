@@ -20,10 +20,14 @@ use mailcal_composer::{Block, ComposerDocument, LeadText, Paragraph};
 use super::{
     mail_fake::{ProviderLogs, ThreadProvider, original_message},
     reply_draft_support::{
-        ScriptedRelay, assistant, drafted, drafted_into, open_reply, report, run, start,
+        RuntimeHost, ScriptedRelay, assistant, drafted, drafted_into, open_reply, report, run,
+        start,
     },
 };
-use crate::{App, CompositionId, Intent, ai::AiQueued};
+use crate::{
+    App, CompositionId, Intent,
+    ai::{AiEntitlement, AiQueued, BuildKind},
+};
 
 // What the mark does on a stored draft, beside what it does on a send.
 #[path = "tests_drafted_draft.rs"]
@@ -101,6 +105,28 @@ async fn send_asks_once_while_the_checklist_has_open_items() {
         0,
     );
     assert_eq!(app.reply_draft_send_question(&reply, &|_| 0), None);
+}
+
+/// While the feature is not offered there is no question at Send: no client draws one, so none
+/// may hold a send (rules 4 and 24). It is due again once the offer comes back.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn send_asks_nothing_while_the_feature_is_not_offered() {
+    let relay = ScriptedRelay::answering(Ok(drafted()));
+    let (app, _) = assistant(ThreadProvider::with(vec![original_message("m1")]), &relay).await;
+    app.install_ai_host(
+        Arc::new(RuntimeHost(tokio::runtime::Handle::current())),
+        BuildKind::Production,
+    );
+    app.set_ai_entitlement(AiEntitlement::Granted);
+    let reply = open_reply(&app, "reply").await;
+    drafted_into(&app, &reply).await;
+    assert_eq!(app.reply_draft_send_question(&reply, &|_| 0), Some(4));
+
+    app.set_ai_entitlement(AiEntitlement::NotGranted);
+    assert_eq!(app.reply_draft_send_question(&reply, &|_| 0), None);
+
+    app.set_ai_entitlement(AiEntitlement::Granted);
+    assert_eq!(app.reply_draft_send_question(&reply, &|_| 0), Some(4));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

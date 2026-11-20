@@ -70,17 +70,28 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    category, Draft a reply and the own endpoint form are drawn exactly when `ai_offer()` says the
    feature is offered; each surface's record reads it, so no client asks apart. Not offered, no
    request can be built (the route answers `NotEntitled`), and an endpoint set up earlier is kept.
+   No intent of the feature changes anything either: a change to the endpoint or to the library
+   is dropped before it is queued, with no outcome and no notice, since nothing is drawn to say
+   what it came to; learning and drafting start nothing.
    The licence side tells the core what the entitlement says (`set_ai_entitlement`); a build
    without it never does, so it is production without `ai`.
 5. **Early access: a development build offers it to everyone, a production build only while the
    Allodia entitlement carries `ai`.** A development build is a debug build, or the Android
-   development build, whose core carries `dev-harness`. The entitlement is read as
+   development build, whose core carries `dev-harness`. No package carries a development core:
+   the build refuses one it is told is packaged, and every packager reads the core it ships for
+   the marker naming its kind ([`BUILDING.md`](../BUILDING.md)). The entitlement is read as
    [`entitlement.md`](../allodia_license/entitlement.md) says, and an answer without `ai` takes
    effect at once: the stored answer inside its grace, never a read anyone waits for, published to
    the offer at launch, after each read, on each refresh trigger and at sign-out, so a grace that
-   runs out takes the offer with it. Relay and own endpoint are offered together under it. Early access ends before
-   the relay is sold; from then the own endpoint is in every build, as the relay's free counterpart
-   ([`pledge.md`](pledge.md)).
+   runs out takes the offer with it. A read the service refuses grants nothing, and a sign-in it
+   refused takes the offer at once, grace or not, since the own endpoint needs nothing of Allodia
+   ([`entitlement.md`](../allodia_license/entitlement.md)). Relay and own endpoint are offered
+   together under it, and enforced differently: the relay by the service on every request, the
+   own endpoint, which never reaches Allodia, by this check alone, which a modified build or an
+   edited stored answer passes. That is accepted, since the software is GPL and anyone may build
+   it to talk to their own endpoint; the check keeps the feature out of sight in the builds
+   Allodia ships, and claims nothing more. Early access ends before the relay is sold; from then
+   the own endpoint is in every build, as the relay's free counterpart ([`pledge.md`](pledge.md)).
 
 ### The own endpoint, under Settings → Advanced
 
@@ -337,7 +348,8 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     `submit_composition` read the same function, so the two cannot disagree: while the question is
     due a client asks before it submits, and `submit_composition` refuses without sending.
     **Send anyway** and **Keep editing** both send `SendQuestionAnswered`, applied before `dispatch`
-    returns; Send anyway then submits. Neither is asked again in this composition.
+    returns; Send anyway then submits. Neither is asked again in this composition. While the
+    feature is not offered the question is never due, so no send is held by a card nobody draws.
 25. **A drafted reply is never learned from, nor shown to a later draft as the person's words.** A
     composition a draft went into stays drafted, even once undone or rewritten, since a redo brings
     the draft back and what is sent may still carry its words; the core holds that on the
@@ -345,7 +357,15 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     keyword `writing-assistant`, fixed and untranslated so every device recognises it. Gmail
     keeps it as a label and Outlook as a category, which the person sees: created as "Writing
     assistant" and recognised under its name in every catalog locale, one table in
-    `mailcal-account` holding all seven (`drafted_keyword.rs`). It goes on the message in both places the message is kept:
+    `mailcal-account` holding all seven (`drafted_keyword.rs`). A Gmail label read as the keyword
+    leaves the folder pane, so Gmail registers the names only on an install the feature has
+    reached: from the first time it is offered there, and for good, recorded in the preferences
+    and read before any account is dialed. A label the person made under one of the names stays
+    theirs for everyone the feature never reached. When the names come on, each Gmail account's
+    mail is read again from its server, since a pass reads only what changed and what other
+    devices marked before would otherwise not carry the keyword. Outlook draws no category in
+    the folder pane, so Graph registers the names always. It goes on the message in both places
+    the message is kept:
     - **The stored draft.** Every save of a drafted composition asks for the keyword, and a
       composition that is not drafted asks for none; the whole set goes with every save (the
       engine's `put_draft` keywords), since one a save leaves out is taken off the stored copy.
@@ -428,7 +448,7 @@ stack; it never breaks inside a word.
 | What | Where |
 |---|---|
 | The library: names, descriptions, notes, passages, order, whether each reveal was shown | `writing_styles.toml`, read once at launch and written behind each change, as `signatures.toml` is |
-| Each account's slot; the endpoint's address, model and declaration; the jurisdiction mode | `preferences.toml`, the `[ai]` table |
+| Each account's slot; the endpoint's address, model and declaration; the jurisdiction mode; whether the feature has reached this install (rule 25) | `preferences.toml`, the `[ai]` table |
 | The endpoint's key | the platform keystore, id `ai-endpoint` |
 | The `Message-ID`s of drafted replies sent from this device, and of drafted drafts whose server has not said it kept the keyword | `drafted_replies.toml`, this device only: never capped, kept when a style is forgotten, gone with their account |
 

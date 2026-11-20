@@ -172,6 +172,33 @@ guard unable to fire in exactly the case it exists for. It is not a secret, so `
 in a generated copy of the Flatpak manifest instead, and fails outright if it cannot. A `.env` that
 then does not arrive is a compile error naming the variables, not a silent downgrade.
 
+## A package never carries a development core
+
+A development core (a debug build, or one with `dev-harness`) offers the writing assistant to
+everyone ([`docs/ai.md`](docs/ai.md) rule 5), so no package may carry one, a package built from
+source included. Two layers hold that, and neither is the flag above, which means "carries
+Allodia's values" and is set for a packager's whole run, debug builds included:
+
+- **The build refuses one.** `MAILCAL_PACKAGED_CORE=1` on the cargo line that builds the core a
+  packager ships makes [`mailcal-bindings`](crates/mailcal-bindings/build.rs) fail to compile a
+  development core, in one line naming why. It is read from the environment only, never `.env`.
+- **The packager reads what it ships.** The core compiles in a marker naming its kind
+  ([`core_build.rs`](crates/mailcal-bindings/src/core_build.rs)), and every packager refuses a
+  core holding the development marker or no marker at all, which covers the paths that take a core
+  they did not compile.
+
+| Path | The build | What is read |
+|---|---|---|
+| macOS / iOS | `package.sh` exports it | the archived app, `--no-core` included |
+| Windows | `build-native.ps1`, on its cargo line | each cdylib in `package.ps1`, `-PrebuiltNative` included ([`core-build.ps1`](clients/windows/core-build.ps1)) |
+| Android | `build-release.sh`, on its cargo line | every release variant before it merges native code, however Gradle is run (`checkProductionCore`) |
+| Linux Flatpak | the committed manifest's `build-options.env` | the built binary, before it is bundled or installed |
+| Linux snap and native | on their cargo lines | the built binary |
+
+The bash readers share [`check-core-build.sh`](scripts/dev/check-core-build.sh). A deliberate
+development bundle, for a recording, is asked for by name, `clients/linux/package.sh
+--development-core`, which says on every run that it must never be shipped.
+
 ## Checking what a build carries
 
 `oauth_routes()` over the FFI reports which sign-ins a binary offers, and it is what every client

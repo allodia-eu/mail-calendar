@@ -83,7 +83,7 @@ pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
 pub use drafted_keyword::{
-    DRAFTED_REPLY_KEYWORD, drafted_reply_keyword, drafted_reply_keyword_names,
+    DRAFTED_REPLY_KEYWORD, GmailKeywordNaming, drafted_reply_keyword, drafted_reply_keyword_names,
 };
 pub use drafted_replies::{
     DraftedReplies, drafted_replies_path, load_drafted_replies, save_drafted_replies,
