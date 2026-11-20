@@ -57,13 +57,14 @@ internal static class WritingStyleRules
     /// The miniature letter as it is spoken, one element whose grey lines are not read: how it
     /// opens, its length, its paragraphs, how it closes and the name, joined by a comma, each left
     /// out when it is empty or zero. A greeting or sign-off is its runs read as written, a
-    /// placeholder as its word; the paragraphs are the record's count, never the lines drawn. A
-    /// part that already ends in a comma, as a greeting often does, is joined by its own.
+    /// placeholder as its word, without the comma, semicolon, colon or full stop it ends on, which
+    /// the joining comma stands in for; the paragraphs are the record's count, never the lines
+    /// drawn.
     /// </summary>
     internal static string LetterSpoken(WritingStyleLetter letter, LetterWords words)
     {
         var parts = new List<string>();
-        var opening = string.Concat(letter.Opening.Select(run => run.Text)).Trim();
+        var opening = Spoken(letter.Opening);
         if (opening.Length > 0)
         {
             parts.Add(words.Opening(opening));
@@ -76,28 +77,24 @@ internal static class WritingStyleRules
         {
             parts.Add(words.Paragraphs((int)letter.ParagraphCount));
         }
-        var closing = string.Concat(letter.Closing.Select(run => run.Text)).Trim();
+        var closing = Spoken(letter.Closing);
         if (closing.Length > 0)
         {
             parts.Add(words.Closing(closing));
         }
-        var name = letter.SignsAs.Trim();
-        if (name.Length > 0)
+        if (letter.SignsAs.Length > 0)
         {
-            parts.Add(words.Name(name));
+            parts.Add(words.Name(letter.SignsAs));
         }
-        var spoken = new System.Text.StringBuilder();
-        foreach (var part in parts)
-        {
-            if (spoken.Length > 0)
-            {
-                spoken.Append(spoken[^1] == ',' ? " " : ", ");
-            }
-            spoken.Append(part);
-        }
-        return spoken.ToString();
+        return string.Join(", ", parts);
     }
 
+    // A greeting's or sign-off's runs as written, without the mark it ends on.
+    private static string Spoken(IEnumerable<WritingStyleSpan> runs)
+    {
+        var text = string.Concat(runs.Select(run => run.Text)).TrimEnd();
+        return text.Length > 0 && text[^1] is ',' or ';' or ':' or '.' ? text[..^1].TrimEnd() : text;
+    }
     /// <summary>A preset range's label. A range of the person's own is labelled by the choice it is,
     /// its days drawn by its own fields.</summary>
     internal static string Range(StyleLearnRange range, WritingStyleWords words) => range switch

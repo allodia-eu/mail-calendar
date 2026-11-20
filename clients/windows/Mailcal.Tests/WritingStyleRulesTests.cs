@@ -59,15 +59,21 @@ public class WritingStyleRulesTests
             WritingStyleRules.LetterSpoken(letter, Letter));
     }
 
-    // A greeting's own comma is the one that joins it; one without a comma is given one.
+    // The joining comma stands in for the mark a greeting or sign-off ends on; one ending on none,
+    // or on another mark, is read as written.
     [Fact]
-    public void APartEndingInACommaIsJoinedByItsOwnAndOneWithoutIsGivenOne()
+    public void AGreetingOrSignOffIsSpokenWithoutTheCommaSemicolonColonOrFullStopItEndsOn()
     {
-        var letter = new WritingStyleLetter(
-            [new WritingStyleSpan("Dear Bob ", false)], [Lines(2)], [new WritingStyleSpan("Cheers! ", false)],
-            "Eva", 0, 0, "");
-        Assert.Equal("opens with Dear Bob, signs off with Cheers!, signed Eva", WritingStyleRules.LetterSpoken(letter, Letter));
+        Assert.Equal("opens with Dear Bob, signs off with Kind regards, signed Eva",
+            WritingStyleRules.LetterSpoken(Greeted("Dear Bob: ", "Kind regards."), Letter));
+        Assert.Equal("opens with Hello all, signs off with Thanks",
+            WritingStyleRules.LetterSpoken(Greeted("Hello all;", "Thanks", ""), Letter));
+        Assert.Equal("opens with Hi Bob, signs off with Cheers!, signed Eva",
+            WritingStyleRules.LetterSpoken(Greeted("Hi Bob", "Cheers!"), Letter));
     }
+
+    private static WritingStyleLetter Greeted(string opening, string closing, string name = "Eva") =>
+        new([new WritingStyleSpan(opening, false)], [Lines(2)], [new WritingStyleSpan(closing, false)], name, 0, 0, "");
 
     [Fact]
     public void WhatTheLetterDoesNotKnowIsLeftOutOfWhatIsSpoken()
