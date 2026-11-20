@@ -103,6 +103,7 @@ Host ports (loopback only): the 12xxx/28080 block, kept clear of the engine repo
   JMAP + CalDAV + admin  http://127.0.0.1:28080
   SMTP (plaintext)       127.0.0.1:12025
   IMAP (implicit TLS)    127.0.0.1:12993
+  Over IPv6              [::1]:12993 IMAP, [::1]:12465 submission (a server typed as ::1)
   JMAP sign-in (OAuth)   http://localhost:28081   (stalwart-oauth: alice only, nothing seeded)
   IMAP sign-in           localhost:12995 IMAP, :12467 submission, https://localhost + https://127.0.0.1
                          (stalwart-oauth and its HTTPS front: set up alice@localhost to be offered it)
