@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use mailcal_app::ai::{AiEntitlement, BuildKind};
+use mailcal_app::ai::AiEntitlement;
 
 use crate::{
     AiIntent, ComposeOrigin, ComposerFileAttachment, ComposerReplyDraft, Intent, LogLevel,
@@ -180,13 +180,7 @@ fn a_file_signals_the_record_only_when_it_changes_the_card() {
 /// assistant.
 fn staged_in_production() -> Arc<MailcalApp> {
     let (app, _rx) = staged();
-    let host = crate::ai_host::BindingsAiHost::offline(
-        app.runtime.handle().clone(),
-        Arc::clone(&app.credential_store),
-        super::transport,
-    );
-    app.app
-        .install_ai_host(Arc::new(host), BuildKind::Production);
+    super::super::offer_ai_in_production(&app);
     app.app.set_ai_entitlement(AiEntitlement::Granted);
     app
 }
