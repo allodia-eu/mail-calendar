@@ -7,8 +7,7 @@ use std::rc::Rc;
 use adw::prelude::*;
 use mailcal_bindings::{
     AiFailure, StyleLearnRange, StyleLearningAccount, StyleLearningDestination,
-    StyleLearningIntent, StyleLearningReport, StyleLearningReview, StyleRangeFetch,
-    StyleSentReach,
+    StyleLearningIntent, StyleLearningReport, StyleLearningReview, StyleRangeFetch, StyleSentReach,
 };
 
 use super::writing_style_words as words;

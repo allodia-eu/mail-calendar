@@ -62,23 +62,45 @@ pub(super) fn the_range_says_what_next_fetches() {
         descendants::<gtk::CheckButton>(&page)[0].is_active(),
         "the first preset is the one selected"
     );
-    assert!(shown.iter().any(|text| text == l10n::learn_range_fetch_older()));
-    assert!(!shown.iter().any(|text| text == l10n::learn_range_fetch_all()));
+    assert!(
+        shown
+            .iter()
+            .any(|text| text == l10n::learn_range_fetch_older())
+    );
+    assert!(
+        !shown
+            .iter()
+            .any(|text| text == l10n::learn_range_fetch_all())
+    );
 
     flow.draw(
         choose_range(StyleLearnRange::Everything, StyleRangeFetch::WholeHistory),
         None,
     );
     let shown = rendered_labels(&on_screen(&flow));
-    assert!(shown.iter().any(|text| text == l10n::learn_range_fetch_all()));
-    assert!(!shown.iter().any(|text| text == l10n::learn_range_fetch_older()));
+    assert!(
+        shown
+            .iter()
+            .any(|text| text == l10n::learn_range_fetch_all())
+    );
+    assert!(
+        !shown
+            .iter()
+            .any(|text| text == l10n::learn_range_fetch_older())
+    );
 
     flow.draw(
-        choose_range(StyleLearnRange::UntilEndOfLastYear, StyleRangeFetch::Nothing),
+        choose_range(
+            StyleLearnRange::UntilEndOfLastYear,
+            StyleRangeFetch::Nothing,
+        ),
         None,
     );
     let shown = rendered_labels(&on_screen(&flow));
-    for unsaid in [l10n::learn_range_fetch_all(), l10n::learn_range_fetch_older()] {
+    for unsaid in [
+        l10n::learn_range_fetch_all(),
+        l10n::learn_range_fetch_older(),
+    ] {
         assert!(!shown.iter().any(|text| text == unsaid), "{unsaid}");
     }
     assert!(asked.borrow().is_empty(), "drawing sends nothing");
