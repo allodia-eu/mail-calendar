@@ -24,8 +24,25 @@ fn app(
     Arc<RecordingCredentialStore>,
     mpsc::Receiver<Surface>,
 ) {
+    app_with_preferences(name, configs, None)
+}
+
+/// [`app`] over a data directory whose preferences file holds `preferences` before launch.
+fn app_with_preferences(
+    name: &str,
+    configs: Vec<String>,
+    preferences: Option<&str>,
+) -> (
+    Arc<MailcalApp>,
+    Arc<RecordingCredentialStore>,
+    mpsc::Receiver<Surface>,
+) {
     let (tx, rx) = mpsc::channel();
     let dir = crate::tests::temp_data_dir(name);
+    if let Some(preferences) = preferences {
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("preferences.toml"), preferences).unwrap();
+    }
     let store = Arc::new(RecordingCredentialStore::default());
     let app = MailcalApp::new_accounts(
         Box::new(ChannelObserver { tx }),
@@ -102,15 +119,18 @@ fn a_development_build_offers_the_form_with_nothing_set_up() {
     assert_eq!(form.remove, None, "nothing to remove, so no Remove");
 }
 
-/// A key kept from an earlier launch is something to remove, with no endpoint beside it.
+/// A key the keystore kept while the preferences were reset names no endpoint, so it goes to no
+/// address: taken out at launch, and the form neither says a key is kept nor offers Remove.
 #[test]
-fn a_kept_key_alone_offers_remove() {
-    let (app, ..) = app(
+fn a_kept_key_alone_is_taken_out_at_launch() {
+    let (app, store, _) = app(
         "ai-key-alone",
         vec!["[ai_endpoint]\nkey = \"sk-stored\"\n".to_owned()],
     );
     let form = app.ai_endpoint_form().expect("offered");
-    assert!(form.remove.is_some_and(|remove| remove.enabled));
+    assert!(!form.key_kept);
+    assert_eq!(form.remove, None);
+    assert_eq!(*store.deleted.lock().unwrap(), ["ai-endpoint"]);
 }
 
 /// An empty key field never reaches the keystore, whatever it would answer.
@@ -232,18 +252,24 @@ fn the_gap_the_form_shows_is_the_one_the_save_refuses_by() {
     assert!(store.persisted.lock().unwrap().is_empty());
 }
 
-/// The key a previous launch stored is taken out before any mail parser sees it, and kept.
+/// The key a previous launch stored is taken out before any mail parser sees it, and kept beside
+/// the endpoint it was given for.
 #[test]
 fn the_stored_key_is_taken_out_at_launch_and_kept() {
-    let (app, ..) = app(
+    let (app, store, _) = app_with_preferences(
         "ai-launch",
         vec!["[ai_endpoint]\nkey = \"sk-stored\"\n".to_owned()],
+        Some(
+            "[ai.endpoint]\nbase_url = \"https://models.example.eu/v1\"\nmodel = \"m\"\n\
+             declared = \"eu-native\"\n",
+        ),
     );
     assert!(
         app.account_connect_errors.lock().unwrap().is_empty(),
         "the key is not an account"
     );
     assert!(app.ai_endpoint_form().expect("offered").key_kept);
+    assert!(store.deleted.lock().unwrap().is_empty());
 }
 
 #[test]

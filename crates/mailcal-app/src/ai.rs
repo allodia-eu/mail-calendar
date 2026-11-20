@@ -166,9 +166,27 @@ impl<P: Provider> App<P> {
         })
     }
 
-    /// The own endpoint's key, read from the keystore by the bindings at launch.
+    /// The own endpoint's key, read from the keystore by the bindings at launch, once the host is
+    /// installed. A key found with no endpoint stored (the preferences were reset, the keystore
+    /// was not) goes to no address (`docs/ai.md` rule 7): it is not held, and the keystore is asked
+    /// to let it go, again at each launch until it does.
     pub fn restore_ai_endpoint_key(&self, key: Option<String>) {
-        self.ai.ports().key = key.filter(|key| !key.trim().is_empty());
+        let key = key.filter(|key| !key.trim().is_empty());
+        if key.is_some() && self.ai.settings().endpoint.is_none() {
+            self.ai.ports().key = None;
+            let host = self.ai.ports().host.clone();
+            let gone = host.is_some_and(|host| host.store_endpoint_key(None).is_ok());
+            log::info!(
+                "ai: a key was kept with no endpoint saved; {}",
+                if gone {
+                    "it was taken out"
+                } else {
+                    "it is not used, and is taken out at the next launch"
+                }
+            );
+            return;
+        }
+        self.ai.ports().key = key;
     }
 
     /// Every surface the feature draws, signalled when whether it is offered or where a request

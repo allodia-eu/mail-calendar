@@ -13,16 +13,16 @@ use crate::{
 };
 
 impl MailcalApp {
-    /// Gives the assistant its host and the key the keystore held at launch. Called once, as the
-    /// app is built.
+    /// Gives the assistant its host and then the key the keystore held at launch, which the core
+    /// takes out again when no endpoint is stored. Called once, as the app is built.
     pub(crate) fn install_ai(&self, key: Option<String>) {
-        self.app.restore_ai_endpoint_key(key);
         let host = BindingsAiHost::new(
             self.runtime.handle().clone(),
             Arc::clone(&self.credential_store),
         );
         self.app
             .install_ai_host(Arc::new(host) as Arc<dyn AiHost>, build_kind());
+        self.app.restore_ai_endpoint_key(key);
     }
 
     /// Queues a piece of the assistant's work, and runs it on a thread of its own when it starts

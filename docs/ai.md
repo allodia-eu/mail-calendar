@@ -98,14 +98,17 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
    is stored. A stored key is never drawn back. A key typed replaces it. **A key goes only to the
    server it was given for**: a save whose address is on another host or port than the stored
    endpoint's, compared as the URL parser normalises them with a scheme's default port counting as
-   none given, takes the kept key out unless a key is typed in the same save, and a key kept with
-   no endpoint stored goes to no address; a change of path or of scheme alone keeps it, writing
-   nothing to the keystore. What a save would do to it is said before Save is pressed, by the same
-   `ai_endpoint_gap`, for the address as typed (`kept_key`: carried or dropped), and the key field
-   says a key is kept only while it would be carried. A key the keystore refused, to store or to
-   take out, is said on the form and changes nothing. **Remove** is the same kind of change, drawn
-   only while an endpoint or a key is stored, and takes both out. Saving dials nothing; the first
-   request says whether the endpoint answers.
+   none given, takes the kept key out unless a key is typed in the same save; a change of path or
+   of scheme alone keeps it, writing nothing to the keystore. What a save would do to it is said
+   before Save is pressed, by the same `ai_endpoint_gap`, for the address as typed (`kept_key`:
+   carried or dropped), and the key field says a key is kept only while it would be carried. A key
+   the keystore refused, to store or to take out, is said on the form and changes nothing. **A key
+   is held only with an endpoint.** The keystore outlives the preferences, so after they are reset
+   it can hold a key no endpoint names; that key goes to no address, so at launch the core does not
+   hold it and asks the keystore to let it go, again at each launch until it does, and the form
+   says nothing of it. **Remove** is the same kind of change, drawn only while an endpoint is
+   stored, and takes it and its key out. Saving dials nothing; the first request says whether the
+   endpoint answers.
 
 ### Settings → Writing style
 
