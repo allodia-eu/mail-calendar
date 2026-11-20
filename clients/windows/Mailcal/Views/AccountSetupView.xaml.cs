@@ -324,7 +324,8 @@ public sealed partial class AccountSetupView : UserControl
             tab,
             _needsApproval,
             ApprovalCheck.IsChecked == true,
-            ImapHost.Text,
+            // The address the core would dial, so `:993`, a port with no host, names no server.
+            _imap.Dial(ImapHost.Text),
             tab switch { DetectTab.Jmap => JmapEmail.Text, DetectTab.Dav => DavLogin.Text, _ => Username.Text },
             tab == DetectTab.Dav ? DavPassword.Password : Password.Password,
             JmapPassword.Password,

@@ -71,6 +71,15 @@ import Testing
         #expect(ManualServerField(.imap).dial("   ").isEmpty)
     }
 
+    @Test func aPortWithNoHostNamesNoServer() {
+        let field = ManualServerField(.imap)
+        #expect(!field.namesServer(":993"))
+        #expect(!field.namesServer("   "))
+        #expect(field.namesServer("::1"))
+        #expect(field.namesServer("[::1]:993"))
+        #expect(field.namesServer("imap.example.net"))
+    }
+
     @Test func aDetectedRouteBringsItsOwnPortAndStopsFollowingThePicker() {
         var field = ManualServerField(.imap)
         field.adoptDetected(host: "imap.example.net:1993", security: .startTls)

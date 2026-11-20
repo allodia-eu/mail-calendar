@@ -95,6 +95,12 @@ class ManualServerField private constructor(
         // the one in the host field is the one they can see beside the name.
         return addressing.join(bare, typed.ifEmpty { port })
     }
+
+    /**
+     * Whether [host] names a server once the core has split it: `:993` is a port with no host,
+     * so Connect waits for one rather than handing the core a server it will refuse.
+     */
+    fun namesServer(host: String): Boolean = dial(host).isNotBlank()
 }
 
 /** The port this lookup offers for [security], or none when there is no lookup. */

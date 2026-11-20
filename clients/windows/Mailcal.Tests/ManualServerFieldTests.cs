@@ -100,6 +100,17 @@ public class ManualServerFieldTests
     }
 
     [Fact]
+    public void APortWithNoHostNamesNoServerSoConnectStaysClosed()
+    {
+        // The setup form gates Connect on the address it would dial, not on the text typed.
+        var dialled = Imap().Dial(":993");
+        Assert.Equal(string.Empty, dialled);
+        Assert.False(AccountDetectForm.CanConnect(
+            DetectTab.Imap, needsApproval: false, approved: false,
+            dialled, "alice@example.com", "secret", ""));
+    }
+
+    [Fact]
     public void ADetectedRouteBringsItsOwnPortAndStopsFollowingThePicker()
     {
         var field = Imap();

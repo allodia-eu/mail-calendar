@@ -60,6 +60,12 @@ struct ManualServerField: Equatable {
         return serverAddress(host: typed.host, port: typed.port.isEmpty ? port : typed.port)
     }
 
+    /// Whether `host` names a server once the core has split it: `:993` is a port with no host,
+    /// so Connect waits for one rather than handing the core a server it will refuse.
+    func namesServer(_ host: String) -> Bool {
+        !dial(host).isEmpty
+    }
+
     /// Splits a typed server into host and port, as the core does: the core decides the address
     /// actually dialled, so a form that split differently would show one port and connect to
     /// another.

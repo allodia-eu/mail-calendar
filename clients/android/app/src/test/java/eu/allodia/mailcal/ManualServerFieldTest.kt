@@ -81,6 +81,14 @@ class ManualServerFieldTest {
     }
 
     @Test
+    fun `a port with no host names no server`() {
+        assertFalse(imap().namesServer(":993"))
+        assertFalse(imap().namesServer("   "))
+        assertTrue(imap().namesServer("[::1]:993"))
+        assertTrue(imap().namesServer("imap.example.net"))
+    }
+
+    @Test
     fun `a detected route brings its own port and stops following the picker`() {
         val field = imap().adoptDetected("imap.example.net:1993", ConnectionSecurity.START_TLS)
         assertEquals("1993", field.port)
