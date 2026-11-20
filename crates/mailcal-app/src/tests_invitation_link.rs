@@ -48,8 +48,10 @@ async fn booted(
     let sends = mail.sends();
     let surfaces: Arc<Mutex<Vec<Surface>>> = Arc::new(Mutex::new(Vec::new()));
     let app = linked_invitation_app(mail, calendar, linked, &surfaces, prefs);
-    app.dispatch(Intent::RefreshMail).await;
-    app.dispatch(Intent::RefreshCalendar).await;
+    // Boxed so this helper's own future stays small: every test awaits it, and the refreshes weigh
+    // more than clippy's `large_futures` bound.
+    Box::pin(app.dispatch(Intent::RefreshMail)).await;
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
     (app, sends)
 }
 

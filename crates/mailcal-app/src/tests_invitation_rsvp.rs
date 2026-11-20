@@ -37,15 +37,17 @@ async fn answer(
     let rsvps = provider.rsvps();
     let surfaces = Arc::new(Mutex::new(Vec::new()));
     let app = invitation_app(provider, &surfaces);
-    app.dispatch(Intent::RefreshMail).await;
-    app.dispatch(Intent::RefreshCalendar).await;
-    app.dispatch(Intent::RespondToInvitation {
+    // Boxed so this helper's own future stays small: every test awaits it, and each dispatch
+    // weighs more than clippy's `large_futures` bound.
+    Box::pin(app.dispatch(Intent::RefreshMail)).await;
+    Box::pin(app.dispatch(Intent::RefreshCalendar)).await;
+    Box::pin(app.dispatch(Intent::RespondToInvitation {
         message: invite(),
         response,
         comment: comment.map(str::to_owned),
         notify_organizer: notify,
         reply_subject: None,
-    })
+    }))
     .await;
     (rsvps, surfaces, app)
 }
