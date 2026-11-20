@@ -18,6 +18,7 @@ mod live_jmap_oauth;
 mod live_link_suggestions;
 mod live_nextcloud_sign_in;
 mod live_oauth;
+mod live_older_sent;
 mod live_provider_consent;
 mod live_row_menu;
 mod live_shared_calendars;
