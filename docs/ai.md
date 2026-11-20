@@ -400,7 +400,7 @@ local or air-gapped deployment is exempt. Learning reads only the sent mail the 
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The card, ticks from the editor's changes, asked once at Send (23, 24) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
+| A drafted reply never learned from: the log and the keyword on the Sent copy (25) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | ⬜ |
 | The Allodia relay: its status, its refusals, the offer fed from `ai` (2, 5) | 🚧 | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
 
 No platform ships the feature yet, and one ships it only once every row is ✅ there, each driven
