@@ -1,5 +1,5 @@
-// The user's "include more detail" (DEBUG) diagnostics choice, a small client-side preference,
-// like NotificationPrefs. Persisted because a support session routinely spans an app restart:
+// The user's "include more detail" (DEBUG) diagnostics choice, a small client-side preference.
+// Persisted because a support session routinely spans an app restart:
 // the Diagnostics screen's toggle raises the LIVE core's ceiling via `MailcalApp.setLogLevel`,
 // and every core constructed afterwards (the foreground connect, a showcase run, and the
 // background worker's own headless core) re-applies the choice at boot via `bootLogLevel`, a

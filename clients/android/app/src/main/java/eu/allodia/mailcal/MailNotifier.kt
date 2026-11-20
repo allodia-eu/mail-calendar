@@ -37,8 +37,8 @@ object MailNotifier {
     const val EXTRA_MESSAGE_KEY = "eu.allodia.mailcal.MESSAGE_KEY"
 
     /// Posts one notification per newly-arrived message (grouped per account, with a summary). A
-    /// no-op if nothing arrived, notifications aren't permitted (Android 13+ runtime permission), or
-    /// the toggle is off (checked by the caller).
+    /// no-op if nothing arrived (which is what the core returns while the person has notifications
+    /// off) or notifications aren't permitted (Android 13+ runtime permission).
     fun notifyNewMail(context: Context, outcome: BackgroundSyncOutcome) {
         if (outcome.accounts.isEmpty()) return
         if (!canPost(context)) return

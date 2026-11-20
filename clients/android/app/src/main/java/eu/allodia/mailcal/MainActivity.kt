@@ -39,6 +39,7 @@ import uniffi.mailcal_bindings.EventRow
 import uniffi.mailcal_bindings.Intent
 import uniffi.mailcal_bindings.MailcalApp
 import uniffi.mailcal_bindings.MailtoPrefill
+import uniffi.mailcal_bindings.NotificationsPage
 import uniffi.mailcal_bindings.Observer
 import uniffi.mailcal_bindings.QueuedRow
 import uniffi.mailcal_bindings.QuoteSettings
@@ -134,6 +135,10 @@ class MainActivity : AppCompatActivity() {
     // Settings → Advanced as the core draws it: the reset's control and what the last one came
     // to. Pulled on connect and on every SETTINGS signal.
     internal var advancedPage by mutableStateOf<AdvancedPage?>(null)
+
+    // Settings → Notifications as the core draws it: whether a pass announces new mail. Pulled on
+    // connect and on every SETTINGS signal.
+    internal var notificationsPage by mutableStateOf<NotificationsPage?>(null)
 
     // Settings → Signatures as the core draws it, read on connect and on every SIGNATURES and
     // SETTINGS signal; the composer's per-message picker lists its library too (docs/signatures.md).
