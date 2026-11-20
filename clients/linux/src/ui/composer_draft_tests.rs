@@ -83,6 +83,38 @@ pub(crate) fn a_reply_nobody_typed_into_is_not_a_draft(window: &adw::Application
     assert!(pane.widget().first_child().is_none());
 }
 
+/// A composer that is torn down frees its editor, and with it the editor's web process: each one
+/// kept is a process of its own, and the next composers stop drawing once enough have piled up.
+/// A handler that holds the editor, or a widget whose handler does, keeps it alive.
+pub(crate) fn a_closed_composer_frees_its_editor(window: &adw::ApplicationWindow) {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let pane = ComposerPane::new();
+    pane.show(
+        45,
+        &reply(ComposerHost::Pane),
+        &[("fixture".to_owned(), "sender@example.test".to_owned())],
+        None,
+        window,
+        sender,
+    );
+    let editor = descendants::<webkit6::WebView>(pane.widget().upcast_ref())
+        .into_iter()
+        .next()
+        .expect("the composer's editor")
+        .downgrade();
+    pane.teardown();
+    // A reply the page has not answered yet holds the editor until it arrives.
+    let context = gtk::glib::MainContext::default();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while editor.upgrade().is_some() && std::time::Instant::now() < deadline {
+        context.iteration(false);
+    }
+    assert!(
+        editor.upgrade().is_none(),
+        "the closed composer's editor is still alive"
+    );
+}
+
 /// The composer is one column: the header, the action row, the notes, the files, then the editor,
 /// and nothing in it but the message's box with a vertical scroll of its own
 /// (`docs/composer-layout.md`, rules 1 and 2). A popup is drawn over the column, so one inside a

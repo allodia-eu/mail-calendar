@@ -218,6 +218,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::reading::canvas::tests::the_web_view_base_is_the_same_page();
     crate::ui::webview::tests::the_readers_zoom_gestures_listen_ahead_of_the_web_view();
     crate::ui::webview::tests::opening_another_message_starts_again_at_its_own_fit();
+    crate::ui::webview::tests::a_view_nobody_holds_is_freed();
     crate::ui::modal::tests::a_modal_renders_its_title_in_native_chrome_only();
     crate::ui::folder_dialogs::widget_tests::
         a_picker_row_reads_as_a_pane_row_and_only_a_destination_responds();
@@ -460,6 +461,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
         .expect("register test application");
     let window = adw::ApplicationWindow::new(&application);
     crate::ui::composer_draft::widget_tests::a_reply_nobody_typed_into_is_not_a_draft(&window);
+    crate::ui::composer_draft::widget_tests::a_closed_composer_frees_its_editor(&window);
     crate::ui::composer_draft::widget_tests::only_the_panes_composer_offers_to_pop_out(&window);
     crate::ui::composer_draft::widget_tests::only_a_composer_window_draws_the_window_controls(
         &window,
