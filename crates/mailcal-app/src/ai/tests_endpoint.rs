@@ -50,8 +50,11 @@ fn a_change_is_refused_while_the_assistant_is_not_offered() {
     assert!(!view.offered);
     assert!(!view.stored);
     assert_eq!(view.outcome, None);
-    assert!(view.work.is_empty());
-    assert!(fixture.host.seen.lock().unwrap().keys.is_empty());
+    assert_eq!(view.work, []);
+    assert_eq!(
+        fixture.host.seen.lock().unwrap().keys,
+        Vec::<Option<String>>::new()
+    );
 
     fixture
         .app
