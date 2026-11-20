@@ -14,6 +14,9 @@ static PREFERENCES: OnceLock<Arc<HostPreferences>> = OnceLock::new();
 #[serde(default)]
 struct Values {
     language: Option<String>,
+    /// The new-mail notifications choice this host stored before the core held it, handed over
+    /// once by [`HostPreferences::take_notifications_choice`].
+    #[serde(skip_serializing_if = "Option::is_none")]
     notifications_enabled: Option<bool>,
     diagnostics_debug: bool,
     /// The folder pane's width in pixels, or `None` for a pane nobody has dragged.
@@ -53,16 +56,15 @@ impl HostPreferences {
         });
     }
 
-    pub(crate) fn notifications_enabled(&self) -> bool {
-        self.values
-            .lock()
-            .expect("host-preferences mutex poisoned")
-            .notifications_enabled
-            .unwrap_or(true)
-    }
-
-    pub(crate) fn set_notifications_enabled(&self, enabled: bool) {
-        self.update(|values| values.notifications_enabled = Some(enabled));
+    /// The new-mail notifications choice stored here, if one is, removed as it is read: the
+    /// core holds it from then on.
+    pub(crate) fn take_notifications_choice(&self) -> Option<bool> {
+        let mut values = self.values.lock().expect("host-preferences mutex poisoned");
+        let choice = values.notifications_enabled.take();
+        if choice.is_some() {
+            self.persist(&values);
+        }
+        choice
     }
 
     /// The folder pane's stored width, or `None` for a pane nobody has dragged. Both the default
@@ -133,11 +135,11 @@ mod tests {
     }
 
     #[test]
-    fn absent_notification_choice_defaults_on() {
+    fn a_fresh_store_holds_no_host_choices() {
         let (_dir, path) = scratch();
         let preferences = HostPreferences::open(path);
 
-        assert!(preferences.notifications_enabled());
+        assert_eq!(preferences.take_notifications_choice(), None);
         assert!(!preferences.diagnostics_debug());
         assert_eq!(preferences.language(), None);
         assert_eq!(preferences.folder_pane_width(), None);
@@ -148,14 +150,30 @@ mod tests {
         let (_dir, path) = scratch();
         let preferences = HostPreferences::open(path.clone());
         preferences.set_language(Some("nl"));
-        preferences.set_notifications_enabled(false);
         preferences.set_diagnostics_debug(true);
         preferences.set_folder_pane_width(320);
 
         let reopened = HostPreferences::open(path);
         assert_eq!(reopened.language().as_deref(), Some("nl"));
-        assert!(!reopened.notifications_enabled());
         assert!(reopened.diagnostics_debug());
         assert_eq!(reopened.folder_pane_width(), Some(320));
+    }
+
+    #[test]
+    fn a_stored_notifications_choice_is_handed_over_once() {
+        let (_dir, path) = scratch();
+        std::fs::write(
+            &path,
+            br#"{"notifications_enabled": false, "language": "nl"}"#,
+        )
+        .unwrap();
+
+        let preferences = HostPreferences::open(path.clone());
+        assert_eq!(preferences.take_notifications_choice(), Some(false));
+        assert_eq!(preferences.take_notifications_choice(), None);
+
+        let reopened = HostPreferences::open(path);
+        assert_eq!(reopened.take_notifications_choice(), None);
+        assert_eq!(reopened.language().as_deref(), Some("nl"));
     }
 }

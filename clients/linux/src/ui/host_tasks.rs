@@ -333,12 +333,8 @@ impl AppModel {
         if !self.host_tasks.start_background() {
             return;
         }
-        let enabled = self.preferences.notifications_enabled();
         std::thread::spawn(move || {
-            let outcome = app.collect_cached_new_mail();
-            if enabled {
-                notifications::post(outcome);
-            }
+            notifications::post(app.collect_cached_new_mail());
             sender.emit(AppInput::BackgroundFinished);
         });
     }

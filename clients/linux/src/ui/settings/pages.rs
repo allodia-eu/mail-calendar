@@ -196,11 +196,18 @@ pub(super) fn notifications(ctx: &PageContext) -> gtk::Box {
     let row = adw::SwitchRow::builder()
         .title(l10n::settings_notifications_heading())
         .subtitle(l10n::settings_notifications_description())
-        .active(ctx.preferences.notifications_enabled())
+        .active(ctx.app.notifications_page().new_mail)
         .use_markup(false)
         .build();
-    let preferences = ctx.preferences.clone();
-    row.connect_active_notify(move |row| preferences.set_notifications_enabled(row.is_active()));
+    let app = ctx.app.clone();
+    row.connect_active_notify(move |row| {
+        crate::ui::preference::set(
+            &app,
+            mailcal_bindings::PreferenceIntent::SetNewMailNotifications {
+                on: row.is_active(),
+            },
+        );
+    });
     group.add(&row);
     content.append(&group);
     content
