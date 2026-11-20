@@ -337,7 +337,8 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     `submit_composition` read the same function, so the two cannot disagree: while the question is
     due a client asks before it submits, and `submit_composition` refuses without sending.
     **Send anyway** and **Keep editing** both send `SendQuestionAnswered`, applied before `dispatch`
-    returns; Send anyway then submits. Neither is asked again in this composition.
+    returns; Send anyway then submits. Neither is asked again in this composition. While the
+    feature is not offered the question is never due, so no send is held by a card nobody draws.
 25. **A drafted reply is never learned from, nor shown to a later draft as the person's words.** A
     composition a draft went into stays drafted, even once undone or rewritten, since a redo brings
     the draft back and what is sent may still carry its words; the core holds that on the
