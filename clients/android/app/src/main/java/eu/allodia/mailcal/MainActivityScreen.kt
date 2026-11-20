@@ -84,7 +84,7 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                             onBack = { showingDiagnostics = false },
                         )
                         // The unified Settings screen, swapped in over the mailbox.
-                        instance != null && showingSettings -> SettingsTabContent(instance)
+                        instance != null && showingSettings && !settingsOverComposer -> SettingsTabContent(instance)
                         instance != null -> MailboxTabContent(instance)
                         error != null -> ConnectionStatus(L10n.status_connect_failed(ctx, error), isError = true)
                         else -> LaunchStatus(launchStatusAfterMs().toLong())
@@ -93,6 +93,7 @@ internal fun MainActivity.MainScreen(showcase: Boolean) {
                     // a new message from the list and an Outbox edit open the same one.
                     if (instance != null) {
                         ComposerPane(instance)
+                        if (settingsOverComposer) SettingsOverComposer(instance)
                     }
                     // The account connected: ask what to call its sender. Rendered here rather
                     // than inside the setup screen because that screen is gone by now, and the

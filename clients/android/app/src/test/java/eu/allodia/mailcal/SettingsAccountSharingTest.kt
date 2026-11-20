@@ -1,5 +1,5 @@
-// How an account is shared with the other devices, at the top of its page (docs/settings.md row
-// 10, docs/waiting.md): drawn from the page's `sharing`, changed as a change on the page, and
+// How an account is shared with the other devices, at the top of its page (docs/settings.md,
+// Accounts, docs/waiting.md): drawn from the page's `sharing`, changed as a change on the page, and
 // held, running and failed as the record says.
 package eu.allodia.mailcal
 

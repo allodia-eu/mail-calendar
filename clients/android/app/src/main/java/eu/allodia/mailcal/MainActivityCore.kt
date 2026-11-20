@@ -149,6 +149,7 @@ internal fun MainActivity.connect(
                 activity.sendAccountSetting = connected.sendAccountSetting()
                 activity.displaySettings = connected.displaySettings()
                 activity.signatures = connected.signaturesPage()
+                activity.pullWritingStyle(connected)
                 // Is the usage-statistics question settled? `asked == false` puts the welcome
                 // screen up. Pulled here rather than in onCreate because it needs the core.
                 activity.analyticsConsent = connected.analyticsConsent()
@@ -241,6 +242,7 @@ internal fun MainActivity.connectShowcase(locale: ShowcaseLocale) {
             activity.sendAccountSetting = connected.sendAccountSetting()
             activity.displaySettings = connected.displaySettings()
             activity.signatures = connected.signaturesPage()
+            activity.pullWritingStyle(connected)
             activity.refreshAccountsSnapshot()
             // Raised while the showcase was built, before anything was listening for the signal.
             activity.pullNotices()

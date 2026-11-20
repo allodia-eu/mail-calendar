@@ -25,8 +25,13 @@ const RESPONSE_APPLY: &str = "apply";
 ///
 /// `column` is the composer's, whose editor runs in its framed mode and reports its caret and how
 /// far its message is scrolled (`docs/composer-layout.md`); the signature editor has none, and its
-/// page never sends either.
-pub(crate) fn install(view: &WebView, column: Option<&Rc<ComposerColumn>>) {
+/// page never sends either. `report` is handed every message as it came, for the core's own
+/// reading of it: Draft a reply's report, which the parse here leaves out (`docs/ai.md` rule 22).
+pub(crate) fn install(
+    view: &WebView,
+    column: Option<&Rc<ComposerColumn>>,
+    report: Option<Rc<dyn Fn(String)>>,
+) {
     let Some(manager) = view.user_content_manager() else {
         return;
     };
@@ -41,7 +46,11 @@ pub(crate) fn install(view: &WebView, column: Option<&Rc<ComposerColumn>>) {
         let Some(view) = view.upgrade() else {
             return;
         };
-        let Some(request) = parse_composer_host_request(value.to_str().to_string()) else {
+        let message = value.to_str().to_string();
+        if let Some(report) = &report {
+            report(message.clone());
+        }
+        let Some(request) = parse_composer_host_request(message) else {
             return;
         };
         // Exhaustive, so a request added to the core's vocabulary fails this build until it is

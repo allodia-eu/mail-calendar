@@ -16,6 +16,7 @@ use super::{
     composer_file_tiles::FileTiles,
     composer_importance::ImportanceControl,
     composer_model::{ComposeContext, ComposerSubmission},
+    composer_reply_draft::ReplyDraft,
     recipients::RecipientField,
 };
 use crate::l10n;
@@ -121,13 +122,16 @@ pub(crate) fn read_document(
     );
 }
 
-/// Send: the document is read, the message goes, and a failure says which failure it was.
+/// Send: the document is read, the message goes, and a failure says which failure it was. A
+/// drafted reply's checklist is asked about first, while the core says the question is due
+/// (`docs/ai.md` rule 24).
 pub(crate) fn connect_send(
     button: &gtk::Button,
     editor: &webkit6::WebView,
     fields: &ComposerFields,
     error: gtk::Label,
     sender: relm4::Sender<AppInput>,
+    reply_draft: Option<Rc<ReplyDraft>>,
 ) {
     let editor = editor.clone();
     let fields = fields.clone();
@@ -135,21 +139,30 @@ pub(crate) fn connect_send(
     button.connect_clicked(move |_| {
         pressed.set_sensitive(false);
         error.set_visible(false);
-        let error = error.clone();
-        let button = pressed.clone();
-        read_document(
-            &editor,
-            &fields,
-            &sender,
-            AppInput::SubmitComposer,
-            move || {
-                // The label is shared with the dropped-picture failure, so re-state which
-                // failure this is rather than leaving the last message standing.
-                error.set_text(l10n::compose_prepare_error());
-                error.set_visible(true);
-                button.set_sensitive(true);
-            },
-        );
+        let (editor, fields, sender) = (editor.clone(), fields.clone(), sender.clone());
+        let (error, button) = (error.clone(), pressed.clone());
+        let send: Box<dyn FnOnce()> = Box::new(move || {
+            read_document(
+                &editor,
+                &fields,
+                &sender,
+                AppInput::SubmitComposer,
+                move || {
+                    // The label is shared with the dropped-picture failure, so re-state which
+                    // failure this is rather than leaving the last message standing.
+                    error.set_text(l10n::compose_prepare_error());
+                    error.set_visible(true);
+                    button.set_sensitive(true);
+                },
+            );
+        });
+        match &reply_draft {
+            Some(draft) => {
+                let kept = pressed.clone();
+                draft.before_send(send, Box::new(move || kept.set_sensitive(true)));
+            }
+            None => send(),
+        }
     });
 }
 
