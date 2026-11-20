@@ -71,6 +71,8 @@ final class WritingStyleSettingsTests: XCTestCase {
         try app.wait(.text("Which sent mail?"), "Next did not go on to the range")
         try back(app, "the range has no back")
         try app.wait(.text("Learn from which account?"), "Back did not return to the accounts")
+        // Until the pop has finished, both pages' Next are on screen.
+        try app.settle()
         try app.press(.button("Next"))
         try app.wait(.text("Which sent mail?"))
         try app.wait(.button("The last twelve months"), "the range does not offer the last year")
