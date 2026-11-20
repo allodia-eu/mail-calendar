@@ -53,7 +53,9 @@ struct ReplyDraftInput: View {
         #if os(macOS)
         .frame(width: 360)
         #else
-        .frame(minWidth: 320, maxWidth: .infinity, alignment: .topLeading)
+        // At the top of the sheet, which grows for the keyboard; centred, the line would float
+        // away from the edge it is pulled up by.
+        .frame(minWidth: 320, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         #endif
         .onAppear { focused = record.heldBy == nil }
     }
@@ -95,10 +97,14 @@ struct ReplyDraftCard: View {
                     .padding(.top, summary.isEmpty ? 0 : 4)
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(checklist, id: \.index) { item in
-                        ControlCheck(
-                            title: ReplyDraftWords.item(item), done: item.done, control: item.tick,
-                            symbol: symbol(item.kind), iconWidth: iconWidth
-                        ) { tick(item.index, $0) }
+                        if let control = item.tick {
+                            ControlCheck(
+                                title: ReplyDraftWords.item(item), done: item.done, control: control,
+                                symbol: symbol(item.kind), iconWidth: iconWidth
+                            ) { tick(item.index, $0) }
+                        } else {
+                            gap(item)
+                        }
                     }
                 }
             }
@@ -108,6 +114,28 @@ struct ReplyDraftCard: View {
         .background(.fill.tertiary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("composer.draftCard")
+    }
+
+    /// A gap the reply decides: a mark beside its text, open or done, which nothing presses.
+    private func gap(_ item: ReplyDraftItem) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: item.done ? "checkmark" : "circle.dotted")
+                .foregroundStyle(item.done ? Color.accentColor : Color.secondary)
+                .frame(width: iconWidth)
+                .accessibilityHidden(true)
+            Image(systemName: symbol(item.kind))
+                .foregroundStyle(.secondary)
+                .frame(width: iconWidth)
+                .accessibilityHidden(true)
+            Text(ReplyDraftWords.item(item))
+                .strikethrough(item.done)
+                .foregroundStyle(item.done ? .secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .font(.callout)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(item.done ? .isSelected : [])
     }
 
     private func heading(_ text: String) -> some View {

@@ -1,6 +1,6 @@
-//! Which way a Gmail account's mail syncs in this launch, on its page (`docs/settings.md` row 11):
-//! Optimised, Fallback, Can't connect while its mail cannot be reached, or Checking until the
-//! first read has settled it. The status never names a
+//! Which way a Gmail account's mail syncs in this launch, on its page (`docs/settings.md`,
+//! Accounts): Optimised, Fallback, Can't connect while its mail cannot be reached, or Checking
+//! until the first read has settled it. The status never names a
 //! protocol; the info button opens a popover with what it means and a link to the help page.
 
 use adw::prelude::*;

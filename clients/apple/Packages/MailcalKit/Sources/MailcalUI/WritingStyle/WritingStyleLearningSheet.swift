@@ -11,9 +11,8 @@ struct WritingStyleLearningSheet: View {
     var body: some View {
         if let flow = model.writingStyle.learning {
             if case let .learned(style) = flow.stage {
-                WritingStyleRevealView(model: model, styleId: style) {
-                    model.learnStyle(.close)
-                }
+                // The reveal's own Close ends the flow too: the core closes it on `closeReveal`.
+                WritingStyleRevealView(model: model, styleId: style) {}
             } else {
                 host(flow)
             }
@@ -56,7 +55,7 @@ struct WritingStyleLearningSheet: View {
         }
         if case let .failed(_, remedy?) = flow.stage {
             return FlowControl(title: AiWords.remedy(remedy.remedy), control: remedy.control) {
-                model.openRemedy(remedy.remedy)
+                model.openRemedy(remedy.remedy, inFlow: true)
             }
         }
         if let stop = flow.stop {

@@ -1,8 +1,8 @@
 // Settings → Writing style in the running app (`docs/ai.md` rules 4 and 8 to 16), on the showcase
 // with `MAILCAL_OFFER_AI`: its seed gives the first account two styles, "Work", already revealed,
 // which the account drafts in, and "Newly learned", whose reveal waits, and stages an endpoint on
-// this device. Learning there fails as unreachable, so a run is driven through Review to Failed
-// once the showcase's sent mail says enough to learn from; until then that case skips, saying why.
+// this device, and sent mail on the first account that says enough to learn from. Learning there
+// fails as unreachable, so a run is driven through Review to Failed.
 // Nothing leaves the machine: the staged host answers from inside the app.
 
 import UIKit
@@ -43,11 +43,7 @@ final class WritingStyleSettingsTests: XCTestCase {
     func testARunThatCannotReachItsEndpointFailsWithItsRemedy() throws {
         let app = try SettingsCategories.open("Writing style", hooks: offer)
         try reachTheReview(app)
-        guard try app.appears(.button("Learn").enabled(true), timeout: 10) else {
-            throw XCTSkip(
-                "the showcase's sent mail has nothing long enough to learn from, so Learn is held")
-        }
-        try app.press(.button("Learn").enabled(true))
+        try app.press(.button("Learn").enabled(true), timeout: 30, "the review never offered Learn")
         try app.wait(.text("No style was learned"), timeout: 30, "the run did not fail")
         try app.wait(.text("The AI service could not be reached."), "the failure was not said")
         try app.wait(.button("Try again"), "the failure has no remedy")

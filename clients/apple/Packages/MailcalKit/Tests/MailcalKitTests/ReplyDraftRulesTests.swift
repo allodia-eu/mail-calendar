@@ -30,8 +30,7 @@ import Testing
     }
 
     @Test func aGapIsNamedAsTheReplyCarriesItAndATaskAsWritten() {
-        let gap = ReplyDraftItem(
-            index: 0, kind: .fillIn, text: "[date]", done: false, tick: .free(false))
+        let gap = ReplyDraftItem(index: 0, kind: .fillIn, text: "[date]", done: false, tick: nil)
         #expect(ReplyDraftWords.item(gap) == L10n.composer_task_fill_in(placeholder: "[date]"))
         let task = ReplyDraftItem(
             index: 1, kind: .do, text: "Book the room", done: false, tick: .free())

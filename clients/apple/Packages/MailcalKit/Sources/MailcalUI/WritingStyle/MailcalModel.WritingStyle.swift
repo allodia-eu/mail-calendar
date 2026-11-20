@@ -44,14 +44,12 @@ extension MailboxModel {
         changeWritingStyle(.learning(intent: intent))
     }
 
-    /// Does what `remedy` names: moves the flow, or closes it and opens what the remedy names.
-    func openRemedy(_ remedy: AiRemedy) {
+    /// Does what `remedy` names. One in the flow or on the page's run is the flow's `remedy` intent,
+    /// which moves the flow or decides whether it stays open, and then opens what it names; one
+    /// beside a held Learn only opens it.
+    func openRemedy(_ remedy: AiRemedy, inFlow: Bool) {
         let route = WritingStyleRemedyRoute(remedy)
-        if route == .flow {
-            learnStyle(.remedy)
-            return
-        }
-        if writingStyle.learning != nil { learnStyle(.close) }
+        if inFlow { learnStyle(.remedy) }
         switch route {
         case .allodiaSignIn: signInToAllodia()
         case .endpointForm: writingStyle.endpointRequest &+= 1

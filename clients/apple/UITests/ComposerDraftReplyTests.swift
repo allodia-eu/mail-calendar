@@ -55,6 +55,8 @@ final class ComposerDraftReplyTests: XCTestCase {
     func testTheReplaceQuestionKeepsWhatWasWrittenOnCancel() throws {
         let (app, web) = try reply(to: "Welcome to Allodia Mail & Calendar")
         try ShowcaseApp.composerBody(app).tap()
+        // The reply's body takes the caret as the page settles; a key sent before then is lost.
+        try app.settle()
         app.input.typeText("Mine")
         XCTAssertTrue(text("Mine", in: web).waitForExistence(timeout: 5), "nothing was typed")
         try app.press(control)

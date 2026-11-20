@@ -1,5 +1,5 @@
-//! Settings → Videoconferencing (`docs/settings.md`, Videoconferencing): the accounts that make video
-//! meetings, the person's Jitsi server (`docs/conferencing.md`, rule 13) and each account's
+//! Settings → Videoconferencing (`docs/settings.md`, Videoconferencing): the accounts that make
+//! video meetings, the person's Jitsi server (`docs/conferencing.md`, rule 13) and each account's
 //! default video meeting (rule 10).
 //!
 //! An account's row only opens its page, where the one switch for its meetings is: two switches

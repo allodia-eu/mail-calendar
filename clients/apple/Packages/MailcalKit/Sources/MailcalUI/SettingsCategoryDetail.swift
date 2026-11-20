@@ -228,7 +228,7 @@ struct SettingsCategoryDetail: View {
     // MARK: Advanced, AI assistant access (desktop), own AI endpoint, reset database (destructive)
     //
     // Each belongs to this category's character rather than its old one-line description:
-    // powerful, expert-facing, off by default, capable of damage (docs/settings.md row 12). The
+    // powerful, expert-facing, off by default, capable of damage (docs/settings.md, Advanced). The
     // MCP panel renders nothing on a platform with no endpoint, so iOS needs no `#if` here, and
     // the endpoint form nothing while the writing assistant is not offered.
 

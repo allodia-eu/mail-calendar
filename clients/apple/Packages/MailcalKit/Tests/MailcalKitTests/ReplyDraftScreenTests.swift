@@ -48,18 +48,19 @@ import Testing
 
     @Test func aGapsTickFollowsTheReplyAndTheOthersAreThePersons() {
         let checklist = [
-            ReplyDraftItem(index: 0, kind: .fillIn, text: "[date]", done: false, tick: .free(false)),
+            ReplyDraftItem(index: 0, kind: .fillIn, text: "[date]", done: false, tick: nil),
             ReplyDraftItem(index: 1, kind: .do, text: "Book the room", done: false, tick: .free()),
         ]
         let shown = HostedScreen(ReplyDraftCard(
             summary: "They ask for a date.", checklist: checklist, tick: { _, _ in }))
-        let dump = shown.dump()
+        // The person's item is a toggle; a gap is a mark, read as its text and nothing to press.
+        let lines = shown.dump().split(separator: "\n")
         #expect(
-            dump.split(separator: "\n").contains { $0.contains("Book the room") && $0.contains("AXButton") },
-            "the person's item is not a control: \(dump)")
+            lines.contains { $0.contains("Book the room") && $0.contains("AXSwitch") },
+            "the person's item is not a toggle: \(lines)")
         #expect(
-            !dump.split(separator: "\n").contains { $0.contains("[date]") && $0.contains("AXButton") },
-            "a gap can be ticked by hand: \(dump)")
+            lines.contains { $0.contains("[date]") && $0.contains("AXStaticText") },
+            "a gap is drawn as a control: \(lines)")
     }
 }
 #endif

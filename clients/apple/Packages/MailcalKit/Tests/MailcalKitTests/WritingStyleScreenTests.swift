@@ -53,7 +53,7 @@ import Testing
     }
 
     @Test func aRunIsDrawnInLearnsPlaceWithItsStop() {
-        let shown = screen(page(run: .learning(done: 1, total: 4, stop: .free())))
+        let shown = screen(page(run: .learning(email: "alice@test.local", done: 1, total: 4, stop: .free())))
         #expect(shown.elements("Learn my writing style").isEmpty, "\(shown.dump())")
         #expect(shown.elements(L10n.learn_stop()).first?.enabled == true, "\(shown.dump())")
     }

@@ -95,8 +95,11 @@ private func outcome(_ serial: UInt64, _ result: AiEndpointResult) -> AiEndpoint
     @Test func aRefusalIsWordedByTheLimitItIsUnder() {
         #expect(AiWords.failure(.refused(refusal: .euHosted)) == L10n.ai_failure_refused_eu_native())
         #expect(
-            AiWords.failure(.refused(refusal: .unknown(mode: .euHosted)))
+            AiWords.failure(.refused(refusal: .nonEu(mode: .euHosted)))
                 == L10n.ai_failure_refused_eu_hosted())
+        #expect(
+            AiWords.failure(.refused(refusal: .unknown(mode: .euHosted)))
+                == L10n.ai_failure_refused_undeclared())
     }
 
     @Test func theKeyFieldSaysWhatTheSaveWouldDoToTheKeptKey() {

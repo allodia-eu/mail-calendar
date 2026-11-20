@@ -91,7 +91,8 @@ enum AiWords {
     }
 
     private static func refusedFailure(_ refusal: JurisdictionRefusal) -> String {
-        limit(refusal) == .euNative
+        if case .unknown = refusal { return L10n.ai_failure_refused_undeclared() }
+        return limit(refusal) == .euNative
             ? L10n.ai_failure_refused_eu_native() : L10n.ai_failure_refused_eu_hosted()
     }
 

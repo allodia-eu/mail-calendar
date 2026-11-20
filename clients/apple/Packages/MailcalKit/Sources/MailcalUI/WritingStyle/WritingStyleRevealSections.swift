@@ -218,14 +218,21 @@ struct RevealLetterSection: View {
         .accessibilityLabel(spoken)
     }
 
-    /// The letter as VoiceOver reads it: the greeting, the sign-off and the name, a placeholder by
-    /// its own word, each part once.
+    /// The letter as VoiceOver reads it, one element in the contract's order: how it opens, its
+    /// length, its paragraphs, how it closes and the name, each part only when the record has it.
     private var spoken: String {
-        [letter.opening, letter.closing]
-            .map { $0.map(\.text).joined().trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " … ")
-            + (letter.signsAs.isEmpty ? "" : " " + letter.signsAs)
+        func words(_ spans: [WritingStyleSpan]) -> String {
+            spans.map(\.text).joined().trimmingCharacters(in: .whitespaces)
+        }
+        var parts: [String] = []
+        if !letter.opening.isEmpty { parts.append(L10n.a11y_letter_opening(greeting: words(letter.opening))) }
+        if letter.words > 0 { parts.append(L10n.a11y_letter_words(count: Int(letter.words))) }
+        if letter.paragraphCount > 0 {
+            parts.append(L10n.a11y_letter_paragraphs(count: Int(letter.paragraphCount)))
+        }
+        if !letter.closing.isEmpty { parts.append(L10n.a11y_letter_closing(sign_off: words(letter.closing))) }
+        if !letter.signsAs.isEmpty { parts.append(L10n.a11y_letter_name(name: letter.signsAs)) }
+        return parts.joined(separator: ", ")
     }
 
     private var facts: some View {

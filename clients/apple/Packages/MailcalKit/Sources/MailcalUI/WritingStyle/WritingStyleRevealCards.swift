@@ -174,7 +174,7 @@ struct RevealLanguagePicker: View {
 
     var body: some View {
         if languages.count > 1 {
-            Picker(L10n.reveal_stat_languages(), selection: $selected) {
+            Picker(L10n.a11y_reveal_language(), selection: $selected) {
                 ForEach(Array(languages.enumerated()), id: \.offset) { index, language in
                     Text(WritingStyleWords.language(language.language)).tag(index)
                 }
@@ -182,7 +182,7 @@ struct RevealLanguagePicker: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .fixedSize()
-            .accessibilityLabel(L10n.reveal_stat_languages())
+            .accessibilityLabel(L10n.a11y_reveal_language())
         }
     }
 }

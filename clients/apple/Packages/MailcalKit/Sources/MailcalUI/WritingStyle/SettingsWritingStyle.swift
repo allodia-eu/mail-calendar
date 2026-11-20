@@ -18,8 +18,10 @@ struct SettingsWritingStyle: View {
     var body: some View {
         if let page = model.writingStyle.page {
             VStack(alignment: .leading, spacing: 20) {
-                // No heading: the category's own title is just above it on every platform.
-                SettingsGroup(heading: "", description: L10n.writing_style_intro()) {
+                SettingsGroup(
+                    heading: L10n.writing_style_library_heading(),
+                    description: L10n.writing_style_intro()
+                ) {
                     VStack(alignment: .leading, spacing: 14) {
                         library(page)
                         learnArea(page)
@@ -89,8 +91,10 @@ struct SettingsWritingStyle: View {
     @ViewBuilder
     private func learnArea(_ page: WritingStylePage) -> some View {
         switch page.run {
-        case let .learning(done, total, stop):
+        case let .learning(email, done, total, stop):
             VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.learn_progress_account(email: email))
+                    .font(.callout.weight(.semibold))
                 if total > 0 {
                     ProgressView(value: Double(done), total: Double(total))
                 } else {
@@ -120,7 +124,7 @@ struct SettingsWritingStyle: View {
                 .fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 10) {
                     learnButton(page)
-                    if let remedy { remedyButton(remedy) }
+                    if let remedy { remedyButton(remedy, inFlow: true) }
                 }
             }
         case nil:
@@ -158,15 +162,15 @@ struct SettingsWritingStyle: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if case let .cannotSend(_, remedy?) = block {
-                remedyButton(remedy)
+                remedyButton(remedy, inFlow: false)
             }
         }
     }
 
     /// The one thing that changes a failure, as its control says.
-    private func remedyButton(_ remedy: AiRemedyControl) -> some View {
+    private func remedyButton(_ remedy: AiRemedyControl, inFlow: Bool) -> some View {
         ControlButton(title: AiWords.remedy(remedy.remedy), control: remedy.control) {
-            model.openRemedy(remedy.remedy)
+            model.openRemedy(remedy.remedy, inFlow: inFlow)
         }
         .buttonStyle(.bordered)
     }

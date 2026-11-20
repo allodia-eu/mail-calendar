@@ -51,8 +51,9 @@ extension RichComposeView {
         if let record = replyDraft.record {
             switch record.state {
             case .drafting:
+                // The control in the action row runs meanwhile, the one indicator; this says what
+                // runs and offers its Stop.
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
                     Text(L10n.composer_drafting()).font(.callout).foregroundStyle(.secondary)
                     Spacer(minLength: 8)
                     ControlButton(title: L10n.composer_draft_stop(), control: record.stop) {
