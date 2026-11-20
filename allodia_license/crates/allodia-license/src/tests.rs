@@ -9,8 +9,8 @@ use super::{
     LAPSE_WARNING_SECONDS, Outcome, Request, Response, Stored, Transport,
 };
 
-const DAY: i64 = 24 * 60 * 60;
-const NOW: i64 = 1_800_000_000;
+pub(crate) const DAY: i64 = 24 * 60 * 60;
+pub(crate) const NOW: i64 = 1_800_000_000;
 
 /// A transport that answers from a script and records what it was asked.
 struct Fake {
@@ -51,7 +51,7 @@ const ACTIVE: &str = r#"{"plan":"personal","paymentStatus":"active",
     "capabilities":["accounts_sync","push","send_later"],
     "currentPeriodEnd":"2026-09-24T00:00:00.000Z","refreshAfterSeconds":43200}"#;
 
-fn paid() -> Answer {
+pub(crate) fn paid() -> Answer {
     Answer {
         entitlement: Entitlement {
             plan: "personal".to_owned(),
@@ -366,45 +366,6 @@ fn an_answer_stored_before_payment_status_existed_still_reads() {
             .effective(1_760_000_000 + DAY)
             .grants(&Capability::Push)
     );
-}
-
-#[test]
-fn a_refused_read_grants_nothing_at_once_and_asks_again() {
-    // The service was reached with a token minted for it and would not answer for this account:
-    // that is its answer, not an outage, so the stored one goes rather than standing through grace.
-    let mut cache = Cache::default();
-    cache.apply(Outcome::Answered(paid()), NOW);
-    cache.apply(Outcome::Refused, NOW + DAY);
-    assert!(!cache.effective(NOW + DAY).grants(&Capability::Push));
-    assert_eq!(cache.stored(), None, "nothing is kept to grant later");
-    assert!(cache.should_refresh(NOW + DAY));
-    assert!(!cache.lapses_soon(NOW + GRACE_SECONDS - 1));
-}
-
-#[test]
-fn an_answer_dated_after_now_is_stale_and_due() {
-    // Device clocks move, and a stored file can be edited. An answer taken "in the future" has no
-    // age that can be trusted, so it grants nothing and is asked again at once; otherwise it would
-    // grant for as long as the clock stays behind it, past any grace.
-    let mut cache = Cache::default();
-    cache.apply(Outcome::Answered(paid()), NOW);
-
-    for earlier in [NOW - 1, NOW - 400 * DAY, i64::MIN] {
-        assert!(!cache.effective(earlier).grants(&Capability::Push));
-        assert!(cache.should_refresh(earlier));
-        assert!(!cache.lapses_soon(earlier));
-    }
-    assert!(
-        cache.effective(NOW).grants(&Capability::Push),
-        "the moment it was taken"
-    );
-
-    let restored = Cache::restore(Some(Stored {
-        answer: paid(),
-        fetched_at: NOW + 400 * DAY,
-    }));
-    assert!(!restored.effective(NOW).grants(&Capability::Push));
-    assert!(restored.should_refresh(NOW));
 }
 
 // --- The sovereignty carve-out's own premises
