@@ -18,7 +18,7 @@ use engine_core::{
     mail::{Mailbox, Message},
     raw::RawMime,
     scheduling::addresses_match,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
     CalendarListing, Capabilities, ConnectionInfo, EmailChunk, EmailStream, EventRsvp,
@@ -94,7 +94,7 @@ impl Provider for ShowcaseMailProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {

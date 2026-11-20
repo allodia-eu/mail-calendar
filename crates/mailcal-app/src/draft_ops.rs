@@ -12,7 +12,7 @@
 //! classes only (`docs/logging.md`).
 
 use core::time::Duration;
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use engine_api::{
     AccountId, Draft, DraftPut, DrainOutcome, DrainReport, EmailAddress, MessageIdHeader,
@@ -269,7 +269,7 @@ impl<P: Provider> App<P> {
         let provider = acct.providers.first()?;
         Some(
             self.engine
-                .put_draft(provider, account, draft, replacing)
+                .put_draft(provider, account, draft, replacing, &BTreeSet::new())
                 .await
                 .map(|outcome| outcome.key),
         )

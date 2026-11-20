@@ -6,18 +6,21 @@
 //! Its own file, as [`super::fake`] is for the submitting one, so each test module stays
 //! under the 500-line limit.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, Mutex},
+};
 
 use engine_api::{
-    AccountId, CalendarWrites, Draft, EmailAddress, Engine, MessageIdHeader, ProviderKey,
-    SubmissionReceipt, TimeZoneId,
+    AccountId, CalendarWrites, Draft, DraftReceipt, EmailAddress, Engine, MessageIdHeader,
+    ProviderKey, SubmissionReceipt, TimeZoneId,
 };
 use engine_core::{
     ids::{MailboxId, MessageId},
     mail::{Keyword, Mailbox, MailboxRole, Message, SystemKeyword},
     membership::Memberships,
     raw::RawMime,
-    sync::{JmapDataType, SyncScope, SyncState, SyncUpdate, SyncWindow},
+    sync::{JmapDataType, MailboxWindows, SyncScope, SyncState, SyncUpdate},
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, Provider, ProviderResult, ScopeSync,
@@ -166,7 +169,7 @@ impl Provider for ThreadProvider {
         &'a self,
         _account: &AccountId,
         cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -215,10 +218,13 @@ impl Provider for ThreadProvider {
         _account: &AccountId,
         draft: &Draft,
         replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        _keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         let mut puts = self.draft_puts.lock().unwrap();
         puts.push((draft.clone(), replacing.cloned()));
-        Ok(ProviderKey::new(format!("draft-{}", puts.len())).unwrap())
+        Ok(DraftReceipt::stored(
+            ProviderKey::new(format!("draft-{}", puts.len())).unwrap(),
+        ))
     }
 
     async fn delete_draft(&self, _account: &AccountId, draft: &ProviderKey) -> ProviderResult<()> {

@@ -17,7 +17,7 @@ use engine_core::{
     error::FailureClass,
     ids::AccountId,
     mail::Mailbox,
-    sync::{SyncState, SyncUpdate, SyncWindow},
+    sync::{MailboxWindows, SyncState, SyncUpdate, SyncWindow},
 };
 use engine_provider::{
     Capabilities, ConnectionInfo, EmailChunk, EmailStream, Provider, ProviderError, ProviderResult,
@@ -66,7 +66,7 @@ impl Provider for StreamDelegate {
         &'a self,
         _account: &'a AccountId,
         _cursor: Option<&'a SyncState>,
-        _window: SyncWindow,
+        _window: MailboxWindows,
         _fetch_batch: usize,
         _chunk_size: usize,
     ) -> EmailStream<'a> {
@@ -110,7 +110,7 @@ fn pass<'a>(first: Vec<Step>, then: Vec<Step>, redials: &Arc<AtomicUsize>) -> Em
         || {},
         &account(),
         None,
-        SyncWindow::full(),
+        SyncWindow::full().into(),
         200,
         50,
     )

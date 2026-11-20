@@ -87,9 +87,13 @@ impl Provider for FakeDelegate {
         _account: &AccountId,
         _draft: &Draft,
         _replacing: Option<&ProviderKey>,
-    ) -> ProviderResult<ProviderKey> {
+        keywords: &BTreeSet<Keyword>,
+    ) -> ProviderResult<DraftReceipt> {
         self.record()?;
-        Ok(ProviderKey::new("Drafts:1:7").expect("valid key"))
+        Ok(
+            DraftReceipt::stored(ProviderKey::new("Drafts:1:7").expect("valid key"))
+                .with_keywords(keywords.clone()),
+        )
     }
 
     async fn delete_draft(&self, _account: &AccountId, _draft: &ProviderKey) -> ProviderResult<()> {
@@ -372,8 +376,16 @@ async fn a_draft_save_reaches_the_imap_session() {
         healthy_redial(Arc::new(AtomicUsize::new(0))),
     );
 
-    let key = provider.put_draft(&account(), &draft(), None).await;
-    assert_eq!(key.expect("the save is forwarded").as_str(), "Drafts:1:7");
+    let keywords = BTreeSet::from([Keyword::new("$Forwarded").expect("valid keyword")]);
+    let receipt = provider
+        .put_draft(&account(), &draft(), None, &keywords)
+        .await
+        .expect("the save is forwarded");
+    assert_eq!(receipt.key.as_str(), "Drafts:1:7");
+    assert_eq!(
+        receipt.keywords, keywords,
+        "the keywords go down and come back"
+    );
     provider
         .delete_draft(
             &account(),
@@ -393,7 +405,9 @@ async fn a_draft_save_is_never_blind_retried() {
     let provider =
         ReconnectingImapProvider::adopt(initial, mailbox(), healthy_redial(Arc::clone(&redials)));
 
-    let result = provider.put_draft(&account(), &draft(), None).await;
+    let result = provider
+        .put_draft(&account(), &draft(), None, &BTreeSet::new())
+        .await;
     assert!(result.is_err(), "a retryable save surfaces the error");
     assert_eq!(
         saves.load(Ordering::SeqCst),
@@ -403,7 +417,7 @@ async fn a_draft_save_is_never_blind_retried() {
     assert_eq!(redials.load(Ordering::SeqCst), 0);
 
     provider
-        .put_draft(&account(), &draft(), None)
+        .put_draft(&account(), &draft(), None, &BTreeSet::new())
         .await
         .expect("the next save runs on a fresh session");
     assert_eq!(redials.load(Ordering::SeqCst), 1);
