@@ -57,7 +57,7 @@ public sealed partial class ComposerView : UserControl
     public ComposerView()
     {
         this.InitializeComponent();
-        _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync, HostRequested = OnHostRequested };
+        _editor = new EditorWebViewHost(Editor) { PageReady = OnEditorReadyAsync, HostRequested = OnHostRequested, Posted = OnEditorPosted };
         ListenForWheel();
         HistoryKeys.RedoOnShiftChord(SubjectBox);
     }
@@ -233,6 +233,11 @@ public sealed partial class ComposerView : UserControl
         SendButton.IsEnabled = false;
         try
         {
+            if (!await SendQuestionAllowsAsync())
+            {
+                SendButton.IsEnabled = !string.IsNullOrWhiteSpace(ToField.Text);
+                return;
+            }
             var documentJson = await ReadDocumentAsync();
             // The pills are a rendering of these strings, never a second source of truth, so what
             // is submitted is exactly what the user can see in the fields.
@@ -428,6 +433,9 @@ public sealed partial class ComposerView : UserControl
             }
             // Last, so neither the seeds nor the caret count as an edit (ComposerView.Drafts.cs).
             await BaselineEditorRevisionAsync();
+            // A draft already made for this composition reaches this editor now, which in a composer
+            // moved here only follows what its body holds.
+            RefreshReplyDraft();
         }
         catch (Exception ex)
         {

@@ -33,6 +33,21 @@ public sealed class ShowcaseCollection : ICollectionFixture<ShowcaseApp>
     public const string Name = "showcase";
 }
 
+/// <summary>The showcase offering the writing assistant (MAILCAL_OFFER_AI, debug builds only), with
+/// a host that answers every request as unreachable: its surfaces as the core draws them, and no
+/// request that could leave the machine.</summary>
+public sealed class OfferAiShowcaseApp : ShowcaseApp
+{
+    protected override IReadOnlyDictionary<string, string> Env { get; } =
+        new Dictionary<string, string> { ["MAILCAL_OFFER_AI"] = "1" };
+}
+
+[CollectionDefinition(Name)]
+public sealed class OfferAiShowcaseCollection : ICollectionFixture<OfferAiShowcaseApp>
+{
+    public const string Name = "showcase, offering the writing assistant";
+}
+
 /// <summary>The app on an emptied first-run store, past the welcome question, on the account-setup
 /// form: what a person sees once. It needs no server.</summary>
 public sealed class FirstRunApp : HarnessApp

@@ -168,7 +168,7 @@ noted beside it, and the two without one are this app's own drawings.
 | Choose a signature | `signature` | `ic_signature` | text | text |
 | Draft a reply, and what its card says the message asks | — | `ic_stylus_note` | — | — |
 | A drafted reply's gap to fill in | — | `ic_text_fields` | — | — |
-| A gap still in the reply / filled in, a state that cannot be pressed | — | `ic_radio_button_unchecked` / `ic_check_circle` | — | `radio-symbolic` / `object-select-symbolic` |
+| A gap still in the reply / filled in, a state that cannot be pressed | — | `ic_radio_button_unchecked` / `ic_check_circle` | `EA3A` CircleRing / `E930` Completed | `radio-symbolic` / `object-select-symbolic` |
 | A drafted reply's file to attach | — | `ic_attachment` | — | — |
 | A drafted reply's task, and the card's checklist | — | `ic_task_alt` | — | — |
 | The draft's actions (Save as draft, Discard), on iPhone and iPad | `ellipsis` | — | — | — |
