@@ -1,14 +1,15 @@
 //! Reading an account's sent mail for learning (`docs/ai.md` rule 14), on the device.
 //!
-//! Only the person's own words: every drafted reply is left out, as
-//! [`App::is_drafted_message`] recognises it (rule 25). Bodies are read as
-//! `App::message_text` reads them, the text a draft's context is read as too. The messages are
-//! each Sent mailbox's span over the range, which also says how far back the device holds it.
+//! Every sent message in the range is found; only the person's own words are read: a drafted
+//! reply, as [`App::is_drafted_message`] recognises it, is never read (rule 25). Bodies are read
+//! as `App::message_text` reads them, the text a draft's context is read as too, telling a body
+//! without text from one that could not be loaded. The messages are each Sent mailbox's span over
+//! the range, which also says how far back the device holds it.
 
 use std::{cmp::Reverse, collections::HashSet};
 
 use engine_api::{AccountId, Message, Provider, UtcDateTime, find_calendar_part};
-use mailcal_ai::corpus::SentMessage;
+use mailcal_ai::corpus::{SentBody, SentMessage};
 
 use super::range::admits;
 use crate::{App, mail_ops::sent_mailboxes};
@@ -60,18 +61,14 @@ fn sent_at(message: &Message) -> Option<i64> {
         .and_then(unix_seconds)
 }
 
-/// The messages of `messages` to read: inside `bounds` by when they were sent and not `drafted`,
-/// each once, newest first and capped.
-pub(super) fn learnable(
-    messages: Vec<Message>,
-    bounds: (Option<i64>, Option<i64>),
-    drafted: impl Fn(&Message) -> bool,
-) -> Vec<Message> {
+/// The messages of `messages` found in the range: inside `bounds` by when they were sent, each
+/// once, newest first and capped.
+fn in_range(messages: Vec<Message>, bounds: (Option<i64>, Option<i64>)) -> Vec<Message> {
     let mut seen = HashSet::new();
     let mut messages: Vec<Message> = messages
         .into_iter()
         .filter(|message| seen.insert(message.id.clone()))
-        .filter(|message| admits(bounds, sent_at(message)) && !drafted(message))
+        .filter(|message| admits(bounds, sent_at(message)))
         .collect();
     messages.sort_by_key(|message| Reverse(sent_at(message)));
     messages.truncate(MAX_LEARN_MESSAGES);
@@ -79,9 +76,10 @@ pub(super) fn learnable(
 }
 
 impl<P: Provider> App<P> {
-    /// The account's sent mail inside `bounds` as the corpus builder takes it, with when the
-    /// oldest sent message the device holds was sent, whatever the range; `None` when the account
-    /// has no Sent folder.
+    /// Every sent message inside `bounds` as the corpus builder takes it, each with its body as
+    /// far as it could be read and a drafted reply's never read, with when the oldest sent
+    /// message the device holds was sent, whatever the range; `None` when the account has no
+    /// Sent folder.
     pub(super) async fn learnable_sent_mail(
         &self,
         account: &AccountId,
@@ -96,23 +94,33 @@ impl<P: Provider> App<P> {
         let mut found = Vec::new();
         let mut horizon: Option<i64> = None;
         for mailbox in sent {
-            let Ok(span) = self
+            let span = match self
                 .engine
                 .mail_in_mailbox_between(account, &mailbox.id, since, until, MAX_LEARN_MESSAGES)
                 .await
-            else {
-                continue;
+            {
+                Ok(span) => span,
+                Err(err) => {
+                    log::warn!("ai: a Sent mailbox could not be read from the store: {err}");
+                    continue;
+                }
             };
             if let Some(oldest) = span.oldest.and_then(unix_seconds) {
                 horizon = Some(horizon.map_or(oldest, |held| held.min(oldest)));
             }
             found.extend(span.messages);
         }
-        let messages = learnable(found, bounds, |message| self.is_drafted_message(message));
+        let messages = in_range(found, bounds);
         let mut out = Vec::with_capacity(messages.len());
         for message in messages {
-            let Some(body) = self.message_text(account, &message).await else {
-                continue;
+            let body = if self.is_drafted_message(&message) {
+                SentBody::NoText
+            } else {
+                match self.read_message_text(account, &message).await {
+                    Ok(Some(text)) => SentBody::Text(text),
+                    Ok(None) => SentBody::NoText,
+                    Err(_) => SentBody::NotLoaded,
+                }
             };
             out.push(SentMessage {
                 key: message.id.as_str().to_owned(),
@@ -130,7 +138,6 @@ impl<P: Provider> App<P> {
                 body,
             });
         }
-        log::info!("ai: read {} sent message(s) on this device", out.len());
         Some((out, horizon))
     }
 
