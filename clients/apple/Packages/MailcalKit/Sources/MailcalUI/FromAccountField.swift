@@ -32,7 +32,10 @@ struct FromAccountField: View {
     private var field: some View {
         if accounts.count > 1 {
             #if os(macOS)
-            picker.pickerStyle(.menu).labelsHidden().fixedSize()
+            // Never `fixedSize()`: that holds the button at its longest sender's width, and one
+            // long account then widens the whole composer past its pane. Unfixed, it keeps that
+            // width while the column has room and truncates once it does not.
+            picker.pickerStyle(.menu).labelsHidden()
             #else
             // A menu of our own around the picker, because iOS draws a menu picker's label on as
             // many lines as the sender takes and ignores a line limit. One line, the middle of a
