@@ -141,6 +141,14 @@ pub(crate) fn build_accounts(
     let ai_key = crate::ai_host::take_stored(&mut configs);
 
     let registry = AccountRegistry::new();
+    // Before any Gmail account is dialed, so a launch on an install the writing assistant has
+    // reached builds every one with the keyword's names (`docs/ai.md` rule 25).
+    if mailcal_account::load_preferences(&prefs_path)
+        .ai
+        .gmail_keyword_named
+    {
+        registry.gmail_keyword_naming().turn_on();
+    }
     // Before any account is registered, so each one's learned DAV principals come with it.
     registry.keep_dav_starts_in(mailcal_account::DavStartsFile::in_dir(&base));
     // The token sink every OAuth account's refresh shares, built over the host's store before
@@ -322,16 +330,10 @@ pub(crate) fn build_accounts(
         runtime.handle().clone(),
     ));
     // The MCP server is built beside the background manager and on the same runtime, but starts
-    // STOPPED: it has no endpoint until a desktop host calls `set_mcp_endpoint`, and no accounts
+    // STOPPED: it has no endpoint until a desktop host calls `set_mcp_host`, and no accounts
     // until the user ticks one. A mobile host never calls either, so it never listens.
     let agent_ui: crate::agent_ui::AgentUiSlot = Arc::new(Mutex::new(None));
-    let mcp = Arc::new(mailcal_mcp::McpServer::new(
-        Arc::new(crate::mcp::AppBackend::new(
-            Arc::clone(&app),
-            Arc::clone(&agent_ui),
-        )),
-        runtime.handle().clone(),
-    ));
+    let mcp = crate::mcp::server(&app, &agent_ui, runtime.handle());
     let mailcal = Arc::new(MailcalApp {
         runtime,
         app,
@@ -340,7 +342,7 @@ pub(crate) fn build_accounts(
         registry,
         background,
         mcp,
-        mcp_endpoint: Mutex::new(None),
+        mcp_host: Mutex::new(None),
         agent_ui,
         #[cfg(feature = "allodia-license")]
         allodia_tokens: crate::allodia_tokens::Tokens::default(),

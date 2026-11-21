@@ -272,6 +272,37 @@ fn the_stored_key_is_taken_out_at_launch_and_kept() {
     assert!(store.deleted.lock().unwrap().is_empty());
 }
 
+/// A development build offers the feature at launch, so its install names the drafted-reply
+/// keyword on Gmail; the next launch over the same data starts with the names on, before any
+/// account is dialed (`docs/ai.md` rule 25).
+#[test]
+fn an_install_the_feature_reached_names_the_keyword_from_the_next_launch_on() {
+    let dir = crate::tests::temp_data_dir("ai-gmail-named");
+    let boot = || {
+        let (tx, _rx) = mpsc::channel();
+        MailcalApp::new_accounts(
+            Box::new(ChannelObserver { tx }),
+            Box::new(NullLogger),
+            LogLevel::Info,
+            Vec::new(),
+            dir.to_string_lossy().into_owned(),
+            "Etc/UTC".to_owned(),
+            crate::analytics::test_device(),
+            Box::new(RecordingStoreHandle(Arc::default())),
+        )
+        .expect("the app boots")
+    };
+    let app = boot();
+    assert!(app.registry.gmail_keyword_naming().is_on());
+    assert!(app.app.gmail_keyword_named());
+    app.app.settle_preferences();
+    drop(app);
+
+    let prefs = mailcal_account::load_preferences(mailcal_account::preferences_path(&dir));
+    assert!(prefs.ai.gmail_keyword_named, "recorded for the next launch");
+    assert!(boot().registry.gmail_keyword_naming().is_on());
+}
+
 #[test]
 fn work_queued_runs_on_a_thread_of_its_own() {
     let (app, ..) = app("ai-work", Vec::new());

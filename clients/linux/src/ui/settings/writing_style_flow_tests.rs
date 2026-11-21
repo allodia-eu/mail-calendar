@@ -147,6 +147,7 @@ pub(super) fn the_review_fetches_with_a_spinner_and_says_what_it_could_not() {
         other_languages: 0,
         oldest: None,
         newest: None,
+        not_loaded: 0,
     };
     flow.draw(
         review(
@@ -168,6 +169,39 @@ pub(super) fn the_review_fetches_with_a_spinner_and_says_what_it_could_not() {
             .iter()
             .any(|text| text == l10n::learn_older_not_fetched())
     );
+}
+
+pub(super) fn the_review_says_how_many_messages_could_not_be_loaded() {
+    let flow = flow(&Asked::default());
+    let report = |not_loaded| StyleLearningReport {
+        found: 8,
+        usable: 0,
+        languages: Vec::new(),
+        other_languages: 0,
+        oldest: None,
+        newest: None,
+        not_loaded,
+    };
+    let states: [fn(StyleLearningReport) -> StyleLearningReview; 2] = [
+        |report| StyleLearningReview::Ready { report },
+        |report| StyleLearningReview::NothingUsable { report },
+    ];
+    for state in states {
+        flow.draw(review(state(report(3)), false), None);
+        let shown = rendered_labels(&on_screen(&flow));
+        assert!(shown.contains(&l10n::learn_not_loaded(3)), "{shown:?}");
+        flow.draw(review(state(report(1)), false), None);
+        let shown = rendered_labels(&on_screen(&flow));
+        assert!(shown.contains(&l10n::learn_not_loaded(1)), "{shown:?}");
+        flow.draw(review(state(report(0)), false), None);
+        let shown = rendered_labels(&on_screen(&flow));
+        for unsaid in [0, 1, 3].map(l10n::learn_not_loaded) {
+            assert!(
+                !shown.contains(&unsaid),
+                "every message found was loaded, so nothing is said: {unsaid}"
+            );
+        }
+    }
 }
 
 pub(super) fn every_remedy_is_sent_alone_and_one_leading_elsewhere_opened() {
@@ -233,6 +267,7 @@ pub(super) fn nothing_usable_names_no_destination() {
                         other_languages: 0,
                         oldest: None,
                         newest: None,
+                        not_loaded: 0,
                     },
                 },
                 sends_to: None,

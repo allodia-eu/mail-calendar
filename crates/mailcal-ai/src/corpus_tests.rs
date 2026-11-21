@@ -1,4 +1,4 @@
-use super::{CorpusOptions, MIN_WORDS, SentMessage, build};
+use super::{CorpusOptions, MIN_WORDS, SentBody, SentMessage, build};
 
 const ENGLISH: &str = "Thanks for sending the figures over. I have had a look at them this \
     morning and they are mostly what we expected, although the travel costs are higher than \
@@ -16,9 +16,30 @@ fn sent(key: &str, body: &str, sent_at: i64) -> SentMessage {
         sent_at: Some(sent_at),
         recipient: Some(format!("{key}@example.eu")),
         subject: "Re: figures".to_owned(),
-        body: body.to_owned(),
+        body: SentBody::Text(body.to_owned()),
         calendar: false,
     }
+}
+
+/// `docs/ai.md` rule 14: every sent message handed in is found. One without text of its own to
+/// read is not usable, and one whose body could not be loaded is counted apart, so the report
+/// never reads as complete when part of the range was not read.
+#[test]
+fn a_message_without_text_or_not_loaded_is_found_and_not_usable() {
+    let mut no_text = sent("none", "", 1);
+    no_text.body = SentBody::NoText;
+    let mut not_loaded = sent("failed", "", 2);
+    not_loaded.body = SentBody::NotLoaded;
+    let corpus = build(
+        vec![sent("a", ENGLISH, 3), no_text, not_loaded],
+        &CorpusOptions::default(),
+    );
+
+    let report = &corpus.report;
+    assert_eq!((report.found, report.usable), (3, 1));
+    assert_eq!(report.not_loaded, 1);
+    assert_eq!((report.oldest, report.newest), (Some(3), Some(3)));
+    assert_eq!(corpus.languages["en"].len(), 1);
 }
 
 #[test]

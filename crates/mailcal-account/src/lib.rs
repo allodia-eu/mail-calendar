@@ -52,6 +52,7 @@ mod recurrence_shape;
 mod repeat_draft;
 mod repeat_summary;
 mod series_warning;
+mod server_address;
 mod setup;
 mod setup_choices;
 mod shared_store;
@@ -83,7 +84,7 @@ pub use contacts::{connect_carddav_contact_providers, connect_carddav_learning};
 pub use contacts_edit::{ContactEdit, build_contact_draft, build_contact_patch};
 pub use dav_starts::{DavLearned, DavStarts, DavStartsFile, Learned};
 pub use drafted_keyword::{
-    DRAFTED_REPLY_KEYWORD, drafted_reply_keyword, drafted_reply_keyword_names,
+    DRAFTED_REPLY_KEYWORD, GmailKeywordNaming, drafted_reply_keyword, drafted_reply_keyword_names,
 };
 pub use drafted_replies::{
     DraftedReplies, drafted_replies_path, load_drafted_replies, save_drafted_replies,
@@ -143,6 +144,7 @@ pub use repeat_summary::{RepeatRhythm, RepeatStop, RepeatSummary, summarize_repe
 pub use series_warning::{
     SeriesEditTouches, SeriesEditWarning, series_edit_touches, series_edit_warning,
 };
+pub use server_address::{join_server_address, server_address_host, split_server_address};
 pub use setup::{
     AccountSetup, SetupCredential, build_config_toml, imap_default_port, smtp_default_port,
 };

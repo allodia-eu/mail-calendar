@@ -304,11 +304,12 @@ impl MailcalApp {
         // The connectivity snapshot carries the refusal as a banner, so the host is told to read
         // it again whenever it is raised or taken down.
         // The Allodia account's card draws the refusal too, and the writing assistant's relay
-        // asks for a sign-in while it stands.
+        // asks for a sign-in while it stands, and is not offered.
         if banner_moved {
             self.app.signal_connectivity();
             self.app.allodia_changed();
             self.app.ai_relay_changed();
+            self.publish_ai_entitlement();
         }
     }
 

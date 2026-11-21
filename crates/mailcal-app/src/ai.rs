@@ -149,6 +149,21 @@ impl<P: Provider> App<P> {
         ai_offered(ports.build, ports.entitlement)
     }
 
+    /// Whether the feature has been offered on this install, so its Gmail accounts name the
+    /// drafted-reply keyword (`docs/ai.md` rule 25). Never turned off.
+    #[must_use]
+    pub fn gmail_keyword_named(&self) -> bool {
+        self.ai.settings().gmail_keyword_named
+    }
+
+    /// Records that the feature has been offered on this install, for every launch after.
+    pub fn note_gmail_keyword_named(&self) {
+        if !self.gmail_keyword_named() {
+            self.ai
+                .edit_settings(|settings| settings.gmail_keyword_named = true);
+        }
+    }
+
     /// The jurisdiction mode in force.
     #[must_use]
     pub fn ai_mode(&self) -> Mode {

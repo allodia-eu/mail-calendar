@@ -7,7 +7,10 @@
 use adw::prelude::*;
 
 use super::{composer_window, reading_window};
-use crate::ui::AppInput;
+use crate::ui::{
+    AppInput, composer_draft::widget_tests::reply, reader::ComposerHost,
+    setup_widget_tests::descendants,
+};
 
 /// Asks `window` to close, and reports what came back.
 ///
@@ -66,6 +69,81 @@ pub(crate) fn a_reading_window_is_the_mailbox_peer_and_not_a_second_app() {
         closing(&open.window, &sender, &receiver),
         ["reading account/message-a"]
     );
+}
+
+/// A closed reading window is freed, and its web view with it, whose web process would otherwise
+/// keep running for every message ever opened in a window (`docs/reading-window.md`).
+pub(crate) fn a_closed_reading_window_is_freed() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let open = reading_window("account/message-a", &sender);
+    let window = open.window.downgrade();
+    let view = descendants::<webkit6::WebView>(open.window.upcast_ref())
+        .into_iter()
+        .next()
+        .expect("the window's message view")
+        .downgrade();
+
+    // What the window list does once the model has dropped the window, with `destroy` standing in
+    // for a `close` that does nothing to a window never put on screen.
+    open.view.suspend();
+    open.window.destroy();
+    drop(open);
+
+    settle(|| window.upgrade().is_some() || view.upgrade().is_some());
+    assert!(
+        window.upgrade().is_none(),
+        "the closed reading window is still alive"
+    );
+    assert!(
+        view.upgrade().is_none(),
+        "the closed reading window's view is still alive"
+    );
+}
+
+/// A closed composer window is freed, and its editor with it.
+pub(crate) fn a_closed_composer_window_is_freed() {
+    let (sender, _receiver) = relm4::channel::<AppInput>();
+    let mut open = composer_window(7, &sender);
+    open.view.show(
+        7,
+        &reply(ComposerHost::Window(7)),
+        &[("fixture".to_owned(), "sender@example.test".to_owned())],
+        None,
+        &open.window,
+        sender,
+    );
+    let window = open.window.downgrade();
+    let editor = descendants::<webkit6::WebView>(open.window.upcast_ref())
+        .into_iter()
+        .next()
+        .expect("the window's editor")
+        .downgrade();
+
+    // What the window list does once the model has dropped the draft.
+    open.discard.dismiss();
+    open.view.teardown();
+    open.window.destroy();
+    drop(open);
+
+    settle(|| window.upgrade().is_some() || editor.upgrade().is_some());
+    assert!(
+        window.upgrade().is_none(),
+        "the closed composer window is still alive"
+    );
+    assert!(
+        editor.upgrade().is_none(),
+        "the closed composer window's editor is still alive"
+    );
+}
+
+/// Turns the main loop while `alive` holds, for up to five seconds: the content filter's compile
+/// holds a view until it answers, and so does a reply the page has not given yet.
+fn settle(alive: impl Fn() -> bool) {
+    let context = gtk::glib::MainContext::default();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while alive() && std::time::Instant::now() < deadline {
+        context.iteration(false);
+    }
 }
 
 /// Closing a composer window finishes with the composer exactly as Cancel does, and asks no more

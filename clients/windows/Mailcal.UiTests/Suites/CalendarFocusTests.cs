@@ -49,6 +49,33 @@ public sealed partial class CalendarFocusTests(CalendarShowcaseApp showcase) : I
             $"week, month, week came back on the {again}th rather than the {first}th: the round trip moved the focus");
     });
 
+    // A choice from the view menu seats the grid on the focus's week, which moves the pager's origin;
+    // Today moves it back. The grid's cached weeks are placed from that origin, so a Today that kept
+    // them drew the focus's week again under today's.
+    [OfflineFact]
+    public void TodayComesBackToThisWeekAfterAChoiceSeatedTheGridOnTheFocus() => showcase.Case(nameof(TodayComesBackToThisWeekAfterAChoiceSeatedTheGridOnTheFocus), app =>
+    {
+        new CalendarFlow(app).SetShape(Filter.ById("CalendarViewWeek", "MenuItem"));
+        for (var i = 0; i < 5; i++)
+        {
+            app.Agent.Invoke(app.Agent.Find(Filter.ById("CalendarNext", "Button"))
+                ?? throw new InvalidOperationException("the week offers no next-week button"));
+            app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(200));
+        }
+        Pick(app, "CalendarViewWeek");
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        var monday = today.AddDays(-(((int)today.DayOfWeek + 6) % 7));
+        var seated = DayOf(FirstColumn(app));
+        Assert.True(seated == monday.AddDays(35).Day,
+            $"the menu's week opens on the focus five weeks on, the {monday.AddDays(35).Day}th; it opened on the {seated}th");
+
+        app.Agent.Invoke(app.Agent.Find(Filter.ById("CalendarToday", "Button")) ?? throw new InvalidOperationException("no Today button"));
+        app.Agent.Settle(quiet: TimeSpan.FromMilliseconds(500), floor: TimeSpan.FromMilliseconds(800));
+        var first = DayOf(FirstColumn(app));
+        Assert.True(first == monday.Day,
+            $"Today drew the week from the {first}th rather than this week's Monday, the {monday.Day}th: the grid kept the focus's week");
+    });
+
     /// <summary>Chooses a shape from the view menu, and nothing else: no Today, which would put the
     /// focus back on today.</summary>
     private static void Pick(App app, string id)

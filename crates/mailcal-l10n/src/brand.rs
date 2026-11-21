@@ -26,7 +26,6 @@ const APP_NAME_PLACEHOLDER: &str = "{app_name}";
 /// The variables that carry the identity, in the environment and in the brand files alike.
 const APP_NAME_KEY: &str = "MAILCAL_APP_NAME";
 const APP_ID_KEY: &str = "MAILCAL_APP_ID";
-const MCP_SERVER_NAME_KEY: &str = "MAILCAL_MCP_SERVER_NAME";
 const MCP_RELAY_NAME_KEY: &str = "MAILCAL_MCP_RELAY_NAME";
 const DATA_DIR_NAME_KEY: &str = "MAILCAL_DATA_DIR_NAME";
 const WINDOWS_DATA_DIR_KEY: &str = "MAILCAL_WINDOWS_DATA_DIR";
@@ -49,9 +48,6 @@ pub(crate) struct Brand {
     pub name: String,
     /// The reverse-DNS id the OS knows it by, which is also a URI scheme.
     pub id: String,
-    /// The key an MCP client files the local server under, which is also the server's own
-    /// `serverInfo.name`.
-    pub mcp_server_name: String,
     /// The command the MCP relay is installed as, which an MCP client spawns.
     pub mcp_relay_name: String,
     /// The directory the app keeps its store in, under the platform's per-user data directory.
@@ -76,7 +72,6 @@ pub(crate) fn resolve(root: &Path) -> Result<Brand, String> {
             std::env::var(APP_NAME_KEY).ok().as_deref(),
         )?,
         id: value(root, APP_ID_KEY, std::env::var(APP_ID_KEY).ok().as_deref())?,
-        mcp_server_name: resolve_value(root, MCP_SERVER_NAME_KEY)?,
         mcp_relay_name: resolve_value(root, MCP_RELAY_NAME_KEY)?,
         data_dir_name: resolve_value(root, DATA_DIR_NAME_KEY)?,
         windows_data_dir: resolve_value(root, WINDOWS_DATA_DIR_KEY)?,

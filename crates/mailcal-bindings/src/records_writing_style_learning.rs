@@ -101,7 +101,7 @@ pub struct StyleLearningLanguage {
 /// What the review read on the device.
 #[derive(Debug, Clone, PartialEq, Eq, uniffi::Record)]
 pub struct StyleLearningReport {
-    /// Messages found in the range.
+    /// Every sent message in the range, whether or not it says enough or could be read.
     pub found: u32,
     /// Those that say enough to learn from, in any language.
     pub usable: u32,
@@ -109,9 +109,13 @@ pub struct StyleLearningReport {
     pub languages: Vec<StyleLearningLanguage>,
     /// Usable messages left out because their language is not one the assistant names.
     pub other_languages: u32,
-    /// The oldest and newest message read, seconds since the Unix epoch.
+    /// The oldest and newest usable message, seconds since the Unix epoch.
     pub oldest: Option<i64>,
     pub newest: Option<i64>,
+    /// Messages found whose body could not be loaded from the server, so they were not read;
+    /// the review says so whenever it is not zero.
+    #[uniffi(default = 0)]
+    pub not_loaded: u32,
 }
 
 /// The review's state.
@@ -269,6 +273,7 @@ fn report(report: mailcal_ai::corpus::CorpusReport) -> StyleLearningReport {
         other_languages: report.undetected,
         oldest: report.oldest,
         newest: report.newest,
+        not_loaded: report.not_loaded,
     }
 }
 

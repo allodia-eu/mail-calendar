@@ -130,6 +130,7 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
 
     web.load(document, false);
     web.widget().set_zoom_level(2.5);
+    let zoomed = web.widget().zoom_level();
 
     // A different document: the same one is deduplicated by `load` and must not reset anything,
     // since that is one message being re-rendered (the remote-images opt-in) rather than another
@@ -138,9 +139,10 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
         "<!doctype html><html><body>another message</body></html>",
         false,
     );
+    let level = web.widget().zoom_level();
     assert!(
-        (web.widget().zoom_level() - 1.0).abs() < f64::EPSILON,
-        "the next message opens at its own fit, not the last one's zoom"
+        (level - 1.0).abs() < f64::EPSILON,
+        "the next message opens at its own fit, not the last one's zoom: {level} after {zoomed}"
     );
 
     web.widget().set_zoom_level(2.5);
@@ -149,4 +151,27 @@ pub(crate) fn opening_another_message_starts_again_at_its_own_fit() {
         (web.widget().zoom_level() - 1.0).abs() < f64::EPSILON,
         "an emptied pane keeps no zoom for whatever is opened next"
     );
+}
+
+/// A view of either kind that nothing holds is freed, and its web process with it. Every reading
+/// window and every print makes one, so a handler of its own that holds it keeps a web process
+/// running for each.
+pub(crate) fn a_view_nobody_holds_is_freed() {
+    for kind in [DocumentKind::Reading, DocumentKind::Composer] {
+        let (sender, _receiver) = relm4::channel::<super::AppInput>();
+        let web = SecureWebView::new(kind, sender);
+        let view = web.widget().downgrade();
+        drop(web);
+        // The content filter is compiled asynchronously, and the compile holds the view until it
+        // answers.
+        let context = gtk::glib::MainContext::default();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while view.upgrade().is_some() && std::time::Instant::now() < deadline {
+            context.iteration(false);
+        }
+        assert!(
+            view.upgrade().is_none(),
+            "a {kind:?} view outlived its host"
+        );
+    }
 }

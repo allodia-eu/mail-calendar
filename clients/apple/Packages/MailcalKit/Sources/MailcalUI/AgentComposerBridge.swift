@@ -60,6 +60,15 @@ final class AgentComposerBridge: AgentHostUi {
 
 /// Where the local MCP server listens on this Mac.
 enum McpEndpoint {
+    /// What this host hands the core in `setMcpHost`: the endpoint, and the relay an assistant
+    /// starts to reach it, which the core writes into the configuration Settings offers to copy.
+    /// `nil` where `path` is.
+    static func host(dataDirName: String) -> McpHost? {
+        path(dataDirName: dataDirName).map {
+            McpHost(endpoint: $0, relayCommand: relayPath(), relayArgs: [])
+        }
+    }
+
     /// The socket path for a given data-directory name, or `nil` on a platform with no endpoint.
     ///
     /// Beside the store, so the dev and production namespaces (`DevNamespace`) get separate
@@ -149,46 +158,6 @@ enum McpEndpoint {
     }
     #endif
 
-    /// The key the generated snippet files this server under.
-    ///
-    /// **Letters, numbers, hyphens and underscores only**, and identical to the `name` the
-    /// protocol advertises, one identifier, not two.
-    ///
-    /// It is tempting to use the display name here, because Claude Desktop labels a locally
-    /// configured server by its config key and `"Allodia Mail & Calendar"` renders beautifully
-    /// there. It is also a trap: Claude Code accepts only `[A-Za-z0-9_-]` in a server name, and
-    /// **skips a Claude Desktop server whose name contains a space when importing it**. Where the
-    /// name is embedded in a tool identifier, every other character is rewritten to `_`. So a
-    /// pretty key looks right in one client and quietly breaks the others.
-    ///
-    /// The display name is `serverInfo.title`'s job, the spec is explicit that `title` is "for
-    /// UI and end-user contexts" and `name` is "for programmatic or logical use". A client that
-    /// shows the config key instead is a client that has not adopted that yet, and the fix
-    /// belongs there rather than in a config key that has to work everywhere.
-    static let configurationKey = Brand.mcpServerName
-
-    /// The MCP-client configuration snippet for `endpoint`, ready to paste.
-    ///
-    /// Built with `JSONEncoder`, never string concatenation: the relay lives at
-    /// `/Applications/Allodia Mail.app/Contents/MacOS/allodia-mcp`, and hand-built JSON would
-    /// emit that space unescaped inside a path, producing a config file that looks right and
-    /// parses wrong.
-    static func configurationSnippet(endpoint: String) -> String {
-        let server = ServerEntry(
-            command: relayPath(),
-            args: ["--endpoint", endpoint]
-        )
-        let config = ClientConfig(mcpServers: [configurationKey: server])
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        guard let data = try? encoder.encode(config),
-              let json = String(data: data, encoding: .utf8)
-        else {
-            return ""
-        }
-        return json
-    }
-
     /// Where the relay lives inside this app bundle, relative to `Contents/`.
     ///
     /// It is a nested **`.app`**, not the bare Mach-O it used to be, and that is a hard
@@ -218,14 +187,5 @@ enum McpEndpoint {
         }
         #endif
         return Brand.mcpRelayName
-    }
-
-    private struct ClientConfig: Encodable {
-        let mcpServers: [String: ServerEntry]
-    }
-
-    private struct ServerEntry: Encodable {
-        let command: String
-        let args: [String]
     }
 }

@@ -1,10 +1,38 @@
 #!/usr/bin/env bash
-# The Linux UI suite's writing assistant leg (docs/ai.md), on the showcase with MAILCAL_OFFER_AI,
-# whose core stages two styles, an own endpoint on this device and a canned draft (docs/debugging.md).
+# The Linux UI suite's writing assistant legs (docs/ai.md), on the showcase: without
+# MAILCAL_OFFER_AI, whose core offers it to nobody, and with it, whose core stages two styles, an own
+# endpoint on this device and a canned draft (docs/debugging.md).
 # Sourced by test-linux-ui.sh.
 
 LEARN_FETCH_OLDER="Older sent mail is fetched from the server first, which can take a while."
 LEARN_FETCH_ALL="All your sent mail is fetched from the server first. With many years of mail, this can take a long time."
+
+# The writing assistant where the core does not offer it (docs/ai.md rule 4): the showcase without
+# MAILCAL_OFFER_AI, whose core offers it to nobody, as a production core without the `ai`
+# entitlement does. A reply composer has no Draft a reply, Settings has no Writing style category
+# and Advanced no own endpoint form. Each absence is asserted once what stands beside it is on
+# screen, so a screen not drawn yet cannot pass it.
+leg_writing_style_absent() {
+  stop_app
+  MAILCAL_SHOWCASE=1 MAILCAL_SHOWCASE_SCREEN=reply \
+    launch_app "" "$ARTIFACT_DIR/writing-style-absent"
+  app_ready
+  ui_wait text=Send role=button timeoutMs=60000
+  # The action row Draft a reply would stand in, beside Signature.
+  ui_wait text=Importance
+  ui_gone text="Draft a reply" timeoutMs=3000
+  capture writing-style-absent-reply
+
+  open_settings
+  ui_wait text=Signatures role=toggle-button window=Settings
+  ui_wait text=Notifications role=toggle-button window=Settings
+  ui_gone text="Writing style" window=Settings timeoutMs=3000
+  ui_press text=Advanced role=toggle-button window=Settings
+  ui_wait text="Reset Database" role=button window=Settings
+  ui_gone text="Own AI endpoint" window=Settings timeoutMs=3000
+  capture writing-style-absent-advanced
+  close_settings
+}
 
 # Settings → Writing style's rows, a style's detail, a new style's reveal page by page, the own
 # endpoint's form under Advanced, learning from the first account (the range saying what Next

@@ -41,7 +41,7 @@ pub use config::{GoogleConfig, fetch_google_primary_address, load_google_str};
 pub use contacts::connect_google_contact_providers;
 pub use imap::{GmailMailRoute, gmail_mail_route, on_gmail_mail_route_change};
 
-use crate::{AccountError, GraphTokenSource, TokenSink, tls::tls_with};
+use crate::{AccountError, GmailKeywordNaming, GraphTokenSource, TokenSink, tls::tls_with};
 
 /// Builds the shared, self-refreshing token source for a Google `config`: the Google parallel
 /// of [`GraphTokenSource::new`](crate::GraphTokenSource) (which takes a `MicrosoftConfig`). It
@@ -93,13 +93,16 @@ pub(crate) struct RefreshingGmailProvider {
     tls: TlsClientConfig,
     /// The built delegate, cached by the access token it was built with, so its reqwest
     /// connection pool is reused across requests; rebuilt only when the token refreshes.
-    cached: Mutex<Option<(String, Arc<GmailProvider>)>>,
+    cached: Mutex<Option<(String, bool, Arc<GmailProvider>)>>,
     /// The delegate the mail sync and body reads go through: [`cached`](Self::cached)'s, with
     /// the account's IMAP side attached when it has one. Kept apart so that IMAP being out of
     /// reach fails only the reads, never a send or a write, which go over the API.
-    cached_reader: Mutex<Option<(String, Arc<GmailProvider>)>>,
+    cached_reader: Mutex<Option<(String, bool, Arc<GmailProvider>)>>,
     /// The account's mail over IMAP, shared by every provider of the account (`imap`).
     imap: Arc<imap::GmailImapSlot>,
+    /// Whether the delegate names the drafted-reply keyword; a delegate built before it turned on
+    /// is built again.
+    naming: GmailKeywordNaming,
 }
 
 impl RefreshingGmailProvider {
@@ -110,8 +113,10 @@ impl RefreshingGmailProvider {
         since: Option<Date>,
         tls: TlsClientConfig,
         address: &EmailAddress,
+        naming: GmailKeywordNaming,
     ) -> Self {
         Self {
+            naming,
             imap: imap::GmailImapSlot::shared(&address.email, &tokens, &tls),
             cached_reader: Mutex::new(None),
             tokens,
@@ -136,7 +141,7 @@ impl RefreshingGmailProvider {
                 // Gmail submits assembled RFC 5322 bytes, and so the `method=` parameter an
                 // iMIP body part needs (RFC 6047 §2.4) survives.
                 .with_scheduling_submission()
-                // Every delegate is built with the drafted-reply label's names, which is what makes
+                // A delegate built while the install names the drafted-reply label is what makes
                 // Gmail keep a Sent copy's keyword; the receipt saying which it kept is forwarded.
                 .with_sent_copy_keywords()
                 // The same names keep a stored draft's keyword, forwarded with `put_draft`.
@@ -165,17 +170,19 @@ impl RefreshingGmailProvider {
 
     async fn built(
         &self,
-        cache: &Mutex<Option<(String, Arc<GmailProvider>)>>,
+        cache: &Mutex<Option<(String, bool, Arc<GmailProvider>)>>,
         reads: bool,
     ) -> ProviderResult<Arc<GmailProvider>> {
         let token = self.tokens.access_token().await.map_err(|err| match err {
             AccountError::SigninRejected(detail) => ProviderError::authentication(detail),
             other => ProviderError::retryable(other.to_string()),
         })?;
+        let named = self.naming.is_on();
         {
             let cached = cache.lock().expect("gmail delegate mutex poisoned");
-            if let Some((cached_token, provider)) = cached.as_ref()
+            if let Some((cached_token, cached_named, provider)) = cached.as_ref()
                 && *cached_token == token
+                && *cached_named == named
             {
                 return Ok(Arc::clone(provider));
             }
@@ -187,8 +194,11 @@ impl RefreshingGmailProvider {
             &crate::user_agent(),
         )
         .map_err(ProviderError::from)?;
-        let mut gmail =
-            GmailProvider::new(client).with_keyword_names(crate::drafted_reply_keyword_names());
+        let mut gmail = GmailProvider::new(client).with_keyword_names(if named {
+            crate::drafted_reply_keyword_names()
+        } else {
+            Vec::new()
+        });
         if reads && let Some(reader) = self.imap.reader().await? {
             gmail = gmail.with_imap(reader);
         }
@@ -197,7 +207,7 @@ impl RefreshingGmailProvider {
         }
         let provider = Arc::new(gmail);
         *cache.lock().expect("gmail delegate mutex poisoned") =
-            Some((token, Arc::clone(&provider)));
+            Some((token, named, Arc::clone(&provider)));
         Ok(provider)
     }
 
@@ -237,12 +247,13 @@ pub async fn connect_google_mail_providers(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
     address: &EmailAddress,
+    naming: GmailKeywordNaming,
 ) -> Result<Vec<Box<dyn Provider>>, AccountError> {
     let tls = tls_with(&[])?;
     // Cheap credential probe: refresh once so a dead refresh token fails here.
     let _ = tokens.access_token().await?;
     Ok(vec![Box::new(RefreshingGmailProvider::new(
-        tokens, since, tls, address,
+        tokens, since, tls, address, naming,
     ))])
 }
 
@@ -258,10 +269,11 @@ pub fn connect_google_folder(
     tokens: Arc<GraphTokenSource>,
     since: Option<Date>,
     address: &EmailAddress,
+    naming: GmailKeywordNaming,
 ) -> Result<Box<dyn Provider>, AccountError> {
     let tls = tls_with(&[])?;
     Ok(Box::new(RefreshingGmailProvider::new(
-        tokens, since, tls, address,
+        tokens, since, tls, address, naming,
     )))
 }
 
@@ -304,7 +316,13 @@ mod tests {
         };
 
         let (endpoint, _hits) = dead_grant_token_endpoint();
-        let provider = connect_google_folder(source_at(endpoint, None), None, &alice()).unwrap();
+        let provider = connect_google_folder(
+            source_at(endpoint, None),
+            None,
+            &alice(),
+            GmailKeywordNaming::default(),
+        )
+        .unwrap();
         assert_drafts_reach_the_delegate(provider.as_ref()).await;
     }
 
@@ -322,7 +340,8 @@ mod tests {
     fn connect_google_folder_binds_a_writable_account_global_mail_provider() {
         let source = google_source();
         let account = AccountId::try_from("alice@gmail.com@mail.google.com").unwrap();
-        let provider = connect_google_folder(source, None, &alice()).unwrap();
+        let provider =
+            connect_google_folder(source, None, &alice(), GmailKeywordNaming::default()).unwrap();
         // Mail read/sync, and the account-global message scope (no folder binding).
         assert!(provider.connection_info().capabilities.mail());
         assert!(!provider.connection_info().capabilities.calendars());

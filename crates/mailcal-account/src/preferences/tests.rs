@@ -104,6 +104,7 @@ fn save_then_load_round_trips_the_preferences() {
                 declared: Some(mailcal_jurisdiction::Class::EuNative),
             }),
             jurisdiction: mailcal_jurisdiction::Mode::All,
+            gmail_keyword_named: true,
         }),
     };
     // Saving creates the nested parent dirs and the load reads the values back.

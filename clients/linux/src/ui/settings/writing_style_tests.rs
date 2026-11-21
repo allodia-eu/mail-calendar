@@ -50,6 +50,7 @@ pub(crate) fn all() {
     each_stage_draws_exactly_the_controls_its_record_gives();
     flow_tests::the_range_says_what_next_fetches();
     flow_tests::the_review_fetches_with_a_spinner_and_says_what_it_could_not();
+    flow_tests::the_review_says_how_many_messages_could_not_be_loaded();
     flow_tests::every_remedy_is_sent_alone_and_one_leading_elsewhere_opened();
     flow_tests::nothing_usable_names_no_destination();
     flow_tests::the_letter_is_spoken_as_one_sentence();
@@ -339,6 +340,7 @@ fn each_stage_draws_exactly_the_controls_its_record_gives() {
         other_languages: 0,
         oldest: None,
         newest: None,
+        not_loaded: 0,
     };
     flow.draw(
         WritingStyleLearning {

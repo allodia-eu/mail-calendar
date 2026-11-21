@@ -238,8 +238,12 @@ impl<P: Provider> App<P> {
 
     /// Queues a change to the library and signals [`Surface::WritingStyle`]. Whether the caller
     /// is to run [`App::run_writing_style_changes`] off its own thread: nothing else was running.
-    /// Returns at once.
+    /// Returns at once. A change while the feature is not offered is dropped: no page is drawn to
+    /// say what it came to.
     pub fn queue_writing_style_change(&self, change: WritingStyleChange) -> bool {
+        if !self.ai_offer() {
+            return false;
+        }
         let Some(run) = self.style_work().queue(change) else {
             return false;
         };

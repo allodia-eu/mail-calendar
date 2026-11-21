@@ -281,6 +281,7 @@ impl<P: Provider> App<P> {
             Intent::SetSwipeAction { direction, action } => {
                 self.set_swipe_action(direction, action).await;
             }
+            Intent::ResetDatabase => self.reset_database().await,
         }
     }
 }

@@ -103,63 +103,6 @@ async fn streamed_commit_updates_the_mailbox_list_before_sync_finishes() {
         .expect("sync task should not panic");
 }
 
-/// A reset is an explicit, user-awaited full re-download, so the download progress bar must
-/// show even though the pre-reset inbox is still painted (a routine refresh over already-
-/// listed mail syncs silently). Regression guard for the missing-feedback report where reset
-/// ran but showed no progress on macOS/Android.
-#[tokio::test]
-async fn reset_shows_the_download_bar_even_when_mail_is_already_listed() {
-    let surfaces = Arc::new(Mutex::new(Vec::new()));
-    // Gate the stream so the bar can be read at a point the re-download is provably still in
-    // flight. Polling for a transient peak instead would sample a window that is a small
-    // fraction of `reset`; most of its wall time is the cache clear and the closing VACUUM,
-    // both with the bar down, and a sample that lands either side of it reads as "no bar".
-    let (provider, after_commit, finish) =
-        FakeProvider::blocking(vec![message("m-1", "a", "Quarterly report")]);
-    let app = Arc::new(app(vec![account("acct-1", provider)], &surfaces));
-
-    // Paint the inbox first: the list is non-empty afterwards, and the bar is idle once the
-    // initial sync settles: so any bar the reset raises is the reset's, not left over.
-    let paint = tokio::spawn({
-        let app = Arc::clone(&app);
-        async move { app.dispatch(Intent::RefreshMail).await }
-    });
-    release(&after_commit, &finish).await;
-    paint.await.unwrap();
-    assert_ne!(app.mailbox_list().rows, []);
-    assert!(!app.sync_progress().active);
-
-    let task = tokio::spawn({
-        let app = Arc::clone(&app);
-        async move { app.reset().await }
-    });
-    tokio::time::timeout(Duration::from_secs(5), after_commit.notified())
-        .await
-        .expect("the reset should reach the gated stream");
-    assert!(
-        app.sync_progress().active,
-        "a reset must raise the download progress bar",
-    );
-    finish.notify_waiters();
-    tokio::time::timeout(Duration::from_secs(5), task)
-        .await
-        .expect("the released reset should finish")
-        .unwrap();
-
-    assert!(
-        !app.sync_progress().active,
-        "the bar hides once the reset settles"
-    );
-}
-
-/// Waits for a [`FakeProvider::blocking`] stream to reach its gate, then lets it run on.
-async fn release(after_commit: &tokio::sync::Notify, finish: &tokio::sync::Notify) {
-    tokio::time::timeout(Duration::from_secs(5), after_commit.notified())
-        .await
-        .expect("the sync should reach the gated stream");
-    finish.notify_waiters();
-}
-
 #[tokio::test]
 async fn remove_account_drops_it_from_the_switcher_and_the_list() {
     let surfaces = Arc::new(Mutex::new(Vec::new()));

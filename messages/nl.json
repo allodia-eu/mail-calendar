@@ -920,6 +920,8 @@
 	"settings_subscription_refused_not_found": "Er is geen abonnement om te wijzigen.",
 
 	"settings_advanced_reset_description": "Wis de lokaal opgeslagen e-mail en download alles opnieuw van de server. Berichten in de wachtrij blijven behouden.",
+	"settings_advanced_reset_done": "De lokale database is opnieuw ingesteld en je e-mail is opnieuw gedownload.",
+	"settings_advanced_reset_failed": "De lokale database kon niet opnieuw worden ingesteld, dus de e-mail op dit apparaat is ongewijzigd. Het diagnoselogboek vermeldt waarom.",
 
 	"settings_mcp_heading": "Toegang voor AI-assistenten",
 	"settings_mcp_description": "Laat een AI-assistent op deze computer je e-mail lezen en bewerken, via het Model Context Protocol. Het staat uit tenzij je het aanzet, het komt alleen bij de accounts die je aanvinkt, en er gaat niets naar ons.",
@@ -927,6 +929,8 @@
 	"settings_mcp_status_running": "Actief · wacht op een client",
 	"settings_mcp_status_off": "Uit",
 	"settings_mcp_status_unavailable": "Aan, maar luistert niet: bekijk het diagnoselogboek",
+	"settings_mcp_status_starting": "Wordt gestart…",
+	"settings_mcp_status_another_instance": "Aan, maar een ander exemplaar van {app_name} bedient assistenten al",
 	"settings_mcp_accounts_heading": "Accounts die een assistent mag gebruiken",
 	"settings_mcp_accounts_description": "Om te beginnen geen enkele. Vink een account aan om een assistent de e-mail ervan te laten lezen en bewerken.",
 	"settings_mcp_accounts_empty": "Je deelt nog geen accounts, dus een assistent ziet een lege mailbox.",
@@ -1398,6 +1402,8 @@
 	"learn_keyword_not_kept": "De server van dit account bewaart geen markering op antwoorden die voor je zijn opgesteld, dus je andere apparaten kunnen ze niet van je eigen antwoorden onderscheiden.",
 	"learn_fetching": "Je oudere verstuurde mail ophalen van de server…",
 	"learn_older_not_fetched": "Je oudere verstuurde mail kon niet van de server worden opgehaald, dus alleen wat op dit apparaat staat is gelezen.",
+	"learn_not_loaded": "{count} berichten konden niet worden geladen, dus die zijn niet gelezen.",
+	"learn_not_loaded_one": "{count} bericht kon niet worden geladen, dus dat is niet gelezen.",
 	"learn_range_fetch_older": "Oudere verstuurde mail wordt eerst van de server opgehaald; dat kan even duren.",
 	"learn_range_fetch_all": "Al je verstuurde mail wordt eerst van de server opgehaald. Bij vele jaren mail kan dat lang duren.",
 	"reveal_nothing_in_language": "In deze taal viel niets op.",

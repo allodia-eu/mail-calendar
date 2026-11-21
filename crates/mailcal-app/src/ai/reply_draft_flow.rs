@@ -271,12 +271,16 @@ impl<P: Provider> App<P> {
 
     /// The open items Send asks about for `composition` now (rule 24), while the question is due:
     /// what its record says, and what the submit path refuses by, so the two cannot disagree.
+    /// `None` while the feature is not offered, when no client draws the question.
     #[must_use]
     pub fn reply_draft_send_question(
         &self,
         composition: &CompositionId,
         files_added: &dyn Fn(u64) -> usize,
     ) -> Option<u32> {
+        if !self.ai_offer() {
+            return None;
+        }
         self.reply_of(composition, |reply| reply.held.send_question(files_added))
             .flatten()
     }

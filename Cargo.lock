@@ -2289,6 +2289,7 @@ dependencies = [
  "mailcal-jurisdiction",
  "mailcal-viewmodel",
  "ring",
+ "rusqlite",
  "serde",
  "serde_json",
  "tempfile",

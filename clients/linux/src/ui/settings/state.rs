@@ -56,6 +56,8 @@ pub(in crate::ui) struct SettingsState {
     notices_raised: u64,
     /// The last of the core's account change notices said, so each is said once.
     pub(in crate::ui) core_notice: u64,
+    /// Whether the core offered the writing assistant at the last read.
+    ai_offered: bool,
 }
 
 impl Default for SettingsState {
@@ -74,6 +76,7 @@ impl Default for SettingsState {
             notice: None,
             notices_raised: 0,
             core_notice: 0,
+            ai_offered: false,
         }
     }
 }
@@ -138,6 +141,16 @@ impl SettingsState {
         // Every page is built again.
         self.stale.clear();
         self.bump();
+    }
+
+    /// Follows whether the core offers the writing assistant, whose category and own endpoint form
+    /// come and go with it (`docs/ai.md` rule 4): a change redraws whatever page is open, and a
+    /// Writing style that is no longer drawn leaves the window on its first category.
+    pub(in crate::ui) fn follow_ai_offer(&mut self, offered: bool) {
+        if self.ai_offered != offered {
+            self.ai_offered = offered;
+            self.refresh_in_place();
+        }
     }
 
     /// The core's settings signal: redraws Accounts if it is the page on screen, whose rows the

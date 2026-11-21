@@ -1,16 +1,18 @@
-//! What an open draft's editor is sent once its bundle has parsed: the labels, the scheme, the
-//! channel, the body, the signature and the quote's attribution, in that order.
+//! What a composer's editor is sent once its bundle has parsed.
 
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
-use adw::prelude::*;
-use gtk::{accessible::Property as AccessibleProperty, gio};
+use gtk::{accessible::Property as AccessibleProperty, gio, prelude::*};
 use webkit6::prelude::WebViewExt;
 
 use super::{
     composer_labels::editor_labels,
     composer_model::{ComposeContext, attribution_script, body_seed_script},
     composer_quote_style::QuoteStylePicker,
+    composer_revision::EditorRevision,
     composer_signature::SignatureControl,
     webview::SecureWebView,
 };
@@ -31,6 +33,7 @@ pub(super) fn seed_editor(
     signature: Option<&Rc<SignatureControl>>,
     quote_style: Option<QuoteStylePicker>,
     seed: Rc<RefCell<Option<String>>>,
+    revision: Rc<Cell<EditorRevision>>,
 ) {
     let labels = editor_labels();
     let body = body_seed_script(request);
@@ -38,10 +41,15 @@ pub(super) fn seed_editor(
     // Read here, not in the closure: the request is borrowed, the closure outlives this call.
     let opens_in_body = request.opens_in_body();
     let moved_signature = request.moved.as_ref().map(|moved| moved.signature.clone());
-    let editor_host = editor_host.clone();
+    // Weak: the host holds the view this closure is attached to, so a strong reference would keep
+    // the view, and its web process, alive after the composer is gone.
+    let editor_host = editor_host.downgrade();
     // Weak: the control owns the view this closure is attached to.
     let signature = signature.map(Rc::downgrade);
     web.connect_finished(move |view| {
+        let Some(editor_host) = editor_host.upgrade() else {
+            return;
+        };
         editor_host.update_property(&[AccessibleProperty::Label(l10n::editor_placeholder())]);
         let mut script = format!("window.setComposerLabels({labels});");
         script.push_str(&super::composer_scheme::current_script());
@@ -70,7 +78,9 @@ pub(super) fn seed_editor(
         let quote_style = quote_style.clone();
         let seeded_view = view.clone();
         let ready = editor_host.clone();
+        let revision = Rc::clone(&revision);
         view.evaluate_javascript(&script, None, None, None::<&gio::Cancellable>, move |_| {
+            super::composer_drafts::record_seeded_revision(&seeded_view, &revision);
             let seed = Rc::clone(&seed);
             let ready = ready.clone();
             seeded_view.evaluate_javascript(

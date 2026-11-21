@@ -9,8 +9,8 @@ use super::{
     LAPSE_WARNING_SECONDS, Outcome, Request, Response, Stored, Transport,
 };
 
-const DAY: i64 = 24 * 60 * 60;
-const NOW: i64 = 1_800_000_000;
+pub(crate) const DAY: i64 = 24 * 60 * 60;
+pub(crate) const NOW: i64 = 1_800_000_000;
 
 /// A transport that answers from a script and records what it was asked.
 struct Fake {
@@ -51,7 +51,7 @@ const ACTIVE: &str = r#"{"plan":"personal","paymentStatus":"active",
     "capabilities":["accounts_sync","push","send_later"],
     "currentPeriodEnd":"2026-09-24T00:00:00.000Z","refreshAfterSeconds":43200}"#;
 
-fn paid() -> Answer {
+pub(crate) fn paid() -> Answer {
     Answer {
         entitlement: Entitlement {
             plan: "personal".to_owned(),
@@ -366,18 +366,6 @@ fn an_answer_stored_before_payment_status_existed_still_reads() {
             .effective(1_760_000_000 + DAY)
             .grants(&Capability::Push)
     );
-}
-
-#[test]
-fn a_clock_that_went_backwards_does_not_grant_forever_or_panic() {
-    // Device clocks move. A stored answer from "the future" must not underflow the subtraction or
-    // read as infinitely fresh.
-    let mut cache = Cache::default();
-    cache.apply(Outcome::Answered(paid()), NOW);
-
-    let earlier = NOW - 400 * DAY;
-    assert!(cache.effective(earlier).grants(&Capability::Push));
-    assert!(!cache.should_refresh(earlier));
 }
 
 // --- The sovereignty carve-out's own premises

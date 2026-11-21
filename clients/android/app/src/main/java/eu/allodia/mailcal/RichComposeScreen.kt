@@ -155,6 +155,8 @@ internal fun RichComposeMessageDialog(
     // not open already written in. Null until the editor answers, which reads as "nothing to lose".
     var seedDocument by remember { mutableStateOf<String?>(null) }
     var editorReady by remember { mutableStateOf(false) }
+    // The editor's change count as the seeds left it, the autosave's baseline; null until they are in.
+    var seedRevision by remember { mutableStateOf<Int?>(null) }
     var confirmingDiscard by remember { mutableStateOf(false) }
     // The composition the core joined to this composer when it opened: every save, the discard
     // and the send name it. One minted here would store a second draft beside a resumed one, and
@@ -328,7 +330,7 @@ internal fun RichComposeMessageDialog(
                         onSaveDraft = (exits::save).takeIf { drafts != null },
                         onDiscard = (exits::discard).takeIf { drafts != null },
                         sendEnabled = to.isNotBlank() && from != null,
-                        onSend = { draft?.send(send) ?: send() },
+                        onSend = { sendThrough(draft, send) },
                         replyDraft = draft?.let { host -> { ComposerReplyDraftControl(host) } },
                     )
                 },
@@ -342,6 +344,7 @@ internal fun RichComposeMessageDialog(
                     drafts = drafts,
                     composition = compositionId,
                     webView = webView,
+                    seededRevision = seedRevision,
                     changes = draftChanges,
                     onChanged = { draftChanges += 1 },
                     onStatus = { draftStatus = it },
@@ -393,9 +396,10 @@ internal fun RichComposeMessageDialog(
                         topInsetDp = { headerHeightPx / density.density },
                         signature = { signatureSeedJson(currentSignature.value) },
                         onScroll = { y -> scrollY = y },
-                        onSeeded = { seeded ->
+                        onSeeded = { seeded, revision ->
                             seedDocument = seeded
                             editorReady = true
+                            seedRevision = revision
                             // A reopened quote keeps the style it was saved in, so the picker
                             // opens on that rather than on the app default.
                             if (request.storedHtml.isNotEmpty()) {

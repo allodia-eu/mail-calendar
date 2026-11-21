@@ -9,9 +9,7 @@ use mailcal_app::{App, Intent as AppIntent, ai::AiHost};
 use time::OffsetDateTime;
 
 use crate::{
-    MailcalApp,
-    ai_host::{BindingsAiHost, build_kind},
-    runtime::FfiRuntime,
+    MailcalApp, ai_host::BindingsAiHost, core_build::build_kind, runtime::FfiRuntime,
     showcase_data::AccountSeed,
 };
 
@@ -77,6 +75,17 @@ pub(crate) fn offer_ai_on_request(mailcal: &MailcalApp, account: Option<(&str, &
 /// reply and every other request answers as no answer (`ai::transport`). The keystore refuses
 /// a key, since these boots keep none.
 pub(crate) fn offer_ai(mailcal: &MailcalApp) {
+    install_offline_ai(mailcal, build_kind());
+}
+
+/// [`offer_ai`]'s host as a production build installs it, whose offer follows the entitlement,
+/// for the tests that grant and withdraw it.
+#[cfg(test)]
+pub(crate) fn offer_ai_in_production(mailcal: &MailcalApp) {
+    install_offline_ai(mailcal, mailcal_app::ai::BuildKind::Production);
+}
+
+fn install_offline_ai(mailcal: &MailcalApp, build: mailcal_app::ai::BuildKind) {
     let host = BindingsAiHost::offline(
         mailcal.runtime.handle().clone(),
         Arc::clone(&mailcal.credential_store),
@@ -84,7 +93,7 @@ pub(crate) fn offer_ai(mailcal: &MailcalApp) {
     );
     mailcal
         .app
-        .install_ai_host(Arc::new(host) as Arc<dyn AiHost>, build_kind());
+        .install_ai_host(Arc::new(host) as Arc<dyn AiHost>, build);
 }
 
 /// The account `id`'s calendar waiting on a server found on another site, for

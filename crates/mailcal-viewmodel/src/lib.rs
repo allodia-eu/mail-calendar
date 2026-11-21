@@ -58,9 +58,9 @@ pub use row_reach::{
 pub use sender::{address_label, sender_label};
 pub use settings::{
     AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, McpAccountRow, McpSettings,
-    QuoteSettings, QuoteStyleKind, SendAccountOption, SendAccountSetting, SwipeActionKind,
-    SwipeDirection, SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
-    TimeZoneSnapshot,
+    QuoteSettings, QuoteStyleKind, ResetOutcome, ResetStatus, SendAccountOption,
+    SendAccountSetting, SwipeActionKind, SwipeDirection, SwipeSettings, SyncFolderRow,
+    SyncSettingsSnapshot, SyncStrategyKind, TimeZoneSnapshot,
 };
 pub use signatures::{
     AccountSignatureRow, SignatureChangeKind, SignatureImageRefusal, SignatureOutcome,

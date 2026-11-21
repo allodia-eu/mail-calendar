@@ -170,6 +170,7 @@ private fun ReviewView(stage: StyleLearningStage.Review, zone: ZoneId) {
     }
     Supporting(sentReachText(ctx, stage.reach, locale))
     if (stage.olderNotFetched) Supporting(L10n.learn_older_not_fetched(ctx))
+    if (report != null && report.notLoaded > 0u) Supporting(L10n.learn_not_loaded(ctx, report.notLoaded.toInt()))
     if (stage.state is StyleLearningReview.NothingUsable) {
         Text(L10n.learn_report_nothing(ctx), style = MaterialTheme.typography.bodyLarge)
     }

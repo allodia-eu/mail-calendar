@@ -85,13 +85,10 @@ impl McpSettingsState {
 }
 
 impl<P: Provider> App<P> {
-    /// The MCP settings a host renders (pulled after a [`Surface::Settings`] signal).
-    ///
-    /// `running` and `endpoint` are the host's to fill in: the core owns the *decisions*, the
-    /// binding layer owns whether a socket is currently bound and where. Keeping them in one
-    /// snapshot means the panel shows the user's choice and its actual effect together, which is
-    /// the difference between "MCP is on" and "MCP is on and a client can reach it".
-    pub async fn mcp_settings(&self) -> McpSettings {
+    /// The person's decisions behind Settings → Advanced's assistant access, with every account
+    /// used for mail (the only ones its tools reach). Read from memory, so a UI thread may ask it.
+    #[must_use]
+    pub fn mcp_settings(&self) -> McpSettings {
         let (enabled, exposed, allow_direct_send, require_known_recipient) = {
             let state = self
                 .mcp_settings
@@ -106,21 +103,25 @@ impl<P: Provider> App<P> {
         };
         McpSettings {
             enabled,
-            running: false,
             accounts: self
-                .account_rows()
-                .await
+                .accounts
+                .senders()
                 .into_iter()
-                .map(|row| McpAccountRow {
-                    exposed: exposed.contains(&row.id),
-                    account_id: row.id,
-                    email: row.email,
+                .map(|(id, email)| McpAccountRow {
+                    exposed: exposed.contains(id.as_str()),
+                    account_id: id.as_str().to_owned(),
+                    email,
                 })
                 .collect(),
             allow_direct_send,
             require_known_recipient,
-            endpoint: None,
         }
+    }
+
+    /// Signals [`Surface::Settings`] for a change the core does not make itself: the local
+    /// server starting, binding or refusing its endpoint.
+    pub fn settings_changed(&self) {
+        self.observer.surface_changed(Surface::Settings);
     }
 
     /// The account ids exposed to assistants; what the binding layer hands the server as its

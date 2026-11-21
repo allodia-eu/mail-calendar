@@ -35,7 +35,6 @@ use crate::{
     signatures::SignatureState,
     surfaced::{Surfaced, SurfacedMap},
     swipe_settings::SwipeSettingsState,
-    sync,
     sync_progress::SyncProgressState,
     sync_settings::SyncSettingsState,
     timezone::TimeZoneState,
@@ -111,6 +110,7 @@ impl<P: Provider> App<P> {
             quote_settings: Mutex::new(QuoteSettingsState::new(prefs.clone())),
             display_settings: Mutex::new(DisplaySettingsState::new(prefs.clone())),
             send_settings: Mutex::new(SendSettingsState::new(prefs.clone())),
+            reset: Mutex::default(),
             swipe_settings: Mutex::new(SwipeSettingsState::new(prefs.clone())),
             signatures: Mutex::new(SignatureState::new(
                 signatures_path.clone(),
@@ -159,23 +159,5 @@ impl<P: Provider> App<P> {
             signin_expired_accounts: Mutex::new(BTreeSet::new()),
             observer,
         }
-    }
-
-    /// Resets every account: clears the local cache so the next sync re-fetches and
-    /// re-normalises everything, then re-syncs to repopulate. Destructive; discards the
-    /// cached state (the durable outbox is kept). A host's "reset / full refetch".
-    ///
-    /// The re-sync's reconciling snapshot **hard-deletes** every message now outside the
-    /// sync-depth window, but SQLite keeps the file at its high-water mark and reuses the
-    /// freed pages: so the database would stay at its pre-reset peak. Compact it **after**
-    /// the re-sync has settled (the deletions are committed by then), shrinking the file back
-    /// to the working set. VACUUM is heavy (it rewrites the database), so it runs once here,
-    /// off the sync hot path; never per sync.
-    pub async fn reset(&self) {
-        let _ = self.engine.reset().await;
-        // A reset is an explicit, user-awaited full re-download, so show the progress bar
-        // even though the pre-reset snapshot is still painted (`awaited: true`).
-        self.refresh_mail(sync::RefreshProgress::Awaited).await;
-        let _ = self.engine.vacuum().await;
     }
 }

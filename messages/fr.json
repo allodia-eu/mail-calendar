@@ -920,6 +920,8 @@
 	"settings_subscription_refused_not_found": "Il n’y a aucun abonnement à modifier.",
 
 	"settings_advanced_reset_description": "Effacer les messages enregistrés localement et tout retélécharger depuis le serveur. Les envois en attente sont conservés.",
+	"settings_advanced_reset_done": "La base de données locale a été réinitialisée et vos messages ont été retéléchargés.",
+	"settings_advanced_reset_failed": "La base de données locale n’a pas pu être réinitialisée : les messages de cet appareil sont inchangés. Le journal de diagnostic en indique la raison.",
 
 	"settings_mcp_heading": "Accès des assistants IA",
 	"settings_mcp_description": "Autorisez un assistant IA sur cet ordinateur à lire et gérer vos messages, via le Model Context Protocol. C’est désactivé tant que vous ne l’activez pas, cela ne concerne que les comptes que vous cochez, et rien ne nous est envoyé.",
@@ -927,6 +929,8 @@
 	"settings_mcp_status_running": "Actif · en attente d’un client",
 	"settings_mcp_status_off": "Désactivé",
 	"settings_mcp_status_unavailable": "Activé, mais n’écoute pas : consultez le journal de diagnostic",
+	"settings_mcp_status_starting": "Démarrage…",
+	"settings_mcp_status_another_instance": "Activé, mais une autre instance de {app_name} sert déjà les assistants",
 	"settings_mcp_accounts_heading": "Comptes qu’un assistant peut utiliser",
 	"settings_mcp_accounts_description": "Aucun au départ. Cochez un compte pour permettre à un assistant de lire et gérer ses messages.",
 	"settings_mcp_accounts_empty": "Aucun compte n’est encore partagé : un assistant voit donc une boîte aux lettres vide.",
@@ -1398,6 +1402,8 @@
 	"learn_keyword_not_kept": "Le serveur de ce compte ne marque pas les réponses rédigées pour vous ; vos autres appareils ne peuvent donc pas les distinguer des vôtres.",
 	"learn_fetching": "Récupération de vos anciens e-mails envoyés depuis le serveur…",
 	"learn_older_not_fetched": "Vos anciens e-mails envoyés n’ont pas pu être récupérés depuis le serveur ; seul ce que contient cet appareil a été lu.",
+	"learn_not_loaded": "{count} messages n’ont pas pu être chargés ; ils n’ont donc pas été lus.",
+	"learn_not_loaded_one": "{count} message n’a pas pu être chargé ; il n’a donc pas été lu.",
 	"learn_range_fetch_older": "Les e-mails envoyés plus anciens sont d’abord récupérés depuis le serveur, ce qui peut prendre un moment.",
 	"learn_range_fetch_all": "Tous vos e-mails envoyés sont d’abord récupérés depuis le serveur. Avec de nombreuses années d’e-mails, cela peut prendre longtemps.",
 	"reveal_nothing_in_language": "Rien de particulier dans cette langue.",

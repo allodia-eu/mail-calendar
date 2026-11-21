@@ -72,7 +72,8 @@ fn export_item(
     let item = gtk::Button::with_label(l10n::action_save_as_eml());
     item.add_css_class("flat");
     let input_sender = sender.clone();
-    let parent = window.clone();
+    // Weak: the window holds this item.
+    let parent = window.downgrade();
     let source = source.clone();
     let export_name = Rc::clone(export_name);
     item.connect_clicked(move |button| {
@@ -85,8 +86,10 @@ fn export_item(
         let dialog = gtk::FileDialog::builder()
             .initial_name(export_name.borrow().as_str())
             .build();
+        let Some(parent) = parent.upgrade() else {
+            return;
+        };
         let input_sender = input_sender.clone();
-        let parent = parent.clone();
         let source = source.clone();
         glib::MainContext::default().spawn_local(async move {
             if let Ok(file) = dialog.save_future(Some(&parent)).await

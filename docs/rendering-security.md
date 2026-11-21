@@ -38,7 +38,10 @@ snapshot carries it, and no client sanitises a body itself:
   as text).
 - **Kept:** presentational HTML and CSS, `class` and `id` (unprefixed, because a newsletter's
   mobile layout hangs off them), `<font>`, and the markers a composer reads a reopened draft's
-  quote and signature by ([`composer-security.md`](composer-security.md) Gate 17).
+  quote and signature by ([`composer-security.md`](composer-security.md) Gate 17). So is `wrap`
+  on a `<pre>`: Thunderbird quotes a plain-text message as `<pre wrap>` and draws it wrapped, and
+  the base sheet's `pre[wrap]{white-space:pre-wrap}` draws it the same way here, where it would
+  otherwise run off the pane's right edge. A `<pre>` without it keeps its lines.
 - **Linked:** a web or mail address written as text becomes a link. The finder is
   `engine_html::linkify`, the one the native surfaces under Gate 8a use, so an address is a link on
   every surface or on none, and its scheme is always one gate 4a opens. Bare domains, bare email

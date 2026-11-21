@@ -189,7 +189,7 @@ selects only over channels.
 `icon`, all taken from the brand ([`branding.md`](branding.md)). The spec is explicit about the split: `name` is "for programmatic or logical
 use", `title` is "for UI and end-user contexts" and takes precedence for display.
 
-**`name` is `[a-z0-9-]` only, and the generated config snippet uses the same string as its key.**
+**`name` is `[a-z0-9-]` only, and the config snippet the core builds uses the same string as its key.**
 Both halves of that matter, and both were learned the hard way:
 
 - *One identifier, not two.* The config key is what a support answer has to name, and it should be
@@ -255,9 +255,28 @@ the assistant's fields laid over it as a prefill marked **signed**. A signed pre
 sign-off, so the core answers that the account's signature is not seeded under it.
 
 The endpoint is likewise **set by the host**, never derived in the core
-(`MailcalApp::set_mcp_endpoint`). A platform that never calls it can never listen, and the path is
+(`MailcalApp::set_mcp_host`). A platform that never calls it can never listen, and the path is
 derived once, by the layer that knows the answer: deriving it in the core *and* in the relay
-would give two answers that agree until the day a sandboxed build changes one of them.
+would give two answers that agree until the day a sandboxed build changes one of them. The host
+hands over the relay's command and arguments in the same record, because only the host knows how
+it was installed (an app bundle, a Flatpak, a snap, a package); the core builds the configuration
+from them (`mailcal_mcp::configuration_snippet`), so every desktop offers the same JSON.
+
+## The Settings panel
+
+Settings → Advanced draws `advanced_page()`, whose `assistants` is `None` where the host set no
+endpoint. A client draws the panel and keeps no rule of its own about it:
+
+1. **The switch, then a status line**: off, starting, listening, *another copy of the app is
+   serving assistants*, or unavailable (the log says why). The listener reports it, from the bind
+   and from a refusal, and each change raises `Surface::Settings`, so a panel on screen never says
+   it is listening while nothing can connect.
+2. **Only while it is on**: the accounts used for mail, each exposed or not, with a sentence when
+   none is (`nothing_exposed`); direct send, then the known-recipient guard, drawn disabled rather
+   than hidden while direct send is off (`known_recipient_editable`); the configuration and a Copy
+   button.
+3. **Every change is an `McpIntent`**, held and saved behind before `dispatch` returns, and taken
+   up by the running server at once, by a connection already open too.
 
 | Platform | Endpoint |
 |---|---|
@@ -580,12 +599,17 @@ Automated:
 - `crates/mailcal-mcp/src/branding.rs`: the inlined icon really is a 128×128 PNG (magic bytes,
   IHDR dimensions), its data URI round-trips, it stays small enough to inline, and the display
   name is the product's rather than the company's.
-- `clients/apple/.../McpEndpointTests.swift`: the config snippet is valid JSON with a spaced app
-  path, and the shipped socket path fits in `sun_path`.
+- `crates/mailcal-mcp/src/snippet.rs`: the configuration is valid JSON keyed by the server's
+  own portable name, the relay's arguments come before the endpoint, a spaced path, a
+  backslash-heavy one *and* a `\\.\pipe\` name survive, and a non-ASCII user name stays legible.
+- `crates/mailcal-mcp/src/tests_status.rs` and `crates/mailcal-bindings/src/tests_advanced.rs`:
+  the panel says listening only once bound, another copy holding the endpoint and an unusable
+  endpoint each in its own words, and each change is heard.
+- `clients/apple/.../McpEndpointTests.swift`: the host names the relay beside the endpoint, and the
+  shipped socket path fits in `sun_path`.
 - `clients/windows/Mailcal.Tests/McpEndpointTests.cs`: the pipe name each build shape claims (and
-  that the two never collide), the snippet's JSON survives a backslash-heavy path *and* a
-  `\\.\pipe\` name, the config key's character set, and that the alias `Package.appxmanifest`
-  registers launches the file the csproj lays down. `scripts/dev/tests/test_msix_manifest.py` pins
+  that the two never collide), and that the alias `Package.appxmanifest` registers launches the
+  file the csproj lays down. `scripts/dev/tests/test_msix_manifest.py` pins
   that packaging writes the brand's relay name into the alias.
 - `clients/windows/rust-crt.ps1`: the shipped `.msixupload` really contains `mailcal-mcp.exe`, and
   it links the CRT statically. Both halves are the macOS relay episode again: the csproj's copy is
@@ -600,7 +624,8 @@ transport has already shipped broken once in a way only an end-to-end pass could
 1. `scripts/dev/harness.sh up`, then `scripts/dev/boot.sh <macos|windows|linux> --account stalwart`
    (`stalwart-imap` if you want the archive in step 4 to reach a real server).
 2. Settings → Advanced: turn it on, tick the harness account, Copy the snippet. Confirm the status
-   line says it is **running**.
+   line says it is **running**, and that a second copy of the app started beside it says another
+   copy is serving assistants.
 3. Paste it into the client's config (macOS
    `~/Library/Application Support/Claude/claude_desktop_config.json`, Windows
    `%APPDATA%\Claude\claude_desktop_config.json`), restart the client, and confirm the handshake

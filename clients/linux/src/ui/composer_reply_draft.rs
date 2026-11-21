@@ -31,8 +31,29 @@ use crate::l10n;
 /// The account a draft is sent from, as the From picker shows it now.
 pub(crate) type From = Rc<dyn Fn() -> Option<String>>;
 
+/// What Draft a reply reads and sends: the app, or a test's fake.
+pub(crate) trait ReplyDraftCore {
+    fn record(&self, composition: &str, from: Option<String>) -> Option<ComposerReplyDraft>;
+    fn report(&self, composition: &str, message: String);
+    fn dispatch(&self, intent: AiIntent);
+}
+
+impl ReplyDraftCore for MailcalApp {
+    fn record(&self, composition: &str, from: Option<String>) -> Option<ComposerReplyDraft> {
+        self.composer_reply_draft(composition.to_owned(), from)
+    }
+
+    fn report(&self, composition: &str, message: String) {
+        self.composer_reply_draft_report(composition.to_owned(), message);
+    }
+
+    fn dispatch(&self, intent: AiIntent) {
+        MailcalApp::dispatch(self, Intent::Ai { intent });
+    }
+}
+
 pub(crate) struct ReplyDraft {
-    app: Arc<MailcalApp>,
+    core: Arc<dyn ReplyDraftCore>,
     composition: String,
     from: From,
     editor: webkit6::WebView,
@@ -54,13 +75,15 @@ pub(crate) struct ReplyDraft {
     loaded: Cell<bool>,
     /// Set while the arrived draft's question is on screen, so it is asked once.
     asking: Cell<bool>,
+    /// The questions on screen, which go with the record.
+    questions: RefCell<Vec<adw::AlertDialog>>,
     /// The last of the model's reads followed.
     read: Cell<u64>,
 }
 
 impl ReplyDraft {
     pub(crate) fn new(
-        app: &Arc<MailcalApp>,
+        core: Arc<dyn ReplyDraftCore>,
         composition: &str,
         from: From,
         editor: &webkit6::WebView,
@@ -70,7 +93,7 @@ impl ReplyDraft {
         let notes = gtk::Box::new(gtk::Orientation::Vertical, 8);
         let popover = gtk::Popover::new();
         let draft = Rc::new(Self {
-            app: Arc::clone(app),
+            core,
             composition: composition.to_owned(),
             from,
             editor: editor.clone(),
@@ -85,6 +108,7 @@ impl ReplyDraft {
             ran: Cell::new(0),
             loaded: Cell::new(false),
             asking: Cell::new(false),
+            questions: RefCell::default(),
             read: Cell::new(0),
         });
         let weak = Rc::downgrade(&draft);
@@ -110,8 +134,7 @@ impl ReplyDraft {
 
     /// Hands the core a message the editor posted; it takes the draft's report and nothing else.
     pub(crate) fn report(&self, message: String) {
-        self.app
-            .composer_reply_draft_report(self.composition.clone(), message);
+        self.core.report(&self.composition, message);
     }
 
     /// Follows the model's count of the signals Draft a reply moves on, once for each.
@@ -123,13 +146,9 @@ impl ReplyDraft {
 
     /// Brings everything to the core's record.
     pub(crate) fn follow(self: &Rc<Self>) {
-        let record = self
-            .app
-            .composer_reply_draft(self.composition.clone(), (self.from)());
+        let record = self.core.record(&self.composition, (self.from)());
         let Some(record) = record else {
-            self.slot.set_visible(false);
-            self.notes.set_visible(false);
-            self.record.replace(None);
+            self.withdraw();
             return;
         };
         self.slot.set_visible(true);
@@ -167,12 +186,37 @@ impl ReplyDraft {
         }
     }
 
+    /// The record gone, the feature no longer offered here: everything Draft a reply drew goes
+    /// with it, the input and any question on screen included, each closed unanswered.
+    fn withdraw(&self) {
+        self.popover.popdown();
+        for question in self.questions.take() {
+            question.force_close();
+        }
+        self.asking.set(false);
+        self.slot.set_visible(false);
+        self.notes.set_visible(false);
+        self.record.replace(None);
+    }
+
+    /// Asks `dialog` over the editor: its answer, or `None` when the record went while it was on
+    /// screen.
+    async fn ask(&self, dialog: adw::AlertDialog) -> Option<glib::GString> {
+        self.questions.borrow_mut().push(dialog.clone());
+        let answer = dialog.clone().choose_future(Some(&self.editor)).await;
+        let mut questions = self.questions.borrow_mut();
+        let asked = questions.iter().position(|shown| *shown == dialog)?;
+        questions.remove(asked);
+        Some(answer)
+    }
+
     /// Asks before Send while the checklist has open items: Send anyway runs `send`, Keep
-    /// editing runs `keep`, and both tell the core the question was answered.
+    /// editing runs `keep`, and both tell the core the question was answered. A question the
+    /// record took with it is answered by neither, and leaves the composer as Keep editing does.
     pub(crate) fn before_send(self: &Rc<Self>, send: Box<dyn FnOnce()>, keep: Box<dyn FnOnce()>) {
         let question = self
-            .app
-            .composer_reply_draft(self.composition.clone(), (self.from)())
+            .core
+            .record(&self.composition, (self.from)())
             .and_then(|record| record.send_question);
         let Some(question) = question else {
             send();
@@ -181,7 +225,10 @@ impl ReplyDraft {
         let dialog = send_question(question.open);
         let draft = Rc::clone(self);
         glib::MainContext::default().spawn_local(async move {
-            let answer = dialog.choose_future(Some(&draft.editor)).await;
+            let Some(answer) = draft.ask(dialog).await else {
+                keep();
+                return;
+            };
             draft.dispatch(ReplyDraftIntent::SendQuestionAnswered {
                 composition: draft.composition.clone(),
             });
@@ -194,9 +241,7 @@ impl ReplyDraft {
     }
 
     fn dispatch(&self, intent: ReplyDraftIntent) {
-        self.app.dispatch(Intent::Ai {
-            intent: AiIntent::ReplyDraft { intent },
-        });
+        self.core.dispatch(AiIntent::ReplyDraft { intent });
     }
 
     fn draw_button(self: &Rc<Self>, control: ControlState) {
@@ -258,7 +303,11 @@ impl ReplyDraft {
         let dialog = replace_question();
         let draft = Rc::clone(self);
         glib::MainContext::default().spawn_local(async move {
-            if dialog.choose_future(Some(&draft.editor)).await == REPLACE {
+            if draft
+                .ask(dialog)
+                .await
+                .is_some_and(|answer| answer == REPLACE)
+            {
                 draft.start(instruction, true);
             }
         });
@@ -279,10 +328,12 @@ impl ReplyDraft {
         let dialog = replace_question();
         let draft = Rc::clone(self);
         glib::MainContext::default().spawn_local(async move {
-            let replace = dialog.choose_future(Some(&draft.editor)).await == REPLACE;
+            let Some(answer) = draft.ask(dialog).await else {
+                return;
+            };
             draft.dispatch(ReplyDraftIntent::AnswerArrived {
                 composition: draft.composition.clone(),
-                replace,
+                replace: answer == REPLACE,
             });
             draft.asking.set(false);
         });
@@ -338,11 +389,9 @@ impl ReplyDraft {
             }
             // The flow's host is over Settings → Writing style, which draws it once open.
             AiRemedy::LearnStyle => {
-                self.app.dispatch(Intent::Ai {
-                    intent: AiIntent::WritingStyle {
-                        intent: WritingStyleIntent::Learning {
-                            intent: StyleLearningIntent::Open,
-                        },
+                self.core.dispatch(AiIntent::WritingStyle {
+                    intent: WritingStyleIntent::Learning {
+                        intent: StyleLearningIntent::Open,
                     },
                 });
                 self.sender
