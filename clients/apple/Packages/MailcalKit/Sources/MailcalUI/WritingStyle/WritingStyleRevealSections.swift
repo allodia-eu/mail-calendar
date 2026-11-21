@@ -245,11 +245,13 @@ struct RevealLetterSection: View {
 
     /// The letter as VoiceOver reads it, one element in the contract's order: how it opens, its
     /// length, its paragraphs, how it closes and the name, each part only when the record has it.
-    /// A greeting's or a sign-off's own comma is left out, since the parts are joined by one.
+    /// A greeting or a sign-off is spoken without the comma, semicolon, colon or full stop it ends
+    /// on, which the joining comma stands in for.
     static func spoken(_ letter: WritingStyleLetter) -> String {
         func words(_ spans: [WritingStyleSpan]) -> String {
-            spans.map(\.text).joined()
-                .trimmingCharacters(in: .whitespaces.union(CharacterSet(charactersIn: ",")))
+            var text = spans.map(\.text).joined().trimmingCharacters(in: .whitespaces)
+            if let last = text.last, ",;:.".contains(last) { text.removeLast() }
+            return text.trimmingCharacters(in: .whitespaces)
         }
         var parts: [String] = []
         if !letter.opening.isEmpty { parts.append(L10n.a11y_letter_opening(greeting: words(letter.opening))) }

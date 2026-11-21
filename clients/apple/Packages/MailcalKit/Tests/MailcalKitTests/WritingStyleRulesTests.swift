@@ -121,6 +121,23 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
         #expect(spoken.hasPrefix(L10n.a11y_letter_opening(greeting: "Hi Bob") + ", "))
         #expect(spoken.contains(L10n.a11y_letter_closing(sign_off: "Best regards") + ", "))
     }
+
+    @Test(arguments: ["Dear Bob,", "Dear Bob;", "Dear Bob:", "Dear Bob.", "Dear Bob"])
+    func aGreetingIsSpokenWithoutThePunctuationItEndsOn(greeting: String) {
+        let letter = WritingStyleLetter(
+            opening: [WritingStyleSpan(text: greeting, placeholder: false)], paragraphs: [],
+            closing: [], signsAs: "", words: 0, paragraphCount: 0, shape: "")
+        #expect(RevealLetterSection.spoken(letter) == L10n.a11y_letter_opening(greeting: "Dear Bob"))
+    }
+
+    @Test func onlyTheEndingPunctuationGoes() {
+        // An abbreviation inside a sign-off keeps its full stops; only the one it ends on goes.
+        let letter = WritingStyleLetter(
+            opening: [], paragraphs: [],
+            closing: [WritingStyleSpan(text: "Best, e.g. Al.", placeholder: false)], signsAs: "",
+            words: 0, paragraphCount: 0, shape: "")
+        #expect(RevealLetterSection.spoken(letter) == L10n.a11y_letter_closing(sign_off: "Best, e.g. Al"))
+    }
 }
 
 @Suite struct WritingStyleWordsTests {
