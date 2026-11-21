@@ -37,8 +37,9 @@ struct SettingsHubView: View {
         self.model = model
         self.close = close
         self.removeAccount = removeAccount
-        _selection = State(initialValue: openOn)
-        _path = State(initialValue: openOn == .general ? [] : [openOn])
+        let opened = SettingsCategory.reachable(openOn, in: model)
+        _selection = State(initialValue: opened)
+        _path = State(initialValue: opened == .general ? [] : [opened])
     }
 
     var body: some View {
@@ -56,6 +57,11 @@ struct SettingsHubView: View {
         .onChange(of: model.writingStyle.endpointRequest) { _, _ in
             selection = .advanced
             path = [.advanced]
+        }
+        // A category the core stops offering while it is shown is left, its page with it.
+        .onChange(of: SettingsCategory.displayed(model)) { _, shown in
+            selection = selection.map { SettingsCategory.reachable($0, in: model) }
+            path.removeAll { !shown.contains($0) }
         }
     }
 

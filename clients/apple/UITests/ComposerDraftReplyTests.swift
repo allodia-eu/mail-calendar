@@ -2,7 +2,8 @@
 // `MAILCAL_OFFER_AI`. Its seed lets the first account draft in "Work" and stages a canned answer:
 // a reply with one gap, a file to attach and a task to do. The second account drafts in no style,
 // so its reply holds Draft with a remedy. The canned answer comes from inside the app, and a reply
-// sent from the showcase reaches nobody: nothing leaves the machine.
+// sent from the showcase reaches nobody: nothing leaves the machine. One test launches without the
+// hook, where a reply draws nothing of the feature and Send asks nothing.
 //
 // The message's text is the web view's, out of the agent's reach, so it is read through XCUITest;
 // undo and redo are real chords, for the reason `ComposerUndoTests` gives.
@@ -100,9 +101,20 @@ final class ComposerDraftReplyTests: XCTestCase {
         try app.waitGone(card, timeout: ShowcaseApp.timeout, "Send anyway did not send")
     }
 
-    /// A reply to the message whose row mentions `subject`, with the hook's offer on.
-    private func reply(to subject: String) throws -> (App, XCUIElement) {
-        let app = try ShowcaseApp.launch(["MAILCAL_OFFER_AI": "1"])
+    func testWithoutTheOfferAReplyHasNoDraftAReplyAndSendAsksNothing() throws {
+        let (app, _) = try reply(to: "Welcome to Allodia Mail & Calendar", offered: false)
+        XCTAssertFalse(try app.exists(control), "Draft a reply is drawn while not offered")
+        XCTAssertFalse(try app.exists(card), "a draft's card is drawn while not offered")
+        XCTAssertFalse(try app.exists(.text("Drafting…")), "a draft is said while not offered")
+        try app.press(.button("Send"), "the reply has no Send")
+        XCTAssertFalse(
+            try app.appears(.text("Send with open items?"), timeout: 2), "Send asked while not offered")
+    }
+
+    /// A reply to the message whose row mentions `subject`, with the hook's offer on unless
+    /// `offered` is false.
+    private func reply(to subject: String, offered: Bool = true) throws -> (App, XCUIElement) {
+        let app = try ShowcaseApp.launch(offered ? ["MAILCAL_OFFER_AI": "1"] : [:])
         ShowcaseApp.attachHardwareKeyboard(app)
         try ShowcaseApp.openMessage(containing: subject, in: app)
         try app.press(.button("Reply"), "the message has no Reply")
@@ -110,7 +122,7 @@ final class ComposerDraftReplyTests: XCTestCase {
         XCTAssertTrue(
             web.textViews.firstMatch.waitForExistence(timeout: ShowcaseApp.timeout),
             "the composer drew no editor")
-        try app.wait(control, "the reply has no Draft a reply")
+        if offered { try app.wait(control, "the reply has no Draft a reply") }
         return (app, web)
     }
 

@@ -34,6 +34,16 @@ struct ReplyDraftUI {
     var askingReplace = false
     /// Send was pressed while the checklist's question is due.
     var askingSend = false
+
+    /// Takes the record read now. Without one the composer offers nothing of Draft a reply, so the
+    /// input and both questions are put away too, and none of them reopens on a later record.
+    mutating func take(_ record: ComposerReplyDraft?) {
+        self.record = record
+        guard record == nil else { return }
+        inputShown = false
+        askingReplace = false
+        askingSend = false
+    }
 }
 
 /// Where a remedy goes from a composer.

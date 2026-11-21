@@ -129,6 +129,8 @@ extension RichComposeView {
 
     private func draft(replace: Bool) {
         replyDraft.inputShown = false
+        // An answer to a question the record has since withdrawn drafts nothing.
+        guard replyDraft.record != nil else { return }
         replyDrafts?.change(.draft(
             composition: composition, from: resolvedFrom, instruction: replyDraft.line,
             language: ReplyDraftWords.language, replace: replace))
@@ -202,7 +204,7 @@ struct ReplyDraftFollowing: ViewModifier {
     }
 
     private func read() {
-        ui.record = verbs?.read(composition, from)
+        ui.take(verbs?.read(composition, from))
         editor.followDraft(ui.record?.editorScript)
     }
 }

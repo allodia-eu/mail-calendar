@@ -35,6 +35,12 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         return shown
     }
 
+    /// `category` while it is displayed, otherwise General: Settings never opens on, or stays on,
+    /// a category the core has stopped offering.
+    @MainActor static func reachable(_ category: SettingsCategory, in model: MailboxModel) -> SettingsCategory {
+        displayed(model).contains(category) ? category : .general
+    }
+
     var title: String {
         switch self {
         // The category and the card inside it are the same thing named twice otherwise, and

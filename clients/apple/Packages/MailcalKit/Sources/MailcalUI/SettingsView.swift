@@ -35,7 +35,7 @@ struct SettingsView: View {
         self.model = model
         self.close = close
         self.removeAccount = removeAccount
-        _selection = State(initialValue: openOn)
+        _selection = State(initialValue: SettingsCategory.reachable(openOn, in: model))
     }
 
     var body: some View {
@@ -70,6 +70,10 @@ struct SettingsView: View {
         }
         // A remedy that names the own endpoint's form opens Advanced, where it is.
         .onChange(of: model.writingStyle.endpointRequest) { _, _ in selection = .advanced }
+        // A category the core stops offering while it is shown is left.
+        .onChange(of: SettingsCategory.displayed(model)) { _, _ in
+            selection = SettingsCategory.reachable(selection, in: model)
+        }
     }
 }
 

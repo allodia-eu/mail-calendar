@@ -2,7 +2,7 @@
 // app. The showcase offers the writing assistant under `MAILCAL_OFFER_AI`, with an endpoint staged
 // on this device and a host that sends nothing, so the form is there without an Allodia account.
 // What a save refuses is asked of the core as the person types and Save is held meanwhile; what a
-// save came to is said once.
+// save came to is said once. Without the hook Advanced draws no form at all.
 //
 // The showcase core keeps no credential, so a key is refused there as a keystore would refuse it;
 // a key that is kept is the core's test (`app_ai_tests.rs`). Nothing is dialled: saving stores the
@@ -19,6 +19,13 @@ final class AiEndpointSettingsTests: XCTestCase {
     private let save = Filter.id("aiEndpoint.save").role("AXButton")
     private let remove = Filter.id("aiEndpoint.remove").role("AXButton")
     private let local = "http://localhost:11434/v1"
+
+    func testWithoutTheOfferAdvancedHasNoEndpointForm() throws {
+        let app = try SettingsCategories.open("Advanced")
+        try SettingsCategories.reveal(.button("Reset Database"), in: app)
+        XCTAssertFalse(try app.exists(address), "the endpoint's address is drawn while not offered")
+        XCTAssertFalse(try app.exists(.text("Own AI endpoint")), "the form is drawn while not offered")
+    }
 
     func testSaveIsHeldWhileAGapIsNamed() throws {
         let app = try openForm()
