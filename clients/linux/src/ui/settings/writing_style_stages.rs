@@ -284,6 +284,9 @@ pub(super) fn review(review: &Review<'_>) -> gtk::Widget {
     if review.older_not_fetched {
         content.append(&dim(l10n::learn_older_not_fetched()));
     }
+    if report.not_loaded > 0 {
+        content.append(&dim(&l10n::learn_not_loaded(i64::from(report.not_loaded))));
+    }
     if !review.keyword_kept {
         content.append(&dim(l10n::learn_keyword_not_kept()));
     }
