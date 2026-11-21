@@ -1398,6 +1398,8 @@
 	"learn_keyword_not_kept": "Der Server dieses Kontos kennzeichnet für Sie entworfene Antworten nicht, daher können Ihre anderen Geräte sie nicht von Ihren eigenen unterscheiden.",
 	"learn_fetching": "Ihre älteren gesendeten E-Mails werden vom Server abgerufen…",
 	"learn_older_not_fetched": "Ihre älteren gesendeten E-Mails konnten nicht vom Server abgerufen werden, daher wurde nur gelesen, was dieses Gerät enthält.",
+	"learn_not_loaded": "{count} Nachrichten konnten nicht geladen werden und wurden daher nicht gelesen.",
+	"learn_not_loaded_one": "{count} Nachricht konnte nicht geladen werden und wurde daher nicht gelesen.",
 	"learn_range_fetch_older": "Ältere gesendete E-Mails werden zuerst vom Server abgerufen; das kann eine Weile dauern.",
 	"learn_range_fetch_all": "Alle Ihre gesendeten E-Mails werden zuerst vom Server abgerufen. Bei vielen Jahren an E-Mails kann das lange dauern.",
 	"reveal_nothing_in_language": "In dieser Sprache ist nichts aufgefallen.",

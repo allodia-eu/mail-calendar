@@ -163,7 +163,10 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
       server (`Fetching`, which can take a while, drawn with the platform's spinner from Next
       until the read ends, [`waiting.md`](waiting.md) rule 1), then reads (`Reading`), then says
       `Ready` (messages found, how many say enough to learn from per language, how many were left
-      out in other languages, the dates read) or `NothingUsable`. It says what is sent where,
+      out in other languages, the dates of those that say enough) or `NothingUsable`. Both say how
+      many messages found could not be loaded (`not_loaded`): their bodies could not be read from
+      the server or the device, so a client says the read is incomplete whenever that is not
+      zero (`learn_not_loaded`), as it does for `older_not_fetched`. It says what is sent where,
       naming the relay or the endpoint's host, and names no price, which only the relay knows. At
       `NothingUsable` Learn is held and nothing will be sent, so the record names neither a
       destination nor a reason it could not send (`sends_to` and `cannot_send` are both empty).
@@ -235,7 +238,11 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
     page in Learn's place, and Learn reopens the flow on the failure.
 14. **Only the person's words are read**: each sent message cut to what its author wrote, without
     quote or signature, and calendar answers, automatic replies, repeats, anything under forty words
-    of its own and every drafted reply (rule 25) left out.
+    of its own, a message whose body has no text and every drafted reply (rule 25) left out. What
+    is left out is still **found**: the review's count of messages found is every sent message in
+    the range, and only `usable` leaves these out, so no message in the range goes uncounted. A
+    drafted reply's body is never read, and a message whose body could not be loaded is counted
+    apart (`not_loaded`, rule 11).
 
 ### The reveal and the detail
 
@@ -471,7 +478,7 @@ before Learn is pressed.
 | The three surfaces offered together, under early access (4, 5) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The own endpoint: held fields, Save running, refusals said, the key in the keystore (6, 7) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | Settings → Writing style from `writing_style_page`, Learn saying why (8 to 10) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
-| Learning in the flow host, with Back, Stop and one remedy; the last twelve months first, what a range fetches said before Next; older sent mail fetched for the review and removed after it (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
+| Learning in the flow host, with Back, Stop and one remedy; the last twelve months first, what a range fetches said before Next; older sent mail fetched for the review and removed after it; every sent message in the range found, those not loaded said (11 to 14) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The reveal once, then the detail: rename, notes, Forget asked first (15, 16) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | Draft a reply as the core says, the instruction in the platform's control, Stop (17 to 20) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |
 | The draft as one undo step, replacing asked first (21, 22) | 🚧 | ⬜ | ⬜ | ⬜ | 🚧 | 🚧 |

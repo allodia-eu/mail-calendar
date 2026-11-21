@@ -1,12 +1,14 @@
 //! The learning flow through the app: reading the Sent folder, the consent, the run, Stop, Close
 //! during a run, and the failures each stage can come to.
 
+use std::sync::atomic::Ordering;
+
 use engine_api::MessageIdHeader;
 use mailcal_account::drafted_reply_keyword;
 
 use super::{
     LearningIntent, LearningStage, LearningStep, PageRun, Review, StyleOpens,
-    tests_support::{Answer, Learner, learn, sent},
+    tests_support::{Answer, Learner, REPLY, learn, sent},
 };
 use crate::{
     Surface,
@@ -89,24 +91,77 @@ async fn one_account_learns_from_its_sent_mail_after_the_consent() {
 }
 
 /// `docs/ai.md` rules 14 and 25: a reply drafted for the person is never learned from, whether
-/// it carries the keyword or only this device logged it.
+/// it carries the keyword or only this device logged it. It is found, as every sent message in
+/// the range is, and its body is never read.
 #[tokio::test]
-async fn drafted_replies_are_left_out_of_what_is_read() {
+async fn drafted_replies_are_found_and_never_read() {
     let mut keyword = sent("s2");
     keyword.keywords.insert(drafted_reply_keyword());
     let mut logged = sent("s3");
     logged.envelope.message_id = vec![MessageIdHeader::new("<logged@acct-1.local>").unwrap()];
-    let learner = Learner::new(&["acct-1"], vec![sent("s1"), keyword, logged]).await;
+    let provider = FakeProvider::with_sent_and_archive(vec![sent("s1"), keyword, logged])
+        .with_source(REPLY.as_bytes());
+    let fetches = provider.source_fetches();
+    let learner = Learner::over(vec![("acct-1", provider)]).await;
     learner.app.note_drafted_reply(
         "acct-1",
         MessageIdHeader::new("<logged@acct-1.local>").unwrap(),
     );
     learner.press(LearningIntent::Open).await;
+    // A range the device holds, so no pass runs to warm bodies while the review reads.
+    let today = super::range::today();
+    learner
+        .press(LearningIntent::SelectRange {
+            range: super::LearnRange::Between {
+                since: today - time::Duration::days(10),
+                until: today,
+            },
+        })
+        .await;
+    let before = fetches.load(Ordering::SeqCst);
     learner.press(LearningIntent::Next).await;
     let Review::Ready(report) = review(&learner) else {
         panic!("nothing ready");
     };
-    assert_eq!(report.found, 1, "only the person's own reply is read");
+    assert_eq!((report.found, report.usable), (3, 1));
+    assert_eq!(
+        fetches.load(Ordering::SeqCst) - before,
+        1,
+        "only the person's own reply is read"
+    );
+}
+
+/// `docs/ai.md` rule 14: a sent message whose body has no text is found, and says nothing to
+/// learn from.
+#[tokio::test]
+async fn a_sent_message_without_text_is_found_and_not_usable() {
+    let provider = FakeProvider::with_sent_and_archive(vec![sent("s1")]).with_source(
+        b"From: me@acct-1.local\r\nTo: anna@example.eu\r\nSubject: Re: Planning\r\n\
+          Content-Type: image/png\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n",
+    );
+    let learner = Learner::over(vec![("acct-1", provider)]).await;
+    learner.press(LearningIntent::Open).await;
+    learner.press(LearningIntent::Next).await;
+    let Review::NothingUsable(report) = review(&learner) else {
+        panic!("a message without text is not usable");
+    };
+    assert_eq!((report.found, report.usable, report.not_loaded), (1, 0, 0));
+}
+
+/// `docs/ai.md` rule 11: a sent message whose body could not be loaded is found and counted
+/// apart, so the review does not present its read as complete.
+#[tokio::test]
+async fn a_sent_message_whose_body_could_not_be_loaded_is_said() {
+    let provider = FakeProvider::with_sent_and_archive(vec![sent("s1"), sent("s2")])
+        .with_source(REPLY.as_bytes())
+        .with_failing_sources(["s2".to_owned()]);
+    let learner = Learner::over(vec![("acct-1", provider)]).await;
+    learner.press(LearningIntent::Open).await;
+    learner.press(LearningIntent::Next).await;
+    let Review::Ready(report) = review(&learner) else {
+        panic!("the loaded message is usable");
+    };
+    assert_eq!((report.found, report.usable, report.not_loaded), (2, 1, 1));
 }
 
 #[tokio::test]

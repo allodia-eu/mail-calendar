@@ -1398,6 +1398,8 @@
 	"learn_keyword_not_kept": "Le serveur de ce compte ne marque pas les réponses rédigées pour vous ; vos autres appareils ne peuvent donc pas les distinguer des vôtres.",
 	"learn_fetching": "Récupération de vos anciens e-mails envoyés depuis le serveur…",
 	"learn_older_not_fetched": "Vos anciens e-mails envoyés n’ont pas pu être récupérés depuis le serveur ; seul ce que contient cet appareil a été lu.",
+	"learn_not_loaded": "{count} messages n’ont pas pu être chargés ; ils n’ont donc pas été lus.",
+	"learn_not_loaded_one": "{count} message n’a pas pu être chargé ; il n’a donc pas été lu.",
 	"learn_range_fetch_older": "Les e-mails envoyés plus anciens sont d’abord récupérés depuis le serveur, ce qui peut prendre un moment.",
 	"learn_range_fetch_all": "Tous vos e-mails envoyés sont d’abord récupérés depuis le serveur. Avec de nombreuses années d’e-mails, cela peut prendre longtemps.",
 	"reveal_nothing_in_language": "Rien de particulier dans cette langue.",

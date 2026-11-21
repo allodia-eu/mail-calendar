@@ -1398,6 +1398,8 @@
 	"learn_keyword_not_kept": "De server van dit account bewaart geen markering op antwoorden die voor je zijn opgesteld, dus je andere apparaten kunnen ze niet van je eigen antwoorden onderscheiden.",
 	"learn_fetching": "Je oudere verstuurde mail ophalen van de server…",
 	"learn_older_not_fetched": "Je oudere verstuurde mail kon niet van de server worden opgehaald, dus alleen wat op dit apparaat staat is gelezen.",
+	"learn_not_loaded": "{count} berichten konden niet worden geladen, dus die zijn niet gelezen.",
+	"learn_not_loaded_one": "{count} bericht kon niet worden geladen, dus dat is niet gelezen.",
 	"learn_range_fetch_older": "Oudere verstuurde mail wordt eerst van de server opgehaald; dat kan even duren.",
 	"learn_range_fetch_all": "Al je verstuurde mail wordt eerst van de server opgehaald. Bij vele jaren mail kan dat lang duren.",
 	"reveal_nothing_in_language": "In deze taal viel niets op.",

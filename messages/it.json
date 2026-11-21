@@ -1398,6 +1398,8 @@
 	"learn_keyword_not_kept": "Il server di questo account non contrassegna le risposte scritte per te, quindi gli altri tuoi dispositivi non possono distinguerle dalle tue.",
 	"learn_fetching": "Recupero dal server della posta inviata meno recente…",
 	"learn_older_not_fetched": "Non è stato possibile recuperare dal server la posta inviata meno recente, quindi è stato letto solo ciò che contiene questo dispositivo.",
+	"learn_not_loaded": "Non è stato possibile caricare {count} messaggi, quindi non sono stati letti.",
+	"learn_not_loaded_one": "Non è stato possibile caricare {count} messaggio, quindi non è stato letto.",
 	"learn_range_fetch_older": "La posta inviata meno recente viene prima recuperata dal server; può richiedere un po’ di tempo.",
 	"learn_range_fetch_all": "Tutta la posta inviata viene prima recuperata dal server. Con molti anni di posta, può richiedere parecchio tempo.",
 	"reveal_nothing_in_language": "In questa lingua non è emerso nulla.",
