@@ -133,13 +133,8 @@ impl AppModel {
         }
     }
 
-    /// Draws Settings again when the writing assistant comes or goes, since its category and the
-    /// own endpoint's form come and go with it.
+    /// Draws Settings again when the writing assistant comes or goes.
     fn follow_ai_offer(&mut self, app: &mailcal_bindings::MailcalApp) {
-        let offered = app.ai_offer();
-        if self.ai_offered != offered {
-            self.ai_offered = offered;
-            self.settings.refresh_in_place();
-        }
+        self.settings.follow_ai_offer(app.ai_offer());
     }
 }

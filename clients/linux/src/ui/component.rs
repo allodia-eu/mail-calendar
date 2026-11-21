@@ -208,7 +208,6 @@ impl AppModel {
             writing_style_read: 0,
             ai_endpoint_read: 0,
             reply_draft_read: 0,
-            ai_offered: false,
             pending_mail_delete: None,
             composer: None,
             composer_generation: 0,

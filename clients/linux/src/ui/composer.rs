@@ -25,7 +25,7 @@ use super::{
     composer_model::{ComposeContext, compose_title},
     composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
-    composer_reply_draft::ReplyDraft,
+    composer_reply_draft::{ReplyDraft, ReplyDraftCore},
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -443,7 +443,7 @@ fn reply_draft(
         .collect::<Vec<_>>();
     let picker = from.clone();
     let draft = ReplyDraft::new(
-        app,
+        Arc::clone(app) as Arc<dyn ReplyDraftCore>,
         &request.composition,
         Rc::new(move || {
             usize::try_from(picker.selected())

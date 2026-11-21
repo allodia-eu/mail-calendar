@@ -37,6 +37,9 @@ const RUNNING: ControlState = ControlState {
 
 type Asked = Rc<RefCell<Vec<String>>>;
 
+#[path = "composer_reply_draft_offer_tests.rs"]
+mod offer;
+
 pub(crate) fn all() {
     each_state_says_what_it_is_among_the_notes();
     the_card_ticks_what_the_core_ticks_and_marks_a_gap();
@@ -44,6 +47,10 @@ pub(crate) fn all() {
     the_input_fills_from_a_suggestion_and_drafts_on_return();
     the_input_held_says_why_with_its_remedy();
     the_questions_offer_their_two_answers();
+    offer::not_offered_the_composer_has_none_of_it_and_send_sends();
+    offer::an_open_input_goes_with_the_offer_and_does_not_come_back_open();
+    offer::an_open_send_question_goes_with_the_offer_unanswered();
+    offer::an_open_replace_question_goes_with_the_offer_unanswered();
 }
 
 fn record(state: ReplyDraftState) -> ComposerReplyDraft {

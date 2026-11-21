@@ -270,9 +270,6 @@ pub(crate) struct AppModel {
     /// Counts the signals an open composer's Draft a reply reads again on
     /// (`Surface::ReplyDraft` and `Surface::WritingStyle`).
     reply_draft_read: u64,
-    /// Whether the core offered the writing assistant at the last read: Settings is drawn again
-    /// when it moves, since the category and the form come and go with it.
-    ai_offered: bool,
     pending_mail_delete: Option<DeleteTarget>,
     composer: Option<ComposeContext>,
     composer_generation: u64,

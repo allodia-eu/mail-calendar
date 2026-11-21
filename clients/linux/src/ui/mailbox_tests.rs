@@ -469,6 +469,7 @@ fn gtk_rows_composer_and_required_modals_obey_their_contracts() {
     crate::ui::composer_draft::widget_tests::the_composer_is_one_column_in_the_contracts_order(
         &window,
     );
+    crate::ui::settings::offer_tests::not_offered_settings_holds_none_of_it(&window);
 
     crate::ui::setup_widget_tests::the_setup_window_offers_each_route_its_own_surface();
     crate::ui::setup_onboarding_tests::the_first_account_screen_offers_an_allodia_account(&window);

@@ -481,3 +481,6 @@ fn page(category: Category, ctx: &PageContext) -> gtk::ScrolledWindow {
 #[cfg(test)]
 #[path = "settings_tests.rs"]
 pub(crate) mod tests;
+
+#[cfg(test)]
+pub(crate) mod offer_tests;
