@@ -61,6 +61,26 @@ pub(super) fn imip_source() -> Vec<u8> {
     .into_bytes()
 }
 
+/// The same invitation addressed the way Exchange addresses one: every attendee in `To:`, in the
+/// order of the `ATTENDEE` lines, and the account's own identity (`me@`) last of them. Nothing
+/// else names the recipient, so `To:` says only that the user is one of three.
+pub(super) fn imip_source_to_every_attendee() -> Vec<u8> {
+    let attendees = ["board@test.local", "colleague@test.local", "me@test.local"];
+    let line = |address: &str| {
+        format!(
+            "ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:{address}\r\n"
+        )
+    };
+    String::from_utf8(imip_source())
+        .expect("the invitation is ASCII")
+        .replace(
+            &format!("To: {ALIAS}\r\n"),
+            &format!("To: {}\r\n", attendees.join(", ")),
+        )
+        .replace(&line(ALIAS), &attendees.map(line).concat())
+        .into_bytes()
+}
+
 /// The meeting, as iCalendar. `with_method` distinguishes the transit copy (the email, which
 /// carries `METHOD:REQUEST`) from the stored resource (the calendar, which must not; RFC
 /// 4791 §4.1).

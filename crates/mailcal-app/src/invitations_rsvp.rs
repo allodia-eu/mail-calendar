@@ -143,11 +143,10 @@ impl<P: Provider> App<P> {
             .ok_or_else(|| "the message carries no invitation to answer".to_owned())?;
         let event = &scheduling.message.event;
 
-        // The same address set, and the same matcher, the card was built with: so the
-        // buttons and the write cannot disagree about which identity is answering (§4/D5).
-        let mut addresses = self.account_address_set(&message.account).await;
-        addresses.extend(scheduling.delivery_recipients.iter().cloned());
-        let attendee = crate::invitations::matched_attendee(event, &addresses)
+        // The same matcher the card was built with, so the buttons and the write cannot
+        // disagree about which identity is answering (§4/D5).
+        let own = self.account_address_set(&message.account).await;
+        let attendee = crate::invitations_identity::invited_attendee(event, &own, &scheduling)
             .ok_or_else(|| "this invitation is not addressed to this account".to_owned())?;
 
         let zone = self.active_zone();

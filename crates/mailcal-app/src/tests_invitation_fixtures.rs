@@ -18,8 +18,8 @@
 //! | `publish-attachment` | hand-written (no server emits one on request) | `PUBLISH` with **no** `ATTENDEE`: the case that must produce no card |
 //!
 //! **The account's identity is `me@test.local` and matches none of them.** Every fixture is
-//! recognised through its own recipient headers instead (§4 source 2), so these rows also prove
-//! the zero-configuration alias path against real headers rather than a constructed `To:`.
+//! recognised through its own recipient headers instead (§4 sources 3 and 4), so these rows also
+//! prove the zero-configuration alias path against real headers rather than a constructed `To:`.
 //! `exchange-internal-request` is the one that pins the *bottom* of that fallback chain:
 //! Exchange writes no `Delivered-To`, `X-Original-To` or `Envelope-To` on mail that never
 //! leaves the tenant, so a reader that stopped at the MTA headers would tell every invitee in
@@ -332,11 +332,37 @@ async fn the_attendee_is_matched_through_the_delivery_headers_alone() {
 }
 
 #[tokio::test]
+async fn the_outlook_capture_is_answered_as_the_attendee_it_was_delivered_to() {
+    // `To:` names the required attendee and lists her first; the copy was delivered to the
+    // optional one's alias. Recognising the invitation is not enough: the reply must speak for
+    // the attendee this mailbox is, or the organiser records a colleague's answer.
+    let provider = InvitationFake::new()
+        .with_source(OUTLOOK_REQUEST)
+        .without_server_scheduling();
+    let sends = provider.sends();
+    let surfaces = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+    let app = invitation_app(provider, &surfaces);
+    app.dispatch(super::Intent::RefreshMail).await;
+    Box::pin(app.dispatch(super::Intent::RespondToInvitation {
+        message: invite(),
+        response: super::InvitationResponse::Accept,
+        comment: None,
+        notify_organizer: true,
+        reply_subject: None,
+    }))
+    .await;
+
+    let drafts = sends.lock().unwrap();
+    let draft = drafts.first().expect("a reply was submitted");
+    assert_eq!(draft.from.email, "carol+optional@test.local");
+}
+
+#[tokio::test]
 async fn an_invitation_with_no_delivery_header_is_still_matched_through_to() {
     // Exchange writes **no** `Delivered-To`, `X-Original-To` or `Envelope-To` on mail that
     // never leaves the tenant; there was no MTA hop to write one. `To:` is the only header
-    // that names the recipient, and `engine_mime::extract_delivery_recipients` falls through
-    // to it for exactly this reason.
+    // that names the recipient, which is why the matcher falls through to it when it names
+    // exactly one attendee.
     //
     // This is the bottom of that fallback chain, and it is the *common* case rather than an
     // exotic one: colleagues in one M365 company inviting each other is most corporate
