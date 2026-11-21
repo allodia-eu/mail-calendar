@@ -328,7 +328,7 @@ internal fun RichComposeMessageDialog(
                         onSaveDraft = (exits::save).takeIf { drafts != null },
                         onDiscard = (exits::discard).takeIf { drafts != null },
                         sendEnabled = to.isNotBlank() && from != null,
-                        onSend = { draft?.send(send) ?: send() },
+                        onSend = { sendThrough(draft, send) },
                         replyDraft = draft?.let { host -> { ComposerReplyDraftControl(host) } },
                     )
                 },

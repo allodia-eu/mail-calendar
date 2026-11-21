@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -134,12 +135,18 @@ internal fun SettingsScreen(
     val ctx = LocalContext.current
     var open by remember(initialCategory) { mutableStateOf(initialCategory) }
     var confirmingReset by remember { mutableStateOf(false) }
+    val shown = SettingsCategory.shown(allodia.available, writingStyle?.page != null)
+    // A category the core stops drawing while it is open (Writing style, once the writing assistant
+    // is no longer offered) is left for the hub rather than kept as a title over nothing, and stays
+    // left if it comes back.
+    val current = open?.takeIf { it in shown }
+    if (current != open) SideEffect { open = current }
     // An account's page sits under the Accounts category, so back from it returns to the list.
-    val accountPage = accountsUi.openEntry().takeIf { open == SettingsCategory.ACCOUNTS }
+    val accountPage = accountsUi.openEntry().takeIf { current == SettingsCategory.ACCOUNTS }
     val stepBack = {
         when {
             accountPage != null -> accountsUi.onOpenPage(null)
-            open != null -> open = null
+            current != null -> open = null
             else -> onBack()
         }
     }
@@ -150,7 +157,6 @@ internal fun SettingsScreen(
 
     // Outside the Scaffold, so the system bars are this screen's own problem (see WelcomeScreen).
     Column(modifier = Modifier.fillMaxSize().systemBarsPadding().imePadding().padding(16.dp)) {
-        val current = open
         if (current == null) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -163,7 +169,7 @@ internal fun SettingsScreen(
             SettingsNotice(accountsUi.notices, page = null, accountsUi.noticeHandlers)
             Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                 Spacer(modifier = Modifier.height(4.dp))
-                SettingsCategory.shown(allodia.available, writingStyle?.page != null).forEach { category ->
+                shown.forEach { category ->
                     // Diagnostics is a full-screen log viewer swapped in at the activity level
                     // (DiagnosticsScreen.kt), not an inline CategoryDetail, so its hub row opens
                     // that screen rather than a detail pane.

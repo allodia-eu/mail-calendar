@@ -111,6 +111,14 @@ internal class ReplyDraftHost(
 }
 
 /**
+ * Send in a composer: through [draft]'s question while the core offers Draft a reply there,
+ * otherwise straight to [submit], since a question nobody draws must never hold a send.
+ */
+internal fun sendThrough(draft: ReplyDraftHost?, submit: () -> Unit) {
+    if (draft == null) submit() else draft.send(submit)
+}
+
+/**
  * The composer's Draft a reply, or null while the core offers none for it: the feature not offered,
  * or the composition not a reply. [editor] is the WebView once its page has parsed, which the draft
  * is handed to.
