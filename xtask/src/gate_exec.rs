@@ -86,6 +86,15 @@ impl Cmd {
         self
     }
 
+    /// The arguments, as text.
+    #[cfg(test)]
+    pub(crate) fn arg_text(&self) -> Vec<String> {
+        self.args
+            .iter()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect()
+    }
+
     fn command(&self, ctx: &Ctx) -> Command {
         let mut command = Command::new(&self.program);
         command.args(&self.args).current_dir(
