@@ -215,6 +215,27 @@ class WritingStyleLearningTest {
     }
 
     @Test
+    fun messages_that_could_not_be_loaded_are_said_in_either_review() {
+        val states = listOf<(StyleLearningReport) -> StyleLearningReview>(
+            { StyleLearningReview.Ready(it) },
+            { StyleLearningReview.NothingUsable(it) },
+        )
+        show(learning(review(), back = FREE))
+        for (state in states) {
+            for (count in listOf(3, 1)) {
+                record = learning(review(state = state(REPORT.copy(notLoaded = count.toUInt()))), back = FREE)
+                compose.waitForIdle()
+                compose.onNodeWithText(L10n.learn_not_loaded(ctx(), count)).performScrollTo().assertIsDisplayed()
+            }
+            record = learning(review(state = state(REPORT)), back = FREE)
+            compose.waitForIdle()
+            for (count in listOf(0, 1, 3)) {
+                compose.onNodeWithText(L10n.learn_not_loaded(ctx(), count)).assertDoesNotExist()
+            }
+        }
+    }
+
+    @Test
     fun the_review_says_what_it_found_and_where_learn_sends_it() {
         show(learning(review(keywordKept = false), back = FREE, learn = FREE))
         compose.onNodeWithText(L10n.learn_report_found(ctx(), 120)).assertIsDisplayed()
