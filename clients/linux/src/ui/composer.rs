@@ -333,7 +333,7 @@ impl ComposerPane {
             &fields,
             error.clone(),
             sender.clone(),
-            reply_draft.clone(),
+            reply_draft.as_ref(),
         );
         connect_save_draft(&save_draft, web.widget(), &fields, sender.clone());
         // The idle save takes the same route the button does, so the two cannot come to store
