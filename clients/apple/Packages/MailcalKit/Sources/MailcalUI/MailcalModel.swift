@@ -190,6 +190,10 @@ final class MailboxModel {
     /// is fetched one at a time (`signatureHTML`). Its library is also what the composer's
     /// override picker lists.
     var signatures = SignaturesPage.empty
+    /// The own endpoint's form under Settings → Advanced (MailcalModel.Ai.swift).
+    var aiEndpoint: AiEndpointForm?
+    /// Settings → Writing style and its flow (MailcalModel.WritingStyle.swift).
+    var writingStyle = WritingStyleState()
     /// The account whose "your name" step is open, or `nil` when none is.
     ///
     /// Set by `accountWasAdded`, the one hook every add route ends at, so the step follows a
@@ -423,13 +427,13 @@ final class MailboxModel {
         // First run (no MAIL account stored) shows the full-screen form; set this before
         // connecting so a connect failure's own `needsSetup` is not overwritten.
         //
-        // The Allodia grant lives in this same store under a reserved id, so `configs` is not the
-        // list of mail accounts and `isEmpty` is not the question. Somebody who signs in on the
-        // first-run screen and quits before adding a mailbox would otherwise be met at the next
-        // launch by an empty inbox and no way back to setup, the sign-in having, from where they
-        // sit, thrown the app into a state they did not ask for. The core routes the entry out
-        // before anything reads it as a mailbox; this asks it the same question.
-        needsSetup = configs.allSatisfy { isAllodiaAccountConfig(config: $0) }
+        // The Allodia grant and the own endpoint's key live in this same store under reserved
+        // ids, so `configs` is not the list of mail accounts and `isEmpty` is not the question.
+        // Somebody who signs in on the first-run screen and quits before adding a mailbox would
+        // otherwise be met at the next launch by an empty inbox and no way back to setup. The
+        // core routes those entries out before anything reads them as a mailbox; this asks it the
+        // same question.
+        needsSetup = holdsNoMailAccount(configs)
         connect(configs)
     }
 

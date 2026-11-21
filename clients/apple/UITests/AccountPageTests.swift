@@ -24,25 +24,29 @@ final class AccountPageTests: XCTestCase {
         try openPage(app, kind: "IMAP")
         let link = Filter.button("Link")
         // The page is a lazy list: a row is built only once it is scrolled to.
-        try reveal(link, in: app)
-        XCTAssertEqual(try app.waitAll(link).count, 2, "a suggestion under each slot")
+        XCTAssertEqual(try revealAll(link, count: 2, in: app), 2, "a suggestion under each slot")
         XCTAssertTrue(
             try app.exists(.text("Suggested: alice@test.local (CalDAV/CardDAV)")),
             "the suggestion is not alice's calendar account"
         )
-        try app.activate(try reveal(link, in: app))
-        // A filled slot is no longer a picker: the use's row says where it comes from.
-        let from = "From alice@test.local (CalDAV/CardDAV)"
-        XCTAssertTrue(
-            try wait(until: {
-                try app.query(.textLike(from).role("AXButton")).contains { $0.label.hasPrefix("Calendar") }
-            }),
-            "Link did not pick alice's calendar account"
-        )
+        // The calendar's slot is the first of the two.
+        let calendarLink = try app.query(link).min { ($0.frame?.minY ?? 0) < ($1.frame?.minY ?? 0) }
+        try app.activate(try XCTUnwrap(calendarLink, "the calendar's Link is gone"))
         XCTAssertTrue(
             try wait(until: { try app.query(link).count == 1 }),
             "the suggestion stayed after it was linked"
         )
+        // A filled slot is no longer a picker: the use's row, above the slots, says where it comes
+        // from.
+        let from = "From alice@test.local (CalDAV/CardDAV)"
+        let calendarRow = { () throws -> Bool in
+            try app.query(.textLike(from).role("AXButton")).contains { $0.label.hasPrefix("Calendar") }
+        }
+        for _ in 0..<4 where try !calendarRow() {
+            app.input.swipeDown()
+            try app.settle()
+        }
+        XCTAssertTrue(try wait(until: calendarRow), "Link did not pick alice's calendar account")
         try back(app)
 
         // Alice's calendar account: switching Contacts off asks first.
@@ -188,6 +192,17 @@ final class AccountPageTests: XCTestCase {
             if try app.appears(question, timeout: 3) { return }
         }
         try app.wait(question, timeout: 1, "nothing was asked")
+    }
+
+    /// How many elements `filter` matches once the page has scrolled until `count` are drawn, or
+    /// as far as it goes.
+    private func revealAll(_ filter: Filter, count: Int, in app: App) throws -> Int {
+        for _ in 0..<8 {
+            if try app.query(filter).count >= count { break }
+            app.input.swipeUp()
+            try app.settle()
+        }
+        return try app.query(filter).count
     }
 
     /// The element `filter` matches, scrolling the page until it is drawn.

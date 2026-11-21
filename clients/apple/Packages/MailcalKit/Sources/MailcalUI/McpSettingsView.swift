@@ -1,4 +1,4 @@
-// The Advanced ▸ AI assistant access panel (docs/mcp.md, docs/settings.md row 8), drawn from the
+// The Advanced ▸ AI assistant access panel (docs/mcp.md, docs/settings.md, Advanced), drawn from the
 // core's `McpPanel`: the status words, the "nothing exposed" note, which switch is held and the
 // snippet are all the core's. Desktop-only by construction rather than by an `#if`: the core
 // carries no panel on a platform whose host set no endpoint.

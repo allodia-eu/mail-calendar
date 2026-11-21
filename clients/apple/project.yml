@@ -175,6 +175,26 @@ targets:
           # Ad-hoc sign it here so a DEBUG build runs; package.sh re-signs the whole tree with the
           # real identity for a release (and has a gate that would catch it if it did not).
           codesign --force --sign - --timestamp=none "$BUNDLE" >/dev/null 2>&1 || true
+      - name: Refuse a development core in an archive
+        # An archive is what gets exported and shipped, and it links whatever
+        # artifacts/Mailcal.xcframework holds, the dev loop's debug core included, which offers the
+        # writing assistant to everyone (docs/ai.md rule 5). package.sh checks its own archive; this
+        # phase checks one made from Xcode's Product > Archive as well. Every other build may run
+        # with the dev loop's core, so only an archive (ACTION=install) is read.
+        inputFiles:
+          - $(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)
+        outputFiles:
+          - $(DERIVED_FILE_DIR)/core-build-checked
+        script: |
+          : >"$SCRIPT_OUTPUT_FILE_0"
+          [ "$ACTION" = "install" ] || exit 0
+          # The check needs bash 5, which Xcode's own PATH does not reach on a Mac.
+          PATH="/opt/homebrew/bin:/usr/local/bin:$PATH" \
+            "$SRCROOT/../../scripts/dev/check-core-build.sh" "$TARGET_BUILD_DIR/$FULL_PRODUCT_NAME" || {
+              rm -f "$SCRIPT_OUTPUT_FILE_0"
+              echo "error: an archive needs the release core: run Scripts/build-core.sh --release first, which Scripts/package.sh does unless --no-core"
+              exit 1
+            }
     info:
       path: App/Info.plist
       properties:

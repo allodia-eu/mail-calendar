@@ -65,6 +65,10 @@ final class RichComposerEditor: NSObject {
     var linkRequest: LinkDialogRequest?
     /// Where the caret last was, for the composer's column to keep in view.
     @ObservationIgnored var caret: EditorCaret?
+    /// The core's draft script waiting for the page to be seeded, and the last serial run.
+    @ObservationIgnored private var pendingDraft: ReplyDraftScript?
+    @ObservationIgnored private var ranDraft: UInt64 = 0
+    @ObservationIgnored private var seeded = false
     /// How many caret reports have arrived. The column follows each one, including one at the same
     /// place as the last: the page resends it on every edit, because the column may have moved since.
     var caretReports = 0
@@ -268,6 +272,18 @@ final class RichComposerEditor: NSObject {
         host.evaluate("window.setComposerSignature(\(argument))")
     }
 
+    /// Runs the core's draft script once per serial (`docs/ai.md` rule 21), once the page is
+    /// seeded: a draft for a composer moved into a window of its own follows in its body too.
+    func followDraft(_ script: ReplyDraftScript?) {
+        guard let script, script.serial != ranDraft else { return }
+        guard seeded else {
+            pendingDraft = script
+            return
+        }
+        ranDraft = script.serial
+        host.evaluate(script.script)
+    }
+
     // Snapshot the document and the change count as the "nothing written yet" baselines, then, for
     // a reply/forward: put the caret in the body. Focusing after both, never before: moving the
     // caret must not be mistaken for the user having typed, or a reply would open already dirty,
@@ -285,6 +301,12 @@ final class RichComposerEditor: NSObject {
                 if self?.focusBodyOnLoad == true {
                     self?.focusBody()
                 }
+            }
+            // The seeds are in, so a draft that arrived meanwhile goes in above them now.
+            self?.seeded = true
+            if let draft = self?.pendingDraft {
+                self?.pendingDraft = nil
+                self?.followDraft(draft)
             }
         }
     }

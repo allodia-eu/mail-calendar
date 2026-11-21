@@ -131,12 +131,12 @@ pub(crate) fn connect_send(
     fields: &ComposerFields,
     error: gtk::Label,
     sender: relm4::Sender<AppInput>,
-    reply_draft: Option<Rc<ReplyDraft>>,
+    reply_draft: Option<&Rc<ReplyDraft>>,
 ) {
     let editor = editor.clone();
     let fields = fields.clone();
     // Weak: the pane owns the draft, and teardown is what lets it go.
-    let reply_draft = reply_draft.as_ref().map(Rc::downgrade);
+    let reply_draft = reply_draft.map(Rc::downgrade);
     button.connect_clicked(move |pressed| {
         pressed.set_sensitive(false);
         error.set_visible(false);

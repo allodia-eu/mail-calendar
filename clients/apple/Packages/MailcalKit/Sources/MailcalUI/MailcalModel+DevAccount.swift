@@ -189,20 +189,21 @@ extension MailboxModel {
         }
     }
 
-    /// The Allodia account a previous session in this dev mode signed in to, if any, nothing else.
+    /// The Allodia account a previous session in this dev mode signed in to and the own endpoint's
+    /// key, if any, nothing else.
     ///
     /// A dev launch injects its harness account *instead of* reading the store, which is right for
     /// mail: the canned account is synthesised fresh each time, and connecting a stored copy of it
-    /// too would add the same account twice. But the Allodia entry is not a mail account, it holds
-    /// no mailbox, and the core takes it back out of the list before anything reads it as one, so
-    /// dropping it only made a sign-in made in harness mode look like it had never stuck.
+    /// too would add the same account twice. But neither entry is a mail account, and the core
+    /// takes both back out of the list before anything reads them as one, so dropping them only
+    /// made a sign-in or a key saved in harness mode look like it had never stuck.
     ///
     /// Which entry that is, is the core's question to answer: matching on the stored shape here
     /// would be a second reader of it, free to disagree the moment either moves. Android does the
     /// same; Windows reads its whole dev namespace, which its own store's per-mode isolation makes
     /// safe there.
     private func storedDevConfigs() -> [String] {
-        KeychainStore.configs().filter { isAllodiaAccountConfig(config: $0) }
+        reservedConfigs(KeychainStore.configs())
     }
 }
 #endif
