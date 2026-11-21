@@ -449,7 +449,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.apple == 'true'
     runs-on: xcode-27
-    timeout-minutes: 20
+    # The iOS leg boots a simulator and drives the UI suite whenever it is not a pull request (rule
+    # 5 above), and that run takes 17 to 19 minutes on this runner, so 20 cut it off on a slow
+    # simulator boot with every test green. Every other leg and event keeps the push-sized bound.
+    timeout-minutes: ${{ (matrix.platform == 'ios' && github.event_name != 'pull_request') && 30 || 20 }}
     permissions:
       contents: read
       # `delete-used-deriveddata-cache` below calls the cache-delete API. Only main reaches it.
