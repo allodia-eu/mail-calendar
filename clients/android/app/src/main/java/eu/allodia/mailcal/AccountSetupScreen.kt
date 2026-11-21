@@ -164,7 +164,8 @@ internal fun AccountSetupScreen(
     var imapAuth by remember { mutableStateOf<ImapAuthState>(ImapAuthState.Password) }
     val ctx = LocalContext.current
 
-    val canConnect = imapHost.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+    val canConnect =
+        servers.imap.namesServer(imapHost) && username.isNotBlank() && password.isNotBlank()
     // JMAP needs an email and the secret; the server may be left blank.
     val canConnectJmap = username.isNotBlank() && password.isNotBlank()
 
@@ -190,7 +191,9 @@ internal fun AccountSetupScreen(
     if (onCheckImapAuth != null) {
         androidx.compose.runtime.LaunchedEffect(kind, username, imapHost, servers) {
             imapAuth = ImapAuthState.Password
-            if (kind != AccountKind.PASSWORD || !username.contains('@') || imapHost.isBlank()) {
+            if (kind != AccountKind.PASSWORD || !username.contains('@') ||
+                !servers.imap.namesServer(imapHost)
+            ) {
                 return@LaunchedEffect
             }
             kotlinx.coroutines.delay(JMAP_SIGNIN_PROBE_DEBOUNCE_MS)

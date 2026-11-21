@@ -42,12 +42,15 @@ pub(super) fn attachment_row(
     let input_sender = sender.clone();
     let id = attachment.id;
     let file_name = attachment.file_name.clone();
-    let parent = window.clone();
+    // Weak: the window holds this row.
+    let parent = window.downgrade();
     let reader = source.clone();
     save.connect_clicked(move |_| {
+        let Some(parent) = parent.upgrade() else {
+            return;
+        };
         let dialog = gtk::FileDialog::builder().initial_name(&file_name).build();
         let input_sender = input_sender.clone();
-        let parent = parent.clone();
         let source = reader.clone();
         glib::MainContext::default().spawn_local(async move {
             if let Ok(file) = dialog.save_future(Some(&parent)).await

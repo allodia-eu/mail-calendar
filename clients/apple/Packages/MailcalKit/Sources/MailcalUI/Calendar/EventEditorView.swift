@@ -171,8 +171,8 @@ struct EventEditorView: View {
             }
             // The invitee field's suggestions float over the form rather than pushing it down; see
             // RecipientSuggestionOverlay.swift. Inside the navigation stack, unlike the composer's,
-            // because there is no web view here to clear: so the bar is part of the safe area and a
-            // list opened above the field stops under it rather than covering Cancel and Save.
+            // because there is no web view here to clear, and so the list keeps out of the bar
+            // holding Cancel and Save: at the top on a phone, at the foot of a Mac's sheet.
             .recipientSuggestionLayer()
             .formStyle(.grouped)
             .navigationTitle(editor.isEditing ? L10n.event_edit_title() : L10n.event_new_title())

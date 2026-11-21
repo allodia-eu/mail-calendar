@@ -7,15 +7,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
+import uniffi.mailcal_bindings.AdvancedPage
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
@@ -79,6 +76,7 @@ internal fun CategoryDetail(
     allodiaSubscription: AllodiaSubscriptionUi,
     allodiaDevices: AllodiaDevices?,
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
+    advanced: AdvancedPage,
     onRequestReset: () -> Unit,
     accountsUi: AccountsSettingsUi,
     // Videoconferencing's account rows open that account's page under Accounts.
@@ -260,17 +258,9 @@ internal fun CategoryDetail(
             },
         ) { entry, page -> AccountPage(entry, page, accountsUi) }
 
-        // Advanced, reset the local cache (destructive; confirmed by the dialog in SettingsScreen).
-        SettingsCategory.ADVANCED -> {
-            SettingsGroupCard(L10n.action_reset_database(ctx), L10n.settings_advanced_reset_description(ctx)) {
-                TextButton(
-                    onClick = onRequestReset,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) {
-                    Text(L10n.action_reset_database(ctx))
-                }
-            }
-        }
+        // Advanced, the core's page: reset the local cache, confirmed by the dialog in
+        // SettingsScreen (SettingsAdvanced.kt).
+        SettingsCategory.ADVANCED -> AdvancedSettings(advanced, onRequestReset)
 
         // Diagnostics has no inline detail, its hub row opens the full-screen DiagnosticsScreen
         // (DiagnosticsScreen.kt) directly, so this branch is never reached.

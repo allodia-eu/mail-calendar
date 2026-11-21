@@ -911,6 +911,8 @@
 	"settings_subscription_refused_not_found": "Non c’è nessun abbonamento da cambiare.",
 
 	"settings_advanced_reset_description": "Cancella la posta salvata in locale e scarica di nuovo tutto dal server. Gli invii in coda vengono mantenuti.",
+	"settings_advanced_reset_done": "Il database locale è stato reimpostato e la tua posta è stata scaricata di nuovo.",
+	"settings_advanced_reset_failed": "Non è stato possibile reimpostare il database locale, quindi la posta su questo dispositivo è invariata. Il registro diagnostico ne indica il motivo.",
 
 	"settings_mcp_heading": "Accesso per gli assistenti IA",
 	"settings_mcp_description": "Consenti a un assistente IA su questo computer di leggere la tua posta e di intervenire su di essa, tramite il Model Context Protocol. È disattivato finché non lo attivi, raggiunge solo gli account che selezioni e non ci viene inviato nulla.",
@@ -918,6 +920,8 @@
 	"settings_mcp_status_running": "In esecuzione · in attesa di un client",
 	"settings_mcp_status_off": "Disattivato",
 	"settings_mcp_status_unavailable": "Attivato, ma non in ascolto: consulta il registro diagnostico",
+	"settings_mcp_status_starting": "Avvio in corso…",
+	"settings_mcp_status_another_instance": "Attivato, ma un’altra istanza di {app_name} sta già servendo gli assistenti",
 	"settings_mcp_accounts_heading": "Account che un assistente può usare",
 	"settings_mcp_accounts_description": "All’inizio nessuno. Seleziona un account per consentire a un assistente di leggerne la posta e di intervenire su di essa.",
 	"settings_mcp_accounts_empty": "Non hai ancora condiviso nessun account, quindi un assistente vede una casella vuota.",

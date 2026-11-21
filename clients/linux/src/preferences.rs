@@ -28,7 +28,7 @@ pub(crate) struct HostPreferences {
 }
 
 impl HostPreferences {
-    fn open(path: PathBuf) -> Self {
+    pub(crate) fn open(path: PathBuf) -> Self {
         let values = fs::read(&path)
             .ok()
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())

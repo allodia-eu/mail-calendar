@@ -5,6 +5,9 @@
 // nowhere in the UI. Nothing on screen tells a composer that built one web view from one that built
 // five, which is why it is asserted here.
 //
+// A reading window's web view is the same kind of process, so its window has to let go of it, and
+// of itself, once closed (docs/reading-window.md).
+//
 // The rule list each editor installs is the same kind of leak at a smaller size: every compile
 // writes a new file and keeps it mapped, so it is compiled once and shared.
 
@@ -88,6 +91,51 @@ import WebKit
         window.close()
     }
 
+    @Test func aClosedReadingWindowReleasesItsWebViewAndItsView() async {
+        // The window as the app's scene builds it, with a body in its slot so the web view loads a
+        // document. Closing the window takes its hosting view away; anything that keeps the view
+        // alive keeps the web view, and its WebContent process, alive with it.
+        weak var webView: WKWebView?
+        weak var hosted: NSView?
+        let session = AppSession()
+        let opened = OpenedMessage(
+            account: "acct-1", key: "m1", subject: "A subject", from: "Alice <alice@example.test>",
+            avatar: releaseAvatar, date: "12 September 2026"
+        )
+        session.model.openReadingWindow(opened)
+        let id = MailboxModel.readingWindowID(account: "acct-1", key: "m1")
+        session.model.readingWindows[id]?.body = ReadingSnapshot(
+            key: "m1", from: opened.from, avatar: releaseAvatar, to: "", cc: "", bcc: "",
+            html: "<p>Body</p>", plain: nil, hasRemoteImages: false, loadError: false,
+            attachments: [], invitation: nil, pending: false
+        )
+
+        let frame = NSRect(x: 0, y: 0, width: 800, height: 600)
+        let window = NSWindow(contentRect: frame, styleMask: [], backing: .buffered, defer: true)
+        window.isReleasedWhenClosed = false
+        do {
+            let host = NSHostingView(
+                rootView: ReadingWindow(session: session, window: ReadingWindowID(account: "acct-1", key: "m1")))
+            host.frame = frame
+            window.contentView = host
+            host.layoutSubtreeIfNeeded()
+            await Task.yield()
+            hosted = host
+            webView = webViews(in: host).first
+        }
+        #expect(webView != nil)
+
+        window.contentView = nil
+        window.close()
+        for _ in 0..<200 where webView != nil || hosted != nil {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(webView == nil)
+        #expect(hosted == nil)
+        // The close told the model, which forgets the header and asks the core to drop the body.
+        #expect(session.model.readingWindows[id] == nil)
+    }
+
     @Test func theRuleListIsCompiledAndShared() async {
         let first = await compiledRuleList()
         let second = await compiledRuleList()
@@ -108,6 +156,13 @@ import WebKit
         }
     }
 }
+
+private let releaseAvatar = Avatar(
+    initials: "AL",
+    light: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
+    dark: Swatch(background: "#4C6EF5", text: "#FFFFFF", border: "#3B5BDB"),
+    imagePath: nil
+)
 
 /// A count the parent below re-renders on.
 @MainActor

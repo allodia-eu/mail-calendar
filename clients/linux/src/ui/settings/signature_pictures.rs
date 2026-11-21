@@ -131,17 +131,21 @@ fn place(editor: &webkit6::WebView, error: &gtk::Label, image: SignatureImage) {
 /// exactly as the Add image button reads a picked one. There is no attachment list here to fall
 /// back on, so a file the signature cannot take is refused with the line the button uses.
 pub(super) fn paste_answer(editor: &webkit6::WebView, error: &gtk::Label) -> PasteAnswer {
-    let picture_editor = editor.clone();
+    // Weak: the editor's own context menu holds this answer.
+    let picture_editor = editor.downgrade();
     let picture_error = error.clone();
-    let files_editor = editor.clone();
+    let files_editor = editor.downgrade();
     let files_error = error.clone();
     PasteAnswer {
         picture: Rc::new(move |picture: Option<PastedPicture>| {
+            let Some(editor) = picture_editor.upgrade() else {
+                return;
+            };
             picture_error.set_visible(false);
             let read = picture.map_or(SignatureImage::Failed, |picture| {
                 signature_image::signature_image(&picture.bytes, Some(&picture.media_type), "")
             });
-            place(&picture_editor, &picture_error, read);
+            place(&editor, &picture_error, read);
         }),
         files: Rc::new(move |paths| {
             if paths.is_empty() {
@@ -153,6 +157,10 @@ pub(super) fn paste_answer(editor: &webkit6::WebView, error: &gtk::Label) -> Pas
             glib::MainContext::default().spawn_local(async move {
                 for path in paths {
                     let image = read_image(&gio::File::for_path(&path)).await;
+                    // The editor may have closed while the file was read.
+                    let Some(editor) = editor.upgrade() else {
+                        return;
+                    };
                     place(&editor, &error, image);
                 }
             });

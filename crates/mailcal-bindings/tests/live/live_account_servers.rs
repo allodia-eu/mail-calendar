@@ -1,6 +1,7 @@
 //! Gated live check of an account's servers on its page, against the harness: a save the servers
 //! refuse keeps the edit as it was typed, and servers saved by any other path (accepting a server
 //! change does it) are what the form is drawn from after that, never the edit refused before.
+//! A server typed as an IPv6 literal goes through the harness's `[::1]` listener on the same port.
 //!
 //! Skips unless `MAILCAL_HARNESS_IMAP` and `MAILCAL_EXTRA_CA` are set; `scripts/dev/harness.sh
 //! test` sets both. By hand:
@@ -14,7 +15,10 @@
 #[allow(dead_code)]
 use std::time::{Duration, Instant};
 
-use mailcal_bindings::{AccountChangeNotice, AccountPage, AccountPageIntent, Intent, MailcalApp};
+use mailcal_bindings::{
+    AccountChangeNotice, AccountEndpointsGap, AccountPage, AccountPageIntent, AccountSetup, Intent,
+    MailcalApp, MailcalError, account_config_toml, server_address,
+};
 
 use crate::live_oauth::{RecordingStore, app};
 
@@ -88,4 +92,64 @@ fn servers_saved_elsewhere_replace_the_edit_a_save_refused() {
         form.password, None,
         "the stored servers are drawn, not the edit refused before they were saved"
     );
+}
+
+/// A server typed as an IPv6 literal, through the harness's own `[::1]` listener: setup dials
+/// it in brackets, the certificate question names it bare, the account page reads it back in
+/// brackets after a save, and a port with no host is a gap rather than a server.
+#[test]
+fn an_ipv6_server_is_dialled_in_brackets_and_read_back_so() {
+    let (Ok(_), Ok(imap)) = (
+        std::env::var("MAILCAL_EXTRA_CA"),
+        std::env::var("MAILCAL_HARNESS_IMAP"),
+    ) else {
+        eprintln!("skipping the IPv6 servers live test: MAILCAL_HARNESS_IMAP unset");
+        return;
+    };
+    let (_, port) = imap.rsplit_once(':').expect("host:port");
+    let address = server_address("::1".to_owned(), port.to_owned());
+    assert_eq!(address, format!("[::1]:{port}"));
+    let (_dir, app) = app("account-servers-ipv6", RecordingStore::default());
+    let setup = |accepted_certificate| AccountSetup {
+        imap_host: address.clone(),
+        username: "alice@test.local".to_owned(),
+        password: "harness-alice-pw".to_owned(),
+        smtp_host: None,
+        caldav_base_url: None,
+        imap_security: None,
+        smtp_security: None,
+        accepted_certificate,
+        carddav_base_url: None,
+        uses: None,
+    };
+
+    // The harness's certificate names `localhost`, so the literal is refused and the person is
+    // asked about it, under the name they typed and without brackets.
+    let certificate = match app.add_account(account_config_toml(setup(None)).expect("a config")) {
+        Err(MailcalError::CertificateRejected { certificate, .. }) => *certificate,
+        Err(other) => panic!("the certificate question, not {other:?}"),
+        Ok(_) => panic!("the certificate question, not a connected account"),
+    };
+    assert_eq!(certificate.server_name, "::1");
+    let id = app
+        .add_account(account_config_toml(setup(Some(certificate))).expect("a config"))
+        .expect("alice connects over IPv6 once the certificate is accepted")
+        .id;
+    let stored = settled(&app, &id).servers.expect("editable").form;
+    assert_eq!(stored.imap_host.as_deref(), Some(address.as_str()));
+
+    let mut empty_host = stored.clone();
+    empty_host.imap_host = Some(":993".to_owned());
+    assert_eq!(
+        app.account_endpoints_gap(id.clone(), empty_host),
+        Some(AccountEndpointsGap::Imap),
+        "a port with no host names no server"
+    );
+
+    let mut again = stored;
+    again.password = Some("harness-alice-pw".to_owned());
+    app.update_account_endpoints(id.clone(), again)
+        .expect("the servers are tried again over IPv6, and saved");
+    let form = settled(&app, &id).servers.expect("editable").form;
+    assert_eq!(form.imap_host.as_deref(), Some(address.as_str()));
 }

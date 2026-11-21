@@ -54,13 +54,13 @@ public class AccountEndpointEditTests
     {
         var tls = ConnectionSecurity.ImplicitTls;
         var starttls = ConnectionSecurity.StartTls;
-        Assert.Equal("smtp.example.org", AccountEndpointEdit.Joined("smtp.example.org", "587", starttls, Smtp));
-        Assert.Equal("imap.example.org", AccountEndpointEdit.Joined("imap.example.org", "993", tls, Imap));
-        Assert.Equal("imap.example.org", AccountEndpointEdit.Joined("imap.example.org", "", tls, Imap));
-        Assert.Equal("imap.example.org:1143", AccountEndpointEdit.Joined(" imap.example.org ", "1143", tls, Imap));
+        Assert.Equal("smtp.example.org", AccountEndpointEdit.Joined("smtp.example.org", "587", starttls, Smtp, PlainAddressing.Instance));
+        Assert.Equal("imap.example.org", AccountEndpointEdit.Joined("imap.example.org", "993", tls, Imap, PlainAddressing.Instance));
+        Assert.Equal("imap.example.org", AccountEndpointEdit.Joined("imap.example.org", "", tls, Imap, PlainAddressing.Instance));
+        Assert.Equal("imap.example.org:1143", AccountEndpointEdit.Joined(" imap.example.org ", "1143", tls, Imap, PlainAddressing.Instance));
         // A port that is the standard one for the other security is not this one's.
-        Assert.Equal("imap.example.org:143", AccountEndpointEdit.Joined("imap.example.org", "143", tls, Imap));
-        Assert.Equal("imap.example.org", AccountEndpointEdit.Joined("imap.example.org", "143", starttls, Imap));
+        Assert.Equal("imap.example.org:143", AccountEndpointEdit.Joined("imap.example.org", "143", tls, Imap, PlainAddressing.Instance));
+        Assert.Equal("imap.example.org", AccountEndpointEdit.Joined("imap.example.org", "143", starttls, Imap, PlainAddressing.Instance));
     }
 
     [Fact]
@@ -69,9 +69,9 @@ public class AccountEndpointEditTests
         // A port alone names no server: stored as ":12465" it would pass for an address, and the
         // core's check that a use keeps its server would find nothing missing.
         var tls = ConnectionSecurity.ImplicitTls;
-        Assert.Equal("", AccountEndpointEdit.Joined("", "12465", tls, Smtp));
-        Assert.Equal("", AccountEndpointEdit.Joined("  ", "1143", tls, Imap));
-        Assert.Equal("", AccountEndpointEdit.Joined("", "", tls, Imap));
+        Assert.Equal("", AccountEndpointEdit.Joined("", "12465", tls, Smtp, PlainAddressing.Instance));
+        Assert.Equal("", AccountEndpointEdit.Joined("  ", "1143", tls, Imap, PlainAddressing.Instance));
+        Assert.Equal("", AccountEndpointEdit.Joined("", "", tls, Imap, PlainAddressing.Instance));
     }
 
     [Fact]
@@ -81,6 +81,6 @@ public class AccountEndpointEditTests
         // field is the one the person can see beside the name.
         Assert.Equal(
             "mail.example:2993",
-            AccountEndpointEdit.Joined("mail.example:2993", "1234", ConnectionSecurity.ImplicitTls, Imap));
+            AccountEndpointEdit.Joined("mail.example:2993", "1234", ConnectionSecurity.ImplicitTls, Imap, PlainAddressing.Instance));
     }
 }

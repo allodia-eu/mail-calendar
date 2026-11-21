@@ -374,3 +374,87 @@ fn an_account_can_be_opened_with_something_to_say_about_it() {
         "the notice survives the open it came with"
     );
 }
+
+/// A closed signature editor frees its view, and the web process each one runs with it. A handler
+/// that holds the view, or the frame around it, keeps it alive.
+///
+/// Called from the crate's single `gtk::init` test.
+pub(crate) fn a_closed_signature_editor_frees_its_view() {
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+
+    use mailcal_bindings::{LogLevel, Logger, MailcalApp};
+
+    use super::{PageContext, signature_editor, signatures};
+    use crate::{l10n, ui::setup_widget_tests::descendants};
+
+    struct Quiet;
+    impl Logger for Quiet {
+        fn log(&self, _level: LogLevel, _target: String, _message: String) {}
+    }
+
+    let (sender, _receiver) = relm4::channel::<crate::ui::AppInput>();
+    let app = MailcalApp::new_demo(
+        Box::new(crate::observer::SurfaceObserver::new(sender.clone())),
+        Box::new(Quiet),
+        LogLevel::Error,
+        "UTC".to_owned(),
+    );
+    let scratch = tempfile::tempdir().expect("a scratch directory");
+    let window = gtk::Window::new();
+    let navigation = gtk::Stack::new();
+    navigation.add_named(
+        &gtk::Box::new(gtk::Orientation::Vertical, 0),
+        Some("settings"),
+    );
+    window.set_child(Some(&navigation));
+    window.present();
+    let ctx = PageContext {
+        app: Arc::clone(&app),
+        preferences: Arc::new(crate::preferences::HostPreferences::open(
+            scratch.path().join("host.json"),
+        )),
+        sender,
+        window: window.clone(),
+        navigation: navigation.clone(),
+        account: None,
+        page: None,
+        devices: None,
+        signatures: signatures::Shown::default(),
+        follow: super::calendar_follow::Followers::default(),
+    };
+
+    let held: Rc<RefCell<Option<Rc<signature_editor::Editor>>>> = Rc::default();
+    let closed = Rc::clone(&held);
+    let editor = signature_editor::open(&ctx, &app.signatures_page(), None, move || {
+        closed.replace(None);
+    });
+    held.replace(Some(editor));
+    let shown = navigation
+        .child_by_name("signature-editor")
+        .expect("the editor");
+    let view = descendants::<webkit6::WebView>(&shown)
+        .into_iter()
+        .next()
+        .expect("the editor's view")
+        .downgrade();
+    descendants::<gtk::Button>(&shown)
+        .into_iter()
+        .find(|button| button.label().as_deref() == Some(l10n::action_cancel()))
+        .expect("Cancel")
+        .emit_clicked();
+    drop(shown);
+
+    // The editor leaves on the next turn of the loop, and the content filter's compile holds the
+    // view until it answers.
+    let context = gtk::glib::MainContext::default();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while view.upgrade().is_some() && std::time::Instant::now() < deadline {
+        context.iteration(false);
+    }
+    assert!(held.borrow().is_none(), "Cancel closed the editor");
+    assert!(
+        view.upgrade().is_none(),
+        "the closed signature editor's view is still alive"
+    );
+    window.destroy();
+}

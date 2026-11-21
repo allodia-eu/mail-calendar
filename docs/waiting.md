@@ -174,6 +174,8 @@ record, not a state the client keeps.
 | The Allodia account's subscription: drawn from `allodia_subscription_card`, read and written by the core as `AllodiaIntent`s | ✅ | ✅ | ✅ | ✅ | ✅ |
 | A preference: changed as a `PreferenceIntent`, drawn from the core's value with no copy kept, a failed save the `SettingsNotSaved` notice, written before the app closes | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Settings → Signatures: drawn from `signatures_page`, Save and Delete as `SignatureIntent`s running until written, a double press on Save saving once, a failed write the `SettingsNotSaved` notice | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Settings → Advanced's reset: drawn from `advanced_page`, `Intent::ResetDatabase` running from the confirmation until mail is downloaded again, once at a time, what it came to said under it with Settings left open | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Settings → Advanced's AI assistant access: drawn from `advanced_page`, each grant an `McpIntent`, the status the listener's own and followed while the page is open | ✅ | — | ✅ | — | ✅ |
 
 ## Enforcement
 

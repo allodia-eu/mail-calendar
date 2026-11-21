@@ -418,8 +418,8 @@ pub(super) fn edit_manually(form: &DetectedForm) -> SetupForm {
             ManualForm {
                 kind: AccountKind::Imap,
                 email: imap.email.clone(),
-                imap_host: split_host(&imap.imap_host).0.to_owned(),
-                smtp_host: split_host(&imap.smtp_host).0.to_owned(),
+                imap_host: split_host(&imap.imap_host).0,
+                smtp_host: split_host(&imap.smtp_host).0,
                 caldav_url: imap.caldav_url.clone(),
                 carddav_url: imap.carddav_url.clone(),
                 servers,

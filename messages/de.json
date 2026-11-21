@@ -911,6 +911,8 @@
 	"settings_subscription_refused_not_found": "Es gibt kein Abonnement, das geändert werden kann.",
 
 	"settings_advanced_reset_description": "Die lokal gespeicherten E-Mails löschen und alles neu vom Server laden. Nachrichten in der Warteschlange bleiben erhalten.",
+	"settings_advanced_reset_done": "Die lokale Datenbank wurde zurückgesetzt und Ihre E-Mails wurden neu geladen.",
+	"settings_advanced_reset_failed": "Die lokale Datenbank konnte nicht zurückgesetzt werden, die E-Mails auf diesem Gerät sind also unverändert. Das Diagnoseprotokoll nennt den Grund.",
 
 	"settings_mcp_heading": "Zugriff für KI-Assistenten",
 	"settings_mcp_description": "Erlauben Sie einem KI-Assistenten auf diesem Computer, Ihre E-Mails über das Model Context Protocol zu lesen und zu bearbeiten. Es ist aus, solange Sie es nicht einschalten, es erreicht nur die Konten, die Sie auswählen, und nichts wird an uns gesendet.",
@@ -918,6 +920,8 @@
 	"settings_mcp_status_running": "Aktiv · wartet auf einen Client",
 	"settings_mcp_status_off": "Aus",
 	"settings_mcp_status_unavailable": "An, nimmt aber keine Verbindungen an: siehe Diagnoseprotokoll",
+	"settings_mcp_status_starting": "Wird gestartet…",
+	"settings_mcp_status_another_instance": "An, aber eine andere Instanz von {app_name} bedient bereits Assistenten",
 	"settings_mcp_accounts_heading": "Konten, die ein Assistent nutzen darf",
 	"settings_mcp_accounts_description": "Zu Beginn keines. Wählen Sie ein Konto aus, damit ein Assistent dessen E-Mails lesen und bearbeiten darf.",
 	"settings_mcp_accounts_empty": "Es ist noch kein Konto freigegeben, ein Assistent sieht also ein leeres Postfach.",

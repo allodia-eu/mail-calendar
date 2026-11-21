@@ -35,6 +35,7 @@ pub(super) fn the_setup_window_offers_each_route_its_own_surface() {
     super::setup_signin_tests::a_provider_offering_sign_in_leads_with_it(&window);
     super::setup_signin_tests::a_provider_that_only_admits_registered_apps_says_so(&window);
     super::setup_signin_tests::a_provider_refusing_passwords_and_this_app_says_so(&window);
+    super::setup_signin_tests::a_manual_form_says_nothing_while_its_server_is_asked(&window);
     super::setup_uses_widget_tests::the_found_card_offers_each_use_and_keeps_one_on(&window);
     super::setup_uses_widget_tests::a_calendar_and_contacts_card_asks_only_for_the_password(
         &window,

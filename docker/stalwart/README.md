@@ -121,6 +121,7 @@ route the harness would try to deliver it from the developer's own IP address.
 | SMTP submission               | 587       | `12587` | STARTTLS (self-signed), entrypoint-provisioned |
 | IMAP                          | 993       | `12993` | implicit TLS (self-signed) |
 | IMAP                          | 143       | `12143` | STARTTLS (self-signed), entrypoint-provisioned |
+| IMAP and SMTP submission over IPv6 | 993, 465 | `[::1]:12993`, `[::1]:12465` | as above; the certificate names `localhost`, so a server typed as `::1` asks to accept it |
 | HTTP: JMAP + OAuth (`stalwart-oauth`) | 8080 | `28081` | plaintext, reached as `localhost` |
 | IMAP (`stalwart-oauth`)       | 993       | `12995` | implicit TLS (self-signed) |
 | SMTP submission (`stalwart-oauth`) | 465  | `12467` | implicit TLS (self-signed) |

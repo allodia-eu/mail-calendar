@@ -108,15 +108,15 @@ extension ContentView {
     private func applyShowcaseMcpState() {
         let screen = ShowcaseMode.screen
         guard screen != .mcpOff else { return }
-        model.setMcpEnabled(true)
+        model.mcp(.setEnabled(enabled: true))
         guard screen != .mcpOn else { return }
-        // Read off `mcpSettings`, which is the list the panel itself renders, so the account
-        // this ticks is the row that appears ticked, whatever order the mailbox list is in.
-        if let first = model.mcpSettings?.accounts.first {
-            model.setMcpAccountExposed(first.accountId, true)
+        // Read off the page's panel, which is the list it renders, so the account this ticks is
+        // the row that appears ticked, whatever order the mailbox list is in.
+        if let first = model.advancedPage.assistants?.accounts.first {
+            model.mcp(.setAccountExposed(account: first.accountId, exposed: true))
         }
         guard screen != .mcpAccounts else { return }
-        model.setMcpAllowDirectSend(true)
+        model.mcp(.setDirectSend(allow: true))
     }
 
     /// Opens the reply composer, with the sample reply text above its quote, once the target message

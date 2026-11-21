@@ -51,17 +51,16 @@ extension MailboxModel {
         reloadNotices()
         needsSetup = firstRun
         // The agent (MCP) surface. Without these three lines Settings → Advanced renders *nothing*
-        // for agent access, `McpSettingsView` draws only when the core has both settings and an
-        // endpoint, so the documentation captures came back showing Reset Database alone, on a
-        // pane that looked otherwise healthy. Every automated check passed it; only looking at the
-        // PNG did not.
+        // for agent access: the core's page carries the panel only once a host is set, and a
+        // capture showing Reset Database alone looks like an otherwise healthy pane, which no
+        // automated check catches.
         //
         // Its own data-directory name, never `DevNamespace`'s: a screenshot run must not bind, or
         // adopt, a socket a real build on this machine is serving on. Nothing is persisted in this
         // boot, so whatever a capture switches on lives only for that launch.
         app.setAgentHostUi(ui: AgentComposerBridge(model: self))
-        app.setMcpEndpoint(endpoint: McpEndpoint.path(dataDirName: "mailcal-showcase"))
-        mcpSettings = app.mcpSettings()
+        app.setMcpHost(host: McpEndpoint.host(dataDirName: "mailcal-showcase"))
+        advancedPage = app.advancedPage()
         // No account, so nothing to sync: the first-run screen draws none of it.
         if !firstRun {
             app.dispatch(intent: .refreshMail)

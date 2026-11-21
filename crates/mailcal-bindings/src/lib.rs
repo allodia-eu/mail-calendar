@@ -131,6 +131,7 @@ mod records;
 mod records_account_page;
 mod records_account_sign_in;
 mod records_accounts;
+mod records_advanced;
 mod records_avatar;
 mod records_calendar;
 mod records_calendar_pane;
@@ -242,8 +243,8 @@ pub use nextcloud::{NextcloudSignInPoll, NextcloudSignInStart, nextcloud_poll_in
 pub use oauth_routes::{OAuthRoutes, is_oauth_callback, oauth_routes};
 pub use protocol::{
     AccountPageIntent, AllodiaIntent, BulkAction, EventIntent, FolderIntent, Intent,
-    InvitationResponse, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope, SelectedRow,
-    SignatureIntent,
+    InvitationResponse, McpIntent, NoticeIntent, OutboxIntent, PreferenceIntent, SearchScope,
+    SelectedRow, SignatureIntent,
 };
 pub use protocol_surface::{Observer, Surface};
 pub use records::{
@@ -251,9 +252,9 @@ pub use records::{
     MailboxListSnapshot, ReadingSnapshot, SearchHorizon, SnapshotRow, SyncProgressSnapshot,
     ThreadMessage, ThreadRow, ThrottledAccount, TimeZoneSnapshot, ViewMode,
     settings::{
-        AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, McpAccountRow, McpSettings,
-        QuoteSettings, QuoteStyleKind, SendAccountOption, SendAccountSetting, SwipeActionKind,
-        SwipeDirection, SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
+        AccountSyncRow, DefaultMailAppOutcome, DefaultMailAppSupport, QuoteSettings,
+        QuoteStyleKind, SendAccountOption, SendAccountSetting, SwipeActionKind, SwipeDirection,
+        SwipeSettings, SyncFolderRow, SyncSettingsSnapshot, SyncStrategyKind,
     },
 };
 // Every record of an account's page crosses the FFI, so the module is exported whole.
@@ -268,6 +269,7 @@ pub use records_accounts::{
     AccountsSnapshot, CapabilityChange, CapabilityState, LinkCandidates, LinkSlot, LinkedAccount,
     MailSyncTechnology, SignInMethod, UseProblem,
 };
+pub use records_advanced::*;
 pub use records_avatar::Avatar;
 pub use records_calendar::*;
 pub use records_calendar_pane::*;
@@ -307,7 +309,8 @@ pub use repeat_editor::repeat_change_of;
 pub use row_menu::{MenuMessage, MessageKind, RowAction, RowMenu, RowMenuItem, RowMenuSection};
 pub use setup::{
     AccountSetup, ConnectionSecurity, JmapSetup, MailServerKind, RejectedCertificate,
-    account_config_toml, jmap_account_config_toml, standard_port,
+    ServerAddressParts, account_config_toml, jmap_account_config_toml, server_address,
+    server_address_parts, standard_port,
 };
 pub use setup_choices::{
     DetectedSetup, SetupChoice, offered_setup, offers_setup_links, provider_setup_choices,
@@ -356,12 +359,12 @@ pub struct MailcalApp {
     /// The local MCP (AI assistant access) server. Off until the user turns it on **and** a host
     /// has set an endpoint; `apply` is abort-then-respawn, exactly like [`BackgroundManager`], so
     /// a settings change takes effect without a restart. A host that never calls
-    /// [`MailcalApp::set_mcp_endpoint`] can never listen, which is how iOS and Android are
+    /// [`MailcalApp::set_mcp_host`] can never listen, which is how iOS and Android are
     /// excluded, by construction rather than by a check.
     mcp: Arc<mailcal_mcp::McpServer>,
-    /// Where the MCP server listens, as the host set it. `None` on a platform that set none.
-    /// Behind a `Mutex` because it arrives after construction, like the credential stores.
-    mcp_endpoint: Mutex<Option<String>>,
+    /// Where the MCP server listens and how its relay starts, as the host set them. `None` on a
+    /// platform that set none. Behind a `Mutex` because it arrives after construction.
+    mcp_host: Mutex<Option<McpHost>>,
     /// The host's composer port, so an assistant's `create_draft` opens a prefilled, unsent
     /// draft in the app's own composer. Empty until a client installs one; a client that never
     /// does simply reports that it has no composer.
@@ -450,8 +453,6 @@ impl MailcalApp {
     }
 }
 
-/// Joins one diagnostic channel's account-prefixed messages into a single newline-separated
-/// string for a host to surface, or `None` when the channel is empty.
 #[cfg(test)]
 mod tests;
 
