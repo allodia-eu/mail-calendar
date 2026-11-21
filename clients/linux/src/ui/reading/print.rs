@@ -86,7 +86,8 @@ pub(super) fn print_item(
     let item = gtk::Button::with_label(l10n::action_print());
     item.add_css_class("flat");
     item.set_sensitive(false);
-    let parent = window.clone();
+    // Weak: the window holds this item.
+    let parent = window.downgrade();
     let print_source = Rc::clone(print_source);
     let sender = sender.clone();
     item.connect_clicked(move |button| {
@@ -96,7 +97,7 @@ pub(super) fn print_item(
         {
             popover.popdown();
         }
-        if let Some(message) = print_source.borrow().as_ref() {
+        if let (Some(parent), Some(message)) = (parent.upgrade(), print_source.borrow().as_ref()) {
             print(&parent, message, &sender);
         }
     });

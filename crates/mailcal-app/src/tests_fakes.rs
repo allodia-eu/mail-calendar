@@ -107,8 +107,17 @@ pub(super) fn app(
     accounts: Vec<Account<FakeProvider>>,
     surfaces: &Arc<Mutex<Vec<Surface>>>,
 ) -> App<FakeProvider> {
+    app_on(Engine::open_in_memory().unwrap(), accounts, surfaces)
+}
+
+/// [`app`], over `engine`.
+pub(super) fn app_on(
+    engine: Engine,
+    accounts: Vec<Account<FakeProvider>>,
+    surfaces: &Arc<Mutex<Vec<Surface>>>,
+) -> App<FakeProvider> {
     App::new(
-        Engine::open_in_memory().unwrap(),
+        engine,
         accounts,
         TimeZoneInit {
             device_zone: TimeZoneId::utc(),

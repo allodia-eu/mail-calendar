@@ -294,6 +294,10 @@ internal sealed partial class CalendarSurface : UserControl
         // The strip is about to be teleported, so whatever was moving it is void.
         _driver.Stop();
         _state.ResetWeek();
+        // A cached page is keyed on its week's place from the pager's origin, and a recentre follows
+        // a move of that origin (Today, a layout seated on the focus): kept, they would draw the weeks
+        // of the old origin at the new one's places.
+        _pages.Clear();
         _pendingRecentre = true;
         Invalidate();
     }

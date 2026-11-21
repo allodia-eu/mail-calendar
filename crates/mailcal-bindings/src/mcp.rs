@@ -7,7 +7,7 @@
 //!
 //! # The endpoint is set, not derived
 //!
-//! A host calls [`MailcalApp::set_mcp_endpoint`] after construction, exactly as it installs a
+//! A host calls [`MailcalApp::set_mcp_host`] after construction, exactly as it installs a
 //! credential store. Two things follow, and both are deliberate:
 //!
 //! * **A platform with no endpoint has no server**, with no `#[cfg]` and no runtime platform check
@@ -20,13 +20,18 @@
 
 use std::sync::Arc;
 
+#[path = "app_advanced.rs"]
+mod advanced;
+
 use async_trait::async_trait;
 use engine_api::{AccountId, Provider};
 use mailcal_app::{App, MailActionError, MessageDetail, MessagePage, MessageRef, SendActionError};
-use mailcal_mcp::{AgentDraft, ComposerError, MailBackend, McpConfig};
+use mailcal_mcp::{AgentDraft, ComposerError, ListenerStatus, MailBackend, McpConfig, McpServer};
 use mailcal_viewmodel::{AccountRow, FolderRow};
 
-use crate::{MailcalApp, McpSettings, agent_ui::AgentUiSlot};
+use crate::{
+    MailcalApp, McpAccountRow, McpHost, McpIntent, McpPanel, McpStatus, agent_ui::AgentUiSlot,
+};
 
 /// The app type every account shares (providers boxed behind the trait).
 type SharedApp = Arc<App<Box<dyn Provider>>>;
@@ -180,68 +185,36 @@ impl MailBackend for AppBackend {
     }
 }
 
+/// The server over `app` and the host's composer slot, stopped until a host sets an endpoint.
+/// Its status moving raises `Surface::Settings`, so a panel on screen follows a bind or a
+/// refusal.
+pub(crate) fn server(
+    app: &SharedApp,
+    agent_ui: &AgentUiSlot,
+    handle: &tokio::runtime::Handle,
+) -> Arc<McpServer> {
+    let server = McpServer::new(
+        Arc::new(AppBackend::new(Arc::clone(app), Arc::clone(agent_ui))),
+        handle.clone(),
+    );
+    server.on_status_change({
+        let app = Arc::clone(app);
+        move || app.settings_changed()
+    });
+    Arc::new(server)
+}
+
 #[uniffi::export]
 impl MailcalApp {
-    /// The local MCP (AI assistant access) settings a Settings screen renders.
-    ///
-    /// Carries both the user's decisions **and** whether a server is actually listening, because
-    /// a panel showing only the toggle would say "on" while nothing is reachable; another
-    /// instance owning the endpoint, or a path that will not bind. `endpoint` is `None` on a
-    /// platform whose host set none, which is how a Settings screen knows not to offer the panel
-    /// at all.
-    pub fn mcp_settings(&self) -> McpSettings {
-        let mut settings: McpSettings = self.runtime.block_on(|| self.app.mcp_settings()).into();
-        settings.running = self.mcp.is_running();
-        settings.endpoint.clone_from(&self.mcp_endpoint());
-        settings
-    }
-
-    /// Turns the local MCP server on or off, persists it, and starts or stops it immediately.
-    ///
-    /// Turning it off does **not** clear the exposed-account list: a user switching the feature
-    /// off for an afternoon should not have to re-tick every mailbox, and the list is inert while
-    /// nothing is listening.
-    pub fn set_mcp_enabled(&self, enabled: bool) {
-        self.runtime.block_on(|| self.app.set_mcp_enabled(enabled));
-        self.refresh_mcp();
-    }
-
-    /// Exposes or hides one account to assistants, persists it, and re-applies it to a running
-    /// server at once: so unticking an account revokes access without a restart.
-    pub fn set_mcp_account_exposed(&self, account: String, exposed: bool) {
-        self.runtime
-            .block_on(|| self.app.set_mcp_account_exposed(&account, exposed));
-        self.refresh_mcp();
-    }
-
-    /// Sets whether an assistant may send mail directly (no human review), persists it, and
-    /// re-applies it. With it off the send tool is **absent** from the server's listing entirely.
-    pub fn set_mcp_allow_direct_send(&self, allow: bool) {
-        self.runtime
-            .block_on(|| self.app.set_mcp_allow_direct_send(allow));
-        self.refresh_mcp();
-    }
-
-    /// Sets whether a direct send is restricted to people the user already emails, persists it,
-    /// and re-applies it.
-    pub fn set_mcp_require_known_recipient(&self, require: bool) {
-        self.runtime
-            .block_on(|| self.app.set_mcp_require_known_recipient(require));
-        self.refresh_mcp();
-    }
-
-    /// Tells the core where the MCP server should listen: a Unix socket path, or a
-    /// `\\.\pipe\…` name on Windows. `None` means this platform has no endpoint and therefore no
-    /// server.
+    /// Tells the core where the MCP server should listen (a Unix socket path, or a `\\.\pipe\…`
+    /// name on Windows) and how an assistant starts the relay that reaches it. `None` means this
+    /// platform has no endpoint and therefore no server.
     ///
     /// Call once after construction, before the Settings screen is shown. A host that never calls
     /// it can never listen, which is exactly how iOS and Android are excluded: by construction,
     /// not by a check.
-    pub fn set_mcp_endpoint(&self, endpoint: Option<String>) {
-        *self
-            .mcp_endpoint
-            .lock()
-            .expect("mcp-endpoint mutex poisoned") = endpoint;
+    pub fn set_mcp_host(&self, host: Option<McpHost>) {
+        *self.mcp_host.lock().expect("mcp-host mutex poisoned") = host;
         self.refresh_mcp();
     }
 
@@ -254,12 +227,77 @@ impl MailcalApp {
 }
 
 impl MailcalApp {
-    /// The configured endpoint, if a host set one.
-    pub(crate) fn mcp_endpoint(&self) -> Option<String> {
-        self.mcp_endpoint
+    /// The endpoint and relay, if a host set them.
+    pub(crate) fn mcp_host(&self) -> Option<McpHost> {
+        self.mcp_host
             .lock()
-            .expect("mcp-endpoint mutex poisoned")
+            .expect("mcp-host mutex poisoned")
             .clone()
+    }
+
+    /// Settings → Advanced's assistant access, or `None` where the host set no endpoint.
+    pub(crate) fn mcp_panel(&self) -> Option<McpPanel> {
+        let host = self.mcp_host()?;
+        let settings = self.app.mcp_settings();
+        let status = if settings.enabled {
+            match self.mcp.status() {
+                ListenerStatus::Listening => McpStatus::Listening,
+                ListenerStatus::AnotherInstance => McpStatus::AnotherInstance,
+                // Asked to listen, and the listener not yet started: the moment between
+                // turning it on and the endpoint being bound.
+                ListenerStatus::Starting | ListenerStatus::Stopped => McpStatus::Starting,
+                ListenerStatus::Unavailable => McpStatus::Unavailable,
+            }
+        } else {
+            McpStatus::Off
+        };
+        Some(McpPanel {
+            enabled: settings.enabled,
+            status,
+            nothing_exposed: !settings.accounts.iter().any(|account| account.exposed),
+            accounts: settings
+                .accounts
+                .into_iter()
+                .map(|row| McpAccountRow {
+                    account_id: row.account_id,
+                    email: row.email,
+                    exposed: row.exposed,
+                })
+                .collect(),
+            allow_direct_send: settings.allow_direct_send,
+            require_known_recipient: settings.require_known_recipient,
+            known_recipient_editable: settings.allow_direct_send,
+            snippet: mailcal_mcp::configuration_snippet(
+                &host.relay_command,
+                &host.relay_args,
+                &host.endpoint,
+            ),
+        })
+    }
+
+    /// Handles an `Intent::Mcp`: the decision is held and saved behind at once, and the server
+    /// takes it up, on the host's thread, before `dispatch` returns. A connection already open
+    /// sees it too, so unticking an account revokes access without a restart.
+    pub(crate) fn dispatch_mcp(&self, intent: McpIntent) {
+        let app = &self.app;
+        match intent {
+            McpIntent::SetEnabled { enabled } => {
+                self.runtime.block_on(|| app.set_mcp_enabled(enabled));
+            }
+            McpIntent::SetAccountExposed { account, exposed } => {
+                self.runtime
+                    .block_on(|| app.set_mcp_account_exposed(&account, exposed));
+            }
+            McpIntent::SetDirectSend { allow } => {
+                self.runtime
+                    .block_on(|| app.set_mcp_allow_direct_send(allow));
+            }
+            McpIntent::SetKnownRecipient { require } => {
+                self.runtime
+                    .block_on(|| app.set_mcp_require_known_recipient(require));
+            }
+        }
+        self.refresh_mcp();
     }
 
     /// Rebuilds the server's configuration from the persisted settings and (re)applies it.
@@ -270,7 +308,11 @@ impl MailcalApp {
     pub(crate) fn refresh_mcp(&self) {
         let enabled = self.app.mcp_enabled();
         let config = McpConfig {
-            endpoint: if enabled { self.mcp_endpoint() } else { None },
+            endpoint: if enabled {
+                self.mcp_host().map(|host| host.endpoint)
+            } else {
+                None
+            },
             accounts: self.app.mcp_exposed_accounts(),
             allow_direct_send: self.app.mcp_allow_direct_send(),
             require_known_recipient: self.app.mcp_require_known_recipient(),

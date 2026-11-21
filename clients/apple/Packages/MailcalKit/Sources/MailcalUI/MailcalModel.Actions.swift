@@ -70,9 +70,9 @@ extension MailboxModel {
         app?.dispatch(intent: .openMessage(account: account, key: key))
     }
 
-    /// Reset the local cache and re-fetch everything (destructive). The observer fires
-    /// when the re-sync lands.
-    func reset() { app?.reset() }
+    /// Resets the local database, once the person confirmed it. `advancedPage.reset` runs from
+    /// the core's first signal until mail is downloaded again, and its outcome follows.
+    func resetDatabase() { app?.dispatch(intent: .resetDatabase) }
 
     /// Focus one account's folders (by id), or the unified "all inboxes" view (`nil`). The
     /// core resets the selected folder when the account changes.
@@ -296,30 +296,11 @@ extension MailboxModel {
 
     // MARK: Agent (MCP) access, docs/mcp.md
 
-    /// Turns the local MCP server on or off. Persisted and applied at once, so the socket appears
-    /// or disappears with the switch rather than at the next launch.
-    func setMcpEnabled(_ enabled: Bool) {
-        app?.setMcpEnabled(enabled: enabled)
-        mcpSettings = app?.mcpSettings()
-    }
-
-    /// Shares one account with assistants, or stops. Unticking revokes access on the running
-    /// server immediately, it does not wait for a restart.
-    func setMcpAccountExposed(_ account: String, _ exposed: Bool) {
-        app?.setMcpAccountExposed(account: account, exposed: exposed)
-        mcpSettings = app?.mcpSettings()
-    }
-
-    /// Lets assistants send mail with no human review, or not. With it off the send tool is
-    /// absent from what an assistant can even see.
-    func setMcpAllowDirectSend(_ allow: Bool) {
-        app?.setMcpAllowDirectSend(allow: allow)
-        mcpSettings = app?.mcpSettings()
-    }
-
-    /// Restricts a direct send to people the user already emails, or lifts that restriction.
-    func setMcpRequireKnownRecipient(_ require: Bool) {
-        app?.setMcpRequireKnownRecipient(require: require)
-        mcpSettings = app?.mcpSettings()
+    /// One change to what assistants may do. The core holds it before `dispatch` returns, so the
+    /// page read straight after draws it and a switch does not spring back until the signal.
+    func mcp(_ intent: McpIntent) {
+        guard let app else { return }
+        app.dispatch(intent: .mcp(intent: intent))
+        advancedPage = app.advancedPage()
     }
 }

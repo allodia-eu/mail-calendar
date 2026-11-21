@@ -294,12 +294,10 @@ final class MailboxModel {
     var notices: [Notice]?
     /// Whether the iPad's sidebar column, which carries the notice card, is on screen.
     var sidebarShown = false
-    /// The local MCP (AI assistant access) settings, pulled on a `Surface::Settings` signal and
-    /// once at connect. Carries whether a server is actually listening and where, not only what
-    /// the user chose, a panel showing the toggle alone would say "on" while nothing is
-    /// reachable. `endpoint == nil` means this platform has no server at all, which is how iOS
-    /// hides the panel with no `#if` in the view.
-    var mcpSettings: McpSettings?
+    /// Settings → Advanced as the core draws it (`advanced_page`, pulled on a `Surface::Settings`
+    /// signal and once at connect): the assistant access panel, `nil` where this host set no
+    /// endpoint (iOS), then the reset and what the last one came to.
+    var advancedPage = AdvancedPage.empty
     /// A draft an assistant asked to open in the composer, unsent. Set by `AgentComposerBridge`
     /// on the main actor; the shell watches it, opens the composer, and clears it.
     var pendingAgentDraft: AgentDraftRequest?

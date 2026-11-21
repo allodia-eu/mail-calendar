@@ -48,6 +48,7 @@ mod composer_quote_style;
 mod composer_reply_draft;
 mod composer_reply_draft_input;
 mod composer_reply_draft_notes;
+mod composer_revision;
 mod composer_scheme;
 mod composer_seed;
 mod composer_share;

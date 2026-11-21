@@ -88,7 +88,7 @@ extension MailboxModel {
             timezone = app?.timezoneSettings()
             if let app { reloadPreferences(app) }
             signatures = app?.signaturesPage() ?? .empty
-            mcpSettings = app?.mcpSettings()
+            advancedPage = app?.advancedPage() ?? .empty
             refreshAccountsSnapshot()
             return
         }

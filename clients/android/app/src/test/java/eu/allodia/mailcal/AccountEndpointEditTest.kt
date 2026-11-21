@@ -56,13 +56,13 @@ class AccountEndpointEditTest {
     fun a_default_port_is_stored_bare() {
         val tls = ConnectionSecurity.IMPLICIT_TLS
         val starttls = ConnectionSecurity.START_TLS
-        assertEquals("smtp.example.org", AccountEndpointEdit.joined("smtp.example.org", "587", starttls, smtp))
-        assertEquals("imap.example.org", AccountEndpointEdit.joined("imap.example.org", "993", tls, imap))
-        assertEquals("imap.example.org", AccountEndpointEdit.joined("imap.example.org", "", tls, imap))
-        assertEquals("imap.example.org:1143", AccountEndpointEdit.joined(" imap.example.org ", "1143", tls, imap))
+        assertEquals("smtp.example.org", AccountEndpointEdit.joined("smtp.example.org", "587", starttls, smtp, plainAddressing))
+        assertEquals("imap.example.org", AccountEndpointEdit.joined("imap.example.org", "993", tls, imap, plainAddressing))
+        assertEquals("imap.example.org", AccountEndpointEdit.joined("imap.example.org", "", tls, imap, plainAddressing))
+        assertEquals("imap.example.org:1143", AccountEndpointEdit.joined(" imap.example.org ", "1143", tls, imap, plainAddressing))
         // A port that is the standard one for the other security is not this one's.
-        assertEquals("imap.example.org:143", AccountEndpointEdit.joined("imap.example.org", "143", tls, imap))
-        assertEquals("imap.example.org", AccountEndpointEdit.joined("imap.example.org", "143", starttls, imap))
+        assertEquals("imap.example.org:143", AccountEndpointEdit.joined("imap.example.org", "143", tls, imap, plainAddressing))
+        assertEquals("imap.example.org", AccountEndpointEdit.joined("imap.example.org", "143", starttls, imap, plainAddressing))
     }
 
     @Test
@@ -71,7 +71,7 @@ class AccountEndpointEditTest {
         // field is the one the person can see beside the name.
         assertEquals(
             "mail.example:2993",
-            AccountEndpointEdit.joined("mail.example:2993", "1234", ConnectionSecurity.IMPLICIT_TLS, imap),
+            AccountEndpointEdit.joined("mail.example:2993", "1234", ConnectionSecurity.IMPLICIT_TLS, imap, plainAddressing),
         )
     }
 }

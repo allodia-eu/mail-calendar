@@ -44,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import uniffi.mailcal_bindings.AboutInfo
+import uniffi.mailcal_bindings.AdvancedPage
 import uniffi.mailcal_bindings.AllodiaAccountOffer
 import uniffi.mailcal_bindings.AllodiaDevices
 import uniffi.mailcal_bindings.AllodiaIntent
@@ -115,7 +116,9 @@ internal fun SettingsScreen(
     onAllodiaSetUp: (AllodiaAccountOffer) -> Unit,
     // Diagnostics, opens the Diagnostics screen (log viewer/share, debug toggle).
     onOpenDiagnostics: () -> Unit,
-    // Advanced
+    // Advanced, the core's page; [onReset] starts the reset once the person confirmed it, and
+    // Settings stays open while the page draws it running and then what it came to.
+    advanced: AdvancedPage,
     onReset: () -> Unit,
     onBack: () -> Unit,
     /**
@@ -238,6 +241,7 @@ internal fun SettingsScreen(
                     allodiaSubscription = allodiaSubscription,
                     allodiaDevices = allodiaDevices,
                     onAllodiaSetUp = onAllodiaSetUp,
+                    advanced = advanced,
                     onRequestReset = { confirmingReset = true },
                     accountsUi = accountsUi,
                     onOpenAccount = { id ->
@@ -263,7 +267,6 @@ internal fun SettingsScreen(
                     onClick = {
                         confirmingReset = false
                         onReset()
-                        onBack()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) {

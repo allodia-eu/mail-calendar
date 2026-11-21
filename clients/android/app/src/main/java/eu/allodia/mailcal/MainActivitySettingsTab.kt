@@ -25,11 +25,12 @@ internal fun MailcalApp.setPreference(intent: PreferenceIntent) = dispatch(Inten
 // says where its Back goes instead.
 @Composable
 internal fun MainActivity.SettingsTabContent(instance: MailcalApp, onLeave: (() -> Unit)? = null) {
-    // All four are pulled in the same step that sets the core, so none is null here.
+    // All five are pulled in the same step that sets the core, so none is null here.
     val display = displaySettings ?: return
     val quotes = quoteSettings ?: return
     val swipes = swipeSettings ?: return
     val sendAccount = sendAccountSetting ?: return
+    val advanced = advancedPage ?: return
     SettingsScreen(
                             about = aboutInfo(AboutPlatform.ANDROID),
                             // General, time zone.
@@ -118,8 +119,10 @@ internal fun MainActivity.SettingsTabContent(instance: MailcalApp, onLeave: (() 
                             },
                             // Diagnostics, the log viewer/share + debug-detail screen.
                             onOpenDiagnostics = { showingDiagnostics = true },
-                            // Advanced, reset the local cache.
-                            onReset = { instance.reset() },
+                            // Advanced, the core's page, read again on SETTINGS, which the
+                            // reset raises as it starts and as it ends.
+                            advanced = advanced,
+                            onReset = { instance.dispatch(Intent.ResetDatabase) },
                             onBack = {
                                 if (onLeave != null) onLeave() else showingSettings = false
                                 settingsCategory = null
@@ -145,6 +148,7 @@ private fun MainActivity.accountsSettingsUi() = AccountsSettingsUi(
     notices = notices.notices,
     noticeHandlers = noticeHandlers(),
     standardPort = { kind, security -> standardPort(kind, security).toInt() },
+    addressing = ServerAddressing.core,
     endpointsGap = { id, endpoints -> app?.accountEndpointsGap(id, endpoints) },
     // Add account opens setup in place of Settings, and cancelling or finishing returns to Accounts.
     onAddAccount = {

@@ -34,7 +34,6 @@ fn brand() -> Brand {
     Brand {
         name: "Fixture Mail".to_owned(),
         id: "org.fixture.client".to_owned(),
-        mcp_server_name: "fixture-mail".to_owned(),
         mcp_relay_name: "fixture-mcp".to_owned(),
         data_dir_name: "fixture".to_owned(),
         windows_data_dir: "Fixture/Mail".to_owned(),

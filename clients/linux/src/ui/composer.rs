@@ -26,6 +26,8 @@ use super::{
     composer_pop_out::{connect_pop_out, pop_out_button},
     composer_quote_style::QuoteStylePicker,
     composer_reply_draft::{ReplyDraft, ReplyDraftCore},
+    composer_revision::EditorRevision,
+    composer_seed::seed_editor,
     composer_signature::SignatureControl,
     editor_paste,
     reader::ComposerHost,
@@ -270,13 +272,15 @@ impl ComposerPane {
         let seed = Rc::new(RefCell::new(None));
         content.append(&editor_host);
         let column = ComposerColumn::new(&content, &editor_host, web.widget());
-        super::composer_seed::seed_editor(
+        let revision = Rc::new(Cell::new(EditorRevision::default()));
+        seed_editor(
             &web,
             request,
             &editor_host,
             signature.as_ref(),
             quote_style,
             Rc::clone(&seed),
+            Rc::clone(&revision),
         );
         let report = reply_draft.as_ref().map(|draft| {
             let draft = Rc::downgrade(draft);
@@ -292,9 +296,12 @@ impl ComposerPane {
         self.root.append(&toolbar);
 
         send_button.set_sensitive(!recipients::is_empty(&to.text()));
-        let sensitive_button = send_button.clone();
+        // Weak: Send's own handler holds this field, through the composer's fields.
+        let sensitive_button = send_button.downgrade();
         to.connect_changed(move |field| {
-            sensitive_button.set_sensitive(!recipients::is_empty(field));
+            if let Some(button) = sensitive_button.upgrade() {
+                button.set_sensitive(!recipients::is_empty(field));
+            }
         });
         let fields = ComposerFields {
             request: request.clone(),
@@ -335,15 +342,16 @@ impl ComposerPane {
         // callback, which Send already owns.
         let idle_editor = web.widget().clone();
         let idle_fields = fields.clone();
-        self.autosave.start(web.widget(), fields, move || {
-            read_document(
-                &idle_editor,
-                &idle_fields,
-                &sender,
-                AppInput::SaveComposerDraft,
-                || {},
-            );
-        });
+        self.autosave
+            .start(web.widget(), fields, revision, move || {
+                read_document(
+                    &idle_editor,
+                    &idle_fields,
+                    &sender,
+                    AppInput::SaveComposerDraft,
+                    || {},
+                );
+            });
         web.load(EDITOR_HTML, false);
         self.hint.replace(Some(hint));
         self.error.replace(Some(error));

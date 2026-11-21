@@ -281,7 +281,7 @@ whatever the toolkit calls the thing that takes **no layout space**. Inline, the
 of the input: it appears and disappears on every keystroke and takes a field's worth of height with
 it, so Cc, Bcc, Subject, the editor and Send all jump down and back while the user is still typing
 the first recipient. On a phone it reaches further than it looks: the composer's header is
-*measured* and its height becomes the editor's top inset, so the message body moves too. Five
+*measured* and its height becomes the editor's top inset, so the message body moves too. Six
 things this binds:
 
 - The surface is **opaque and shadowed**. It now covers live content, and a translucent fill
@@ -304,8 +304,13 @@ things this binds:
   past it, and where that room holds fewer than about three suggestions and the room above is
   larger, it opens **above** the field. The event editor's invitee field is that case, scrolled to
   rest on the keyboard. Full width, as the platform's own address pickers are: a phone's field is
-  narrower than most addresses. Desktops are out of scope: their window system keeps a popup on
-  screen.
+  narrower than most addresses.
+- On a desktop the **whole list is on screen**, never under the window's own bars. WinUI and GTK
+  get that from the window system, because their popup is a window of its own. A Mac's list is
+  drawn inside the window, and a sheet draws its bar of Cancel and Save over whatever reaches
+  under it, so the Mac takes the phone's rule with that bar where the keyboard was, at the input's
+  own width. The event editor's invitee field is that case again: it is the sheet's last field, so
+  its list opens above it.
 
 **The caret opens where the work starts.** A composer that is already addressed (a reply, a
 reply-all, a forward's quoted original, a mail link, an assistant's draft) opens with the caret in
@@ -357,6 +362,7 @@ change updates in every catalog locale.
 | A comma, **Return** or **leaving the field** finishes an address | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions **float**: the form below them does not move | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Suggestions stay **clear of the on-screen keyboard**, full width | — | — | ✅ | — | ✅ | — |
+| On a desktop, suggestions stay **on screen**, never under the window's own bars | — | ✅ | — | ✅ | — | ✅ |
 | Address fields ask for the **email keyboard**, uncorrected | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | The caret opens in **To**, or in the body when already addressed | — | ✅ | ✅ | ✅ | ✅ | ✅ |
 | CardDAV contact sources (one adapter per address book) | ✅ | — | — | — | — | ✅ |

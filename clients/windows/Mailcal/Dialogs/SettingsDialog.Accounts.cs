@@ -308,24 +308,11 @@ public sealed partial class SettingsDialog
     /// </summary>
     private void OnAccountsChanged()
     {
-        // Every other category reconciles itself, and the core is asked nothing on their behalf:
-        // this runs on every settings and notices signal. An account is removed from the
-        // Accounts category, so that is where the last one goes. Videoconferencing lists the
-        // accounts that make meetings, from the same snapshot, and says a refused Jitsi server;
-        // Calendar's default list and Composing's send account follow a default or an account.
-        if (!_rebuilding && CurrentCategory() == "composing")
+        // This runs on every settings and notices signal. An account is removed from the Accounts
+        // category, so that is where the last one goes; the categories that follow a signal of
+        // their own do so in FollowSettingsSignal.
+        if (!_rebuilding && FollowSettingsSignal(CurrentCategory()))
         {
-            RefreshSendAccount();
-            return;
-        }
-        if (!_rebuilding && CurrentCategory() == "videoconferencing")
-        {
-            RefreshMeetingAccounts();
-            return;
-        }
-        if (!_rebuilding && CurrentCategory() == "calendar")
-        {
-            RefreshDefaultCalendars();
             return;
         }
         if (_rebuilding || CurrentCategory() != "accounts")
