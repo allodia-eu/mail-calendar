@@ -166,7 +166,7 @@ style that names nothing is cleared. A style's id is opaque CSPRNG output.
       out in other languages, the dates of those that say enough) or `NothingUsable`. Both say how
       many messages found could not be loaded (`not_loaded`): their bodies could not be read from
       the server or the device, so a client says the read is incomplete whenever that is not
-      zero, as it does for `older_not_fetched`. It says what is sent where,
+      zero (`learn_not_loaded`), as it does for `older_not_fetched`. It says what is sent where,
       naming the relay or the endpoint's host, and names no price, which only the relay knows. At
       `NothingUsable` Learn is held and nothing will be sent, so the record names neither a
       destination nor a reason it could not send (`sends_to` and `cannot_send` are both empty).

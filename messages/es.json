@@ -1398,6 +1398,8 @@
 	"learn_keyword_not_kept": "El servidor de esta cuenta no marca las respuestas redactadas para ti, así que tus otros dispositivos no pueden distinguirlas de las tuyas.",
 	"learn_fetching": "Descargando del servidor tu correo enviado más antiguo…",
 	"learn_older_not_fetched": "No se ha podido descargar del servidor tu correo enviado más antiguo, así que solo se ha leído lo que guarda este dispositivo.",
+	"learn_not_loaded": "No se han podido cargar {count} mensajes, así que no se han leído.",
+	"learn_not_loaded_one": "No se ha podido cargar {count} mensaje, así que no se ha leído.",
 	"learn_range_fetch_older": "Primero se descarga del servidor el correo enviado más antiguo, lo que puede tardar un poco.",
 	"learn_range_fetch_all": "Primero se descarga del servidor todo tu correo enviado. Con muchos años de correo, puede tardar bastante.",
 	"reveal_nothing_in_language": "No destaca nada en este idioma.",
