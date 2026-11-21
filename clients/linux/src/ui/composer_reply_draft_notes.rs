@@ -48,8 +48,9 @@ pub(crate) fn draw(notes: &gtk::Box, record: &ComposerReplyDraft, actions: &Acti
         ReplyDraftState::Failed { failure, remedy } => {
             notes.append(&boxed(&failure_row(*failure, *remedy, actions)));
         }
-        // Said in the input where the person can act on it; a line here where they cannot.
-        ReplyDraftState::Unavailable { failure, remedy } if record.held_by.is_none() => {
+        // A reason the person can act on is said in the input the control opens; one they cannot
+        // comes with the control held, and is a line here.
+        ReplyDraftState::Unavailable { failure, remedy } if !record.control.enabled => {
             notes.append(&boxed(&failure_row(*failure, *remedy, actions)));
         }
         ReplyDraftState::Unavailable { .. } | ReplyDraftState::Ready => {}

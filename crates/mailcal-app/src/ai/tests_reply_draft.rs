@@ -302,6 +302,38 @@ async fn what_the_relay_refused_is_a_failure_with_its_remedy() {
     assert!(failed.draft.enabled, "it can be asked again");
 }
 
+/// The message answered cannot be read once a draft is asked for: nothing the person can act on,
+/// so the control is held, and the record still names the reason for a client to draw among the
+/// composer's notes (`docs/ai.md` rule 18).
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_message_gone_holds_the_control_and_names_the_reason() {
+    let relay = ScriptedRelay::answering(Ok(drafted()));
+    // Syncing needs no raw source, so the reply opens on `m1`; only reading its body fails.
+    let provider = ThreadProvider::with(vec![original_message("m1")]).failing_source();
+    let (app, _) = assistant(provider, &relay).await;
+    let reply = open_reply(&app, "reply").await;
+    app.take_reply_draft_report(&reply, report(0, LeadText::Empty, false, vec![], 0), 0);
+    assert_eq!(app.draft_reply(&reply, start(false)), Some(AiQueued::Run));
+    run(&app).await;
+    let gone = view(&app, &reply);
+    assert_eq!(
+        gone.state,
+        ReplyDraftState::Unavailable {
+            failure: AiFailure::MessageGone,
+            remedy: None,
+        }
+    );
+    assert!(!gone.control.enabled && !gone.control.running);
+    assert!(!gone.draft.enabled);
+    assert_eq!(
+        gone.held_by,
+        Some(ReplyDraftHold {
+            failure: AiFailure::MessageGone,
+            remedy: None,
+        })
+    );
+}
+
 /// Try again is Draft again, so it is held exactly when Draft is.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn try_again_is_held_with_draft() {
