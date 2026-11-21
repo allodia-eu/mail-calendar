@@ -10,6 +10,7 @@ internal sealed partial record AiWords
         L10n.AiFailureKeyRefused(),
         L10n.AiFailureRefusedEuNative(),
         L10n.AiFailureRefusedEuHosted(),
+        L10n.AiFailureRefusedUndeclared(),
         L10n.AiFailureNowhereToSend(),
         L10n.AiFailureUnreachable(),
         L10n.AiFailureServerError(),

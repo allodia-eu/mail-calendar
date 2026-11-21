@@ -1,8 +1,8 @@
-// The writing assistant's failures and remedies in words (docs/ai.md rule 27). Which failure
-// happened and which remedy it offers are the core's; this words them, once, for every surface
-// that draws one: Settings → Writing style, its learning flow and Draft a reply. WinUI-free and
-// L10n-free, so Mailcal.Tests can link it; the catalog's words arrive as a record
-// (AiWords.Catalog.cs builds it in the app).
+// The writing assistant's failures and remedies in words, and where each remedy leads (docs/ai.md
+// rules 11 and 27). Which failure happened and which remedy it offers are the core's; this words
+// and routes them, once, for every surface that draws one: Settings → Writing style, its learning
+// flow and Draft a reply. WinUI-free and L10n-free, so Mailcal.Tests can link it; the catalog's
+// words arrive as a record (AiWords.Catalog.cs builds it in the app).
 
 using uniffi.mailcal_bindings;
 
@@ -14,6 +14,7 @@ internal sealed partial record AiWords(
     string KeyRefused,
     string RefusedEuNative,
     string RefusedEuHosted,
+    string RefusedUndeclared,
     string NowhereToSend,
     string Unreachable,
     string ServerError,
@@ -40,6 +41,7 @@ internal sealed partial record AiWords(
     {
         AiFailure.RelaySignIn => RelaySignIn,
         AiFailure.EndpointKeyRefused => KeyRefused,
+        AiFailure.Refused { Refusal: JurisdictionRefusal.Unknown } => RefusedUndeclared,
         AiFailure.Refused refused => Refused(refused.Refusal, RefusedEuNative, RefusedEuHosted),
         AiFailure.NowhereToSend => NowhereToSend,
         AiFailure.Unreachable => Unreachable,
@@ -61,7 +63,8 @@ internal sealed partial record AiWords(
     /// A refusal, in the words of the limit that refused it: an endpoint run in the EU from outside
     /// it is refused only where everything must be run from the EU, and anything else by the limit
     /// the record names. <paramref name="euNative"/> and <paramref name="euHosted"/> say what each
-    /// limit admits.
+    /// limit admits. A failure says an undeclared endpoint's refusal in words of its own, before it
+    /// reaches this; the form's declaration line words it by the limit.
     /// </summary>
     internal static string Refused(JurisdictionRefusal refusal, string euNative, string euHosted) => refusal switch
     {
@@ -79,6 +82,43 @@ internal sealed partial record AiWords(
         AiRemedy.ChooseRange => RemedyChooseRange,
         AiRemedy.LearnStyle => RemedyLearnStyle,
         AiRemedy.ChooseStyle => RemedyChooseStyle,
+        _ => throw new ArgumentOutOfRangeException(nameof(remedy), remedy, null),
+    };
+}
+
+/// <summary>Where a remedy takes the person, from Settings → Writing style and from the composer
+/// alike (docs/ai.md rules 11 and 27). Each surface keeps what it holds: the learning flow as its
+/// Remedy left it, the composer its draft.</summary>
+internal enum AiRemedyPlace
+{
+    /// <summary>What failed, again: the flow runs it, the composer reopens the instruction's
+    /// input.</summary>
+    Retry,
+
+    /// <summary>The Allodia sign-in, started over whatever the remedy sat on; the learning flow
+    /// waits on its review meanwhile.</summary>
+    SignIn,
+
+    /// <summary>Settings → Advanced, where the own endpoint is set up.</summary>
+    Endpoint,
+
+    /// <summary>Settings → Writing style, where an account's style is chosen; in the flow, the
+    /// step its Remedy moved back to.</summary>
+    WritingStyle,
+
+    /// <summary>The learning flow, opened in Settings → Writing style.</summary>
+    Learn,
+}
+
+internal static class AiRemedies
+{
+    internal static AiRemedyPlace PlaceOf(AiRemedy remedy) => remedy switch
+    {
+        AiRemedy.TryAgain => AiRemedyPlace.Retry,
+        AiRemedy.SignInToAllodia => AiRemedyPlace.SignIn,
+        AiRemedy.OpenAiEndpoint => AiRemedyPlace.Endpoint,
+        AiRemedy.LearnStyle => AiRemedyPlace.Learn,
+        AiRemedy.ChooseStyle or AiRemedy.ChooseAccount or AiRemedy.ChooseRange => AiRemedyPlace.WritingStyle,
         _ => throw new ArgumentOutOfRangeException(nameof(remedy), remedy, null),
     };
 }
