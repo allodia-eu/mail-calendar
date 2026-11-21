@@ -222,6 +222,12 @@ private struct StyleReviewStage: View {
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
         }
+        if let notLoaded = WritingStyleWords.notLoaded(review) {
+            Text(notLoaded)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         consent
         if !keywordKept {
             Label(L10n.learn_keyword_not_kept(), systemImage: "info.circle")

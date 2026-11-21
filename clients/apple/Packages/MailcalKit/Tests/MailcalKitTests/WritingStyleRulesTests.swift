@@ -95,6 +95,19 @@ private func page(outcome: WritingStyleOutcome?) -> WritingStylePage {
         #expect(WritingStyleWords.fetch(.wholeHistory) == L10n.learn_range_fetch_all())
     }
 
+    @Test(arguments: [UInt32(0), 1, 3])
+    func theReviewSaysHowManyMessagesItCouldNotLoad(count: UInt32) {
+        let report = StyleLearningReport(
+            found: 12, usable: 8, languages: [], otherLanguages: 0, oldest: nil, newest: nil,
+            notLoaded: count)
+        let expected = count == 0 ? nil : L10n.learn_not_loaded(count: Int(count))
+        #expect(WritingStyleWords.notLoaded(.ready(report: report)) == expected)
+        #expect(WritingStyleWords.notLoaded(.nothingUsable(report: report)) == expected)
+        if count == 1 { #expect(expected?.contains("1 message ") == true, "the singular is worded") }
+        #expect(WritingStyleWords.notLoaded(.reading) == nil)
+        #expect(WritingStyleWords.notLoaded(.fetching) == nil)
+    }
+
     @Test func theSpokenLetterJoinsItsPartsWithOneComma() {
         // A greeting and a sign-off carry their own comma, and the parts are joined by one.
         func span(_ text: String) -> [WritingStyleSpan] {

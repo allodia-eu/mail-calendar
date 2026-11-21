@@ -89,6 +89,17 @@ enum WritingStyleWords {
         }
     }
 
+    /// What the review could not read, said once it has read: how many sent messages in the range
+    /// could not be loaded. `nil` while it reads, and when every one was loaded.
+    static func notLoaded(_ review: StyleLearningReview) -> String? {
+        switch review {
+        case let .ready(report), let .nothingUsable(report):
+            report.notLoaded == 0 ? nil : L10n.learn_not_loaded(count: Int(report.notLoaded))
+        case .fetching, .reading:
+            nil
+        }
+    }
+
     /// How far back the device holds the account's sent mail.
     static func reach(_ reach: StyleSentReach) -> String {
         switch reach {
