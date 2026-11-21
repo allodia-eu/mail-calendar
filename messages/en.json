@@ -1399,6 +1399,8 @@
 	"learn_keyword_not_kept": "This account’s server keeps no mark on replies drafted for you, so your other devices cannot tell them from your own.",
 	"learn_fetching": "Fetching your older sent mail from the server…",
 	"learn_older_not_fetched": "Your older sent mail could not be fetched from the server, so only what this device holds was read.",
+	"learn_not_loaded": "{count} messages could not be loaded, so they were not read.",
+	"learn_not_loaded_one": "{count} message could not be loaded, so it was not read.",
 	"learn_range_fetch_older": "Older sent mail is fetched from the server first, which can take a while.",
 	"learn_range_fetch_all": "All your sent mail is fetched from the server first. With many years of mail, this can take a long time.",
 	"reveal_nothing_in_language": "Nothing stood out in this language.",

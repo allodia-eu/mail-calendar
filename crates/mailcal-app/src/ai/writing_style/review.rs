@@ -96,13 +96,21 @@ impl<P: Provider> App<P> {
         let keyword_kept = self.keeps_drafted_keyword(account).await;
         let found = read.map(|(messages, horizon)| {
             let signatures = self.signature_plain_texts();
-            corpus::build(
+            let corpus = corpus::build(
                 messages,
                 &CorpusOptions {
                     signatures,
                     horizon,
                 },
-            )
+            );
+            let report = &corpus.report;
+            log::info!(
+                "ai: the review found {} sent message(s), {} usable, {} not loaded",
+                report.found,
+                report.usable,
+                report.not_loaded,
+            );
+            corpus
         });
         {
             let mut flows = self.flows();

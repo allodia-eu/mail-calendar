@@ -1399,6 +1399,8 @@
 	"learn_keyword_not_kept": "O servidor desta conta não marca as respostas redigidas para si, pelo que os seus outros dispositivos não as conseguem distinguir das suas.",
 	"learn_fetching": "A obter do servidor o correio enviado mais antigo…",
 	"learn_older_not_fetched": "Não foi possível obter do servidor o correio enviado mais antigo, pelo que só foi lido o que este dispositivo guarda.",
+	"learn_not_loaded": "Não foi possível carregar {count} mensagens, pelo que não foram lidas.",
+	"learn_not_loaded_one": "Não foi possível carregar {count} mensagem, pelo que não foi lida.",
 	"learn_range_fetch_older": "O correio enviado mais antigo é primeiro obtido do servidor, o que pode demorar algum tempo.",
 	"learn_range_fetch_all": "Todo o correio enviado é primeiro obtido do servidor. Com muitos anos de correio, pode demorar bastante.",
 	"reveal_nothing_in_language": "Nada se destacou nesta língua.",
