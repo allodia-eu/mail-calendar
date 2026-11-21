@@ -282,25 +282,25 @@ public sealed partial class SettingsDialog
 
     // Every remedy is the flow's Remedy, which moves it, keeps it on the review for the Allodia
     // sign-in, or ends it for the own endpoint's form; a run that failed with its host closed opens
-    // the host on the failure first, unless the remedy ends the flow. A remedy that names another
-    // part of Settings then opens it, leaving the flow as the remedy left it rather than closing it.
+    // the host on the failure first, unless the remedy ends the flow. The sign-in then starts as it
+    // does from the composer, over the flow, and the own endpoint's form opens under Advanced.
     private void TakeRemedy(AiRemedy remedy, bool reopen)
     {
-        if (reopen && remedy is not AiRemedy.OpenAiEndpoint)
+        var place = AiRemedies.PlaceOf(remedy);
+        if (reopen && place != AiRemedyPlace.Endpoint)
         {
             _model.MoveLearning(new StyleLearningIntent.Open());
         }
         _model.MoveLearning(new StyleLearningIntent.Remedy());
-        var opens = remedy switch
+        switch (place)
         {
-            AiRemedy.OpenAiEndpoint => "advanced",
-            AiRemedy.SignInToAllodia when Categories().Any(category => category.Tag == "allodia") => "allodia",
-            _ => null,
-        };
-        if (opens is not null)
-        {
-            _learningHost = null;
-            SelectCategory(opens);
+            case AiRemedyPlace.SignIn:
+                _model.SignInToAllodia();
+                break;
+            case AiRemedyPlace.Endpoint:
+                _learningHost = null;
+                SelectCategory("advanced");
+                break;
         }
     }
 

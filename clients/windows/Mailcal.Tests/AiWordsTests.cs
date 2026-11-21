@@ -1,6 +1,7 @@
-// The writing assistant's failures and remedies in words (docs/ai.md rule 27). Which failure
-// happened and which remedy it offers are the core's, pinned in mailcal-app; what is pinned here is
-// that each is worded by its own catalog key, and a refusal by the mode that refused it.
+// The writing assistant's failures and remedies in words, and where each remedy leads (docs/ai.md
+// rules 11 and 27). Which failure happened and which remedy it offers are the core's, pinned in
+// mailcal-app; what is pinned here is that each is worded by its own catalog key, a refusal by the
+// mode that refused it, and that a remedy leads to one place from every surface that draws it.
 
 using Allodia.Mailcal.Services;
 using uniffi.mailcal_bindings;
@@ -11,7 +12,7 @@ namespace Allodia.Mailcal.Tests;
 public class AiWordsTests
 {
     private static readonly AiWords Words = new(
-        "relay sign-in", "key refused", "eu native only", "eu only", "nowhere", "unreachable", "server error",
+        "relay sign-in", "key refused", "eu native only", "eu only", "location unknown", "nowhere", "unreachable", "server error",
         "too many", "unreadable", "no credits", "not entitled", "no sent folder", "nothing to learn",
         "too large", "no style", "no style for account", "message gone",
         "sign in", "open endpoint", "try again", "choose account", "choose range", "learn style", "choose style");
@@ -57,14 +58,16 @@ public class AiWordsTests
     }
 
     // An endpoint run in the EU from outside it is refused only where everything must be run from
-    // the EU; anything else is refused by the limit the record names.
+    // the EU; one that does not say where it runs is refused for that, under either limit; anything
+    // else is refused by the limit the record names.
     [Fact]
     public void ARefusalSaysWhatTheLimitThatRefusedItAdmits()
     {
         Assert.Equal("eu native only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.EuHosted())));
         Assert.Equal("eu native only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.NonEu(JurisdictionLimit.EuNative))));
         Assert.Equal("eu only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.NonEu(JurisdictionLimit.EuHosted))));
-        Assert.Equal("eu only", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.Unknown(JurisdictionLimit.EuHosted))));
+        Assert.Equal("location unknown", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.Unknown(JurisdictionLimit.EuNative))));
+        Assert.Equal("location unknown", Words.Of(new AiFailure.Refused(new JurisdictionRefusal.Unknown(JurisdictionLimit.EuHosted))));
     }
 
     [Fact]
@@ -77,5 +80,33 @@ public class AiWordsTests
         Assert.Equal("choose range", Words.Of(AiRemedy.ChooseRange));
         Assert.Equal("learn style", Words.Of(AiRemedy.LearnStyle));
         Assert.Equal("choose style", Words.Of(AiRemedy.ChooseStyle));
+    }
+
+    // Settings → Writing style and the composer both take a remedy through PlaceOf, so the sign-in
+    // starts from either rather than one of them opening Settings → Allodia account instead.
+    [Fact]
+    public void SignInToAllodiaStartsTheSignInAndTryAgainRunsAgain()
+    {
+        Assert.Equal(AiRemedyPlace.SignIn, AiRemedies.PlaceOf(AiRemedy.SignInToAllodia));
+        Assert.Equal(AiRemedyPlace.Retry, AiRemedies.PlaceOf(AiRemedy.TryAgain));
+    }
+
+    [Fact]
+    public void ARemedyThatIsNotTheSignInOpensWhereItCanBeTaken()
+    {
+        Assert.Equal(AiRemedyPlace.Endpoint, AiRemedies.PlaceOf(AiRemedy.OpenAiEndpoint));
+        Assert.Equal(AiRemedyPlace.Learn, AiRemedies.PlaceOf(AiRemedy.LearnStyle));
+        Assert.Equal(AiRemedyPlace.WritingStyle, AiRemedies.PlaceOf(AiRemedy.ChooseStyle));
+        Assert.Equal(AiRemedyPlace.WritingStyle, AiRemedies.PlaceOf(AiRemedy.ChooseAccount));
+        Assert.Equal(AiRemedyPlace.WritingStyle, AiRemedies.PlaceOf(AiRemedy.ChooseRange));
+    }
+
+    [Fact]
+    public void EveryRemedyLeadsSomewhere()
+    {
+        foreach (var remedy in Enum.GetValues<AiRemedy>())
+        {
+            Assert.True(Enum.IsDefined(AiRemedies.PlaceOf(remedy)));
+        }
     }
 }
