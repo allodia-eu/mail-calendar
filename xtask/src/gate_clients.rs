@@ -142,6 +142,11 @@ fn apple(plan: &mut Plan) {
 /// **Both APKs.** The module carries a `play` flavour and a `foss` one, and `:app:test` builds and
 /// runs each, so the build that carries no Google library is exercised here rather than first at
 /// an F-Droid submission.
+///
+/// **Nothing outlives the step.** Gradle runs without its daemon and compiles Kotlin in its own
+/// process, so no daemon is left holding the step's output, which anything waiting for the gate's
+/// output to close would otherwise sit behind for hours, and no idle one stays resident after each
+/// worktree's gate. A build run by hand or by Android Studio keeps both daemons.
 fn android(plan: &mut Plan, root: &Path, built: JobId) {
     if !gradle_wrapper(root).is_file() {
         plan.verdict(
@@ -157,12 +162,20 @@ fn android(plan: &mut Plan, root: &Path, built: JobId) {
         return;
     }
     plan.add("android (:app:test)", &[built], None, |ctx| {
-        let gradle = Cmd::new(gradle_wrapper(&ctx.root))
-            .args([":app:test", "-x", "cargoBuildBindings"])
-            .dir("clients/android")
-            .env("CARGO_TARGET_DIR", ctx.root.join(TOOLS_DIR));
-        commands(vec![gradle])(ctx)
+        commands(vec![android_tests(&ctx.root)])(ctx)
     });
+}
+
+/// The Gradle run behind the Android step.
+fn android_tests(root: &Path) -> Cmd {
+    Cmd::new(gradle_wrapper(root))
+        .args([":app:test", "-x", "cargoBuildBindings"])
+        .args([
+            "--no-daemon",
+            "-Pkotlin.compiler.execution.strategy=in-process",
+        ])
+        .dir("clients/android")
+        .env("CARGO_TARGET_DIR", root.join(TOOLS_DIR))
 }
 
 /// Windows: the pure `net10.0` half runs anywhere dotnet does, including macOS. The WinUI app and
@@ -296,4 +309,20 @@ fn linux(plan: &mut Plan, featured: JobId) {
         let wrap = ["bash".to_owned(), session.display().to_string()];
         gate_testrun::run(ctx, "features", |t| t.package == "mailcal-linux", &wrap)
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    #[test]
+    fn the_android_step_leaves_no_gradle_or_kotlin_daemon_behind() {
+        let args = super::android_tests(Path::new(".")).arg_text();
+        for flag in [
+            "--no-daemon",
+            "-Pkotlin.compiler.execution.strategy=in-process",
+        ] {
+            assert!(args.iter().any(|a| a == flag), "{flag} missing: {args:?}");
+        }
+    }
 }
